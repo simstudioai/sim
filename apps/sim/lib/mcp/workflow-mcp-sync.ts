@@ -74,11 +74,7 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
 
     let workflowState: { blocks?: Record<string, unknown> } | null = state ?? null
     if (!workflowState) {
-      try {
-        workflowState = await loadDeployedWorkflowState(workflowId)
-      } catch {
-        workflowState = null
-      }
+      workflowState = await loadDeployedWorkflowState(workflowId)
     }
 
     if (!hasValidStartBlockInState(workflowState as WorkflowState | null)) {

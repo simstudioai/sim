@@ -421,6 +421,7 @@ export function MCP({ initialServerId }: MCPProps) {
   const [editFormData, setEditFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
   const [editOriginalData, setEditOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
   const [isUpdatingServer, setIsUpdatingServer] = useState(false)
+  const [editSaveError, setEditSaveError] = useState<string | null>(null)
   const [editShowEnvVars, setEditShowEnvVars] = useState(false)
   const [editEnvSearchTerm, setEditEnvSearchTerm] = useState('')
   const [editCursorPosition, setEditCursorPosition] = useState(0)
@@ -808,6 +809,7 @@ export function MCP({ initialServerId }: MCPProps) {
       setEditFormData(data)
       setEditOriginalData(JSON.parse(JSON.stringify(data)))
       setShowEditModal(true)
+      setEditSaveError(null)
       clearEditTestResult()
       resetEditEnvVarState()
       setEditUrlScrollLeft(0)
@@ -823,6 +825,7 @@ export function MCP({ initialServerId }: MCPProps) {
     setShowEditModal(false)
     setEditFormData(DEFAULT_FORM_DATA)
     setEditOriginalData(DEFAULT_FORM_DATA)
+    setEditSaveError(null)
     clearEditTestResult()
     resetEditEnvVarState()
   }, [clearEditTestResult, resetEditEnvVarState])
@@ -934,6 +937,7 @@ export function MCP({ initialServerId }: MCPProps) {
     if (!selectedServerId || !editFormData.name.trim()) return
 
     setIsUpdatingServer(true)
+    setEditSaveError(null)
     try {
       const headersRecord = headersToRecord(editFormData.headers)
       const serverConfig = {
@@ -969,6 +973,8 @@ export function MCP({ initialServerId }: MCPProps) {
       setShowEditModal(false)
       logger.info(`Updated MCP server: ${editFormData.name}`)
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update server'
+      setEditSaveError(message)
       logger.error('Failed to update MCP server:', error)
     } finally {
       setIsUpdatingServer(false)
@@ -1336,6 +1342,11 @@ export function MCP({ initialServerId }: MCPProps) {
               </div>
             </ModalBody>
             <ModalFooter>
+              {editSaveError && (
+                <p className='mb-[8px] w-full text-[12px] text-[var(--text-error)]'>
+                  {editSaveError}
+                </p>
+              )}
               <div className='flex w-full items-center justify-between'>
                 <Button
                   variant='default'
