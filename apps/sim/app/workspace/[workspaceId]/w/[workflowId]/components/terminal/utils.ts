@@ -161,6 +161,7 @@ export interface ExecutionGroup {
  */
 interface IterationGroup {
   iterationType: string
+  iterationContainerId: string
   iterationCurrent: number
   iterationTotal?: number
   blocks: ConsoleEntry[]
@@ -169,7 +170,7 @@ interface IterationGroup {
 
 /**
  * Builds a tree structure from flat entries.
- * Groups iteration entries by (iterationType, iterationCurrent), showing all blocks
+ * Groups iteration entries by (iterationType, iterationContainerId, iterationCurrent), showing all blocks
  * that executed within each iteration.
  * Sorts by start time to ensure chronological order.
  */
@@ -186,16 +187,18 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     }
   }
 
-  // Group iteration entries by (iterationType, iterationCurrent)
+  // Group iteration entries by (iterationType, iterationContainerId, iterationCurrent)
   const iterationGroupsMap = new Map<string, IterationGroup>()
   for (const entry of iterationEntries) {
-    const key = `${entry.iterationType}-${entry.iterationCurrent}`
+    const iterationContainerId = entry.iterationContainerId || 'unknown'
+    const key = `${entry.iterationType}-${iterationContainerId}-${entry.iterationCurrent}`
     let group = iterationGroupsMap.get(key)
     const entryStartMs = new Date(entry.startedAt || entry.timestamp).getTime()
 
     if (!group) {
       group = {
         iterationType: entry.iterationType!,
+        iterationContainerId,
         iterationCurrent: entry.iterationCurrent!,
         iterationTotal: entry.iterationTotal,
         blocks: [],
@@ -220,26 +223,34 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     group.blocks.sort((a, b) => a.executionOrder - b.executionOrder)
   }
 
-  // Group iterations by iterationType to create subflow parents
-  const subflowGroups = new Map<string, IterationGroup[]>()
+  // Group iterations by (iterationType, iterationContainerId) to create subflow parents
+  const subflowGroups = new Map<
+    string,
+    { iterationType: string; iterationContainerId: string; groups: IterationGroup[] }
+  >()
   for (const group of iterationGroupsMap.values()) {
-    const type = group.iterationType
-    let groups = subflowGroups.get(type)
-    if (!groups) {
-      groups = []
-      subflowGroups.set(type, groups)
+    const key = `${group.iterationType}-${group.iterationContainerId}`
+    let subflowGroup = subflowGroups.get(key)
+    if (!subflowGroup) {
+      subflowGroup = {
+        iterationType: group.iterationType,
+        iterationContainerId: group.iterationContainerId,
+        groups: [],
+      }
+      subflowGroups.set(key, subflowGroup)
     }
-    groups.push(group)
+    subflowGroup.groups.push(group)
   }
 
   // Sort iterations within each subflow by iteration number
-  for (const groups of subflowGroups.values()) {
-    groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
+  for (const subflowGroup of subflowGroups.values()) {
+    subflowGroup.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
   }
 
   // Build subflow nodes with iteration children
   const subflowNodes: EntryNode[] = []
-  for (const [iterationType, iterationGroups] of subflowGroups.entries()) {
+  for (const subflowGroup of subflowGroups.values()) {
+    const { iterationType, iterationContainerId, groups: iterationGroups } = subflowGroup
     // Calculate subflow timing from all its iterations
     const firstIteration = iterationGroups[0]
     const allBlocks = iterationGroups.flatMap((g) => g.blocks)
@@ -255,10 +266,10 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     // Use the minimum executionOrder from all child blocks for proper ordering
     const subflowExecutionOrder = Math.min(...allBlocks.map((b) => b.executionOrder))
     const syntheticSubflow: ConsoleEntry = {
-      id: `subflow-${iterationType}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
+      id: `subflow-${iterationType}-${iterationContainerId}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
       timestamp: new Date(subflowStartMs).toISOString(),
       workflowId: firstIteration.blocks[0]?.workflowId || '',
-      blockId: `${iterationType}-container`,
+      blockId: `${iterationType}-container-${iterationContainerId}`,
       blockName: iterationType.charAt(0).toUpperCase() + iterationType.slice(1),
       blockType: iterationType,
       executionId: firstIteration.blocks[0]?.executionId,
@@ -284,10 +295,10 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       // Use the minimum executionOrder from blocks in this iteration
       const iterExecutionOrder = Math.min(...iterBlocks.map((b) => b.executionOrder))
       const syntheticIteration: ConsoleEntry = {
-        id: `iteration-${iterationType}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
+        id: `iteration-${iterationType}-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
         timestamp: new Date(iterStartMs).toISOString(),
         workflowId: iterBlocks[0]?.workflowId || '',
-        blockId: `iteration-${iterGroup.iterationCurrent}`,
+        blockId: `iteration-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}`,
         blockName: `Iteration ${iterGroup.iterationCurrent}${iterGroup.iterationTotal !== undefined ? ` / ${iterGroup.iterationTotal}` : ''}`,
         blockType: iterationType,
         executionId: iterBlocks[0]?.executionId,
@@ -299,6 +310,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         iterationCurrent: iterGroup.iterationCurrent,
         iterationTotal: iterGroup.iterationTotal,
         iterationType: iterationType as 'loop' | 'parallel',
+        iterationContainerId: iterGroup.iterationContainerId,
       }
 
       // Block nodes within this iteration

@@ -80,6 +80,7 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -102,6 +103,7 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -124,6 +126,7 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -219,7 +222,12 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     blockName: string,
     blockType: string,
     executionOrder: number,
-    iterationContext?: { iterationCurrent: number; iterationTotal: number; iterationType: string }
+    iterationContext?: {
+      iterationCurrent: number
+      iterationTotal?: number
+      iterationType: string
+      iterationContainerId?: string
+    }
   ) => {
     sendEvent({
       type: 'block:started',
@@ -235,6 +243,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           iterationCurrent: iterationContext.iterationCurrent,
           iterationTotal: iterationContext.iterationTotal,
           iterationType: iterationContext.iterationType as any,
+          iterationContainerId: iterationContext.iterationContainerId,
         }),
       },
     })
@@ -252,7 +261,12 @@ export function createSSECallbacks(options: SSECallbackOptions) {
       executionOrder: number
       endedAt: string
     },
-    iterationContext?: { iterationCurrent: number; iterationTotal: number; iterationType: string }
+    iterationContext?: {
+      iterationCurrent: number
+      iterationTotal?: number
+      iterationType: string
+      iterationContainerId?: string
+    }
   ) => {
     const hasError = callbackData.output?.error
     const iterationData = iterationContext
@@ -260,6 +274,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           iterationCurrent: iterationContext.iterationCurrent,
           iterationTotal: iterationContext.iterationTotal,
           iterationType: iterationContext.iterationType as any,
+          iterationContainerId: iterationContext.iterationContainerId,
         }
       : {}
 

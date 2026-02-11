@@ -21,6 +21,7 @@ export interface ConsoleEntry {
   iterationCurrent?: number
   iterationTotal?: number
   iterationType?: SubflowType
+  iterationContainerId?: string
   isRunning?: boolean
   isCanceled?: boolean
 }
@@ -29,6 +30,7 @@ export interface ConsoleUpdate {
   content?: string
   output?: Partial<NormalizedBlockOutput>
   replaceOutput?: NormalizedBlockOutput
+  executionOrder?: number
   error?: string | Error | null
   warning?: string
   success?: boolean
@@ -41,6 +43,7 @@ export interface ConsoleUpdate {
   iterationCurrent?: number
   iterationTotal?: number
   iterationType?: SubflowType
+  iterationContainerId?: string
 }
 
 export interface ConsoleStore {

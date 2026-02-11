@@ -17,7 +17,11 @@ import {
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
-import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import type {
+  BlockStateWriter,
+  ContextExtensions,
+  IterationContext,
+} from '@/executor/execution/types'
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
@@ -473,28 +477,41 @@ export class BlockExecutor {
     }
   }
 
-  private getIterationContext(
-    ctx: ExecutionContext,
-    node: DAGNode
-  ): { iterationCurrent: number; iterationTotal: number; iterationType: SubflowType } | undefined {
+  private createIterationContext(
+    iterationCurrent: number,
+    iterationType: SubflowType,
+    iterationContainerId?: string,
+    iterationTotal?: number
+  ): IterationContext {
+    return {
+      iterationCurrent,
+      iterationTotal,
+      iterationType,
+      iterationContainerId,
+    }
+  }
+
+  private getIterationContext(ctx: ExecutionContext, node: DAGNode): IterationContext | undefined {
     if (!node?.metadata) return undefined
 
-    if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal) {
-      return {
-        iterationCurrent: node.metadata.branchIndex,
-        iterationTotal: node.metadata.branchTotal,
-        iterationType: 'parallel',
-      }
+    if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal !== undefined) {
+      return this.createIterationContext(
+        node.metadata.branchIndex,
+        'parallel',
+        node.metadata.parallelId,
+        node.metadata.branchTotal
+      )
     }
 
     if (node.metadata.isLoopNode && node.metadata.loopId) {
       const loopScope = ctx.loopExecutions?.get(node.metadata.loopId)
-      if (loopScope && loopScope.iteration !== undefined && loopScope.maxIterations) {
-        return {
-          iterationCurrent: loopScope.iteration,
-          iterationTotal: loopScope.maxIterations,
-          iterationType: 'loop',
-        }
+      if (loopScope && loopScope.iteration !== undefined) {
+        return this.createIterationContext(
+          loopScope.iteration,
+          'loop',
+          node.metadata.loopId,
+          loopScope.maxIterations
+        )
       }
     }
 

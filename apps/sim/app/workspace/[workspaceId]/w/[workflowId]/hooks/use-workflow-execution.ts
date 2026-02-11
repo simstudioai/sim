@@ -365,6 +365,7 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
@@ -387,6 +388,7 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
@@ -394,6 +396,7 @@ export function useWorkflowExecution() {
         updateConsole(
           data.blockId,
           {
+            executionOrder: data.executionOrder,
             input: data.input || {},
             replaceOutput: data.output,
             success: true,
@@ -404,6 +407,7 @@ export function useWorkflowExecution() {
             iterationCurrent: data.iterationCurrent,
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
+            iterationContainerId: data.iterationContainerId,
           },
           executionId
         )
@@ -413,6 +417,7 @@ export function useWorkflowExecution() {
         updateConsole(
           data.blockId,
           {
+            executionOrder: data.executionOrder,
             input: data.input || {},
             replaceOutput: {},
             success: false,
@@ -424,6 +429,7 @@ export function useWorkflowExecution() {
             iterationCurrent: data.iterationCurrent,
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
+            iterationContainerId: data.iterationContainerId,
           },
           executionId
         )
@@ -453,6 +459,7 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
@@ -921,6 +928,7 @@ export function useWorkflowExecution() {
                       useTerminalConsoleStore.getState().updateConsole(
                         log.blockId,
                         {
+                          executionOrder: log.executionOrder,
                           replaceOutput: log.output,
                           success: true,
                         },
