@@ -936,7 +936,6 @@ export function MCP({ initialServerId }: MCPProps) {
   const handleSaveEdit = useCallback(async () => {
     if (!selectedServerId || !editFormData.name.trim()) return
 
-    setIsUpdatingServer(true)
     setEditSaveError(null)
     try {
       const headersRecord = headersToRecord(editFormData.headers)
@@ -952,10 +951,11 @@ export function MCP({ initialServerId }: MCPProps) {
       const connectionResult = await editTestConnection(serverConfig)
 
       if (!connectionResult.success) {
-        logger.error('Connection test failed during edit:', connectionResult.error)
+        setEditSaveError(connectionResult.error || 'Connection test failed')
         return
       }
 
+      setIsUpdatingServer(true)
       const currentServer = servers.find((s) => s.id === selectedServerId)
       await updateServerMutation.mutateAsync({
         workspaceId,
