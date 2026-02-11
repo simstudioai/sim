@@ -67,12 +67,34 @@ function parseTime(value?: string | number | null): number {
 }
 
 /**
- * Checks if a span or any of its descendants has an error
+ * Checks if a span or any of its descendants has an error (any error).
  */
 function hasErrorInTree(span: TraceSpan): boolean {
   if (span.status === 'error') return true
   if (span.children && span.children.length > 0) {
     return span.children.some((child) => hasErrorInTree(child))
+  }
+  if (span.toolCalls && span.toolCalls.length > 0) {
+    return span.toolCalls.some((tc) => tc.error)
+  }
+  return false
+}
+
+/**
+ * Checks if a span or any of its descendants has an unhandled error.
+ * Container spans (loop, iteration, parallel) are skipped — only leaf
+ * block spans with errorHandled are considered. Used only for the root
+ * workflow span to match the actual workflow status.
+ */
+const CONTAINER_TYPES = new Set(['loop', 'loop-iteration', 'parallel', 'parallel-iteration'])
+function hasUnhandledErrorInTree(span: TraceSpan): boolean {
+  const type = span.type?.toLowerCase() || ''
+  if (CONTAINER_TYPES.has(type)) {
+    return span.children ? span.children.some(hasUnhandledErrorInTree) : false
+  }
+  if (span.status === 'error' && !span.errorHandled) return true
+  if (span.children && span.children.length > 0) {
+    return span.children.some((child) => hasUnhandledErrorInTree(child))
   }
   if (span.toolCalls && span.toolCalls.length > 0) {
     return span.toolCalls.some((tc) => tc.error)
@@ -478,13 +500,12 @@ const TraceSpanNode = memo(function TraceSpanNode({
   const duration = span.duration || spanEndTime - spanStartTime
 
   const isDirectError = span.status === 'error'
-  const hasNestedError = hasErrorInTree(span)
+  const isRootWorkflow = depth === 0
+  const isRootWorkflowSpan = isRootWorkflow && span.type?.toLowerCase() === 'workflow'
+  const hasNestedError = isRootWorkflowSpan ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const showErrorStyle = isDirectError || hasNestedError
 
   const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name)
-
-  // Root workflow execution is always expanded and has no toggle
-  const isRootWorkflow = depth === 0
 
   // Build all children including tool calls
   const allChildren = useMemo(() => {

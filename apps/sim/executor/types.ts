@@ -112,6 +112,8 @@ export interface BlockLog {
   output?: any
   input?: any
   error?: string
+  /** Whether this error was handled by an error handler path (error port) */
+  errorHandled?: boolean
   loopId?: string
   parallelId?: string
   iterationIndex?: number

@@ -55,7 +55,7 @@ interface DebugValidationResult {
 interface BlockEventHandlerConfig {
   workflowId?: string
   executionId?: string
-  workflowEdges: Array<{ id: string; target: string }>
+  workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
@@ -322,7 +322,8 @@ export function useWorkflowExecution() {
         if (!workflowId) return
         const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
         incomingEdges.forEach((edge) => {
-          setEdgeRunStatus(workflowId, edge.id, 'success')
+          const status = edge.sourceHandle === 'error' ? 'error' : 'success'
+          setEdgeRunStatus(workflowId, edge.id, status)
         })
       }
 

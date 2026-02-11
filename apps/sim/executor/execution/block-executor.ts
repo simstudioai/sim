@@ -288,6 +288,9 @@ export class BlockExecutor {
 
     const hasErrorPort = this.hasErrorPortEdge(node)
     if (hasErrorPort) {
+      if (blockLog) {
+        blockLog.errorHandled = true
+      }
       logger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
         error: errorMessage,

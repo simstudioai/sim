@@ -156,6 +156,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       output: output,
       ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
       ...(childWorkflowId ? { childWorkflowId } : {}),
+      ...(log.errorHandled && { errorHandled: true }),
       ...(log.loopId && { loopId: log.loopId }),
       ...(log.parallelId && { parallelId: log.parallelId }),
       ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
@@ -501,15 +502,15 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
     addRelativeTimestamps(groupedRootSpans, earliestStart)
 
-    const hasErrors = groupedRootSpans.some((span) => {
-      if (span.status === 'error') return true
-      const checkChildren = (children: TraceSpan[] = []): boolean => {
-        return children.some(
-          (child) => child.status === 'error' || (child.children && checkChildren(child.children))
-        )
+    const containerTypes = new Set(['loop', 'loop-iteration', 'parallel', 'parallel-iteration'])
+    const checkForUnhandledErrors = (s: TraceSpan): boolean => {
+      if (containerTypes.has(s.type?.toLowerCase() || '')) {
+        return s.children ? s.children.some(checkForUnhandledErrors) : false
       }
-      return span.children && checkChildren(span.children)
-    })
+      if (s.status === 'error' && !s.errorHandled) return true
+      return s.children ? s.children.some(checkForUnhandledErrors) : false
+    }
+    const hasUnhandledErrors = groupedRootSpans.some(checkForUnhandledErrors)
 
     const workflowSpan: TraceSpan = {
       id: 'workflow-execution',
@@ -518,7 +519,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       duration: actualWorkflowDuration, // Always use actual duration for the span
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
-      status: hasErrors ? 'error' : 'success',
+      status: hasUnhandledErrors ? 'error' : 'success',
       children: groupedRootSpans,
     }
 
