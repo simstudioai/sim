@@ -2219,6 +2219,13 @@ export function useWorkflowExecution() {
 
     return () => {
       executionStream.cancel(reconnectWorkflowId)
+      // Reset execution state so the SPA guard doesn't block the next reconnection
+      // attempt when the user navigates back to this workflow.
+      // The cancel above causes an AbortError which is swallowed by
+      // isClientDisconnectError, so the .catch() block never fires.
+      setCurrentExecutionId(reconnectWorkflowId, null)
+      setIsExecuting(reconnectWorkflowId, false)
+      setActiveBlocks(reconnectWorkflowId, new Set())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkflowId, hasHydrated])
