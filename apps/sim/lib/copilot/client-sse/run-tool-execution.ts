@@ -115,6 +115,7 @@ async function doExecuteRunTool(
     const result = await executeWorkflowWithFullLogging({
       workflowInput,
       executionId,
+      overrideTriggerType: 'copilot',
       stopAfterBlockId,
       runFromBlock,
     })

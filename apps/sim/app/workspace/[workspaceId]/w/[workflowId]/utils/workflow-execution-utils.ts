@@ -10,7 +10,7 @@ export interface WorkflowExecutionOptions {
   onStream?: (se: StreamingExecution) => Promise<void>
   executionId?: string
   onBlockComplete?: (blockId: string, output: any) => Promise<void>
-  overrideTriggerType?: 'chat' | 'manual' | 'api'
+  overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot'
   stopAfterBlockId?: string
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
