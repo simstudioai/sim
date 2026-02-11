@@ -1388,6 +1388,7 @@ export function useWorkflowExecution() {
             onExecutionCompleted: (data) => {
               if (
                 activeWorkflowId &&
+                executionIdRef.current &&
                 useExecutionStore.getState().getCurrentExecutionId(activeWorkflowId) !==
                   executionIdRef.current
               )
@@ -1459,6 +1460,7 @@ export function useWorkflowExecution() {
             onExecutionError: (data) => {
               if (
                 activeWorkflowId &&
+                executionIdRef.current &&
                 useExecutionStore.getState().getCurrentExecutionId(activeWorkflowId) !==
                   executionIdRef.current
               )
@@ -1492,6 +1494,7 @@ export function useWorkflowExecution() {
             onExecutionCancelled: (data) => {
               if (
                 activeWorkflowId &&
+                executionIdRef.current &&
                 useExecutionStore.getState().getCurrentExecutionId(activeWorkflowId) !==
                   executionIdRef.current
               )
@@ -2196,6 +2199,7 @@ export function useWorkflowExecution() {
       })
       .catch((error) => {
         logger.warn('Execution reconnection failed', { executionId, error })
+        clearExecutionEntries(executionId)
         for (const entry of runningEntries.filter((e) => e.executionId === executionId)) {
           addConsole({
             workflowId: entry.workflowId,
