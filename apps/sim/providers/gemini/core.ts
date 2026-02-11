@@ -5,6 +5,7 @@ import {
   type GenerateContentConfig,
   type GenerateContentResponse,
   type GoogleGenAI,
+  type Interactions,
   type Part,
   type Schema,
   type ThinkingConfig,
@@ -27,6 +28,7 @@ import {
 import type { FunctionCallResponse, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
+  isDeepResearchModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
 } from '@/providers/utils'
@@ -381,6 +383,468 @@ export interface GeminiExecutionConfig {
   providerType: GeminiProviderType
 }
 
+const DEEP_RESEARCH_POLL_INTERVAL_MS = 10_000
+const DEEP_RESEARCH_MAX_DURATION_MS = 60 * 60 * 1000
+
+/**
+ * Sleeps for the specified number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Collapses a ProviderRequest into a single input string and optional system instruction
+ * for the Interactions API, which takes a flat input rather than a messages array.
+ *
+ * Deep research is single-turn only — it takes one research query and returns a report.
+ * Memory/conversation history is hidden in the UI for deep research models, so only
+ * the last user message is used as input. System messages are passed via system_instruction.
+ */
+function collapseMessagesToInput(request: ProviderRequest): {
+  input: string
+  systemInstruction: string | undefined
+} {
+  const systemParts: string[] = []
+  const userParts: string[] = []
+
+  if (request.systemPrompt) {
+    systemParts.push(request.systemPrompt)
+  }
+
+  if (request.messages) {
+    for (const msg of request.messages) {
+      if (msg.role === 'system' && msg.content) {
+        systemParts.push(msg.content)
+      } else if (msg.role === 'user' && msg.content) {
+        userParts.push(msg.content)
+      }
+    }
+  }
+
+  return {
+    input:
+      userParts.length > 0
+        ? userParts[userParts.length - 1]
+        : 'Please conduct research on the provided topic.',
+    systemInstruction: systemParts.length > 0 ? systemParts.join('\n\n') : undefined,
+  }
+}
+
+/**
+ * Extracts text content from a completed interaction's outputs array.
+ * The outputs array can contain text, thought, google_search_result, and other types.
+ * We concatenate all text outputs to get the full research report.
+ */
+function extractTextFromInteractionOutputs(outputs: Interactions.Interaction['outputs']): string {
+  if (!outputs || outputs.length === 0) return ''
+
+  const textParts: string[] = []
+  for (const output of outputs) {
+    if (output.type === 'text') {
+      const text = (output as Interactions.TextContent).text
+      if (text) textParts.push(text)
+    }
+  }
+
+  return textParts.join('\n\n')
+}
+
+/**
+ * Extracts token usage from an Interaction's Usage object.
+ * The Interactions API provides total_input_tokens, total_output_tokens, total_tokens,
+ * and total_reasoning_tokens (for thinking models).
+ *
+ * Also handles the raw API field name total_thought_tokens which the SDK may
+ * map to total_reasoning_tokens.
+ */
+function extractInteractionUsage(usage: Interactions.Usage | undefined): {
+  inputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  totalTokens: number
+} {
+  if (!usage) {
+    return { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+  }
+
+  const usageLogger = createLogger('DeepResearchUsage')
+  usageLogger.info('Raw interaction usage', { usage: JSON.stringify(usage) })
+
+  const inputTokens = usage.total_input_tokens ?? 0
+  const outputTokens = usage.total_output_tokens ?? 0
+  const reasoningTokens =
+    usage.total_reasoning_tokens ??
+    ((usage as Record<string, unknown>).total_thought_tokens as number) ??
+    0
+  const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
+
+  return { inputTokens, outputTokens, reasoningTokens, totalTokens }
+}
+
+/**
+ * Builds a standard ProviderResponse from a completed deep research interaction.
+ */
+function buildDeepResearchResponse(
+  content: string,
+  model: string,
+  usage: {
+    inputTokens: number
+    outputTokens: number
+    reasoningTokens: number
+    totalTokens: number
+  },
+  providerStartTime: number,
+  providerStartTimeISO: string,
+  interactionId?: string
+): ProviderResponse {
+  const providerEndTime = Date.now()
+  const duration = providerEndTime - providerStartTime
+
+  return {
+    content,
+    model,
+    tokens: {
+      input: usage.inputTokens,
+      output: usage.outputTokens,
+      total: usage.totalTokens,
+    },
+    timing: {
+      startTime: providerStartTimeISO,
+      endTime: new Date(providerEndTime).toISOString(),
+      duration,
+      modelTime: duration,
+      toolsTime: 0,
+      firstResponseTime: duration,
+      iterations: 1,
+      timeSegments: [
+        {
+          type: 'model',
+          name: 'Deep research',
+          startTime: providerStartTime,
+          endTime: providerEndTime,
+          duration,
+        },
+      ],
+    },
+    cost: calculateCost(model, usage.inputTokens, usage.outputTokens),
+    interactionId,
+  }
+}
+
+/**
+ * Creates a ReadableStream from a deep research streaming interaction.
+ *
+ * Deep research streaming returns InteractionSSEEvent chunks including:
+ * - interaction.start: initial interaction with ID
+ * - content.delta: incremental text and thought_summary updates
+ * - content.start / content.stop: output boundaries
+ * - interaction.complete: final event (outputs is undefined in streaming; must reconstruct)
+ * - error: error events
+ *
+ * We stream text deltas to the client and track usage from the interaction.complete event.
+ */
+function createDeepResearchStream(
+  stream: AsyncIterable<Interactions.InteractionSSEEvent>,
+  onComplete?: (
+    content: string,
+    usage: {
+      inputTokens: number
+      outputTokens: number
+      reasoningTokens: number
+      totalTokens: number
+    },
+    interactionId?: string
+  ) => void
+): ReadableStream<Uint8Array> {
+  const streamLogger = createLogger('DeepResearchStream')
+  let fullContent = ''
+  let completionUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+  let completedInteractionId: string | undefined
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of stream) {
+          if (event.event_type === 'content.delta') {
+            const delta = (event as Interactions.ContentDelta).delta
+            if (delta?.type === 'text' && 'text' in delta && delta.text) {
+              fullContent += delta.text
+              controller.enqueue(new TextEncoder().encode(delta.text))
+            }
+          } else if (event.event_type === 'interaction.complete') {
+            const interaction = (event as Interactions.InteractionEvent).interaction
+            if (interaction?.usage) {
+              completionUsage = extractInteractionUsage(interaction.usage)
+            }
+            completedInteractionId = interaction?.id
+          } else if (event.event_type === 'interaction.start') {
+            const interaction = (event as Interactions.InteractionEvent).interaction
+            if (interaction?.id) {
+              completedInteractionId = interaction.id
+            }
+          } else if (event.event_type === 'error') {
+            const errorEvent = event as { error?: { code?: string; message?: string } }
+            const message = errorEvent.error?.message ?? 'Unknown deep research stream error'
+            streamLogger.error('Deep research stream error', {
+              code: errorEvent.error?.code,
+              message,
+            })
+            controller.error(new Error(message))
+            return
+          }
+        }
+
+        onComplete?.(fullContent, completionUsage, completedInteractionId)
+        controller.close()
+      } catch (error) {
+        streamLogger.error('Error reading deep research stream', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        controller.error(error)
+      }
+    },
+  })
+}
+
+/**
+ * Executes a deep research request using the Interactions API.
+ *
+ * Deep research uses the Interactions API ({@link https://ai.google.dev/api/interactions-api}),
+ * a completely different surface from generateContent. It creates a background interaction
+ * that performs comprehensive research (up to 60 minutes).
+ *
+ * Supports both streaming and non-streaming modes:
+ * - Streaming: returns a StreamingExecution with a ReadableStream of text deltas
+ * - Non-streaming: polls until completion and returns a ProviderResponse
+ *
+ * Deep research does NOT support custom function calling tools, MCP servers,
+ * or structured output (response_format). These are gracefully ignored.
+ */
+export async function executeDeepResearchRequest(
+  config: GeminiExecutionConfig
+): Promise<ProviderResponse | StreamingExecution> {
+  const { ai, model, request, providerType } = config
+  const logger = createLogger(providerType === 'google' ? 'GoogleProvider' : 'VertexProvider')
+
+  logger.info('Preparing deep research request', {
+    model,
+    hasSystemPrompt: !!request.systemPrompt,
+    hasMessages: !!request.messages?.length,
+    streaming: !!request.stream,
+    hasPreviousInteractionId: !!request.previousInteractionId,
+  })
+
+  if (request.tools?.length) {
+    logger.warn('Deep research does not support custom tools — ignoring tools parameter')
+  }
+  if (request.responseFormat) {
+    logger.warn(
+      'Deep research does not support structured output — ignoring responseFormat parameter'
+    )
+  }
+
+  const providerStartTime = Date.now()
+  const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+  try {
+    const { input, systemInstruction } = collapseMessagesToInput(request)
+
+    // Deep research requires background=true and store=true (store defaults to true,
+    // but we set it explicitly per API requirements)
+    const baseParams = {
+      agent: model as Interactions.CreateAgentInteractionParamsNonStreaming['agent'],
+      input,
+      background: true,
+      store: true,
+      ...(systemInstruction && { system_instruction: systemInstruction }),
+      ...(request.previousInteractionId && {
+        previous_interaction_id: request.previousInteractionId,
+      }),
+      agent_config: {
+        type: 'deep-research' as const,
+        thinking_summaries: 'auto' as const,
+      },
+    }
+
+    logger.info('Creating deep research interaction', {
+      inputLength: input.length,
+      hasSystemInstruction: !!systemInstruction,
+      streaming: !!request.stream,
+    })
+
+    // Streaming mode: create a streaming interaction and return a StreamingExecution
+    if (request.stream) {
+      const streamParams: Interactions.CreateAgentInteractionParamsStreaming = {
+        ...baseParams,
+        stream: true,
+      }
+
+      const streamResponse = await ai.interactions.create(streamParams)
+      const firstResponseTime = Date.now() - providerStartTime
+
+      const streamingResult: StreamingExecution = {
+        stream: undefined as unknown as ReadableStream<Uint8Array>,
+        execution: {
+          success: true,
+          output: {
+            content: '',
+            model,
+            tokens: { input: 0, output: 0, total: 0 },
+            providerTiming: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+              modelTime: firstResponseTime,
+              toolsTime: 0,
+              firstResponseTime,
+              iterations: 1,
+              timeSegments: [
+                {
+                  type: 'model',
+                  name: 'Deep research (streaming)',
+                  startTime: providerStartTime,
+                  endTime: providerStartTime + firstResponseTime,
+                  duration: firstResponseTime,
+                },
+              ],
+            },
+            cost: {
+              input: 0,
+              output: 0,
+              total: 0,
+              pricing: { input: 0, output: 0, updatedAt: new Date().toISOString() },
+            },
+          },
+          logs: [],
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true,
+        },
+      }
+
+      streamingResult.stream = createDeepResearchStream(
+        streamResponse,
+        (content, usage, streamInteractionId) => {
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = {
+            input: usage.inputTokens,
+            output: usage.outputTokens,
+            total: usage.totalTokens,
+          }
+          streamingResult.execution.output.interactionId = streamInteractionId
+
+          const cost = calculateCost(model, usage.inputTokens, usage.outputTokens)
+          streamingResult.execution.output.cost = cost
+
+          const streamEndTime = Date.now()
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = new Date(
+              streamEndTime
+            ).toISOString()
+            streamingResult.execution.output.providerTiming.duration =
+              streamEndTime - providerStartTime
+            const segments = streamingResult.execution.output.providerTiming.timeSegments
+            if (segments?.[0]) {
+              segments[0].endTime = streamEndTime
+              segments[0].duration = streamEndTime - providerStartTime
+            }
+          }
+        }
+      )
+
+      return streamingResult
+    }
+
+    // Non-streaming mode: create and poll
+    const createParams: Interactions.CreateAgentInteractionParamsNonStreaming = {
+      ...baseParams,
+      stream: false,
+    }
+
+    const interaction = await ai.interactions.create(createParams)
+    const interactionId = interaction.id
+
+    logger.info('Deep research interaction created', { interactionId, status: interaction.status })
+
+    // Poll until a terminal status
+    const pollStartTime = Date.now()
+    let result: Interactions.Interaction = interaction
+
+    while (Date.now() - pollStartTime < DEEP_RESEARCH_MAX_DURATION_MS) {
+      if (result.status === 'completed') {
+        break
+      }
+
+      if (result.status === 'failed') {
+        throw new Error(`Deep research interaction failed: ${interactionId}`)
+      }
+
+      if (result.status === 'cancelled') {
+        throw new Error(`Deep research interaction was cancelled: ${interactionId}`)
+      }
+
+      logger.info('Deep research in progress, polling...', {
+        interactionId,
+        status: result.status,
+        elapsedMs: Date.now() - pollStartTime,
+      })
+
+      await sleep(DEEP_RESEARCH_POLL_INTERVAL_MS)
+      result = await ai.interactions.get(interactionId)
+    }
+
+    if (result.status !== 'completed') {
+      throw new Error(
+        `Deep research timed out after ${DEEP_RESEARCH_MAX_DURATION_MS / 1000}s (status: ${result.status})`
+      )
+    }
+
+    const content = extractTextFromInteractionOutputs(result.outputs)
+    const usage = extractInteractionUsage(result.usage)
+
+    logger.info('Deep research completed', {
+      interactionId,
+      contentLength: content.length,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      reasoningTokens: usage.reasoningTokens,
+      totalTokens: usage.totalTokens,
+      durationMs: Date.now() - providerStartTime,
+    })
+
+    return buildDeepResearchResponse(
+      content,
+      model,
+      usage,
+      providerStartTime,
+      providerStartTimeISO,
+      interactionId
+    )
+  } catch (error) {
+    const providerEndTime = Date.now()
+    const duration = providerEndTime - providerStartTime
+
+    logger.error('Error in deep research request:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    const enhancedError = error instanceof Error ? error : new Error(String(error))
+    Object.assign(enhancedError, {
+      timing: {
+        startTime: providerStartTimeISO,
+        endTime: new Date(providerEndTime).toISOString(),
+        duration,
+      },
+    })
+    throw enhancedError
+  }
+}
+
 /**
  * Executes a request using the Gemini API
  *
@@ -391,6 +855,12 @@ export async function executeGeminiRequest(
   config: GeminiExecutionConfig
 ): Promise<ProviderResponse | StreamingExecution> {
   const { ai, model, request, providerType } = config
+
+  // Route deep research models to the interactions API
+  if (isDeepResearchModel(model)) {
+    return executeDeepResearchRequest(config)
+  }
+
   const logger = createLogger(providerType === 'google' ? 'GoogleProvider' : 'VertexProvider')
 
   logger.info(`Preparing ${providerType} Gemini request`, {

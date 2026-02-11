@@ -191,3 +191,84 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+// Delete a label from a page
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const {
+      domain,
+      accessToken,
+      cloudId: providedCloudId,
+      pageId,
+      labelName,
+    } = await request.json()
+
+    if (!domain) {
+      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    }
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+    }
+
+    if (!pageId) {
+      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
+    }
+
+    if (!labelName) {
+      return NextResponse.json({ error: 'Label name is required' }, { status: 400 })
+    }
+
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const encodedLabel = encodeURIComponent(labelName.trim())
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label?name=${encodedLabel}`
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      logger.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: JSON.stringify(errorData, null, 2),
+      })
+      const errorMessage =
+        errorData?.message || `Failed to delete Confluence label (${response.status})`
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
+    }
+
+    return NextResponse.json({
+      pageId,
+      labelName,
+      deleted: true,
+    })
+  } catch (error) {
+    logger.error('Error deleting Confluence label:', error)
+    return NextResponse.json(
+      { error: (error as Error).message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

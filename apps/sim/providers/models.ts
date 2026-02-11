@@ -46,6 +46,9 @@ export interface ModelCapabilities {
     levels: string[]
     default?: string
   }
+  deepResearch?: boolean
+  /** Whether this model supports conversation memory. Defaults to true if omitted. */
+  memory?: boolean
 }
 
 export interface ModelDefinition {
@@ -825,7 +828,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'Google',
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
-    modelPatterns: [/^gemini/],
+    modelPatterns: [/^gemini/, /^deep-research/],
     capabilities: {
       toolUsageControl: true,
     },
@@ -925,6 +928,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'deep-research-pro-preview-12-2025',
+        pricing: {
+          input: 2.0,
+          output: 2.0,
+          updatedAt: '2026-02-10',
+        },
+        capabilities: {
+          deepResearch: true,
+          memory: false,
         },
         contextWindow: 1000000,
       },
@@ -1035,6 +1051,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'vertex/deep-research-pro-preview-12-2025',
+        pricing: {
+          input: 2.0,
+          output: 2.0,
+          updatedAt: '2026-02-10',
+        },
+        capabilities: {
+          deepResearch: true,
+          memory: false,
         },
         contextWindow: 1000000,
       },
@@ -2478,6 +2507,37 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+/**
+ * Get all models that support deep research capability
+ */
+export function getModelsWithDeepResearch(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.deepResearch) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Get all models that explicitly disable memory support (memory: false).
+ * Models without this capability default to supporting memory.
+ */
+export function getModelsWithoutMemory(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.memory === false) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
 }
 
 /**

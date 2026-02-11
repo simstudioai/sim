@@ -669,6 +669,7 @@ async function executeWebhookJobInternal(
 
 export const webhookExecution = task({
   id: 'webhook-execution',
+  machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
   },
