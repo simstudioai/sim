@@ -20,6 +20,8 @@ export interface AgentInputs {
   conversationId?: string // Required for all non-none memory types
   slidingWindowSize?: string // For message-based sliding window
   slidingWindowTokens?: string // For token-based sliding window
+  // Deep research multi-turn
+  previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
   temperature?: string
   maxTokens?: string

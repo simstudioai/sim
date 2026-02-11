@@ -641,6 +641,16 @@ Example 3 (Array Input):
         generationType: 'json-schema',
       },
     },
+    {
+      id: 'previousInteractionId',
+      title: 'Previous Interaction ID',
+      type: 'short-input',
+      placeholder: 'e.g., {{agent_1.interactionId}}',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+      },
+    },
   ],
   tools: {
     access: [
@@ -804,5 +814,13 @@ Example 3 (Array Input):
       description: 'Provider timing information',
     },
     cost: { type: 'json', description: 'Cost of the API call' },
+    interactionId: {
+      type: 'string',
+      description: 'Interaction ID for multi-turn deep research follow-ups',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+      },
+    },
   },
 }

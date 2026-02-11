@@ -452,17 +452,34 @@ function extractTextFromInteractionOutputs(outputs: Interactions.Interaction['ou
 
 /**
  * Extracts token usage from an Interaction's Usage object.
- * The Interactions API provides total_input_tokens, total_output_tokens, and total_tokens.
+ * The Interactions API provides total_input_tokens, total_output_tokens, total_tokens,
+ * and total_reasoning_tokens (for thinking models).
+ *
+ * Also handles the raw API field name total_thought_tokens which the SDK may
+ * map to total_reasoning_tokens.
  */
 function extractInteractionUsage(usage: Interactions.Usage | undefined): {
   inputTokens: number
   outputTokens: number
+  reasoningTokens: number
   totalTokens: number
 } {
-  const inputTokens = usage?.total_input_tokens ?? 0
-  const outputTokens = usage?.total_output_tokens ?? 0
-  const totalTokens = usage?.total_tokens ?? inputTokens + outputTokens
-  return { inputTokens, outputTokens, totalTokens }
+  if (!usage) {
+    return { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+  }
+
+  const usageLogger = createLogger('DeepResearchUsage')
+  usageLogger.info('Raw interaction usage', { usage: JSON.stringify(usage) })
+
+  const inputTokens = usage.total_input_tokens ?? 0
+  const outputTokens = usage.total_output_tokens ?? 0
+  const reasoningTokens =
+    usage.total_reasoning_tokens ??
+    ((usage as Record<string, unknown>).total_thought_tokens as number) ??
+    0
+  const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
+
+  return { inputTokens, outputTokens, reasoningTokens, totalTokens }
 }
 
 /**
@@ -471,9 +488,15 @@ function extractInteractionUsage(usage: Interactions.Usage | undefined): {
 function buildDeepResearchResponse(
   content: string,
   model: string,
-  usage: { inputTokens: number; outputTokens: number; totalTokens: number },
+  usage: {
+    inputTokens: number
+    outputTokens: number
+    reasoningTokens: number
+    totalTokens: number
+  },
   providerStartTime: number,
-  providerStartTimeISO: string
+  providerStartTimeISO: string,
+  interactionId?: string
 ): ProviderResponse {
   const providerEndTime = Date.now()
   const duration = providerEndTime - providerStartTime
@@ -505,6 +528,7 @@ function buildDeepResearchResponse(
       ],
     },
     cost: calculateCost(model, usage.inputTokens, usage.outputTokens),
+    interactionId,
   }
 }
 
@@ -524,12 +548,19 @@ function createDeepResearchStream(
   stream: AsyncIterable<Interactions.InteractionSSEEvent>,
   onComplete?: (
     content: string,
-    usage: { inputTokens: number; outputTokens: number; totalTokens: number }
+    usage: {
+      inputTokens: number
+      outputTokens: number
+      reasoningTokens: number
+      totalTokens: number
+    },
+    interactionId?: string
   ) => void
 ): ReadableStream<Uint8Array> {
   const streamLogger = createLogger('DeepResearchStream')
   let fullContent = ''
-  let completionUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  let completionUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0 }
+  let completedInteractionId: string | undefined
 
   return new ReadableStream({
     async start(controller) {
@@ -546,6 +577,12 @@ function createDeepResearchStream(
             if (interaction?.usage) {
               completionUsage = extractInteractionUsage(interaction.usage)
             }
+            completedInteractionId = interaction?.id
+          } else if (event.event_type === 'interaction.start') {
+            const interaction = (event as Interactions.InteractionEvent).interaction
+            if (interaction?.id) {
+              completedInteractionId = interaction.id
+            }
           } else if (event.event_type === 'error') {
             const errorEvent = event as { error?: { code?: string; message?: string } }
             const message = errorEvent.error?.message ?? 'Unknown deep research stream error'
@@ -558,7 +595,7 @@ function createDeepResearchStream(
           }
         }
 
-        onComplete?.(fullContent, completionUsage)
+        onComplete?.(fullContent, completionUsage, completedInteractionId)
         controller.close()
       } catch (error) {
         streamLogger.error('Error reading deep research stream', {
@@ -595,6 +632,7 @@ export async function executeDeepResearchRequest(
     hasSystemPrompt: !!request.systemPrompt,
     hasMessages: !!request.messages?.length,
     streaming: !!request.stream,
+    hasPreviousInteractionId: !!request.previousInteractionId,
   })
 
   if (request.tools?.length) {
@@ -620,6 +658,9 @@ export async function executeDeepResearchRequest(
       background: true,
       store: true,
       ...(systemInstruction && { system_instruction: systemInstruction }),
+      ...(request.previousInteractionId && {
+        previous_interaction_id: request.previousInteractionId,
+      }),
       agent_config: {
         type: 'deep-research' as const,
         thinking_summaries: 'auto' as const,
@@ -685,31 +726,35 @@ export async function executeDeepResearchRequest(
         },
       }
 
-      streamingResult.stream = createDeepResearchStream(streamResponse, (content, usage) => {
-        streamingResult.execution.output.content = content
-        streamingResult.execution.output.tokens = {
-          input: usage.inputTokens,
-          output: usage.outputTokens,
-          total: usage.totalTokens,
-        }
+      streamingResult.stream = createDeepResearchStream(
+        streamResponse,
+        (content, usage, streamInteractionId) => {
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = {
+            input: usage.inputTokens,
+            output: usage.outputTokens,
+            total: usage.totalTokens,
+          }
+          streamingResult.execution.output.interactionId = streamInteractionId
 
-        const cost = calculateCost(model, usage.inputTokens, usage.outputTokens)
-        streamingResult.execution.output.cost = cost
+          const cost = calculateCost(model, usage.inputTokens, usage.outputTokens)
+          streamingResult.execution.output.cost = cost
 
-        const streamEndTime = Date.now()
-        if (streamingResult.execution.output.providerTiming) {
-          streamingResult.execution.output.providerTiming.endTime = new Date(
-            streamEndTime
-          ).toISOString()
-          streamingResult.execution.output.providerTiming.duration =
-            streamEndTime - providerStartTime
-          const segments = streamingResult.execution.output.providerTiming.timeSegments
-          if (segments?.[0]) {
-            segments[0].endTime = streamEndTime
-            segments[0].duration = streamEndTime - providerStartTime
+          const streamEndTime = Date.now()
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = new Date(
+              streamEndTime
+            ).toISOString()
+            streamingResult.execution.output.providerTiming.duration =
+              streamEndTime - providerStartTime
+            const segments = streamingResult.execution.output.providerTiming.timeSegments
+            if (segments?.[0]) {
+              segments[0].endTime = streamEndTime
+              segments[0].duration = streamEndTime - providerStartTime
+            }
           }
         }
-      })
+      )
 
       return streamingResult
     }
@@ -764,11 +809,21 @@ export async function executeDeepResearchRequest(
     logger.info('Deep research completed', {
       interactionId,
       contentLength: content.length,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      reasoningTokens: usage.reasoningTokens,
       totalTokens: usage.totalTokens,
       durationMs: Date.now() - providerStartTime,
     })
 
-    return buildDeepResearchResponse(content, model, usage, providerStartTime, providerStartTimeISO)
+    return buildDeepResearchResponse(
+      content,
+      model,
+      usage,
+      providerStartTime,
+      providerStartTimeISO,
+      interactionId
+    )
   } catch (error) {
     const providerEndTime = Date.now()
     const duration = providerEndTime - providerStartTime

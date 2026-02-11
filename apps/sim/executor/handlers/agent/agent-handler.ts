@@ -999,6 +999,7 @@ export class AgentBlockHandler implements BlockHandler {
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
+      previousInteractionId: inputs.previousInteractionId,
     }
   }
 
@@ -1269,6 +1270,7 @@ export class AgentBlockHandler implements BlockHandler {
       content: result.content,
       model: result.model,
       ...this.createResponseMetadata(result),
+      ...(result.interactionId && { interactionId: result.interactionId }),
     }
   }
 
