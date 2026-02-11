@@ -460,6 +460,7 @@ Return ONLY the JSON array.`,
       condition: {
         field: 'memoryType',
         value: ['conversation', 'sliding_window', 'sliding_window_tokens'],
+        and: { field: 'model', value: MODELS_WITH_DEEP_RESEARCH, not: true },
       },
     },
     {
@@ -470,6 +471,7 @@ Return ONLY the JSON array.`,
       condition: {
         field: 'memoryType',
         value: ['sliding_window'],
+        and: { field: 'model', value: MODELS_WITH_DEEP_RESEARCH, not: true },
       },
     },
     {
@@ -480,6 +482,7 @@ Return ONLY the JSON array.`,
       condition: {
         field: 'memoryType',
         value: ['sliding_window_tokens'],
+        and: { field: 'model', value: MODELS_WITH_DEEP_RESEARCH, not: true },
       },
     },
     {
