@@ -49,8 +49,9 @@ export interface SerializableExecutionState {
 
 export interface IterationContext {
   iterationCurrent: number
-  iterationTotal: number
+  iterationTotal?: number
   iterationType: SubflowType
+  iterationContainerId?: string
 }
 
 export interface ExecutionCallbacks {

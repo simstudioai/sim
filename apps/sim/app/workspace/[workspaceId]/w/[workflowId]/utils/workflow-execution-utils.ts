@@ -137,6 +137,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationCurrent: event.data.iterationCurrent,
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
+                iterationContainerId: event.data.iterationContainerId,
               })
 
               if (options.onBlockComplete) {
@@ -167,6 +168,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationCurrent: event.data.iterationCurrent,
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
+                iterationContainerId: event.data.iterationContainerId,
               })
               break
 

@@ -62,6 +62,38 @@ const shouldSkipEntry = (output: any): boolean => {
   return false
 }
 
+const matchesEntryForUpdate = (
+  entry: ConsoleEntry,
+  blockId: string,
+  executionId: string | undefined,
+  update: string | ConsoleUpdate
+): boolean => {
+  if (entry.blockId !== blockId || entry.executionId !== executionId) {
+    return false
+  }
+
+  if (typeof update !== 'object') {
+    return true
+  }
+
+  if (update.executionOrder !== undefined && entry.executionOrder !== update.executionOrder) {
+    return false
+  }
+
+  if (update.iterationCurrent !== undefined && entry.iterationCurrent !== update.iterationCurrent) {
+    return false
+  }
+
+  if (
+    update.iterationContainerId !== undefined &&
+    entry.iterationContainerId !== update.iterationContainerId
+  ) {
+    return false
+  }
+
+  return true
+}
+
 interface NotifyBlockErrorParams {
   error: unknown
   blockName: string
@@ -299,15 +331,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
-              if (entry.blockId !== blockId || entry.executionId !== executionId) {
-                return entry
-              }
-
-              if (
-                typeof update === 'object' &&
-                update.iterationCurrent !== undefined &&
-                entry.iterationCurrent !== update.iterationCurrent
-              ) {
+              if (!matchesEntryForUpdate(entry, blockId, executionId, update)) {
                 return entry
               }
 
@@ -385,6 +409,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
               if (update.iterationType !== undefined) {
                 updatedEntry.iterationType = update.iterationType
+              }
+
+              if (update.iterationContainerId !== undefined) {
+                updatedEntry.iterationContainerId = update.iterationContainerId
               }
 
               return updatedEntry
