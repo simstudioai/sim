@@ -1,10 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { processFileAttachments } from '@/lib/copilot/chat-context'
-import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
-import type { CopilotProviderConfig } from '@/lib/copilot/types'
-import { env } from '@/lib/core/config/env'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
@@ -17,6 +14,7 @@ export interface BuildPayloadParams {
   userMessageId: string
   mode: string
   model: string
+  provider?: string
   conversationHistory?: unknown[]
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
@@ -46,57 +44,12 @@ interface CredentialsPayload {
   }
 }
 
-function buildProviderConfig(selectedModel: string): CopilotProviderConfig | undefined {
-  const defaults = getCopilotModel('chat')
-  const envModel = env.COPILOT_MODEL || defaults.model
-  const providerEnv = env.COPILOT_PROVIDER
-
-  if (!providerEnv) return undefined
-
-  if (providerEnv === 'azure-openai') {
-    return {
-      provider: 'azure-openai',
-      model: envModel,
-      apiKey: env.AZURE_OPENAI_API_KEY,
-      apiVersion: 'preview',
-      endpoint: env.AZURE_OPENAI_ENDPOINT,
-    }
-  }
-
-  if (providerEnv === 'azure-anthropic') {
-    return {
-      provider: 'azure-anthropic',
-      model: envModel,
-      apiKey: env.AZURE_ANTHROPIC_API_KEY,
-      apiVersion: env.AZURE_ANTHROPIC_API_VERSION,
-      endpoint: env.AZURE_ANTHROPIC_ENDPOINT,
-    }
-  }
-
-  if (providerEnv === 'vertex') {
-    return {
-      provider: 'vertex',
-      model: envModel,
-      apiKey: env.COPILOT_API_KEY,
-      vertexProject: env.VERTEX_PROJECT,
-      vertexLocation: env.VERTEX_LOCATION,
-    }
-  }
-
-  return {
-    provider: providerEnv as Exclude<string, 'azure-openai' | 'vertex'>,
-    model: selectedModel,
-    apiKey: env.COPILOT_API_KEY,
-  } as CopilotProviderConfig
-}
-
 /**
  * Build the request payload for the copilot backend.
  */
 export async function buildCopilotRequestPayload(
   params: BuildPayloadParams,
   options: {
-    providerConfig?: CopilotProviderConfig
     selectedModel: string
   }
 ): Promise<Record<string, unknown>> {
@@ -106,6 +59,7 @@ export async function buildCopilotRequestPayload(
     userId,
     userMessageId,
     mode,
+    provider,
     contexts,
     fileAttachments,
     commands,
@@ -113,7 +67,6 @@ export async function buildCopilotRequestPayload(
   } = params
 
   const selectedModel = options.selectedModel
-  const providerConfig = options.providerConfig ?? buildProviderConfig(selectedModel)
 
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
@@ -195,10 +148,10 @@ export async function buildCopilotRequestPayload(
     workflowId,
     userId,
     model: selectedModel,
+    ...(provider ? { provider } : {}),
     mode: transportMode,
     messageId: userMessageId,
     version: SIM_AGENT_VERSION,
-    ...(providerConfig ? { provider: providerConfig } : {}),
     ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
     ...(chatId ? { chatId } : {}),
     ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),

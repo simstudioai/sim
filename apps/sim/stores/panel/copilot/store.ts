@@ -26,6 +26,7 @@ import {
   COPILOT_CONFIRM_API_PATH,
   COPILOT_CREDENTIALS_API_PATH,
   COPILOT_DELETE_CHAT_API_PATH,
+  COPILOT_MODELS_API_PATH,
   MAX_RESUME_ATTEMPTS,
   OPTIMISTIC_TITLE_MAX_LENGTH,
   QUEUE_PROCESS_DELAY_MS,
@@ -50,6 +51,7 @@ import {
   stripTodoTags,
 } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import type { AvailableModel } from '@/lib/copilot/types'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
@@ -297,6 +299,75 @@ type InitiateStreamResult =
   | { kind: 'success'; result: Awaited<ReturnType<typeof sendStreamingMessage>> }
   | { kind: 'error'; error: unknown }
 
+/**
+ * Parse a composite model key (e.g. "bedrock/claude-opus-4-6") into provider and raw model ID.
+ * This mirrors the agent block pattern in providers/models.ts where model IDs are prefixed
+ * with the provider (e.g. "azure-anthropic/claude-sonnet-4-5", "bedrock/claude-opus-4-6").
+ */
+function parseModelKey(compositeKey: string): { provider: string; modelId: string } {
+  const slashIdx = compositeKey.indexOf('/')
+  if (slashIdx === -1) return { provider: '', modelId: compositeKey }
+  return { provider: compositeKey.slice(0, slashIdx), modelId: compositeKey.slice(slashIdx + 1) }
+}
+
+const MODEL_PROVIDER_PRIORITY = [
+  'anthropic',
+  'bedrock',
+  'azure-anthropic',
+  'openai',
+  'azure-openai',
+  'gemini',
+  'google',
+  'azure',
+  'unknown',
+] as const
+
+const KNOWN_COPILOT_PROVIDERS = new Set<string>(MODEL_PROVIDER_PRIORITY)
+
+function isCompositeModelId(modelId: string): boolean {
+  const slashIdx = modelId.indexOf('/')
+  if (slashIdx <= 0 || slashIdx === modelId.length - 1) return false
+  const provider = modelId.slice(0, slashIdx)
+  return KNOWN_COPILOT_PROVIDERS.has(provider)
+}
+
+function toCompositeModelId(modelId: string, provider: string): string {
+  if (!modelId) return modelId
+  return isCompositeModelId(modelId) ? modelId : `${provider}/${modelId}`
+}
+
+function pickPreferredProviderModel(matches: AvailableModel[]): AvailableModel | undefined {
+  for (const provider of MODEL_PROVIDER_PRIORITY) {
+    const found = matches.find((m) => m.provider === provider)
+    if (found) return found
+  }
+  return matches[0]
+}
+
+function normalizeSelectedModelKey(selectedModel: string, models: AvailableModel[]): string {
+  if (!selectedModel || models.length === 0) return selectedModel
+  if (models.some((m) => m.id === selectedModel)) return selectedModel
+
+  const { provider, modelId } = parseModelKey(selectedModel)
+  const targetModelId = modelId || selectedModel
+
+  const matches = models.filter((m) => m.id.endsWith(`/${targetModelId}`))
+  if (matches.length === 0) return selectedModel
+
+  if (provider) {
+    const sameProvider = matches.find((m) => m.provider === provider)
+    if (sameProvider) return sameProvider.id
+  }
+
+  return (pickPreferredProviderModel(matches) ?? matches[0]).id
+}
+
+/** Look up the provider for the currently selected model from the composite key. */
+function getSelectedProvider(get: CopilotGet): string | undefined {
+  const { provider } = parseModelKey(get().selectedModel)
+  return provider || undefined
+}
+
 function prepareSendContext(
   get: CopilotGet,
   set: CopilotSet,
@@ -480,13 +551,17 @@ async function initiateStream(
       }) as string[] | undefined
     const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
 
+    const { provider: selectedProvider, modelId: selectedModelId } = parseModelKey(
+      get().selectedModel
+    )
     const result = await sendStreamingMessage({
       message: messageToSend,
       userMessageId: prepared.userMessage.id,
       chatId: prepared.currentChat?.id,
       workflowId: prepared.workflowId || undefined,
       mode: apiMode,
-      model: get().selectedModel,
+      model: selectedModelId,
+      provider: selectedProvider || undefined,
       prefetch: get().agentPrefetch,
       createNewChat: !prepared.currentChat,
       stream: prepared.stream,
@@ -554,7 +629,7 @@ async function finalizeStream(
       errorType = 'usage_limit'
     } else if (result.status === 403) {
       errorContent =
-        '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
+        '_Access denied by the Copilot backend. Please verify your API key and server configuration._'
       errorType = 'forbidden'
     } else if (result.status === 426) {
       errorContent =
@@ -857,13 +932,15 @@ async function resumeFromLiveStream(
       assistantMessageId: resume.nextStream.assistantMessageId,
       chatId: resume.nextStream.chatId,
     })
+    const { provider: resumeProvider, modelId: resumeModelId } = parseModelKey(get().selectedModel)
     const result = await sendStreamingMessage({
       message: resume.nextStream.userMessageContent || '',
       userMessageId: resume.nextStream.userMessageId,
       workflowId: resume.nextStream.workflowId,
       chatId: resume.nextStream.chatId || get().currentChat?.id || undefined,
       mode: get().mode === 'ask' ? 'ask' : get().mode === 'plan' ? 'plan' : 'agent',
-      model: get().selectedModel,
+      model: resumeModelId,
+      provider: resumeProvider || undefined,
       prefetch: get().agentPrefetch,
       stream: true,
       resumeFromEventId: resume.resumeFromEventId,
@@ -910,9 +987,10 @@ const cachedAutoAllowedTools = readAutoAllowedToolsFromStorage()
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
-  selectedModel: 'claude-4.6-opus' as CopilotStore['selectedModel'],
+  selectedModel: 'anthropic/claude-opus-4-6' as CopilotStore['selectedModel'],
   agentPrefetch: false,
-  enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
+  availableModels: [] as AvailableModel[],
+  isLoadingModels: false,
   isCollapsed: false,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
@@ -978,7 +1056,8 @@ export const useCopilotStore = create<CopilotStore>()(
         mode: get().mode,
         selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
-        enabledModels: get().enabledModels,
+        availableModels: get().availableModels,
+        isLoadingModels: get().isLoadingModels,
         autoAllowedTools: get().autoAllowedTools,
         autoAllowedToolsLoaded: get().autoAllowedToolsLoaded,
       })
@@ -1425,12 +1504,14 @@ export const useCopilotStore = create<CopilotStore>()(
       try {
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+        const { provider: fbProvider, modelId: fbModelId } = parseModelKey(selectedModel)
         const result = await sendStreamingMessage({
           message: 'Please continue your response.',
           chatId: currentChat?.id,
           workflowId,
           mode: apiMode,
-          model: selectedModel,
+          model: fbModelId,
+          provider: fbProvider || undefined,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream: true,
@@ -2190,7 +2271,76 @@ export const useCopilotStore = create<CopilotStore>()(
       set({ selectedModel: model })
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
-    setEnabledModels: (models) => set({ enabledModels: models }),
+    loadAvailableModels: async () => {
+      set({ isLoadingModels: true })
+      try {
+        const response = await fetch(COPILOT_MODELS_API_PATH, { method: 'GET' })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch available models: ${response.status}`)
+        }
+
+        const data = await response.json()
+        const models: unknown[] = Array.isArray(data?.models) ? data.models : []
+
+        const seenModelIds = new Set<string>()
+        const normalizedModels: AvailableModel[] = models
+          .filter((model: unknown): model is AvailableModel => {
+            return (
+              typeof model === 'object' &&
+              model !== null &&
+              'id' in model &&
+              typeof (model as { id: unknown }).id === 'string'
+            )
+          })
+          .map((model: AvailableModel) => {
+            const idProvider = isCompositeModelId(model.id) ? parseModelKey(model.id).provider : ''
+            const provider = model.provider || idProvider || 'unknown'
+            // Use stable composite provider/modelId keys so same model IDs from different
+            // providers remain uniquely addressable.
+            const compositeId = toCompositeModelId(model.id, provider)
+            return {
+              id: compositeId,
+              friendlyName: model.friendlyName || model.id,
+              provider,
+            }
+          })
+          .filter((model) => {
+            if (seenModelIds.has(model.id)) return false
+            seenModelIds.add(model.id)
+            return true
+          })
+
+        const { selectedModel } = get()
+        const normalizedSelectedModel = normalizeSelectedModelKey(selectedModel, normalizedModels)
+        const selectedModelExists = normalizedModels.some(
+          (model) => model.id === normalizedSelectedModel
+        )
+
+        // Pick the best default: prefer claude-opus-4-6 with provider priority:
+        // direct anthropic > bedrock > azure-anthropic > any other.
+        let nextSelectedModel = normalizedSelectedModel
+        if (!selectedModelExists && normalizedModels.length > 0) {
+          let opus46: AvailableModel | undefined
+          for (const prov of MODEL_PROVIDER_PRIORITY) {
+            opus46 = normalizedModels.find((m) => m.id === `${prov}/claude-opus-4-6`)
+            if (opus46) break
+          }
+          if (!opus46) opus46 = normalizedModels.find((m) => m.id.endsWith('/claude-opus-4-6'))
+          nextSelectedModel = opus46 ? opus46.id : normalizedModels[0].id
+        }
+
+        set({
+          availableModels: normalizedModels,
+          selectedModel: nextSelectedModel as CopilotStore['selectedModel'],
+          isLoadingModels: false,
+        })
+      } catch (error) {
+        logger.warn('[Copilot] Failed to load available models', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        set({ isLoadingModels: false })
+      }
+    },
 
     loadAutoAllowedTools: async () => {
       try {

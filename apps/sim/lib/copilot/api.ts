@@ -69,6 +69,7 @@ export interface SendMessageRequest {
   workflowId?: string
   mode?: CopilotMode | CopilotTransportMode
   model?: CopilotModelId
+  provider?: string
   prefetch?: boolean
   createNewChat?: boolean
   stream?: boolean
