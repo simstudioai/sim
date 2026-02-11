@@ -17,6 +17,18 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 const logger = createLogger('useExecutionStream')
 
 /**
+ * Detects errors caused by the browser killing a fetch (page refresh, navigation, tab close).
+ * These should be treated as clean disconnects, not execution errors.
+ */
+function isClientDisconnectError(error: any): boolean {
+  if (error.name === 'AbortError') return true
+  const msg = (error.message ?? '').toLowerCase()
+  return (
+    msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
+  )
+}
+
+/**
  * Processes SSE events from a response body and invokes appropriate callbacks.
  */
 async function processSSEStream(
@@ -121,6 +133,7 @@ export interface ExecuteStreamOptions {
     parallels?: Record<string, any>
   }
   stopAfterBlockId?: string
+  onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
 }
 
@@ -129,6 +142,14 @@ export interface ExecuteFromBlockOptions {
   startBlockId: string
   sourceSnapshot: SerializableExecutionState
   input?: any
+  onExecutionId?: (executionId: string) => void
+  callbacks?: ExecutionStreamCallbacks
+}
+
+export interface ReconnectStreamOptions {
+  workflowId: string
+  executionId: string
+  fromEventId?: number
   callbacks?: ExecutionStreamCallbacks
 }
 
@@ -143,7 +164,7 @@ export function useExecutionStream() {
   )
 
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
-    const { workflowId, callbacks = {}, ...payload } = options
+    const { workflowId, callbacks = {}, onExecutionId, ...payload } = options
 
     const existing = abortControllersRef.current.get(workflowId)
     if (existing) {
@@ -177,24 +198,24 @@ export function useExecutionStream() {
         throw new Error('No response body')
       }
 
-      const executionId = response.headers.get('X-Execution-Id')
-      if (executionId) {
-        currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
+      const serverExecutionId = response.headers.get('X-Execution-Id')
+      if (serverExecutionId) {
+        currentExecutionsRef.current.set(workflowId, { workflowId, executionId: serverExecutionId })
+        onExecutionId?.(serverExecutionId)
       }
 
       const reader = response.body.getReader()
       await processSSEStream(reader, callbacks, 'Execution')
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        logger.info('Execution stream cancelled')
-        callbacks.onExecutionCancelled?.({ duration: 0 })
-      } else {
-        logger.error('Execution stream error:', error)
-        callbacks.onExecutionError?.({
-          error: error.message || 'Unknown error',
-          duration: 0,
-        })
+      if (isClientDisconnectError(error)) {
+        logger.info('Execution stream disconnected (page unload or abort)')
+        return
       }
+      logger.error('Execution stream error:', error)
+      callbacks.onExecutionError?.({
+        error: error.message || 'Unknown error',
+        duration: 0,
+      })
       throw error
     } finally {
       abortControllersRef.current.delete(workflowId)
@@ -203,7 +224,14 @@ export function useExecutionStream() {
   }, [])
 
   const executeFromBlock = useCallback(async (options: ExecuteFromBlockOptions) => {
-    const { workflowId, startBlockId, sourceSnapshot, input, callbacks = {} } = options
+    const {
+      workflowId,
+      startBlockId,
+      sourceSnapshot,
+      input,
+      onExecutionId,
+      callbacks = {},
+    } = options
 
     const existing = abortControllersRef.current.get(workflowId)
     if (existing) {
@@ -246,24 +274,50 @@ export function useExecutionStream() {
         throw new Error('No response body')
       }
 
-      const executionId = response.headers.get('X-Execution-Id')
-      if (executionId) {
-        currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
+      const serverExecutionId = response.headers.get('X-Execution-Id')
+      if (serverExecutionId) {
+        currentExecutionsRef.current.set(workflowId, { workflowId, executionId: serverExecutionId })
+        onExecutionId?.(serverExecutionId)
       }
 
       const reader = response.body.getReader()
       await processSSEStream(reader, callbacks, 'Run-from-block')
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        logger.info('Run-from-block execution cancelled')
-        callbacks.onExecutionCancelled?.({ duration: 0 })
-      } else {
-        logger.error('Run-from-block execution error:', error)
-        callbacks.onExecutionError?.({
-          error: error.message || 'Unknown error',
-          duration: 0,
-        })
+      if (isClientDisconnectError(error)) {
+        logger.info('Run-from-block stream disconnected (page unload or abort)')
+        return
       }
+      logger.error('Run-from-block execution error:', error)
+      callbacks.onExecutionError?.({
+        error: error.message || 'Unknown error',
+        duration: 0,
+      })
+      throw error
+    } finally {
+      abortControllersRef.current.delete(workflowId)
+      currentExecutionsRef.current.delete(workflowId)
+    }
+  }, [])
+
+  const reconnect = useCallback(async (options: ReconnectStreamOptions) => {
+    const { workflowId, executionId, fromEventId = 0, callbacks = {} } = options
+
+    const abortController = new AbortController()
+    abortControllersRef.current.set(workflowId, abortController)
+    currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
+
+    try {
+      const response = await fetch(
+        `/api/workflows/${workflowId}/executions/${executionId}/stream?from=${fromEventId}`,
+        { signal: abortController.signal }
+      )
+      if (!response.ok) throw new Error(`Reconnect failed (${response.status})`)
+      if (!response.body) throw new Error('No response body')
+
+      await processSSEStream(response.body.getReader(), callbacks, 'Reconnect')
+    } catch (error: any) {
+      if (isClientDisconnectError(error)) return
+      logger.error('Reconnection stream error:', error)
       throw error
     } finally {
       abortControllersRef.current.delete(workflowId)
@@ -273,13 +327,6 @@ export function useExecutionStream() {
 
   const cancel = useCallback((workflowId?: string) => {
     if (workflowId) {
-      const execution = currentExecutionsRef.current.get(workflowId)
-      if (execution) {
-        fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
-          method: 'POST',
-        }).catch(() => {})
-      }
-
       const controller = abortControllersRef.current.get(workflowId)
       if (controller) {
         controller.abort()
@@ -287,12 +334,6 @@ export function useExecutionStream() {
       }
       currentExecutionsRef.current.delete(workflowId)
     } else {
-      for (const [, execution] of currentExecutionsRef.current) {
-        fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
-          method: 'POST',
-        }).catch(() => {})
-      }
-
       for (const [, controller] of abortControllersRef.current) {
         controller.abort()
       }
@@ -304,6 +345,7 @@ export function useExecutionStream() {
   return {
     execute,
     executeFromBlock,
+    reconnect,
     cancel,
   }
 }
