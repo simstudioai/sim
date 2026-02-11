@@ -9,11 +9,6 @@
 export const DEFAULT_FREE_CREDITS = 20
 
 /**
- * Default bonus credits (in dollars) for referral signups
- */
-export const DEFAULT_REFERRAL_BONUS_CREDITS = 10
-
-/**
  * Storage limit constants (in GB)
  * Can be overridden via environment variables
  */

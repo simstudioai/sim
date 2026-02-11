@@ -11,7 +11,6 @@
  */
 
 import { db } from '@sim/db'
-import { DEFAULT_REFERRAL_BONUS_CREDITS } from '@sim/db/constants'
 import { referralAttribution, referralCampaigns, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
@@ -157,9 +156,12 @@ export async function POST() {
     }
 
     const matchedCampaign = await findMatchingCampaign(utmData)
-    const bonusAmount = matchedCampaign
-      ? Number(matchedCampaign.bonusCreditAmount)
-      : DEFAULT_REFERRAL_BONUS_CREDITS
+    if (!matchedCampaign) {
+      cookieStore.delete(COOKIE_NAME)
+      return NextResponse.json({ attributed: false, reason: 'no_matching_campaign' })
+    }
+
+    const bonusAmount = Number(matchedCampaign.bonusCreditAmount)
 
     let attributed = false
     await db.transaction(async (tx) => {
@@ -168,7 +170,7 @@ export async function POST() {
         .values({
           id: nanoid(),
           userId: session.user.id,
-          campaignId: matchedCampaign?.id ?? null,
+          campaignId: matchedCampaign.id,
           utmSource: utmData.utm_source || null,
           utmMedium: utmData.utm_medium || null,
           utmCampaign: utmData.utm_campaign || null,
@@ -189,8 +191,8 @@ export async function POST() {
     if (attributed) {
       logger.info('Referral attribution created and bonus credits applied', {
         userId: session.user.id,
-        campaignId: matchedCampaign?.id,
-        campaignName: matchedCampaign?.name,
+        campaignId: matchedCampaign.id,
+        campaignName: matchedCampaign.name,
         utmSource: utmData.utm_source,
         utmCampaign: utmData.utm_campaign,
         utmContent: utmData.utm_content,
