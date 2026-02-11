@@ -28,11 +28,7 @@ export interface ApiErrorResponse {
 
 /**
  * Check if a user has read access to a table.
- * Read access is granted if:
- * 1. User created the table, OR
- * 2. User has any permission on the table's workspace (read, write, or admin)
- *
- * Follows the same pattern as Knowledge Base access checks.
+ * Read access requires any workspace permission (read, write, or admin).
  */
 export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
@@ -41,12 +37,6 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
     return { hasAccess: false, notFound: true }
   }
 
-  // Case 1: User created the table
-  if (table.createdBy === userId) {
-    return { hasAccess: true, table }
-  }
-
-  // Case 2: Table belongs to a workspace the user has permissions for
   const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
   if (userPermission !== null) {
     return { hasAccess: true, table }
@@ -57,11 +47,7 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
 
 /**
  * Check if a user has write access to a table.
- * Write access is granted if:
- * 1. User created the table, OR
- * 2. User has write or admin permissions on the table's workspace
- *
- * Follows the same pattern as Knowledge Base write access checks.
+ * Write access requires write or admin workspace permission.
  */
 export async function checkTableWriteAccess(
   tableId: string,
@@ -73,12 +59,6 @@ export async function checkTableWriteAccess(
     return { hasAccess: false, notFound: true }
   }
 
-  // Case 1: User created the table
-  if (table.createdBy === userId) {
-    return { hasAccess: true, table }
-  }
-
-  // Case 2: Table belongs to a workspace and user has write/admin permissions
   const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
   if (userPermission === 'write' || userPermission === 'admin') {
     return { hasAccess: true, table }
@@ -88,8 +68,8 @@ export async function checkTableWriteAccess(
 }
 
 /**
- * @deprecated Use checkTableAccess or checkTableWriteAccess instead.
- * Legacy access check function for backwards compatibility.
+ * Access check returning `{ ok, table }` or `{ ok: false, status }`.
+ * Uses workspace permissions only.
  */
 export async function checkAccess(
   tableId: string,
@@ -100,10 +80,6 @@ export async function checkAccess(
 
   if (!table) {
     return { ok: false, status: 404 }
-  }
-
-  if (table.createdBy === userId) {
-    return { ok: true, table }
   }
 
   const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)

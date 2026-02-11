@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -14,6 +11,7 @@ import {
   TABLE_LIMITS,
   type TableSchema,
 } from '@/lib/table'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from './utils'
 
 const logger = createLogger('TableAPI')
@@ -83,47 +81,14 @@ async function checkWorkspaceAccess(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceAccessResult> {
-  const [workspaceData] = await db
-    .select({
-      id: workspace.id,
-      ownerId: workspace.ownerId,
-    })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
+  const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
 
-  if (!workspaceData) {
+  if (permission === null) {
     return { hasAccess: false, canWrite: false }
   }
 
-  if (workspaceData.ownerId === userId) {
-    return { hasAccess: true, canWrite: true }
-  }
-
-  const [permission] = await db
-    .select({
-      permissionType: permissions.permissionType,
-    })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  if (!permission) {
-    return { hasAccess: false, canWrite: false }
-  }
-
-  const canWrite = permission.permissionType === 'admin' || permission.permissionType === 'write'
-
-  return {
-    hasAccess: true,
-    canWrite,
-  }
+  const canWrite = permission === 'admin' || permission === 'write'
+  return { hasAccess: true, canWrite }
 }
 
 /** POST /api/table - Creates a new user-defined table. */
