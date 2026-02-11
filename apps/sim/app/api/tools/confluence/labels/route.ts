@@ -237,7 +237,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const encodedLabel = encodeURIComponent(labelName.trim())
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label?name=${encodeURIComponent(labelName.trim())}`
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label?name=${encodedLabel}`
 
     const response = await fetch(url, {
       method: 'DELETE',
