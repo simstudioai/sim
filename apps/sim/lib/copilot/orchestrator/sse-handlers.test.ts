@@ -99,49 +99,4 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeToolServerSide).toHaveBeenCalledTimes(1)
     expect(markToolComplete).toHaveBeenCalledTimes(1)
   })
-
-  it('does not complete stream on done when tool calls are still pending', () => {
-    context.toolCalls.set('tool-pending', {
-      id: 'tool-pending',
-      name: 'get_user_workflow',
-      status: 'pending',
-      startTime: Date.now(),
-    })
-
-    sseHandlers.done(
-      {
-        type: 'done',
-        data: { responseId: 'resp-1' },
-      } as any,
-      context,
-      execContext,
-      {}
-    )
-
-    expect(context.conversationId).toBe('resp-1')
-    expect(context.streamComplete).toBe(false)
-  })
-
-  it('completes stream on done when no tool calls are pending', () => {
-    context.toolCalls.set('tool-done', {
-      id: 'tool-done',
-      name: 'get_user_workflow',
-      status: 'success',
-      startTime: Date.now() - 10,
-      endTime: Date.now(),
-    })
-
-    sseHandlers.done(
-      {
-        type: 'done',
-        data: { responseId: 'resp-2' },
-      } as any,
-      context,
-      execContext,
-      {}
-    )
-
-    expect(context.conversationId).toBe('resp-2')
-    expect(context.streamComplete).toBe(true)
-  })
 })

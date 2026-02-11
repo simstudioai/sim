@@ -236,7 +236,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label?name=${encodeURIComponent(labelName.trim())}`
+    const encodedLabel = encodeURIComponent(labelName.trim())
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label?name=${encodedLabel}`
 
     const response = await fetch(url, {
       method: 'DELETE',
