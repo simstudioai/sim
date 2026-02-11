@@ -175,6 +175,8 @@ export interface TraceSpan {
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
+  /** Whether this block's error was handled by an error handler path */
+  errorHandled?: boolean
   tokens?: number | TokenInfo
   relativeStartMs?: number
   blockId?: string

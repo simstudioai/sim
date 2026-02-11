@@ -990,6 +990,535 @@ describe('buildTraceSpans', () => {
   })
 })
 
+describe('errorHandled - handled errors should not bubble up', () => {
+  it.concurrent('block span stays error but is marked errorHandled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Request failed with status 500',
+          errorHandled: true,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'fallback-1',
+          blockName: 'Fallback',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 2,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const apiSpan = traceSpans.find((s) => s.blockId === 'api-1')!
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBe(true)
+    expect((apiSpan.output as { error?: string }).error).toBe('Request failed with status 500')
+
+    const fallbackSpan = traceSpans.find((s) => s.blockId === 'fallback-1')!
+    expect(fallbackSpan.status).toBe('success')
+    expect(fallbackSpan.errorHandled).toBeUndefined()
+  })
+
+  it.concurrent('unhandled errors still produce error status', () => {
+    const result: ExecutionResult = {
+      success: false,
+      output: {},
+      metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Request failed with status 500',
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('error')
+
+    const apiSpan = workflowSpan.children![0]
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBeUndefined()
+  })
+
+  it.concurrent('workflow-level span is success when all errors are handled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'recovered' },
+      metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Connection timeout',
+          errorHandled: true,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'handler-1',
+          blockName: 'Error Handler',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 2,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('success')
+  })
+
+  it.concurrent(
+    'workflow-level span is error when there is a mix of handled and unhandled errors',
+    () => {
+      const result: ExecutionResult = {
+        success: false,
+        output: {},
+        metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (handled)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Handled error',
+            errorHandled: true,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Error Handler',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            executionOrder: 2,
+          },
+          {
+            blockId: 'api-2',
+            blockName: 'API Call (unhandled)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:02.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Unhandled crash',
+            executionOrder: 3,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('error')
+
+      const handledSpan = workflowSpan.children!.find((s) => s.blockId === 'api-1')!
+      expect(handledSpan.status).toBe('error')
+      expect(handledSpan.errorHandled).toBe(true)
+
+      const unhandledSpan = workflowSpan.children!.find((s) => s.blockId === 'api-2')!
+      expect(unhandledSpan.status).toBe('error')
+      expect(unhandledSpan.errorHandled).toBeUndefined()
+    }
+  )
+
+  it.concurrent(
+    'handled errors inside loop iterations still show error on loop but not on workflow',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'all iterations recovered' },
+        metadata: { duration: 5000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Rate limited',
+            errorHandled: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Rate Limit Handler (iteration 0)',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 2,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:02.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 1,
+            executionOrder: 3,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 2)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:03.000Z',
+            endedAt: '2024-01-01T10:00:04.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Rate limited again',
+            errorHandled: true,
+            loopId: 'loop-1',
+            iterationIndex: 2,
+            executionOrder: 4,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Rate Limit Handler (iteration 2)',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:04.000Z',
+            endedAt: '2024-01-01T10:00:05.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 2,
+            executionOrder: 5,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('success')
+
+      const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+      expect(loopSpan).toBeDefined()
+      expect(loopSpan.status).toBe('error')
+
+      const iterations = loopSpan.children!
+      expect(iterations).toHaveLength(3)
+      expect(iterations[0].status).toBe('error')
+      expect(iterations[1].status).toBe('success')
+      expect(iterations[2].status).toBe('error')
+    }
+  )
+
+  it.concurrent(
+    'handled errors inside parallel iterations still show error on parallel but not on workflow',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'parallel done' },
+        metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Timeout on iteration 0',
+            errorHandled: true,
+            parallelId: 'parallel-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            parallelId: 'parallel-1',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('success')
+
+      const parallelSpan = workflowSpan.children!.find((s) => s.type === 'parallel')!
+      expect(parallelSpan).toBeDefined()
+      expect(parallelSpan.status).toBe('error')
+
+      const iterations = parallelSpan.children!
+      expect(iterations).toHaveLength(2)
+      expect(iterations[0].status).toBe('error')
+      expect(iterations[1].status).toBe('success')
+    }
+  )
+
+  it.concurrent(
+    'unhandled error in one loop iteration still makes the loop and workflow error',
+    () => {
+      const result: ExecutionResult = {
+        success: false,
+        output: {},
+        metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Unhandled crash in iteration 1',
+            loopId: 'loop-1',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('error')
+
+      const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+      expect(loopSpan.status).toBe('error')
+
+      const iterations = loopSpan.children!
+      expect(iterations[0].status).toBe('success')
+      expect(iterations[1].status).toBe('error')
+    }
+  )
+
+  it.concurrent('error output is preserved on the span even when error is handled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'recovered' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'Flaky API',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'ECONNRESET',
+          errorHandled: true,
+          output: { error: 'ECONNRESET' },
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const apiSpan = traceSpans[0]
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBe(true)
+    expect((apiSpan.output as { error?: string }).error).toBe('ECONNRESET')
+  })
+
+  it.concurrent('block with error and errorHandled=false is treated as unhandled', () => {
+    const result: ExecutionResult = {
+      success: false,
+      output: {},
+      metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Server error',
+          errorHandled: false,
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('error')
+
+    const apiSpan = workflowSpan.children![0]
+    expect(apiSpan.status).toBe('error')
+  })
+
+  it.concurrent('many loop iterations with handled errors produce a successful workflow', () => {
+    const logs = []
+    for (let i = 0; i < 10; i++) {
+      const startMs = 1704103200000 + i * 2000
+      if (i % 3 === 0) {
+        logs.push({
+          blockId: 'api-1',
+          blockName: `API Call (iteration ${i})`,
+          blockType: 'api',
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: new Date(startMs + 1000).toISOString(),
+          durationMs: 1000,
+          success: false,
+          error: `Error in iteration ${i}`,
+          errorHandled: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 1,
+        })
+        logs.push({
+          blockId: 'handler-1',
+          blockName: `Error Handler (iteration ${i})`,
+          blockType: 'function',
+          startedAt: new Date(startMs + 1000).toISOString(),
+          endedAt: new Date(startMs + 2000).toISOString(),
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 2,
+        })
+      } else {
+        logs.push({
+          blockId: 'api-1',
+          blockName: `API Call (iteration ${i})`,
+          blockType: 'api',
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: new Date(startMs + 1000).toISOString(),
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 1,
+        })
+      }
+    }
+
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'all done' },
+      metadata: { duration: 20000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: logs as any,
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('success')
+
+    const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+    expect(loopSpan).toBeDefined()
+    expect(loopSpan.status).toBe('error')
+
+    loopSpan.children!.forEach((iteration, i) => {
+      if (i % 3 === 0) {
+        expect(iteration.status).toBe('error')
+      } else {
+        expect(iteration.status).toBe('success')
+      }
+    })
+  })
+
+  it.concurrent('successful blocks without errors have no errorHandled flag', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'fine' },
+      logs: [
+        {
+          blockId: 'text-1',
+          blockName: 'Text Block',
+          blockType: 'text',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const span = traceSpans[0]
+    expect(span.status).toBe('success')
+    expect(span.errorHandled).toBeUndefined()
+  })
+})
+
 describe('stripCustomToolPrefix', () => {
   it.concurrent('strips custom_ prefix from tool names', () => {
     expect(stripCustomToolPrefix('custom_test_tool')).toBe('test_tool')

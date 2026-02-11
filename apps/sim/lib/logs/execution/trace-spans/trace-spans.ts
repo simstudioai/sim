@@ -156,6 +156,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       output: output,
       ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
       ...(childWorkflowId ? { childWorkflowId } : {}),
+      ...(log.errorHandled && { errorHandled: true }),
       ...(log.loopId && { loopId: log.loopId }),
       ...(log.parallelId && { parallelId: log.parallelId }),
       ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
@@ -501,15 +502,11 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
     addRelativeTimestamps(groupedRootSpans, earliestStart)
 
-    const hasErrors = groupedRootSpans.some((span) => {
-      if (span.status === 'error') return true
-      const checkChildren = (children: TraceSpan[] = []): boolean => {
-        return children.some(
-          (child) => child.status === 'error' || (child.children && checkChildren(child.children))
-        )
-      }
-      return span.children && checkChildren(span.children)
-    })
+    const checkForUnhandledErrors = (s: TraceSpan): boolean => {
+      if (s.status === 'error' && !s.errorHandled) return true
+      return s.children ? s.children.some(checkForUnhandledErrors) : false
+    }
+    const hasUnhandledErrors = groupedRootSpans.some(checkForUnhandledErrors)
 
     const workflowSpan: TraceSpan = {
       id: 'workflow-execution',
@@ -518,7 +515,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       duration: actualWorkflowDuration, // Always use actual duration for the span
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
-      status: hasErrors ? 'error' : 'success',
+      status: hasUnhandledErrors ? 'error' : 'success',
       children: groupedRootSpans,
     }
 
@@ -710,6 +707,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -719,6 +718,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -729,6 +729,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const parallelContainer: TraceSpan = {
           id: `parallel-execution-${containerId}`,
           name: containerName,
@@ -737,6 +740,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 
@@ -762,6 +766,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -771,6 +777,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -781,6 +788,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const loopContainer: TraceSpan = {
           id: `loop-execution-${containerId}`,
           name: containerName,
@@ -789,6 +799,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 

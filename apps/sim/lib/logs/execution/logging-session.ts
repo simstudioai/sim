@@ -301,7 +301,7 @@ export class LoggingSession {
 
           const hasErrors = traceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
-              if (s.status === 'error') return true
+              if (s.status === 'error' && !s.errorHandled) return true
               if (s.children && Array.isArray(s.children)) {
                 return s.children.some(checkForErrors)
               }
