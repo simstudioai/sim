@@ -20,7 +20,6 @@ import {
 import {
   Card,
   Connections,
-  FolderCode,
   HexSimple,
   Key,
   SModal,
@@ -45,12 +44,11 @@ import {
   BYOK,
   Copilot,
   CredentialSets,
+  Credentials,
   CustomTools,
   Debug,
-  EnvironmentVariables,
   FileUploads,
   General,
-  Integrations,
   MCP,
   Skills,
   Subscription,
@@ -80,6 +78,7 @@ interface SettingsModalProps {
 
 type SettingsSection =
   | 'general'
+  | 'credentials'
   | 'environment'
   | 'template-profile'
   | 'integrations'
@@ -156,11 +155,10 @@ const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
+  { id: 'credentials', label: 'Credentials', icon: Connections, section: 'tools' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
@@ -256,9 +254,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
         return false
       }
-      if (item.id === 'environment' && permissionConfig.hideEnvironmentTab) {
-        return false
-      }
       if (item.id === 'files' && permissionConfig.hideFilesTab) {
         return false
       }
@@ -324,6 +319,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     if (!isBillingEnabled && (activeSection === 'subscription' || activeSection === 'team')) {
       return 'general'
     }
+    if (activeSection === 'environment' || activeSection === 'integrations') {
+      return 'credentials'
+    }
     return activeSection
   }, [activeSection])
 
@@ -342,7 +340,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     (sectionId: SettingsSection) => {
       if (sectionId === effectiveActiveSection) return
 
-      if (effectiveActiveSection === 'environment' && environmentBeforeLeaveHandler.current) {
+      if (effectiveActiveSection === 'credentials' && environmentBeforeLeaveHandler.current) {
         environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
         return
       }
@@ -370,7 +368,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
-      setActiveSection(event.detail.tab)
+      if (event.detail.tab === 'environment' || event.detail.tab === 'integrations') {
+        setActiveSection('credentials')
+      } else {
+        setActiveSection(event.detail.tab)
+      }
       onOpenChange(true)
     }
 
@@ -479,13 +481,19 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const handleDialogOpenChange = (newOpen: boolean) => {
     if (
       !newOpen &&
-      effectiveActiveSection === 'environment' &&
+      effectiveActiveSection === 'credentials' &&
       environmentBeforeLeaveHandler.current
     ) {
-      environmentBeforeLeaveHandler.current(() => onOpenChange(false))
+      environmentBeforeLeaveHandler.current(() => {
+        if (integrationsCloseHandler.current) {
+          integrationsCloseHandler.current(newOpen)
+        } else {
+          onOpenChange(false)
+        }
+      })
     } else if (
       !newOpen &&
-      effectiveActiveSection === 'integrations' &&
+      effectiveActiveSection === 'credentials' &&
       integrationsCloseHandler.current
     ) {
       integrationsCloseHandler.current(newOpen)
@@ -502,7 +510,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
           <DialogPrimitive.Description>
-            Configure your workspace settings, environment variables, integrations, and preferences
+            Configure your workspace settings, credentials, and preferences
           </DialogPrimitive.Description>
         </VisuallyHidden.Root>
 
@@ -539,18 +547,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           </SModalMainHeader>
           <SModalMainBody>
             {effectiveActiveSection === 'general' && <General onOpenChange={onOpenChange} />}
-            {effectiveActiveSection === 'environment' && (
-              <EnvironmentVariables
+            {effectiveActiveSection === 'credentials' && (
+              <Credentials
+                onOpenChange={onOpenChange}
+                registerCloseHandler={registerIntegrationsCloseHandler}
                 registerBeforeLeaveHandler={registerEnvironmentBeforeLeaveHandler}
               />
             )}
             {effectiveActiveSection === 'template-profile' && <TemplateProfile />}
-            {effectiveActiveSection === 'integrations' && (
-              <Integrations
-                onOpenChange={onOpenChange}
-                registerCloseHandler={registerIntegrationsCloseHandler}
-              />
-            )}
             {effectiveActiveSection === 'credential-sets' && <CredentialSets />}
             {effectiveActiveSection === 'access-control' && <AccessControl />}
             {effectiveActiveSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}

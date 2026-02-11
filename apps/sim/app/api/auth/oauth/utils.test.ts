@@ -50,7 +50,7 @@ describe('OAuth Utils', () => {
   describe('getCredential', () => {
     it('should return credential when found', async () => {
       const mockCredential = { id: 'credential-id', userId: 'test-user-id' }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockDbTyped.limit.mockReturnValueOnce([]).mockReturnValueOnce([mockCredential])
 
       const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
 
@@ -59,7 +59,8 @@ describe('OAuth Utils', () => {
       expect(mockDbTyped.where).toHaveBeenCalled()
       expect(mockDbTyped.limit).toHaveBeenCalledWith(1)
 
-      expect(credential).toEqual(mockCredential)
+      expect(credential).toMatchObject(mockCredential)
+      expect(credential).toMatchObject({ resolvedCredentialId: 'credential-id' })
     })
 
     it('should return undefined when credential is not found', async () => {
@@ -152,7 +153,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockDbTyped.limit.mockReturnValueOnce([]).mockReturnValueOnce([mockCredential])
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
@@ -169,7 +170,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockDbTyped.limit.mockReturnValueOnce([]).mockReturnValueOnce([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce({
         accessToken: 'new-token',
@@ -202,7 +203,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockDbTyped.limit.mockReturnValueOnce([]).mockReturnValueOnce([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
 

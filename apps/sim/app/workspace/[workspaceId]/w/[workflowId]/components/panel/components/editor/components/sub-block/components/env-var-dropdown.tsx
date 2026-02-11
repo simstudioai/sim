@@ -168,7 +168,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }, [searchTerm])
 
   const openEnvironmentSettings = () => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'environment' } }))
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
     onClose?.()
   }
 

@@ -30,6 +30,7 @@ export interface OAuthRequiredModalProps {
   requiredScopes?: string[]
   serviceId: string
   newScopes?: string[]
+  onConnect?: () => Promise<void> | void
 }
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
@@ -314,6 +315,7 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
   newScopes = [],
+  onConnect,
 }: OAuthRequiredModalProps) {
   const [error, setError] = useState<string | null>(null)
   const { baseProvider } = parseProvider(provider)
@@ -359,6 +361,12 @@ export function OAuthRequiredModal({
     setError(null)
 
     try {
+      if (onConnect) {
+        await onConnect()
+        onClose()
+        return
+      }
+
       const providerId = getProviderIdFromServiceId(serviceId)
 
       logger.info('Linking OAuth2:', {

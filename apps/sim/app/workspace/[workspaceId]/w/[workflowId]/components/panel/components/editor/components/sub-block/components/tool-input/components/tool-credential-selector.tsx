@@ -1,6 +1,8 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
+import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -10,8 +12,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { CREDENTIAL } from '@/executor/constants'
-import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -54,10 +55,12 @@ export function ToolCredentialSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select account',
+  label = 'Select credential',
   serviceId,
   disabled = false,
 }: ToolCredentialSelectorProps) {
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -71,50 +74,32 @@ export function ToolCredentialSelector({
     data: credentials = [],
     isFetching: credentialsLoading,
     refetch: refetchCredentials,
-  } = useOAuthCredentials(effectiveProviderId, Boolean(effectiveProviderId))
+  } = useOAuthCredentials(effectiveProviderId, {
+    enabled: Boolean(effectiveProviderId),
+    workspaceId,
+    workflowId: activeWorkflowId || undefined,
+  })
 
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
     [credentials, selectedId]
   )
 
-  const shouldFetchForeignMeta =
-    Boolean(selectedId) &&
-    !selectedCredential &&
-    Boolean(activeWorkflowId) &&
-    Boolean(effectiveProviderId)
-
-  const { data: foreignCredentials = [], isFetching: foreignMetaLoading } =
-    useOAuthCredentialDetail(
-      shouldFetchForeignMeta ? selectedId : undefined,
-      activeWorkflowId || undefined,
-      shouldFetchForeignMeta
-    )
-
-  const hasForeignMeta = foreignCredentials.length > 0
-  const isForeign = Boolean(selectedId && !selectedCredential && hasForeignMeta)
-
   const resolvedLabel = useMemo(() => {
     if (selectedCredential) return selectedCredential.name
-    if (isForeign) return CREDENTIAL.FOREIGN_LABEL
     return ''
-  }, [selectedCredential, isForeign])
+  }, [selectedCredential])
 
   const inputValue = isEditing ? editingInputValue : resolvedLabel
 
-  const invalidSelection =
-    Boolean(selectedId) &&
-    !selectedCredential &&
-    !hasForeignMeta &&
-    !credentialsLoading &&
-    !foreignMetaLoading
+  const invalidSelection = Boolean(selectedId) && !selectedCredential && !credentialsLoading
 
   useEffect(() => {
     if (!invalidSelection) return
     onChange('')
   }, [invalidSelection, onChange])
 
-  useCredentialRefreshTriggers(refetchCredentials)
+  useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -142,8 +127,18 @@ export function ToolCredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    setShowOAuthModal(true)
-  }, [])
+    writePendingCredentialCreateRequest({
+      workspaceId,
+      type: 'oauth',
+      providerId: effectiveProviderId,
+      displayName: '',
+      serviceId,
+      requiredScopes: getCanonicalScopesForProvider(effectiveProviderId),
+      requestedAt: Date.now(),
+    })
+
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
+  }, [workspaceId, effectiveProviderId, serviceId])
 
   const comboboxOptions = useMemo(() => {
     const options = credentials.map((cred) => ({
@@ -151,12 +146,13 @@ export function ToolCredentialSelector({
       value: cred.id,
     }))
 
-    if (credentials.length === 0) {
-      options.push({
-        label: `Connect ${getProviderName(provider)} account`,
-        value: '__connect_account__',
-      })
-    }
+    options.push({
+      label:
+        credentials.length > 0
+          ? `Connect another ${getProviderName(provider)} account`
+          : `Connect ${getProviderName(provider)} account`,
+      value: '__connect_account__',
+    })
 
     return options
   }, [credentials, provider])
@@ -206,7 +202,7 @@ export function ToolCredentialSelector({
         placeholder={label}
         disabled={disabled}
         editable={true}
-        filterOptions={!isForeign}
+        filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
         className={selectedId ? 'pl-[28px]' : ''}
@@ -218,15 +214,13 @@ export function ToolCredentialSelector({
             <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
             Additional permissions required
           </div>
-          {!isForeign && (
-            <Button
-              variant='active'
-              onClick={() => setShowOAuthModal(true)}
-              className='w-full px-[8px] py-[4px] font-medium text-[12px]'
-            >
-              Update access
-            </Button>
-          )}
+          <Button
+            variant='active'
+            onClick={() => setShowOAuthModal(true)}
+            className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+          >
+            Update access
+          </Button>
         </div>
       )}
 
@@ -245,7 +239,11 @@ export function ToolCredentialSelector({
   )
 }
 
-function useCredentialRefreshTriggers(refetchCredentials: () => Promise<unknown>) {
+function useCredentialRefreshTriggers(
+  refetchCredentials: () => Promise<unknown>,
+  providerId: string,
+  workspaceId: string
+) {
   useEffect(() => {
     const refresh = () => {
       void refetchCredentials()
@@ -263,12 +261,29 @@ function useCredentialRefreshTriggers(refetchCredentials: () => Promise<unknown>
       }
     }
 
+    const handleCredentialsUpdated = (
+      event: CustomEvent<{ providerId?: string; workspaceId?: string }>
+    ) => {
+      if (event.detail?.providerId && event.detail.providerId !== providerId) {
+        return
+      }
+      if (event.detail?.workspaceId && workspaceId && event.detail.workspaceId !== workspaceId) {
+        return
+      }
+      refresh()
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('pageshow', handlePageShow)
+    window.addEventListener('oauth-credentials-updated', handleCredentialsUpdated as EventListener)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
+      window.removeEventListener(
+        'oauth-credentials-updated',
+        handleCredentialsUpdated as EventListener
+      )
     }
-  }, [refetchCredentials])
+  }, [providerId, workspaceId, refetchCredentials])
 }

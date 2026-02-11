@@ -37,14 +37,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status })
     }
 
-    const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
+    const resolvedCredentialId = authz.resolvedCredentialId || credentialId
+    const credential = await getCredential(
+      requestId,
+      resolvedCredentialId,
+      authz.credentialOwnerUserId
+    )
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(
-      credentialId,
+      resolvedCredentialId,
       authz.credentialOwnerUserId,
       requestId
     )

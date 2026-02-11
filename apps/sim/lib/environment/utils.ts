@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getAccessibleEnvCredentials } from '@/lib/credentials/environment'
 
 const logger = createLogger('EnvironmentUtils')
 
@@ -53,7 +54,7 @@ export async function getPersonalAndWorkspaceEnv(
   conflicts: string[]
   decryptionFailures: string[]
 }> {
-  const [personalRows, workspaceRows] = await Promise.all([
+  const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
     db.select().from(environment).where(eq(environment.userId, userId)).limit(1),
     workspaceId
       ? db
@@ -62,10 +63,69 @@ export async function getPersonalAndWorkspaceEnv(
           .where(eq(workspaceEnvironment.workspaceId, workspaceId))
           .limit(1)
       : Promise.resolve([] as any[]),
+    workspaceId ? getAccessibleEnvCredentials(workspaceId, userId) : Promise.resolve([]),
   ])
 
-  const personalEncrypted: Record<string, string> = (personalRows[0]?.variables as any) || {}
-  const workspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
+  const ownPersonalEncrypted: Record<string, string> = (personalRows[0]?.variables as any) || {}
+  const allWorkspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
+
+  const hasCredentialFiltering = Boolean(workspaceId) && accessibleEnvCredentials.length > 0
+  const workspaceCredentialKeys = new Set(
+    accessibleEnvCredentials.filter((row) => row.type === 'env_workspace').map((row) => row.envKey)
+  )
+
+  const personalCredentialRows = accessibleEnvCredentials
+    .filter((row) => row.type === 'env_personal' && row.envOwnerUserId)
+    .sort((a, b) => {
+      const aIsRequester = a.envOwnerUserId === userId
+      const bIsRequester = b.envOwnerUserId === userId
+      if (aIsRequester && !bIsRequester) return -1
+      if (!aIsRequester && bIsRequester) return 1
+      return b.updatedAt.getTime() - a.updatedAt.getTime()
+    })
+
+  const selectedPersonalOwners = new Map<string, string>()
+  for (const row of personalCredentialRows) {
+    if (!selectedPersonalOwners.has(row.envKey) && row.envOwnerUserId) {
+      selectedPersonalOwners.set(row.envKey, row.envOwnerUserId)
+    }
+  }
+
+  const ownerUserIds = Array.from(new Set(selectedPersonalOwners.values()))
+  const ownerEnvironmentRows =
+    ownerUserIds.length > 0
+      ? await db
+          .select({
+            userId: environment.userId,
+            variables: environment.variables,
+          })
+          .from(environment)
+          .where(inArray(environment.userId, ownerUserIds))
+      : []
+
+  const ownerVariablesByUserId = new Map<string, Record<string, string>>(
+    ownerEnvironmentRows.map((row) => [row.userId, (row.variables as Record<string, string>) || {}])
+  )
+
+  let personalEncrypted: Record<string, string> = ownPersonalEncrypted
+  let workspaceEncrypted: Record<string, string> = allWorkspaceEncrypted
+
+  if (hasCredentialFiltering) {
+    personalEncrypted = {}
+    for (const [envKey, ownerUserId] of selectedPersonalOwners.entries()) {
+      const ownerVariables = ownerVariablesByUserId.get(ownerUserId)
+      const encryptedValue = ownerVariables?.[envKey]
+      if (encryptedValue) {
+        personalEncrypted[envKey] = encryptedValue
+      }
+    }
+
+    workspaceEncrypted = Object.fromEntries(
+      Object.entries(allWorkspaceEncrypted).filter(([envKey]) =>
+        workspaceCredentialKeys.has(envKey)
+      )
+    )
+  }
 
   const decryptionFailures: string[] = []
 

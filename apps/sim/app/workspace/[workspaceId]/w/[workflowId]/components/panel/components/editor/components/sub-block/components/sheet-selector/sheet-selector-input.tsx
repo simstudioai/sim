@@ -7,7 +7,6 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -87,8 +86,6 @@ export function SheetSelectorInput({
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 
-  const { isForeignCredential } = useForeignCredential(effectiveProviderId, normalizedCredentialId)
-
   const selectorResolution = useMemo<SelectorResolution | null>(() => {
     return resolveSelectorForSubBlock(subBlock, {
       workflowId: workflowIdFromUrl,
@@ -101,11 +98,7 @@ export function SheetSelectorInput({
   const missingSpreadsheet = !normalizedSpreadsheetId
 
   const disabledReason =
-    finalDisabled ||
-    isForeignCredential ||
-    missingCredential ||
-    missingSpreadsheet ||
-    !selectorResolution?.key
+    finalDisabled || missingCredential || missingSpreadsheet || !selectorResolution?.key
 
   if (!selectorResolution?.key) {
     return (

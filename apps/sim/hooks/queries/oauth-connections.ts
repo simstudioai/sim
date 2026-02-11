@@ -169,9 +169,9 @@ export function useConnectOAuthService() {
 
 interface DisconnectServiceParams {
   provider: string
-  providerId: string
+  providerId?: string
   serviceId: string
-  accountId: string
+  accountId?: string
 }
 
 /**
@@ -182,7 +182,7 @@ export function useDisconnectOAuthService() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ provider, providerId }: DisconnectServiceParams) => {
+    mutationFn: async ({ provider, providerId, accountId }: DisconnectServiceParams) => {
       const response = await fetch('/api/auth/oauth/disconnect', {
         method: 'POST',
         headers: {
@@ -191,6 +191,7 @@ export function useDisconnectOAuthService() {
         body: JSON.stringify({
           provider,
           providerId,
+          accountId,
         }),
       })
 
@@ -212,7 +213,8 @@ export function useDisconnectOAuthService() {
           oauthConnectionsKeys.connections(),
           previousServices.map((svc) => {
             if (svc.id === serviceId) {
-              const updatedAccounts = svc.accounts?.filter((acc) => acc.id !== accountId) || []
+              const updatedAccounts =
+                accountId && svc.accounts ? svc.accounts.filter((acc) => acc.id !== accountId) : []
               return {
                 ...svc,
                 accounts: updatedAccounts,

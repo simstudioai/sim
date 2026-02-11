@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { account, workflow as workflowTable } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { account, credential, credentialMember, workflow as workflowTable } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -12,17 +12,14 @@ export interface CredentialAccessResult {
   requesterUserId?: string
   credentialOwnerUserId?: string
   workspaceId?: string
+  resolvedCredentialId?: string
 }
 
 /**
- * Centralizes auth + collaboration rules for credential use.
- * - Uses checkSessionOrInternalAuth to authenticate the caller
- * - Fetches credential owner
- * - Authorization rules:
- *   - session: allow if requester owns the credential; otherwise require workflowId and
- *     verify BOTH requester and owner have access to the workflow's workspace
- *   - internal_jwt: require workflowId (by default) and verify credential owner has access to the
- *     workflow's workspace (requester identity is the system/workflow)
+ * Centralizes auth + credential membership checks for OAuth usage.
+ * - Workspace-scoped credential IDs enforce active credential_member access.
+ * - Legacy account IDs are resolved to workspace-scoped credentials when workflowId is provided.
+ * - Direct legacy account-ID access without workflowId is restricted to account owners only.
  */
 export async function authorizeCredentialUse(
   request: NextRequest,
@@ -37,71 +34,173 @@ export async function authorizeCredentialUse(
     return { ok: false, error: auth.error || 'Authentication required' }
   }
 
-  // Lookup credential owner
-  const [credRow] = await db
+  const [workflowContext] = workflowId
+    ? await db
+        .select({ workspaceId: workflowTable.workspaceId })
+        .from(workflowTable)
+        .where(eq(workflowTable.id, workflowId))
+        .limit(1)
+    : [null]
+
+  if (workflowId && (!workflowContext || !workflowContext.workspaceId)) {
+    return { ok: false, error: 'Workflow not found' }
+  }
+
+  const [platformCredential] = await db
+    .select({
+      id: credential.id,
+      workspaceId: credential.workspaceId,
+      type: credential.type,
+      accountId: credential.accountId,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (platformCredential) {
+    if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
+      return { ok: false, error: 'Unsupported credential type for OAuth access' }
+    }
+
+    if (workflowContext && workflowContext.workspaceId !== platformCredential.workspaceId) {
+      return { ok: false, error: 'Credential is not accessible from this workflow workspace' }
+    }
+
+    const [accountRow] = await db
+      .select({ userId: account.userId })
+      .from(account)
+      .where(eq(account.id, platformCredential.accountId))
+      .limit(1)
+
+    if (!accountRow) {
+      return { ok: false, error: 'Credential account not found' }
+    }
+
+    const requesterPerm =
+      auth.authType === 'internal_jwt'
+        ? null
+        : await getUserEntityPermissions(auth.userId, 'workspace', platformCredential.workspaceId)
+
+    if (auth.authType !== 'internal_jwt') {
+      const [membership] = await db
+        .select({ id: credentialMember.id })
+        .from(credentialMember)
+        .where(
+          and(
+            eq(credentialMember.credentialId, platformCredential.id),
+            eq(credentialMember.userId, auth.userId),
+            eq(credentialMember.status, 'active')
+          )
+        )
+        .limit(1)
+
+      if (!membership || requesterPerm === null) {
+        return { ok: false, error: 'Unauthorized' }
+      }
+    }
+
+    const ownerPerm = await getUserEntityPermissions(
+      accountRow.userId,
+      'workspace',
+      platformCredential.workspaceId
+    )
+    if (ownerPerm === null) {
+      return { ok: false, error: 'Unauthorized' }
+    }
+
+    return {
+      ok: true,
+      authType: auth.authType as CredentialAccessResult['authType'],
+      requesterUserId: auth.userId,
+      credentialOwnerUserId: accountRow.userId,
+      workspaceId: platformCredential.workspaceId,
+      resolvedCredentialId: platformCredential.accountId,
+    }
+  }
+
+  if (workflowContext?.workspaceId) {
+    const [workspaceCredential] = await db
+      .select({
+        id: credential.id,
+        workspaceId: credential.workspaceId,
+        accountId: credential.accountId,
+      })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'oauth'),
+          eq(credential.workspaceId, workflowContext.workspaceId),
+          eq(credential.accountId, credentialId)
+        )
+      )
+      .limit(1)
+
+    if (!workspaceCredential?.accountId) {
+      return { ok: false, error: 'Credential not found' }
+    }
+
+    const [accountRow] = await db
+      .select({ userId: account.userId })
+      .from(account)
+      .where(eq(account.id, workspaceCredential.accountId))
+      .limit(1)
+
+    if (!accountRow) {
+      return { ok: false, error: 'Credential account not found' }
+    }
+
+    if (auth.authType !== 'internal_jwt') {
+      const [membership] = await db
+        .select({ id: credentialMember.id })
+        .from(credentialMember)
+        .where(
+          and(
+            eq(credentialMember.credentialId, workspaceCredential.id),
+            eq(credentialMember.userId, auth.userId),
+            eq(credentialMember.status, 'active')
+          )
+        )
+        .limit(1)
+
+      if (!membership) {
+        return { ok: false, error: 'Unauthorized' }
+      }
+    }
+
+    const ownerPerm = await getUserEntityPermissions(
+      accountRow.userId,
+      'workspace',
+      workflowContext.workspaceId
+    )
+    if (ownerPerm === null) {
+      return { ok: false, error: 'Unauthorized' }
+    }
+
+    return {
+      ok: true,
+      authType: auth.authType as CredentialAccessResult['authType'],
+      requesterUserId: auth.userId,
+      credentialOwnerUserId: accountRow.userId,
+      workspaceId: workflowContext.workspaceId,
+      resolvedCredentialId: workspaceCredential.accountId,
+    }
+  }
+
+  const [legacyAccount] = await db
     .select({ userId: account.userId })
     .from(account)
     .where(eq(account.id, credentialId))
     .limit(1)
 
-  if (!credRow) {
+  if (!legacyAccount) {
     return { ok: false, error: 'Credential not found' }
   }
 
-  const credentialOwnerUserId = credRow.userId
-
-  // If requester owns the credential, allow immediately
-  if (auth.authType !== 'internal_jwt' && auth.userId === credentialOwnerUserId) {
-    return {
-      ok: true,
-      authType: auth.authType as CredentialAccessResult['authType'],
-      requesterUserId: auth.userId,
-      credentialOwnerUserId,
-    }
-  }
-
-  // For collaboration paths, workflowId is required to scope to a workspace
-  if (!workflowId) {
+  if (auth.authType === 'internal_jwt') {
     return { ok: false, error: 'workflowId is required' }
   }
 
-  const [wf] = await db
-    .select({ workspaceId: workflowTable.workspaceId })
-    .from(workflowTable)
-    .where(eq(workflowTable.id, workflowId))
-    .limit(1)
-
-  if (!wf || !wf.workspaceId) {
-    return { ok: false, error: 'Workflow not found' }
-  }
-
-  if (auth.authType === 'internal_jwt') {
-    // Internal calls: verify credential owner belongs to the workflow's workspace
-    const ownerPerm = await getUserEntityPermissions(
-      credentialOwnerUserId,
-      'workspace',
-      wf.workspaceId
-    )
-    if (ownerPerm === null) {
-      return { ok: false, error: 'Unauthorized' }
-    }
-    return {
-      ok: true,
-      authType: auth.authType as CredentialAccessResult['authType'],
-      requesterUserId: auth.userId,
-      credentialOwnerUserId,
-      workspaceId: wf.workspaceId,
-    }
-  }
-
-  // Session: verify BOTH requester and owner belong to the workflow's workspace
-  const requesterPerm = await getUserEntityPermissions(auth.userId, 'workspace', wf.workspaceId)
-  const ownerPerm = await getUserEntityPermissions(
-    credentialOwnerUserId,
-    'workspace',
-    wf.workspaceId
-  )
-  if (requesterPerm === null || ownerPerm === null) {
+  if (auth.userId !== legacyAccount.userId) {
     return { ok: false, error: 'Unauthorized' }
   }
 
@@ -109,7 +208,7 @@ export async function authorizeCredentialUse(
     ok: true,
     authType: auth.authType as CredentialAccessResult['authType'],
     requesterUserId: auth.userId,
-    credentialOwnerUserId,
-    workspaceId: wf.workspaceId,
+    credentialOwnerUserId: legacyAccount.userId,
+    resolvedCredentialId: credentialId,
   }
 }
