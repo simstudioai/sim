@@ -1,3 +1,4 @@
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetSavedAlbumsParams {
@@ -45,22 +46,22 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of albums to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of first album to return',
+      description: 'Index of first album to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for market',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 
@@ -102,7 +103,33 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of saved albums' },
+    albums: {
+      type: 'array',
+      description: 'List of saved albums',
+      items: {
+        type: 'object',
+        properties: {
+          added_at: { type: 'string', description: 'When the album was saved' },
+          album: {
+            type: 'object',
+            description: 'Album information',
+            properties: {
+              id: { type: 'string', description: 'Spotify album ID' },
+              name: { type: 'string', description: 'Album name' },
+              artists: {
+                type: 'array',
+                description: 'List of artists',
+                items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+              },
+              total_tracks: { type: 'number', description: 'Total number of tracks' },
+              release_date: { type: 'string', description: 'Release date' },
+              image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+              external_url: { type: 'string', description: 'Spotify URL' },
+            },
+          },
+        },
+      },
+    },
     total: { type: 'number', description: 'Total saved albums' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

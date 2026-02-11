@@ -1,5 +1,9 @@
+import type {
+  SpotifyGetArtistTopTracksParams,
+  SpotifyGetArtistTopTracksResponse,
+} from '@/tools/spotify/types'
+import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetArtistTopTracksParams, SpotifyGetArtistTopTracksResponse } from './types'
 
 export const spotifyGetArtistTopTracksTool: ToolConfig<
   SpotifyGetArtistTopTracksParams,
@@ -25,9 +29,10 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 'US',
-      description: 'ISO 3166-1 alpha-2 country code (required for this endpoint)',
+      description:
+        'ISO 3166-1 alpha-2 country code (e.g., "US", "GB") - required for this endpoint',
     },
   },
 
@@ -72,18 +77,7 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
     tracks: {
       type: 'array',
       description: "Artist's top tracks",
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Spotify track ID' },
-          name: { type: 'string', description: 'Track name' },
-          album: { type: 'object', description: 'Album information' },
-          duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
-          popularity: { type: 'number', description: 'Popularity score (0-100)' },
-          preview_url: { type: 'string', description: 'URL to 30-second preview' },
-          external_url: { type: 'string', description: 'Spotify URL' },
-        },
-      },
+      items: { type: 'object', properties: ARTIST_TOP_TRACK_OUTPUT_PROPERTIES },
     },
   },
 }

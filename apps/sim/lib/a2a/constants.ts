@@ -1,7 +1,10 @@
 export { AGENT_CARD_PATH } from '@a2a-js/sdk'
+
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+
 export const A2A_PROTOCOL_VERSION = '0.3.0'
 
-export const A2A_DEFAULT_TIMEOUT = 300000
+export const A2A_DEFAULT_TIMEOUT = DEFAULT_EXECUTION_TIMEOUT_MS
 
 /**
  * Maximum number of messages stored per task in the database.

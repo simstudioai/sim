@@ -3,6 +3,7 @@ import type {
   SalesforceGetReportParams,
   SalesforceGetReportResponse,
 } from '@/tools/salesforce/types'
+import { GET_REPORT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,8 +34,8 @@ export const salesforceGetReportTool: ToolConfig<
     reportId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Report ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Report ID (18-character string starting with 00O)',
     },
   },
 
@@ -80,11 +81,7 @@ export const salesforceGetReportTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Report metadata',
-      properties: {
-        report: { type: 'object', description: 'Report metadata object' },
-        reportId: { type: 'string', description: 'Report ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: GET_REPORT_OUTPUT_PROPERTIES,
     },
   },
 }

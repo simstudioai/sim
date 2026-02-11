@@ -8,6 +8,7 @@ import {
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import { safeAssign } from '@/tools/safe-assign'
 
 type ExecutionKind = 'chat' | 'manual' | 'api'
 
@@ -346,7 +347,7 @@ function buildLegacyStarterOutput(
   const finalObject = isPlainObject(finalInput) ? finalInput : undefined
 
   if (finalObject) {
-    Object.assign(output, finalObject)
+    safeAssign(output, finalObject)
     output.input = { ...finalObject }
   } else {
     output.input = finalInput
@@ -377,8 +378,30 @@ function buildManualTriggerOutput(
   return mergeFilesIntoOutput(output, workflowInput)
 }
 
-function buildIntegrationTriggerOutput(workflowInput: unknown): NormalizedBlockOutput {
-  return isPlainObject(workflowInput) ? (workflowInput as NormalizedBlockOutput) : {}
+function buildIntegrationTriggerOutput(
+  workflowInput: unknown,
+  structuredInput: Record<string, unknown>,
+  hasStructured: boolean
+): NormalizedBlockOutput {
+  const output: NormalizedBlockOutput = {}
+
+  if (hasStructured) {
+    for (const [key, value] of Object.entries(structuredInput)) {
+      output[key] = value
+    }
+  }
+
+  if (isPlainObject(workflowInput)) {
+    for (const [key, value] of Object.entries(workflowInput)) {
+      if (value !== undefined && value !== null) {
+        output[key] = value
+      } else if (!Object.hasOwn(output, key)) {
+        output[key] = value
+      }
+    }
+  }
+
+  return mergeFilesIntoOutput(output, workflowInput)
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
@@ -427,7 +450,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       return buildManualTriggerOutput(finalInput, workflowInput)
 
     case StartBlockPath.EXTERNAL_TRIGGER:
-      return buildIntegrationTriggerOutput(workflowInput)
+      return buildIntegrationTriggerOutput(workflowInput, structuredInput, hasStructured)
 
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(

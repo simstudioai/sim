@@ -1,13 +1,14 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { bufferToBase64 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage, downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
 const DEFAULT_MAX_BASE64_BYTES = 10 * 1024 * 1024
-const DEFAULT_TIMEOUT_MS = 180000
+const DEFAULT_TIMEOUT_MS = getMaxExecutionTimeout()
 const DEFAULT_CACHE_TTL_SECONDS = 300
 const REDIS_KEY_PREFIX = 'user-file:base64:'
 

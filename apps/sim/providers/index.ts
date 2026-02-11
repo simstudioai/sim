@@ -8,7 +8,10 @@ import {
   calculateCost,
   generateStructuredOutputInstructions,
   shouldBillModelUsage,
+  supportsReasoningEffort,
   supportsTemperature,
+  supportsThinking,
+  supportsVerbosity,
 } from '@/providers/utils'
 
 const logger = createLogger('Providers')
@@ -21,9 +24,22 @@ export const MAX_TOOL_ITERATIONS = 20
 
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
+  const model = sanitizedRequest.model
 
-  if (sanitizedRequest.model && !supportsTemperature(sanitizedRequest.model)) {
+  if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
+  }
+
+  if (model && !supportsReasoningEffort(model)) {
+    sanitizedRequest.reasoningEffort = undefined
+  }
+
+  if (model && !supportsVerbosity(model)) {
+    sanitizedRequest.verbosity = undefined
+  }
+
+  if (model && !supportsThinking(model)) {
+    sanitizedRequest.thinkingLevel = undefined
   }
 
   return sanitizedRequest

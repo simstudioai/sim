@@ -17,6 +17,9 @@ const {
   mockValidateCronExpression,
   mockGetScheduleTimeValues,
   mockRandomUUID,
+  mockTransaction,
+  mockSelect,
+  mockFrom,
 } = vi.hoisted(() => ({
   mockInsert: vi.fn(),
   mockDelete: vi.fn(),
@@ -28,20 +31,27 @@ const {
   mockValidateCronExpression: vi.fn(),
   mockGetScheduleTimeValues: vi.fn(),
   mockRandomUUID: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
-  db: {},
+  db: {
+    transaction: mockTransaction,
+  },
   workflowSchedule: {
     workflowId: 'workflow_id',
     blockId: 'block_id',
     deploymentVersionId: 'deployment_version_id',
+    id: 'id',
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args) => ({ type: 'eq', args })),
   and: vi.fn((...args) => ({ type: 'and', args })),
+  inArray: vi.fn((...args) => ({ type: 'inArray', args })),
   sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
 }))
 
@@ -100,6 +110,20 @@ describe('Schedule Deploy Utilities', () => {
     // Setup mock chain for delete
     mockWhere.mockResolvedValue({})
     mockDelete.mockReturnValue({ where: mockWhere })
+
+    // Setup mock chain for select
+    mockFrom.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+    mockSelect.mockReturnValue({ from: mockFrom })
+
+    // Setup transaction mock to execute callback with mock tx
+    mockTransaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        insert: mockInsert,
+        delete: mockDelete,
+        select: mockSelect,
+      }
+      return callback(mockTx)
+    })
   })
 
   afterEach(() => {
@@ -134,6 +158,19 @@ describe('Schedule Deploy Utilities', () => {
     it('should handle empty blocks object', () => {
       const result = findScheduleBlocks({})
       expect(result).toHaveLength(0)
+    })
+
+    it('should exclude disabled schedule blocks', () => {
+      const blocks: Record<string, BlockState> = {
+        'block-1': { id: 'block-1', type: 'schedule', enabled: true, subBlocks: {} } as BlockState,
+        'block-2': { id: 'block-2', type: 'schedule', enabled: false, subBlocks: {} } as BlockState,
+        'block-3': { id: 'block-3', type: 'schedule', subBlocks: {} } as BlockState, // enabled undefined = enabled
+      }
+
+      const result = findScheduleBlocks(blocks)
+
+      expect(result).toHaveLength(2)
+      expect(result.map((b) => b.id)).toEqual(['block-1', 'block-3'])
     })
   })
 
@@ -671,20 +708,24 @@ describe('Schedule Deploy Utilities', () => {
   })
 
   describe('createSchedulesForDeploy', () => {
+    const setupMockTransaction = (
+      existingSchedules: Array<{ id: string; blockId: string }> = []
+    ) => {
+      mockFrom.mockReturnValue({ where: vi.fn().mockResolvedValue(existingSchedules) })
+      mockSelect.mockReturnValue({ from: mockFrom })
+    }
+
     it('should return success with no schedule blocks', async () => {
       const blocks: Record<string, BlockState> = {
         'block-1': { id: 'block-1', type: 'agent', subBlocks: {} } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
 
       expect(result.success).toBe(true)
-      expect(mockInsert).not.toHaveBeenCalled()
+      expect(mockTransaction).not.toHaveBeenCalled()
     })
 
     it('should create schedule for valid schedule block', async () => {
@@ -700,17 +741,15 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
 
       expect(result.success).toBe(true)
       expect(result.scheduleId).toBe('test-uuid')
       expect(result.cronExpression).toBe('0 9 * * *')
       expect(result.nextRunAt).toEqual(new Date('2025-04-15T09:00:00Z'))
+      expect(mockTransaction).toHaveBeenCalled()
       expect(mockInsert).toHaveBeenCalled()
       expect(mockOnConflictDoUpdate).toHaveBeenCalled()
     })
@@ -727,16 +766,13 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Time is required for daily schedules')
-      expect(mockInsert).not.toHaveBeenCalled()
+      expect(mockTransaction).not.toHaveBeenCalled()
     })
 
     it('should use onConflictDoUpdate for existing schedules', async () => {
@@ -752,12 +788,9 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      setupMockTransaction()
 
-      await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
+      await createSchedulesForDeploy('workflow-1', blocks, {} as any)
 
       expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
@@ -768,6 +801,27 @@ describe('Schedule Deploy Utilities', () => {
           failedCount: 0,
         }),
       })
+    })
+
+    it('should rollback on database error', async () => {
+      const blocks: Record<string, BlockState> = {
+        'block-1': {
+          id: 'block-1',
+          type: 'schedule',
+          subBlocks: {
+            scheduleType: { value: 'daily' },
+            dailyTime: { value: '09:00' },
+            timezone: { value: 'UTC' },
+          },
+        } as BlockState,
+      }
+
+      mockTransaction.mockRejectedValueOnce(new Error('Database error'))
+
+      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Database error')
     })
   })
 

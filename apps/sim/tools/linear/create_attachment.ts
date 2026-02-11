@@ -2,6 +2,7 @@ import type {
   LinearCreateAttachmentParams,
   LinearCreateAttachmentResponse,
 } from '@/tools/linear/types'
+import { ATTACHMENT_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateAttachmentTool: ToolConfig<
@@ -27,9 +28,15 @@ export const linearCreateAttachmentTool: ToolConfig<
     },
     url: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'URL of the attachment',
+    },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'hidden',
+      description: 'File to attach',
     },
     title: {
       type: 'string',
@@ -58,9 +65,14 @@ export const linearCreateAttachmentTool: ToolConfig<
       }
     },
     body: (params) => {
+      const attachmentUrl = params.url || params.file?.url
+      if (!attachmentUrl) {
+        throw new Error('URL or file is required')
+      }
+
       const input: Record<string, any> = {
         issueId: params.issueId,
-        url: params.url,
+        url: attachmentUrl,
         title: params.title,
       }
 
@@ -121,13 +133,7 @@ export const linearCreateAttachmentTool: ToolConfig<
     attachment: {
       type: 'object',
       description: 'The created attachment',
-      properties: {
-        id: { type: 'string', description: 'Attachment ID' },
-        title: { type: 'string', description: 'Attachment title' },
-        subtitle: { type: 'string', description: 'Attachment subtitle' },
-        url: { type: 'string', description: 'Attachment URL' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-      },
+      properties: ATTACHMENT_OUTPUT_PROPERTIES,
     },
   },
 }

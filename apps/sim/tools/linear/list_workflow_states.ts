@@ -2,6 +2,7 @@ import type {
   LinearListWorkflowStatesParams,
   LinearListWorkflowStatesResponse,
 } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, WORKFLOW_STATE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListWorkflowStatesTool: ToolConfig<
@@ -64,9 +65,13 @@ export const linearListWorkflowStatesTool: ToolConfig<
               nodes {
                 id
                 name
+                description
                 type
                 color
                 position
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name
@@ -118,22 +123,9 @@ export const linearListWorkflowStatesTool: ToolConfig<
       description: 'Array of workflow states',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'State ID' },
-          name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
-          type: {
-            type: 'string',
-            description: 'State type (e.g., "unstarted", "started", "completed")',
-          },
-          color: { type: 'string', description: 'State color' },
-          position: { type: 'number', description: 'State position in workflow' },
-          team: { type: 'object', description: 'Team this state belongs to' },
-        },
+        properties: WORKFLOW_STATE_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

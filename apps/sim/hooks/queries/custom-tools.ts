@@ -110,15 +110,16 @@ export function getCustomTools(workspaceId?: string): CustomToolDefinition[] {
 }
 
 /**
- * Get a specific custom tool from the query cache by ID (for non-React code)
+ * Get a specific custom tool from the query cache by ID or title (for non-React code)
+ * Custom tools are referenced by title in the system (custom_${title}), so title lookup is required.
  * If workspaceId is not provided, extracts it from the current URL
  */
 export function getCustomTool(
-  toolId: string,
+  identifier: string,
   workspaceId?: string
 ): CustomToolDefinition | undefined {
   const tools = getCustomTools(workspaceId)
-  return tools.find((tool) => tool.id === toolId) || tools.find((tool) => tool.title === toolId)
+  return tools.find((tool) => tool.id === identifier || tool.title === identifier)
 }
 
 /**

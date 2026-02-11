@@ -206,6 +206,13 @@ export async function POST(request: NextRequest) {
         if (!workspaceId) {
           throw new InvalidRequestError('Workspace context requires workspaceId parameter')
         }
+        const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+        if (permission !== 'admin' && permission !== 'write') {
+          return NextResponse.json(
+            { error: 'Write or Admin access required for workspace uploads' },
+            { status: 403 }
+          )
+        }
 
         try {
           const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
@@ -7,10 +8,15 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmTransitionsAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
-    const { domain, accessToken, cloudId: cloudIdParam, issueIdOrKey } = body
+    const { domain, accessToken, cloudId: cloudIdParam, issueIdOrKey, start, limit } = body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -41,7 +47,11 @@ export async function POST(request: Request) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const url = `${baseUrl}/request/${issueIdOrKey}/transition`
+    const params = new URLSearchParams()
+    if (start) params.append('start', start)
+    if (limit) params.append('limit', limit)
+
+    const url = `${baseUrl}/request/${issueIdOrKey}/transition${params.toString() ? `?${params.toString()}` : ''}`
 
     logger.info('Fetching transitions from:', url)
 
@@ -72,6 +82,8 @@ export async function POST(request: Request) {
         ts: new Date().toISOString(),
         issueIdOrKey,
         transitions: data.values || [],
+        total: data.size || 0,
+        isLastPage: data.isLastPage ?? true,
       },
     })
   } catch (error) {

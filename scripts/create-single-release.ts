@@ -57,7 +57,7 @@ function findVersionCommit(version: string): VersionCommit | null {
   for (const line of lines) {
     const [hash, message, date, author] = line.split('|')
 
-    const versionMatch = message.match(/^(v\d+\.\d+\.?\d*):\s*(.+)$/)
+    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
     if (versionMatch && versionMatch[1] === version) {
       return {
         hash,
@@ -83,7 +83,7 @@ function findPreviousVersionCommit(currentVersion: string): VersionCommit | null
   for (const line of lines) {
     const [hash, message, date, author] = line.split('|')
 
-    const versionMatch = message.match(/^(v\d+\.\d+\.?\d*):\s*(.+)$/)
+    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
     if (versionMatch) {
       if (versionMatch[1] === currentVersion) {
         foundCurrent = true
@@ -126,7 +126,7 @@ async function fetchGitHubCommitDetails(
 
       const githubUsername = commit.author?.login || commit.committer?.login || 'unknown'
 
-      let cleanMessage = commit.commit.message.split('\n')[0] // First line only
+      let cleanMessage = commit.commit.message.split('\n')[0]
       if (prNumber) {
         cleanMessage = cleanMessage.replace(/\s*\(#\d+\)\s*$/, '')
       }
@@ -197,7 +197,7 @@ async function getCommitsBetweenVersions(
     const commitEntries = gitLog.split('\n').filter((line) => line.trim())
 
     const nonVersionCommits = commitEntries.filter((line) => {
-      const [hash, message] = line.split('|')
+      const [, message] = line.split('|')
       const isVersionCommit = message.match(/^v\d+\.\d+/)
       if (isVersionCommit) {
         console.log(`⏭️ Skipping version commit: ${message.substring(0, 50)}...`)
@@ -226,12 +226,23 @@ async function getCommitsBetweenVersions(
 function categorizeCommit(message: string): 'features' | 'fixes' | 'improvements' | 'other' {
   const msgLower = message.toLowerCase()
 
-  if (
-    msgLower.includes('feat') ||
-    msgLower.includes('add') ||
-    msgLower.includes('implement') ||
-    msgLower.includes('new ')
-  ) {
+  if (/^feat(\(|:|!)/.test(msgLower)) {
+    return 'features'
+  }
+
+  if (/^fix(\(|:|!)/.test(msgLower)) {
+    return 'fixes'
+  }
+
+  if (/^(improvement|improve|perf|refactor)(\(|:|!)/.test(msgLower)) {
+    return 'improvements'
+  }
+
+  if (/^(chore|docs|style|test|ci|build)(\(|:|!)/.test(msgLower)) {
+    return 'other'
+  }
+
+  if (msgLower.includes('feat') || msgLower.includes('implement') || msgLower.includes('new ')) {
     return 'features'
   }
 
@@ -242,9 +253,10 @@ function categorizeCommit(message: string): 'features' | 'fixes' | 'improvements
   if (
     msgLower.includes('improve') ||
     msgLower.includes('enhance') ||
-    msgLower.includes('update') ||
     msgLower.includes('upgrade') ||
-    msgLower.includes('optimization')
+    msgLower.includes('optimization') ||
+    msgLower.includes('add') ||
+    msgLower.includes('update')
   ) {
     return 'improvements'
   }
@@ -355,6 +367,25 @@ async function main() {
       console.log(`✅ Found previous version: ${previousCommit.version}`)
     } else {
       console.log(`ℹ️ No previous version found (this might be the first release)`)
+    }
+
+    try {
+      const existingRelease = await octokit.rest.repos.getReleaseByTag({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        tag: targetVersion,
+      })
+      if (existingRelease.data) {
+        console.log(`ℹ️ Release ${targetVersion} already exists, skipping creation`)
+        console.log(
+          `🔗 View release: https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${targetVersion}`
+        )
+        return
+      }
+    } catch (error: any) {
+      if (error.status !== 404) {
+        throw error
+      }
     }
 
     const releaseBody = await generateReleaseBody(versionCommit, previousCommit || undefined)

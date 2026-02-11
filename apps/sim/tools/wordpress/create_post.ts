@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreatePostParams,
   type WordPressCreatePostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCreatePostResponse> = {
   id: 'wordpress_create_post',
@@ -21,7 +21,7 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     title: {
@@ -39,7 +39,7 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Post status: publish, draft, pending, private, or future',
     },
     excerpt: {
@@ -51,19 +51,19 @@ export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCrea
     categories: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comma-separated category IDs',
     },
     tags: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comma-separated tag IDs',
     },
     featuredMedia: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Featured image media ID',
     },
     slug: {

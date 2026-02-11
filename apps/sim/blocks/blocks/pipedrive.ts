@@ -804,6 +804,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     deals: { type: 'json', description: 'Array of deal objects' },
     deal: { type: 'json', description: 'Single deal object' },
     files: { type: 'json', description: 'Array of file objects' },
+    downloadedFiles: { type: 'file[]', description: 'Downloaded files from Pipedrive' },
     messages: { type: 'json', description: 'Array of mail message objects' },
     pipelines: { type: 'json', description: 'Array of pipeline objects' },
     projects: { type: 'json', description: 'Array of project objects' },

@@ -3,6 +3,7 @@ import type {
   SalesforceRefreshDashboardParams,
   SalesforceRefreshDashboardResponse,
 } from '@/tools/salesforce/types'
+import { REFRESH_DASHBOARD_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,8 +34,8 @@ export const salesforceRefreshDashboardTool: ToolConfig<
     dashboardId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Dashboard ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Dashboard ID (18-character string starting with 01Z)',
     },
   },
 
@@ -85,19 +86,7 @@ export const salesforceRefreshDashboardTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Refreshed dashboard data',
-      properties: {
-        dashboard: { type: 'object', description: 'Dashboard details' },
-        dashboardId: { type: 'string', description: 'Dashboard ID' },
-        components: { type: 'array', description: 'Dashboard component data' },
-        status: { type: 'object', description: 'Dashboard status', optional: true },
-        dashboardName: { type: 'string', description: 'Dashboard name', optional: true },
-        refreshDate: {
-          type: 'string',
-          description: 'Date when dashboard was refreshed',
-          optional: true,
-        },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: REFRESH_DASHBOARD_OUTPUT_PROPERTIES,
     },
   },
 }

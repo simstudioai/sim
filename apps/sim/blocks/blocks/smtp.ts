@@ -1,6 +1,7 @@
 import { SmtpIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SmtpSendMailResult } from '@/tools/smtp/types'
 
 export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
@@ -176,7 +177,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
         cc: params.cc,
         bcc: params.bcc,
         replyTo: params.replyTo,
-        attachments: params.attachments,
+        attachments: normalizeFileInput(params.attachments),
       }),
     },
   },

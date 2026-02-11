@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
 
-// Get Threads Tool - List all threads (Zep v3)
 export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_threads',
   name: 'Get Threads',
@@ -13,15 +13,15 @@ export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
       type: 'number',
       required: false,
       default: 10,
-      visibility: 'user-only',
-      description: 'Number of threads to retrieve per page',
+      visibility: 'user-or-llm',
+      description: 'Number of threads to retrieve per page (e.g., 10, 25, 50)',
     },
     pageNumber: {
       type: 'number',
       required: false,
       default: 1,
-      visibility: 'user-only',
-      description: 'Page number for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page number for pagination (e.g., 1, 2, 3)',
     },
     orderBy: {
       type: 'string',
@@ -79,17 +79,8 @@ export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    threads: {
-      type: 'array',
-      description: 'Array of thread objects',
-    },
-    responseCount: {
-      type: 'number',
-      description: 'Number of threads in this response',
-    },
-    totalCount: {
-      type: 'number',
-      description: 'Total number of threads available',
-    },
+    threads: THREADS_ARRAY_OUTPUT,
+    responseCount: PAGINATION_OUTPUT_PROPERTIES.responseCount,
+    totalCount: PAGINATION_OUTPUT_PROPERTIES.totalCount,
   },
 }

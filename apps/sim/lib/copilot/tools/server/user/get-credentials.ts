@@ -89,7 +89,11 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         try {
           const decoded = jwtDecode<{ email?: string; name?: string }>(acc.idToken)
           displayName = decoded.email || decoded.name || ''
-        } catch {}
+        } catch (error) {
+          logger.warn('Failed to decode JWT id token', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
       }
       if (!displayName && baseProvider === 'github') displayName = `${acc.accountId} (GitHub)`
       if (!displayName && userEmail) displayName = userEmail
@@ -107,7 +111,11 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
           acc.id
         )
         accessToken = refreshedToken || accessToken
-      } catch {}
+      } catch (error) {
+        logger.warn('Failed to refresh OAuth access token', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
       connectedCredentials.push({
         id: acc.id,
         name: displayName,

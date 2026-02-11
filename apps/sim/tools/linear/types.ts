@@ -1,4 +1,524 @@
-import type { ToolResponse } from '@/tools/types'
+import type { UserFile } from '@/executor/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Shared output property definitions for Linear API responses.
+ * These are reusable across all Linear tools to ensure consistency.
+ * Fields based on Linear GraphQL API schema.
+ */
+
+/**
+ * Output definition for nested state objects in issue responses
+ */
+export const STATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'State ID' },
+  name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
+  type: { type: 'string', description: 'State type (unstarted, started, completed, canceled)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete state object output definition
+ */
+export const STATE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Workflow state/status',
+  properties: STATE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for nested assignee/user objects
+ */
+export const USER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'User ID' },
+  name: { type: 'string', description: 'User name' },
+  email: { type: 'string', description: 'User email' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete user object output definition
+ */
+export const USER_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'User object',
+  properties: USER_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for full user objects (list users, get viewer)
+ */
+export const USER_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'User ID' },
+  name: { type: 'string', description: 'User name' },
+  email: { type: 'string', description: 'User email' },
+  displayName: { type: 'string', description: 'Display name' },
+  active: { type: 'boolean', description: 'Whether user is active' },
+  admin: { type: 'boolean', description: 'Whether user is admin' },
+  avatarUrl: { type: 'string', description: 'Avatar URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested team objects
+ */
+export const TEAM_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Team ID' },
+  name: { type: 'string', description: 'Team name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete team object output definition
+ */
+export const TEAM_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Team object',
+  properties: TEAM_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for full team objects (list teams)
+ */
+export const TEAM_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Team ID' },
+  name: { type: 'string', description: 'Team name' },
+  key: { type: 'string', description: 'Team key (used in issue identifiers)' },
+  description: { type: 'string', description: 'Team description' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested label objects
+ */
+export const LABEL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Label ID' },
+  name: { type: 'string', description: 'Label name' },
+  color: { type: 'string', description: 'Label color (hex)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete labels array output definition
+ */
+export const LABELS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Issue labels',
+  items: {
+    type: 'object',
+    properties: LABEL_OUTPUT_PROPERTIES,
+  },
+}
+
+/**
+ * Output definition for full label objects (list labels, create label)
+ */
+export const LABEL_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Label ID' },
+  name: { type: 'string', description: 'Label name' },
+  color: { type: 'string', description: 'Label color (hex)' },
+  description: { type: 'string', description: 'Label description' },
+  isGroup: { type: 'boolean', description: 'Whether this label is a group' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  team: TEAM_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested cycle objects
+ */
+export const CYCLE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Cycle ID' },
+  number: { type: 'number', description: 'Cycle number' },
+  name: { type: 'string', description: 'Cycle name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete cycle object output definition
+ */
+export const CYCLE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Cycle/sprint object',
+  properties: CYCLE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for full cycle objects (list cycles, get cycle)
+ */
+export const CYCLE_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Cycle ID' },
+  number: { type: 'number', description: 'Cycle number' },
+  name: { type: 'string', description: 'Cycle name' },
+  startsAt: { type: 'string', description: 'Start date (ISO 8601)' },
+  endsAt: { type: 'string', description: 'End date (ISO 8601)' },
+  completedAt: { type: 'string', description: 'Completion date (ISO 8601)' },
+  progress: { type: 'number', description: 'Progress percentage (0-1)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  team: TEAM_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested project objects
+ */
+export const PROJECT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project ID' },
+  name: { type: 'string', description: 'Project name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete project object output definition
+ */
+export const PROJECT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Project object',
+  properties: PROJECT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for full project objects (list projects, get project, create project)
+ */
+export const PROJECT_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project ID' },
+  name: { type: 'string', description: 'Project name' },
+  description: { type: 'string', description: 'Project description' },
+  state: {
+    type: 'string',
+    description: 'Project state (planned, started, paused, completed, canceled)',
+  },
+  priority: { type: 'number', description: 'Project priority (0-4)' },
+  startDate: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
+  targetDate: { type: 'string', description: 'Target date (YYYY-MM-DD)' },
+  url: { type: 'string', description: 'Project URL' },
+  lead: USER_OUTPUT,
+  teams: {
+    type: 'array',
+    description: 'Associated teams',
+    items: {
+      type: 'object',
+      properties: TEAM_OUTPUT_PROPERTIES,
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested issue objects (minimal)
+ */
+export const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Issue ID' },
+  title: { type: 'string', description: 'Issue title' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete issue minimal object output definition
+ */
+export const ISSUE_MINIMAL_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Issue object',
+  properties: ISSUE_MINIMAL_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for full issue objects (get issue, create issue, update issue)
+ */
+export const ISSUE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Issue ID' },
+  title: { type: 'string', description: 'Issue title' },
+  description: { type: 'string', description: 'Issue description' },
+  priority: {
+    type: 'number',
+    description: 'Priority (0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)',
+  },
+  estimate: { type: 'number', description: 'Estimate in points' },
+  url: { type: 'string', description: 'Issue URL' },
+  dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  completedAt: { type: 'string', description: 'Completion timestamp (ISO 8601)' },
+  canceledAt: { type: 'string', description: 'Cancellation timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  state: STATE_OUTPUT,
+  assignee: USER_OUTPUT,
+  teamId: { type: 'string', description: 'Team ID' },
+  projectId: { type: 'string', description: 'Project ID' },
+  labels: LABELS_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for issue objects with cycle/parent info (create issue response)
+ */
+export const ISSUE_EXTENDED_OUTPUT_PROPERTIES = {
+  ...ISSUE_OUTPUT_PROPERTIES,
+  cycleId: { type: 'string', description: 'Cycle ID' },
+  cycleNumber: { type: 'number', description: 'Cycle number' },
+  cycleName: { type: 'string', description: 'Cycle name' },
+  parentId: { type: 'string', description: 'Parent issue ID' },
+  parentTitle: { type: 'string', description: 'Parent issue title' },
+  projectMilestoneId: { type: 'string', description: 'Project milestone ID' },
+  projectMilestoneName: { type: 'string', description: 'Project milestone name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for comment objects
+ */
+export const COMMENT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Comment ID' },
+  body: { type: 'string', description: 'Comment text (Markdown)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  user: USER_OUTPUT,
+  issue: ISSUE_MINIMAL_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for attachment objects
+ */
+export const ATTACHMENT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Attachment ID' },
+  title: { type: 'string', description: 'Attachment title' },
+  subtitle: { type: 'string', description: 'Attachment subtitle' },
+  url: { type: 'string', description: 'Attachment URL' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for workflow state objects (full)
+ */
+export const WORKFLOW_STATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'State ID' },
+  name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
+  description: { type: 'string', description: 'State description' },
+  type: {
+    type: 'string',
+    description: 'State type (triage, backlog, unstarted, started, completed, canceled)',
+  },
+  color: { type: 'string', description: 'State color (hex)' },
+  position: { type: 'number', description: 'State position in workflow' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  team: TEAM_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for issue relation objects
+ */
+export const ISSUE_RELATION_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Relation ID' },
+  type: { type: 'string', description: 'Relation type (blocks, duplicate, related)' },
+  issue: ISSUE_MINIMAL_OUTPUT,
+  relatedIssue: ISSUE_MINIMAL_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for favorite objects
+ */
+export const FAVORITE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Favorite ID' },
+  type: { type: 'string', description: 'Favorite type (issue, project, cycle)' },
+  issue: ISSUE_MINIMAL_OUTPUT,
+  project: PROJECT_OUTPUT,
+  cycle: CYCLE_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for project update objects
+ */
+export const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project update ID' },
+  body: { type: 'string', description: 'Update body (Markdown)' },
+  health: { type: 'string', description: 'Project health (onTrack, atRisk, offTrack)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  user: USER_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for notification objects
+ */
+export const NOTIFICATION_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Notification ID' },
+  type: { type: 'string', description: 'Notification type' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  readAt: { type: 'string', description: 'Read timestamp (ISO 8601)' },
+  issue: ISSUE_MINIMAL_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for customer objects
+ */
+export const CUSTOMER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Customer ID' },
+  name: { type: 'string', description: 'Customer name' },
+  domains: {
+    type: 'array',
+    description: 'Associated domains',
+    items: { type: 'string', description: 'Domain' },
+  },
+  externalIds: {
+    type: 'array',
+    description: 'External IDs from other systems',
+    items: { type: 'string', description: 'External ID' },
+  },
+  logoUrl: { type: 'string', description: 'Logo URL' },
+  slugId: { type: 'string', description: 'Unique URL slug' },
+  approximateNeedCount: { type: 'number', description: 'Number of customer needs' },
+  revenue: { type: 'number', description: 'Annual revenue' },
+  size: { type: 'number', description: 'Organization size' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for customer need/request objects
+ */
+export const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Customer need ID' },
+  body: { type: 'string', description: 'Need body/description' },
+  priority: { type: 'number', description: 'Priority (0-4)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  customer: {
+    type: 'object',
+    description: 'Associated customer',
+    properties: {
+      id: { type: 'string', description: 'Customer ID' },
+      name: { type: 'string', description: 'Customer name' },
+    },
+  },
+  issue: ISSUE_MINIMAL_OUTPUT,
+  project: PROJECT_OUTPUT,
+  creator: USER_OUTPUT,
+  url: { type: 'string', description: 'Customer need URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for customer status objects
+ */
+export const CUSTOMER_STATUS_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Customer status ID' },
+  name: { type: 'string', description: 'Status name' },
+  description: { type: 'string', description: 'Status description' },
+  color: { type: 'string', description: 'Status color (hex)' },
+  position: { type: 'number', description: 'Position in list' },
+  type: { type: 'string', description: 'Status type (active, inactive)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for customer tier objects
+ */
+export const CUSTOMER_TIER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Customer tier ID' },
+  name: { type: 'string', description: 'Tier name' },
+  displayName: { type: 'string', description: 'Display name' },
+  description: { type: 'string', description: 'Tier description' },
+  color: { type: 'string', description: 'Tier color (hex)' },
+  position: { type: 'number', description: 'Position in list' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for project label objects
+ */
+export const PROJECT_LABEL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project label ID' },
+  name: { type: 'string', description: 'Label name' },
+  description: { type: 'string', description: 'Label description' },
+  color: { type: 'string', description: 'Label color (hex)' },
+  isGroup: { type: 'boolean', description: 'Whether this label is a group' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for project milestone objects
+ */
+export const PROJECT_MILESTONE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project milestone ID' },
+  name: { type: 'string', description: 'Milestone name' },
+  description: { type: 'string', description: 'Milestone description' },
+  projectId: { type: 'string', description: 'Project ID' },
+  targetDate: { type: 'string', description: 'Target date (YYYY-MM-DD)' },
+  progress: { type: 'number', description: 'Progress percentage (0-1)' },
+  sortOrder: { type: 'number', description: 'Sort order within the project' },
+  status: { type: 'string', description: 'Milestone status (done, next, overdue, unstarted)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for nested project milestone objects
+ */
+export const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project milestone ID' },
+  name: { type: 'string', description: 'Milestone name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for project status objects
+ */
+export const PROJECT_STATUS_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project status ID' },
+  name: { type: 'string', description: 'Status name' },
+  description: { type: 'string', description: 'Status description' },
+  color: { type: 'string', description: 'Status color (hex)' },
+  indefinite: { type: 'boolean', description: 'Whether this status is indefinite' },
+  position: { type: 'number', description: 'Position in list' },
+  type: {
+    type: 'string',
+    description: 'Status type (backlog, planned, started, paused, completed, canceled)',
+  },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Pagination output properties for list endpoints
+ */
+export const PAGE_INFO_OUTPUT_PROPERTIES = {
+  hasNextPage: { type: 'boolean', description: 'Whether there are more results' },
+  endCursor: { type: 'string', description: 'Cursor for the next page' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete pagination output definition
+ */
+export const PAGE_INFO_OUTPUT = {
+  type: 'object' as const,
+  description: 'Pagination information',
+  properties: PAGE_INFO_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for issue objects in list/read responses (includes team/project names)
+ */
+export const ISSUE_LIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Issue ID' },
+  title: { type: 'string', description: 'Issue title' },
+  description: { type: 'string', description: 'Issue description' },
+  priority: {
+    type: 'number',
+    description: 'Priority (0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)',
+  },
+  estimate: { type: 'number', description: 'Estimate in points' },
+  url: { type: 'string', description: 'Issue URL' },
+  dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  state: STATE_OUTPUT,
+  assignee: USER_OUTPUT,
+  teamId: { type: 'string', description: 'Team ID' },
+  teamName: { type: 'string', description: 'Team name' },
+  projectId: { type: 'string', description: 'Project ID' },
+  projectName: { type: 'string', description: 'Project name' },
+  cycleId: { type: 'string', description: 'Cycle ID' },
+  cycleNumber: { type: 'number', description: 'Cycle number' },
+  cycleName: { type: 'string', description: 'Cycle name' },
+  labels: LABELS_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
 
 // ===== Core Types =====
 
@@ -93,6 +613,10 @@ export interface LinearLabel {
   name: string
   color: string
   description?: string
+  isGroup: boolean
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
   team?: {
     id: string
     name: string
@@ -102,9 +626,13 @@ export interface LinearLabel {
 export interface LinearWorkflowState {
   id: string
   name: string
+  description?: string
   type: string
   color: string
   position: number
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
   team: {
     id: string
     name: string
@@ -119,6 +647,7 @@ export interface LinearCycle {
   endsAt: string
   completedAt?: string
   progress: number
+  createdAt: string
   team: {
     id: string
     name: string
@@ -216,6 +745,7 @@ export interface LinearSearchIssuesParams {
   teamId?: string
   includeArchived?: boolean
   first?: number
+  after?: string
   accessToken?: string
 }
 
@@ -382,7 +912,8 @@ export interface LinearGetActiveCycleParams {
 
 export interface LinearCreateAttachmentParams {
   issueId: string
-  url: string
+  url?: string
+  file?: UserFile
   title?: string
   subtitle?: string
   accessToken?: string
@@ -710,7 +1241,7 @@ export interface LinearAttachment {
   subtitle?: string
   url: string
   createdAt: string
-  updatedAt?: string
+  updatedAt: string
 }
 
 export interface LinearCreateAttachmentResponse extends ToolResponse {
@@ -871,8 +1402,12 @@ export interface LinearCustomer {
   domains: string[]
   externalIds: string[]
   logoUrl?: string
+  slugId: string
   approximateNeedCount: number
+  revenue?: number
+  size?: number
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1047,11 +1582,12 @@ export interface LinearMergeCustomersResponse extends ToolResponse {
 export interface LinearCustomerStatus {
   id: string
   name: string
-  displayName: string
   description?: string
   color: string
   position: number
+  type: string
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1098,12 +1634,18 @@ export interface LinearDeleteCustomerStatusResponse extends ToolResponse {
 }
 
 export interface LinearListCustomerStatusesParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListCustomerStatusesResponse extends ToolResponse {
   output: {
     customerStatuses?: LinearCustomerStatus[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1163,12 +1705,18 @@ export interface LinearDeleteCustomerTierResponse extends ToolResponse {
 }
 
 export interface LinearListCustomerTiersParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListCustomerTiersResponse extends ToolResponse {
   output: {
     customerTiers?: LinearCustomerTier[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1181,6 +1729,7 @@ export interface LinearProjectLabel {
   color?: string
   isGroup: boolean
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1225,13 +1774,19 @@ export interface LinearDeleteProjectLabelResponse extends ToolResponse {
 }
 
 export interface LinearListProjectLabelsParams {
-  accessToken?: string
   projectId?: string
+  first?: number
+  after?: string
+  accessToken?: string
 }
 
 export interface LinearListProjectLabelsResponse extends ToolResponse {
   output: {
     projectLabels?: LinearProjectLabel[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1269,6 +1824,9 @@ export interface LinearProjectMilestone {
   description?: string
   projectId: string
   targetDate?: string
+  progress: number
+  sortOrder: number
+  status: string
   createdAt: string
   archivedAt?: string
 }
@@ -1314,12 +1872,18 @@ export interface LinearDeleteProjectMilestoneResponse extends ToolResponse {
 
 export interface LinearListProjectMilestonesParams {
   projectId: string
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListProjectMilestonesResponse extends ToolResponse {
   output: {
     projectMilestones?: LinearProjectMilestone[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1332,7 +1896,9 @@ export interface LinearProjectStatus {
   color: string
   indefinite: boolean
   position: number
+  type: string
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1380,12 +1946,18 @@ export interface LinearDeleteProjectStatusResponse extends ToolResponse {
 }
 
 export interface LinearListProjectStatusesParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListProjectStatusesResponse extends ToolResponse {
   output: {
     projectStatuses?: LinearProjectStatus[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 

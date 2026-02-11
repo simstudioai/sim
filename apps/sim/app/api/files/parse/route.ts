@@ -5,8 +5,12 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -19,6 +23,7 @@ import {
   getMimeTypeFromExtension,
   getViewerUrl,
   inferContextFromKey,
+  isInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -61,7 +66,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: true })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: true })
 
     if (!authResult.success) {
       logger.warn('Unauthorized file parse request', {
@@ -215,7 +220,7 @@ async function parseFileSingle(
     }
   }
 
-  if (filePath.includes('/api/files/serve/')) {
+  if (isInternalFileUrl(filePath)) {
     return handleCloudFile(filePath, fileType, undefined, userId, executionContext)
   }
 
@@ -246,7 +251,7 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
     return { isValid: false, error: 'Invalid path: tilde character not allowed' }
   }
 
-  if (filePath.startsWith('/') && !filePath.startsWith('/api/files/serve/')) {
+  if (filePath.startsWith('/') && !isInternalFileUrl(filePath)) {
     return { isValid: false, error: 'Path outside allowed directory' }
   }
 
@@ -420,7 +425,7 @@ async function handleExternalUrl(
 
     return parseResult
   } catch (error) {
-    logger.error(`Error handling external URL ${url}:`, error)
+    logger.error(`Error handling external URL ${sanitizeUrlForLog(url)}:`, error)
     return {
       success: false,
       error: `Error fetching URL: ${(error as Error).message}`,

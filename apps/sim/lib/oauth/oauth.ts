@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import {
   AirtableIcon,
   AsanaIcon,
+  CalComIcon,
   ConfluenceIcon,
   DropboxIcon,
   GithubIcon,
@@ -613,6 +614,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'asana',
   },
+  calcom: {
+    name: 'Cal.com',
+    icon: CalComIcon,
+    services: {
+      calcom: {
+        name: 'Cal.com',
+        description: 'Manage Cal.com bookings, event types, and schedules.',
+        providerId: 'calcom',
+        icon: CalComIcon,
+        baseProviderIcon: CalComIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'calcom',
+  },
   pipedrive: {
     name: 'Pipedrive',
     icon: PipedriveIcon,
@@ -789,6 +805,11 @@ interface ProviderAuthConfig {
   useBasicAuth: boolean
   additionalHeaders?: Record<string, string>
   supportsRefreshTokenRotation?: boolean
+  /**
+   * If true, the refresh token is sent in the Authorization header as Bearer token
+   * instead of in the request body. Used by Cal.com.
+   */
+  refreshTokenInAuthHeader?: boolean
 }
 
 /**
@@ -835,6 +856,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'confluence': {
@@ -860,6 +882,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: true,
       }
     }
+    case 'calcom': {
+      const clientId = env.CALCOM_CLIENT_ID
+      if (!clientId) {
+        throw new Error('Missing CALCOM_CLIENT_ID')
+      }
+      return {
+        tokenEndpoint: 'https://app.cal.com/api/auth/oauth/refreshToken',
+        clientId,
+        clientSecret: '',
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+        // Cal.com requires refresh token in Authorization header, not body
+        refreshTokenInAuthHeader: true,
+      }
+    }
     case 'airtable': {
       const { clientId, clientSecret } = getCredentials(
         env.AIRTABLE_CLIENT_ID,
@@ -883,6 +920,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'microsoft':
@@ -910,6 +948,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'dropbox': {
@@ -1115,7 +1154,15 @@ function buildAuthRequest(
 
   const bodyParams: Record<string, string> = {
     grant_type: 'refresh_token',
-    refresh_token: refreshToken,
+  }
+
+  // Handle refresh token placement
+  if (config.refreshTokenInAuthHeader) {
+    // Cal.com style: refresh token in Authorization header as Bearer token
+    headers.Authorization = `Bearer ${refreshToken}`
+  } else {
+    // Standard OAuth: refresh token in request body
+    bodyParams.refresh_token = refreshToken
   }
 
   if (config.useBasicAuth) {
@@ -1125,7 +1172,9 @@ function buildAuthRequest(
   } else {
     // Use body credentials - include client credentials in request body
     bodyParams.client_id = config.clientId
-    bodyParams.client_secret = config.clientSecret
+    if (config.clientSecret) {
+      bodyParams.client_secret = config.clientSecret
+    }
   }
 
   return { headers, bodyParams }

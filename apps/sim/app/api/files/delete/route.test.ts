@@ -29,7 +29,7 @@ function setupFileApiMocks(
   }
 
   vi.doMock('@/lib/auth/hybrid', () => ({
-    checkHybridAuth: vi.fn().mockResolvedValue({
+    checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
       success: authenticated,
       userId: authenticated ? 'test-user-id' : undefined,
       error: authenticated ? undefined : 'Unauthorized',

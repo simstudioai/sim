@@ -10,38 +10,72 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@/socket/constants'
 import { persistWorkflowOperation } from '@/socket/database/operations'
-import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
 import { checkRolePermission } from '@/socket/middleware/permissions'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager, UserSession } from '@/socket/rooms'
 import { WorkflowOperationSchema } from '@/socket/validation/schemas'
 
 const logger = createLogger('OperationsHandlers')
 
-export function setupOperationsHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
+export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('workflow-operation', async (data) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+    const emitOperationError = (
+      forbidden: { type: string; message: string; operation?: string; target?: string },
+      failed?: { error: string; retryable?: boolean }
+    ) => {
+      socket.emit('operation-forbidden', forbidden)
+      if (failed && data?.operationId) {
+        socket.emit('operation-failed', { operationId: data.operationId, ...failed })
+      }
+    }
 
-    if (!workflowId || !session) {
-      socket.emit('error', {
-        type: 'NOT_JOINED',
-        message: 'Not joined to any workflow',
-      })
+    if (!roomManager.isReady()) {
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
       return
     }
 
-    const room = roomManager.getWorkflowRoom(workflowId)
-    if (!room) {
-      socket.emit('error', {
-        type: 'ROOM_NOT_FOUND',
-        message: 'Workflow room not found',
-      })
+    let workflowId: string | null = null
+    let session: UserSession | null = null
+
+    try {
+      workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      session = await roomManager.getUserSession(socket.id)
+    } catch (error) {
+      logger.error('Error loading session for workflow operation:', error)
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
+      return
+    }
+
+    if (!workflowId || !session) {
+      emitOperationError(
+        { type: 'SESSION_ERROR', message: 'Session expired, please rejoin workflow' },
+        { error: 'Session expired' }
+      )
+      return
+    }
+
+    let hasRoom = false
+    try {
+      hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+    } catch (error) {
+      logger.error('Error checking workflow room:', error)
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
+      return
+    }
+    if (!hasRoom) {
+      emitOperationError(
+        { type: 'ROOM_NOT_FOUND', message: 'Workflow room not found' },
+        { error: 'Workflow room not found' }
+      )
       return
     }
 
@@ -60,28 +94,33 @@ export function setupOperationsHandlers(
         isPositionUpdate && 'commit' in payload ? payload.commit === true : false
       const operationTimestamp = isPositionUpdate ? timestamp : Date.now()
 
+      // Get user presence for permission checking
+      const users = await roomManager.getWorkflowUsers(workflowId)
+      const userPresence = users.find((u) => u.socketId === socket.id)
+
       // Skip permission checks for non-committed position updates (broadcasts only, no persistence)
       if (isPositionUpdate && !commitPositionUpdate) {
         // Update last activity
-        const userPresence = room.users.get(socket.id)
         if (userPresence) {
-          userPresence.lastActivity = Date.now()
+          await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
         }
       } else {
         // Check permissions from cached role for all other operations
-        const userPresence = room.users.get(socket.id)
         if (!userPresence) {
           logger.warn(`User presence not found for socket ${socket.id}`)
-          socket.emit('operation-forbidden', {
-            type: 'SESSION_ERROR',
-            message: 'User session not found',
-            operation,
-            target,
-          })
+          emitOperationError(
+            {
+              type: 'SESSION_ERROR',
+              message: 'User session not found',
+              operation,
+              target,
+            },
+            { error: 'User session not found' }
+          )
           return
         }
 
-        userPresence.lastActivity = Date.now()
+        await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
         // Check permissions using cached role (no DB query)
         const permissionCheck = checkRolePermission(userPresence.role, operation)
@@ -89,7 +128,7 @@ export function setupOperationsHandlers(
           logger.warn(
             `User ${session.userId} (role: ${userPresence.role}) forbidden from ${operation} on ${target}`
           )
-          socket.emit('operation-forbidden', {
+          emitOperationError({
             type: 'INSUFFICIENT_PERMISSIONS',
             message: `${permissionCheck.reason} on '${target}'`,
             operation,
@@ -132,7 +171,7 @@ export function setupOperationsHandlers(
             timestamp: operationTimestamp,
             userId: session.userId,
           })
-          room.lastModified = Date.now()
+          await roomManager.updateRoomLastModified(workflowId)
 
           if (operationId) {
             socket.emit('operation-confirmed', {
@@ -178,7 +217,7 @@ export function setupOperationsHandlers(
             timestamp: operationTimestamp,
             userId: session.userId,
           })
-          room.lastModified = Date.now()
+          await roomManager.updateRoomLastModified(workflowId)
 
           if (operationId) {
             socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
@@ -211,7 +250,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         const broadcastData = {
           operation,
@@ -251,7 +290,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         const broadcastData = {
           operation,
@@ -288,7 +327,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -320,7 +359,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -349,7 +388,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -381,7 +420,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -413,7 +452,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -445,7 +484,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -474,7 +513,7 @@ export function setupOperationsHandlers(
           userId: session.userId,
         })
 
-        room.lastModified = Date.now()
+        await roomManager.updateRoomLastModified(workflowId)
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -503,27 +542,24 @@ export function setupOperationsHandlers(
         userId: session.userId,
       })
 
-      room.lastModified = Date.now()
+      await roomManager.updateRoomLastModified(workflowId)
 
       const broadcastData = {
         operation,
         target,
         payload,
-        timestamp: operationTimestamp, // Preserve client timestamp for position updates
+        timestamp: operationTimestamp,
         senderId: socket.id,
         userId: session.userId,
         userName: session.userName,
-        // Add operation metadata for better client handling
         metadata: {
           workflowId,
           operationId: crypto.randomUUID(),
-          isPositionUpdate, // Flag to help clients handle position updates specially
         },
       }
 
       socket.to(workflowId).emit('workflow-operation', broadcastData)
 
-      // Emit confirmation if operationId is provided
       if (operationId) {
         socket.emit('operation-confirmed', {
           operationId,
@@ -533,16 +569,14 @@ export function setupOperationsHandlers(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
 
-      // Emit operation-failed for queue-tracked operations
       if (operationId) {
         socket.emit('operation-failed', {
           operationId,
           error: errorMessage,
-          retryable: !(error instanceof ZodError), // Don't retry validation errors
+          retryable: !(error instanceof ZodError),
         })
       }
 
-      // Also emit legacy operation-error for backward compatibility
       if (error instanceof ZodError) {
         socket.emit('operation-error', {
           type: 'VALIDATION_ERROR',
@@ -553,7 +587,6 @@ export function setupOperationsHandlers(
         })
         logger.warn(`Validation error for operation from ${session.userId}:`, error.errors)
       } else if (error instanceof Error) {
-        // Handle specific database errors
         if (error.message.includes('not found')) {
           socket.emit('operation-error', {
             type: 'RESOURCE_NOT_FOUND',

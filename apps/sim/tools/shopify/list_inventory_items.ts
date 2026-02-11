@@ -1,5 +1,9 @@
+import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import {
+  INVENTORY_ITEM_OUTPUT_PROPERTIES,
+  PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/shopify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { ShopifyBaseParams } from './types'
 
 interface ShopifyListInventoryItemsParams extends ShopifyBaseParams {
   first?: number
@@ -226,10 +230,15 @@ export const shopifyListInventoryItemsTool: ToolConfig<
     inventoryItems: {
       type: 'array',
       description: 'List of inventory items with their IDs, SKUs, and stock levels',
+      items: {
+        type: 'object',
+        properties: INVENTORY_ITEM_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

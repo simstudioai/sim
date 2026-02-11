@@ -1,4 +1,5 @@
 import type { LinearListLabelsParams, LinearListLabelsResponse } from '@/tools/linear/types'
+import { LABEL_FULL_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearListLabelsResponse> = {
@@ -60,6 +61,10 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
                 name
                 color
                 description
+                isGroup
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name
@@ -111,18 +116,9 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
       description: 'Array of labels',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Label ID' },
-          name: { type: 'string', description: 'Label name' },
-          color: { type: 'string', description: 'Label color (hex)' },
-          description: { type: 'string', description: 'Label description' },
-          team: { type: 'object', description: 'Team this label belongs to' },
-        },
+        properties: LABEL_FULL_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

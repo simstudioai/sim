@@ -1,6 +1,10 @@
+import { ADD_MEMORY_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { ToolConfig } from '@/tools/types'
 
-// Add Memories Tool
+/**
+ * Add Memories Tool
+ * @see https://docs.mem0.ai/api-reference/memory/add-memories
+ */
 export const mem0AddMemoriesTool: ToolConfig = {
   id: 'mem0_add_memories',
   name: 'Add Memories',
@@ -11,14 +15,15 @@ export const mem0AddMemoriesTool: ToolConfig = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID associated with the memory',
+      visibility: 'user-or-llm',
+      description: 'User ID associated with the memory (e.g., "user_123", "alice@example.com")',
     },
     messages: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of message objects with role and content',
+      description:
+        'Array of message objects with role and content (e.g., [{"role": "user", "content": "Hello"}])',
     },
     apiKey: {
       type: 'string',
@@ -119,10 +124,17 @@ export const mem0AddMemoriesTool: ToolConfig = {
     ids: {
       type: 'array',
       description: 'Array of memory IDs that were created',
+      items: {
+        type: 'string',
+      },
     },
     memories: {
       type: 'array',
       description: 'Array of memory objects that were created',
+      items: {
+        type: 'object',
+        properties: ADD_MEMORY_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

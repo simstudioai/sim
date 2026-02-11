@@ -15,11 +15,85 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 
 const logger = createLogger('OrganizationMembership')
+
+export type BillingBlockReason = 'payment_failed' | 'dispute'
+
+/**
+ * Get all member user IDs for an organization
+ */
+export async function getOrgMemberIds(organizationId: string): Promise<string[]> {
+  const members = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+
+  return members.map((m) => m.userId)
+}
+
+/**
+ * Block all members of an organization for billing reasons
+ * Returns the number of members actually blocked
+ *
+ * Reason priority: dispute > payment_failed
+ * A payment_failed block won't overwrite an existing dispute block
+ */
+export async function blockOrgMembers(
+  organizationId: string,
+  reason: BillingBlockReason
+): Promise<number> {
+  const memberIds = await getOrgMemberIds(organizationId)
+
+  if (memberIds.length === 0) {
+    return 0
+  }
+
+  // Don't overwrite dispute blocks with payment_failed (dispute is higher priority)
+  const whereClause =
+    reason === 'payment_failed'
+      ? and(
+          inArray(userStats.userId, memberIds),
+          or(ne(userStats.billingBlockedReason, 'dispute'), isNull(userStats.billingBlockedReason))
+        )
+      : inArray(userStats.userId, memberIds)
+
+  const result = await db
+    .update(userStats)
+    .set({ billingBlocked: true, billingBlockedReason: reason })
+    .where(whereClause)
+    .returning({ userId: userStats.userId })
+
+  return result.length
+}
+
+/**
+ * Unblock all members of an organization blocked for a specific reason
+ * Only unblocks members blocked for the specified reason (not other reasons)
+ * Returns the number of members actually unblocked
+ */
+export async function unblockOrgMembers(
+  organizationId: string,
+  reason: BillingBlockReason
+): Promise<number> {
+  const memberIds = await getOrgMemberIds(organizationId)
+
+  if (memberIds.length === 0) {
+    return 0
+  }
+
+  const result = await db
+    .update(userStats)
+    .set({ billingBlocked: false, billingBlockedReason: null })
+    .where(and(inArray(userStats.userId, memberIds), eq(userStats.billingBlockedReason, reason)))
+    .returning({ userId: userStats.userId })
+
+  return result.length
+}
 
 export interface RestoreProResult {
   restored: boolean
@@ -556,6 +630,8 @@ export async function removeUserFromOrganization(
           const restoreResult = await restoreUserProSubscription(userId)
           billingActions.proRestored = restoreResult.restored
           billingActions.usageRestored = restoreResult.usageRestored
+
+          await syncUsageLimitsFromSubscription(userId)
         }
       } catch (postRemoveError) {
         logger.error('Post-removal personal Pro restore check failed', {

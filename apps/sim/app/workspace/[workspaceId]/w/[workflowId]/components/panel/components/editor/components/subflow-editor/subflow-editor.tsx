@@ -68,7 +68,7 @@ export function SubflowEditor({
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
       {/* Subflow Editor Section */}
       <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
-        <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[5px] pb-[8px]'>
+        <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[9px] pb-[8px]'>
           {/* Type Selection */}
           <div>
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>

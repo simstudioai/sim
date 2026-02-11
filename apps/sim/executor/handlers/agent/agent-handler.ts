@@ -7,14 +7,19 @@ import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
-  AGENT,
-  BlockType,
-  DEFAULTS,
-  HTTP,
-  REFERENCE,
-  stripCustomToolPrefix,
-} from '@/executor/constants'
+  validateBlockType,
+  validateCustomToolsAllowed,
+  validateMcpToolsAllowed,
+  validateModelProvider,
+  validateSkillsAllowed,
+} from '@/ee/access-control/utils/permission-check'
+import { AGENT, BlockType, DEFAULTS, REFERENCE, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
+import {
+  buildLoadSkillTool,
+  buildSkillsSystemPromptSection,
+  resolveSkillMetadata,
+} from '@/executor/handlers/agent/skills-resolver'
 import type {
   AgentInputs,
   Message,
@@ -23,14 +28,8 @@ import type {
 } from '@/executor/handlers/agent/types'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
-import {
-  validateBlockType,
-  validateCustomToolsAllowed,
-  validateMcpToolsAllowed,
-  validateModelProvider,
-} from '@/executor/utils/permission-check'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -52,11 +51,9 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
-    // Filter out unavailable MCP tools early so they don't appear in logs/inputs
     const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
     const filteredInputs = { ...inputs, tools: filteredTools }
 
-    // Validate tool permissions before processing
     await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
     const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
@@ -66,8 +63,21 @@ export class AgentBlockHandler implements BlockHandler {
 
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
+
+    // Resolve skill metadata for progressive disclosure
+    const skillInputs = filteredInputs.skills ?? []
+    let skillMetadata: Array<{ name: string; description: string }> = []
+    if (skillInputs.length > 0 && ctx.workspaceId) {
+      await validateSkillsAllowed(ctx.userId, ctx)
+      skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
+      if (skillMetadata.length > 0) {
+        const skillNames = skillMetadata.map((s) => s.name)
+        formattedTools.push(buildLoadSkillTool(skillNames))
+      }
+    }
+
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs)
+    const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -80,13 +90,7 @@ export class AgentBlockHandler implements BlockHandler {
       streaming: streamingConfig.shouldUseStreaming ?? false,
     })
 
-    const result = await this.executeProviderRequest(
-      ctx,
-      providerRequest,
-      block,
-      responseFormat,
-      filteredInputs
-    )
+    const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
 
     if (this.isStreamingExecution(result)) {
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
@@ -305,7 +309,7 @@ export class AgentBlockHandler implements BlockHandler {
       base.executeFunction = async (callParams: Record<string, any>) => {
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
-        const { blockData, blockNameMapping } = collectBlockData(ctx)
+        const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
         const result = await executeTool(
           'function_execute',
@@ -317,10 +321,12 @@ export class AgentBlockHandler implements BlockHandler {
             workflowVariables: ctx.workflowVariables || {},
             blockData,
             blockNameMapping,
+            blockOutputSchemas,
             isCustomTool: true,
             _context: {
               workflowId: ctx.workflowId,
               workspaceId: ctx.workspaceId,
+              userId: ctx.userId,
               isDeployedContext: ctx.isDeployedContext,
             },
           },
@@ -371,6 +377,9 @@ export class AgentBlockHandler implements BlockHandler {
       }
       if (ctx.workflowId) {
         params.workflowId = ctx.workflowId
+      }
+      if (ctx.userId) {
+        params.userId = ctx.userId
       }
 
       const url = buildAPIUrl('/api/tools/custom', params)
@@ -482,7 +491,9 @@ export class AgentBlockHandler implements BlockHandler {
       usageControl: tool.usageControl || 'auto',
       executeFunction: async (callParams: Record<string, any>) => {
         const headers = await buildAuthHeaders()
-        const execUrl = buildAPIUrl('/api/mcp/tools/execute')
+        const execParams: Record<string, string> = {}
+        if (ctx.userId) execParams.userId = ctx.userId
+        const execUrl = buildAPIUrl('/api/mcp/tools/execute', execParams)
 
         const execResponse = await fetch(execUrl.toString(), {
           method: 'POST',
@@ -591,6 +602,7 @@ export class AgentBlockHandler implements BlockHandler {
       serverId,
       workspaceId: ctx.workspaceId,
       workflowId: ctx.workflowId,
+      ...(ctx.userId ? { userId: ctx.userId } : {}),
     })
 
     const maxAttempts = 2
@@ -665,7 +677,9 @@ export class AgentBlockHandler implements BlockHandler {
       usageControl: tool.usageControl || 'auto',
       executeFunction: async (callParams: Record<string, any>) => {
         const headers = await buildAuthHeaders()
-        const execUrl = buildAPIUrl('/api/mcp/tools/execute')
+        const discoverExecParams: Record<string, string> = {}
+        if (ctx.userId) discoverExecParams.userId = ctx.userId
+        const execUrl = buildAPIUrl('/api/mcp/tools/execute', discoverExecParams)
 
         const execResponse = await fetch(execUrl.toString(), {
           method: 'POST',
@@ -737,7 +751,8 @@ export class AgentBlockHandler implements BlockHandler {
 
   private async buildMessages(
     ctx: ExecutionContext,
-    inputs: AgentInputs
+    inputs: AgentInputs,
+    skillMetadata: Array<{ name: string; description: string }> = []
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
@@ -817,6 +832,20 @@ export class AgentBlockHandler implements BlockHandler {
       messages.unshift(...systemMessages)
     }
 
+    // 8. Inject skill metadata into the system message (progressive disclosure)
+    if (skillMetadata.length > 0) {
+      const skillSection = buildSkillsSystemPromptSection(skillMetadata)
+      const systemIdx = messages.findIndex((m) => m.role === 'system')
+      if (systemIdx >= 0) {
+        messages[systemIdx] = {
+          ...messages[systemIdx],
+          content: messages[systemIdx].content + skillSection,
+        }
+      } else {
+        messages.unshift({ role: 'system', content: skillSection.trim() })
+      }
+    }
+
     return messages.length > 0 ? messages : undefined
   }
 
@@ -886,24 +915,17 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    // Find first system message
     const firstSystemIndex = messages.findIndex((msg) => msg.role === 'system')
 
     if (firstSystemIndex === -1) {
-      // No system message exists - add at position 0
       messages.unshift({ role: 'system', content })
     } else if (firstSystemIndex === 0) {
-      // System message already at position 0 - replace it
-      // Explicit systemPrompt parameter takes precedence over memory/messages
       messages[0] = { role: 'system', content }
     } else {
-      // System message exists but not at position 0 - move it to position 0
-      // and update with new content
       messages.splice(firstSystemIndex, 1)
       messages.unshift({ role: 'system', content })
     }
 
-    // Remove any additional system messages (keep only the first one)
     for (let i = messages.length - 1; i >= 1; i--) {
       if (messages[i].role === 'system') {
         messages.splice(i, 1)
@@ -950,8 +972,12 @@ export class AgentBlockHandler implements BlockHandler {
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
       context: validMessages ? undefined : stringifyJSON(messages),
       tools: formattedTools,
-      temperature: inputs.temperature,
-      maxTokens: inputs.maxTokens,
+      temperature:
+        inputs.temperature != null && inputs.temperature !== ''
+          ? Number(inputs.temperature)
+          : undefined,
+      maxTokens:
+        inputs.maxTokens != null && inputs.maxTokens !== '' ? Number(inputs.maxTokens) : undefined,
       apiKey: inputs.apiKey,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
@@ -965,13 +991,14 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
       stream: streaming,
-      messages,
+      messages: messages?.map(({ executionId, ...msg }) => msg),
       environmentVariables: ctx.environmentVariables || {},
       workflowVariables: ctx.workflowVariables || {},
       blockData,
       blockNameMapping,
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
+      thinkingLevel: inputs.thinkingLevel,
     }
   }
 
@@ -995,155 +1022,60 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
-    responseFormat: any,
-    inputs: AgentInputs
+    responseFormat: any
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
     const providerStartTime = Date.now()
 
     try {
-      const isBrowser = typeof window !== 'undefined'
+      let finalApiKey: string | undefined = providerRequest.apiKey
 
-      if (!isBrowser) {
-        return this.executeServerSide(
-          ctx,
-          providerRequest,
-          providerId,
-          model,
-          block,
-          responseFormat,
-          providerStartTime
+      if (providerId === 'vertex' && providerRequest.vertexCredential) {
+        finalApiKey = await this.resolveVertexCredential(
+          providerRequest.vertexCredential,
+          ctx.workflowId
         )
       }
-      return this.executeBrowserSide(
-        ctx,
-        providerRequest,
-        block,
-        responseFormat,
-        providerStartTime,
-        inputs
-      )
+
+      const { blockData, blockNameMapping } = collectBlockData(ctx)
+
+      const response = await executeProviderRequest(providerId, {
+        model,
+        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+        context: 'context' in providerRequest ? providerRequest.context : undefined,
+        tools: providerRequest.tools,
+        temperature: providerRequest.temperature,
+        maxTokens: providerRequest.maxTokens,
+        apiKey: finalApiKey,
+        azureEndpoint: providerRequest.azureEndpoint,
+        azureApiVersion: providerRequest.azureApiVersion,
+        vertexProject: providerRequest.vertexProject,
+        vertexLocation: providerRequest.vertexLocation,
+        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+        bedrockSecretKey: providerRequest.bedrockSecretKey,
+        bedrockRegion: providerRequest.bedrockRegion,
+        responseFormat: providerRequest.responseFormat,
+        workflowId: providerRequest.workflowId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        stream: providerRequest.stream,
+        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+        environmentVariables: ctx.environmentVariables || {},
+        workflowVariables: ctx.workflowVariables || {},
+        blockData,
+        blockNameMapping,
+        isDeployedContext: ctx.isDeployedContext,
+        reasoningEffort: providerRequest.reasoningEffort,
+        verbosity: providerRequest.verbosity,
+        thinkingLevel: providerRequest.thinkingLevel,
+      })
+
+      return this.processProviderResponse(response, block, responseFormat)
     } catch (error) {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
     }
-  }
-
-  private async executeServerSide(
-    ctx: ExecutionContext,
-    providerRequest: any,
-    providerId: string,
-    model: string,
-    block: SerializedBlock,
-    responseFormat: any,
-    providerStartTime: number
-  ) {
-    let finalApiKey: string | undefined = providerRequest.apiKey
-
-    if (providerId === 'vertex' && providerRequest.vertexCredential) {
-      finalApiKey = await this.resolveVertexCredential(
-        providerRequest.vertexCredential,
-        ctx.workflowId
-      )
-    }
-
-    const { blockData, blockNameMapping } = collectBlockData(ctx)
-
-    const response = await executeProviderRequest(providerId, {
-      model,
-      systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-      context: 'context' in providerRequest ? providerRequest.context : undefined,
-      tools: providerRequest.tools,
-      temperature: providerRequest.temperature,
-      maxTokens: providerRequest.maxTokens,
-      apiKey: finalApiKey,
-      azureEndpoint: providerRequest.azureEndpoint,
-      azureApiVersion: providerRequest.azureApiVersion,
-      vertexProject: providerRequest.vertexProject,
-      vertexLocation: providerRequest.vertexLocation,
-      bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
-      bedrockSecretKey: providerRequest.bedrockSecretKey,
-      bedrockRegion: providerRequest.bedrockRegion,
-      responseFormat: providerRequest.responseFormat,
-      workflowId: providerRequest.workflowId,
-      workspaceId: ctx.workspaceId,
-      stream: providerRequest.stream,
-      messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-      environmentVariables: ctx.environmentVariables || {},
-      workflowVariables: ctx.workflowVariables || {},
-      blockData,
-      blockNameMapping,
-      isDeployedContext: ctx.isDeployedContext,
-    })
-
-    return this.processProviderResponse(response, block, responseFormat)
-  }
-
-  private async executeBrowserSide(
-    ctx: ExecutionContext,
-    providerRequest: any,
-    block: SerializedBlock,
-    responseFormat: any,
-    providerStartTime: number,
-    inputs: AgentInputs
-  ) {
-    const url = buildAPIUrl('/api/providers')
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
-      body: stringifyJSON(providerRequest),
-      signal: AbortSignal.timeout(AGENT.REQUEST_TIMEOUT),
-    })
-
-    if (!response.ok) {
-      const errorMessage = await extractAPIErrorMessage(response)
-      throw new Error(errorMessage)
-    }
-
-    const contentType = response.headers.get('Content-Type')
-    if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
-      return this.handleStreamingResponse(response, block, ctx, inputs)
-    }
-
-    const result = await response.json()
-    return this.processProviderResponse(result, block, responseFormat)
-  }
-
-  private async handleStreamingResponse(
-    response: Response,
-    block: SerializedBlock,
-    _ctx?: ExecutionContext,
-    _inputs?: AgentInputs
-  ): Promise<StreamingExecution> {
-    const executionDataHeader = response.headers.get('X-Execution-Data')
-
-    if (executionDataHeader) {
-      try {
-        const executionData = JSON.parse(executionDataHeader)
-        return {
-          stream: response.body!,
-          execution: {
-            success: executionData.success,
-            output: executionData.output || {},
-            error: executionData.error,
-            logs: [],
-            metadata: executionData.metadata || {
-              duration: DEFAULTS.EXECUTION_TIME,
-              startTime: new Date().toISOString(),
-            },
-            isStreaming: true,
-            blockId: block.id,
-            blockName: block.metadata?.name,
-            blockType: block.metadata?.id,
-          } as any,
-        }
-      } catch (error) {
-        logger.error('Failed to parse execution data from header:', error)
-      }
-    }
-
-    return this.createMinimalStreamingExecution(response.body!)
   }
 
   /**
@@ -1154,8 +1086,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
 
-    // Get the credential - we need to find the owner
-    // Since we're in a workflow context, we can query the credential directly
     const credential = await db.query.account.findFirst({
       where: eq(account.id, credentialId),
     })
@@ -1164,7 +1094,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(`Vertex AI credential not found: ${credentialId}`)
     }
 
-    // Refresh the token if needed
     const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
 
     if (!accessToken) {

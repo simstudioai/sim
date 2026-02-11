@@ -42,7 +42,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'formId',
+      id: 'triggerFormId',
       title: 'Form ID',
       type: 'short-input',
       placeholder: '1FAIpQLSd... (Google Form ID)',

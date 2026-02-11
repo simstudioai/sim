@@ -4,8 +4,9 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { isHiddenFromDisplay } from '@/blocks/types'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
-import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import type { ChatContext } from '@/stores/panel/copilot/types'
 
 export type AgentContextType =
@@ -43,29 +44,20 @@ export async function processContexts(
           ctx.kind
         )
       }
-      if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
-        return await processKnowledgeFromDb(
-          (ctx as any).knowledgeId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
+        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'blocks' && (ctx as any).blockId) {
-        return await processBlockMetadata((ctx as any).blockId, ctx.label ? `@${ctx.label}` : '@')
+      if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
+        return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'templates' && (ctx as any).templateId) {
-        return await processTemplateFromDb(
-          (ctx as any).templateId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'templates' && ctx.templateId) {
+        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'logs' && (ctx as any).executionId) {
-        return await processExecutionLogFromDb(
-          (ctx as any).executionId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'logs' && ctx.executionId) {
+        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
       }
       // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
       return null
@@ -98,33 +90,24 @@ export async function processContextsServer(
           ctx.kind
         )
       }
-      if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
-        return await processKnowledgeFromDb(
-          (ctx as any).knowledgeId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
+        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'blocks' && (ctx as any).blockId) {
+      if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(
-          (ctx as any).blockId,
+          ctx.blockIds[0],
           ctx.label ? `@${ctx.label}` : '@',
           userId
         )
       }
-      if (ctx.kind === 'templates' && (ctx as any).templateId) {
-        return await processTemplateFromDb(
-          (ctx as any).templateId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'templates' && ctx.templateId) {
+        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'logs' && (ctx as any).executionId) {
-        return await processExecutionLogFromDb(
-          (ctx as any).executionId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+      if (ctx.kind === 'logs' && ctx.executionId) {
+        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
       }
       if (ctx.kind === 'docs') {
         try {
@@ -397,7 +380,11 @@ async function processBlockMetadata(
         category: blockConfig.category,
         bgColor: blockConfig.bgColor,
         inputs: blockConfig.inputs || {},
-        outputs: blockConfig.outputs || {},
+        outputs: blockConfig.outputs
+          ? Object.fromEntries(
+              Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+            )
+          : {},
         tools: blockConfig.tools?.access || [],
         hideFromToolbar: blockConfig.hideFromToolbar,
       }

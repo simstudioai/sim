@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { isSensitiveKey, REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
@@ -91,6 +93,11 @@ function substituteVariables(text: string, variables: Record<string, string> | u
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   let stagehand: StagehandType | null = null
 
   try {
@@ -117,6 +124,10 @@ export async function POST(request: NextRequest) {
     const variablesObject = processVariables(params.variables)
 
     const startUrl = normalizeUrl(rawStartUrl)
+    const urlValidation = await validateUrlWithDNS(startUrl, 'startUrl')
+    if (!urlValidation.isValid) {
+      return NextResponse.json({ error: urlValidation.error }, { status: 400 })
+    }
 
     logger.info('Starting Stagehand agent process', {
       rawStartUrl,

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from '../utils'
 
 const logger = createLogger('MongoDBDeleteAPI')
@@ -39,6 +40,12 @@ const DeleteSchema = z.object({
 export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
   let client = null
+
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    logger.warn(`[${requestId}] Unauthorized MongoDB delete attempt`)
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
 
   try {
     const body = await request.json()

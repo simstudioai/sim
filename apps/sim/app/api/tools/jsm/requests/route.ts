@@ -1,13 +1,23 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  validateAlphanumericId,
+  validateEnum,
+  validateJiraCloudId,
+} from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestsAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const {
@@ -17,7 +27,9 @@ export async function POST(request: Request) {
       serviceDeskId,
       requestOwnership,
       requestStatus,
+      requestTypeId,
       searchTerm,
+      expand,
       start,
       limit,
     } = body
@@ -46,17 +58,45 @@ export async function POST(request: Request) {
       }
     }
 
+    const VALID_REQUEST_OWNERSHIP = [
+      'OWNED_REQUESTS',
+      'PARTICIPATED_REQUESTS',
+      'APPROVER',
+      'ALL_REQUESTS',
+    ] as const
+    const VALID_REQUEST_STATUS = ['OPEN_REQUESTS', 'CLOSED_REQUESTS', 'ALL_REQUESTS'] as const
+
+    if (requestOwnership) {
+      const ownershipValidation = validateEnum(
+        requestOwnership,
+        VALID_REQUEST_OWNERSHIP,
+        'requestOwnership'
+      )
+      if (!ownershipValidation.isValid) {
+        return NextResponse.json({ error: ownershipValidation.error }, { status: 400 })
+      }
+    }
+
+    if (requestStatus) {
+      const statusValidation = validateEnum(requestStatus, VALID_REQUEST_STATUS, 'requestStatus')
+      if (!statusValidation.isValid) {
+        return NextResponse.json({ error: statusValidation.error }, { status: 400 })
+      }
+    }
+
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     const params = new URLSearchParams()
     if (serviceDeskId) params.append('serviceDeskId', serviceDeskId)
-    if (requestOwnership && requestOwnership !== 'ALL_REQUESTS') {
+    if (requestOwnership) {
       params.append('requestOwnership', requestOwnership)
     }
-    if (requestStatus && requestStatus !== 'ALL') {
+    if (requestStatus) {
       params.append('requestStatus', requestStatus)
     }
+    if (requestTypeId) params.append('requestTypeId', requestTypeId)
     if (searchTerm) params.append('searchTerm', searchTerm)
+    if (expand) params.append('expand', expand)
     if (start) params.append('start', start)
     if (limit) params.append('limit', limit)
 

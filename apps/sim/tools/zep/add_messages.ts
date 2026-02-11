@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { THREAD_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Add Messages Tool - Add messages to a thread (Zep v3)
 export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_add_messages',
   name: 'Add Messages',
@@ -12,14 +12,15 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to add messages to',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to add messages to (e.g., "thread_abc123")',
     },
     messages: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of message objects with role and content',
+      description:
+        'Array of message objects with role and content (e.g., [{"role": "user", "content": "Hello"}])',
     },
     apiKey: {
       type: 'string',
@@ -95,10 +96,7 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    threadId: {
-      type: 'string',
-      description: 'The thread ID',
-    },
+    threadId: THREAD_OUTPUT_PROPERTIES.threadId,
     added: {
       type: 'boolean',
       description: 'Whether messages were added successfully',
@@ -106,6 +104,10 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
     messageIds: {
       type: 'array',
       description: 'Array of added message UUIDs',
+      items: {
+        type: 'string',
+        description: 'Message UUID',
+      },
     },
   },
 }

@@ -44,11 +44,11 @@ Upload a file to OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | Yes | The name of the file to upload |
+| `fileName` | string | Yes | The name of the file to upload \(e.g., "report.pdf", "data.xlsx"\) |
 | `file` | file | No | The file to upload \(binary\) |
 | `content` | string | No | The text content to upload \(if no file is provided\) |
 | `mimeType` | string | No | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
-| `folderSelector` | string | No | Select the folder to upload the file to |
+| `folderSelector` | string | No | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 | `manualFolderId` | string | No | Manually entered folder ID \(advanced mode\) |
 
 #### Output
@@ -66,8 +66,8 @@ Create a new folder in OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderName` | string | Yes | Name of the folder to create |
-| `folderSelector` | string | No | Select the parent folder to create the folder in |
+| `folderName` | string | Yes | Name of the folder to create \(e.g., "My Documents", "Project Files"\) |
+| `folderSelector` | string | No | Parent folder ID to create the folder in \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 | `manualFolderId` | string | No | Manually entered parent folder ID \(advanced mode\) |
 
 #### Output
@@ -85,8 +85,8 @@ Download a file from OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileId` | string | Yes | The ID of the file to download |
-| `fileName` | string | No | Optional filename override |
+| `fileId` | string | Yes | The ID of the file to download \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `fileName` | string | No | Optional filename override \(e.g., "report.pdf", "data.xlsx"\) |
 
 #### Output
 
@@ -102,10 +102,10 @@ List files and folders in OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | No | Select the folder to list files from |
+| `folderSelector` | string | No | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 | `manualFolderId` | string | No | The manually entered folder ID \(advanced mode\) |
-| `query` | string | No | A query to filter the files |
-| `pageSize` | number | No | The number of files to return |
+| `query` | string | No | Filter files by name prefix \(e.g., "report", "invoice_2024"\) |
+| `pageSize` | number | No | Maximum number of files to return \(e.g., 10, 50, 100\) |
 
 #### Output
 
@@ -123,7 +123,7 @@ Delete a file or folder from OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileId` | string | Yes | The ID of the file or folder to delete |
+| `fileId` | string | Yes | The ID of the file or folder to delete \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 
 #### Output
 

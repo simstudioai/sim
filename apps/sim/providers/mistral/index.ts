@@ -91,7 +91,7 @@ export const mistralProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
       payload.response_format = {
@@ -141,7 +141,6 @@ export const mistralProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           stream: true,
-          stream_options: { include_usage: true },
         }
         const streamResponse = await mistral.chat.completions.create(streamingParams)
 
@@ -383,6 +382,7 @@ export const mistralProvider: ProviderConfig = {
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
+            name: toolName,
             content: JSON.stringify(resultContent),
           })
         }
@@ -452,7 +452,6 @@ export const mistralProvider: ProviderConfig = {
           messages: currentMessages,
           tool_choice: 'auto',
           stream: true,
-          stream_options: { include_usage: true },
         }
         const streamResponse = await mistral.chat.completions.create(streamingParams)
 

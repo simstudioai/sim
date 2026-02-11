@@ -34,6 +34,8 @@ export interface ModelCapabilities {
   toolUsageControl?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
+  /** Maximum supported output tokens for this model */
+  maxOutputTokens?: number
   reasoningEffort?: {
     values: string[]
   }
@@ -98,7 +100,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4o',
-    modelPatterns: [/^gpt/, /^o1/, /^text-embedding/],
+    modelPatterns: [/^gpt/, /^o\d/, /^text-embedding/],
     icon: OpenAIIcon,
     capabilities: {
       toolUsageControl: true,
@@ -127,7 +129,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -153,60 +155,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
       },
-      // {
-      //   id: 'gpt-5.1-mini',
-      //   pricing: {
-      //     input: 0.25,
-      //     cachedInput: 0.025,
-      //     output: 2.0,
-      //     updatedAt: '2025-11-14',
-      //   },
-      //   capabilities: {
-      //     reasoningEffort: {
-      //       values: ['none', 'low', 'medium', 'high'],
-      //     },
-      //     verbosity: {
-      //       values: ['low', 'medium', 'high'],
-      //     },
-      //   },
-      //   contextWindow: 400000,
-      // },
-      // {
-      //   id: 'gpt-5.1-nano',
-      //   pricing: {
-      //     input: 0.05,
-      //     cachedInput: 0.005,
-      //     output: 0.4,
-      //     updatedAt: '2025-11-14',
-      //   },
-      //   capabilities: {
-      //     reasoningEffort: {
-      //       values: ['none', 'low', 'medium', 'high'],
-      //     },
-      //     verbosity: {
-      //       values: ['low', 'medium', 'high'],
-      //     },
-      //   },
-      //   contextWindow: 400000,
-      // },
-      // {
-      //   id: 'gpt-5.1-codex',
-      //   pricing: {
-      //     input: 1.25,
-      //     cachedInput: 0.125,
-      //     output: 10.0,
-      //     updatedAt: '2025-11-14',
-      //   },
-      //   capabilities: {
-      //     reasoningEffort: {
-      //       values: ['none', 'medium', 'high'],
-      //     },
-      //     verbosity: {
-      //       values: ['low', 'medium', 'high'],
-      //     },
-      //   },
-      //   contextWindow: 400000,
-      // },
       {
         id: 'gpt-5',
         pricing: {
@@ -269,8 +217,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 10.0,
           updatedAt: '2025-08-07',
         },
-        capabilities: {},
-        contextWindow: 400000,
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 128000,
       },
       {
         id: 'o1',
@@ -300,7 +250,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             values: ['low', 'medium', 'high'],
           },
         },
-        contextWindow: 128000,
+        contextWindow: 200000,
       },
       {
         id: 'o4-mini',
@@ -315,7 +265,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             values: ['low', 'medium', 'high'],
           },
         },
-        contextWindow: 128000,
+        contextWindow: 200000,
       },
       {
         id: 'gpt-4.1',
@@ -358,6 +308,183 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
+  anthropic: {
+    id: 'anthropic',
+    name: 'Anthropic',
+    description: "Anthropic's Claude models",
+    defaultModel: 'claude-sonnet-4-5',
+    modelPatterns: [/^claude/],
+    icon: AnthropicIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'claude-opus-4-6',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2025-11-24',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-1',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-0',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-5',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-0',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-haiku-4-5',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.1,
+          output: 5.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        pricing: {
+          input: 0.25,
+          cachedInput: 0.03,
+          output: 1.25,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 4096,
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-3-7-sonnet-latest',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          computerUse: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+    ],
+  },
   'azure-openai': {
     id: 'azure-openai',
     name: 'Azure OpenAI',
@@ -392,7 +519,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -419,42 +546,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 400000,
       },
       {
-        id: 'azure/gpt-5.1-mini',
-        pricing: {
-          input: 0.25,
-          cachedInput: 0.025,
-          output: 2.0,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'azure/gpt-5.1-nano',
-        pricing: {
-          input: 0.05,
-          cachedInput: 0.005,
-          output: 0.4,
-          updatedAt: '2025-11-14',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high'],
-          },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
-        },
-        contextWindow: 400000,
-      },
-      {
         id: 'azure/gpt-5.1-codex',
         pricing: {
           input: 1.25,
@@ -464,7 +555,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'medium', 'high'],
+            values: ['none', 'low', 'medium', 'high'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -534,23 +625,25 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 10.0,
           updatedAt: '2025-08-07',
         },
-        capabilities: {},
-        contextWindow: 400000,
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 128000,
       },
       {
         id: 'azure/o3',
         pricing: {
-          input: 10,
-          cachedInput: 2.5,
-          output: 40,
-          updatedAt: '2025-06-15',
+          input: 2,
+          cachedInput: 0.5,
+          output: 8,
+          updatedAt: '2026-02-06',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
         },
-        contextWindow: 128000,
+        contextWindow: 200000,
       },
       {
         id: 'azure/o4-mini',
@@ -565,7 +658,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             values: ['low', 'medium', 'high'],
           },
         },
-        contextWindow: 128000,
+        contextWindow: 200000,
       },
       {
         id: 'azure/gpt-4.1',
@@ -575,7 +668,35 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 8.0,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'azure/gpt-4.1-mini',
+        pricing: {
+          input: 0.4,
+          cachedInput: 0.1,
+          output: 1.6,
+          updatedAt: '2025-06-15',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'azure/gpt-4.1-nano',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.025,
+          output: 0.4,
+          updatedAt: '2025-06-15',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
         contextWindow: 1000000,
       },
       {
@@ -587,128 +708,113 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-15',
         },
         capabilities: {},
-        contextWindow: 1000000,
+        contextWindow: 200000,
       },
     ],
   },
-  anthropic: {
-    id: 'anthropic',
-    name: 'Anthropic',
-    description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-5',
-    modelPatterns: [/^claude/],
-    icon: AnthropicIcon,
+  'azure-anthropic': {
+    id: 'azure-anthropic',
+    name: 'Azure Anthropic',
+    description: 'Anthropic Claude models via Azure AI Foundry',
+    defaultModel: 'azure-anthropic/claude-sonnet-4-5',
+    modelPatterns: [/^azure-anthropic\//],
+    icon: AzureIcon,
     capabilities: {
       toolUsageControl: true,
     },
     models: [
       {
-        id: 'claude-haiku-4-5',
-        pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 5.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-5',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-0',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-06-17',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-opus-4-5',
+        id: 'azure-anthropic/claude-opus-4-6',
         pricing: {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2025-11-24',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'max'],
+            default: 'high',
+          },
         },
         contextWindow: 200000,
       },
       {
-        id: 'claude-opus-4-1',
+        id: 'azure-anthropic/claude-opus-4-5',
         pricing: {
-          input: 15.0,
-          cachedInput: 7.5,
-          output: 75.0,
-          updatedAt: '2025-10-11',
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 200000,
       },
       {
-        id: 'claude-opus-4-0',
+        id: 'azure-anthropic/claude-sonnet-4-5',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'azure-anthropic/claude-opus-4-1',
         pricing: {
           input: 15.0,
-          cachedInput: 7.5,
+          cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 200000,
       },
       {
-        id: 'claude-3-7-sonnet-latest',
+        id: 'azure-anthropic/claude-haiku-4-5',
         pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-06-17',
+          input: 1.0,
+          cachedInput: 0.1,
+          output: 5.0,
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          computerUse: true,
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-3-5-sonnet-latest',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-06-17',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          computerUse: true,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
         },
         contextWindow: 200000,
       },
@@ -1116,7 +1222,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'cerebras',
     name: 'Cerebras',
     description: 'Cerebras Cloud LLMs',
-    defaultModel: 'cerebras/llama-3.3-70b',
+    defaultModel: 'cerebras/gpt-oss-120b',
     modelPatterns: [/^cerebras/],
     icon: CerebrasIcon,
     capabilities: {
@@ -1124,44 +1230,64 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
-        id: 'cerebras/llama-3.1-8b',
+        id: 'cerebras/gpt-oss-120b',
+        pricing: {
+          input: 0.35,
+          output: 0.75,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/llama3.1-8b',
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 32000,
       },
       {
-        id: 'cerebras/llama-3.1-70b',
-        pricing: {
-          input: 0.6,
-          output: 0.6,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
         id: 'cerebras/llama-3.3-70b',
         pricing: {
-          input: 0.6,
-          output: 0.6,
-          updatedAt: '2025-10-11',
+          input: 0.85,
+          output: 1.2,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 128000,
       },
       {
-        id: 'cerebras/llama-4-scout-17b-16e-instruct',
+        id: 'cerebras/qwen-3-32b',
         pricing: {
-          input: 0.11,
-          output: 0.34,
-          updatedAt: '2025-10-11',
+          input: 0.4,
+          output: 0.8,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
-        contextWindow: 10000000,
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/qwen-3-235b-a22b-instruct-2507',
+        pricing: {
+          input: 0.6,
+          output: 1.2,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/zai-glm-4.7',
+        pricing: {
+          input: 2.25,
+          output: 2.75,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
       },
     ],
   },
@@ -1180,8 +1306,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/openai/gpt-oss-120b',
         pricing: {
           input: 0.15,
-          output: 0.75,
-          updatedAt: '2025-10-11',
+          output: 0.6,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1189,9 +1315,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'groq/openai/gpt-oss-20b',
         pricing: {
-          input: 0.01,
-          output: 0.25,
-          updatedAt: '2025-10-11',
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131072,
+      },
+      {
+        id: 'groq/openai/gpt-oss-safeguard-20b',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131072,
+      },
+      {
+        id: 'groq/qwen/qwen3-32b',
+        pricing: {
+          input: 0.29,
+          output: 0.59,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1201,7 +1347,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.05,
           output: 0.08,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1211,27 +1357,17 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.59,
           output: 0.79,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
       },
       {
-        id: 'groq/llama-4-scout-17b-instruct',
+        id: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
         pricing: {
           input: 0.11,
           output: 0.34,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-4-maverick-17b-instruct',
-        pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1239,9 +1375,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
         pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
+          input: 0.2,
+          output: 0.6,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1251,7 +1387,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.04,
           output: 0.04,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 8192,
@@ -1261,27 +1397,37 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.59,
           output: 0.79,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 128000,
       },
       {
-        id: 'groq/moonshotai/kimi-k2-instruct',
+        id: 'groq/deepseek-r1-distill-qwen-32b',
+        pricing: {
+          input: 0.69,
+          output: 0.69,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 128000,
+      },
+      {
+        id: 'groq/moonshotai/kimi-k2-instruct-0905',
         pricing: {
           input: 1.0,
           output: 3.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
-        contextWindow: 131072,
+        contextWindow: 262144,
       },
       {
         id: 'groq/meta-llama/llama-guard-4-12b',
         pricing: {
           input: 0.2,
           output: 0.2,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -2332,4 +2478,25 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+/**
+ * Get the max output tokens for a specific model.
+ *
+ * @param modelId - The model ID
+ */
+export function getMaxOutputTokensForModel(modelId: string): number {
+  const normalizedModelId = modelId.toLowerCase()
+  const STANDARD_MAX_OUTPUT_TOKENS = 4096
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      const baseModelId = model.id.toLowerCase()
+      if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+        return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
+      }
+    }
+  }
+
+  return STANDARD_MAX_OUTPUT_TOKENS
 }

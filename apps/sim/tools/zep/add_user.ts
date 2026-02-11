@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { USER_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Add User Tool - Create a new user (Zep v3)
 export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_add_user',
   name: 'Add User',
@@ -12,8 +12,8 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Unique identifier for the user',
+      visibility: 'user-or-llm',
+      description: 'Unique identifier for the user (e.g., "user_123")',
     },
     email: {
       type: 'string',
@@ -36,8 +36,8 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
     metadata: {
       type: 'json',
       required: false,
-      visibility: 'user-only',
-      description: 'Additional metadata as JSON object',
+      visibility: 'user-or-llm',
+      description: 'Additional metadata as JSON object (e.g., {"key": "value"})',
     },
     apiKey: {
       type: 'string',
@@ -110,33 +110,12 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    userId: {
-      type: 'string',
-      description: 'The user ID',
-    },
-    email: {
-      type: 'string',
-      description: 'User email',
-    },
-    firstName: {
-      type: 'string',
-      description: 'User first name',
-    },
-    lastName: {
-      type: 'string',
-      description: 'User last name',
-    },
-    uuid: {
-      type: 'string',
-      description: 'Internal UUID',
-    },
-    createdAt: {
-      type: 'string',
-      description: 'Creation timestamp',
-    },
-    metadata: {
-      type: 'object',
-      description: 'User metadata',
-    },
+    userId: USER_OUTPUT_PROPERTIES.userId,
+    email: USER_OUTPUT_PROPERTIES.email,
+    firstName: USER_OUTPUT_PROPERTIES.firstName,
+    lastName: USER_OUTPUT_PROPERTIES.lastName,
+    uuid: USER_OUTPUT_PROPERTIES.uuid,
+    createdAt: USER_OUTPUT_PROPERTIES.createdAt,
+    metadata: USER_OUTPUT_PROPERTIES.metadata,
   },
 }

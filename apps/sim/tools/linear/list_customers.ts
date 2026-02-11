@@ -1,4 +1,5 @@
 import type { LinearListCustomersParams, LinearListCustomersResponse } from '@/tools/linear/types'
+import { CUSTOMER_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCustomersTool: ToolConfig<
@@ -58,8 +59,12 @@ export const linearListCustomersTool: ToolConfig<
               domains
               externalIds
               logoUrl
+              slugId
               approximateNeedCount
+              revenue
+              size
               createdAt
+              updatedAt
               archivedAt
             }
             pageInfo {
@@ -70,7 +75,7 @@ export const linearListCustomersTool: ToolConfig<
         }
       `,
       variables: {
-        first: params.first || 50,
+        first: params.first ? Number(params.first) : 50,
         after: params.after,
         includeArchived: params.includeArchived || false,
       },
@@ -107,21 +112,9 @@ export const linearListCustomersTool: ToolConfig<
       description: 'Array of customers',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Customer ID' },
-          name: { type: 'string', description: 'Customer name' },
-          domains: { type: 'array', description: 'Associated domains' },
-          externalIds: { type: 'array', description: 'External IDs' },
-          logoUrl: { type: 'string', description: 'Logo URL' },
-          approximateNeedCount: { type: 'number', description: 'Number of customer needs' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
-          archivedAt: { type: 'string', description: 'Archive timestamp (null if not archived)' },
-        },
+        properties: CUSTOMER_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

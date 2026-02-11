@@ -41,7 +41,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
       limit: {
         type: 'number',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Maximum number of results to return (default: 500)',
       },
     },

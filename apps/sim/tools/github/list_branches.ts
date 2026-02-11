@@ -1,4 +1,5 @@
 import type { BranchListResponse, ListBranchesParams } from '@/tools/github/types'
+import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listBranchesTool: ToolConfig<ListBranchesParams, BranchListResponse> = {
@@ -161,11 +162,7 @@ export const listBranchesV2Tool: ToolConfig<ListBranchesParams, any> = {
       description: 'Array of branch objects',
       items: {
         type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Branch name' },
-          commit: { type: 'object', description: 'Commit info with sha and url' },
-          protected: { type: 'boolean', description: 'Whether branch is protected' },
-        },
+        properties: BRANCH_OUTPUT_PROPERTIES,
       },
     },
     count: { type: 'number', description: 'Number of branches returned' },

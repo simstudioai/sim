@@ -40,13 +40,13 @@ export const apolloAccountSearchTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for pagination',
+      description: 'Page number for pagination (e.g., 1, 2, 3)',
     },
     per_page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page (max: 100)',
+      description: 'Results per page, max 100 (e.g., 25, 50, 100)',
     },
   },
 

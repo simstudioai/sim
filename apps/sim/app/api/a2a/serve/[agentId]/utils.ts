@@ -105,6 +105,7 @@ export function formatTaskResponse(task: Task, historyLength?: number): Task {
 export interface ExecuteRequestConfig {
   workflowId: string
   apiKey?: string | null
+  userId?: string
   stream?: boolean
 }
 
@@ -124,7 +125,7 @@ export async function buildExecuteRequest(
   if (config.apiKey) {
     headers['X-API-Key'] = config.apiKey
   } else {
-    const internalToken = await generateInternalToken()
+    const internalToken = await generateInternalToken(config.userId)
     headers.Authorization = `Bearer ${internalToken}`
     useInternalAuth = true
   }

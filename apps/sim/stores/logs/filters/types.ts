@@ -86,6 +86,7 @@ export interface TraceSpan {
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
+  errorHandled?: boolean
   tokens?: number | TokenInfo
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
@@ -102,7 +103,7 @@ export interface TraceSpan {
 
 export interface WorkflowLog {
   id: string
-  workflowId: string
+  workflowId: string | null
   executionId?: string | null
   deploymentVersion?: number | null
   deploymentVersionName?: string | null
@@ -189,6 +190,7 @@ export const CORE_TRIGGER_TYPES = [
   'webhook',
   'mcp',
   'a2a',
+  'copilot',
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]

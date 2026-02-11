@@ -5,9 +5,10 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('A2AAgentCardAPI')
 
@@ -39,8 +40,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     }
 
     if (!agent.agent.isPublished) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success) {
+      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
+      }
+
+      const workspaceAccess = await checkWorkspaceAccess(agent.agent.workspaceId, auth.userId)
+      if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
       }
     }
@@ -80,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -93,6 +99,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
 
     if (!existingAgent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -145,7 +156,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -158,6 +169,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     if (!existingAgent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     await db.delete(a2aAgent).where(eq(a2aAgent.id, agentId))
@@ -178,7 +194,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       logger.warn('A2A agent publish auth failed:', { error: auth.error, hasUserId: !!auth.userId })
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -192,6 +208,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     if (!existingAgent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()

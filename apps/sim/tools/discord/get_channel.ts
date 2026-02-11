@@ -18,14 +18,14 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
       channelId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord channel ID to retrieve',
+        visibility: 'user-or-llm',
+        description: 'The Discord channel ID to retrieve, e.g., 123456789012345678',
       },
       serverId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord server ID (guild ID)',
+        visibility: 'user-or-llm',
+        description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
     },
 

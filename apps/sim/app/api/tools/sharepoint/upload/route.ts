@@ -1,10 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,14 +19,14 @@ const SharepointUploadSchema = z.object({
   driveId: z.string().optional().nullable(),
   folderPath: z.string().optional().nullable(),
   fileName: z.string().optional().nullable(),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized SharePoint upload attempt: ${authResult.error}`)
@@ -79,18 +82,23 @@ export async function POST(request: NextRequest) {
     let effectiveDriveId = validatedData.driveId
     if (!effectiveDriveId) {
       logger.info(`[${requestId}] No driveId provided, fetching default drive for site`)
-      const driveResponse = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`,
+      const driveUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`
+      const driveResponse = await secureFetchWithValidation(
+        driveUrl,
         {
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${validatedData.accessToken}`,
             Accept: 'application/json',
           },
-        }
+        },
+        'driveUrl'
       )
 
       if (!driveResponse.ok) {
-        const errorData = await driveResponse.json().catch(() => ({}))
+        const errorData = (await driveResponse.json().catch(() => ({}))) as {
+          error?: { message?: string }
+        }
         logger.error(`[${requestId}] Failed to get default drive:`, errorData)
         return NextResponse.json(
           {
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const driveData = await driveResponse.json()
+      const driveData = (await driveResponse.json()) as { id: string }
       effectiveDriveId = driveData.id
       logger.info(`[${requestId}] Using default drive: ${effectiveDriveId}`)
     }
@@ -145,34 +153,87 @@ export async function POST(request: NextRequest) {
 
       logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${validatedData.accessToken}`,
-          'Content-Type': userFile.type || 'application/octet-stream',
+      const uploadResponse = await secureFetchWithValidation(
+        uploadUrl,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${validatedData.accessToken}`,
+            'Content-Type': userFile.type || 'application/octet-stream',
+          },
+          body: buffer,
         },
-        body: new Uint8Array(buffer),
-      })
+        'uploadUrl'
+      )
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json().catch(() => ({}))
         logger.error(`[${requestId}] Failed to upload file ${fileName}:`, errorData)
 
         if (uploadResponse.status === 409) {
-          logger.warn(`[${requestId}] File ${fileName} already exists, attempting to replace`)
+          // File exists - retry with conflict behavior set to replace
+          logger.warn(`[${requestId}] File ${fileName} already exists, retrying with replace`)
+          const replaceUrl = `${uploadUrl}?@microsoft.graph.conflictBehavior=replace`
+          const replaceResponse = await secureFetchWithValidation(
+            replaceUrl,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bearer ${validatedData.accessToken}`,
+                'Content-Type': userFile.type || 'application/octet-stream',
+              },
+              body: buffer,
+            },
+            'replaceUrl'
+          )
+
+          if (!replaceResponse.ok) {
+            const replaceErrorData = (await replaceResponse.json().catch(() => ({}))) as {
+              error?: { message?: string }
+            }
+            logger.error(`[${requestId}] Failed to replace file ${fileName}:`, replaceErrorData)
+            return NextResponse.json(
+              {
+                success: false,
+                error: replaceErrorData.error?.message || `Failed to replace file: ${fileName}`,
+              },
+              { status: replaceResponse.status }
+            )
+          }
+
+          const replaceData = (await replaceResponse.json()) as {
+            id: string
+            name: string
+            webUrl: string
+            size: number
+            createdDateTime: string
+            lastModifiedDateTime: string
+          }
+          logger.info(`[${requestId}] File replaced successfully: ${fileName}`)
+
+          uploadedFiles.push({
+            id: replaceData.id,
+            name: replaceData.name,
+            webUrl: replaceData.webUrl,
+            size: replaceData.size,
+            createdDateTime: replaceData.createdDateTime,
+            lastModifiedDateTime: replaceData.lastModifiedDateTime,
+          })
           continue
         }
 
         return NextResponse.json(
           {
             success: false,
-            error: errorData.error?.message || `Failed to upload file: ${fileName}`,
+            error:
+              (errorData as { error?: { message?: string } }).error?.message ||
+              `Failed to upload file: ${fileName}`,
           },
           { status: uploadResponse.status }
         )
       }
 
-      const uploadData = await uploadResponse.json()
+      const uploadData = (await uploadResponse.json()) as MicrosoftGraphDriveItem
       logger.info(`[${requestId}] File uploaded successfully: ${fileName}`)
 
       uploadedFiles.push({

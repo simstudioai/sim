@@ -5,6 +5,7 @@ import {
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -405,6 +406,7 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
   }
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
+    if (!param) continue
     const visibility = param.visibility ?? 'user-or-llm'
     if (visibility === 'hidden') {
       continue
@@ -447,7 +449,7 @@ export async function createLLMToolSchema(
       const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
 
       if (enrichedSchema) {
-        Object.assign(propertySchema, enrichedSchema)
+        safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)
         schema.properties[paramId] = propertySchema
 
         if (param.required) {

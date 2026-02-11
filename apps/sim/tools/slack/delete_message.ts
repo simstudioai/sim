@@ -1,4 +1,5 @@
 import type { SlackDeleteMessageParams, SlackDeleteMessageResponse } from '@/tools/slack/types'
+import { MESSAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackDeleteMessageTool: ToolConfig<
@@ -37,7 +38,7 @@ export const slackDeleteMessageTool: ToolConfig<
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Channel ID where the message was posted (e.g., C1234567890)',
     },
     timestamp: {
@@ -92,10 +93,7 @@ export const slackDeleteMessageTool: ToolConfig<
     metadata: {
       type: 'object',
       description: 'Deleted message metadata',
-      properties: {
-        channel: { type: 'string', description: 'Channel ID' },
-        timestamp: { type: 'string', description: 'Message timestamp' },
-      },
+      properties: MESSAGE_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

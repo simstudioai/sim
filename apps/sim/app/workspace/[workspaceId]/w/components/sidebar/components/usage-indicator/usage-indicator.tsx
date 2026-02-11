@@ -5,13 +5,14 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
+import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
+  getBillingStatus,
   getFilledPillColor,
-  USAGE_PILL_COLORS,
-  USAGE_THRESHOLDS,
-} from '@/lib/billing/client/usage-visualization'
-import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
+  getSubscriptionStatus,
+  getUsage,
+} from '@/lib/billing/client/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
@@ -396,7 +397,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return () => window.clearInterval(interval)
   }, [isHovered, pillCount, startAnimationIndex])
 
-  if (isLoading) {
+  if (isLoading && !subscriptionData) {
     return (
       <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'>
         <div className='flex h-[18px] items-center justify-between'>

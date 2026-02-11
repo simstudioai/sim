@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
 import {
@@ -22,7 +22,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <ExternalLink className='h-3 w-3' />
   }
-  return baseProviderConfig.icon({ className: 'h-3 w-3' })
+  return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
 }
 
 const getProviderName = (providerName: OAuthProvider) => {
@@ -59,7 +59,7 @@ export function ToolCredentialSelector({
   disabled = false,
 }: ToolCredentialSelectorProps) {
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [inputValue, setInputValue] = useState('')
+  const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -100,11 +100,7 @@ export function ToolCredentialSelector({
     return ''
   }, [selectedCredential, isForeign])
 
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(resolvedLabel)
-    }
-  }, [resolvedLabel, isEditing])
+  const inputValue = isEditing ? editingInputValue : resolvedLabel
 
   const invalidSelection =
     Boolean(selectedId) &&
@@ -189,13 +185,12 @@ export function ToolCredentialSelector({
 
       const matchedCred = credentials.find((c) => c.id === newValue)
       if (matchedCred) {
-        setInputValue(matchedCred.name)
         handleSelect(newValue)
         return
       }
 
       setIsEditing(true)
-      setInputValue(newValue)
+      setEditingInputValue(newValue)
     },
     [credentials, handleAddCredential, handleSelect]
   )

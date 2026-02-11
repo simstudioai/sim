@@ -1,4 +1,5 @@
 import type { JsmGetRequestsParams, JsmGetRequestsResponse } from '@/tools/jsm/types'
+import { REQUEST_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequestsResponse> = {
@@ -34,39 +35,52 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
     serviceDeskId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by service desk ID',
+      visibility: 'user-or-llm',
+      description: 'Filter by service desk ID (e.g., "1", "2")',
     },
     requestOwnership: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_REQUESTS',
+        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS',
     },
     requestStatus: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by status: OPEN, CLOSED, ALL',
+      visibility: 'user-or-llm',
+      description: 'Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS',
+    },
+    requestTypeId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by request type ID',
     },
     searchTerm: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter requests',
+      description: 'Search term to filter requests (e.g., "password reset", "laptop")',
+    },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action',
     },
     start: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Start index for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Start index for pagination (e.g., 0, 50, 100)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Maximum results to return (e.g., 10, 25, 50)',
     },
   },
 
@@ -83,7 +97,9 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
       serviceDeskId: params.serviceDeskId,
       requestOwnership: params.requestOwnership,
       requestStatus: params.requestStatus,
+      requestTypeId: params.requestTypeId,
       searchTerm: params.searchTerm,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -125,8 +141,15 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    requests: { type: 'json', description: 'Array of service requests' },
-    total: { type: 'number', description: 'Total number of requests' },
+    requests: {
+      type: 'array',
+      description: 'List of service requests',
+      items: {
+        type: 'object',
+        properties: REQUEST_ITEM_PROPERTIES,
+      },
+    },
+    total: { type: 'number', description: 'Total number of requests in current page' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },
 }

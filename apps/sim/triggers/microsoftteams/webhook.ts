@@ -69,7 +69,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-        'Open Microsoft Teams and go to the team where you want to add the webhook.',
+        'Open Microsoft Teams and go to the team where you want to add the webhook. See the <a href="https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-outgoing-webhook" target="_blank" rel="noopener noreferrer">Microsoft Teams documentation</a> for detailed steps.',
         'Click the three dots (•••) next to the team name and select "Manage team".',
         'Go to the "Apps" tab and click "Create an outgoing webhook".',
         'Provide a name, description, and optionally a profile picture.',
@@ -98,7 +98,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
     },
     message: {
       raw: {
-        attachments: { type: 'array', description: 'Array of attachments' },
+        attachments: { type: 'json', description: 'Array of attachments' },
         channelData: {
           team: { id: { type: 'string', description: 'Team ID' } },
           tenant: { id: { type: 'string', description: 'Tenant ID' } },

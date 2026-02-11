@@ -2,12 +2,14 @@ import { useMemo, useRef, useState } from 'react'
 import { Badge, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useWorkflowInputFields } from '@/hooks/queries/workflows'
+import { useWorkflowState } from '@/hooks/queries/workflows'
 
 /**
  * Props for the InputMappingField component
@@ -36,6 +38,8 @@ interface InputMappingProps {
   isPreview?: boolean
   previewValue?: Record<string, unknown>
   disabled?: boolean
+  /** Sub-block values from the preview context for resolving sibling sub-block values */
+  previewContextValues?: Record<string, unknown>
 }
 
 /**
@@ -49,9 +53,13 @@ export function InputMapping({
   isPreview = false,
   previewValue,
   disabled = false,
+  previewContextValues,
 }: InputMappingProps) {
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
-  const [selectedWorkflowId] = useSubBlockValue(blockId, 'workflowId')
+  const [storeWorkflowId] = useSubBlockValue(blockId, 'workflowId')
+  const selectedWorkflowId = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.workflowId)
+    : storeWorkflowId
 
   const inputController = useSubBlockInput({
     blockId,
@@ -70,7 +78,11 @@ export function InputMapping({
   const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const workflowId = typeof selectedWorkflowId === 'string' ? selectedWorkflowId : undefined
-  const { data: childInputFields = [], isLoading } = useWorkflowInputFields(workflowId)
+  const { data: workflowState, isLoading } = useWorkflowState(workflowId)
+  const childInputFields = useMemo(
+    () => (workflowState?.blocks ? extractInputFieldsFromBlocks(workflowState.blocks) : []),
+    [workflowState?.blocks]
+  )
   const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
 
   const valueObj: Record<string, string> = useMemo(() => {
@@ -218,7 +230,11 @@ function InputMappingField({
           <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
             {fieldName}
           </span>
-          {fieldType && <Badge size='sm'>{fieldType}</Badge>}
+          {fieldType && (
+            <Badge variant='type' size='sm'>
+              {fieldType}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -257,7 +273,10 @@ function InputMappingField({
                 ref={(el) => {
                   if (el) overlayRefs.current.set(fieldId, el)
                 }}
-                className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+                className={cn(
+                  'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                  !disabled && 'pointer-events-none'
+                )}
                 style={{ overflowX: 'auto' }}
               >
                 <div

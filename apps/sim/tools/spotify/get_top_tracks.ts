@@ -1,5 +1,9 @@
+import type { SpotifyGetTopItemsParams, SpotifyGetTopTracksResponse } from '@/tools/spotify/types'
+import {
+  SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTopItemsParams, SpotifyGetTopTracksResponse } from './types'
 
 export const spotifyGetTopTracksTool: ToolConfig<
   SpotifyGetTopItemsParams,
@@ -27,16 +31,16 @@ export const spotifyGetTopTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first track to return',
+      description: 'Index of the first track to return for pagination',
     },
   },
 
@@ -90,8 +94,16 @@ export const spotifyGetTopTracksTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Spotify track ID' },
           name: { type: 'string', description: 'Track name' },
-          artists: { type: 'array', description: 'List of artists' },
-          album: { type: 'object', description: 'Album information' },
+          artists: {
+            type: 'array',
+            description: 'List of artists',
+            items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+          },
+          album: {
+            type: 'object',
+            description: 'Album information',
+            properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+          },
           duration_ms: { type: 'number', description: 'Duration in milliseconds' },
           popularity: { type: 'number', description: 'Popularity score' },
           external_url: { type: 'string', description: 'Spotify URL' },

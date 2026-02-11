@@ -34,14 +34,14 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to create the request in',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     requestTypeId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Request Type ID for the new request',
+      visibility: 'user-or-llm',
+      description: 'Request Type ID (e.g., "10", "15")',
     },
     summary: {
       type: 'string',
@@ -61,6 +61,25 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
       visibility: 'user-or-llm',
       description: 'Account ID of customer to raise request on behalf of',
     },
+    requestFieldValues: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Custom field values as key-value pairs (overrides summary/description if provided)',
+    },
+    requestParticipants: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated account IDs to add as request participants',
+    },
+    channel: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Channel the request originates from (e.g., portal, email)',
+    },
   },
 
   request: {
@@ -79,6 +98,8 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
       description: params.description,
       raiseOnBehalfOf: params.raiseOnBehalfOf,
       requestFieldValues: params.requestFieldValues,
+      requestParticipants: params.requestParticipants,
+      channel: params.channel,
     }),
   },
 
@@ -94,6 +115,9 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
           issueKey: '',
           requestTypeId: '',
           serviceDeskId: '',
+          createdDate: null,
+          currentStatus: null,
+          reporter: null,
           success: false,
           url: '',
         },
@@ -115,6 +139,9 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
         issueKey: '',
         requestTypeId: '',
         serviceDeskId: '',
+        createdDate: null,
+        currentStatus: null,
+        reporter: null,
         success: false,
         url: '',
       },
@@ -128,6 +155,21 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
     issueKey: { type: 'string', description: 'Created request issue key (e.g., SD-123)' },
     requestTypeId: { type: 'string', description: 'Request type ID' },
     serviceDeskId: { type: 'string', description: 'Service desk ID' },
+    createdDate: {
+      type: 'json',
+      description: 'Creation date with iso8601, friendly, epochMillis',
+      optional: true,
+    },
+    currentStatus: {
+      type: 'json',
+      description: 'Current status with status name and category',
+      optional: true,
+    },
+    reporter: {
+      type: 'json',
+      description: 'Reporter user with accountId, displayName, emailAddress',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Whether the request was created successfully' },
     url: { type: 'string', description: 'URL to the created request' },
   },

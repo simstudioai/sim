@@ -2,6 +2,7 @@ import type {
   SalesforceCreateLeadParams,
   SalesforceCreateLeadResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,41 +27,51 @@ export const salesforceCreateLeadTool: ToolConfig<
     lastName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Last name (required)',
     },
     company: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Company (required)',
+      visibility: 'user-or-llm',
+      description: 'Company name (required)',
     },
     firstName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'First name',
     },
-    email: { type: 'string', required: false, visibility: 'user-only', description: 'Email' },
-    phone: { type: 'string', required: false, visibility: 'user-only', description: 'Phone' },
+    email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Email address',
+    },
+    phone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Phone number',
+    },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Lead status',
+      visibility: 'user-or-llm',
+      description: 'Lead status (e.g., Open, Working, Closed)',
     },
     leadSource: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Lead source',
+      visibility: 'user-or-llm',
+      description: 'Lead source (e.g., Web, Referral, Campaign)',
     },
-    title: { type: 'string', required: false, visibility: 'user-only', description: 'Title' },
+    title: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Job title' },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Lead description',
     },
   },
 
@@ -103,11 +114,7 @@ export const salesforceCreateLeadTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created lead data',
-      properties: {
-        id: { type: 'string', description: 'Created lead ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether lead was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

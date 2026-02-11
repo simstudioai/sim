@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskGetUser')
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
 
 export interface ZendeskGetUserParams {
   email: string
@@ -48,8 +45,8 @@ export const zendeskGetUserTool: ToolConfig<ZendeskGetUserParams, ZendeskGetUser
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'User ID to retrieve as a numeric string (e.g., "12345")',
     },
   },
 
@@ -85,7 +82,11 @@ export const zendeskGetUserTool: ToolConfig<ZendeskGetUserParams, ZendeskGetUser
   },
 
   outputs: {
-    user: { type: 'object', description: 'User object' },
+    user: {
+      type: 'object',
+      description: 'User object',
+      properties: USER_OUTPUT_PROPERTIES,
+    },
     user_id: { type: 'number', description: 'The user ID' },
   },
 }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
@@ -26,6 +27,9 @@ export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
   'trigger',
   'duration',
 ] as const
+
+export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
+export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
 
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
@@ -68,6 +72,7 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   webhook: 'orange',
   mcp: 'cyan',
   a2a: 'teal',
+  copilot: 'pink',
 }
 
 interface StatusBadgeProps {
@@ -360,46 +365,13 @@ export function mapToExecutionLogAlt(log: RawLogResponse): ExecutionLog {
 }
 
 /**
- * Format duration for display in logs UI
- * If duration is under 1 second, displays as milliseconds (e.g., "500ms")
- * If duration is 1 second or more, displays as seconds (e.g., "1.23s")
- * @param duration - Duration string (e.g., "500ms") or null
- * @returns Formatted duration string or null
- */
-export function formatDuration(duration: string | null): string | null {
-  if (!duration) return null
-
-  // Extract numeric value from duration string (e.g., "500ms" -> 500)
-  const ms = Number.parseInt(duration.replace(/[^0-9]/g, ''), 10)
-
-  if (!Number.isFinite(ms)) return duration
-
-  if (ms < 1000) {
-    return `${ms}ms`
-  }
-
-  // Convert to seconds with up to 2 decimal places
-  const seconds = ms / 1000
-  return `${seconds.toFixed(2).replace(/\.?0+$/, '')}s`
-}
-
-/**
  * Format latency value for display in dashboard UI
- * If latency is under 1 second, displays as milliseconds (e.g., "500ms")
- * If latency is 1 second or more, displays as seconds (e.g., "1.23s")
  * @param ms - Latency in milliseconds (number)
  * @returns Formatted latency string
  */
 export function formatLatency(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
-
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`
-  }
-
-  // Convert to seconds with up to 2 decimal places
-  const seconds = ms / 1000
-  return `${seconds.toFixed(2).replace(/\.?0+$/, '')}s`
+  return formatDuration(ms, { precision: 2 }) ?? '—'
 }
 
 export const formatDate = (dateString: string) => {

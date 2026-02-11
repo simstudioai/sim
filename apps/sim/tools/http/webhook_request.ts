@@ -1,7 +1,7 @@
 import { createHmac } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
+import type { RequestResponse, WebhookRequestParams } from '@/tools/http/types'
 import type { ToolConfig } from '@/tools/types'
-import type { RequestResponse, WebhookRequestParams } from './types'
 
 /**
  * Generates HMAC-SHA256 signature for webhook payload

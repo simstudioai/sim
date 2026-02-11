@@ -2,6 +2,7 @@ import type {
   LinearCreateCustomerStatusParams,
   LinearCreateCustomerStatusResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateCustomerStatusTool: ToolConfig<
@@ -31,17 +32,17 @@ export const linearCreateCustomerStatusTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Status color (hex code)',
     },
-    displayName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Display name for the status',
-    },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Status description',
+    },
+    displayName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Display name for the status',
     },
     position: {
       type: 'number',
@@ -69,11 +70,11 @@ export const linearCreateCustomerStatusTool: ToolConfig<
         color: params.color,
       }
 
-      if (params.displayName != null && params.displayName !== '') {
-        input.displayName = params.displayName
-      }
       if (params.description != null && params.description !== '') {
         input.description = params.description
+      }
+      if (params.displayName != null && params.displayName !== '') {
+        input.displayName = params.displayName
       }
       if (params.position != null) {
         input.position = params.position
@@ -87,11 +88,12 @@ export const linearCreateCustomerStatusTool: ToolConfig<
               status {
                 id
                 name
-                displayName
                 description
                 color
                 position
+                type
                 createdAt
+                updatedAt
                 archivedAt
               }
             }
@@ -136,6 +138,7 @@ export const linearCreateCustomerStatusTool: ToolConfig<
     customerStatus: {
       type: 'object',
       description: 'The created customer status',
+      properties: CUSTOMER_STATUS_OUTPUT_PROPERTIES,
     },
   },
 }

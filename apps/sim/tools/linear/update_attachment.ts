@@ -2,6 +2,7 @@ import type {
   LinearUpdateAttachmentParams,
   LinearUpdateAttachmentResponse,
 } from '@/tools/linear/types'
+import { ATTACHMENT_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateAttachmentTool: ToolConfig<
@@ -70,6 +71,7 @@ export const linearUpdateAttachmentTool: ToolConfig<
                 title
                 subtitle
                 url
+                createdAt
                 updatedAt
               }
             }
@@ -115,13 +117,7 @@ export const linearUpdateAttachmentTool: ToolConfig<
     attachment: {
       type: 'object',
       description: 'The updated attachment',
-      properties: {
-        id: { type: 'string', description: 'Attachment ID' },
-        title: { type: 'string', description: 'Attachment title' },
-        subtitle: { type: 'string', description: 'Attachment subtitle' },
-        url: { type: 'string', description: 'Attachment URL' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
-      },
+      properties: ATTACHMENT_OUTPUT_PROPERTIES,
     },
   },
 }

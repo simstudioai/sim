@@ -1,9 +1,11 @@
+import { SPACES_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListSpacesParams {
   accessToken: string
   domain: string
   limit?: number
+  cursor?: string
   cloudId?: string
 }
 
@@ -18,6 +20,7 @@ export interface ConfluenceListSpacesResponse {
       type: string
       status: string
     }>
+    nextCursor: string | null
   }
 }
 
@@ -52,7 +55,13 @@ export const confluenceListSpacesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of spaces to return (default: 25)',
+      description: 'Maximum number of spaces to return (default: 25, max: 250)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from previous response',
     },
     cloudId: {
       type: 'string',
@@ -70,6 +79,9 @@ export const confluenceListSpacesTool: ToolConfig<
         accessToken: params.accessToken,
         limit: String(params.limit || 25),
       })
+      if (params.cursor) {
+        query.set('cursor', params.cursor)
+      }
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
@@ -82,14 +94,6 @@ export const confluenceListSpacesTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: ConfluenceListSpacesParams) => {
-      return {
-        domain: params.domain,
-        accessToken: params.accessToken,
-        cloudId: params.cloudId,
-        limit: params.limit ? Number(params.limit) : 25,
-      }
-    },
   },
 
   transformResponse: async (response: Response) => {
@@ -99,12 +103,18 @@ export const confluenceListSpacesTool: ToolConfig<
       output: {
         ts: new Date().toISOString(),
         spaces: data.spaces || [],
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    spaces: { type: 'array', description: 'List of spaces' },
+    ts: TIMESTAMP_OUTPUT,
+    spaces: SPACES_OUTPUT,
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
+    },
   },
 }

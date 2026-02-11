@@ -42,8 +42,8 @@ Retrieve a single task by GID or get multiple tasks with filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `taskGid` | string | No | The globally unique identifier \(GID\) of the task. If not provided, will get multiple tasks. |
-| `workspace` | string | No | Workspace GID to filter tasks \(required when not using taskGid\) |
-| `project` | string | No | Project GID to filter tasks |
+| `workspace` | string | No | Asana workspace GID \(numeric string\) to filter tasks \(required when not using taskGid\) |
+| `project` | string | No | Asana project GID \(numeric string\) to filter tasks |
 | `limit` | number | No | Maximum number of tasks to return \(default: 50\) |
 
 #### Output
@@ -59,11 +59,11 @@ Retrieve a single task by GID or get multiple tasks with filters
 | `notes` | string | Task notes or description |
 | `completed` | boolean | Whether the task is completed |
 | `assignee` | object | Assignee details |
-| ↳ `gid` | string | Assignee GID |
-| ↳ `name` | string | Assignee name |
+|   ↳ `gid` | string | Assignee GID |
+|   ↳ `name` | string | Assignee name |
 | `created_by` | object | Creator details |
-| ↳ `gid` | string | Creator GID |
-| ↳ `name` | string | Creator name |
+|   ↳ `gid` | string | Creator GID |
+|   ↳ `name` | string | Creator name |
 | `due_on` | string | Due date \(YYYY-MM-DD\) |
 | `created_at` | string | Task creation timestamp |
 | `modified_at` | string | Task last modified timestamp |
@@ -80,7 +80,7 @@ Create a new task in Asana
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID where the task will be created |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) where the task will be created |
 | `name` | string | Yes | Name of the task |
 | `notes` | string | No | Notes or description for the task |
 | `assignee` | string | No | User GID to assign the task to |
@@ -107,7 +107,7 @@ Update an existing task in Asana
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task to update |
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) of the task to update |
 | `name` | string | No | Updated name for the task |
 | `notes` | string | No | Updated notes or description for the task |
 | `assignee` | string | No | Updated assignee user GID |
@@ -134,7 +134,7 @@ Retrieve all projects from an Asana workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID to retrieve projects from |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to retrieve projects from |
 
 #### Output
 
@@ -155,10 +155,10 @@ Search for tasks in an Asana workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID to search tasks in |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to search tasks in |
 | `text` | string | No | Text to search for in task names |
 | `assignee` | string | No | Filter tasks by assignee user GID |
-| `projects` | array | No | Array of project GIDs to filter tasks by |
+| `projects` | array | No | Array of Asana project GIDs \(numeric strings\) to filter tasks by |
 | `completed` | boolean | No | Filter by completion status |
 
 #### Output
@@ -168,22 +168,22 @@ Search for tasks in an Asana workspace
 | `success` | boolean | Operation success status |
 | `ts` | string | Timestamp of the response |
 | `tasks` | array | Array of matching tasks |
-|   ↳ `gid` | string | Assignee GID |
+|   ↳ `gid` | string | Task GID |
 |   ↳ `resource_type` | string | Resource type |
 |   ↳ `resource_subtype` | string | Resource subtype |
-|   ↳ `name` | string | Assignee name |
+|   ↳ `name` | string | Task name |
 |   ↳ `notes` | string | Task notes |
 |   ↳ `completed` | boolean | Completion status |
 |   ↳ `assignee` | object | Assignee details |
-|   ↳ `gid` | string | Assignee GID |
-|   ↳ `name` | string | Assignee name |
+|     ↳ `gid` | string | Assignee GID |
+|     ↳ `name` | string | Assignee name |
 |   ↳ `due_on` | string | Due date |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `modified_at` | string | Modified timestamp |
 | `next_page` | object | Pagination info |
-| ↳ `offset` | string | Offset token |
-| ↳ `path` | string | API path |
-| ↳ `uri` | string | Full URI |
+|   ↳ `offset` | string | Offset token |
+|   ↳ `path` | string | API path |
+|   ↳ `uri` | string | Full URI |
 
 ### `asana_add_comment`
 
@@ -193,7 +193,7 @@ Add a comment (story) to an Asana task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task |
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) |
 | `text` | string | Yes | The text content of the comment |
 
 #### Output
@@ -206,7 +206,7 @@ Add a comment (story) to an Asana task
 | `text` | string | Comment text content |
 | `created_at` | string | Comment creation timestamp |
 | `created_by` | object | Comment author details |
-| ↳ `gid` | string | Author GID |
-| ↳ `name` | string | Author name |
+|   ↳ `gid` | string | Author GID |
+|   ↳ `name` | string | Author name |
 
 

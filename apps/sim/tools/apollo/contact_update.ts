@@ -21,7 +21,7 @@ export const apolloContactUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the contact to update',
+      description: 'ID of the contact to update (e.g., "con_abc123")',
     },
     first_name: {
       type: 'string',
@@ -45,13 +45,13 @@ export const apolloContactUpdateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Job title',
+      description: 'Job title (e.g., "VP of Sales", "Software Engineer")',
     },
     account_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Apollo account ID',
+      description: 'Apollo account ID (e.g., "acc_abc123")',
     },
     owner_id: {
       type: 'string',

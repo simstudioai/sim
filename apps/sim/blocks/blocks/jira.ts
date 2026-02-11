@@ -1,6 +1,7 @@
 import { JiraIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
@@ -34,6 +35,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Update Comment', id: 'update_comment' },
         { label: 'Delete Comment', id: 'delete_comment' },
         { label: 'Get Attachments', id: 'get_attachments' },
+        { label: 'Add Attachment', id: 'add_attachment' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
         { label: 'Add Worklog', id: 'add_worklog' },
         { label: 'Get Worklogs', id: 'get_worklogs' },
@@ -52,7 +54,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Domain',
       type: 'short-input',
       required: true,
-      placeholder: 'Enter Jira domain (e.g., simstudio.atlassian.net)',
+      placeholder: 'Enter Jira domain (e.g., company.atlassian.net)',
     },
     {
       id: 'credential',
@@ -104,6 +106,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -114,6 +117,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -137,6 +141,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'update_comment',
           'delete_comment',
           'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
           'add_worklog',
           'get_worklogs',
           'update_worklog',
@@ -168,6 +195,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'update_comment',
           'delete_comment',
           'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
           'add_worklog',
           'get_worklogs',
           'update_worklog',
@@ -219,14 +269,32 @@ Return ONLY the description text - no explanations.`,
           'Describe the issue details (e.g., "users seeing 500 error when clicking submit")...',
       },
     },
-    // Write Issue additional fields
+    // Write Issue type and parent
+    {
+      id: 'issueType',
+      title: 'Issue Type',
+      type: 'short-input',
+      placeholder: 'Issue type (e.g., Task, Story, Bug, Epic)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+      value: () => 'Task',
+    },
+    {
+      id: 'parentIssue',
+      title: 'Parent Issue Key',
+      type: 'short-input',
+      placeholder: 'Parent issue key for subtasks (e.g., PROJ-123)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    // Write/Update Issue additional fields
     {
       id: 'assignee',
       title: 'Assignee Account ID',
       type: 'short-input',
       placeholder: 'Assignee account ID (e.g., 5b109f2e9729b51b54dc274d)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'priority',
@@ -234,7 +302,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'Priority ID or name (e.g., "10000" or "High")',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'labels',
@@ -242,7 +310,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'Comma-separated labels (e.g., bug, urgent)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'duedate',
@@ -250,7 +318,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
@@ -279,7 +347,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'long-input',
       placeholder: 'Environment information (e.g., Production, Staging)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'customFieldId',
@@ -287,7 +355,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'e.g., customfield_10001 or 10001',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'customFieldValue',
@@ -295,7 +363,34 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Value for the custom field',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'components',
+      title: 'Components',
+      type: 'short-input',
+      placeholder: 'Comma-separated component names',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'fixVersions',
+      title: 'Fix Versions',
+      type: 'short-input',
+      placeholder: 'Comma-separated fix version names',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'notifyUsers',
+      title: 'Notify Users',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'update' },
     },
     // Delete Issue fields
     {
@@ -345,6 +440,13 @@ Return ONLY the comment text - no explanations.`,
         placeholder: 'Describe the transition reason (e.g., "fixed bug", "ready for QA review")...',
       },
     },
+    {
+      id: 'resolution',
+      title: 'Resolution',
+      type: 'short-input',
+      placeholder: 'Resolution name (e.g., "Fixed", "Won\'t Fix")',
+      condition: { field: 'operation', value: 'transition' },
+    },
     // Search Issues fields
     {
       id: 'jql',
@@ -369,6 +471,20 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
           'Describe what you want to search for (e.g., "open bugs assigned to me", "high priority issues from last week")...',
         generationType: 'sql-query',
       },
+    },
+    {
+      id: 'nextPageToken',
+      title: 'Next Page Token',
+      type: 'short-input',
+      placeholder: 'Cursor token for next page (omit for first page)',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'startAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      condition: { field: 'operation', value: ['get_comments', 'get_worklogs'] },
     },
     {
       id: 'maxResults',
@@ -407,6 +523,27 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: ['update_comment', 'delete_comment'] },
     },
     // Attachment fields
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files',
+      condition: { field: 'operation', value: 'add_attachment' },
+      mode: 'basic',
+      multiple: true,
+      required: true,
+    },
+    {
+      id: 'files',
+      title: 'File References',
+      type: 'short-input',
+      canonicalParamId: 'files',
+      placeholder: 'File reference from previous block',
+      condition: { field: 'operation', value: 'add_attachment' },
+      mode: 'advanced',
+      required: true,
+    },
     {
       id: 'attachmentId',
       title: 'Attachment ID',
@@ -576,6 +713,7 @@ Return ONLY the comment text - no explanations.`,
       'jira_update_comment',
       'jira_delete_comment',
       'jira_get_attachments',
+      'jira_add_attachment',
       'jira_delete_attachment',
       'jira_add_worklog',
       'jira_get_worklogs',
@@ -589,8 +727,9 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
-        const effectiveIssueKey = (params.issueKey || params.manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
+        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
 
         switch (params.operation) {
           case 'read':
@@ -623,6 +762,8 @@ Return ONLY the comment text - no explanations.`,
             return 'jira_delete_comment'
           case 'get_attachments':
             return 'jira_get_attachments'
+          case 'add_attachment':
+            return 'jira_add_attachment'
           case 'delete_attachment':
             return 'jira_delete_attachment'
           case 'add_worklog':
@@ -648,11 +789,11 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+        const { credential, projectId, issueKey, ...rest } = params
 
-        // Use the selected IDs or the manually entered ones
-        const effectiveProjectId = (projectId || manualProjectId || '').trim()
-        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = projectId ? String(projectId).trim() : ''
+        const effectiveIssueKey = issueKey ? String(issueKey).trim() : ''
 
         const baseParams = {
           credential,
@@ -661,11 +802,6 @@ Return ONLY the comment text - no explanations.`,
 
         switch (params.operation) {
           case 'write': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             // Parse comma-separated strings into arrays
             const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
               if (!value || value.trim() === '') return undefined
@@ -686,7 +822,9 @@ Return ONLY the comment text - no explanations.`,
               assignee: params.assignee || undefined,
               priority: params.priority || undefined,
               labels: parseCommaSeparated(params.labels),
+              components: parseCommaSeparated(params.components),
               duedate: params.duedate || undefined,
+              fixVersions: parseCommaSeparated(params.fixVersions),
               reporter: params.reporter || undefined,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
@@ -698,21 +836,29 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
+            const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
+              if (!value || value.trim() === '') return undefined
+              return value
+                .split(',')
+                .map((item) => item.trim())
+                .filter((item) => item !== '')
             }
-            if (!effectiveIssueKey) {
-              throw new Error(
-                'Issue Key is required. Please select an issue or enter an issue key manually.'
-              )
-            }
+
             const updateParams = {
               projectId: effectiveProjectId,
               issueKey: effectiveIssueKey,
-              summary: params.summary || '',
-              description: params.description || '',
+              summary: params.summary || undefined,
+              description: params.description || undefined,
+              assignee: params.assignee || undefined,
+              priority: params.priority || undefined,
+              labels: parseCommaSeparated(params.labels),
+              components: parseCommaSeparated(params.components),
+              duedate: params.duedate || undefined,
+              fixVersions: parseCommaSeparated(params.fixVersions),
+              environment: params.environment || undefined,
+              customFieldId: params.customFieldId || undefined,
+              customFieldValue: params.customFieldValue || undefined,
+              notifyUsers: params.notifyUsers === 'false' ? false : undefined,
             }
             return {
               ...baseParams,
@@ -720,40 +866,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'read': {
-            // Check for project ID from either source
-            const projectForRead = (params.projectId || params.manualProjectId || '').trim()
-            const issueForRead = (params.issueKey || params.manualIssueKey || '').trim()
-
-            if (!issueForRead) {
-              throw new Error(
-                'Select a project to read issues, or provide an issue key to read a single issue.'
-              )
-            }
             return {
               ...baseParams,
-              issueKey: issueForRead,
+              issueKey: effectiveIssueKey,
               // Include projectId if available for context
-              ...(projectForRead && { projectId: projectForRead }),
+              ...(effectiveProjectId && { projectId: effectiveProjectId }),
             }
           }
           case 'read-bulk': {
-            // Check both projectId and manualProjectId directly from params
-            const finalProjectId = params.projectId || params.manualProjectId || ''
-
-            if (!finalProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             return {
               ...baseParams,
-              projectId: finalProjectId.trim(),
+              projectId: effectiveProjectId.trim(),
             }
           }
           case 'delete': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -761,9 +887,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'assign': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to assign an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -771,27 +894,23 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'transition': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to transition an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
               transitionId: params.transitionId,
               comment: params.transitionComment,
+              resolution: params.resolution || undefined,
             }
           }
           case 'search': {
             return {
               ...baseParams,
               jql: params.jql,
+              nextPageToken: params.nextPageToken || undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
           case 'add_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -799,19 +918,14 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_comments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get comments.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              startAt: params.startAt ? Number.parseInt(params.startAt) : undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
           case 'update_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -820,9 +934,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -830,12 +941,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_attachments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get attachments.')
+            return {
+              ...baseParams,
+              issueKey: effectiveIssueKey,
+            }
+          }
+          case 'add_attachment': {
+            const normalizedFiles = normalizeFileInput(params.files)
+            if (!normalizedFiles || normalizedFiles.length === 0) {
+              throw new Error('At least one attachment file is required.')
             }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              files: normalizedFiles,
             }
           }
           case 'delete_attachment': {
@@ -845,9 +964,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -859,19 +975,14 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_worklogs': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get worklogs.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              startAt: params.startAt ? Number.parseInt(params.startAt) : undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
           case 'update_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -884,9 +995,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -909,9 +1017,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -919,9 +1024,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'remove_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to remove a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -948,23 +1050,25 @@ Return ONLY the comment text - no explanations.`,
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
     credential: { type: 'string', description: 'Jira access token' },
-    issueKey: { type: 'string', description: 'Issue key identifier' },
-    projectId: { type: 'string', description: 'Project identifier' },
-    manualProjectId: { type: 'string', description: 'Manual project identifier' },
-    manualIssueKey: { type: 'string', description: 'Manual issue key' },
+    issueKey: { type: 'string', description: 'Issue key identifier (canonical param)' },
+    projectId: { type: 'string', description: 'Project identifier (canonical param)' },
     // Update/Write operation inputs
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
     issueType: { type: 'string', description: 'Issue type' },
-    // Write operation additional inputs
+    // Write/Update operation additional inputs
+    parentIssue: { type: 'string', description: 'Parent issue key for subtasks' },
     assignee: { type: 'string', description: 'Assignee account ID' },
     priority: { type: 'string', description: 'Priority ID or name' },
     labels: { type: 'string', description: 'Comma-separated labels for the issue' },
+    components: { type: 'string', description: 'Comma-separated component names' },
     duedate: { type: 'string', description: 'Due date in YYYY-MM-DD format' },
+    fixVersions: { type: 'string', description: 'Comma-separated fix version names' },
     reporter: { type: 'string', description: 'Reporter account ID' },
     environment: { type: 'string', description: 'Environment information' },
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
+    notifyUsers: { type: 'string', description: 'Whether to send notifications on update' },
     // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     // Assign/Watcher operation inputs
@@ -975,13 +1079,20 @@ Return ONLY the comment text - no explanations.`,
     // Transition operation inputs
     transitionId: { type: 'string', description: 'Transition ID for workflow status changes' },
     transitionComment: { type: 'string', description: 'Optional comment for transition' },
+    resolution: { type: 'string', description: 'Resolution name for transition (e.g., "Fixed")' },
     // Search operation inputs
+    nextPageToken: {
+      type: 'string',
+      description: 'Cursor token for the next page of search results',
+    },
+    startAt: { type: 'string', description: 'Pagination start index' },
     jql: { type: 'string', description: 'JQL (Jira Query Language) search query' },
     maxResults: { type: 'string', description: 'Maximum number of results to return' },
     // Comment operation inputs
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
     // Attachment operation inputs
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     attachmentId: { type: 'string', description: 'Attachment ID for delete operation' },
     // Worklog operation inputs
     timeSpentSeconds: {
@@ -1027,8 +1138,11 @@ Return ONLY the comment text - no explanations.`,
     id: { type: 'string', description: 'Jira issue ID' },
     key: { type: 'string', description: 'Jira issue key' },
 
-    // jira_search_issues outputs
+    // jira_search_issues / jira_bulk_read outputs
     total: { type: 'number', description: 'Total number of matching issues' },
+    nextPageToken: { type: 'string', description: 'Cursor token for the next page of results' },
+    isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
+    // Shared pagination outputs (get_comments, get_worklogs, get_users)
     startAt: { type: 'number', description: 'Pagination start index' },
     maxResults: { type: 'number', description: 'Maximum results per page' },
     issues: {
@@ -1052,6 +1166,8 @@ Return ONLY the comment text - no explanations.`,
       type: 'json',
       description: 'Array of attachments with id, filename, size, mimeType, created, author',
     },
+    files: { type: 'file[]', description: 'Uploaded attachment files' },
+    attachmentIds: { type: 'json', description: 'Uploaded attachment IDs' },
 
     // jira_delete_attachment, jira_delete_comment, jira_delete_issue, jira_delete_worklog, jira_delete_issue_link outputs
     attachmentId: { type: 'string', description: 'Deleted attachment ID' },

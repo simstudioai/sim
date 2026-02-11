@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -7,8 +8,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('Confluence Search')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const {
       domain,
       accessToken,
@@ -36,8 +42,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
+    const escapeCqlValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
     const searchParams = new URLSearchParams({
-      cql: `text ~ "${query}"`,
+      cql: `text ~ "${escapeCqlValue(query)}"`,
       limit: limit.toString(),
     })
 
@@ -64,13 +72,27 @@ export async function POST(request: Request) {
 
     const data = await response.json()
 
-    const results = (data.results || []).map((result: any) => ({
-      id: result.content?.id || result.id,
-      title: result.content?.title || result.title,
-      type: result.content?.type || result.type,
-      url: result.url || result._links?.webui || '',
-      excerpt: result.excerpt || '',
-    }))
+    const results = (data.results || []).map((result: any) => {
+      const spaceData = result.resultGlobalContainer || result.content?.space
+      return {
+        id: result.content?.id || result.id,
+        title: result.content?.title || result.title,
+        type: result.content?.type || result.type,
+        url: result.url || result._links?.webui || '',
+        excerpt: result.excerpt || '',
+        status: result.content?.status ?? null,
+        spaceKey: result.resultGlobalContainer?.key ?? result.content?.space?.key ?? null,
+        space: spaceData
+          ? {
+              id: spaceData.id ?? null,
+              key: spaceData.key ?? null,
+              name: spaceData.name ?? spaceData.title ?? null,
+            }
+          : null,
+        lastModified: result.lastModified ?? result.content?.history?.lastUpdated?.when ?? null,
+        entityType: result.entityType ?? null,
+      }
+    })
 
     return NextResponse.json({ results })
   } catch (error) {

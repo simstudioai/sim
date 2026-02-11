@@ -26,7 +26,7 @@ export function extractSubBlockValues(
   Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
     values[blockId] = {}
     Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]) => {
-      values[blockId][subBlockId] = (subBlock as any)?.value ?? null
+      values[blockId][subBlockId] = subBlock?.value ?? null
     })
   })
   return values
@@ -37,10 +37,27 @@ export function applyWorkflowStateToStores(
   workflowState: WorkflowState,
   options?: { updateLastSaved?: boolean }
 ) {
+  logger.debug('[applyWorkflowStateToStores] Applying state', {
+    workflowId,
+    blockCount: Object.keys(workflowState.blocks || {}).length,
+    edgeCount: workflowState.edges?.length ?? 0,
+    edgePreview: workflowState.edges?.slice(0, 3).map((e) => `${e.source} -> ${e.target}`),
+  })
   const workflowStore = useWorkflowStore.getState()
-  workflowStore.replaceWorkflowState(cloneWorkflowState(workflowState), options)
+  const cloned = cloneWorkflowState(workflowState)
+  logger.debug('[applyWorkflowStateToStores] Cloned state edges', {
+    clonedEdgeCount: cloned.edges?.length ?? 0,
+  })
+  workflowStore.replaceWorkflowState(cloned, options)
   const subBlockValues = extractSubBlockValues(workflowState)
   useSubBlockStore.getState().setWorkflowValues(workflowId, subBlockValues)
+
+  // Verify what's in the store after apply
+  const afterState = workflowStore.getWorkflowState()
+  logger.info('[applyWorkflowStateToStores] Applied workflow state to stores', {
+    workflowId,
+    afterEdgeCount: afterState.edges?.length ?? 0,
+  })
 }
 
 export function captureBaselineSnapshot(workflowId: string): WorkflowState {
@@ -91,7 +108,7 @@ export async function persistWorkflowStateToServer(
 export async function getLatestUserMessageId(): Promise<string | null> {
   try {
     const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-    const { messages } = useCopilotStore.getState() as any
+    const { messages } = useCopilotStore.getState()
     if (!Array.isArray(messages) || messages.length === 0) {
       return null
     }
@@ -111,21 +128,19 @@ export async function getLatestUserMessageId(): Promise<string | null> {
 export async function findLatestEditWorkflowToolCallId(): Promise<string | undefined> {
   try {
     const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-    const { messages, toolCallsById } = useCopilotStore.getState() as any
+    const { messages, toolCallsById } = useCopilotStore.getState()
 
     for (let mi = messages.length - 1; mi >= 0; mi--) {
       const message = messages[mi]
       if (message.role !== 'assistant' || !message.contentBlocks) continue
-      for (const block of message.contentBlocks as any[]) {
+      for (const block of message.contentBlocks) {
         if (block?.type === 'tool_call' && block.toolCall?.name === 'edit_workflow') {
           return block.toolCall?.id
         }
       }
     }
 
-    const fallback = Object.values(toolCallsById).filter(
-      (call: any) => call.name === 'edit_workflow'
-    ) as any[]
+    const fallback = Object.values(toolCallsById).filter((call) => call.name === 'edit_workflow')
 
     return fallback.length ? fallback[fallback.length - 1].id : undefined
   } catch (error) {
@@ -134,7 +149,7 @@ export async function findLatestEditWorkflowToolCallId(): Promise<string | undef
   }
 }
 
-export function createBatchedUpdater(set: any) {
+export function createBatchedUpdater(set: (updates: Partial<WorkflowDiffState>) => void) {
   let updateTimer: NodeJS.Timeout | null = null
   const UPDATE_DEBOUNCE_MS = 16
   let pendingUpdates: Partial<WorkflowDiffState> = {}

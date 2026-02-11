@@ -1,14 +1,14 @@
 import { db } from '@sim/db'
-import { account, user, workflow } from '@sim/db/schema'
+import { account, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { evaluateScopeCoverage, type OAuthProvider, parseProvider } from '@/lib/oauth'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,55 +80,32 @@ export async function GET(request: NextRequest) {
 
     const { provider: providerParam, workflowId, credentialId } = parseResult.data
 
-    // Authenticate requester (supports session, API key, internal JWT)
-    const authResult = await checkHybridAuth(request)
+    // Authenticate requester (supports session and internal JWT)
+    const authResult = await checkSessionOrInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
     const requesterUserId = authResult.userId
 
-    // Resolve effective user id: workflow owner if workflowId provided (with access check); else requester
-    let effectiveUserId: string
+    const effectiveUserId = requesterUserId
     if (workflowId) {
-      // Load workflow owner and workspace for access control
-      const rows = await db
-        .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (!rows.length) {
-        logger.warn(`[${requestId}] Workflow not found for credentials request`, { workflowId })
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId: requesterUserId,
+        action: 'read',
+      })
+      if (!workflowAuthorization.allowed) {
+        logger.warn(`[${requestId}] Forbidden credentials request for workflow`, {
+          requesterUserId,
+          workflowId,
+          status: workflowAuthorization.status,
+        })
+        return NextResponse.json(
+          { error: workflowAuthorization.message || 'Forbidden' },
+          { status: workflowAuthorization.status }
+        )
       }
-
-      const wf = rows[0]
-
-      if (requesterUserId !== wf.userId) {
-        if (!wf.workspaceId) {
-          logger.warn(
-            `[${requestId}] Forbidden - workflow has no workspace and requester is not owner`,
-            {
-              requesterUserId,
-            }
-          )
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-
-        const perm = await getUserEntityPermissions(requesterUserId, 'workspace', wf.workspaceId)
-        if (perm === null) {
-          logger.warn(`[${requestId}] Forbidden credentials request - no workspace access`, {
-            requesterUserId,
-            workspaceId: wf.workspaceId,
-          })
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
-      }
-
-      effectiveUserId = wf.userId
-    } else {
-      effectiveUserId = requesterUserId
     }
 
     // Parse the provider to get base provider and feature type (if provider is present)
@@ -136,18 +113,16 @@ export async function GET(request: NextRequest) {
 
     let accountsData
 
-    if (credentialId) {
-      // Foreign-aware lookup for a specific credential by id
-      // If workflowId is provided and requester has access (checked above), allow fetching by id only
-      if (workflowId) {
-        accountsData = await db.select().from(account).where(eq(account.id, credentialId))
-      } else {
-        // Fallback: constrain to requester's own credentials when not in a workflow context
-        accountsData = await db
-          .select()
-          .from(account)
-          .where(and(eq(account.userId, effectiveUserId), eq(account.id, credentialId)))
-      }
+    if (credentialId && workflowId) {
+      // When both workflowId and credentialId are provided, fetch by ID only.
+      // Workspace authorization above already proves access; the credential
+      // may belong to another workspace member (e.g. for display name resolution).
+      accountsData = await db.select().from(account).where(eq(account.id, credentialId))
+    } else if (credentialId) {
+      accountsData = await db
+        .select()
+        .from(account)
+        .where(and(eq(account.userId, effectiveUserId), eq(account.id, credentialId)))
     } else {
       // Fetch all credentials for provider and effective user
       accountsData = await db

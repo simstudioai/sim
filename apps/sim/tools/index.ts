@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
+import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -233,10 +238,36 @@ export async function executeTool(
     // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
     const normalizedToolId = normalizeToolId(toolId)
 
+    // Handle load_skill tool for agent skills progressive disclosure
+    if (normalizedToolId === 'load_skill') {
+      const skillName = params.skill_name
+      const workspaceId = params._context?.workspaceId
+      if (!skillName || !workspaceId) {
+        return {
+          success: false,
+          output: { error: 'Missing skill_name or workspace context' },
+          error: 'Missing skill_name or workspace context',
+        }
+      }
+      const content = await resolveSkillContent(skillName, workspaceId)
+      if (!content) {
+        return {
+          success: false,
+          output: { error: `Skill "${skillName}" not found` },
+          error: `Skill "${skillName}" not found`,
+        }
+      }
+      return {
+        success: true,
+        output: { content },
+      }
+    }
+
     // If it's a custom tool, use the async version with workflowId
     if (isCustomTool(normalizedToolId)) {
       const workflowId = params._context?.workflowId
-      tool = await getToolAsync(normalizedToolId, workflowId)
+      const userId = params._context?.userId
+      tool = await getToolAsync(normalizedToolId, workflowId, userId)
       if (!tool) {
         logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
       }
@@ -275,25 +306,24 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
+        const workflowId = contextParams._context?.workflowId
+        const userId = contextParams._context?.userId
+
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
         }
-
-        // Add workflowId if it exists in params, context, or executionContext
-        const workflowId =
-          contextParams.workflowId ||
-          contextParams._context?.workflowId ||
-          executionContext?.workflowId
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        // Build token URL and also include workflowId in query so server auth can read it
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
+        }
+        if (userId) {
+          tokenUrlObj.searchParams.set('userId', userId)
         }
 
         // Always send Content-Type; add internal auth on server-side runs
@@ -598,6 +628,10 @@ async function executeToolRequest(
       if (workflowId) {
         fullUrlObj.searchParams.set('workflowId', workflowId)
       }
+      const userId = params._context?.userId
+      if (userId) {
+        fullUrlObj.searchParams.set('userId', userId)
+      }
     }
 
     const fullUrl = fullUrlObj.toString()
@@ -644,11 +678,26 @@ async function executeToolRequest(
     let response: Response
 
     if (isInternalRoute) {
-      response = await fetch(fullUrl, {
-        method: requestParams.method,
-        headers: headers,
-        body: requestParams.body,
-      })
+      const controller = new AbortController()
+      const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
+      const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+      try {
+        response = await fetch(fullUrl, {
+          method: requestParams.method,
+          headers: headers,
+          body: requestParams.body,
+          signal: controller.signal,
+        })
+      } catch (error) {
+        // Convert AbortError to a timeout error message
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error(`Request timed out after ${timeout}ms`)
+        }
+        throw error
+      } finally {
+        clearTimeout(timeoutId)
+      }
     } else {
       const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
       if (!urlValidation.isValid) {
@@ -659,16 +708,26 @@ async function executeToolRequest(
         method: requestParams.method,
         headers: headersRecord,
         body: requestParams.body ?? undefined,
+        timeout: requestParams.timeout,
       })
 
       const responseHeaders = new Headers(secureResponse.headers.toRecord())
-      const bodyBuffer = await secureResponse.arrayBuffer()
+      const nullBodyStatuses = new Set([101, 204, 205, 304])
 
-      response = new Response(bodyBuffer, {
-        status: secureResponse.status,
-        statusText: secureResponse.statusText,
-        headers: responseHeaders,
-      })
+      if (nullBodyStatuses.has(secureResponse.status)) {
+        response = new Response(null, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      } else {
+        const bodyBuffer = await secureResponse.arrayBuffer()
+        response = new Response(bodyBuffer, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      }
     }
 
     // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
@@ -712,11 +771,9 @@ async function executeToolRequest(
       throw errorToTransform
     }
 
-    // Parse response data once with guard for empty 202 bodies
     let responseData
     const status = response.status
-    if (status === 202) {
-      // Many APIs (e.g., Microsoft Graph) return 202 with empty body
+    if (status === 202 || status === 204 || status === 205) {
       responseData = { status }
     } else {
       if (tool.transformResponse) {
@@ -923,6 +980,7 @@ async function executeMcpTool(
 
     const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
     const workflowId = params._context?.workflowId || executionContext?.workflowId
+    const userId = params._context?.userId || executionContext?.userId
 
     if (!workspaceId) {
       return {
@@ -964,7 +1022,12 @@ async function executeMcpTool(
       hasToolSchema: !!toolSchema,
     })
 
-    const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
+    const mcpUrl = new URL('/api/mcp/tools/execute', baseUrl)
+    if (userId) {
+      mcpUrl.searchParams.set('userId', userId)
+    }
+
+    const response = await fetch(mcpUrl.toString(), {
       method: 'POST',
       headers,
       body,

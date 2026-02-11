@@ -4,11 +4,13 @@ import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
+import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
 
 const logger = createLogger('HumanInTheLoopManager')
@@ -567,6 +569,30 @@ export class PauseResumeManager {
 
       stateCopy.blockStates[stateBlockKey] = pauseBlockState
 
+      // Update the block log entry with the merged output so logs show the submission data
+      if (Array.isArray(stateCopy.blockLogs)) {
+        const blockLogIndex = stateCopy.blockLogs.findIndex(
+          (log: { blockId: string }) =>
+            log.blockId === stateBlockKey ||
+            log.blockId === pauseBlockId ||
+            log.blockId === contextId
+        )
+        if (blockLogIndex !== -1) {
+          // Filter output for logging using shared utility
+          // 'resume' is redundant with url/resumeEndpoint so we filter it out
+          const filteredOutput = filterOutputForLog('human_in_the_loop', mergedOutput, {
+            additionalHiddenKeys: ['resume'],
+          })
+          stateCopy.blockLogs[blockLogIndex] = {
+            ...stateCopy.blockLogs[blockLogIndex],
+            blockId: stateBlockKey,
+            output: filteredOutput,
+            durationMs: pauseDurationMs,
+            endedAt: new Date().toISOString(),
+          }
+        }
+      }
+
       if (Array.isArray(stateCopy.executedBlocks)) {
         const filtered = stateCopy.executedBlocks.filter(
           (id: string) => id !== pauseBlockId && id !== contextId
@@ -713,7 +739,6 @@ export class PauseResumeManager {
       skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
       workspaceId: baseSnapshot.metadata.workspaceId,
       loggingSession,
-      isResumeContext: true, // Enable billing fallback for paused workflow resumes
     })
 
     if (!preprocessingResult.success) {
@@ -746,14 +771,39 @@ export class PauseResumeManager {
       actorUserId: metadata.userId,
     })
 
-    return await executeWorkflowCore({
-      snapshot: resumeSnapshot,
-      callbacks: {},
-      loggingSession,
-      skipLogCreation: true, // Reuse existing log entry
-      includeFileBase64: true, // Enable base64 hydration
-      base64MaxBytes: undefined, // Use default limit
-    })
+    const timeoutController = createTimeoutAbortController(
+      preprocessingResult.executionTimeout?.async
+    )
+
+    let result: ExecutionResult
+    try {
+      result = await executeWorkflowCore({
+        snapshot: resumeSnapshot,
+        callbacks: {},
+        loggingSession,
+        skipLogCreation: true, // Reuse existing log entry
+        includeFileBase64: true, // Enable base64 hydration
+        base64MaxBytes: undefined, // Use default limit
+        abortSignal: timeoutController.signal,
+      })
+    } finally {
+      timeoutController.cleanup()
+    }
+
+    if (
+      result.status === 'cancelled' &&
+      timeoutController.isTimedOut() &&
+      timeoutController.timeoutMs
+    ) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+      logger.info('Resume execution timed out', {
+        resumeExecutionId,
+        timeoutMs: timeoutController.timeoutMs,
+      })
+      await loggingSession.markAsFailed(timeoutErrorMessage)
+    }
+
+    return result
   }
 
   private static async markResumeCompleted(args: {

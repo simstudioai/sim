@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { fetchDeploymentVersionState } from './workflows'
 
 const logger = createLogger('DeploymentQueries')
 
@@ -237,6 +238,7 @@ interface DeployWorkflowResult {
   isDeployed: boolean
   deployedAt?: string
   apiKey?: string
+  warnings?: string[]
 }
 
 /**
@@ -272,6 +274,7 @@ export function useDeployWorkflow() {
         isDeployed: data.isDeployed ?? false,
         deployedAt: data.deployedAt,
         apiKey: data.apiKey,
+        warnings: data.warnings,
       }
     },
     onSuccess: (data, variables) => {
@@ -347,6 +350,176 @@ export function useUndeployWorkflow() {
 }
 
 /**
+ * Variables for update deployment version mutation
+ */
+interface UpdateDeploymentVersionVariables {
+  workflowId: string
+  version: number
+  name?: string
+  description?: string | null
+}
+
+/**
+ * Response from update deployment version mutation
+ */
+interface UpdateDeploymentVersionResult {
+  name: string | null
+  description: string | null
+}
+
+/**
+ * Mutation hook for updating a deployment version's name or description.
+ * Invalidates versions query on success.
+ */
+export function useUpdateDeploymentVersion() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      name,
+      description,
+    }: UpdateDeploymentVersionVariables): Promise<UpdateDeploymentVersionResult> => {
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update deployment version')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      logger.info('Deployment version updated', {
+        workflowId: variables.workflowId,
+        version: variables.version,
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to update deployment version', { error })
+    },
+  })
+}
+
+/**
+ * Variables for generating a version description
+ */
+interface GenerateVersionDescriptionVariables {
+  workflowId: string
+  version: number
+  onStreamChunk?: (accumulated: string) => void
+}
+
+const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are writing deployment version descriptions for a workflow automation platform.
+
+Write a brief, factual description (1-3 sentences, under 400 characters) that states what changed between versions.
+
+Guidelines:
+- Use the specific values provided (credential names, channel names, model names)
+- Be precise: "Changes Slack channel from #general to #alerts" not "Updates channel configuration"
+- Combine related changes: "Updates Agent model to claude-sonnet-4-5 and increases temperature to 0.8"
+- For added/removed blocks, mention their purpose if clear from the type
+
+Format rules:
+- Plain text only, no quotes around the response
+- No markdown formatting
+- No filler phrases ("for improved efficiency", "streamlining the workflow")
+- No version numbers or "This version" prefixes
+
+Examples:
+- Switches Agent model from gpt-4o to claude-sonnet-4-5. Changes Slack credential to Production OAuth.
+- Adds Gmail notification block for sending alerts. Removes unused Function block. Updates Router conditions.
+- Updates system prompt for more concise responses. Reduces temperature from 0.7 to 0.3.
+- Connects Slack block to Router. Adds 2 new workflow connections. Configures error handling path.`
+
+/**
+ * Hook for generating a version description using AI based on workflow diff
+ */
+export function useGenerateVersionDescription() {
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      onStreamChunk,
+    }: GenerateVersionDescriptionVariables): Promise<string> => {
+      const { generateWorkflowDiffSummary, formatDiffSummaryForDescriptionAsync } = await import(
+        '@/lib/workflows/comparison/compare'
+      )
+
+      const currentState = await fetchDeploymentVersionState(workflowId, version)
+
+      let previousState = null
+      if (version > 1) {
+        try {
+          previousState = await fetchDeploymentVersionState(workflowId, version - 1)
+        } catch {
+          // Previous version may not exist, continue without it
+        }
+      }
+
+      const diffSummary = generateWorkflowDiffSummary(currentState, previousState)
+      const diffText = await formatDiffSummaryForDescriptionAsync(
+        diffSummary,
+        currentState,
+        workflowId
+      )
+
+      const wandResponse = await fetch('/api/wand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-transform',
+        },
+        body: JSON.stringify({
+          prompt: `Generate a deployment version description based on these changes:\n\n${diffText}`,
+          systemPrompt: VERSION_DESCRIPTION_SYSTEM_PROMPT,
+          stream: true,
+          workflowId,
+        }),
+        cache: 'no-store',
+      })
+
+      if (!wandResponse.ok) {
+        const errorText = await wandResponse.text()
+        throw new Error(errorText || 'Failed to generate description')
+      }
+
+      if (!wandResponse.body) {
+        throw new Error('Response body is null')
+      }
+
+      const { readSSEStream } = await import('@/lib/core/utils/sse')
+      const accumulatedContent = await readSSEStream(wandResponse.body, {
+        onAccumulated: onStreamChunk,
+      })
+
+      if (!accumulatedContent) {
+        throw new Error('Failed to generate description')
+      }
+
+      return accumulatedContent.trim()
+    },
+    onSuccess: (content) => {
+      logger.info('Generated version description', { length: content.length })
+    },
+    onError: (error) => {
+      logger.error('Failed to generate version description', { error })
+    },
+  })
+}
+
+/**
  * Variables for activate version mutation
  */
 interface ActivateVersionVariables {
@@ -360,6 +533,7 @@ interface ActivateVersionVariables {
 interface ActivateVersionResult {
   deployedAt?: string
   apiKey?: string
+  warnings?: string[]
 }
 
 /**
@@ -375,11 +549,12 @@ export function useActivateDeploymentVersion() {
       workflowId,
       version,
     }: ActivateVersionVariables): Promise<ActivateVersionResult> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/activate`, {
-        method: 'POST',
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ isActive: true }),
       })
 
       if (!response.ok) {

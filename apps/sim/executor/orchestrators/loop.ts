@@ -7,7 +7,11 @@ import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  type ExecutionContext,
+  getNextExecutionOrder,
+  type NormalizedBlockOutput,
+} from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
@@ -276,7 +280,20 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
-    this.state.setBlockOutput(loopId, { results }, DEFAULTS.EXECUTION_TIME)
+    const output = { results }
+    this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+
+    // Emit onBlockComplete for the loop container so the UI can track it
+    if (this.contextExtensions?.onBlockComplete) {
+      const now = new Date().toISOString()
+      this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
+        output,
+        executionTime: DEFAULTS.EXECUTION_TIME,
+        startedAt: now,
+        executionOrder: getNextExecutionOrder(ctx),
+        endedAt: now,
+      })
+    }
 
     return {
       shouldContinue: false,
@@ -386,10 +403,10 @@ export class LoopOrchestrator {
       return true
     }
 
-    // forEach: skip if items array is empty
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
-        logger.info('ForEach loop has empty items, skipping loop body', { loopId })
+        logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
+        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
         return false
       }
       return true
@@ -399,6 +416,8 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
+        // Set empty output for the loop
+        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
         return false
       }
       return true
@@ -492,6 +511,8 @@ export class LoopOrchestrator {
         contextVariables: {},
         timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
         requestId,
+        ownerKey: `user:${ctx.userId}`,
+        ownerWeight: 1,
       })
 
       if (vmResult.error) {

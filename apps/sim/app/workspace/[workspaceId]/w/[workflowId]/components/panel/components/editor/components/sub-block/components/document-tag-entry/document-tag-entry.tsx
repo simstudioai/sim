@@ -17,6 +17,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
@@ -77,7 +78,9 @@ export function DocumentTagEntry({
   })
 
   const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
+  const knowledgeBaseIdValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
+    : knowledgeBaseIdFromStore
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
@@ -245,7 +248,9 @@ export function DocumentTagEntry({
           {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
         {tag.collapsed && tag.tagName && (
-          <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>
+          <Badge variant='type' size='sm'>
+            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+          </Badge>
         )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
@@ -319,7 +324,10 @@ export function DocumentTagEntry({
           ref={(el) => {
             if (el) overlayRefs.current[cellKey] = el
           }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
         >
           <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
             {formatDisplayText(

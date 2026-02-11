@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ExternalLink, Users } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -35,6 +35,7 @@ interface CredentialSelectorProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, unknown>
 }
 
 export function CredentialSelector({
@@ -43,9 +44,10 @@ export function CredentialSelector({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: CredentialSelectorProps) {
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [inputValue, setInputValue] = useState('')
+  const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
@@ -67,7 +69,11 @@ export function CredentialSelector({
     canUseCredentialSets
   )
 
-  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
   const hasDependencies = dependsOn.length > 0
 
   const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)
@@ -128,11 +134,7 @@ export function CredentialSelector({
     return ''
   }, [selectedCredentialSet, isForeignCredentialSet, selectedCredential, isForeign])
 
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(resolvedLabel)
-    }
-  }, [resolvedLabel, isEditing])
+  const displayValue = isEditing ? editingValue : resolvedLabel
 
   const invalidSelection =
     !isPreview &&
@@ -203,7 +205,7 @@ export function CredentialSelector({
     if (!baseProviderConfig) {
       return <ExternalLink className='h-3 w-3' />
     }
-    return baseProviderConfig.icon({ className: 'h-3 w-3' })
+    return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
@@ -295,7 +297,7 @@ export function CredentialSelector({
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
 
   const overlayContent = useMemo(() => {
-    if (!inputValue) return null
+    if (!displayValue) return null
 
     if (isCredentialSetSelected && selectedCredentialSet) {
       return (
@@ -303,7 +305,7 @@ export function CredentialSelector({
           <div className='mr-2 flex-shrink-0 opacity-90'>
             <Users className='h-3 w-3' />
           </div>
-          <span className='truncate'>{inputValue}</span>
+          <span className='truncate'>{displayValue}</span>
         </div>
       )
     }
@@ -313,12 +315,12 @@ export function CredentialSelector({
         <div className='mr-2 flex-shrink-0 opacity-90'>
           {getProviderIcon(selectedCredentialProvider)}
         </div>
-        <span className='truncate'>{inputValue}</span>
+        <span className='truncate'>{displayValue}</span>
       </div>
     )
   }, [
     getProviderIcon,
-    inputValue,
+    displayValue,
     selectedCredentialProvider,
     isCredentialSetSelected,
     selectedCredentialSet,
@@ -335,7 +337,6 @@ export function CredentialSelector({
         const credentialSetId = value.slice(CREDENTIAL_SET.PREFIX.length)
         const matchedSet = credentialSets.find((cs) => cs.id === credentialSetId)
         if (matchedSet) {
-          setInputValue(matchedSet.name)
           handleCredentialSetSelect(credentialSetId)
           return
         }
@@ -343,13 +344,12 @@ export function CredentialSelector({
 
       const matchedCred = credentials.find((c) => c.id === value)
       if (matchedCred) {
-        setInputValue(matchedCred.name)
         handleSelect(value)
         return
       }
 
       setIsEditing(true)
-      setInputValue(value)
+      setEditingValue(value)
     },
     [credentials, credentialSets, handleAddCredential, handleSelect, handleCredentialSetSelect]
   )
@@ -359,7 +359,7 @@ export function CredentialSelector({
       <Combobox
         options={comboboxOptions}
         groups={comboboxGroups}
-        value={inputValue}
+        value={displayValue}
         selectedValue={rawSelectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}

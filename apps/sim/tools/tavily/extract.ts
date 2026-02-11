@@ -1,4 +1,8 @@
 import type { TavilyExtractParams, TavilyExtractResponse } from '@/tools/tavily/types'
+import {
+  TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
+  TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES,
+} from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse> = {
@@ -84,26 +88,20 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   outputs: {
     results: {
       type: 'array',
+      description: 'Successfully extracted content from URLs',
       items: {
         type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The URL that was extracted' },
-          raw_content: { type: 'string', description: 'The raw text content from the webpage' },
-          favicon: { type: 'string', description: 'Favicon URL (if requested)' },
-        },
+        properties: TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
       },
-      description: 'Successfully extracted content from URLs',
     },
     failed_results: {
       type: 'array',
+      description: 'URLs that failed to extract content',
+      optional: true,
       items: {
         type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The URL that failed extraction' },
-          error: { type: 'string', description: 'Error message for the failed extraction' },
-        },
+        properties: TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES,
       },
-      description: 'URLs that failed to extract content',
     },
     response_time: {
       type: 'number',

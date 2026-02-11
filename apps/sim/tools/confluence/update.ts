@@ -1,4 +1,5 @@
 import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from '@/tools/confluence/types'
+import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, ConfluenceUpdateResponse> = {
@@ -28,8 +29,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Confluence page ID to update',
+      visibility: 'user-or-llm',
+      description: 'Confluence page ID to update (numeric ID from page URL or API)',
     },
     title: {
       type: 'string',
@@ -98,9 +99,13 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       success: true,
       output: {
         ts: new Date().toISOString(),
-        pageId: data.id,
-        title: data.title,
-        body: data.body,
+        pageId: data.id ?? '',
+        title: data.title ?? '',
+        status: data.status ?? null,
+        spaceId: data.spaceId ?? null,
+        body: data.body ?? null,
+        version: data.version ?? null,
+        url: data._links?.webui ?? null,
         success: true,
       },
     }
@@ -110,6 +115,21 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     ts: { type: 'string', description: 'Timestamp of update' },
     pageId: { type: 'string', description: 'Confluence page ID' },
     title: { type: 'string', description: 'Updated page title' },
+    status: { type: 'string', description: 'Page status', optional: true },
+    spaceId: { type: 'string', description: 'Space ID', optional: true },
+    body: {
+      type: 'object',
+      description: 'Page body content in storage format',
+      properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    version: {
+      type: 'object',
+      description: 'Page version information',
+      properties: VERSION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    url: { type: 'string', description: 'URL to view the page in Confluence', optional: true },
     success: { type: 'boolean', description: 'Update operation success status' },
   },
 }

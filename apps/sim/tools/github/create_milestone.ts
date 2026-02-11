@@ -1,3 +1,4 @@
+import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateMilestoneParams {
@@ -169,14 +170,7 @@ export const createMilestoneV2Tool: ToolConfig<CreateMilestoneParams, any> = {
   },
 
   outputs: {
-    number: { type: 'number', description: 'Milestone number' },
-    title: { type: 'string', description: 'Title' },
-    description: { type: 'string', description: 'Description', optional: true },
-    state: { type: 'string', description: 'State' },
-    html_url: { type: 'string', description: 'Web URL' },
-    due_on: { type: 'string', description: 'Due date', optional: true },
-    open_issues: { type: 'number', description: 'Open issues' },
-    closed_issues: { type: 'number', description: 'Closed issues' },
-    creator: { type: 'object', description: 'Creator' },
+    ...MILESTONE_V2_OUTPUT_PROPERTIES,
+    creator: MILESTONE_CREATOR_OUTPUT,
   },
 }

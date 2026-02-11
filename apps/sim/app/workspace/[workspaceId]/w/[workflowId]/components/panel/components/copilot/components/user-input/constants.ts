@@ -209,8 +209,19 @@ export interface SlashCommand {
 export const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
   { id: 'fast', label: 'Fast' },
   { id: 'research', label: 'Research' },
-  { id: 'superagent', label: 'Actions' },
+  { id: 'actions', label: 'Actions' },
 ] as const
+
+/**
+ * Maps UI command IDs to API command IDs.
+ * Some commands have different IDs for display vs API (e.g., "actions" -> "superagent")
+ */
+export function getApiCommandId(uiCommandId: string): string {
+  const commandMapping: Record<string, string> = {
+    actions: 'superagent',
+  }
+  return commandMapping[uiCommandId] || uiCommandId
+}
 
 export const WEB_COMMANDS: readonly SlashCommand[] = [
   { id: 'search', label: 'Search' },
@@ -230,18 +241,6 @@ export function getCommandDisplayLabel(commandId: string): string {
   const command = ALL_SLASH_COMMANDS.find((cmd) => cmd.id === commandId)
   return command?.label || commandId.charAt(0).toUpperCase() + commandId.slice(1)
 }
-
-/**
- * Model configuration options
- */
-export const MODEL_OPTIONS = [
-  { value: 'claude-4.5-opus', label: 'Claude 4.5 Opus' },
-  { value: 'claude-4.5-sonnet', label: 'Claude 4.5 Sonnet' },
-  { value: 'claude-4.5-haiku', label: 'Claude 4.5 Haiku' },
-  { value: 'gpt-5.2-codex', label: 'GPT 5.2 Codex' },
-  { value: 'gpt-5.2-pro', label: 'GPT 5.2 Pro' },
-  { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
-] as const
 
 /**
  * Threshold for considering input "near top" of viewport (in pixels)

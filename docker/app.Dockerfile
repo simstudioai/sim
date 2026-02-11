@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Debian-based Bun with Node.js 22
 # ========================================
-FROM oven/bun:1.3.3-slim AS base
+FROM oven/bun:1.3.9-slim AS base
 
 # Install Node.js 22 and common dependencies once in base stage
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

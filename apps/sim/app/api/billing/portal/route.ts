@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -30,6 +31,11 @@ export async function POST(request: NextRequest) {
     if (context === 'organization') {
       if (!organizationId) {
         return NextResponse.json({ error: 'organizationId is required' }, { status: 400 })
+      }
+
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+      if (!hasPermission) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
       const rows = await db

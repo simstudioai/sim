@@ -1,4 +1,8 @@
 import type { QdrantResponse, QdrantSearchParams } from '@/tools/qdrant/types'
+import {
+  QDRANT_RESPONSE_OUTPUT_PROPERTIES,
+  SCORED_POINT_OUTPUT_PROPERTIES,
+} from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
@@ -12,37 +16,38 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Qdrant base URL',
+      description: 'Qdrant instance URL (e.g., https://your-cluster.qdrant.io)',
     },
     apiKey: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Qdrant API key (optional)',
+      description: 'Qdrant API key for authentication',
     },
     collection: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Collection name',
+      visibility: 'user-or-llm',
+      description: 'Collection name to search (e.g., "my_collection")',
     },
     vector: {
       type: 'array',
       required: true,
-      visibility: 'user-only',
-      description: 'Vector to search for',
+      visibility: 'user-or-llm',
+      description: 'Query vector for similarity search (e.g., [0.1, 0.2, 0.3, ...])',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (e.g., 10)',
     },
     filter: {
       type: 'object',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter to apply to the search',
+      visibility: 'user-or-llm',
+      description:
+        'Qdrant filter object (e.g., {"must": [{"key": "field", "match": {"value": "val"}}]})',
     },
     search_return_data: {
       type: 'string',
@@ -123,10 +128,11 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     data: {
       type: 'array',
       description: 'Vector search results with ID, score, payload, and optional vector data',
+      items: {
+        type: 'object',
+        properties: SCORED_POINT_OUTPUT_PROPERTIES,
+      },
     },
-    status: {
-      type: 'string',
-      description: 'Status of the search operation',
-    },
+    status: QDRANT_RESPONSE_OUTPUT_PROPERTIES.status,
   },
 }

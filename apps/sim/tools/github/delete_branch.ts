@@ -1,4 +1,5 @@
 import type { DeleteBranchParams, DeleteBranchResponse } from '@/tools/github/types'
+import { DELETE_BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchResponse> = {
@@ -107,8 +108,5 @@ export const deleteBranchV2Tool: ToolConfig<DeleteBranchParams, any> = {
     }
   },
 
-  outputs: {
-    deleted: { type: 'boolean', description: 'Whether the branch was deleted' },
-    branch: { type: 'string', description: 'Name of the deleted branch' },
-  },
+  outputs: DELETE_BRANCH_OUTPUT_PROPERTIES,
 }

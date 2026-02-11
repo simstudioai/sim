@@ -215,6 +215,7 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.name !== proposedBlock.name) return true
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
+  if (!!currentBlock.locked !== !!proposedBlock.locked) return true
 
   // Compare subBlocks
   const currentSubKeys = Object.keys(currentBlock.subBlocks || {})

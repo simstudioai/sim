@@ -18,7 +18,7 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Mailing list address',
+      description: 'Mailing list address to retrieve (e.g., newsletter@mg.example.com)',
     },
   },
 

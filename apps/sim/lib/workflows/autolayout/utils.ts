@@ -11,26 +11,66 @@ import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-// Re-export layout constants for backwards compatibility
-export {
-  CONTAINER_PADDING,
-  CONTAINER_PADDING_X,
-  CONTAINER_PADDING_Y,
-  ROOT_PADDING_X,
-  ROOT_PADDING_Y,
-}
-
-// Re-export block dimensions for backwards compatibility
-export const DEFAULT_BLOCK_WIDTH = BLOCK_DIMENSIONS.FIXED_WIDTH
-export const DEFAULT_BLOCK_HEIGHT = BLOCK_DIMENSIONS.MIN_HEIGHT
-export const DEFAULT_CONTAINER_WIDTH = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-export const DEFAULT_CONTAINER_HEIGHT = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-
 /**
  * Resolves a potentially undefined numeric value to a fallback
  */
 function resolveNumeric(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+/**
+ * Snaps a single coordinate value to the nearest grid position
+ */
+function snapToGrid(value: number, gridSize: number): number {
+  return Math.round(value / gridSize) * gridSize
+}
+
+/**
+ * Snaps a position to the nearest grid point.
+ * Returns the original position if gridSize is 0 or not provided.
+ */
+export function snapPositionToGrid(
+  position: { x: number; y: number },
+  gridSize: number | undefined
+): { x: number; y: number } {
+  if (!gridSize || gridSize <= 0) {
+    return position
+  }
+  return {
+    x: snapToGrid(position.x, gridSize),
+    y: snapToGrid(position.y, gridSize),
+  }
+}
+
+/**
+ * Snaps all node positions in a graph to grid positions and returns updated dimensions.
+ * Returns null if gridSize is not set or no snapping was needed.
+ */
+export function snapNodesToGrid(
+  nodes: Map<string, GraphNode>,
+  gridSize: number | undefined
+): { width: number; height: number } | null {
+  if (!gridSize || gridSize <= 0 || nodes.size === 0) {
+    return null
+  }
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const node of nodes.values()) {
+    node.position = snapPositionToGrid(node.position, gridSize)
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + node.metrics.width)
+    maxY = Math.max(maxY, node.position.y + node.metrics.height)
+  }
+
+  return {
+    width: maxX - minX + CONTAINER_PADDING * 2,
+    height: maxY - minY + CONTAINER_PADDING * 2,
+  }
 }
 
 /**
@@ -329,6 +369,7 @@ export type LayoutFunction = (
       horizontalSpacing?: number
       verticalSpacing?: number
       padding?: { x: number; y: number }
+      gridSize?: number
     }
     subflowDepths?: Map<string, number>
   }
@@ -344,13 +385,15 @@ export type LayoutFunction = (
  * @param layoutFn - The layout function to use for calculating dimensions
  * @param horizontalSpacing - Horizontal spacing between blocks
  * @param verticalSpacing - Vertical spacing between blocks
+ * @param gridSize - Optional grid size for snap-to-grid
  */
 export function prepareContainerDimensions(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   layoutFn: LayoutFunction,
   horizontalSpacing: number,
-  verticalSpacing: number
+  verticalSpacing: number,
+  gridSize?: number
 ): void {
   const { children } = getBlocksByParent(blocks)
 
@@ -417,6 +460,7 @@ export function prepareContainerDimensions(
       layoutOptions: {
         horizontalSpacing: horizontalSpacing * 0.85,
         verticalSpacing,
+        gridSize,
       },
     })
 

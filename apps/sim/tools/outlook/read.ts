@@ -6,6 +6,7 @@ import type {
   OutlookReadParams,
   OutlookReadResponse,
 } from '@/tools/outlook/types'
+import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -46,7 +47,7 @@ async function downloadAttachments(
             const buffer = Buffer.from(contentBytes, 'base64')
             attachments.push({
               name: attachment.name,
-              data: buffer,
+              data: buffer.toString('base64'),
               contentType: attachment.contentType,
               size: attachment.size,
             })
@@ -84,20 +85,20 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     folder: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Folder ID to read emails from (default: Inbox)',
+      visibility: 'user-or-llm',
+      description: 'Folder ID to read emails from (e.g., "Inbox", "Drafts", or a folder ID)',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of emails to retrieve (default: 1, max: 10)',
     },
     includeAttachments: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Download and include email attachments',
+      visibility: 'user-or-llm',
+      description: 'Whether to download and include email attachments',
     },
   },
 
@@ -214,7 +215,14 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
 
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
-    results: { type: 'array', description: 'Array of email message objects' },
+    results: {
+      type: 'array',
+      description: 'Array of email message objects',
+      items: {
+        type: 'object',
+        properties: OUTLOOK_MESSAGE_OUTPUT_PROPERTIES,
+      },
+    },
     attachments: { type: 'file[]', description: 'All email attachments flattened from all emails' },
   },
 }

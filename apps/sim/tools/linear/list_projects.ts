@@ -1,4 +1,5 @@
 import type { LinearListProjectsParams, LinearListProjectsResponse } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListProjectsTool: ToolConfig<
@@ -92,7 +93,7 @@ export const linearListProjectsTool: ToolConfig<
           }
         `,
         variables: {
-          first: params.first || 50,
+          first: params.first ? Number(params.first) : 50,
           after: params.after,
           includeArchived: params.includeArchived || false,
         },
@@ -153,20 +154,9 @@ export const linearListProjectsTool: ToolConfig<
       description: 'Array of projects',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Project ID' },
-          name: { type: 'string', description: 'Project name' },
-          description: { type: 'string', description: 'Project description' },
-          state: { type: 'string', description: 'Project state' },
-          priority: { type: 'number', description: 'Project priority' },
-          lead: { type: 'object', description: 'Project lead' },
-          teams: { type: 'array', description: 'Teams associated with project' },
-        },
+        properties: PROJECT_FULL_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

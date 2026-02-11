@@ -55,7 +55,7 @@ describe('File Serve API Route', () => {
     })
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'test-user-id',
       }),
@@ -165,7 +165,7 @@ describe('File Serve API Route', () => {
     }))
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'test-user-id',
       }),
@@ -226,7 +226,7 @@ describe('File Serve API Route', () => {
     }))
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'test-user-id',
       }),
@@ -291,7 +291,7 @@ describe('File Serve API Route', () => {
     }))
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'test-user-id',
       }),
@@ -350,7 +350,7 @@ describe('File Serve API Route', () => {
     for (const test of contentTypeTests) {
       it(`should serve ${test.ext} file with correct content type`, async () => {
         vi.doMock('@/lib/auth/hybrid', () => ({
-          checkHybridAuth: vi.fn().mockResolvedValue({
+          checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
             success: true,
             userId: 'test-user-id',
           }),

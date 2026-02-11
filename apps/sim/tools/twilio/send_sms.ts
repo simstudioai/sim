@@ -14,8 +14,9 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     phoneNumbers: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Phone numbers to send the message to, separated by newlines',
+      visibility: 'user-or-llm',
+      description:
+        'Phone numbers to send the message to in E.164 format (e.g., +15551234567), separated by newlines',
     },
     message: {
       type: 'string',
@@ -38,8 +39,9 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     fromNumber: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Twilio phone number to send the message from',
+      visibility: 'user-or-llm',
+      description:
+        'Twilio phone number to send the message from in E.164 format (e.g., +15551234567)',
     },
   },
 

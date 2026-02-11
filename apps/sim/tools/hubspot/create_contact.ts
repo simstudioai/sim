@@ -3,6 +3,7 @@ import type {
   HubSpotCreateContactParams,
   HubSpotCreateContactResponse,
 } from '@/tools/hubspot/types'
+import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateContact')
@@ -32,16 +33,16 @@ export const hubspotCreateContactTool: ToolConfig<
     properties: {
       type: 'object',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Contact properties as JSON object. Must include at least one of: email, firstname, or lastname',
+        'Contact properties as JSON object. Must include at least one of: email, firstname, or lastname (e.g., {"email": "john@example.com", "firstname": "John", "lastname": "Doe"})',
     },
     associations: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Array of associations to create with the contact (e.g., companies, deals). Each object should have "to" (with "id") and "types" (with "associationCategory" and "associationTypeId")',
+        'Array of associations to create with the contact as JSON. Each object should have "to.id" (company/deal ID) and "types" array with "associationCategory" and "associationTypeId"',
     },
   },
 
@@ -99,7 +100,7 @@ export const hubspotCreateContactTool: ToolConfig<
   },
 
   outputs: {
-    contact: { type: 'object', description: 'Created HubSpot contact object' },
+    contact: CONTACT_OBJECT_OUTPUT,
     contactId: { type: 'string', description: 'The created contact ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

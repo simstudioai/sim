@@ -1,3 +1,4 @@
+import { COMMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListCommentsParams {
@@ -5,6 +6,8 @@ export interface ConfluenceListCommentsParams {
   domain: string
   pageId: string
   limit?: number
+  bodyFormat?: string
+  cursor?: string
   cloudId?: string
 }
 
@@ -18,6 +21,7 @@ export interface ConfluenceListCommentsResponse {
       createdAt: string
       authorId: string
     }>
+    nextCursor: string | null
   }
 }
 
@@ -60,6 +64,19 @@ export const confluenceListCommentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of comments to return (default: 25)',
     },
+    bodyFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Format for the comment body: storage, atlas_doc_format, view, or export_view (default: storage)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from previous response',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -77,6 +94,12 @@ export const confluenceListCommentsTool: ToolConfig<
         pageId: params.pageId,
         limit: String(params.limit || 25),
       })
+      if (params.bodyFormat) {
+        query.set('bodyFormat', params.bodyFormat)
+      }
+      if (params.cursor) {
+        query.set('cursor', params.cursor)
+      }
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
@@ -89,15 +112,6 @@ export const confluenceListCommentsTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: ConfluenceListCommentsParams) => {
-      return {
-        domain: params.domain,
-        accessToken: params.accessToken,
-        cloudId: params.cloudId,
-        pageId: params.pageId,
-        limit: params.limit ? Number(params.limit) : 25,
-      }
-    },
   },
 
   transformResponse: async (response: Response) => {
@@ -107,12 +121,18 @@ export const confluenceListCommentsTool: ToolConfig<
       output: {
         ts: new Date().toISOString(),
         comments: data.comments || [],
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    comments: { type: 'array', description: 'List of comments' },
+    ts: TIMESTAMP_OUTPUT,
+    comments: COMMENTS_OUTPUT,
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
+    },
   },
 }

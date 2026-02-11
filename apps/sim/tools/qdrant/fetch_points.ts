@@ -1,4 +1,5 @@
 import type { QdrantFetchParams, QdrantResponse } from '@/tools/qdrant/types'
+import { POINT_OUTPUT_PROPERTIES, QDRANT_RESPONSE_OUTPUT_PROPERTIES } from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
@@ -12,25 +13,25 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Qdrant base URL',
+      description: 'Qdrant instance URL (e.g., https://your-cluster.qdrant.io)',
     },
     apiKey: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Qdrant API key (optional)',
+      description: 'Qdrant API key for authentication',
     },
     collection: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Collection name',
+      visibility: 'user-or-llm',
+      description: 'Collection name to fetch from (e.g., "my_collection")',
     },
     ids: {
       type: 'array',
       required: true,
-      visibility: 'user-only',
-      description: 'Array of point IDs to fetch',
+      visibility: 'user-or-llm',
+      description: 'Array of point IDs to fetch (e.g., ["id1", "id2"] or [1, 2])',
     },
     fetch_return_data: {
       type: 'string',
@@ -108,10 +109,11 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
     data: {
       type: 'array',
       description: 'Fetched points with ID, payload, and optional vector data',
+      items: {
+        type: 'object',
+        properties: POINT_OUTPUT_PROPERTIES,
+      },
     },
-    status: {
-      type: 'string',
-      description: 'Status of the fetch operation',
-    },
+    status: QDRANT_RESPONSE_OUTPUT_PROPERTIES.status,
   },
 }

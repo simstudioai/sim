@@ -1,4 +1,5 @@
 import type { LinearListCyclesParams, LinearListCyclesResponse } from '@/tools/linear/types'
+import { CYCLE_FULL_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearListCyclesResponse> = {
@@ -63,6 +64,7 @@ export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearList
                 endsAt
                 completedAt
                 progress
+                createdAt
                 team {
                   id
                   name
@@ -114,21 +116,9 @@ export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearList
       description: 'Array of cycles',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Cycle ID' },
-          number: { type: 'number', description: 'Cycle number' },
-          name: { type: 'string', description: 'Cycle name' },
-          startsAt: { type: 'string', description: 'Start date' },
-          endsAt: { type: 'string', description: 'End date' },
-          completedAt: { type: 'string', description: 'Completion date' },
-          progress: { type: 'number', description: 'Progress percentage (0-1)' },
-          team: { type: 'object', description: 'Team this cycle belongs to' },
-        },
+        properties: CYCLE_FULL_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

@@ -3,6 +3,7 @@ import type {
   PipedriveGetActivitiesParams,
   PipedriveGetActivitiesResponse,
 } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetActivities')
@@ -26,38 +27,38 @@ export const pipedriveGetActivitiesTool: ToolConfig<
     deal_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter activities by deal ID',
+      visibility: 'user-or-llm',
+      description: 'Filter activities by deal ID (e.g., "123")',
     },
     person_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter activities by person ID',
+      visibility: 'user-or-llm',
+      description: 'Filter activities by person ID (e.g., "456")',
     },
     org_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter activities by organization ID',
+      visibility: 'user-or-llm',
+      description: 'Filter activities by organization ID (e.g., "789")',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by activity type (call, meeting, task, deadline, email, lunch)',
     },
     done: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by completion status: 0 for not done, 1 for done',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
   },
 
@@ -110,7 +111,14 @@ export const pipedriveGetActivitiesTool: ToolConfig<
   },
 
   outputs: {
-    activities: { type: 'array', description: 'Array of activity objects from Pipedrive' },
+    activities: {
+      type: 'array',
+      description: 'Array of activity objects from Pipedrive',
+      items: {
+        type: 'object',
+        properties: PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES,
+      },
+    },
     total_items: { type: 'number', description: 'Total number of activities returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

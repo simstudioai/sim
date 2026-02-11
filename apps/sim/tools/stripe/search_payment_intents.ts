@@ -1,4 +1,5 @@
 import type { PaymentIntentListResponse, SearchPaymentIntentsParams } from '@/tools/stripe/types'
+import { LIST_METADATA_OUTPUT_PROPERTIES, PAYMENT_INTENT_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeSearchPaymentIntentsTool: ToolConfig<
@@ -61,17 +62,14 @@ export const stripeSearchPaymentIntentsTool: ToolConfig<
 
   outputs: {
     payment_intents: {
-      type: 'json',
+      type: 'array',
       description: 'Array of matching Payment Intent objects',
+      items: PAYMENT_INTENT_OUTPUT,
     },
     metadata: {
       type: 'json',
       description: 'Search metadata including count and has_more',
-
-      properties: {
-        count: { type: 'number', description: 'Number of items returned' },
-        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
-      },
+      properties: LIST_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

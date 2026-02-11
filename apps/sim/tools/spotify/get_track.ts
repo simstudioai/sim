@@ -1,5 +1,9 @@
+import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from '@/tools/spotify/types'
+import {
+  SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from './types'
 
 export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTrackResponse> = {
   id: 'spotify_get_track',
@@ -22,8 +26,8 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code for track availability',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code for track availability (e.g., "US", "GB")',
     },
   },
 
@@ -69,8 +73,16 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
   outputs: {
     id: { type: 'string', description: 'Spotify track ID' },
     name: { type: 'string', description: 'Track name' },
-    artists: { type: 'array', description: 'List of artists' },
-    album: { type: 'object', description: 'Album information' },
+    artists: {
+      type: 'array',
+      description: 'List of artists',
+      items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+    },
+    album: {
+      type: 'object',
+      description: 'Album information',
+      properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+    },
     duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
     explicit: { type: 'boolean', description: 'Whether the track has explicit content' },
     popularity: { type: 'number', description: 'Popularity score (0-100)' },

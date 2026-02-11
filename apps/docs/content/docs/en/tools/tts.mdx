@@ -59,12 +59,12 @@ Convert text to speech using OpenAI TTS models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | OpenAI API key |
-| `model` | string | No | TTS model to use \(tts-1, tts-1-hd, or gpt-4o-mini-tts\) |
-| `voice` | string | No | Voice to use \(alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse\) |
+| `model` | string | No | OpenAI TTS model identifier \(e.g., "tts-1", "tts-1-hd", "gpt-4o-mini-tts"\) |
+| `voice` | string | No | OpenAI voice identifier \(e.g., "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer"\) |
 | `responseFormat` | string | No | Audio format \(mp3, opus, aac, flac, wav, pcm\) |
-| `speed` | number | No | Speech speed \(0.25 to 4.0, default: 1.0\) |
+| `speed` | number | No | Speech speed multiplier from 0.25 to 4.0 \(e.g., 0.5 for slower, 1.0 for normal, 2.0 for faster\) |
 
 #### Output
 
@@ -85,10 +85,10 @@ Convert text to speech using Deepgram Aura
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | Deepgram API key |
-| `model` | string | No | Deepgram model/voice \(e.g., aura-asteria-en, aura-luna-en\) |
-| `voice` | string | No | Voice identifier \(alternative to model param\) |
+| `model` | string | No | Deepgram model/voice identifier \(e.g., "aura-asteria-en", "aura-luna-en", "aura-2-luna-en"\) |
+| `voice` | string | No | Deepgram voice identifier, alternative to model param \(e.g., "aura-asteria-en", "aura-orion-en"\) |
 | `encoding` | string | No | Audio encoding \(linear16, mp3, opus, aac, flac\) |
 | `sampleRate` | number | No | Sample rate \(8000, 16000, 24000, 48000\) |
 | `bitRate` | number | No | Bit rate for compressed formats |
@@ -113,10 +113,10 @@ Convert text to speech using ElevenLabs voices
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
-| `voiceId` | string | Yes | The ID of the voice to use |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
+| `voiceId` | string | Yes | ElevenLabs voice identifier \(e.g., "21m00Tcm4TlvDq8ikWAM", "AZnzlk1XvdvUeBnXmlld"\) |
 | `apiKey` | string | Yes | ElevenLabs API key |
-| `modelId` | string | No | Model to use \(e.g., eleven_monolingual_v1, eleven_turbo_v2_5, eleven_flash_v2_5\) |
+| `modelId` | string | No | ElevenLabs model identifier \(e.g., "eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2"\) |
 | `stability` | number | No | Voice stability \(0.0 to 1.0, default: 0.5\) |
 | `similarityBoost` | number | No | Similarity boost \(0.0 to 1.0, default: 0.8\) |
 | `style` | number | No | Style exaggeration \(0.0 to 1.0\) |
@@ -141,13 +141,13 @@ Convert text to speech using Cartesia Sonic (ultra-low latency)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | Cartesia API key |
-| `modelId` | string | No | Model ID \(sonic-english, sonic-multilingual\) |
-| `voice` | string | No | Voice ID or embedding |
-| `language` | string | No | Language code \(en, es, fr, de, it, pt, etc.\) |
+| `modelId` | string | No | Cartesia model identifier \(e.g., "sonic", "sonic-2", "sonic-3", "sonic-multilingual"\) |
+| `voice` | string | No | Cartesia voice identifier or embedding \(e.g., "a0e99841-438c-4a64-b679-ae501e7d6091"\) |
+| `language` | string | No | Language code for speech synthesis \(e.g., "en", "es", "fr", "de", "it", "pt"\) |
 | `outputFormat` | json | No | Output format configuration \(container, encoding, sampleRate\) |
-| `speed` | number | No | Speed multiplier |
+| `speed` | number | No | Speech speed multiplier \(e.g., 0.5 for slower, 1.0 for normal, 2.0 for faster\) |
 | `emotion` | array | No | Emotion tags for Sonic-3 \(e.g., \['positivity:high'\]\) |
 
 #### Output
@@ -169,13 +169,13 @@ Convert text to speech using Google Cloud Text-to-Speech
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | Google Cloud API key |
-| `voiceId` | string | No | Voice ID \(e.g., en-US-Neural2-A, en-US-Wavenet-D\) |
-| `languageCode` | string | Yes | Language code \(e.g., en-US, es-ES, fr-FR\) |
+| `voiceId` | string | No | Google Cloud voice identifier \(e.g., "en-US-Neural2-A", "en-US-Wavenet-D", "en-GB-Neural2-B"\) |
+| `languageCode` | string | Yes | BCP-47 language code for speech synthesis \(e.g., "en-US", "es-ES", "fr-FR", "de-DE"\) |
 | `gender` | string | No | Voice gender \(MALE, FEMALE, NEUTRAL\) |
 | `audioEncoding` | string | No | Audio encoding \(LINEAR16, MP3, OGG_OPUS, MULAW, ALAW\) |
-| `speakingRate` | number | No | Speaking rate \(0.25 to 2.0, default: 1.0\) |
+| `speakingRate` | number | No | Speaking rate multiplier from 0.25 to 2.0 \(e.g., 0.5 for slower, 1.0 for normal, 1.5 for faster\) |
 | `pitch` | number | No | Voice pitch \(-20.0 to 20.0, default: 0.0\) |
 | `volumeGainDb` | number | No | Volume gain in dB \(-96.0 to 16.0\) |
 | `sampleRateHertz` | number | No | Sample rate in Hz |
@@ -200,9 +200,9 @@ Convert text to speech using Azure Cognitive Services
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | Azure Speech Services API key |
-| `voiceId` | string | No | Voice ID \(e.g., en-US-JennyNeural, en-US-GuyNeural\) |
+| `voiceId` | string | No | Azure voice identifier \(e.g., "en-US-JennyNeural", "en-US-GuyNeural", "en-GB-SoniaNeural"\) |
 | `region` | string | No | Azure region \(e.g., eastus, westus, westeurope\) |
 | `outputFormat` | string | No | Output audio format |
 | `rate` | string | No | Speaking rate \(e.g., +10%, -20%, 1.5\) |
@@ -230,13 +230,13 @@ Convert text to speech using PlayHT (voice cloning)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
+| `text` | string | Yes | The text content to convert to speech \(e.g., "Hello, welcome to our service!"\) |
 | `apiKey` | string | Yes | PlayHT API key \(AUTHORIZATION header\) |
 | `userId` | string | Yes | PlayHT user ID \(X-USER-ID header\) |
-| `voice` | string | No | Voice ID or manifest URL |
+| `voice` | string | No | PlayHT voice identifier or manifest URL \(e.g., "s3://voice-cloning-zero-shot/..."\) |
 | `quality` | string | No | Quality level \(draft, standard, premium\) |
 | `outputFormat` | string | No | Output format \(mp3, wav, ogg, flac, mulaw\) |
-| `speed` | number | No | Speed multiplier \(0.5 to 2.0\) |
+| `speed` | number | No | Speech speed multiplier from 0.5 to 2.0 \(e.g., 0.5 for slower, 1.0 for normal, 1.5 for faster\) |
 | `temperature` | number | No | Creativity/randomness \(0.0 to 2.0\) |
 | `voiceGuidance` | number | No | Voice stability \(1.0 to 6.0\) |
 | `textGuidance` | number | No | Text adherence \(1.0 to 6.0\) |

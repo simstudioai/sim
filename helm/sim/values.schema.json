@@ -1008,7 +1008,31 @@
               }
             }
           }
-        }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "app": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "realtime": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        ]
       },
       "then": {
         "properties": {

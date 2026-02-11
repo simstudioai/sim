@@ -60,11 +60,13 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -81,6 +83,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -92,12 +95,15 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
     index: {
       type: 'string',
       required: true,
-      description: 'Index name to count documents in',
+      visibility: 'user-or-llm',
+      description: 'Index name to count documents in (e.g., "products", "logs-2024")',
     },
     query: {
       type: 'string',
       required: false,
-      description: 'Optional query to filter documents (JSON string)',
+      visibility: 'user-or-llm',
+      description:
+        'Query DSL to filter documents (JSON string). Example: {"match":{"status":"active"}}',
     },
   },
 

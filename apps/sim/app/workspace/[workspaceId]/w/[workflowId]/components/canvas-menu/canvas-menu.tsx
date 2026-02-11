@@ -34,6 +34,8 @@ export interface CanvasMenuProps {
   canUndo?: boolean
   canRedo?: boolean
   isInvitationsDisabled?: boolean
+  /** Whether the workflow has locked blocks (disables auto-layout) */
+  hasLockedBlocks?: boolean
 }
 
 /**
@@ -60,6 +62,7 @@ export function CanvasMenu({
   disableEdit = false,
   canUndo = false,
   canRedo = false,
+  hasLockedBlocks = false,
 }: CanvasMenuProps) {
   return (
     <Popover
@@ -129,11 +132,12 @@ export function CanvasMenu({
         </PopoverItem>
         <PopoverItem
           className='group'
-          disabled={disableEdit}
+          disabled={disableEdit || hasLockedBlocks}
           onClick={() => {
             onAutoLayout()
             onClose()
           }}
+          title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
         >
           <span>Auto-layout</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>

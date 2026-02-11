@@ -10,27 +10,29 @@ export const youtubePlaylistItemsTool: ToolConfig<
 > = {
   id: 'youtube_playlist_items',
   name: 'YouTube Playlist Items',
-  description: 'Get videos from a YouTube playlist.',
-  version: '1.0.0',
+  description:
+    'Get videos from a YouTube playlist. Can be used with a channel uploads playlist to get all channel videos.',
+  version: '1.1.0',
   params: {
     playlistId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'YouTube playlist ID',
+      description:
+        'YouTube playlist ID starting with "PL" or "UU" (34-character string). Use uploadsPlaylistId from channel_info to get all channel videos.',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 10,
-      description: 'Maximum number of videos to return',
+      description: 'Maximum number of videos to return (1-50)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',
@@ -42,10 +44,10 @@ export const youtubePlaylistItemsTool: ToolConfig<
 
   request: {
     url: (params: YouTubePlaylistItemsParams) => {
-      let url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${params.playlistId}&key=${params.apiKey}`
+      let url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${encodeURIComponent(params.playlistId)}&key=${params.apiKey}`
       url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.pageToken) {
-        url += `&pageToken=${params.pageToken}`
+        url += `&pageToken=${encodeURIComponent(params.pageToken)}`
       }
       return url
     },
@@ -58,26 +60,40 @@ export const youtubePlaylistItemsTool: ToolConfig<
   transformResponse: async (response: Response): Promise<YouTubePlaylistItemsResponse> => {
     const data = await response.json()
 
+    if (data.error) {
+      return {
+        success: false,
+        output: {
+          items: [],
+          totalResults: 0,
+          nextPageToken: null,
+        },
+        error: data.error.message || 'Failed to fetch playlist items',
+      }
+    }
+
     const items = (data.items || []).map((item: any, index: number) => ({
-      videoId: item.contentDetails?.videoId || item.snippet?.resourceId?.videoId,
-      title: item.snippet?.title || '',
-      description: item.snippet?.description || '',
+      videoId: item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId ?? '',
+      title: item.snippet?.title ?? '',
+      description: item.snippet?.description ?? '',
       thumbnail:
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.default?.url ||
         item.snippet?.thumbnails?.high?.url ||
         '',
-      publishedAt: item.snippet?.publishedAt || '',
-      channelTitle: item.snippet?.channelTitle || '',
+      publishedAt: item.snippet?.publishedAt ?? '',
+      channelTitle: item.snippet?.channelTitle ?? '',
       position: item.snippet?.position ?? index,
+      videoOwnerChannelId: item.snippet?.videoOwnerChannelId ?? null,
+      videoOwnerChannelTitle: item.snippet?.videoOwnerChannelTitle ?? null,
     }))
 
     return {
       success: true,
       output: {
         items,
-        totalResults: data.pageInfo?.totalResults || 0,
-        nextPageToken: data.nextPageToken,
+        totalResults: data.pageInfo?.totalResults || items.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
@@ -94,8 +110,18 @@ export const youtubePlaylistItemsTool: ToolConfig<
           description: { type: 'string', description: 'Video description' },
           thumbnail: { type: 'string', description: 'Video thumbnail URL' },
           publishedAt: { type: 'string', description: 'Date added to playlist' },
-          channelTitle: { type: 'string', description: 'Channel name' },
-          position: { type: 'number', description: 'Position in playlist' },
+          channelTitle: { type: 'string', description: 'Playlist owner channel name' },
+          position: { type: 'number', description: 'Position in playlist (0-indexed)' },
+          videoOwnerChannelId: {
+            type: 'string',
+            description: 'Channel ID of the video owner',
+            optional: true,
+          },
+          videoOwnerChannelTitle: {
+            type: 'string',
+            description: 'Channel name of the video owner',
+            optional: true,
+          },
         },
       },
     },

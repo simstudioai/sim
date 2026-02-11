@@ -24,13 +24,13 @@ export const scheduleOverridesCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the rotation to override',
+      description: 'The ID of the rotation to override (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     schedule_id: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the schedule',
+      description: 'The ID of the schedule (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     user_id: {
       type: 'string',
@@ -57,13 +57,13 @@ export const scheduleOverridesCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'When the override starts (ISO 8601 format)',
+      description: 'When the override starts in ISO 8601 format (e.g., "2024-01-15T09:00:00Z")',
     },
     end_at: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'When the override ends (ISO 8601 format)',
+      description: 'When the override ends in ISO 8601 format (e.g., "2024-01-22T09:00:00Z")',
     },
   },
 

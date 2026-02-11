@@ -36,8 +36,8 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (e.g., 10, 25, 50)',
     },
   },
 

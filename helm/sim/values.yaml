@@ -29,10 +29,10 @@ app:
   # Resource limits and requests
   resources:
     limits:
-      memory: "4Gi"
+      memory: "8Gi"
       cpu: "2000m"
     requests:
-      memory: "2Gi"
+      memory: "4Gi"
       cpu: "1000m"
 
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
@@ -125,9 +125,39 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
-    
+    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+
+    # Execution Timeout Configuration (in seconds)
+    # Sync timeouts apply to synchronous API calls
+    EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
+    EXECUTION_TIMEOUT_PRO: "3000"                         # Pro tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_TEAM: "3000"                        # Team tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_ENTERPRISE: "3000"                  # Enterprise tier sync timeout (50 minutes)
+    # Async timeouts apply to async/background job executions
+    EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                  # Free tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
+
+    # Isolated-VM Worker Pool Configuration
+    IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
+    IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
+    IVM_MAX_PER_WORKER: "2500"                            # Max concurrent executions per worker
+    IVM_WORKER_IDLE_TIMEOUT_MS: "60000"                   # Worker idle cleanup timeout (ms)
+    IVM_QUEUE_TIMEOUT_MS: "300000"                        # Max queue wait before rejection (ms)
+    IVM_MAX_QUEUE_SIZE: "10000"                           # Max queued executions globally
+    IVM_MAX_ACTIVE_PER_OWNER: "200"                       # Max concurrent executions per user
+    IVM_MAX_QUEUED_PER_OWNER: "2000"                      # Max queued executions per user
+    IVM_MAX_OWNER_WEIGHT: "5"                             # Max scheduling weight per user
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: "2200"        # Max in-flight per user across instances (Redis)
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: "120000"            # Min distributed lease TTL (ms)
+    IVM_MAX_FETCH_RESPONSE_BYTES: "8388608"               # Max fetch response size (8MB)
+    IVM_MAX_FETCH_RESPONSE_CHARS: "4000000"               # Max fetch response chars
+    IVM_MAX_FETCH_URL_LENGTH: "8192"                      # Max fetch URL length
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: "262144"            # Max fetch options payload (256KB)
+    IVM_MAX_STDOUT_CHARS: "200000"                        # Max stdout capture per execution
+
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
@@ -224,28 +254,32 @@ app:
     timeoutSeconds: 5
     failureThreshold: 3
 
+  # Additional volumes for app deployment (e.g., branding assets, custom configs)
+  extraVolumes: []
+  extraVolumeMounts: []
+
 # Realtime socket server configuration
 realtime:
   # Enable/disable the realtime service
   enabled: true
-  
+
   # Image configuration
   image:
     repository: simstudioai/realtime
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # Resource limits and requests
   resources:
     limits:
-      memory: "2Gi"
-      cpu: "1000m"
-    requests:
       memory: "1Gi"
       cpu: "500m"
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
   
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -300,6 +334,10 @@ realtime:
     periodSeconds: 90
     timeoutSeconds: 5
     failureThreshold: 3
+
+  # Additional volumes for realtime deployment
+  extraVolumes: []
+  extraVolumeMounts: []
 
 # Database migrations job configuration
 migrations:
@@ -392,8 +430,10 @@ postgresql:
       algorithm: RSA  # RSA or ECDSA
       size: 4096  # Key size in bits
     # Issuer reference (REQUIRED if tls.enabled is true)
+    # By default, references the CA issuer created by certManager.caIssuer
+    # Make sure certManager.enabled is true, or provide your own issuer
     issuerRef:
-      name: selfsigned-cluster-issuer  # Name of your cert-manager Issuer/ClusterIssuer
+      name: sim-ca-issuer  # Name of your cert-manager Issuer/ClusterIssuer
       kind: ClusterIssuer  # ClusterIssuer or Issuer
       group: ""  # Optional: cert-manager.io (leave empty for default)
     # Additional DNS names (optional)
@@ -455,20 +495,26 @@ externalDatabase:
 ollama:
   # Enable/disable Ollama deployment
   enabled: false
-  
+
   # Image configuration
   image:
     repository: ollama/ollama
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # GPU configuration
   gpu:
     enabled: false
     count: 1
+    # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
+    # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
+    # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)
+    strategy: "time-slicing"
+    # Number of time-slicing replicas (only used when strategy is "time-slicing")
+    timeSlicingReplicas: 5
   
   # Node selector for GPU workloads (adjust labels based on your cluster configuration)
   nodeSelector:
@@ -539,36 +585,74 @@ ollama:
     timeoutSeconds: 5
     failureThreshold: 3
 
+  # Additional volumes for ollama deployment
+  extraVolumes: []
+  extraVolumeMounts: []
+
 # Ingress configuration
+# When services share the same host, paths are consolidated into a single rule.
+# Path order: realtime paths, copilot paths, then app paths (most specific first).
+# Ensure specific paths (e.g., /socket.io, /copilot) come before catch-all paths (/).
 ingress:
-  # Enable/disable ingress
   enabled: false
-  
-  # Ingress class name
   className: nginx
-  
-  # Annotations
+
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-  
-  # Main application host configuration
+
+  # Main application (use / as catch-all)
   app:
     host: sim.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # Realtime service host configuration
+
+  # Realtime service (use /socket.io when sharing host with app)
   realtime:
     host: sim-ws.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # TLS configuration
+
+  # Copilot service (optional, use /copilot when sharing host)
+  # copilot:
+  #   host: sim.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
   tls:
     enabled: false
     secretName: sim-tls-secret
+
+# Internal Ingress configuration
+# Same path ordering rules apply as above.
+ingressInternal:
+  enabled: false
+  className: nginx
+  annotations: {}
+
+  app:
+    host: sim-internal.local
+    paths:
+      - path: /
+        pathType: Prefix
+
+  realtime:
+    host: sim-internal.local
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+
+  # copilot:
+  #   host: sim-internal.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
+  tls:
+    enabled: false
+    secretName: sim-internal-tls-secret
 
 # Service Account configuration
 serviceAccount:
@@ -691,6 +775,32 @@ sharedStorage:
 # Additional volumes for custom configurations (advanced users)
 extraVolumes: []
 extraVolumeMounts: []
+
+# Branding configuration
+# Use this to inject custom branding assets (logos, CSS, etc.) into the application
+branding:
+  # Enable/disable branding ConfigMap
+  enabled: false
+
+  # Mount path in the container where branding files will be available
+  mountPath: "/app/public/branding"
+
+  # Text files (CSS, JSON, HTML, etc.) - values are plain text
+  # Example:
+  #   files:
+  #     custom.css: |
+  #       .logo { background-color: #ff0000; }
+  #     config.json: |
+  #       {"theme": "dark"}
+  files: {}
+
+  # Binary files (PNG, JPG, ICO, etc.) - values must be base64 encoded
+  # Generate base64 with: base64 -i logo.png | tr -d '\n'
+  # Example:
+  #   binaryFiles:
+  #     logo.png: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk..."
+  #     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAAFgAAAA..."
+  binaryFiles: {}
 
 # Additional environment variables for custom integrations
 extraEnvVars: []
@@ -963,11 +1073,11 @@ copilot:
   postgresql:
     # Enable/disable internal PostgreSQL for copilot
     enabled: true
-    
+
     # Image configuration
     image:
       repository: postgres
-      tag: 16-alpine
+      tag: 17-alpine
       pullPolicy: IfNotPresent
     
     # Authentication configuration
@@ -1114,3 +1224,52 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+# cert-manager configuration
+# Prerequisites: Install cert-manager in your cluster first
+# See: https://cert-manager.io/docs/installation/
+#
+# This implements the recommended CA bootstrap pattern from cert-manager:
+# 1. Self-signed ClusterIssuer (bootstrap only - creates root CA)
+# 2. Root CA Certificate (self-signed, becomes the trust anchor)
+# 3. CA ClusterIssuer (signs application certificates using root CA)
+#
+# Reference: https://cert-manager.io/docs/configuration/selfsigned/
+certManager:
+  # Enable/disable cert-manager issuer resources
+  enabled: false
+
+  # Self-signed ClusterIssuer (used ONLY to bootstrap the root CA)
+  # Do not reference this issuer directly for application certificates
+  selfSignedIssuer:
+    name: "sim-selfsigned-bootstrap-issuer"
+
+  # Root CA Certificate configuration
+  # This certificate is signed by the self-signed issuer and used as the trust anchor
+  rootCA:
+    # Name of the Certificate resource
+    certificateName: "sim-root-ca"
+    # Namespace where the root CA certificate and secret will be created
+    # Must match cert-manager's cluster-resource-namespace (default: cert-manager)
+    namespace: "cert-manager"
+    # Common name for the root CA certificate
+    commonName: "sim-root-ca"
+    # Secret name where the root CA certificate and key will be stored
+    secretName: "sim-root-ca-secret"
+    # Certificate validity duration (default: 10 years)
+    duration: "87600h"
+    # Renew before expiry (default: 90 days)
+    renewBefore: "2160h"
+    # Private key configuration
+    privateKey:
+      algorithm: RSA
+      size: 4096
+    # Subject configuration
+    subject:
+      organizations: []
+      # If empty, defaults to the release name
+
+  # CA ClusterIssuer configuration
+  # This is the issuer that applications should reference for obtaining certificates
+  caIssuer:
+    name: "sim-ca-issuer"

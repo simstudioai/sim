@@ -1,18 +1,17 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import {
-  type GetBlocksAndToolsInput,
-  GetBlocksAndToolsResult,
-} from '@/lib/copilot/tools/shared/schemas'
+import { GetBlocksAndToolsInput, GetBlocksAndToolsResult } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
-import { getUserPermissionConfig } from '@/executor/utils/permission-check'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export const getBlocksAndToolsServerTool: BaseServerTool<
   ReturnType<typeof GetBlocksAndToolsInput.parse>,
   ReturnType<typeof GetBlocksAndToolsResult.parse>
 > = {
   name: 'get_blocks_and_tools',
+  inputSchema: GetBlocksAndToolsInput,
+  outputSchema: GetBlocksAndToolsResult,
   async execute(_args: unknown, context?: { userId: string }) {
     const logger = createLogger('GetBlocksAndToolsServerTool')
     logger.debug('Executing get_blocks_and_tools')

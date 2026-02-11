@@ -1,5 +1,38 @@
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+
+/**
+ * Interface for errors that carry an ExecutionResult.
+ * Used when workflow execution fails and we want to preserve partial results.
+ */
+export interface ErrorWithExecutionResult extends Error {
+  executionResult: ExecutionResult
+}
+
+/**
+ * Type guard to check if an error carries an ExecutionResult.
+ * Validates that executionResult has required fields (success, output).
+ */
+export function hasExecutionResult(error: unknown): error is ErrorWithExecutionResult {
+  if (
+    !(error instanceof Error) ||
+    !('executionResult' in error) ||
+    error.executionResult == null ||
+    typeof error.executionResult !== 'object'
+  ) {
+    return false
+  }
+
+  const result = error.executionResult as Record<string, unknown>
+  return typeof result.success === 'boolean' && result.output != null
+}
+
+/**
+ * Attaches an ExecutionResult to an error for propagation to parent workflows.
+ */
+export function attachExecutionResult(error: Error, executionResult: ExecutionResult): void {
+  Object.assign(error, { executionResult })
+}
 
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
@@ -14,7 +47,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
-  const error = new Error(`[${blockType}] ${blockName}: ${errorMessage}`)
+  const error = new Error(`${blockName}: ${errorMessage}`)
 
   Object.assign(error, {
     blockId: details.block.id,

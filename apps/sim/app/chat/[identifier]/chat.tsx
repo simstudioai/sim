@@ -14,11 +14,11 @@ import {
   ChatMessageContainer,
   EmailAuth,
   PasswordAuth,
-  SSOAuth,
   VoiceInterface,
 } from '@/app/chat/components'
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/chat/constants'
 import { useAudioStreaming, useChatStreaming } from '@/app/chat/hooks'
+import SSOAuth from '@/ee/sso/components/sso-auth'
 
 const logger = createLogger('ChatClient')
 
@@ -117,7 +117,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState('25.1k')
+  const [starCount, setStarCount] = useState('25.8k')
   const [conversationId, setConversationId] = useState('')
 
   const [showScrollButton, setShowScrollButton] = useState(false)

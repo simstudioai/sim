@@ -7,7 +7,7 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { normalizeName } from '@/executor/constants'
-import { getUniqueBlockName } from './utils'
+import { getUniqueBlockName, regenerateBlockIds } from './utils'
 
 describe('normalizeName', () => {
   it.concurrent('should convert to lowercase', () => {
@@ -221,5 +221,315 @@ describe('getUniqueBlockName', () => {
     expect(getUniqueBlockName('MyBlock', existingBlocks)).toBe('MyBlock 2')
     expect(getUniqueBlockName('MYBLOCK', existingBlocks)).toBe('MYBLOCK 2')
     expect(getUniqueBlockName('myblock', existingBlocks)).toBe('myblock 2')
+  })
+})
+
+describe('regenerateBlockIds', () => {
+  const positionOffset = { x: 50, y: 50 }
+
+  it('should preserve parentId and use same offset when duplicating a block inside an existing subflow', () => {
+    const loopId = 'loop-1'
+    const childId = 'child-1'
+
+    const existingBlocks = {
+      [loopId]: createLoopBlock({ id: loopId, name: 'Loop 1' }),
+    }
+
+    const blocksToCopy = {
+      [childId]: createAgentBlock({
+        id: childId,
+        name: 'Agent 1',
+        position: { x: 100, y: 50 },
+        data: { parentId: loopId, extent: 'parent' },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset, // { x: 50, y: 50 } - small offset, used as-is
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const duplicatedBlock = newBlocks[0]
+    expect(duplicatedBlock.data?.parentId).toBe(loopId)
+    expect(duplicatedBlock.data?.extent).toBe('parent')
+    expect(duplicatedBlock.position).toEqual({ x: 150, y: 100 })
+  })
+
+  it('should clear parentId when parent does not exist in paste set or existing blocks', () => {
+    const nonExistentParentId = 'non-existent-loop'
+    const childId = 'child-1'
+
+    const blocksToCopy = {
+      [childId]: createAgentBlock({
+        id: childId,
+        name: 'Agent 1',
+        position: { x: 100, y: 50 },
+        data: { parentId: nonExistentParentId, extent: 'parent' },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const duplicatedBlock = newBlocks[0]
+    expect(duplicatedBlock.data?.parentId).toBeUndefined()
+    expect(duplicatedBlock.data?.extent).toBeUndefined()
+  })
+
+  it('should remap parentId when copying both parent and child together', () => {
+    const loopId = 'loop-1'
+    const childId = 'child-1'
+
+    const blocksToCopy = {
+      [loopId]: createLoopBlock({
+        id: loopId,
+        name: 'Loop 1',
+        position: { x: 200, y: 200 },
+      }),
+      [childId]: createAgentBlock({
+        id: childId,
+        name: 'Agent 1',
+        position: { x: 100, y: 50 },
+        data: { parentId: loopId, extent: 'parent' },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(2)
+
+    const newLoop = newBlocks.find((b) => b.type === 'loop')
+    const newChild = newBlocks.find((b) => b.type === 'agent')
+
+    expect(newLoop).toBeDefined()
+    expect(newChild).toBeDefined()
+    expect(newChild!.data?.parentId).toBe(newLoop!.id)
+    expect(newChild!.data?.extent).toBe('parent')
+
+    expect(newLoop!.position).toEqual({ x: 250, y: 250 })
+    expect(newChild!.position).toEqual({ x: 100, y: 50 })
+  })
+
+  it('should apply offset to top-level blocks', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+    expect(newBlocks[0].position).toEqual({ x: 150, y: 150 })
+  })
+
+  it('should generate unique names for duplicated blocks', () => {
+    const blockId = 'block-1'
+
+    const existingBlocks = {
+      existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
+    }
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+    expect(newBlocks[0].name).toBe('Agent 2')
+  })
+
+  it('should ignore large viewport offset for blocks inside existing subflows', () => {
+    const loopId = 'loop-1'
+    const childId = 'child-1'
+
+    const existingBlocks = {
+      [loopId]: createLoopBlock({ id: loopId, name: 'Loop 1' }),
+    }
+
+    const blocksToCopy = {
+      [childId]: createAgentBlock({
+        id: childId,
+        name: 'Agent 1',
+        position: { x: 100, y: 50 },
+        data: { parentId: loopId, extent: 'parent' },
+      }),
+    }
+
+    const largeViewportOffset = { x: 2000, y: 1500 }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      largeViewportOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    const duplicatedBlock = Object.values(result.blocks)[0]
+    expect(duplicatedBlock.position).toEqual({ x: 280, y: 70 })
+    expect(duplicatedBlock.data?.parentId).toBe(loopId)
+  })
+
+  it('should unlock pasted block when source is locked', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    // Pasted blocks are always unlocked so users can edit them
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(false)
+  })
+
+  it('should keep pasted block unlocked when source is unlocked', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Unlocked Agent',
+        position: { x: 100, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(false)
+  })
+
+  it('should unlock all pasted blocks regardless of source locked state', () => {
+    const lockedId = 'locked-1'
+    const unlockedId = 'unlocked-1'
+
+    const blocksToCopy = {
+      [lockedId]: createAgentBlock({
+        id: lockedId,
+        name: 'Originally Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+      [unlockedId]: createFunctionBlock({
+        id: unlockedId,
+        name: 'Originally Unlocked Function',
+        position: { x: 200, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(2)
+
+    // All pasted blocks should be unlocked so users can edit them
+    for (const block of newBlocks) {
+      expect(block.locked).toBe(false)
+    }
   })
 })

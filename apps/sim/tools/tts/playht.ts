@@ -12,7 +12,7 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -30,7 +30,8 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Voice ID or manifest URL',
+      description:
+        'PlayHT voice identifier or manifest URL (e.g., "s3://voice-cloning-zero-shot/...")',
     },
     quality: {
       type: 'string',
@@ -47,8 +48,9 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
     speed: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Speed multiplier (0.5 to 2.0)',
+      visibility: 'user-or-llm',
+      description:
+        'Speech speed multiplier from 0.5 to 2.0 (e.g., 0.5 for slower, 1.0 for normal, 1.5 for faster)',
     },
     temperature: {
       type: 'number',

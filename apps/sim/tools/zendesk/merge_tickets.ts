@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskMergeTickets')
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 export interface ZendeskMergeTicketsParams {
   email: string
@@ -54,20 +51,21 @@ export const zendeskMergeTicketsTool: ToolConfig<
     targetTicketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target ticket ID (tickets will be merged into this one)',
+      visibility: 'user-or-llm',
+      description:
+        'Target ticket ID as a numeric string (tickets will be merged into this one, e.g., "12345")',
     },
     sourceTicketIds: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Comma-separated source ticket IDs to merge',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated source ticket IDs to merge (e.g., "111, 222, 333")',
     },
     targetComment: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comment to add to target ticket after merge',
+      visibility: 'user-or-llm',
+      description: 'Comment text to add to target ticket after merge',
     },
   },
 
@@ -115,7 +113,7 @@ export const zendeskMergeTicketsTool: ToolConfig<
   },
 
   outputs: {
-    job_status: { type: 'object', description: 'Job status object' },
+    job_status: JOB_STATUS_OUTPUT,
     job_id: { type: 'string', description: 'The merge job ID' },
     target_ticket_id: {
       type: 'string',

@@ -1,5 +1,6 @@
+import type { A2ASendMessageParams, A2ASendMessageResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2ASendMessageParams, A2ASendMessageResponse } from './types'
 
 export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessageResponse> = {
   id: 'a2a_send_message',
@@ -73,29 +74,11 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessage
   },
 
   outputs: {
-    content: {
-      type: 'string',
-      description: 'The text response from the agent',
-    },
-    taskId: {
-      type: 'string',
-      description: 'Task ID for follow-up interactions',
-    },
-    contextId: {
-      type: 'string',
-      description: 'Context ID for conversation continuity',
-    },
-    state: {
-      type: 'string',
-      description: 'Task state',
-    },
-    artifacts: {
-      type: 'array',
-      description: 'Structured output artifacts',
-    },
-    history: {
-      type: 'array',
-      description: 'Full message history',
-    },
+    content: A2A_OUTPUT_PROPERTIES.content,
+    taskId: A2A_OUTPUT_PROPERTIES.taskId,
+    contextId: A2A_OUTPUT_PROPERTIES.contextId,
+    state: A2A_OUTPUT_PROPERTIES.state,
+    artifacts: A2A_OUTPUT_PROPERTIES.artifacts,
+    history: A2A_OUTPUT_PROPERTIES.history,
   },
 }

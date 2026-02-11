@@ -11,7 +11,7 @@ import {
   Database,
   DollarSign,
   HardDrive,
-  Workflow,
+  Timer,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
@@ -44,7 +44,7 @@ interface PricingTier {
 const FREE_PLAN_FEATURES: PricingFeature[] = [
   { icon: DollarSign, text: '$20 usage limit' },
   { icon: HardDrive, text: '5GB file storage' },
-  { icon: Workflow, text: 'Public template access' },
+  { icon: Timer, text: '5 min execution limit' },
   { icon: Database, text: 'Limited log retention' },
   { icon: Code2, text: 'CLI/SDK Access' },
 ]
@@ -229,7 +229,7 @@ function PricingCard({
  */
 export default function LandingPricing() {
   return (
-    <section id='pricing' className='px-4 pt-[19px] sm:px-0 sm:pt-0' aria-label='Pricing plans'>
+    <section id='pricing' className='px-4 pt-[23px] sm:px-0 sm:pt-[4px]' aria-label='Pricing plans'>
       <h2 className='sr-only'>Pricing Plans</h2>
       <div className='relative mx-auto w-full max-w-[1289px]'>
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-0 lg:grid-cols-4'>

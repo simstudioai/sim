@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -70,11 +70,12 @@ export function resolveToolId(toolName: string): string {
   return toolName
 }
 
-interface RequestParams {
+export interface RequestParams {
   url: string
   method: string
   headers: Record<string, string>
   body?: string
+  timeout?: number
 }
 
 /**
@@ -122,58 +123,15 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  return { url, method, headers, body }
-}
+  const MAX_TIMEOUT_MS = getMaxExecutionTimeout()
+  const rawTimeout = params.timeout
+  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
+  const validTimeout =
+    timeout != null && Number.isFinite(timeout) && timeout > 0
+      ? Math.min(timeout, MAX_TIMEOUT_MS)
+      : undefined
 
-/**
- * Execute the actual request and transform the response
- */
-export async function executeRequest(
-  toolId: string,
-  tool: ToolConfig,
-  requestParams: RequestParams
-): Promise<ToolResponse> {
-  try {
-    const { url, method, headers, body } = requestParams
-
-    const externalResponse = await fetch(url, { method, headers, body })
-
-    if (!externalResponse.ok) {
-      let errorData: any
-      try {
-        errorData = await externalResponse.json()
-      } catch (_e) {
-        try {
-          errorData = await externalResponse.text()
-        } catch (_e2) {
-          errorData = null
-        }
-      }
-
-      const error = extractErrorMessage({
-        status: externalResponse.status,
-        statusText: externalResponse.statusText,
-        data: errorData,
-      })
-      logger.error(`${toolId} error:`, { error })
-      throw new Error(error)
-    }
-
-    const transformResponse =
-      tool.transformResponse ||
-      (async (resp: Response) => ({
-        success: true,
-        output: await resp.json(),
-      }))
-
-    return await transformResponse(externalResponse)
-  } catch (error: any) {
-    return {
-      success: false,
-      output: {},
-      error: error.message || 'Unknown error',
-    }
-  }
+  return { url, method, headers, body, timeout: validTimeout }
 }
 
 /**
@@ -320,7 +278,8 @@ export function createCustomToolRequestBody(
       workflowVariables: workflowVariables, // Workflow variables for <variable.name> resolution
       blockData: blockData, // Runtime block outputs for <block.field> resolution
       blockNameMapping: blockNameMapping, // Block name to ID mapping
-      workflowId: workflowId, // Pass workflowId for server-side context
+      workflowId: params._context?.workflowId || workflowId, // Pass workflowId for server-side context
+      userId: params._context?.userId, // Pass userId for auth context
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }
   }
@@ -352,7 +311,8 @@ export function getTool(toolId: string): ToolConfig | undefined {
 // Get a tool by its ID asynchronously (supports server-side)
 export async function getToolAsync(
   toolId: string,
-  workflowId?: string
+  workflowId?: string,
+  userId?: string
 ): Promise<ToolConfig | undefined> {
   // Check for built-in tools
   const builtInTool = tools[toolId]
@@ -360,7 +320,7 @@ export async function getToolAsync(
 
   // Check if it's a custom tool
   if (isCustomTool(toolId)) {
-    return fetchCustomToolFromAPI(toolId, workflowId)
+    return fetchCustomToolFromAPI(toolId, workflowId, userId)
   }
 
   return undefined
@@ -407,7 +367,8 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
 // Create a tool config from a custom tool definition by fetching from API
 async function fetchCustomToolFromAPI(
   customToolId: string,
-  workflowId?: string
+  workflowId?: string,
+  userId?: string
 ): Promise<ToolConfig | undefined> {
   const identifier = customToolId.replace('custom_', '')
 
@@ -415,9 +376,11 @@ async function fetchCustomToolFromAPI(
     const baseUrl = getBaseUrl()
     const url = new URL('/api/tools/custom', baseUrl)
 
-    // Add workflowId as a query parameter if available
     if (workflowId) {
       url.searchParams.append('workflowId', workflowId)
+    }
+    if (userId) {
+      url.searchParams.append('userId', userId)
     }
 
     // For server-side calls (during workflow execution), use internal JWT token

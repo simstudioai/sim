@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomListRecordingsParams, ZoomListRecordingsResponse } from '@/tools/zoom/types'
+import {
+  RECORDING_OUTPUT_PROPERTIES,
+  RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListRecordingsTool: ToolConfig<
   ZoomListRecordingsParams,
@@ -20,8 +24,9 @@ export const zoomListRecordingsTool: ToolConfig<
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The user ID or email address. Use "me" for the authenticated user.',
+      visibility: 'user-or-llm',
+      description:
+        'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
     },
     from: {
       type: 'string',
@@ -39,7 +44,7 @@ export const zoomListRecordingsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',
@@ -143,17 +148,15 @@ export const zoomListRecordingsTool: ToolConfig<
     recordings: {
       type: 'array',
       description: 'List of recordings',
+      items: {
+        type: 'object',
+        properties: RECORDING_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        from: { type: 'string', description: 'Start date of query range' },
-        to: { type: 'string', description: 'End date of query range' },
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

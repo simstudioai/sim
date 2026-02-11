@@ -2,8 +2,9 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createSftpConnection, getSftp, isPathSafe, sanitizePath } from '@/app/api/tools/sftp/utils'
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized SFTP download attempt: ${authResult.error}`)
@@ -111,6 +112,8 @@ export async function POST(request: NextRequest) {
 
       const buffer = Buffer.concat(chunks)
       const fileName = path.basename(remotePath)
+      const extension = getFileExtension(fileName)
+      const mimeType = getMimeTypeFromExtension(extension)
 
       let content: string
       if (params.encoding === 'base64') {
@@ -124,6 +127,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         fileName,
+        file: {
+          name: fileName,
+          mimeType,
+          data: buffer.toString('base64'),
+          size: buffer.length,
+        },
         content,
         size: buffer.length,
         encoding: params.encoding,

@@ -1,4 +1,4 @@
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -85,7 +85,10 @@ function buildStartBlockState(
     subBlockValues[config.id] = initialValue ?? null
   })
 
-  const outputs = getBlockOutputs(blockConfig.type, subBlocks)
+  const outputs = getEffectiveBlockOutputs(blockConfig.type, subBlocks, {
+    triggerMode: false,
+    preferToolOutputs: true,
+  })
 
   const blockState: BlockState = {
     id: blockId,
@@ -100,6 +103,7 @@ function buildStartBlockState(
     triggerMode: false,
     height: 0,
     data: {},
+    locked: false,
   }
 
   return { blockState, subBlockValues }

@@ -19,8 +19,8 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
       organizationSlug: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The slug of the organization',
+        visibility: 'user-or-llm',
+        description: 'The slug of the organization (e.g., "my-org")',
       },
       name: {
         type: 'string',

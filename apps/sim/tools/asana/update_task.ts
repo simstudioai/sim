@@ -22,8 +22,8 @@ export const asanaUpdateTaskTool: ToolConfig<AsanaUpdateTaskParams, AsanaUpdateT
     taskGid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The globally unique identifier (GID) of the task to update',
+      visibility: 'user-or-llm',
+      description: 'Asana task GID (numeric string) of the task to update',
     },
     name: {
       type: 'string',

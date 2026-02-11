@@ -47,10 +47,11 @@ export const GoogleFormsBlock: BlockConfig = {
     },
     // Form selector (basic mode)
     {
-      id: 'formId',
+      id: 'formSelector',
       title: 'Select Form',
       type: 'file-selector',
       canonicalParamId: 'formId',
+      required: true,
       serviceId: 'google-forms',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.form',
@@ -234,8 +235,7 @@ Example for "Add a required multiple choice question about favorite color":
         const {
           credential,
           operation,
-          formId,
-          manualFormId,
+          formId, // Canonical param from formSelector (basic) or manualFormId (advanced)
           responseId,
           pageSize,
           title,
@@ -252,11 +252,10 @@ Example for "Add a required multiple choice question about favorite color":
         } = params
 
         const baseParams = { ...rest, credential }
-        const effectiveFormId = (formId || manualFormId || '').toString().trim() || undefined
+        const effectiveFormId = formId ? String(formId).trim() : undefined
 
         switch (operation) {
           case 'get_responses':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -265,10 +264,8 @@ Example for "Add a required multiple choice question about favorite color":
             }
           case 'get_form':
           case 'list_watches':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return { ...baseParams, formId: effectiveFormId }
           case 'create_form':
-            if (!title) throw new Error('Form title is required.')
             return {
               ...baseParams,
               title: String(title).trim(),
@@ -276,8 +273,6 @@ Example for "Add a required multiple choice question about favorite color":
               unpublished: unpublished ?? false,
             }
           case 'batch_update':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!requests) throw new Error('Update requests are required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -285,7 +280,6 @@ Example for "Add a required multiple choice question about favorite color":
               includeFormInResponse: includeFormInResponse ?? false,
             }
           case 'set_publish_settings':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -293,9 +287,6 @@ Example for "Add a required multiple choice question about favorite color":
               isAcceptingResponses: isAcceptingResponses,
             }
           case 'create_watch':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!eventType) throw new Error('Event type is required.')
-            if (!topicName) throw new Error('Pub/Sub topic is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -305,8 +296,6 @@ Example for "Add a required multiple choice question about favorite color":
             }
           case 'delete_watch':
           case 'renew_watch':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!watchId) throw new Error('Watch ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -321,8 +310,7 @@ Example for "Add a required multiple choice question about favorite color":
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google OAuth credential' },
-    formId: { type: 'string', description: 'Google Form ID (from selector)' },
-    manualFormId: { type: 'string', description: 'Google Form ID (manual entry)' },
+    formId: { type: 'string', description: 'Google Form ID' },
     responseId: { type: 'string', description: 'Specific response ID' },
     pageSize: { type: 'string', description: 'Max responses to retrieve' },
     title: { type: 'string', description: 'Form title for creation' },

@@ -181,7 +181,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'user-123',
         authType: 'session',
@@ -213,6 +213,14 @@ describe('Custom Tools API Routes', () => {
 
     vi.doMock('@/lib/workflows/custom-tools/operations', () => ({
       upsertCustomTools: vi.fn().mockResolvedValue(sampleTools),
+    }))
+
+    vi.doMock('@/lib/workflows/utils', () => ({
+      authorizeWorkflowByWorkspacePermission: vi.fn().mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: { workspaceId: 'workspace-123' },
+      }),
     }))
   })
 
@@ -254,7 +262,7 @@ describe('Custom Tools API Routes', () => {
       )
 
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),
@@ -271,20 +279,6 @@ describe('Custom Tools API Routes', () => {
 
     it('should handle workflowId parameter', async () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?workflowId=workflow-123')
-
-      mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
-
-      mockWhere.mockImplementationOnce((condition) => {
-        const queryBuilder = {
-          limit: mockLimit,
-          then: (resolve: (value: typeof sampleTools) => void) => {
-            resolve(sampleTools)
-            return queryBuilder
-          },
-          catch: (reject: (error: Error) => void) => queryBuilder,
-        }
-        return queryBuilder
-      })
 
       const { GET } = await import('@/app/api/tools/custom/route')
 
@@ -304,7 +298,7 @@ describe('Custom Tools API Routes', () => {
   describe('POST /api/tools/custom', () => {
     it('should reject unauthorized requests', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),
@@ -375,7 +369,8 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should handle tool not found', async () => {
-      mockLimit.mockResolvedValueOnce([])
+      const mockLimitNotFound = vi.fn().mockResolvedValue([])
+      mockWhere.mockReturnValueOnce({ limit: mockLimitNotFound })
 
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=non-existent')
 
@@ -390,7 +385,7 @@ describe('Custom Tools API Routes', () => {
 
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: true,
           userId: 'user-456',
           authType: 'session',
@@ -398,7 +393,8 @@ describe('Custom Tools API Routes', () => {
       }))
 
       const userScopedTool = { ...sampleTools[0], workspaceId: null, userId: 'user-123' }
-      mockLimit.mockResolvedValueOnce([userScopedTool])
+      const mockLimitUserScoped = vi.fn().mockResolvedValue([userScopedTool])
+      mockWhere.mockReturnValueOnce({ limit: mockLimitUserScoped })
 
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
@@ -413,7 +409,7 @@ describe('Custom Tools API Routes', () => {
 
     it('should reject unauthorized requests', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),

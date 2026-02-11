@@ -58,13 +58,28 @@ export interface McpSecurityPolicy {
 }
 
 /**
+ * JSON Schema property definition for tool parameters.
+ * Follows JSON Schema specification with description support.
+ */
+export interface McpToolSchemaProperty {
+  type: string
+  description?: string
+  items?: McpToolSchemaProperty
+  properties?: Record<string, McpToolSchemaProperty>
+  required?: string[]
+  enum?: Array<string | number | boolean>
+  default?: unknown
+}
+
+/**
  * JSON Schema for tool input parameters.
  * Aligns with MCP SDK's Tool.inputSchema structure.
  */
 export interface McpToolSchema {
   type: 'object'
-  properties?: Record<string, unknown>
+  properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
+  description?: string
 }
 
 /**
@@ -130,6 +145,52 @@ export interface McpServerSummary {
   promptCount?: number
   lastSeen?: Date
   error?: string
+}
+
+/**
+ * Callback invoked when an MCP server sends a `notifications/tools/list_changed` notification.
+ */
+export type McpToolsChangedCallback = (serverId: string) => void
+
+/**
+ * Options for creating an McpClient with notification support.
+ */
+export interface McpClientOptions {
+  config: McpServerConfig
+  securityPolicy?: McpSecurityPolicy
+  onToolsChanged?: McpToolsChangedCallback
+}
+
+/**
+ * Event emitted by the connection manager when a server's tools change.
+ */
+export interface ToolsChangedEvent {
+  serverId: string
+  serverName: string
+  workspaceId: string
+  timestamp: number
+}
+
+/**
+ * State of a managed persistent connection.
+ */
+export interface ManagedConnectionState {
+  serverId: string
+  serverName: string
+  workspaceId: string
+  userId: string
+  connected: boolean
+  supportsListChanged: boolean
+  reconnectAttempts: number
+  lastActivity: number
+}
+
+/**
+ * Event emitted when workflow CRUD modifies a workflow MCP server's tools.
+ */
+export interface WorkflowToolsChangedEvent {
+  serverId: string
+  workspaceId: string
 }
 
 export interface McpApiResponse<T = unknown> {

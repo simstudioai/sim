@@ -1,4 +1,5 @@
 import type { LinearListTeamsParams, LinearListTeamsResponse } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, TEAM_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListTeamsTool: ToolConfig<LinearListTeamsParams, LinearListTeamsResponse> = {
@@ -93,17 +94,9 @@ export const linearListTeamsTool: ToolConfig<LinearListTeamsParams, LinearListTe
       description: 'Array of teams',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Team ID' },
-          name: { type: 'string', description: 'Team name' },
-          key: { type: 'string', description: 'Team key (used in issue identifiers)' },
-          description: { type: 'string', description: 'Team description' },
-        },
+        properties: TEAM_FULL_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

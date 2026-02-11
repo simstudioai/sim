@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -8,8 +9,13 @@ const logger = createLogger('ConfluenceCommentsAPI')
 export const dynamic = 'force-dynamic'
 
 // Create a comment
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { domain, accessToken, cloudId: providedCloudId, pageId, comment } = await request.json()
 
     if (!domain) {
@@ -86,14 +92,21 @@ export async function POST(request: Request) {
 }
 
 // List comments on a page
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const domain = searchParams.get('domain')
     const accessToken = searchParams.get('accessToken')
     const pageId = searchParams.get('pageId')
     const providedCloudId = searchParams.get('cloudId')
     const limit = searchParams.get('limit') || '25'
+    const bodyFormat = searchParams.get('bodyFormat') || 'storage'
+    const cursor = searchParams.get('cursor')
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -119,7 +132,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/footer-comments?limit=${limit}`
+    const queryParams = new URLSearchParams()
+    queryParams.append('limit', String(Math.min(Number(limit), 250)))
+    queryParams.append('body-format', bodyFormat)
+    if (cursor) {
+      queryParams.append('cursor', cursor)
+    }
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/footer-comments?${queryParams.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -143,14 +162,31 @@ export async function GET(request: Request) {
 
     const data = await response.json()
 
-    const comments = (data.results || []).map((comment: any) => ({
-      id: comment.id,
-      body: comment.body?.storage?.value || comment.body?.view?.value || '',
-      createdAt: comment.createdAt || '',
-      authorId: comment.authorId || '',
-    }))
+    const comments = (data.results || []).map((comment: any) => {
+      const bodyValue = comment.body?.storage?.value || comment.body?.view?.value || ''
+      return {
+        id: comment.id,
+        body: {
+          value: bodyValue,
+          representation: bodyFormat,
+        },
+        createdAt: comment.createdAt || '',
+        authorId: comment.authorId || '',
+        status: comment.status ?? null,
+        title: comment.title ?? null,
+        pageId: comment.pageId ?? null,
+        blogPostId: comment.blogPostId ?? null,
+        parentCommentId: comment.parentCommentId ?? null,
+        version: comment.version ?? null,
+      }
+    })
 
-    return NextResponse.json({ comments })
+    return NextResponse.json({
+      comments,
+      nextCursor: data._links?.next
+        ? new URL(data._links.next, 'https://placeholder').searchParams.get('cursor')
+        : null,
+    })
   } catch (error) {
     logger.error('Error listing Confluence comments:', error)
     return NextResponse.json(

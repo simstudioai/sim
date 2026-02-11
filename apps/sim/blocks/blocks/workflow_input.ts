@@ -1,18 +1,5 @@
 import { WorkflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
-  try {
-    const { workflows, activeWorkflowId } = useWorkflowRegistry.getState()
-    return Object.entries(workflows)
-      .filter(([id]) => id !== activeWorkflowId)
-      .map(([id, w]) => ({ label: w.name || `Workflow ${id.slice(0, 8)}`, id }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  } catch {
-    return []
-  }
-}
 
 export const WorkflowInputBlock: BlockConfig = {
   type: 'workflow_input',
@@ -25,21 +12,19 @@ export const WorkflowInputBlock: BlockConfig = {
   `,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/blocks/workflow',
-  bgColor: '#6366F1', // Indigo - modern and professional
+  bgColor: '#6366F1',
   icon: WorkflowIcon,
   subBlocks: [
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'combobox',
-      options: getAvailableWorkflows,
+      type: 'workflow-selector',
       placeholder: 'Search workflows...',
       required: true,
     },
-    // Renders dynamic mapping UI based on selected child workflow's Start trigger inputFormat
     {
       id: 'inputMapping',
-      title: 'Input Mapping',
+      title: 'Inputs',
       type: 'input-mapping',
       description:
         "Map fields defined in the child workflow's Start block to variables/values in this workflow.",
@@ -56,7 +41,13 @@ export const WorkflowInputBlock: BlockConfig = {
   outputs: {
     success: { type: 'boolean', description: 'Execution success status' },
     childWorkflowName: { type: 'string', description: 'Child workflow name' },
+    childWorkflowId: { type: 'string', description: 'Child workflow ID' },
     result: { type: 'json', description: 'Workflow execution result' },
     error: { type: 'string', description: 'Error message' },
+    childTraceSpans: {
+      type: 'json',
+      description: 'Child workflow trace spans',
+      hiddenFromDisplay: true,
+    },
   },
 }

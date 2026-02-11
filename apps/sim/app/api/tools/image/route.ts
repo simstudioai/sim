@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { validateImageUrl } from '@/lib/core/security/input-validation'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('ImageProxyAPI')
@@ -15,7 +18,7 @@ export async function GET(request: NextRequest) {
   const imageUrl = url.searchParams.get('url')
   const requestId = generateRequestId()
 
-  const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     logger.error(`[${requestId}] Authentication failed for image proxy:`, authResult.error)
     return new NextResponse('Unauthorized', { status: 401 })
@@ -26,7 +29,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Missing URL parameter', { status: 400 })
   }
 
-  const urlValidation = validateImageUrl(imageUrl)
+  const urlValidation = await validateUrlWithDNS(imageUrl, 'imageUrl')
   if (!urlValidation.isValid) {
     logger.warn(`[${requestId}] Blocked image proxy request`, {
       url: imageUrl.substring(0, 100),
@@ -38,7 +41,8 @@ export async function GET(request: NextRequest) {
   logger.info(`[${requestId}] Proxying image request for: ${imageUrl}`)
 
   try {
-    const imageResponse = await fetch(imageUrl, {
+    const imageResponse = await secureFetchWithPinnedIP(imageUrl, urlValidation.resolvedIP!, {
+      method: 'GET',
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -64,14 +68,14 @@ export async function GET(request: NextRequest) {
 
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
-    const imageBlob = await imageResponse.blob()
+    const imageArrayBuffer = await imageResponse.arrayBuffer()
 
-    if (imageBlob.size === 0) {
-      logger.error(`[${requestId}] Empty image blob received`)
+    if (imageArrayBuffer.byteLength === 0) {
+      logger.error(`[${requestId}] Empty image received`)
       return new NextResponse('Empty image received', { status: 404 })
     }
 
-    return new NextResponse(imageBlob, {
+    return new NextResponse(imageArrayBuffer, {
       headers: {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',

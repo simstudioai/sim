@@ -1,20 +1,14 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
+import { SimLogoFull } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export function Navbar() {
   return (
-    <nav
-      className='sticky top-0 z-50 border-border/50 border-b'
-      style={{
-        backdropFilter: 'blur(25px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
-      }}
-    >
+    <nav className='sticky top-0 z-50 border-border/50 border-b bg-background/80 backdrop-blur-md backdrop-saturate-150'>
       {/* Desktop: Single row layout */}
       <div className='hidden h-16 w-full items-center lg:flex'>
         <div
@@ -27,13 +21,7 @@ export function Navbar() {
           {/* Left cluster: logo */}
           <div className='flex items-center'>
             <Link href='/' className='flex min-w-[100px] items-center'>
-              <Image
-                src='/static/logo.png'
-                alt='Sim'
-                width={72}
-                height={28}
-                className='h-7 w-auto'
-              />
+              <SimLogoFull className='h-7 w-auto' />
             </Link>
           </div>
 

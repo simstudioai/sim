@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import {
@@ -26,14 +27,7 @@ const UploadSchema = z.object({
   privateKey: z.string().nullish(),
   passphrase: z.string().nullish(),
   remotePath: z.string().min(1, 'Remote path is required'),
-  files: z
-    .union([z.array(z.any()), z.string(), z.number(), z.null(), z.undefined()])
-    .transform((val) => {
-      if (Array.isArray(val)) return val
-      if (val === null || val === undefined || val === '') return undefined
-      return undefined
-    })
-    .nullish(),
+  files: RawFileInputArraySchema.optional().nullable(),
   fileContent: z.string().nullish(),
   fileName: z.string().nullish(),
   overwrite: z.boolean().default(true),
@@ -44,7 +38,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized SFTP upload attempt: ${authResult.error}`)

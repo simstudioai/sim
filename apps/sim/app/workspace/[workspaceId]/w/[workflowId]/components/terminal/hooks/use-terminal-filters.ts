@@ -1,25 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
+import type {
+  SortConfig,
+  TerminalFilters,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
-
-/**
- * Sort configuration
- */
-export type SortField = 'timestamp'
-export type SortDirection = 'asc' | 'desc'
-
-export interface SortConfig {
-  field: SortField
-  direction: SortDirection
-}
-
-/**
- * Filter configuration state
- */
-export interface TerminalFilters {
-  blockIds: Set<string>
-  statuses: Set<'error' | 'info'>
-  runIds: Set<string>
-}
 
 /**
  * Custom hook to manage terminal filters and sorting.
@@ -31,7 +15,6 @@ export function useTerminalFilters() {
   const [filters, setFilters] = useState<TerminalFilters>({
     blockIds: new Set(),
     statuses: new Set(),
-    runIds: new Set(),
   })
 
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -70,21 +53,6 @@ export function useTerminalFilters() {
   }, [])
 
   /**
-   * Toggles a run ID filter
-   */
-  const toggleRunId = useCallback((runId: string) => {
-    setFilters((prev) => {
-      const newRunIds = new Set(prev.runIds)
-      if (newRunIds.has(runId)) {
-        newRunIds.delete(runId)
-      } else {
-        newRunIds.add(runId)
-      }
-      return { ...prev, runIds: newRunIds }
-    })
-  }, [])
-
-  /**
    * Toggles sort direction between ascending and descending
    */
   const toggleSort = useCallback(() => {
@@ -101,7 +69,6 @@ export function useTerminalFilters() {
     setFilters({
       blockIds: new Set(),
       statuses: new Set(),
-      runIds: new Set(),
     })
   }, [])
 
@@ -109,7 +76,7 @@ export function useTerminalFilters() {
    * Checks if any filters are active
    */
   const hasActiveFilters = useMemo(() => {
-    return filters.blockIds.size > 0 || filters.statuses.size > 0 || filters.runIds.size > 0
+    return filters.blockIds.size > 0 || filters.statuses.size > 0
   }, [filters])
 
   /**
@@ -134,23 +101,13 @@ export function useTerminalFilters() {
             if (!hasStatus) return false
           }
 
-          // Run ID filter
-          if (
-            filters.runIds.size > 0 &&
-            (!entry.executionId || !filters.runIds.has(entry.executionId))
-          ) {
-            return false
-          }
-
           return true
         })
       }
 
-      // Apply sorting by timestamp
+      // Sort by executionOrder (monotonically increasing integer from server)
       result = [...result].sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime()
-        const timeB = new Date(b.timestamp).getTime()
-        const comparison = timeA - timeB
+        const comparison = a.executionOrder - b.executionOrder
         return sortConfig.direction === 'asc' ? comparison : -comparison
       })
 
@@ -164,7 +121,6 @@ export function useTerminalFilters() {
     sortConfig,
     toggleBlock,
     toggleStatus,
-    toggleRunId,
     toggleSort,
     clearFilters,
     hasActiveFilters,

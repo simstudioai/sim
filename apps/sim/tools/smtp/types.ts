@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SmtpConnectionConfig {
@@ -21,7 +22,7 @@ export interface SmtpSendMailParams extends SmtpConnectionConfig {
   cc?: string
   bcc?: string
   replyTo?: string
-  attachments?: any[]
+  attachments?: UserFile[]
 }
 
 export interface SmtpSendMailResult extends ToolResponse {

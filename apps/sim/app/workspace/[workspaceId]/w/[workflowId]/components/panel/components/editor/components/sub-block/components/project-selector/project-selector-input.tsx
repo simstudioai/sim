@@ -9,6 +9,7 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
@@ -55,14 +56,19 @@ export function ProjectSelectorInput({
     return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
   })
 
-  const connectedCredential = previewContextValues?.credential ?? blockValues.credential
-  const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : blockValues.credential
+  const jiraDomain = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.domain)
+    : jiraDomainFromStore
 
   const linearTeamId = useMemo(
     () =>
-      previewContextValues?.teamId ??
-      resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.teamId)
+        : resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const serviceId = subBlock.serviceId || ''

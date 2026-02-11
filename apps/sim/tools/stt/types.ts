@@ -1,5 +1,63 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Output property definitions for Speech-to-Text API responses.
+ * Covers multiple providers: OpenAI Whisper, Deepgram, ElevenLabs, AssemblyAI, Google Gemini.
+ */
+
+/**
+ * Output definition for transcript segment objects.
+ * @see https://platform.openai.com/docs/api-reference/audio/verbose-json-object
+ * @see https://developers.deepgram.com/docs/transcription-results
+ * @see https://www.assemblyai.com/docs/api-reference/transcripts
+ */
+export const STT_SEGMENT_OUTPUT_PROPERTIES = {
+  text: { type: 'string', description: 'Transcribed text for this segment' },
+  start: { type: 'number', description: 'Start time in seconds' },
+  end: { type: 'number', description: 'End time in seconds' },
+  speaker: {
+    type: 'string',
+    description: 'Speaker identifier (if diarization enabled)',
+    optional: true,
+  },
+  confidence: { type: 'number', description: 'Confidence score (0-1)', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete segment output definition
+ */
+export const STT_SEGMENT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Transcript segment with timing information',
+  properties: STT_SEGMENT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for sentiment analysis results (AssemblyAI).
+ * @see https://www.assemblyai.com/docs/audio-intelligence/sentiment-analysis
+ */
+export const STT_SENTIMENT_OUTPUT_PROPERTIES = {
+  text: { type: 'string', description: 'Text that was analyzed' },
+  sentiment: { type: 'string', description: 'Sentiment (POSITIVE, NEGATIVE, NEUTRAL)' },
+  confidence: { type: 'number', description: 'Confidence score' },
+  start: { type: 'number', description: 'Start time in milliseconds', optional: true },
+  end: { type: 'number', description: 'End time in milliseconds', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for entity detection results (AssemblyAI).
+ * @see https://www.assemblyai.com/docs/audio-intelligence/entity-detection
+ */
+export const STT_ENTITY_OUTPUT_PROPERTIES = {
+  entity_type: {
+    type: 'string',
+    description: 'Entity type (e.g., person_name, location, organization)',
+  },
+  text: { type: 'string', description: 'Entity text' },
+  start: { type: 'number', description: 'Start time in milliseconds', optional: true },
+  end: { type: 'number', description: 'End time in milliseconds', optional: true },
+} as const satisfies Record<string, OutputProperty>
 
 export interface SttParams {
   provider: 'whisper' | 'deepgram' | 'elevenlabs' | 'assemblyai' | 'gemini'
@@ -18,6 +76,8 @@ export interface SttParams {
   piiRedaction?: boolean
   summarization?: boolean
 }
+
+export interface SttV2Params extends Omit<SttParams, 'audioUrl'> {}
 
 export interface TranscriptSegment {
   text: string

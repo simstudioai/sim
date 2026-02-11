@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
@@ -19,7 +20,7 @@ const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 const WordPressUploadSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   siteId: z.string().min(1, 'Site ID is required'),
-  file: z.any().optional().nullable(),
+  file: RawFileInputSchema.optional().nullable(),
   filename: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
   caption: z.string().optional().nullable(),
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized WordPress upload attempt: ${authResult.error}`)

@@ -3,6 +3,7 @@ import type {
   SalesforceListReportsParams,
   SalesforceListReportsResponse,
 } from '@/tools/salesforce/types'
+import { LIST_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,14 +34,14 @@ export const salesforceListReportsTool: ToolConfig<
     folderName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by folder name',
+      visibility: 'user-or-llm',
+      description: 'Filter reports by folder name (case-insensitive partial match)',
     },
     searchTerm: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Search term to filter reports by name',
+      visibility: 'user-or-llm',
+      description: 'Search term to filter reports by name or description',
     },
   },
 
@@ -103,8 +104,7 @@ export const salesforceListReportsTool: ToolConfig<
       description: 'Reports data',
       properties: {
         reports: { type: 'array', description: 'Array of report objects' },
-        totalReturned: { type: 'number', description: 'Number of reports returned' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
+        ...LIST_OUTPUT_PROPERTIES,
       },
     },
   },

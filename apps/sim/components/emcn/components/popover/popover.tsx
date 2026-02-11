@@ -260,6 +260,9 @@ const Popover: React.FC<PopoverProps> = ({
       setIsKeyboardNav(false)
       setSelectedIndex(-1)
       registeredItemsRef.current = []
+    } else {
+      // Reset hover state when opening to prevent stale submenu from previous menu
+      setLastHoveredItem(null)
     }
   }, [open])
 
@@ -513,18 +516,10 @@ const PopoverContent = React.forwardRef<
       return () => window.removeEventListener('keydown', handleKeyDown, true)
     }, [context])
 
-    React.useEffect(() => {
-      const content = contentRef.current
-      if (!content || !context?.isKeyboardNav || context.selectedIndex < 0) return
-
-      const items = content.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not([aria-disabled="true"])'
-      )
-      const selectedItem = items[context.selectedIndex]
-      if (selectedItem) {
-        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    }, [context?.selectedIndex, context?.isKeyboardNav])
+    // Note: scrollIntoView for keyboard navigation is intentionally disabled here.
+    // Components using Popover (like TagDropdown) should handle their own scroll
+    // management to avoid conflicts between the popover's internal selection index
+    // and the component's custom navigation state.
 
     const hasUserWidthConstraint =
       maxWidth !== undefined ||
@@ -715,7 +710,8 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
       context?.setLastHoveredItem(null)
-      if (itemIndex >= 0 && context) {
+      // Don't update selection during keyboard navigation to prevent scroll jumps
+      if (itemIndex >= 0 && context && !context.isKeyboardNav) {
         context.setSelectedIndex(itemIndex)
       }
       onMouseEnter?.(e)
@@ -896,7 +892,8 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     }
 
     const handleMouseEnter = () => {
-      if (itemIndex >= 0) {
+      // Don't update selection during keyboard navigation to prevent scroll jumps
+      if (itemIndex >= 0 && !isKeyboardNav) {
         setSelectedIndex(itemIndex)
       }
 

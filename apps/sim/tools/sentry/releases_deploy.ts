@@ -18,14 +18,14 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     version: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Version identifier of the release being deployed',
+      description: 'Version identifier of the release being deployed (e.g., "1.0.0" or "abc123")',
     },
     environment: {
       type: 'string',

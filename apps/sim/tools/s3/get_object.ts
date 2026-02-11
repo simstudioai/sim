@@ -29,8 +29,8 @@ export const s3GetObjectTool: ToolConfig = {
     s3Uri: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 Object URL',
+      visibility: 'user-or-llm',
+      description: 'S3 Object URL (e.g., https://bucket.s3.region.amazonaws.com/path/to/file)',
     },
   },
 
@@ -50,7 +50,7 @@ export const s3GetObjectTool: ToolConfig = {
         )
       }
     },
-    method: 'HEAD',
+    method: 'GET',
     headers: (params) => {
       try {
         // Parse S3 URI if not already parsed
@@ -66,7 +66,7 @@ export const s3GetObjectTool: ToolConfig = {
         const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '')
         const dateStamp = amzDate.slice(0, 8)
 
-        const method = 'HEAD'
+        const method = 'GET'
         const encodedPath = encodeS3PathComponent(params.objectKey)
         const canonicalUri = `/${encodedPath}`
         const canonicalQueryString = ''
@@ -108,11 +108,18 @@ export const s3GetObjectTool: ToolConfig = {
       params.objectKey = objectKey
     }
 
-    // Get file metadata
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `Failed to download S3 object: ${response.status} ${response.statusText} ${errorText}`
+      )
+    }
+
     const contentType = response.headers.get('content-type') || 'application/octet-stream'
-    const contentLength = Number.parseInt(response.headers.get('content-length') || '0', 10)
     const lastModified = response.headers.get('last-modified') || new Date().toISOString()
     const fileName = params.objectKey.split('/').pop() || params.objectKey
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
 
     // Generate pre-signed URL for download
     const url = generatePresignedUrl(params, 3600)
@@ -121,9 +128,15 @@ export const s3GetObjectTool: ToolConfig = {
       success: true,
       output: {
         url,
+        file: {
+          name: fileName,
+          mimeType: contentType,
+          data: buffer.toString('base64'),
+          size: buffer.length,
+        },
         metadata: {
           fileType: contentType,
-          size: contentLength,
+          size: buffer.length,
           name: fileName,
           lastModified: lastModified,
         },
@@ -135,6 +148,10 @@ export const s3GetObjectTool: ToolConfig = {
     url: {
       type: 'string',
       description: 'Pre-signed URL for downloading the S3 object',
+    },
+    file: {
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
     },
     metadata: {
       type: 'object',

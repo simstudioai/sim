@@ -1,9 +1,12 @@
+import { LABEL_ITEM_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListLabelsParams {
   accessToken: string
   domain: string
   pageId: string
+  limit?: number
+  cursor?: string
   cloudId?: string
 }
 
@@ -16,6 +19,7 @@ export interface ConfluenceListLabelsResponse {
       name: string
       prefix: string
     }>
+    nextCursor: string | null
   }
 }
 
@@ -52,6 +56,18 @@ export const confluenceListLabelsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Confluence page ID to list labels from',
     },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of labels to return (default: 25, max: 250)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from previous response',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -67,7 +83,11 @@ export const confluenceListLabelsTool: ToolConfig<
         domain: params.domain,
         accessToken: params.accessToken,
         pageId: params.pageId,
+        limit: String(params.limit || 25),
       })
+      if (params.cursor) {
+        query.set('cursor', params.cursor)
+      }
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
@@ -89,12 +109,25 @@ export const confluenceListLabelsTool: ToolConfig<
       output: {
         ts: new Date().toISOString(),
         labels: data.labels || [],
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of retrieval' },
-    labels: { type: 'array', description: 'List of labels' },
+    labels: {
+      type: 'array',
+      description: 'Array of labels on the page',
+      items: {
+        type: 'object',
+        properties: LABEL_ITEM_PROPERTIES,
+      },
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
+    },
   },
 }

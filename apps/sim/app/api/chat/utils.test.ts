@@ -26,8 +26,9 @@ vi.mock('@/serializer', () => ({
   Serializer: vi.fn(),
 }))
 
-vi.mock('@/stores/workflows/server-utils', () => ({
-  mergeSubblockState: vi.fn().mockReturnValue({}),
+vi.mock('@/lib/workflows/subblocks', () => ({
+  mergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
+  mergeSubBlockValues: vi.fn().mockReturnValue({}),
 }))
 
 const mockDecryptSecret = vi.fn()
@@ -44,6 +45,10 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isHosted: false,
   isProd: false,
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
 describe('Chat API Utils', () => {

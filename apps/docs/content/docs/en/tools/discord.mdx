@@ -53,9 +53,9 @@ Send a message to a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to send the message to |
+| `channelId` | string | Yes | The Discord channel ID to send the message to, e.g., 123456789012345678 |
 | `content` | string | No | The text content of the message |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -63,25 +63,23 @@ Send a message to a Discord channel
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
+| `files` | file[] | Files attached to the message |
 | `data` | object | Discord message data |
-| ↳ `id` | string | Author user ID |
-| ↳ `content` | string | Message content |
-| ↳ `channel_id` | string | Channel ID where message was sent |
-| ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `username` | string | Author username |
-| ↳ `avatar` | string | Author avatar hash |
-| ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `timestamp` | string | Message timestamp |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
-| ↳ `embeds` | array | Message embeds |
-| ↳ `attachments` | array | Message attachments |
-| ↳ `mentions` | array | User mentions in message |
-| ↳ `mention_roles` | array | Role mentions in message |
-| ↳ `mention_everyone` | boolean | Whether message mentions everyone |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `channel_id` | string | Channel ID where message was sent |
+|   ↳ `author` | object | Message author information |
+|     ↳ `id` | string | Author user ID |
+|     ↳ `username` | string | Author username |
+|     ↳ `avatar` | string | Author avatar hash |
+|     ↳ `bot` | boolean | Whether author is a bot |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `edited_timestamp` | string | Message edited timestamp |
+|   ↳ `embeds` | array | Message embeds |
+|   ↳ `attachments` | array | Message attachments |
+|   ↳ `mentions` | array | User mentions in message |
+|   ↳ `mention_roles` | array | Role mentions in message |
+|   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
 ### `discord_get_messages`
 
@@ -92,7 +90,7 @@ Retrieve messages from a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to retrieve messages from |
+| `channelId` | string | Yes | The Discord channel ID to retrieve messages from, e.g., 123456789012345678 |
 | `limit` | number | No | Maximum number of messages to retrieve \(default: 10, max: 100\) |
 
 #### Output
@@ -101,43 +99,23 @@ Retrieve messages from a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Container for messages data |
-| ↳ `messages` | array | Array of Discord messages with full metadata |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `content` | string | Message content |
+|   ↳ `messages` | array | Array of Discord messages with full metadata |
+|     ↳ `id` | string | Message ID |
+|     ↳ `content` | string | Message content |
+|     ↳ `channel_id` | string | Channel ID |
+|     ↳ `author` | object | Message author information |
+|       ↳ `id` | string | Author user ID |
+|       ↳ `username` | string | Author username |
+|       ↳ `avatar` | string | Author avatar hash |
+|       ↳ `bot` | boolean | Whether author is a bot |
+|     ↳ `timestamp` | string | Message timestamp |
+|     ↳ `edited_timestamp` | string | Message edited timestamp |
+|     ↳ `embeds` | array | Message embeds |
+|     ↳ `attachments` | array | Message attachments |
+|     ↳ `mentions` | array | User mentions in message |
+|     ↳ `mention_roles` | array | Role mentions in message |
+|     ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 |   ↳ `channel_id` | string | Channel ID |
-|   ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-|   ↳ `timestamp` | string | Message timestamp |
-|   ↳ `edited_timestamp` | string | Message edited timestamp |
-|   ↳ `embeds` | array | Message embeds |
-|   ↳ `attachments` | array | Message attachments |
-|   ↳ `mentions` | array | User mentions in message |
-|   ↳ `mention_roles` | array | Role mentions in message |
-|   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
-| ↳ `id` | string | Author user ID |
-| ↳ `content` | string | Message content |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `username` | string | Author username |
-| ↳ `avatar` | string | Author avatar hash |
-| ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `timestamp` | string | Message timestamp |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
-| ↳ `embeds` | array | Message embeds |
-| ↳ `attachments` | array | Message attachments |
-| ↳ `mentions` | array | User mentions in message |
-| ↳ `mention_roles` | array | Role mentions in message |
-| ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
 ### `discord_get_server`
 
@@ -148,7 +126,7 @@ Retrieve information about a Discord server (guild)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -156,14 +134,14 @@ Retrieve information about a Discord server (guild)
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord server \(guild\) information |
-| ↳ `id` | string | Server ID |
-| ↳ `name` | string | Server name |
-| ↳ `icon` | string | Server icon hash |
-| ↳ `description` | string | Server description |
-| ↳ `owner_id` | string | Server owner user ID |
-| ↳ `roles` | array | Server roles |
-| ↳ `channels` | array | Server channels |
-| ↳ `member_count` | number | Number of members in server |
+|   ↳ `id` | string | Server ID |
+|   ↳ `name` | string | Server name |
+|   ↳ `icon` | string | Server icon hash |
+|   ↳ `description` | string | Server description |
+|   ↳ `owner_id` | string | Server owner user ID |
+|   ↳ `roles` | array | Server roles |
+|   ↳ `channels` | array | Server channels |
+|   ↳ `member_count` | number | Number of members in server |
 
 ### `discord_get_user`
 
@@ -174,7 +152,7 @@ Retrieve information about a Discord user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Discord bot token for authentication |
-| `userId` | string | Yes | The Discord user ID |
+| `userId` | string | Yes | The Discord user ID, e.g., 123456789012345678 |
 
 #### Output
 
@@ -182,14 +160,14 @@ Retrieve information about a Discord user
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord user information |
-| ↳ `id` | string | User ID |
-| ↳ `username` | string | Username |
-| ↳ `discriminator` | string | User discriminator \(4-digit number\) |
-| ↳ `avatar` | string | User avatar hash |
-| ↳ `bot` | boolean | Whether user is a bot |
-| ↳ `system` | boolean | Whether user is a system user |
-| ↳ `email` | string | User email \(if available\) |
-| ↳ `verified` | boolean | Whether user email is verified |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username |
+|   ↳ `discriminator` | string | User discriminator \(4-digit number\) |
+|   ↳ `avatar` | string | User avatar hash |
+|   ↳ `bot` | boolean | Whether user is a bot |
+|   ↳ `system` | boolean | Whether user is a system user |
+|   ↳ `email` | string | User email \(if available\) |
+|   ↳ `verified` | boolean | Whether user email is verified |
 
 ### `discord_edit_message`
 
@@ -200,10 +178,10 @@ Edit an existing message in a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message to edit |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message to edit, e.g., 123456789012345678 |
 | `content` | string | No | The new text content for the message |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -211,10 +189,10 @@ Edit an existing message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated Discord message data |
-| ↳ `id` | string | Message ID |
-| ↳ `content` | string | Updated message content |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Updated message content |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `edited_timestamp` | string | Message edited timestamp |
 
 ### `discord_delete_message`
 
@@ -225,9 +203,9 @@ Delete a message from a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message to delete |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message to delete, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -244,10 +222,10 @@ Add a reaction emoji to a Discord message
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message to react to |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message to react to, e.g., 123456789012345678 |
 | `emoji` | string | Yes | The emoji to react with \(unicode emoji or custom emoji in name:id format\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -264,11 +242,11 @@ Remove a reaction from a Discord message
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message with the reaction |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message with the reaction, e.g., 123456789012345678 |
 | `emoji` | string | Yes | The emoji to remove \(unicode emoji or custom emoji in name:id format\) |
-| `userId` | string | No | The user ID whose reaction to remove \(omit to remove bot's own reaction\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `userId` | string | No | The user ID whose reaction to remove \(omit to remove bot's own reaction\), e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -285,9 +263,9 @@ Pin a message in a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message to pin |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message to pin, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -304,9 +282,9 @@ Unpin a message in a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID containing the message |
-| `messageId` | string | Yes | The ID of the message to unpin |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
+| `messageId` | string | Yes | The ID of the message to unpin, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -323,11 +301,11 @@ Create a thread in a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to create the thread in |
+| `channelId` | string | Yes | The Discord channel ID to create the thread in, e.g., 123456789012345678 |
 | `name` | string | Yes | The name of the thread \(1-100 characters\) |
-| `messageId` | string | No | The message ID to create a thread from \(if creating from existing message\) |
+| `messageId` | string | No | The message ID to create a thread from \(if creating from existing message\), e.g., 123456789012345678 |
 | `autoArchiveDuration` | number | No | Duration in minutes to auto-archive the thread \(60, 1440, 4320, 10080\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -335,11 +313,11 @@ Create a thread in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created thread data |
-| ↳ `id` | string | Thread ID |
-| ↳ `name` | string | Thread name |
-| ↳ `type` | number | Thread channel type |
-| ↳ `guild_id` | string | Server ID |
-| ↳ `parent_id` | string | Parent channel ID |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `name` | string | Thread name |
+|   ↳ `type` | number | Thread channel type |
+|   ↳ `guild_id` | string | Server ID |
+|   ↳ `parent_id` | string | Parent channel ID |
 
 ### `discord_join_thread`
 
@@ -350,8 +328,8 @@ Join a thread in Discord
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `threadId` | string | Yes | The thread ID to join |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `threadId` | string | Yes | The thread ID to join, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -368,8 +346,8 @@ Leave a thread in Discord
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `threadId` | string | Yes | The thread ID to leave |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `threadId` | string | Yes | The thread ID to leave, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -386,9 +364,9 @@ Archive or unarchive a thread in Discord
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `threadId` | string | Yes | The thread ID to archive/unarchive |
+| `threadId` | string | Yes | The thread ID to archive/unarchive, e.g., 123456789012345678 |
 | `archived` | boolean | Yes | Whether to archive \(true\) or unarchive \(false\) the thread |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -396,8 +374,8 @@ Archive or unarchive a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated thread data |
-| ↳ `id` | string | Thread ID |
-| ↳ `archived` | boolean | Whether thread is archived |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `archived` | boolean | Whether thread is archived |
 
 ### `discord_create_channel`
 
@@ -408,11 +386,11 @@ Create a new channel in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `name` | string | Yes | The name of the channel \(1-100 characters\) |
 | `type` | number | No | Channel type \(0=text, 2=voice, 4=category, 5=announcement, 13=stage\) |
 | `topic` | string | No | Channel topic \(0-1024 characters\) |
-| `parentId` | string | No | Parent category ID for the channel |
+| `parentId` | string | No | Parent category ID for the channel, e.g., 123456789012345678 |
 
 #### Output
 
@@ -420,10 +398,10 @@ Create a new channel in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `guild_id` | string | Server ID |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `guild_id` | string | Server ID |
 
 ### `discord_update_channel`
 
@@ -434,10 +412,10 @@ Update a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to update |
+| `channelId` | string | Yes | The Discord channel ID to update, e.g., 123456789012345678 |
 | `name` | string | No | The new name for the channel |
 | `topic` | string | No | The new topic for the channel |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -445,10 +423,10 @@ Update a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `topic` | string | Channel topic |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `topic` | string | Channel topic |
 
 ### `discord_delete_channel`
 
@@ -459,8 +437,8 @@ Delete a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to delete |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `channelId` | string | Yes | The Discord channel ID to delete, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -477,8 +455,8 @@ Get information about a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to retrieve |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `channelId` | string | Yes | The Discord channel ID to retrieve, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -486,11 +464,11 @@ Get information about a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `topic` | string | Channel topic |
-| ↳ `guild_id` | string | Server ID |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `guild_id` | string | Server ID |
 
 ### `discord_create_role`
 
@@ -501,7 +479,7 @@ Create a new role in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `name` | string | Yes | The name of the role |
 | `color` | number | No | RGB color value as integer \(e.g., 0xFF0000 for red\) |
 | `hoist` | boolean | No | Whether to display role members separately from online members |
@@ -513,11 +491,11 @@ Create a new role in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created role data |
-| ↳ `id` | string | Role ID |
-| ↳ `name` | string | Role name |
-| ↳ `color` | number | Role color |
-| ↳ `hoist` | boolean | Whether role is hoisted |
-| ↳ `mentionable` | boolean | Whether role is mentionable |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `color` | number | Role color |
+|   ↳ `hoist` | boolean | Whether role is hoisted |
+|   ↳ `mentionable` | boolean | Whether role is mentionable |
 
 ### `discord_update_role`
 
@@ -528,8 +506,8 @@ Update a role in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `roleId` | string | Yes | The role ID to update |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `roleId` | string | Yes | The role ID to update, e.g., 123456789012345678 |
 | `name` | string | No | The new name for the role |
 | `color` | number | No | RGB color value as integer |
 | `hoist` | boolean | No | Whether to display role members separately |
@@ -541,9 +519,9 @@ Update a role in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated role data |
-| ↳ `id` | string | Role ID |
-| ↳ `name` | string | Role name |
-| ↳ `color` | number | Role color |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `color` | number | Role color |
 
 ### `discord_delete_role`
 
@@ -554,8 +532,8 @@ Delete a role from a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `roleId` | string | Yes | The role ID to delete |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `roleId` | string | Yes | The role ID to delete, e.g., 123456789012345678 |
 
 #### Output
 
@@ -572,9 +550,9 @@ Assign a role to a member in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to assign the role to |
-| `roleId` | string | Yes | The role ID to assign |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to assign the role to, e.g., 123456789012345678 |
+| `roleId` | string | Yes | The role ID to assign, e.g., 123456789012345678 |
 
 #### Output
 
@@ -591,9 +569,9 @@ Remove a role from a member in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to remove the role from |
-| `roleId` | string | Yes | The role ID to remove |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to remove the role from, e.g., 123456789012345678 |
+| `roleId` | string | Yes | The role ID to remove, e.g., 123456789012345678 |
 
 #### Output
 
@@ -610,8 +588,8 @@ Kick a member from a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to kick |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to kick, e.g., 123456789012345678 |
 | `reason` | string | No | Reason for kicking the member |
 
 #### Output
@@ -629,8 +607,8 @@ Ban a member from a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to ban |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to ban, e.g., 123456789012345678 |
 | `reason` | string | No | Reason for banning the member |
 | `deleteMessageDays` | number | No | Number of days to delete messages for \(0-7\) |
 
@@ -649,8 +627,8 @@ Unban a member from a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to unban |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to unban, e.g., 123456789012345678 |
 | `reason` | string | No | Reason for unbanning the member |
 
 #### Output
@@ -668,8 +646,8 @@ Get information about a member in a Discord server
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to retrieve |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to retrieve, e.g., 123456789012345678 |
 
 #### Output
 
@@ -677,16 +655,13 @@ Get information about a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Member data |
-| ↳ `user` | object | User information |
-|   ↳ `id` | string | User ID |
-|   ↳ `username` | string | Username |
-|   ↳ `avatar` | string | Avatar hash |
-| ↳ `id` | string | User ID |
-| ↳ `username` | string | Username |
-| ↳ `avatar` | string | Avatar hash |
-| ↳ `nick` | string | Server nickname |
-| ↳ `roles` | array | Array of role IDs |
-| ↳ `joined_at` | string | When the member joined |
+|   ↳ `user` | object | User information |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username |
+|     ↳ `avatar` | string | Avatar hash |
+|   ↳ `nick` | string | Server nickname |
+|   ↳ `roles` | array | Array of role IDs |
+|   ↳ `joined_at` | string | When the member joined |
 
 ### `discord_update_member`
 
@@ -697,8 +672,8 @@ Update a member in a Discord server (e.g., change nickname)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `userId` | string | Yes | The user ID to update |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `userId` | string | Yes | The user ID to update, e.g., 123456789012345678 |
 | `nick` | string | No | New nickname for the member \(null to remove\) |
 | `mute` | boolean | No | Whether to mute the member in voice channels |
 | `deaf` | boolean | No | Whether to deafen the member in voice channels |
@@ -709,9 +684,9 @@ Update a member in a Discord server (e.g., change nickname)
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated member data |
-| ↳ `nick` | string | Server nickname |
-| ↳ `mute` | boolean | Voice mute status |
-| ↳ `deaf` | boolean | Voice deaf status |
+|   ↳ `nick` | string | Server nickname |
+|   ↳ `mute` | boolean | Voice mute status |
+|   ↳ `deaf` | boolean | Voice deaf status |
 
 ### `discord_create_invite`
 
@@ -722,11 +697,11 @@ Create an invite link for a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to create an invite for |
+| `channelId` | string | Yes | The Discord channel ID to create an invite for, e.g., 123456789012345678 |
 | `maxAge` | number | No | Duration of invite in seconds \(0 = never expires, default 86400\) |
 | `maxUses` | number | No | Max number of uses \(0 = unlimited, default 0\) |
 | `temporary` | boolean | No | Whether invite grants temporary membership |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -734,11 +709,11 @@ Create an invite link for a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created invite data |
-| ↳ `code` | string | Invite code |
-| ↳ `url` | string | Full invite URL |
-| ↳ `max_age` | number | Max age in seconds |
-| ↳ `max_uses` | number | Max uses |
-| ↳ `temporary` | boolean | Whether temporary |
+|   ↳ `code` | string | Invite code |
+|   ↳ `url` | string | Full invite URL |
+|   ↳ `max_age` | number | Max age in seconds |
+|   ↳ `max_uses` | number | Max uses |
+|   ↳ `temporary` | boolean | Whether temporary |
 
 ### `discord_get_invite`
 
@@ -750,7 +725,7 @@ Get information about a Discord invite
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
 | `inviteCode` | string | Yes | The invite code to retrieve |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -758,11 +733,11 @@ Get information about a Discord invite
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Invite data |
-| ↳ `code` | string | Invite code |
-| ↳ `guild` | object | Server information |
-| ↳ `channel` | object | Channel information |
-| ↳ `approximate_member_count` | number | Approximate member count |
-| ↳ `approximate_presence_count` | number | Approximate online count |
+|   ↳ `code` | string | Invite code |
+|   ↳ `guild` | object | Server information |
+|   ↳ `channel` | object | Channel information |
+|   ↳ `approximate_member_count` | number | Approximate member count |
+|   ↳ `approximate_presence_count` | number | Approximate online count |
 
 ### `discord_delete_invite`
 
@@ -774,7 +749,7 @@ Delete a Discord invite
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
 | `inviteCode` | string | Yes | The invite code to delete |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -791,9 +766,9 @@ Create a webhook in a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `channelId` | string | Yes | The Discord channel ID to create the webhook in |
+| `channelId` | string | Yes | The Discord channel ID to create the webhook in, e.g., 123456789012345678 |
 | `name` | string | Yes | Name of the webhook \(1-80 characters\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -801,11 +776,11 @@ Create a webhook in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created webhook data |
-| ↳ `id` | string | Webhook ID |
-| ↳ `name` | string | Webhook name |
-| ↳ `token` | string | Webhook token |
-| ↳ `url` | string | Webhook URL |
-| ↳ `channel_id` | string | Channel ID |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `name` | string | Webhook name |
+|   ↳ `token` | string | Webhook token |
+|   ↳ `url` | string | Webhook URL |
+|   ↳ `channel_id` | string | Channel ID |
 
 ### `discord_execute_webhook`
 
@@ -815,11 +790,11 @@ Execute a Discord webhook to send a message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookId` | string | Yes | The webhook ID |
+| `webhookId` | string | Yes | The webhook ID, e.g., 123456789012345678 |
 | `webhookToken` | string | Yes | The webhook token |
 | `content` | string | Yes | The message content to send |
 | `username` | string | No | Override the default username of the webhook |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -827,10 +802,10 @@ Execute a Discord webhook to send a message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Message sent via webhook |
-| ↳ `id` | string | Message ID |
-| ↳ `content` | string | Message content |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `timestamp` | string | Message timestamp |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
 
 ### `discord_get_webhook`
 
@@ -841,8 +816,8 @@ Get information about a Discord webhook
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `webhookId` | string | Yes | The webhook ID to retrieve |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `webhookId` | string | Yes | The webhook ID to retrieve, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -850,11 +825,11 @@ Get information about a Discord webhook
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Webhook data |
-| ↳ `id` | string | Webhook ID |
-| ↳ `name` | string | Webhook name |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `guild_id` | string | Server ID |
-| ↳ `token` | string | Webhook token |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `name` | string | Webhook name |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `guild_id` | string | Server ID |
+|   ↳ `token` | string | Webhook token |
 
 ### `discord_delete_webhook`
 
@@ -865,8 +840,8 @@ Delete a Discord webhook
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | The bot token for authentication |
-| `webhookId` | string | Yes | The webhook ID to delete |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
+| `webhookId` | string | Yes | The webhook ID to delete, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 

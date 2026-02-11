@@ -24,7 +24,7 @@ export const firefliesListTranscriptsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search keyword in meeting title or transcript',
+      description: 'Search keyword in meeting title or transcript (e.g., "quarterly review")',
     },
     fromDate: {
       type: 'string',
@@ -54,13 +54,13 @@ export const firefliesListTranscriptsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of transcripts to return (max 50)',
+      description: 'Maximum number of transcripts to return (e.g., 10, max 50)',
     },
     skip: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of transcripts to skip for pagination',
+      description: 'Number of transcripts to skip for pagination (e.g., 0, 10, 20)',
     },
   },
 

@@ -13,7 +13,7 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The URL to read and convert to markdown',
+      description: 'The URL to read and convert to markdown (e.g., "https://example.com/page")',
     },
     useReaderLMv2: {
       type: 'boolean',

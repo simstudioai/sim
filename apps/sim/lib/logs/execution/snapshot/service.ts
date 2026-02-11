@@ -1,8 +1,8 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
-import { workflowExecutionSnapshots } from '@sim/db/schema'
+import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, lt, notExists } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SnapshotService as ISnapshotService,
@@ -11,12 +11,7 @@ import type {
   WorkflowExecutionSnapshotInsert,
   WorkflowState,
 } from '@/lib/logs/types'
-import {
-  normalizedStringify,
-  normalizeEdge,
-  normalizeValue,
-  sortEdges,
-} from '@/lib/workflows/comparison'
+import { normalizedStringify, normalizeWorkflowState } from '@/lib/workflows/comparison'
 
 const logger = createLogger('SnapshotService')
 
@@ -38,9 +33,25 @@ export class SnapshotService implements ISnapshotService {
 
     const existingSnapshot = await this.getSnapshotByHash(workflowId, stateHash)
     if (existingSnapshot) {
-      logger.debug(`Reusing existing snapshot for workflow ${workflowId} with hash ${stateHash}`)
+      let refreshedState: WorkflowState = existingSnapshot.stateData
+      try {
+        await db
+          .update(workflowExecutionSnapshots)
+          .set({ stateData: state })
+          .where(eq(workflowExecutionSnapshots.id, existingSnapshot.id))
+        refreshedState = state
+      } catch (error) {
+        logger.warn(
+          `Failed to refresh snapshot stateData for ${existingSnapshot.id}, continuing with existing data`,
+          error
+        )
+      }
+
+      logger.info(
+        `Reusing existing snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
+      )
       return {
-        snapshot: existingSnapshot,
+        snapshot: { ...existingSnapshot, stateData: refreshedState },
         isNew: false,
       }
     }
@@ -59,8 +70,9 @@ export class SnapshotService implements ISnapshotService {
       .values(snapshotData)
       .returning()
 
-    logger.debug(`Created new snapshot for workflow ${workflowId} with hash ${stateHash}`)
-    logger.debug(`Stored full state with ${Object.keys(state.blocks || {}).length} blocks`)
+    logger.info(
+      `Created new snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}..., blocks: ${Object.keys(state.blocks || {}).length})`
+    )
     return {
       snapshot: {
         ...newSnapshot,
@@ -112,7 +124,7 @@ export class SnapshotService implements ISnapshotService {
   }
 
   computeStateHash(state: WorkflowState): string {
-    const normalizedState = this.normalizeStateForHashing(state)
+    const normalizedState = normalizeWorkflowState(state)
     const stateString = normalizedStringify(normalizedState)
     return createHash('sha256').update(stateString).digest('hex')
   }
@@ -123,75 +135,22 @@ export class SnapshotService implements ISnapshotService {
 
     const deletedSnapshots = await db
       .delete(workflowExecutionSnapshots)
-      .where(lt(workflowExecutionSnapshots.createdAt, cutoffDate))
+      .where(
+        and(
+          lt(workflowExecutionSnapshots.createdAt, cutoffDate),
+          notExists(
+            db
+              .select({ id: workflowExecutionLogs.id })
+              .from(workflowExecutionLogs)
+              .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+          )
+        )
+      )
       .returning({ id: workflowExecutionSnapshots.id })
 
     const deletedCount = deletedSnapshots.length
     logger.info(`Cleaned up ${deletedCount} orphaned snapshots older than ${olderThanDays} days`)
     return deletedCount
-  }
-
-  private normalizeStateForHashing(state: WorkflowState): any {
-    // 1. Normalize and sort edges
-    const normalizedEdges = sortEdges((state.edges || []).map(normalizeEdge))
-
-    // 2. Normalize blocks
-    const normalizedBlocks: Record<string, any> = {}
-
-    for (const [blockId, block] of Object.entries(state.blocks || {})) {
-      const { position, layout, height, ...blockWithoutLayoutFields } = block
-
-      // Also exclude width/height from data object (container dimensions from autolayout)
-      const {
-        width: _dataWidth,
-        height: _dataHeight,
-        ...dataRest
-      } = blockWithoutLayoutFields.data || {}
-
-      // Normalize subBlocks
-      const subBlocks = blockWithoutLayoutFields.subBlocks || {}
-      const normalizedSubBlocks: Record<string, any> = {}
-
-      for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-        const value = subBlock.value ?? null
-
-        normalizedSubBlocks[subBlockId] = {
-          type: subBlock.type,
-          value: normalizeValue(value),
-          ...Object.fromEntries(
-            Object.entries(subBlock).filter(([key]) => key !== 'value' && key !== 'type')
-          ),
-        }
-      }
-
-      normalizedBlocks[blockId] = {
-        ...blockWithoutLayoutFields,
-        data: dataRest,
-        subBlocks: normalizedSubBlocks,
-      }
-    }
-
-    // 3. Normalize loops and parallels
-    const normalizedLoops: Record<string, any> = {}
-    for (const [loopId, loop] of Object.entries(state.loops || {})) {
-      normalizedLoops[loopId] = normalizeValue(loop)
-    }
-
-    const normalizedParallels: Record<string, any> = {}
-    for (const [parallelId, parallel] of Object.entries(state.parallels || {})) {
-      normalizedParallels[parallelId] = normalizeValue(parallel)
-    }
-
-    // 4. Normalize variables (if present)
-    const normalizedVariables = state.variables ? normalizeValue(state.variables) : undefined
-
-    return {
-      blocks: normalizedBlocks,
-      edges: normalizedEdges,
-      loops: normalizedLoops,
-      parallels: normalizedParallels,
-      ...(normalizedVariables !== undefined && { variables: normalizedVariables }),
-    }
   }
 }
 

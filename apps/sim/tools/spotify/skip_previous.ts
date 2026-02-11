@@ -1,5 +1,5 @@
+import type { SpotifySkipPreviousParams, SpotifySkipPreviousResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifySkipPreviousParams, SpotifySkipPreviousResponse } from './types'
 
 export const spotifySkipPreviousTool: ToolConfig<
   SpotifySkipPreviousParams,

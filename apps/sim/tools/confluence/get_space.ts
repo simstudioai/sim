@@ -1,3 +1,4 @@
+import { SPACE_DESCRIPTION_OUTPUT_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetSpaceParams {
@@ -17,6 +18,13 @@ export interface ConfluenceGetSpaceResponse {
     type: string
     status: string
     url: string
+    authorId: string | null
+    createdAt: string | null
+    homepageId: string | null
+    description: {
+      value: string
+      representation: string
+    } | null
   }
 }
 
@@ -95,17 +103,34 @@ export const confluenceGetSpaceTool: ToolConfig<
         type: data.type,
         status: data.status,
         url: data._links?.webui || '',
+        authorId: data.authorId ?? null,
+        createdAt: data.createdAt ?? null,
+        homepageId: data.homepageId ?? null,
+        description: data.description ?? null,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
+    ts: TIMESTAMP_OUTPUT,
     spaceId: { type: 'string', description: 'Space ID' },
     name: { type: 'string', description: 'Space name' },
     key: { type: 'string', description: 'Space key' },
-    type: { type: 'string', description: 'Space type' },
-    status: { type: 'string', description: 'Space status' },
-    url: { type: 'string', description: 'Space URL' },
+    type: { type: 'string', description: 'Space type (global, personal)' },
+    status: { type: 'string', description: 'Space status (current, archived)' },
+    url: { type: 'string', description: 'URL to view the space in Confluence' },
+    authorId: { type: 'string', description: 'Account ID of the space creator', optional: true },
+    createdAt: {
+      type: 'string',
+      description: 'ISO 8601 timestamp when the space was created',
+      optional: true,
+    },
+    homepageId: { type: 'string', description: 'ID of the space homepage', optional: true },
+    description: {
+      type: 'object',
+      description: 'Space description content',
+      properties: SPACE_DESCRIPTION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
   },
 }

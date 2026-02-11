@@ -189,6 +189,7 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
     subBlocks: jsonb('sub_blocks').notNull().default('{}'),
@@ -268,9 +269,7 @@ export const workflowExecutionSnapshots = pgTable(
   'workflow_execution_snapshots',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     stateHash: text('state_hash').notNull(),
     stateData: jsonb('state_data').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -290,9 +289,7 @@ export const workflowExecutionLogs = pgTable(
   'workflow_execution_logs',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
@@ -718,6 +715,10 @@ export const userStats = pgTable('user_stats', {
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
+  // MCP Copilot usage tracking
+  totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
+  totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
+  currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   // Storage tracking (for free/pro users)
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
@@ -742,6 +743,27 @@ export const customTools = pgTable(
     workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
       table.workspaceId,
       table.title
+    ),
+  })
+)
+
+export const skill = pgTable(
+  'skill',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('skill_workspace_id_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('skill_workspace_name_unique').on(
+      table.workspaceId,
+      table.name
     ),
   })
 )
@@ -1634,6 +1656,7 @@ export const workflowDeploymentVersion = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     name: text('name'),
+    description: text('description'),
     state: json('state').notNull(),
     isActive: boolean('is_active').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1656,20 +1679,13 @@ export const workflowDeploymentVersion = pgTable(
 export const idempotencyKey = pgTable(
   'idempotency_key',
   {
-    key: text('key').notNull(),
-    namespace: text('namespace').notNull().default('default'),
+    key: text('key').primaryKey(),
     result: json('result').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary key is combination of key and namespace
-    keyNamespacePk: uniqueIndex('idempotency_key_namespace_unique').on(table.key, table.namespace),
-
     // Index for cleanup operations by creation time
     createdAtIdx: index('idempotency_key_created_at_idx').on(table.createdAt),
-
-    // Index for namespace-based queries
-    namespaceIdx: index('idempotency_key_namespace_idx').on(table.namespace),
   })
 )
 
@@ -1956,7 +1972,12 @@ export const a2aPushNotificationConfig = pgTable(
 )
 
 export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
-export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', [
+  'workflow',
+  'wand',
+  'copilot',
+  'mcp_copilot',
+])
 
 export const usageLog = pgTable(
   'usage_log',
@@ -2131,6 +2152,37 @@ export const permissionGroupMember = pgTable(
   (table) => ({
     permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
     userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
+  })
+)
+
+/**
+ * Async Jobs - Queue for background job processing (Redis/DB backends)
+ * Used when trigger.dev is not available for async workflow executions
+ */
+export const asyncJobs = pgTable(
+  'async_jobs',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    runAt: timestamp('run_at'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    error: text('error'),
+    output: jsonb('output'),
+    metadata: jsonb('metadata').notNull().default('{}'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusStartedAtIdx: index('async_jobs_status_started_at_idx').on(table.status, table.startedAt),
+    statusCompletedAtIdx: index('async_jobs_status_completed_at_idx').on(
+      table.status,
+      table.completedAt
+    ),
   })
 )
 

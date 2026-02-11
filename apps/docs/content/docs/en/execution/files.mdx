@@ -1,0 +1,168 @@
+---
+title: Passing Files
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Sim makes it easy to work with files throughout your workflows. Blocks can receive files, process them, and pass them to other blocks seamlessly.
+
+## File Objects
+
+When blocks output files (like Gmail attachments, generated images, or parsed documents), they return a standardized file object:
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+You can access any of these properties when referencing files from previous blocks.
+
+## The File Block
+
+The **File block** is the universal entry point for files in your workflows. It accepts files from any source and outputs standardized file objects that work with all integrations.
+
+**Inputs:**
+- **Uploaded files** - Drag and drop or select files directly
+- **External URLs** - Any publicly accessible file URL
+- **Files from other blocks** - Pass files from Gmail attachments, Slack downloads, etc.
+
+**Outputs:**
+- A list of `UserFile` objects with consistent structure (`name`, `url`, `base64`, `type`, `size`)
+- `combinedContent` - Extracted text content from all files (for documents)
+
+**Example usage:**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+The File block automatically:
+- Detects file types from URLs and extensions
+- Extracts text from PDFs, CSVs, and documents
+- Generates base64 encoding for binary files
+- Creates presigned URLs for secure access
+
+Use the File block when you need to normalize files from different sources before passing them to other blocks like Vision, STT, or email integrations.
+
+## Passing Files Between Blocks
+
+Reference files from previous blocks using the tag dropdown. Click in any file input field and type `<` to see available outputs.
+
+**Common patterns:**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+Most blocks accept the full file object and extract what they need automatically. You don't need to manually extract `base64` or `url` in most cases.
+
+## Triggering Workflows with Files
+
+When calling a workflow via API that expects file input, include files in your request:
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+  </Tab>
+  <Tab value="URL">
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+The workflow's Start block should have an input field configured to receive the file parameter.
+
+## Receiving Files in API Responses
+
+When a workflow outputs files, they're included in the response:
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+Use `url` for direct downloads or `base64` for inline processing.
+
+## Blocks That Work with Files
+
+**File inputs:**
+- **File** - Parse documents, images, and text files
+- **Vision** - Analyze images with AI models
+- **Mistral Parser** - Extract text from PDFs
+
+**File outputs:**
+- **Gmail** - Email attachments
+- **Slack** - Downloaded files
+- **TTS** - Generated audio files
+- **Video Generator** - Generated videos
+- **Image Generator** - Generated images
+
+**File storage:**
+- **Supabase** - Upload/download from storage
+- **S3** - AWS S3 operations
+- **Google Drive** - Drive file operations
+- **Dropbox** - Dropbox file operations
+
+<Callout type="info">
+  Files are automatically available to downstream blocks. The execution engine handles all file transfer and format conversion.
+</Callout>
+
+## Best Practices
+
+1. **Use file objects directly** - Pass the full file object rather than extracting individual properties. Blocks handle the conversion automatically.
+
+2. **Check file types** - Ensure the file type matches what the receiving block expects. The Vision block needs images, the File block handles documents.
+
+3. **Consider file size** - Large files increase execution time. For very large files, consider using storage blocks (S3, Supabase) for intermediate storage.

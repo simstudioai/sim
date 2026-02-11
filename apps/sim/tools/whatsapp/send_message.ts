@@ -11,26 +11,26 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
     phoneNumber: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Recipient phone number with country code',
+      visibility: 'user-or-llm',
+      description: 'Recipient phone number with country code (e.g., +14155552671)',
     },
     message: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Message content to send',
+      description: 'Message content to send (plain text or template content)',
     },
     phoneNumberId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WhatsApp Business Phone Number ID',
+      description: 'WhatsApp Business Phone Number ID (from Meta Business Suite)',
     },
     accessToken: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'WhatsApp Business API Access Token',
+      description: 'WhatsApp Business API Access Token (from Meta Developer Portal)',
     },
   },
 

@@ -3,8 +3,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronDown, RepeatIcon, SplitIcon } from 'lucide-react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { ChevronDown } from '@/components/emcn'
 import {
   FieldItem,
   type SchemaField,
@@ -60,8 +61,6 @@ function ConnectionItem({
     blockId: connection.id,
     blockType: connection.type,
     mergedSubBlocks,
-    responseFormat: connection.responseFormat,
-    operation: connection.operation,
     triggerMode: sourceBlock?.triggerMode,
   })
   const hasFields = fields.length > 0
@@ -115,9 +114,8 @@ function ConnectionItem({
         {hasFields && (
           <ChevronDown
             className={clsx(
-              'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-              'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
-              isExpanded && 'rotate-180'
+              'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+              !isExpanded && '-rotate-90'
             )}
           />
         )}

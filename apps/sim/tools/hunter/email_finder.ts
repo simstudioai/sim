@@ -1,4 +1,5 @@
 import type { HunterEmailFinderParams, HunterEmailFinderResponse } from '@/tools/hunter/types'
+import { SOURCES_OUTPUT, VERIFICATION_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFinderResponse> = {
@@ -13,25 +14,25 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Company domain name',
+      description: 'Company domain name (e.g., "stripe.com", "company.io")',
     },
     first_name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Person's first name",
+      description: 'Person\'s first name (e.g., "John", "Sarah")',
     },
     last_name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Person's last name",
+      description: 'Person\'s last name (e.g., "Smith", "Johnson")',
     },
     company: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company name',
+      description: 'Company name (e.g., "Stripe", "Acme Inc")',
     },
     apiKey: {
       type: 'string',
@@ -80,16 +81,9 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
     },
     score: {
       type: 'number',
-      description: 'Confidence score for the found email address',
+      description: 'Confidence score (0-100) for the found email address',
     },
-    sources: {
-      type: 'array',
-      description:
-        'Array of sources where the email was found, each containing domain, uri, extracted_on, last_seen_on, and still_on_page',
-    },
-    verification: {
-      type: 'object',
-      description: 'Verification information containing date and status',
-    },
+    sources: SOURCES_OUTPUT,
+    verification: VERIFICATION_OUTPUT,
   },
 }

@@ -1,5 +1,5 @@
+import type { GoogleGroupsCreateParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsCreateParams, GoogleGroupsResponse } from './types'
 
 export const createGroupTool: ToolConfig<GoogleGroupsCreateParams, GoogleGroupsResponse> = {
   id: 'google_groups_create_group',
@@ -23,13 +23,13 @@ export const createGroupTool: ToolConfig<GoogleGroupsCreateParams, GoogleGroupsR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email address for the new group (e.g., team@yourdomain.com)',
+      description: 'Email address for the new group (e.g., team@example.com)',
     },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Display name for the group',
+      description: 'Display name for the group (e.g., Engineering Team)',
     },
     description: {
       type: 'string',

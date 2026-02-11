@@ -28,20 +28,22 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     driveId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the document library (drive). If not provided, uses default drive.',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the document library (drive). If not provided, uses default drive. Example: b!abc123def456',
     },
     folderPath: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional folder path within the document library (e.g., /Documents/Subfolder)',
+      visibility: 'user-or-llm',
+      description:
+        'Optional folder path within the document library. Example: /Documents/Subfolder or /Shared Documents/Reports',
     },
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional: override the uploaded file name',
+      visibility: 'user-or-llm',
+      description: 'Optional: override the uploaded file name. Example: report-2024.pdf',
     },
     files: {
       type: 'file[]',

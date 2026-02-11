@@ -22,8 +22,8 @@ export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearc
     workspace: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Workspace GID to search tasks in',
+      visibility: 'user-or-llm',
+      description: 'Asana workspace GID (numeric string) to search tasks in',
     },
     text: {
       type: 'string',
@@ -40,8 +40,8 @@ export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearc
     projects: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
-      description: 'Array of project GIDs to filter tasks by',
+      visibility: 'user-or-llm',
+      description: 'Array of Asana project GIDs (numeric strings) to filter tasks by',
     },
     completed: {
       type: 'boolean',

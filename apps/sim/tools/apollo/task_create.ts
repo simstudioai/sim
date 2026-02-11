@@ -24,13 +24,13 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Contact ID to associate with',
+      description: 'Contact ID to associate with (e.g., "con_abc123")',
     },
     account_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Account ID to associate with',
+      description: 'Account ID to associate with (e.g., "acc_abc123")',
     },
     due_at: {
       type: 'string',

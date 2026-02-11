@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
-import type { BlockLog, ExecutionContext } from '@/executor/types'
+import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
 
 const logger = createLogger('SubflowUtils')
@@ -208,6 +208,7 @@ export function addSubflowErrorLog(
   contextExtensions: ContextExtensions | null
 ): void {
   const now = new Date().toISOString()
+  const execOrder = getNextExecutionOrder(ctx)
 
   const block = ctx.workflow?.blocks?.find((b) => b.id === blockId)
   const blockName = block?.metadata?.name || (blockType === 'loop' ? 'Loop' : 'Parallel')
@@ -217,6 +218,7 @@ export function addSubflowErrorLog(
     blockName,
     blockType,
     startedAt: now,
+    executionOrder: execOrder,
     endedAt: now,
     durationMs: 0,
     success: false,
@@ -227,11 +229,18 @@ export function addSubflowErrorLog(
   }
   ctx.blockLogs.push(blockLog)
 
+  if (contextExtensions?.onBlockStart) {
+    contextExtensions.onBlockStart(blockId, blockName, blockType, execOrder)
+  }
+
   if (contextExtensions?.onBlockComplete) {
     contextExtensions.onBlockComplete(blockId, blockName, blockType, {
       input: inputData,
       output: { error: errorMessage },
       executionTime: 0,
+      startedAt: now,
+      executionOrder: execOrder,
+      endedAt: now,
     })
   }
 }

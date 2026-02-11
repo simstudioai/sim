@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
@@ -7,8 +8,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraWriteAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const {
       domain,
       accessToken,
@@ -26,6 +32,8 @@ export async function POST(request: Request) {
       environment,
       customFieldId,
       customFieldValue,
+      components,
+      fixVersions,
     } = await request.json()
 
     if (!domain) {
@@ -67,10 +75,9 @@ export async function POST(request: Request) {
 
     logger.info('Creating Jira issue at:', url)
 
+    const isNumericProjectId = /^\d+$/.test(projectId)
     const fields: Record<string, any> = {
-      project: {
-        id: projectId,
-      },
+      project: isNumericProjectId ? { id: projectId } : { key: projectId },
       issuetype: {
         name: normalizedIssueType,
       },
@@ -108,13 +115,31 @@ export async function POST(request: Request) {
       fields.labels = labels
     }
 
+    if (
+      components !== undefined &&
+      components !== null &&
+      Array.isArray(components) &&
+      components.length > 0
+    ) {
+      fields.components = components.map((name: string) => ({ name }))
+    }
+
     if (duedate !== undefined && duedate !== null && duedate !== '') {
       fields.duedate = duedate
     }
 
+    if (
+      fixVersions !== undefined &&
+      fixVersions !== null &&
+      Array.isArray(fixVersions) &&
+      fixVersions.length > 0
+    ) {
+      fields.fixVersions = fixVersions.map((name: string) => ({ name }))
+    }
+
     if (reporter !== undefined && reporter !== null && reporter !== '') {
       fields.reporter = {
-        id: reporter,
+        accountId: reporter,
       }
     }
 
@@ -214,8 +239,10 @@ export async function POST(request: Request) {
       success: true,
       output: {
         ts: new Date().toISOString(),
+        id: responseData.id || '',
         issueKey: issueKey,
-        summary: responseData.fields?.summary || 'Issue created',
+        self: responseData.self || '',
+        summary: responseData.fields?.summary || summary || 'Issue created',
         success: true,
         url: `https://${domain}/browse/${issueKey}`,
         ...(assigneeId && { assigneeId }),

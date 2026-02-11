@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateCommentParams,
   type WordPressCreateCommentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createCommentTool: ToolConfig<
   WordPressCreateCommentParams,
@@ -24,7 +24,7 @@ export const createCommentTool: ToolConfig<
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     postId: {

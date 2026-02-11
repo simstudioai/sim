@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
-import type {
-  SupabaseStorageDownloadParams,
-  SupabaseStorageDownloadResponse,
+import {
+  STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
+  type SupabaseStorageDownloadParams,
+  type SupabaseStorageDownloadResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,7 +39,7 @@ export const storageDownloadTool: ToolConfig<
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Optional filename override',
     },
     apiKey: {
@@ -116,6 +117,10 @@ export const storageDownloadTool: ToolConfig<
   },
 
   outputs: {
-    file: { type: 'file', description: 'Downloaded file stored in execution files' },
+    file: {
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
+      properties: STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
+    },
   },
 }

@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.3.3-alpine AS base
+FROM oven/bun:1.3.9-alpine AS base
 
 # ========================================
 # Dependencies Stage: Install Dependencies

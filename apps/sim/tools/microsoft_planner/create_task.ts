@@ -32,14 +32,15 @@ export const createTaskTool: ToolConfig<
     planId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the plan where the task will be created',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the plan where the task will be created (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
     },
     title: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The title of the task',
+      visibility: 'user-or-llm',
+      description: 'The title of the task (e.g., "Review quarterly report")',
     },
     description: {
       type: 'string',
@@ -50,20 +51,22 @@ export const createTaskTool: ToolConfig<
     dueDateTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The due date and time for the task (ISO 8601 format)',
+      visibility: 'user-or-llm',
+      description:
+        'The due date and time for the task in ISO 8601 format (e.g., "2025-03-15T17:00:00Z")',
     },
     assigneeUserId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The user ID to assign the task to',
+      visibility: 'user-or-llm',
+      description:
+        'The user ID to assign the task to (e.g., "e82f74c3-4d8a-4b5c-9f1e-2a6b8c9d0e3f")',
     },
     bucketId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The bucket ID to place the task in',
+      visibility: 'user-or-llm',
+      description: 'The bucket ID to place the task in (e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq")',
     },
   },
 

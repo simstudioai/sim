@@ -1,4 +1,8 @@
 {{- if .Values.ingress.enabled }}
+{{- $appActive := .Values.app.enabled -}}
+{{- $realtimeActive := .Values.realtime.enabled -}}
+{{- $hasCopilotIngress := and .Values.copilot.enabled .Values.ingress.copilot -}}
+{{- $realtimeHasOwnRule := and $realtimeActive (or (not $appActive) (ne .Values.ingress.realtime.host .Values.ingress.app.host)) -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -17,20 +21,53 @@ spec:
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.app.host }}
-        {{- if .Values.realtime.enabled }}
-        - {{ .Values.ingress.realtime.host }}
+        {{- if $appActive }}
+        - {{ .Values.ingress.app.host | quote }}
         {{- end }}
-        {{- if and .Values.copilot.enabled .Values.ingress.copilot }}
-        - {{ .Values.ingress.copilot.host }}
+        {{- if $realtimeHasOwnRule }}
+        - {{ .Values.ingress.realtime.host | quote }}
+        {{- end }}
+        {{- if $hasCopilotIngress }}
+          {{- $copilotHostCovered := false }}
+          {{- if and $appActive (eq .Values.ingress.copilot.host .Values.ingress.app.host) }}
+            {{- $copilotHostCovered = true }}
+          {{- end }}
+          {{- if and $realtimeHasOwnRule (eq .Values.ingress.copilot.host .Values.ingress.realtime.host) }}
+            {{- $copilotHostCovered = true }}
+          {{- end }}
+          {{- if not $copilotHostCovered }}
+        - {{ .Values.ingress.copilot.host | quote }}
+          {{- end }}
         {{- end }}
       secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
   rules:
-    # Main application ingress rule
-    - host: {{ .Values.ingress.app.host }}
+    {{- if $appActive }}
+    - host: {{ .Values.ingress.app.host | quote }}
       http:
         paths:
+          {{- if and $realtimeActive (eq .Values.ingress.realtime.host .Values.ingress.app.host) }}
+          {{- range .Values.ingress.realtime.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-realtime
+                port:
+                  number: {{ $.Values.realtime.service.port }}
+          {{- end }}
+          {{- end }}
+          {{- if and $hasCopilotIngress (eq .Values.ingress.copilot.host .Values.ingress.app.host) }}
+          {{- range .Values.ingress.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+          {{- end }}
           {{- range .Values.ingress.app.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
@@ -40,9 +77,9 @@ spec:
                 port:
                   number: {{ $.Values.app.service.port }}
           {{- end }}
-    {{- if .Values.realtime.enabled }}
-    # Realtime service ingress rule
-    - host: {{ .Values.ingress.realtime.host }}
+    {{- end }}
+    {{- if $realtimeHasOwnRule }}
+    - host: {{ .Values.ingress.realtime.host | quote }}
       http:
         paths:
           {{- range .Values.ingress.realtime.paths }}
@@ -54,10 +91,28 @@ spec:
                 port:
                   number: {{ $.Values.realtime.service.port }}
           {{- end }}
+          {{- if and $hasCopilotIngress (eq .Values.ingress.copilot.host .Values.ingress.realtime.host) }}
+          {{- range .Values.ingress.copilot.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-copilot
+                port:
+                  number: {{ $.Values.copilot.server.service.port }}
+          {{- end }}
+          {{- end }}
     {{- end }}
-    {{- if and .Values.copilot.enabled .Values.ingress.copilot }}
-    # Copilot service ingress rule
-    - host: {{ .Values.ingress.copilot.host }}
+    {{- if $hasCopilotIngress }}
+      {{- $copilotServed := false }}
+      {{- if and $appActive (eq .Values.ingress.copilot.host .Values.ingress.app.host) }}
+        {{- $copilotServed = true }}
+      {{- end }}
+      {{- if and $realtimeHasOwnRule (eq .Values.ingress.copilot.host .Values.ingress.realtime.host) }}
+        {{- $copilotServed = true }}
+      {{- end }}
+      {{- if not $copilotServed }}
+    - host: {{ .Values.ingress.copilot.host | quote }}
       http:
         paths:
           {{- range .Values.ingress.copilot.paths }}
@@ -69,5 +124,6 @@ spec:
                 port:
                   number: {{ $.Values.copilot.server.service.port }}
           {{- end }}
+      {{- end }}
     {{- end }}
 {{- end }}

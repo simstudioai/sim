@@ -10,27 +10,28 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
 > = {
   id: 'youtube_channel_playlists',
   name: 'YouTube Channel Playlists',
-  description: 'Get all playlists from a specific YouTube channel.',
-  version: '1.0.0',
+  description: 'Get all public playlists from a specific YouTube channel.',
+  version: '1.1.0',
   params: {
     channelId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'YouTube channel ID to get playlists from',
+      description:
+        'YouTube channel ID starting with "UC" (24-character string) to get playlists from',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 10,
       description: 'Maximum number of playlists to return (1-50)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',
@@ -47,7 +48,7 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
       )}&key=${params.apiKey}`
       url += `&maxResults=${Number(params.maxResults || 10)}`
       if (params.pageToken) {
-        url += `&pageToken=${params.pageToken}`
+        url += `&pageToken=${encodeURIComponent(params.pageToken)}`
       }
       return url
     },
@@ -60,36 +61,49 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
   transformResponse: async (response: Response): Promise<YouTubeChannelPlaylistsResponse> => {
     const data = await response.json()
 
-    if (!data.items) {
+    if (data.error) {
       return {
         success: false,
         output: {
           items: [],
           totalResults: 0,
+          nextPageToken: null,
         },
-        error: 'No playlists found',
+        error: data.error.message || 'Failed to fetch channel playlists',
+      }
+    }
+
+    if (!data.items || data.items.length === 0) {
+      return {
+        success: true,
+        output: {
+          items: [],
+          totalResults: 0,
+          nextPageToken: null,
+        },
       }
     }
 
     const items = (data.items || []).map((item: any) => ({
-      playlistId: item.id,
-      title: item.snippet?.title || '',
-      description: item.snippet?.description || '',
+      playlistId: item.id ?? '',
+      title: item.snippet?.title ?? '',
+      description: item.snippet?.description ?? '',
       thumbnail:
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.default?.url ||
         item.snippet?.thumbnails?.high?.url ||
         '',
-      itemCount: item.contentDetails?.itemCount || 0,
-      publishedAt: item.snippet?.publishedAt || '',
+      itemCount: Number(item.contentDetails?.itemCount || 0),
+      publishedAt: item.snippet?.publishedAt ?? '',
+      channelTitle: item.snippet?.channelTitle ?? '',
     }))
 
     return {
       success: true,
       output: {
         items,
-        totalResults: data.pageInfo?.totalResults || 0,
-        nextPageToken: data.nextPageToken,
+        totalResults: data.pageInfo?.totalResults || items.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
@@ -107,6 +121,7 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
           thumbnail: { type: 'string', description: 'Playlist thumbnail URL' },
           itemCount: { type: 'number', description: 'Number of videos in playlist' },
           publishedAt: { type: 'string', description: 'Playlist creation date' },
+          channelTitle: { type: 'string', description: 'Channel name' },
         },
       },
     },

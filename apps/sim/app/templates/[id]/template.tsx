@@ -36,7 +36,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { CredentialRequirement } from '@/lib/workflows/credentials/credential-extractor'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate, useTemplate } from '@/hooks/queries/templates'
 
@@ -330,7 +330,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     try {
       return (
-        <WorkflowPreview
+        <PreviewWorkflow
           workflowState={template.state}
           height='100%'
           width='100%'
@@ -508,8 +508,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsApproving(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}/approve`, {
-        method: 'POST',
+      const response = await fetch(`/api/templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved' }),
       })
 
       if (response.ok) {
@@ -531,8 +533,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsRejecting(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}/reject`, {
-        method: 'POST',
+      const response = await fetch(`/api/templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' }),
       })
 
       if (response.ok) {
@@ -554,10 +558,11 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsVerifying(true)
     try {
-      const endpoint = `/api/creators/${template.creator.id}/verify`
-      const method = template.creator.verified ? 'DELETE' : 'POST'
-
-      const response = await fetch(endpoint, { method })
+      const response = await fetch(`/api/creators/${template.creator.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verified: !template.creator.verified }),
+      })
 
       if (response.ok) {
         // Refresh page to show updated verification status

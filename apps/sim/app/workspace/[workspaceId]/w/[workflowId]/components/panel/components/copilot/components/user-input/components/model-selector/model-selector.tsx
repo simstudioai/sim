@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Popover,
@@ -9,8 +9,8 @@ import {
   PopoverItem,
   PopoverScrollArea,
 } from '@/components/emcn'
-import { getProviderIcon } from '@/providers/utils'
-import { MODEL_OPTIONS } from '../../constants'
+import { AnthropicIcon, AzureIcon, BedrockIcon, GeminiIcon, OpenAIIcon } from '@/components/icons'
+import { useCopilotStore } from '@/stores/panel'
 
 interface ModelSelectorProps {
   /** Currently selected model */
@@ -22,14 +22,22 @@ interface ModelSelectorProps {
 }
 
 /**
- * Gets the appropriate icon component for a model
+ * Map a provider string (from the available-models API) to its icon component.
+ * Falls back to null when the provider is unrecognised.
  */
-function getModelIconComponent(modelValue: string) {
-  const IconComponent = getProviderIcon(modelValue)
-  if (!IconComponent) {
-    return null
-  }
-  return <IconComponent className='h-3.5 w-3.5' />
+const PROVIDER_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  anthropic: AnthropicIcon,
+  openai: OpenAIIcon,
+  gemini: GeminiIcon,
+  google: GeminiIcon,
+  bedrock: BedrockIcon,
+  azure: AzureIcon,
+  'azure-openai': AzureIcon,
+  'azure-anthropic': AzureIcon,
+}
+
+function getIconForProvider(provider: string): React.ComponentType<{ className?: string }> | null {
+  return PROVIDER_ICON_MAP[provider] ?? null
 }
 
 /**
@@ -43,22 +51,58 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const availableModels = useCopilotStore((state) => state.availableModels)
+
+  const modelOptions = useMemo(() => {
+    return availableModels.map((model) => ({
+      value: model.id,
+      label: model.friendlyName || model.id,
+      provider: model.provider,
+    }))
+  }, [availableModels])
+
+  /**
+   * Extract the provider from a composite model key (e.g. "bedrock/claude-opus-4-6" → "bedrock").
+   * This mirrors the agent block pattern where model IDs are provider-prefixed.
+   */
+  const getProviderForModel = (compositeKey: string): string | undefined => {
+    const slashIdx = compositeKey.indexOf('/')
+    if (slashIdx !== -1) return compositeKey.slice(0, slashIdx)
+
+    // Legacy migration path: allow old raw IDs (without provider prefix)
+    // by resolving against current available model options.
+    const exact = modelOptions.find((m) => m.value === compositeKey)
+    if (exact?.provider) return exact.provider
+
+    const byRawSuffix = modelOptions.find((m) => m.value.endsWith(`/${compositeKey}`))
+    return byRawSuffix?.provider
+  }
 
   const getCollapsedModeLabel = () => {
-    const model = MODEL_OPTIONS.find((m) => m.value === selectedModel)
-    return model ? model.label : 'claude-4.5-sonnet'
+    const model =
+      modelOptions.find((m) => m.value === selectedModel) ??
+      modelOptions.find((m) => m.value.endsWith(`/${selectedModel}`))
+    return model?.label || selectedModel || 'No models available'
   }
 
   const getModelIcon = () => {
-    const IconComponent = getProviderIcon(selectedModel)
-    if (!IconComponent) {
-      return null
-    }
+    const provider = getProviderForModel(selectedModel)
+    if (!provider) return null
+    const IconComponent = getIconForProvider(provider)
+    if (!IconComponent) return null
     return (
       <span className='flex-shrink-0'>
         <IconComponent className='h-3 w-3' />
       </span>
     )
+  }
+
+  const getModelIconComponent = (modelValue: string) => {
+    const provider = getProviderForModel(modelValue)
+    if (!provider) return null
+    const IconComponent = getIconForProvider(provider)
+    if (!IconComponent) return null
+    return <IconComponent className='h-3.5 w-3.5' />
   }
 
   const handleSelect = (modelValue: string) => {
@@ -124,16 +168,20 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <PopoverScrollArea className='space-y-[2px]'>
-          {MODEL_OPTIONS.map((option) => (
-            <PopoverItem
-              key={option.value}
-              active={selectedModel === option.value}
-              onClick={() => handleSelect(option.value)}
-            >
-              {getModelIconComponent(option.value)}
-              <span>{option.label}</span>
-            </PopoverItem>
-          ))}
+          {modelOptions.length > 0 ? (
+            modelOptions.map((option) => (
+              <PopoverItem
+                key={option.value}
+                active={selectedModel === option.value}
+                onClick={() => handleSelect(option.value)}
+              >
+                {getModelIconComponent(option.value)}
+                <span>{option.label}</span>
+              </PopoverItem>
+            ))
+          ) : (
+            <div className='px-2 py-2 text-[var(--text-muted)] text-xs'>No models available</div>
+          )}
         </PopoverScrollArea>
       </PopoverContent>
     </Popover>

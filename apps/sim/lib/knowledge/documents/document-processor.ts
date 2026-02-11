@@ -7,13 +7,14 @@ import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')
 
 const TIMEOUTS = {
-  FILE_DOWNLOAD: 180000,
+  FILE_DOWNLOAD: 600000,
   MISTRAL_OCR_API: 120000,
 } as const
 
@@ -245,7 +246,7 @@ async function handleFileForOCR(
   userId?: string,
   workspaceId?: string | null
 ) {
-  const isExternalHttps = fileUrl.startsWith('https://') && !fileUrl.includes('/api/files/serve/')
+  const isExternalHttps = fileUrl.startsWith('https://') && !isInternalFileUrl(fileUrl)
 
   if (isExternalHttps) {
     if (mimeType === 'application/pdf') {
@@ -489,7 +490,7 @@ async function parseWithMistralOCR(
     workspaceId
   )
 
-  logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${httpsUrl.substring(0, 120)}...`)
+  logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${httpsUrl}`)
 
   let pageCount = 0
   if (mimeType === 'application/pdf' && buffer) {

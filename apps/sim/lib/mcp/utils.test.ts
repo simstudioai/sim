@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   categorizeError,
   createMcpToolId,
@@ -82,7 +83,7 @@ describe('generateMcpServerId', () => {
 
 describe('MCP_CONSTANTS', () => {
   it.concurrent('has correct execution timeout', () => {
-    expect(MCP_CONSTANTS.EXECUTION_TIMEOUT).toBe(60000)
+    expect(MCP_CONSTANTS.EXECUTION_TIMEOUT).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
   })
 
   it.concurrent('has correct cache timeout (5 minutes)', () => {
@@ -108,7 +109,7 @@ describe('MCP_CONSTANTS', () => {
 
 describe('MCP_CLIENT_CONSTANTS', () => {
   it.concurrent('has correct client timeout', () => {
-    expect(MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT).toBe(60000)
+    expect(MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
   })
 
   it.concurrent('has correct auto refresh interval (5 minutes)', () => {

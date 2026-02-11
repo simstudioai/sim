@@ -72,16 +72,26 @@ export type GetBlockConfigResultType = z.infer<typeof GetBlockConfigResult>
 
 // knowledge_base - shared schema used by client tool, server tool, and registry
 export const KnowledgeBaseArgsSchema = z.object({
-  operation: z.enum(['create', 'list', 'get', 'query']),
+  operation: z.enum([
+    'create',
+    'list',
+    'get',
+    'query',
+    'list_tags',
+    'create_tag',
+    'update_tag',
+    'delete_tag',
+    'get_tag_usage',
+  ]),
   args: z
     .object({
       /** Name of the knowledge base (required for create) */
       name: z.string().optional(),
       /** Description of the knowledge base (optional for create) */
       description: z.string().optional(),
-      /** Workspace ID to associate with (optional for create/list) */
+      /** Workspace ID to associate with (required for create, optional for list) */
       workspaceId: z.string().optional(),
-      /** Knowledge base ID (required for get, query) */
+      /** Knowledge base ID (required for get, query, list_tags, create_tag, get_tag_usage) */
       knowledgeBaseId: z.string().optional(),
       /** Search query text (required for query) */
       query: z.string().optional(),
@@ -95,6 +105,12 @@ export const KnowledgeBaseArgsSchema = z.object({
           overlap: z.number().min(0).max(500).default(200),
         })
         .optional(),
+      /** Tag definition ID (required for update_tag, delete_tag) */
+      tagDefinitionId: z.string().optional(),
+      /** Tag display name (required for create_tag, optional for update_tag) */
+      tagDisplayName: z.string().optional(),
+      /** Tag field type: text, number, date, boolean (optional for create_tag, defaults to text) */
+      tagFieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
     })
     .optional(),
 })

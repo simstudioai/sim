@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -15,14 +16,14 @@ const DiscordSendMessageSchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
   content: z.string().optional().nullable(),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized Discord send attempt: ${authResult.error}`)
@@ -101,6 +102,12 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Processing ${validatedData.files.length} file(s)`)
 
     const userFiles = processFilesToUserFiles(validatedData.files, requestId, logger)
+    const filesOutput: Array<{
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }> = []
 
     if (userFiles.length === 0) {
       logger.warn(`[${requestId}] No valid files to upload, falling back to text-only`)
@@ -137,6 +144,12 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Downloading file ${i}: ${userFile.name}`)
 
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      filesOutput.push({
+        name: userFile.name,
+        mimeType: userFile.type || 'application/octet-stream',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      })
 
       const blob = new Blob([new Uint8Array(buffer)], { type: userFile.type })
       formData.append(`files[${i}]`, blob, userFile.name)
@@ -173,6 +186,7 @@ export async function POST(request: NextRequest) {
         message: data.content,
         data: data,
         fileCount: userFiles.length,
+        files: filesOutput,
       },
     })
   } catch (error) {

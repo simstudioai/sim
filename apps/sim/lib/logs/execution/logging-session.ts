@@ -17,6 +17,7 @@ import type {
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('LoggingSession')
 
@@ -35,6 +36,7 @@ export interface SessionCompleteParams {
   finalOutput?: any
   traceSpans?: TraceSpan[]
   workflowInput?: any
+  executionState?: SerializableExecutionState
 }
 
 export interface SessionErrorCompleteParams {
@@ -269,7 +271,8 @@ export class LoggingSession {
       return
     }
 
-    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput } = params
+    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput, executionState } =
+      params
 
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
@@ -284,6 +287,7 @@ export class LoggingSession {
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
         workflowInput,
+        executionState,
         isResume: this.isResume,
       })
 
@@ -297,7 +301,7 @@ export class LoggingSession {
 
           const hasErrors = traceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
-              if (s.status === 'error') return true
+              if (s.status === 'error' && !s.errorHandled) return true
               if (s.children && Array.isArray(s.children)) {
                 return s.children.some(checkForErrors)
               }
@@ -776,11 +780,16 @@ export class LoggingSession {
       await db
         .update(workflowExecutionLogs)
         .set({
+          level: 'error',
           status: 'failed',
           executionData: sql`jsonb_set(
-            COALESCE(execution_data, '{}'::jsonb),
-            ARRAY['error'],
-            to_jsonb(${message}::text)
+            jsonb_set(
+              COALESCE(execution_data, '{}'::jsonb),
+              ARRAY['error'],
+              to_jsonb(${message}::text)
+            ),
+            ARRAY['finalOutput'],
+            jsonb_build_object('error', ${message}::text)
           )`,
         })
         .where(eq(workflowExecutionLogs.executionId, executionId))

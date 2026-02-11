@@ -1,5 +1,6 @@
+import type { ShopifyGetOrderParams, ShopifyOrderResponse } from '@/tools/shopify/types'
+import { ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyGetOrderParams, ShopifyOrderResponse } from './types'
 
 export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrderResponse> = {
   id: 'shopify_get_order',
@@ -198,6 +199,7 @@ export const shopifyGetOrderTool: ToolConfig<ShopifyGetOrderParams, ShopifyOrder
     order: {
       type: 'object',
       description: 'The order details',
+      properties: ORDER_OUTPUT_PROPERTIES,
     },
   },
 }

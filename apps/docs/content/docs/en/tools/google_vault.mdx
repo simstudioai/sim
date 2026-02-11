@@ -42,14 +42,14 @@ Create an export in a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | The matter ID |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `exportName` | string | Yes | Name for the export \(avoid special characters\) |
 | `corpus` | string | Yes | Data corpus to export \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
-| `accountEmails` | string | No | Comma-separated list of user emails to scope export |
-| `orgUnitId` | string | No | Organization unit ID to scope export \(alternative to emails\) |
-| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., 2024-01-01T00:00:00Z\) |
-| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., 2024-12-31T23:59:59Z\) |
-| `terms` | string | No | Search query terms to filter exported content |
+| `accountEmails` | string | No | Comma-separated list of user emails to scope export \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID to scope export \(e.g., "id:03ph8a2z1enx5q0", alternative to emails\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
+| `terms` | string | No | Search query terms to filter exported content \(e.g., "from:sender@example.com subject:invoice"\) |
 
 #### Output
 
@@ -65,10 +65,10 @@ List exports for a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | The matter ID |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `pageSize` | number | No | Number of exports to return per page |
 | `pageToken` | string | No | Token for pagination |
-| `exportId` | string | No | Optional export ID to fetch a specific export |
+| `exportId` | string | No | Optional export ID to fetch a specific export \(e.g., "exportId123456"\) |
 
 #### Output
 
@@ -86,7 +86,7 @@ Download a single file from a Google Vault export (GCS object)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | The matter ID |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `bucketName` | string | Yes | GCS bucket name from cloudStorageSink.files.bucketName |
 | `objectName` | string | Yes | GCS object name from cloudStorageSink.files.objectName |
 | `fileName` | string | No | Optional filename override for the downloaded file |
@@ -105,14 +105,14 @@ Create a hold in a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | The matter ID |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `holdName` | string | Yes | Name for the hold |
 | `corpus` | string | Yes | Data corpus to hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
-| `accountEmails` | string | No | Comma-separated list of user emails to put on hold |
-| `orgUnitId` | string | No | Organization unit ID to put on hold \(alternative to accounts\) |
-| `terms` | string | No | Search terms to filter held content \(for MAIL and GROUPS corpus\) |
-| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, for MAIL and GROUPS corpus\) |
-| `endTime` | string | No | End time for date filtering \(ISO 8601 format, for MAIL and GROUPS corpus\) |
+| `accountEmails` | string | No | Comma-separated list of user emails to put on hold \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID to put on hold \(e.g., "id:03ph8a2z1enx5q0", alternative to accounts\) |
+| `terms` | string | No | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\) |
 | `includeSharedDrives` | boolean | No | Include files in shared drives \(for DRIVE corpus\) |
 
 #### Output
@@ -129,10 +129,10 @@ List holds for a matter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Yes | The matter ID |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `pageSize` | number | No | Number of holds to return per page |
 | `pageToken` | string | No | Token for pagination |
-| `holdId` | string | No | Optional hold ID to fetch a specific hold |
+| `holdId` | string | No | Optional hold ID to fetch a specific hold \(e.g., "holdId123456"\) |
 
 #### Output
 
@@ -169,7 +169,7 @@ List matters, or get a specific matter if matterId is provided
 | --------- | ---- | -------- | ----------- |
 | `pageSize` | number | No | Number of matters to return per page |
 | `pageToken` | string | No | Token for pagination |
-| `matterId` | string | No | Optional matter ID to fetch a specific matter |
+| `matterId` | string | No | Optional matter ID to fetch a specific matter \(e.g., "12345678901234567890"\) |
 
 #### Output
 

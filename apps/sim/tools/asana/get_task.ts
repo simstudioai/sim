@@ -29,19 +29,20 @@ export const asanaGetTaskTool: ToolConfig<AsanaGetTaskParams, AsanaGetTaskRespon
     workspace: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Workspace GID to filter tasks (required when not using taskGid)',
+      visibility: 'user-or-llm',
+      description:
+        'Asana workspace GID (numeric string) to filter tasks (required when not using taskGid)',
     },
     project: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Project GID to filter tasks',
+      visibility: 'user-or-llm',
+      description: 'Asana project GID (numeric string) to filter tasks',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of tasks to return (default: 50)',
     },
   },

@@ -5,6 +5,39 @@ import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('TraceSpans')
 
+/**
+ * Keys that should be recursively filtered from output display.
+ * These are internal fields used for execution tracking that shouldn't be shown to users.
+ */
+const HIDDEN_OUTPUT_KEYS = new Set(['childTraceSpans'])
+
+/**
+ * Recursively filters hidden keys from nested objects for cleaner display.
+ * Used by both executor (for log output) and UI (for display).
+ */
+export function filterHiddenOutputKeys(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => filterHiddenOutputKeys(item))
+  }
+
+  if (typeof value === 'object') {
+    const filtered: Record<string, unknown> = {}
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (HIDDEN_OUTPUT_KEYS.has(key)) {
+        continue
+      }
+      filtered[key] = filterHiddenOutputKeys(val)
+    }
+    return filtered
+  }
+
+  return value
+}
+
 function isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
   if (!span || span.type !== 'workflow') return false
   return !span.blockId
@@ -21,41 +54,32 @@ function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
       return
     }
 
-    const processedSpan = ensureNestedWorkflowsProcessed(span)
+    const processedSpan: TraceSpan = { ...span }
+
+    const directChildren = Array.isArray(span.children) ? span.children : []
+    const outputChildren =
+      span.output &&
+      typeof span.output === 'object' &&
+      Array.isArray((span.output as { childTraceSpans?: TraceSpan[] }).childTraceSpans)
+        ? ((span.output as { childTraceSpans?: TraceSpan[] }).childTraceSpans as TraceSpan[])
+        : []
+
+    const allChildren = [...directChildren, ...outputChildren]
+    if (allChildren.length > 0) {
+      processedSpan.children = flattenWorkflowChildren(allChildren)
+    }
+
+    if (outputChildren.length > 0 && processedSpan.output) {
+      const { childTraceSpans: _, ...cleanOutput } = processedSpan.output as {
+        childTraceSpans?: TraceSpan[]
+      } & Record<string, unknown>
+      processedSpan.output = cleanOutput
+    }
+
     flattened.push(processedSpan)
   })
 
   return flattened
-}
-
-function getTraceSpanKey(span: TraceSpan): string {
-  if (span.id) {
-    return span.id
-  }
-
-  const name = span.name || 'span'
-  const start = span.startTime || 'unknown-start'
-  const end = span.endTime || 'unknown-end'
-
-  return `${name}|${start}|${end}`
-}
-
-function mergeTraceSpanChildren(...childGroups: TraceSpan[][]): TraceSpan[] {
-  const merged: TraceSpan[] = []
-  const seen = new Set<string>()
-
-  childGroups.forEach((group) => {
-    group.forEach((child) => {
-      const key = getTraceSpanKey(child)
-      if (seen.has(key)) {
-        return
-      }
-      seen.add(key)
-      merged.push(child)
-    })
-  })
-
-  return merged
 }
 
 export function buildTraceSpans(result: ExecutionResult): {
@@ -88,6 +112,26 @@ export function buildTraceSpans(result: ExecutionResult): {
     const duration = log.durationMs || 0
 
     let output = log.output || {}
+    let childWorkflowSnapshotId: string | undefined
+    let childWorkflowId: string | undefined
+
+    if (output && typeof output === 'object') {
+      const outputRecord = output as Record<string, unknown>
+      childWorkflowSnapshotId =
+        typeof outputRecord.childWorkflowSnapshotId === 'string'
+          ? outputRecord.childWorkflowSnapshotId
+          : undefined
+      childWorkflowId =
+        typeof outputRecord.childWorkflowId === 'string' ? outputRecord.childWorkflowId : undefined
+      if (childWorkflowSnapshotId || childWorkflowId) {
+        const {
+          childWorkflowSnapshotId: _childSnapshotId,
+          childWorkflowId: _childWorkflowId,
+          ...outputRest
+        } = outputRecord
+        output = outputRest
+      }
+    }
 
     if (log.error) {
       output = {
@@ -110,6 +154,9 @@ export function buildTraceSpans(result: ExecutionResult): {
       blockId: log.blockId,
       input: log.input || {},
       output: output,
+      ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
+      ...(childWorkflowId ? { childWorkflowId } : {}),
+      ...(log.errorHandled && { errorHandled: true }),
       ...(log.loopId && { loopId: log.loopId }),
       ...(log.parallelId && { parallelId: log.parallelId }),
       ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
@@ -187,6 +234,17 @@ export function buildTraceSpans(result: ExecutionResult): {
       const timeSegments = log.output.providerTiming.timeSegments
       const toolCallsData = log.output?.toolCalls?.list || log.output?.toolCalls || []
 
+      const toolCallsByName = new Map<string, Array<Record<string, unknown>>>()
+      for (const tc of toolCallsData as Array<{ name?: string; [key: string]: unknown }>) {
+        const normalizedName = stripCustomToolPrefix(tc.name || '')
+        if (!toolCallsByName.has(normalizedName)) {
+          toolCallsByName.set(normalizedName, [])
+        }
+        toolCallsByName.get(normalizedName)!.push(tc)
+      }
+
+      const toolCallIndices = new Map<string, number>()
+
       span.children = timeSegments.map(
         (
           segment: {
@@ -213,14 +271,25 @@ export function buildTraceSpans(result: ExecutionResult): {
           }
 
           if (segment.type === 'tool') {
-            const matchingToolCall = toolCallsData.find(
-              (tc: { name?: string; [key: string]: unknown }) =>
-                tc.name === segment.name || stripCustomToolPrefix(tc.name || '') === segment.name
-            )
+            const normalizedName = stripCustomToolPrefix(segment.name || '')
+
+            const toolCallsForName = toolCallsByName.get(normalizedName) || []
+            const currentIndex = toolCallIndices.get(normalizedName) || 0
+            const matchingToolCall = toolCallsForName[currentIndex] as
+              | {
+                  error?: string
+                  arguments?: Record<string, unknown>
+                  input?: Record<string, unknown>
+                  result?: Record<string, unknown>
+                  output?: Record<string, unknown>
+                }
+              | undefined
+
+            toolCallIndices.set(normalizedName, currentIndex + 1)
 
             return {
               id: `${span.id}-segment-${index}`,
-              name: stripCustomToolPrefix(segment.name || ''),
+              name: normalizedName,
               type: 'tool',
               duration: segment.duration,
               startTime: segmentStartTime,
@@ -318,19 +387,24 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (
-      isWorkflowBlockType(log.blockType) &&
-      log.output?.childTraceSpans &&
-      Array.isArray(log.output.childTraceSpans)
-    ) {
-      const childTraceSpans = log.output.childTraceSpans as TraceSpan[]
-      const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
-      span.children = mergeTraceSpanChildren(span.children || [], flattenedChildren)
+    if (isWorkflowBlockType(log.blockType)) {
+      const childTraceSpans = Array.isArray(log.childTraceSpans)
+        ? log.childTraceSpans
+        : Array.isArray(log.output?.childTraceSpans)
+          ? (log.output.childTraceSpans as TraceSpan[])
+          : null
 
-      const { childTraceSpans: _, ...cleanOutput } = span.output as {
-        childTraceSpans?: TraceSpan[]
-      } & Record<string, unknown>
-      span.output = cleanOutput
+      if (childTraceSpans) {
+        const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
+        span.children = flattenedChildren
+
+        if (span.output && typeof span.output === 'object' && 'childTraceSpans' in span.output) {
+          const { childTraceSpans: _, ...cleanOutput } = span.output as {
+            childTraceSpans?: TraceSpan[]
+          } & Record<string, unknown>
+          span.output = cleanOutput
+        }
+      }
     }
 
     spanMap.set(spanId, span)
@@ -428,15 +502,11 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
     addRelativeTimestamps(groupedRootSpans, earliestStart)
 
-    const hasErrors = groupedRootSpans.some((span) => {
-      if (span.status === 'error') return true
-      const checkChildren = (children: TraceSpan[] = []): boolean => {
-        return children.some(
-          (child) => child.status === 'error' || (child.children && checkChildren(child.children))
-        )
-      }
-      return span.children && checkChildren(span.children)
-    })
+    const checkForUnhandledErrors = (s: TraceSpan): boolean => {
+      if (s.status === 'error' && !s.errorHandled) return true
+      return s.children ? s.children.some(checkForUnhandledErrors) : false
+    }
+    const hasUnhandledErrors = groupedRootSpans.some(checkForUnhandledErrors)
 
     const workflowSpan: TraceSpan = {
       id: 'workflow-execution',
@@ -445,7 +515,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       duration: actualWorkflowDuration, // Always use actual duration for the span
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
-      status: hasErrors ? 'error' : 'success',
+      status: hasUnhandledErrors ? 'error' : 'success',
       children: groupedRootSpans,
     }
 
@@ -637,6 +707,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -646,6 +718,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -656,6 +729,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const parallelContainer: TraceSpan = {
           id: `parallel-execution-${containerId}`,
           name: containerName,
@@ -664,6 +740,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 
@@ -689,6 +766,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -698,6 +777,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -708,6 +788,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const loopContainer: TraceSpan = {
           id: `loop-execution-${containerId}`,
           name: containerName,
@@ -716,6 +799,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 
@@ -729,48 +813,4 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
   result.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
   return result
-}
-
-function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
-  const processedSpan: TraceSpan = { ...span }
-
-  if (processedSpan.output && typeof processedSpan.output === 'object') {
-    processedSpan.output = { ...processedSpan.output }
-  }
-
-  const normalizedChildren = Array.isArray(span.children)
-    ? span.children.map((child) => ensureNestedWorkflowsProcessed(child))
-    : []
-
-  const outputChildSpans = (() => {
-    if (!processedSpan.output || typeof processedSpan.output !== 'object') {
-      return [] as TraceSpan[]
-    }
-
-    const maybeChildSpans = (processedSpan.output as { childTraceSpans?: TraceSpan[] })
-      .childTraceSpans
-    if (!Array.isArray(maybeChildSpans) || maybeChildSpans.length === 0) {
-      return [] as TraceSpan[]
-    }
-
-    return flattenWorkflowChildren(maybeChildSpans)
-  })()
-
-  const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
-
-  if (
-    processedSpan.output &&
-    typeof processedSpan.output === 'object' &&
-    processedSpan.output !== null &&
-    'childTraceSpans' in processedSpan.output
-  ) {
-    const { childTraceSpans, ...cleanOutput } = processedSpan.output as {
-      childTraceSpans?: TraceSpan[]
-    } & Record<string, unknown>
-    processedSpan.output = cleanOutput
-  }
-
-  processedSpan.children = mergedChildren.length > 0 ? mergedChildren : undefined
-
-  return processedSpan
 }

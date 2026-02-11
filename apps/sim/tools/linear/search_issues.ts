@@ -1,4 +1,5 @@
 import type { LinearSearchIssuesParams, LinearSearchIssuesResponse } from '@/tools/linear/types'
+import { ISSUE_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearSearchIssuesTool: ToolConfig<
@@ -40,6 +41,12 @@ export const linearSearchIssuesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 50)',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
   },
 
   request: {
@@ -62,8 +69,8 @@ export const linearSearchIssuesTool: ToolConfig<
 
       return {
         query: `
-          query SearchIssues($term: String!, $filter: IssueFilter, $first: Int, $includeArchived: Boolean) {
-            searchIssues(term: $term, filter: $filter, first: $first, includeArchived: $includeArchived) {
+          query SearchIssues($term: String!, $filter: IssueFilter, $first: Int, $after: String, $includeArchived: Boolean) {
+            searchIssues(term: $term, filter: $filter, first: $first, after: $after, includeArchived: $includeArchived) {
               nodes {
                 id
                 title
@@ -110,7 +117,8 @@ export const linearSearchIssuesTool: ToolConfig<
         variables: {
           term: params.query,
           filter: Object.keys(filter).length > 0 ? filter : undefined,
-          first: params.first || 50,
+          first: params.first ? Number(params.first) : 50,
+          after: params.after,
           includeArchived: params.includeArchived || false,
         },
       }
@@ -162,24 +170,9 @@ export const linearSearchIssuesTool: ToolConfig<
       description: 'Array of matching issues',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          priority: { type: 'number', description: 'Issue priority' },
-          state: { type: 'object', description: 'Issue state' },
-          assignee: { type: 'object', description: 'Assigned user' },
-          labels: { type: 'array', description: 'Issue labels' },
-        },
+        properties: ISSUE_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        hasNextPage: { type: 'boolean', description: 'Whether there are more results' },
-        endCursor: { type: 'string', description: 'Cursor for next page' },
-      },
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

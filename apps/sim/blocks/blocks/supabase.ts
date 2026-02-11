@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
 const logger = createLogger('SupabaseBlock')
@@ -662,11 +663,24 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_upload' },
     },
     {
+      id: 'file',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'fileData',
+      placeholder: 'Upload file to storage',
+      condition: { field: 'operation', value: 'storage_upload' },
+      mode: 'basic',
+      multiple: false,
+      required: true,
+    },
+    {
       id: 'fileContent',
       title: 'File Content',
-      type: 'code',
-      placeholder: 'Base64 encoded for binary files, or plain text',
+      type: 'short-input',
+      canonicalParamId: 'fileData',
+      placeholder: 'File reference from previous block',
       condition: { field: 'operation', value: 'storage_upload' },
+      mode: 'advanced',
       required: true,
     },
     {
@@ -960,8 +974,15 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           allowedMimeTypes,
           upsert,
           download,
+          fileData,
           ...rest
         } = params
+
+        // Normalize file input for storage_upload operation
+        // fileData is the canonical param for both basic (file) and advanced (fileContent) modes
+        const normalizedFileData = normalizeFileInput(fileData, {
+          single: true,
+        })
 
         // Parse JSON data if it's a string
         let parsedData
@@ -1089,6 +1110,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           result.isPublic = parsedIsPublic
         }
 
+        if (normalizedFileData !== undefined) {
+          result.fileData = normalizedFileData
+        }
+
         return result
       },
     },
@@ -1129,7 +1154,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
     path: { type: 'string', description: 'File or folder path in storage' },
-    fileContent: { type: 'string', description: 'File content (base64 for binary)' },
+    fileData: { type: 'json', description: 'File data (UserFile)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
     fileName: { type: 'string', description: 'File name for upload or download override' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
@@ -1160,7 +1185,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       description: 'Row count for count operations',
     },
     file: {
-      type: 'files',
+      type: 'file',
       description: 'Downloaded file stored in execution files',
     },
     publicUrl: {

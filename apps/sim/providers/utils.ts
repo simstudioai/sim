@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
@@ -8,6 +9,7 @@ import {
   getComputerUseModels,
   getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
+  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithReasoningEffort,
@@ -112,6 +114,8 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 }
 
 export const providers: Record<ProviderId, ProviderMetadata> = {
+  ollama: buildProviderMetadata('ollama'),
+  vllm: buildProviderMetadata('vllm'),
   openai: {
     ...buildProviderMetadata('openai'),
     computerUseModels: ['computer-use-preview'],
@@ -124,16 +128,15 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   },
   google: buildProviderMetadata('google'),
   vertex: buildProviderMetadata('vertex'),
+  'azure-openai': buildProviderMetadata('azure-openai'),
+  'azure-anthropic': buildProviderMetadata('azure-anthropic'),
   deepseek: buildProviderMetadata('deepseek'),
   xai: buildProviderMetadata('xai'),
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
-  vllm: buildProviderMetadata('vllm'),
   mistral: buildProviderMetadata('mistral'),
-  'azure-openai': buildProviderMetadata('azure-openai'),
-  openrouter: buildProviderMetadata('openrouter'),
-  ollama: buildProviderMetadata('ollama'),
   bedrock: buildProviderMetadata('bedrock'),
+  openrouter: buildProviderMetadata('openrouter'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -961,6 +964,18 @@ export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
 }
 
+export function supportsReasoningEffort(model: string): boolean {
+  return MODELS_WITH_REASONING_EFFORT.includes(model.toLowerCase())
+}
+
+export function supportsVerbosity(model: string): boolean {
+  return MODELS_WITH_VERBOSITY.includes(model.toLowerCase())
+}
+
+export function supportsThinking(model: string): boolean {
+  return MODELS_WITH_THINKING.includes(model.toLowerCase())
+}
+
 /**
  * Get the maximum temperature value for a model
  * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
@@ -995,6 +1010,15 @@ export function getVerbosityValuesForModel(model: string): string[] | null {
  */
 export function getThinkingLevelsForModel(model: string): string[] | null {
   return getThinkingLevelsForModelFromDefinitions(model)
+}
+
+/**
+ * Get max output tokens for a specific model.
+ *
+ * @param model - The model ID
+ */
+export function getMaxOutputTokensForModel(model: string): number {
+  return getMaxOutputTokensForModelFromDefinitions(model)
 }
 
 /**
@@ -1117,8 +1141,8 @@ export function createOpenAICompatibleStream(
  * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
  */
 export function checkForForcedToolUsageOpenAI(
-  response: any,
-  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  response: OpenAI.Chat.Completions.ChatCompletion,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string },
   providerName: string,
   forcedTools: string[],
   usedForcedTools: string[],

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
   validateJiraCloudId,
@@ -11,7 +12,12 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const {
@@ -25,6 +31,9 @@ export async function POST(request: Request) {
       description,
       raiseOnBehalfOf,
       requestFieldValues,
+      requestParticipants,
+      channel,
+      expand,
     } = body
 
     if (!domain) {
@@ -74,6 +83,19 @@ export async function POST(request: Request) {
       if (raiseOnBehalfOf) {
         requestBody.raiseOnBehalfOf = raiseOnBehalfOf
       }
+      if (requestParticipants) {
+        requestBody.requestParticipants = Array.isArray(requestParticipants)
+          ? requestParticipants
+          : typeof requestParticipants === 'string'
+            ? requestParticipants
+                .split(',')
+                .map((id: string) => id.trim())
+                .filter(Boolean)
+            : []
+      }
+      if (channel) {
+        requestBody.channel = channel
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -105,6 +127,21 @@ export async function POST(request: Request) {
           issueKey: data.issueKey,
           requestTypeId: data.requestTypeId,
           serviceDeskId: data.serviceDeskId,
+          createdDate: data.createdDate ?? null,
+          currentStatus: data.currentStatus
+            ? {
+                status: data.currentStatus.status ?? null,
+                statusCategory: data.currentStatus.statusCategory ?? null,
+                statusDate: data.currentStatus.statusDate ?? null,
+              }
+            : null,
+          reporter: data.reporter
+            ? {
+                accountId: data.reporter.accountId ?? null,
+                displayName: data.reporter.displayName ?? null,
+                emailAddress: data.reporter.emailAddress ?? null,
+              }
+            : null,
           success: true,
           url: `https://${domain}/browse/${data.issueKey}`,
         },
@@ -120,7 +157,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: issueIdOrKeyValidation.error }, { status: 400 })
     }
 
-    const url = `${baseUrl}/request/${issueIdOrKey}`
+    const params = new URLSearchParams()
+    if (expand) params.append('expand', expand)
+
+    const url = `${baseUrl}/request/${issueIdOrKey}${params.toString() ? `?${params.toString()}` : ''}`
 
     logger.info('Fetching request from:', url)
 
@@ -149,6 +189,32 @@ export async function POST(request: Request) {
       success: true,
       output: {
         ts: new Date().toISOString(),
+        issueId: data.issueId ?? null,
+        issueKey: data.issueKey ?? null,
+        requestTypeId: data.requestTypeId ?? null,
+        serviceDeskId: data.serviceDeskId ?? null,
+        createdDate: data.createdDate ?? null,
+        currentStatus: data.currentStatus
+          ? {
+              status: data.currentStatus.status ?? null,
+              statusCategory: data.currentStatus.statusCategory ?? null,
+              statusDate: data.currentStatus.statusDate ?? null,
+            }
+          : null,
+        reporter: data.reporter
+          ? {
+              accountId: data.reporter.accountId ?? null,
+              displayName: data.reporter.displayName ?? null,
+              emailAddress: data.reporter.emailAddress ?? null,
+              active: data.reporter.active ?? true,
+            }
+          : null,
+        requestFieldValues: (data.requestFieldValues ?? []).map((fv: Record<string, unknown>) => ({
+          fieldId: fv.fieldId ?? null,
+          label: fv.label ?? null,
+          value: fv.value ?? null,
+        })),
+        url: `https://${domain}/browse/${data.issueKey}`,
         request: data,
       },
     })

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -8,14 +9,20 @@ const logger = createLogger('ConfluenceLabelsAPI')
 export const dynamic = 'force-dynamic'
 
 // Add a label to a page
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const {
       domain,
       accessToken,
       cloudId: providedCloudId,
       pageId,
       labelName,
+      prefix: labelPrefix,
     } = await request.json()
 
     if (!domain) {
@@ -46,12 +53,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/labels`
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/label`
 
-    const body = {
-      prefix: 'global',
-      name: labelName,
-    }
+    const body = [
+      {
+        prefix: labelPrefix || 'global',
+        name: labelName,
+      },
+    ]
 
     const response = await fetch(url, {
       method: 'POST',
@@ -76,7 +85,14 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    return NextResponse.json({ ...data, pageId, labelName })
+    const addedLabel = data.results?.[0] || data[0] || data
+    return NextResponse.json({
+      id: addedLabel.id ?? '',
+      name: addedLabel.name ?? labelName,
+      prefix: addedLabel.prefix ?? labelPrefix ?? 'global',
+      pageId,
+      labelName,
+    })
   } catch (error) {
     logger.error('Error adding Confluence label:', error)
     return NextResponse.json(
@@ -87,13 +103,20 @@ export async function POST(request: Request) {
 }
 
 // List labels on a page
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const domain = searchParams.get('domain')
     const accessToken = searchParams.get('accessToken')
     const pageId = searchParams.get('pageId')
     const providedCloudId = searchParams.get('cloudId')
+    const limit = searchParams.get('limit') || '25'
+    const cursor = searchParams.get('cursor')
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -119,7 +142,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/labels`
+    const queryParams = new URLSearchParams()
+    queryParams.append('limit', String(Math.min(Number(limit), 250)))
+    if (cursor) {
+      queryParams.append('cursor', cursor)
+    }
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/labels?${queryParams.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -149,7 +177,12 @@ export async function GET(request: Request) {
       prefix: label.prefix || 'global',
     }))
 
-    return NextResponse.json({ labels })
+    return NextResponse.json({
+      labels,
+      nextCursor: data._links?.next
+        ? new URL(data._links.next, 'https://placeholder').searchParams.get('cursor')
+        : null,
+    })
   } catch (error) {
     logger.error('Error listing Confluence labels:', error)
     return NextResponse.json(

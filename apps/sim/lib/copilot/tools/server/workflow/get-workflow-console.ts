@@ -3,6 +3,9 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+
+const logger = createLogger('GetWorkflowConsoleServerTool')
 
 interface GetWorkflowConsoleArgs {
   workflowId: string
@@ -87,11 +90,16 @@ function normalizeErrorMessage(errorValue: unknown): string | undefined {
   if (typeof errorValue === 'object') {
     try {
       return JSON.stringify(errorValue)
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to stringify error value', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
   try {
     return String(errorValue)
   } catch {
+    // JSON.stringify failed for error value; fall back to undefined
     return undefined
   }
 }
@@ -216,8 +224,7 @@ function deriveExecutionErrorSummary(params: {
 
 export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
   name: 'get_workflow_console',
-  async execute(rawArgs: GetWorkflowConsoleArgs): Promise<any> {
-    const logger = createLogger('GetWorkflowConsoleServerTool')
+  async execute(rawArgs: GetWorkflowConsoleArgs, context?: { userId: string }): Promise<any> {
     const {
       workflowId,
       limit = 2,
@@ -226,6 +233,18 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
 
     if (!workflowId || typeof workflowId !== 'string') {
       throw new Error('workflowId is required')
+    }
+    if (!context?.userId) {
+      throw new Error('Unauthorized workflow access')
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: context.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
     logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })

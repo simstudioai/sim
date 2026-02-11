@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -13,6 +14,11 @@ export async function POST(request: NextRequest) {
   logger.info(`[${requestId}] Guardrails validation request received`)
 
   try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const {
       validationType,
@@ -23,7 +29,16 @@ export async function POST(request: NextRequest) {
       topK,
       model,
       apiKey,
+      azureEndpoint,
+      azureApiVersion,
+      vertexProject,
+      vertexLocation,
+      vertexCredential,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockRegion,
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -100,6 +115,10 @@ export async function POST(request: NextRequest) {
       validationType,
       inputType: typeof input,
     })
+    const authHeaders = {
+      cookie: request.headers.get('cookie') || undefined,
+      authorization: request.headers.get('authorization') || undefined,
+    }
 
     const validationResult = await executeValidation(
       validationType,
@@ -110,10 +129,22 @@ export async function POST(request: NextRequest) {
       topK,
       model,
       apiKey,
+      {
+        azureEndpoint,
+        azureApiVersion,
+        vertexProject,
+        vertexLocation,
+        vertexCredential,
+        bedrockAccessKeyId,
+        bedrockSecretKey,
+        bedrockRegion,
+      },
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
+      authHeaders,
       requestId
     )
 
@@ -178,10 +209,22 @@ async function executeValidation(
   topK: string | undefined,
   model: string,
   apiKey: string | undefined,
+  providerCredentials: {
+    azureEndpoint?: string
+    azureApiVersion?: string
+    vertexProject?: string
+    vertexLocation?: string
+    vertexCredential?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    bedrockRegion?: string
+  },
   workflowId: string | undefined,
+  workspaceId: string | undefined,
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
+  authHeaders: { cookie?: string; authorization?: string } | undefined,
   requestId: string
 ): Promise<{
   passed: boolean
@@ -219,7 +262,10 @@ async function executeValidation(
       topK: topK ? Number.parseInt(topK) : 10, // Default topK is 10
       model: model,
       apiKey,
+      providerCredentials,
       workflowId,
+      workspaceId,
+      authHeaders,
       requestId,
     })
   }

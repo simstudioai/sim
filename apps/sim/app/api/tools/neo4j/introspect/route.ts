@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createNeo4jDriver } from '@/app/api/tools/neo4j/utils'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
 
@@ -20,6 +21,12 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
   let driver = null
   let session = null
+
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    logger.warn(`[${requestId}] Unauthorized Neo4j introspect attempt`)
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
 
   try {
     const body = await request.json()

@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomCreateMeetingParams, ZoomCreateMeetingResponse } from '@/tools/zoom/types'
+import { MEETING_OUTPUT_PROPERTIES } from '@/tools/zoom/types'
 
 export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCreateMeetingResponse> =
   {
@@ -18,14 +19,15 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
       userId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The user ID or email address. Use "me" for the authenticated user.',
+        visibility: 'user-or-llm',
+        description:
+          'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
       },
       topic: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Meeting topic',
+        description: 'Meeting topic (e.g., "Weekly Team Standup" or "Project Review")',
       },
       type: {
         type: 'number',
@@ -44,7 +46,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting duration in minutes',
+        description: 'Meeting duration in minutes (e.g., 30, 60, 90)',
       },
       timezone: {
         type: 'string',
@@ -62,7 +64,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting agenda',
+        description: 'Meeting agenda or description text',
       },
       hostVideo: {
         type: 'boolean',
@@ -213,24 +215,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
       meeting: {
         type: 'object',
         description: 'The created meeting with all its properties',
-        properties: {
-          id: { type: 'number', description: 'Meeting ID' },
-          uuid: { type: 'string', description: 'Meeting UUID' },
-          host_id: { type: 'string', description: 'Host user ID' },
-          host_email: { type: 'string', description: 'Host email' },
-          topic: { type: 'string', description: 'Meeting topic' },
-          type: { type: 'number', description: 'Meeting type' },
-          status: { type: 'string', description: 'Meeting status' },
-          start_time: { type: 'string', description: 'Start time' },
-          duration: { type: 'number', description: 'Duration in minutes' },
-          timezone: { type: 'string', description: 'Timezone' },
-          agenda: { type: 'string', description: 'Meeting agenda' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          start_url: { type: 'string', description: 'Host start URL' },
-          join_url: { type: 'string', description: 'Participant join URL' },
-          password: { type: 'string', description: 'Meeting password' },
-          settings: { type: 'object', description: 'Meeting settings' },
-        },
+        properties: MEETING_OUTPUT_PROPERTIES,
       },
     },
   }

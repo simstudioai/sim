@@ -1,7 +1,3 @@
-/**
- * SSE Event types for workflow execution
- */
-
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -62,9 +58,6 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   }
 }
 
-/**
- * Execution cancelled event
- */
 export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   type: 'execution:cancelled'
   workflowId: string
@@ -83,10 +76,11 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
     blockId: string
     blockName: string
     blockType: string
-    // Iteration context for loops and parallels
+    executionOrder: number
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -103,10 +97,13 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     input?: any
     output: any
     durationMs: number
-    // Iteration context for loops and parallels
+    startedAt: string
+    executionOrder: number
+    endedAt: string
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -123,10 +120,13 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     input?: any
     error: string
     durationMs: number
-    // Iteration context for loops and parallels
+    startedAt: string
+    executionOrder: number
+    endedAt: string
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
+    iterationContainerId?: string
   }
 }
 
@@ -167,6 +167,16 @@ export type ExecutionEvent =
   | StreamChunkEvent
   | StreamDoneEvent
 
+export type ExecutionStartedData = ExecutionStartedEvent['data']
+export type ExecutionCompletedData = ExecutionCompletedEvent['data']
+export type ExecutionErrorData = ExecutionErrorEvent['data']
+export type ExecutionCancelledData = ExecutionCancelledEvent['data']
+export type BlockStartedData = BlockStartedEvent['data']
+export type BlockCompletedData = BlockCompletedEvent['data']
+export type BlockErrorData = BlockErrorEvent['data']
+export type StreamChunkData = StreamChunkEvent['data']
+export type StreamDoneData = StreamDoneEvent['data']
+
 /**
  * Helper to create SSE formatted message
  */
@@ -179,4 +189,168 @@ export function formatSSEEvent(event: ExecutionEvent): string {
  */
 export function encodeSSEEvent(event: ExecutionEvent): Uint8Array {
   return new TextEncoder().encode(formatSSEEvent(event))
+}
+
+/**
+ * Options for creating SSE execution callbacks
+ */
+export interface SSECallbackOptions {
+  executionId: string
+  workflowId: string
+  controller: ReadableStreamDefaultController<Uint8Array>
+  isStreamClosed: () => boolean
+  setStreamClosed: () => void
+}
+
+/**
+ * Creates SSE callbacks for workflow execution streaming
+ */
+export function createSSECallbacks(options: SSECallbackOptions) {
+  const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
+
+  const sendEvent = (event: ExecutionEvent) => {
+    if (isStreamClosed()) return
+    try {
+      controller.enqueue(encodeSSEEvent(event))
+    } catch {
+      setStreamClosed()
+    }
+  }
+
+  const onBlockStart = async (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    executionOrder: number,
+    iterationContext?: {
+      iterationCurrent: number
+      iterationTotal?: number
+      iterationType: string
+      iterationContainerId?: string
+    }
+  ) => {
+    sendEvent({
+      type: 'block:started',
+      timestamp: new Date().toISOString(),
+      executionId,
+      workflowId,
+      data: {
+        blockId,
+        blockName,
+        blockType,
+        executionOrder,
+        ...(iterationContext && {
+          iterationCurrent: iterationContext.iterationCurrent,
+          iterationTotal: iterationContext.iterationTotal,
+          iterationType: iterationContext.iterationType as any,
+          iterationContainerId: iterationContext.iterationContainerId,
+        }),
+      },
+    })
+  }
+
+  const onBlockComplete = async (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    callbackData: {
+      input?: unknown
+      output: any
+      executionTime: number
+      startedAt: string
+      executionOrder: number
+      endedAt: string
+    },
+    iterationContext?: {
+      iterationCurrent: number
+      iterationTotal?: number
+      iterationType: string
+      iterationContainerId?: string
+    }
+  ) => {
+    const hasError = callbackData.output?.error
+    const iterationData = iterationContext
+      ? {
+          iterationCurrent: iterationContext.iterationCurrent,
+          iterationTotal: iterationContext.iterationTotal,
+          iterationType: iterationContext.iterationType as any,
+          iterationContainerId: iterationContext.iterationContainerId,
+        }
+      : {}
+
+    if (hasError) {
+      sendEvent({
+        type: 'block:error',
+        timestamp: new Date().toISOString(),
+        executionId,
+        workflowId,
+        data: {
+          blockId,
+          blockName,
+          blockType,
+          input: callbackData.input,
+          error: callbackData.output.error,
+          durationMs: callbackData.executionTime || 0,
+          startedAt: callbackData.startedAt,
+          executionOrder: callbackData.executionOrder,
+          endedAt: callbackData.endedAt,
+          ...iterationData,
+        },
+      })
+    } else {
+      sendEvent({
+        type: 'block:completed',
+        timestamp: new Date().toISOString(),
+        executionId,
+        workflowId,
+        data: {
+          blockId,
+          blockName,
+          blockType,
+          input: callbackData.input,
+          output: callbackData.output,
+          durationMs: callbackData.executionTime || 0,
+          startedAt: callbackData.startedAt,
+          executionOrder: callbackData.executionOrder,
+          endedAt: callbackData.endedAt,
+          ...iterationData,
+        },
+      })
+    }
+  }
+
+  const onStream = async (streamingExecution: unknown) => {
+    const streamingExec = streamingExecution as { stream: ReadableStream; execution: any }
+    const blockId = streamingExec.execution?.blockId
+    const reader = streamingExec.stream.getReader()
+    const decoder = new TextDecoder()
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        sendEvent({
+          type: 'stream:chunk',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: { blockId, chunk },
+        })
+      }
+      sendEvent({
+        type: 'stream:done',
+        timestamp: new Date().toISOString(),
+        executionId,
+        workflowId,
+        data: { blockId },
+      })
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {}
+    }
+  }
+
+  return { sendEvent, onBlockStart, onBlockComplete, onStream }
 }

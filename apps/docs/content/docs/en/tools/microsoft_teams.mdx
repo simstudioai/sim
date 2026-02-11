@@ -43,7 +43,7 @@ Read content from a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `chatId` | string | Yes | The ID of the chat to read from |
+| `chatId` | string | Yes | The ID of the chat to read from \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
 | `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
 
 #### Output
@@ -67,8 +67,8 @@ Write or update content in a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `chatId` | string | Yes | The ID of the chat to write to |
-| `content` | string | Yes | The content to write to the message |
+| `chatId` | string | Yes | The ID of the chat to write to \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `content` | string | Yes | The content to write to the message \(plain text or HTML formatted, supports @mentions\) |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -81,6 +81,7 @@ Write or update content in a Microsoft Teams chat
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `files` | file[] | Files attached to the message |
 
 ### `microsoft_teams_read_channel`
 
@@ -90,8 +91,8 @@ Read content from a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team to read from |
-| `channelId` | string | Yes | The ID of the channel to read from |
+| `teamId` | string | Yes | The ID of the team to read from \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Yes | The ID of the channel to read from \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
 
 #### Output
@@ -116,9 +117,9 @@ Write or send a message to a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team to write to |
-| `channelId` | string | Yes | The ID of the channel to write to |
-| `content` | string | Yes | The content to write to the channel |
+| `teamId` | string | Yes | The ID of the team to write to \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Yes | The ID of the channel to write to \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `content` | string | Yes | The content to write to the channel \(plain text or HTML formatted, supports @mentions\) |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -132,6 +133,7 @@ Write or send a message to a Microsoft Teams channel
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `files` | file[] | Files attached to the message |
 
 ### `microsoft_teams_update_chat_message`
 
@@ -141,9 +143,9 @@ Update an existing message in a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `chatId` | string | Yes | The ID of the chat containing the message |
-| `messageId` | string | Yes | The ID of the message to update |
-| `content` | string | Yes | The new content for the message |
+| `chatId` | string | Yes | The ID of the chat containing the message \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `messageId` | string | Yes | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Yes | The new content for the message \(plain text or HTML formatted\) |
 
 #### Output
 
@@ -161,10 +163,10 @@ Update an existing message in a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team |
-| `channelId` | string | Yes | The ID of the channel containing the message |
-| `messageId` | string | Yes | The ID of the message to update |
-| `content` | string | Yes | The new content for the message |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Yes | The ID of the channel containing the message \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Yes | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Yes | The new content for the message \(plain text or HTML formatted\) |
 
 #### Output
 
@@ -182,8 +184,8 @@ Soft delete a message in a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `chatId` | string | Yes | The ID of the chat containing the message |
-| `messageId` | string | Yes | The ID of the message to delete |
+| `chatId` | string | Yes | The ID of the chat containing the message \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `messageId` | string | Yes | The ID of the message to delete \(e.g., "1234567890123" - a numeric string from message responses\) |
 
 #### Output
 
@@ -201,9 +203,9 @@ Soft delete a message in a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team |
-| `channelId` | string | Yes | The ID of the channel containing the message |
-| `messageId` | string | Yes | The ID of the message to delete |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Yes | The ID of the channel containing the message \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Yes | The ID of the message to delete \(e.g., "1234567890123" - a numeric string from message responses\) |
 
 #### Output
 
@@ -221,10 +223,10 @@ Reply to an existing message in a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team |
-| `channelId` | string | Yes | The ID of the channel |
-| `messageId` | string | Yes | The ID of the message to reply to |
-| `content` | string | Yes | The reply content |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Yes | The ID of the channel \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Yes | The ID of the message to reply to \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Yes | The reply content \(plain text or HTML formatted message\) |
 
 #### Output
 
@@ -242,10 +244,10 @@ Get a specific message from a Microsoft Teams chat or channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | No | The ID of the team \(for channel messages\) |
-| `channelId` | string | No | The ID of the channel \(for channel messages\) |
-| `chatId` | string | No | The ID of the chat \(for chat messages\) |
-| `messageId` | string | Yes | The ID of the message to retrieve |
+| `teamId` | string | No | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | No | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | No | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Yes | The ID of the message to retrieve \(e.g., "1234567890123" - a numeric string from message responses\) |
 
 #### Output
 
@@ -254,15 +256,15 @@ Get a specific message from a Microsoft Teams chat or channel
 | `success` | boolean | Whether the retrieval was successful |
 | `content` | string | The message content |
 | `metadata` | object | Message metadata including sender, timestamp, etc. |
-| ↳ `messageId` | string | Message ID |
-| ↳ `content` | string | Message content |
-| ↳ `createdTime` | string | Message creation timestamp |
-| ↳ `url` | string | Web URL to the message |
-| ↳ `teamId` | string | Team ID |
-| ↳ `channelId` | string | Channel ID |
-| ↳ `chatId` | string | Chat ID |
-| ↳ `messages` | array | Array of message details |
-| ↳ `messageCount` | number | Number of messages |
+|   ↳ `messageId` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `createdTime` | string | Message creation timestamp |
+|   ↳ `url` | string | Web URL to the message |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `channelId` | string | Channel ID |
+|   ↳ `chatId` | string | Chat ID |
+|   ↳ `messages` | array | Array of message details |
+|   ↳ `messageCount` | number | Number of messages |
 
 ### `microsoft_teams_set_reaction`
 
@@ -272,10 +274,10 @@ Add an emoji reaction to a message in Microsoft Teams
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | No | The ID of the team \(for channel messages\) |
-| `channelId` | string | No | The ID of the channel \(for channel messages\) |
-| `chatId` | string | No | The ID of the chat \(for chat messages\) |
-| `messageId` | string | Yes | The ID of the message to react to |
+| `teamId` | string | No | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | No | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | No | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Yes | The ID of the message to react to \(e.g., "1234567890123" - a numeric string from message responses\) |
 | `reactionType` | string | Yes | The emoji reaction \(e.g., ❤️, 👍, 😊\) |
 
 #### Output
@@ -294,10 +296,10 @@ Remove an emoji reaction from a message in Microsoft Teams
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | No | The ID of the team \(for channel messages\) |
-| `channelId` | string | No | The ID of the channel \(for channel messages\) |
-| `chatId` | string | No | The ID of the chat \(for chat messages\) |
-| `messageId` | string | Yes | The ID of the message |
+| `teamId` | string | No | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | No | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | No | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Yes | The ID of the message \(e.g., "1234567890123" - a numeric string from message responses\) |
 | `reactionType` | string | Yes | The emoji reaction to remove \(e.g., ❤️, 👍, 😊\) |
 
 #### Output
@@ -316,7 +318,7 @@ List all members of a Microsoft Teams team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
 
 #### Output
 
@@ -334,8 +336,8 @@ List all members of a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | The ID of the team |
-| `channelId` | string | Yes | The ID of the channel |
+| `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Yes | The ID of the channel \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 
 #### Output
 

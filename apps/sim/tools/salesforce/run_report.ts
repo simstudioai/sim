@@ -3,6 +3,7 @@ import type {
   SalesforceRunReportParams,
   SalesforceRunReportResponse,
 } from '@/tools/salesforce/types'
+import { RUN_REPORT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,20 +34,20 @@ export const salesforceRunReportTool: ToolConfig<
     reportId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Report ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Report ID (18-character string starting with 00O)',
     },
     includeDetails: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Include detail rows (true/false, default: true)',
     },
     filters: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON string of report filters to apply',
+      visibility: 'user-or-llm',
+      description: 'JSON array of report filter objects to apply',
     },
   },
 
@@ -117,31 +118,7 @@ export const salesforceRunReportTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Report results',
-      properties: {
-        reportId: { type: 'string', description: 'Report ID' },
-        reportMetadata: { type: 'object', description: 'Report metadata', optional: true },
-        reportExtendedMetadata: {
-          type: 'object',
-          description: 'Extended metadata',
-          optional: true,
-        },
-        factMap: {
-          type: 'object',
-          description: 'Report data organized by groupings',
-          optional: true,
-        },
-        groupingsDown: { type: 'object', description: 'Row groupings', optional: true },
-        groupingsAcross: { type: 'object', description: 'Column groupings', optional: true },
-        hasDetailRows: {
-          type: 'boolean',
-          description: 'Whether report has detail rows',
-          optional: true,
-        },
-        allData: { type: 'boolean', description: 'Whether all data is returned', optional: true },
-        reportName: { type: 'string', description: 'Report name', optional: true },
-        reportFormat: { type: 'string', description: 'Report format type', optional: true },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: RUN_REPORT_OUTPUT_PROPERTIES,
     },
   },
 }

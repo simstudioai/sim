@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -68,28 +69,30 @@ export async function duplicateWorkflow(
     }
 
     const source = sourceWorkflowRow[0]
-
-    // Check if user has permission to access the source workflow
-    let canAccessSource = false
-
-    // Case 1: User owns the workflow
-    if (source.userId === userId) {
-      canAccessSource = true
+    if (!source.workspaceId) {
+      throw new Error(
+        'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be duplicated.'
+      )
     }
 
-    // Case 2: User has admin or write permission in the source workspace
-    if (!canAccessSource && source.workspaceId) {
-      const userPermission = await getUserEntityPermissions(userId, 'workspace', source.workspaceId)
-      if (userPermission === 'admin' || userPermission === 'write') {
-        canAccessSource = true
-      }
-    }
-
-    if (!canAccessSource) {
+    const sourceAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId: sourceWorkflowId,
+      userId,
+      action: 'read',
+    })
+    if (!sourceAuthorization.allowed) {
       throw new Error('Source workflow not found or access denied')
     }
 
     const targetWorkspaceId = workspaceId || source.workspaceId
+    const targetWorkspacePermission = await getUserEntityPermissions(
+      userId,
+      'workspace',
+      targetWorkspaceId
+    )
+    if (targetWorkspacePermission !== 'admin' && targetWorkspacePermission !== 'write') {
+      throw new Error('Write or admin access required for target workspace')
+    }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
     const folderCondition = targetFolderId
       ? eq(workflow.folderId, targetFolderId)
@@ -98,11 +101,7 @@ export async function duplicateWorkflow(
     const [minResult] = await tx
       .select({ minOrder: min(workflow.sortOrder) })
       .from(workflow)
-      .where(
-        targetWorkspaceId
-          ? and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition)
-          : and(eq(workflow.userId, userId), folderCondition)
-      )
+      .where(and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition))
     const sortOrder = (minResult?.minOrder ?? 1) - 1
 
     // Create the new workflow first (required for foreign key constraints)
@@ -189,6 +188,7 @@ export async function duplicateWorkflow(
           parentId: newParentId,
           extent: newExtent,
           data: updatedData,
+          locked: false, // Duplicated blocks should always be unlocked
           createdAt: now,
           updatedAt: now,
         }

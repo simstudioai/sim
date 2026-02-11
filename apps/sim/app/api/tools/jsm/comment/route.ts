@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
@@ -7,7 +8,12 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmCommentAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const {
       domain,
@@ -89,6 +95,14 @@ export async function POST(request: Request) {
         commentId: data.id,
         body: data.body,
         isPublic: data.public,
+        author: data.author
+          ? {
+              accountId: data.author.accountId ?? null,
+              displayName: data.author.displayName ?? null,
+              emailAddress: data.author.emailAddress ?? null,
+            }
+          : null,
+        createdDate: data.created ?? null,
         success: true,
       },
     })

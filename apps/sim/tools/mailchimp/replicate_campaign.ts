@@ -1,5 +1,5 @@
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpReplicateCampaignParams {
   apiKey: string
@@ -34,8 +34,8 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign to replicate',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign to replicate (e.g., "abc123def4")',
     },
   },
 

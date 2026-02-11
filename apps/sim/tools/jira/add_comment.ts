@@ -1,6 +1,23 @@
 import type { JiraAddCommentParams, JiraAddCommentResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
+import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Transforms an add comment API response into typed output.
+ */
+function transformCommentResponse(data: any, params: JiraAddCommentParams) {
+  return {
+    ts: new Date().toISOString(),
+    issueKey: params.issueKey ?? 'unknown',
+    commentId: data?.id ?? 'unknown',
+    body: data?.body ? (extractAdfText(data.body) ?? params.body ?? '') : (params.body ?? ''),
+    author: transformUser(data?.author) ?? { accountId: '', displayName: '' },
+    created: data?.created ?? '',
+    updated: data?.updated ?? '',
+    success: true,
+  }
+}
 
 export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddCommentResponse> = {
   id: 'jira_add_comment',
@@ -38,6 +55,13 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
       visibility: 'user-or-llm',
       description: 'Comment body text',
     },
+    visibility: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Restrict comment visibility. Object with "type" ("role" or "group") and "value" (role/group name).',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -64,55 +88,48 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
     },
     body: (params: JiraAddCommentParams) => {
       if (!params.cloudId) return undefined as any
-      return {
+      const payload: Record<string, any> = {
         body: {
           type: 'doc',
           version: 1,
           content: [
             {
               type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: params?.body || '',
-                },
-              ],
+              content: [{ type: 'text', text: params.body ?? '' }],
             },
           ],
         },
       }
+      if (params.visibility) payload.visibility = params.visibility
+      return payload
     },
   },
 
   transformResponse: async (response: Response, params?: JiraAddCommentParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/comment`
+    const payload: Record<string, any> = {
+      body: {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: params?.body ?? '' }],
+          },
+        ],
+      },
+    }
+    if (params?.visibility) payload.visibility = params.visibility
+
+    const makeRequest = async (cloudId: string) => {
+      const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/comment`
       const commentResponse = await fetch(commentUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
         },
-        body: JSON.stringify({
-          body: {
-            type: 'doc',
-            version: 1,
-            content: [
-              {
-                type: 'paragraph',
-                content: [
-                  {
-                    type: 'text',
-                    text: params?.body || '',
-                  },
-                ],
-              },
-            ],
-          },
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!commentResponse.ok) {
@@ -124,48 +141,47 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
         throw new Error(message)
       }
 
-      const data = await commentResponse.json()
+      return commentResponse.json()
+    }
 
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          commentId: data?.id || 'unknown',
-          body: params?.body || '',
-          success: true,
-        },
+    let data: any
+
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await makeRequest(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to add comment to Jira issue (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
+      data = await response.json()
     }
-
-    // If cloudId was provided, process the response
-    if (!response.ok) {
-      let message = `Failed to add comment to Jira issue (${response.status})`
-      try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
-    }
-
-    const data = await response.json()
 
     return {
       success: true,
-      output: {
-        ts: new Date().toISOString(),
-        issueKey: params?.issueKey || 'unknown',
-        commentId: data?.id || 'unknown',
-        body: params?.body || '',
-        success: true,
-      },
+      output: transformCommentResponse(data, params!),
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key the comment was added to' },
     commentId: { type: 'string', description: 'Created comment ID' },
     body: { type: 'string', description: 'Comment text content' },
+    author: {
+      type: 'object',
+      description: 'Comment author',
+      properties: USER_OUTPUT_PROPERTIES,
+    },
+    created: { type: 'string', description: 'ISO 8601 timestamp when the comment was created' },
+    updated: {
+      type: 'string',
+      description: 'ISO 8601 timestamp when the comment was last updated',
+    },
   },
 }

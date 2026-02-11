@@ -16,7 +16,12 @@ import {
   USER_FILE_PROPERTY_TYPES,
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, OutputCondition, OutputFieldDefinition } from '@/blocks/types'
+import {
+  type BlockConfig,
+  isHiddenFromDisplay,
+  type OutputCondition,
+  type OutputFieldDefinition,
+} from '@/blocks/types'
 import { getTool } from '@/tools/utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -26,6 +31,12 @@ type OutputDefinition = Record<string, OutputFieldDefinition>
 
 interface SubBlockWithValue {
   value?: unknown
+}
+
+interface EffectiveOutputOptions {
+  triggerMode?: boolean
+  preferToolOutputs?: boolean
+  includeHidden?: boolean
 }
 
 type ConditionValue = string | number | boolean
@@ -86,16 +97,19 @@ function evaluateOutputCondition(
 }
 
 /**
- * Filters outputs based on their conditions.
- * Returns a new OutputDefinition with only the outputs whose conditions are met.
+ * Filters outputs based on their conditions and hiddenFromDisplay flag.
+ * Returns a new OutputDefinition with only the outputs that should be shown.
  */
 function filterOutputsByCondition(
   outputs: OutputDefinition,
-  subBlocks: Record<string, SubBlockWithValue> | undefined
+  subBlocks: Record<string, SubBlockWithValue> | undefined,
+  includeHidden = false
 ): OutputDefinition {
   const filtered: OutputDefinition = {}
 
   for (const [key, value] of Object.entries(outputs)) {
+    if (!includeHidden && isHiddenFromDisplay(value)) continue
+
     if (!value || typeof value !== 'object' || !('condition' in value)) {
       filtered[key] = value
       continue
@@ -105,8 +119,13 @@ function filterOutputsByCondition(
     const passes = !condition || evaluateOutputCondition(condition, subBlocks)
 
     if (passes) {
-      const { condition: _, ...rest } = value
-      filtered[key] = rest
+      if (includeHidden) {
+        const { condition: _, ...rest } = value
+        filtered[key] = rest
+      } else {
+        const { condition: _, hiddenFromDisplay: __, ...rest } = value
+        filtered[key] = rest
+      }
     }
   }
 
@@ -116,13 +135,13 @@ function filterOutputsByCondition(
 const CHAT_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'User message' },
   conversationId: { type: 'string', description: 'Conversation ID' },
-  files: { type: 'files', description: 'Uploaded files' },
+  files: { type: 'file[]', description: 'Uploaded files' },
 }
 
 const UNIFIED_START_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'Primary user input or message' },
   conversationId: { type: 'string', description: 'Conversation thread identifier' },
-  files: { type: 'files', description: 'User uploaded files' },
+  files: { type: 'file[]', description: 'User uploaded files' },
 }
 
 function applyInputFormatFields(
@@ -236,8 +255,10 @@ function applyInputFormatToOutputs(
 export function getBlockOutputs(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
-  triggerMode?: boolean
+  triggerMode?: boolean,
+  options?: { includeHidden?: boolean }
 ): OutputDefinition {
+  const includeHidden = options?.includeHidden ?? false
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return {}
 
@@ -259,79 +280,138 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'human_in_the_loop') {
-    const hitlOutputs: OutputDefinition = {
-      url: { type: 'string', description: 'Resume UI URL' },
-      resumeEndpoint: {
-        type: 'string',
-        description: 'Resume API endpoint URL for direct curl requests',
-      },
-    }
+    // Start with block config outputs (respects hiddenFromDisplay via filterOutputsByCondition)
+    const baseOutputs = filterOutputsByCondition(
+      { ...(blockConfig.outputs || {}) } as OutputDefinition,
+      subBlocks,
+      includeHidden
+    )
 
+    // Add inputFormat fields (resume form fields)
     const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
 
     for (const field of normalizedInputFormat) {
       const fieldName = field?.name?.trim()
       if (!fieldName) continue
 
-      hitlOutputs[fieldName] = {
+      baseOutputs[fieldName] = {
         type: (field?.type || 'any') as any,
-        description: `Field from resume form`,
+        description: field?.description || `Field from resume form`,
       }
     }
 
-    return hitlOutputs
-  }
-
-  if (blockType === 'approval') {
-    // Start with only url (apiUrl commented out - not accessible as output)
-    const pauseResumeOutputs: OutputDefinition = {
-      url: { type: 'string', description: 'Resume UI URL' },
-      // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
-    }
-
-    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
-
-    // Add each input format field as a top-level output
-    for (const field of normalizedInputFormat) {
-      const fieldName = field?.name?.trim()
-      if (!fieldName) continue
-
-      pauseResumeOutputs[fieldName] = {
-        type: (field?.type || 'any') as any,
-        description: `Field from input format`,
-      }
-    }
-
-    return pauseResumeOutputs
+    return baseOutputs
   }
 
   if (startPath === StartBlockPath.LEGACY_STARTER) {
     return getLegacyStarterOutputs(subBlocks)
   }
 
-  if (blockType === 'agent') {
-    const responseFormatValue = subBlocks?.responseFormat?.value
-    if (responseFormatValue) {
-      const parsed = parseResponseFormatSafely(responseFormatValue, 'agent')
-      if (parsed) {
-        const fields = extractFieldsFromSchema(parsed)
-        if (fields.length > 0) {
-          const outputs: OutputDefinition = {}
-          for (const field of fields) {
-            outputs[field.name] = {
-              type: (field.type || 'any') as any,
-              description: field.description || `Field from Agent: ${field.name}`,
-            }
-          }
-          return outputs
-        }
-      }
+  const baseOutputs = { ...(blockConfig.outputs || {}) }
+  const filteredOutputs = filterOutputsByCondition(baseOutputs, subBlocks, includeHidden)
+  return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, filteredOutputs)
+}
+
+export function getResponseFormatOutputs(
+  subBlocks?: Record<string, SubBlockWithValue>,
+  blockId = 'block'
+): OutputDefinition | undefined {
+  const responseFormatValue = subBlocks?.responseFormat?.value
+  if (!responseFormatValue) return undefined
+
+  const parsed = parseResponseFormatSafely(responseFormatValue, blockId)
+  if (!parsed) return undefined
+
+  const fields = extractFieldsFromSchema(parsed)
+  if (fields.length === 0) return undefined
+
+  const outputs: OutputDefinition = {}
+  for (const field of fields) {
+    outputs[field.name] = {
+      type: (field.type || 'any') as any,
+      description: field.description || `Field from Agent: ${field.name}`,
     }
   }
 
-  const baseOutputs = { ...(blockConfig.outputs || {}) }
-  const filteredOutputs = filterOutputsByCondition(baseOutputs, subBlocks)
-  return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, filteredOutputs)
+  return outputs
+}
+
+export function getEvaluatorMetricOutputs(
+  subBlocks?: Record<string, SubBlockWithValue>
+): OutputDefinition | undefined {
+  const metricsValue = subBlocks?.metrics?.value
+  if (!metricsValue || !Array.isArray(metricsValue) || metricsValue.length === 0) return undefined
+
+  const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
+  if (validMetrics.length === 0) return undefined
+
+  const outputs: OutputDefinition = {}
+  for (const metric of validMetrics as Array<{ name: string }>) {
+    outputs[metric.name.toLowerCase()] = {
+      type: 'number',
+      description: `Metric score: ${metric.name}`,
+    }
+  }
+
+  return outputs
+}
+
+export function getEffectiveBlockOutputs(
+  blockType: string,
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: EffectiveOutputOptions
+): OutputDefinition {
+  const triggerMode = options?.triggerMode ?? false
+  const preferToolOutputs = options?.preferToolOutputs ?? !triggerMode
+  const includeHidden = options?.includeHidden ?? false
+
+  if (blockType === 'agent') {
+    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
+    if (responseFormatOutputs) return responseFormatOutputs
+  }
+
+  let baseOutputs: OutputDefinition
+  if (triggerMode) {
+    baseOutputs = getBlockOutputs(blockType, subBlocks, true, { includeHidden })
+  } else if (preferToolOutputs) {
+    const blockConfig = getBlock(blockType)
+    const toolOutputs = blockConfig
+      ? (getToolOutputs(blockConfig, subBlocks, { includeHidden }) as OutputDefinition)
+      : {}
+    baseOutputs =
+      toolOutputs && Object.keys(toolOutputs).length > 0
+        ? toolOutputs
+        : getBlockOutputs(blockType, subBlocks, false, { includeHidden })
+  } else {
+    baseOutputs = getBlockOutputs(blockType, subBlocks, false, { includeHidden })
+  }
+
+  if (blockType === 'evaluator') {
+    const metricOutputs = getEvaluatorMetricOutputs(subBlocks)
+    if (metricOutputs) {
+      return { ...baseOutputs, ...metricOutputs }
+    }
+  }
+
+  return baseOutputs
+}
+
+export function getEffectiveBlockOutputPaths(
+  blockType: string,
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: EffectiveOutputOptions
+): string[] {
+  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, options)
+  const paths = generateOutputPaths(outputs)
+
+  if (blockType === TRIGGER_TYPES.START) {
+    return paths.filter((path) => {
+      const key = path.split('.')[0]
+      return !shouldFilterReservedField(blockType, key, '', subBlocks)
+    })
+  }
+
+  return paths
 }
 
 function shouldFilterReservedField(
@@ -358,45 +438,15 @@ function expandFileTypeProperties(path: string): string[] {
   return USER_FILE_ACCESSIBLE_PROPERTIES.map((prop) => `${path}.${prop}`)
 }
 
-function collectOutputPaths(
-  obj: OutputDefinition,
-  blockType: string,
-  subBlocks: Record<string, SubBlockWithValue> | undefined,
-  prefix = ''
-): string[] {
-  const paths: string[] = []
+type FileOutputType = 'file' | 'file[]'
 
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key
-
-    if (shouldFilterReservedField(blockType, key, prefix, subBlocks)) {
-      continue
-    }
-
-    if (value && typeof value === 'object' && 'type' in value) {
-      const typedValue = value as { type: unknown }
-      if (typedValue.type === 'files' || typedValue.type === 'file[]') {
-        paths.push(...expandFileTypeProperties(path))
-      } else {
-        paths.push(path)
-      }
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      paths.push(...collectOutputPaths(value as OutputDefinition, blockType, subBlocks, path))
-    } else {
-      paths.push(path)
-    }
+function isFileOutputDefinition(value: unknown): value is { type: FileOutputType } {
+  if (!value || typeof value !== 'object' || !('type' in value)) {
+    return false
   }
 
-  return paths
-}
-
-export function getBlockOutputPaths(
-  blockType: string,
-  subBlocks?: Record<string, SubBlockWithValue>,
-  triggerMode?: boolean
-): string[] {
-  const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)
-  return collectOutputPaths(outputs, blockType, subBlocks)
+  const { type } = value as { type?: unknown }
+  return type === 'file' || type === 'file[]'
 }
 
 function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): string | null {
@@ -413,13 +463,7 @@ function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): st
     current = (current as Record<string, unknown>)[part]
   }
 
-  if (
-    current &&
-    typeof current === 'object' &&
-    'type' in current &&
-    ((current as { type: unknown }).type === 'files' ||
-      (current as { type: unknown }).type === 'file[]')
-  ) {
+  if (isFileOutputDefinition(current)) {
     return USER_FILE_PROPERTY_TYPES[lastPart as keyof typeof USER_FILE_PROPERTY_TYPES]
   }
 
@@ -433,7 +477,45 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
     if (!current || typeof current !== 'object') {
       return null
     }
-    current = (current as Record<string, unknown>)[part]
+
+    const currentObj = current as Record<string, unknown>
+
+    if (part in currentObj) {
+      current = currentObj[part]
+    } else if (
+      'type' in currentObj &&
+      currentObj.type === 'object' &&
+      'properties' in currentObj &&
+      currentObj.properties &&
+      typeof currentObj.properties === 'object'
+    ) {
+      const props = currentObj.properties as Record<string, unknown>
+      if (part in props) {
+        current = props[part]
+      } else {
+        return null
+      }
+    } else if (
+      'type' in currentObj &&
+      currentObj.type === 'array' &&
+      'items' in currentObj &&
+      currentObj.items &&
+      typeof currentObj.items === 'object'
+    ) {
+      const items = currentObj.items as Record<string, unknown>
+      if ('properties' in items && items.properties && typeof items.properties === 'object') {
+        const itemProps = items.properties as Record<string, unknown>
+        if (part in itemProps) {
+          current = itemProps[part]
+        } else {
+          return null
+        }
+      } else {
+        return null
+      }
+    } else {
+      return null
+    }
   }
 
   return current
@@ -450,13 +532,13 @@ function extractType(value: unknown): string {
   return typeof value === 'string' ? value : 'any'
 }
 
-export function getBlockOutputType(
+export function getEffectiveBlockOutputType(
   blockType: string,
   outputPath: string,
   subBlocks?: Record<string, SubBlockWithValue>,
-  triggerMode?: boolean
+  options?: EffectiveOutputOptions
 ): string {
-  const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)
+  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, options)
 
   const cleanPath = outputPath.replace(/\[(\d+)\]/g, '')
   const pathParts = cleanPath.split('.').filter(Boolean)
@@ -487,7 +569,7 @@ function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[
       paths.push(currentPath)
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'files' || value.type === 'file[]') {
+        if (isFileOutputDefinition(value)) {
           paths.push(...expandFileTypeProperties(currentPath))
           continue
         }
@@ -529,60 +611,6 @@ function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[
 }
 
 /**
- * Recursively generates all output paths with their types from an outputs schema.
- *
- * @param outputs - The outputs schema object
- * @param prefix - Current path prefix for recursion
- * @returns Array of objects containing path and type for each output field
- */
-function generateOutputPathsWithTypes(
-  outputs: Record<string, any>,
-  prefix = ''
-): Array<{ path: string; type: string }> {
-  const paths: Array<{ path: string; type: string }> = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push({ path: currentPath, type: value })
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'files' || value.type === 'file[]') {
-          paths.push({ path: currentPath, type: value.type })
-          for (const prop of USER_FILE_ACCESSIBLE_PROPERTIES) {
-            paths.push({
-              path: `${currentPath}.${prop}`,
-              type: USER_FILE_PROPERTY_TYPES[prop as keyof typeof USER_FILE_PROPERTY_TYPES],
-            })
-          }
-          continue
-        }
-
-        if (value.type === 'array' && value.items?.properties) {
-          paths.push({ path: currentPath, type: 'array' })
-          const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
-          paths.push(...subPaths)
-        } else if ((value.type === 'object' || value.type === 'json') && value.properties) {
-          paths.push({ path: currentPath, type: value.type })
-          const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
-          paths.push(...subPaths)
-        } else {
-          paths.push({ path: currentPath, type: value.type })
-        }
-      } else {
-        const subPaths = generateOutputPathsWithTypes(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push({ path: currentPath, type: 'any' })
-    }
-  }
-
-  return paths
-}
-
-/**
  * Gets the tool outputs for a block operation.
  *
  * @param blockConfig - The block configuration containing tools config
@@ -591,8 +619,10 @@ function generateOutputPathsWithTypes(
  */
 export function getToolOutputs(
   blockConfig: BlockConfig,
-  subBlocks?: Record<string, SubBlockWithValue>
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: { includeHidden?: boolean }
 ): Record<string, any> {
+  const includeHidden = options?.includeHidden ?? false
   if (!blockConfig?.tools?.config?.tool) return {}
 
   try {
@@ -610,44 +640,16 @@ export function getToolOutputs(
 
     const toolConfig = getTool(toolId)
     if (!toolConfig?.outputs) return {}
-
-    return toolConfig.outputs
+    if (includeHidden) {
+      return toolConfig.outputs
+    }
+    return Object.fromEntries(
+      Object.entries(toolConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+    )
   } catch (error) {
     logger.warn('Failed to get tool outputs', { error })
     return {}
   }
-}
-
-/**
- * Generates output paths for a tool-based block.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param subBlocks - SubBlock values for tool selection and condition evaluation
- * @returns Array of output paths for the tool, or empty array on error
- */
-export function getToolOutputPaths(
-  blockConfig: BlockConfig,
-  subBlocks?: Record<string, SubBlockWithValue>
-): string[] {
-  const outputs = getToolOutputs(blockConfig, subBlocks)
-
-  if (!outputs || Object.keys(outputs).length === 0) return []
-
-  if (subBlocks && blockConfig.outputs) {
-    const filteredBlockOutputs = filterOutputsByCondition(blockConfig.outputs, subBlocks)
-    const allowedKeys = new Set(Object.keys(filteredBlockOutputs))
-
-    const filteredOutputs: Record<string, any> = {}
-    for (const [key, value] of Object.entries(outputs)) {
-      if (allowedKeys.has(key)) {
-        filteredOutputs[key] = value
-      }
-    }
-
-    return generateOutputPaths(filteredOutputs)
-  }
-
-  return generateOutputPaths(outputs)
 }
 
 /**
@@ -658,25 +660,4 @@ export function getToolOutputPaths(
  */
 export function getOutputPathsFromSchema(outputs: Record<string, any>): string[] {
   return generateOutputPaths(outputs)
-}
-
-/**
- * Gets the output type for a specific path in a tool's outputs.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param subBlocks - SubBlock values for tool selection
- * @param path - The dot-separated path to the output field
- * @returns The type of the output field, or 'any' if not found
- */
-export function getToolOutputType(
-  blockConfig: BlockConfig,
-  subBlocks: Record<string, SubBlockWithValue> | undefined,
-  path: string
-): string {
-  const outputs = getToolOutputs(blockConfig, subBlocks)
-  if (!outputs || Object.keys(outputs).length === 0) return 'any'
-
-  const pathsWithTypes = generateOutputPathsWithTypes(outputs)
-  const matchingPath = pathsWithTypes.find((p) => p.path === path)
-  return matchingPath?.type || 'any'
 }

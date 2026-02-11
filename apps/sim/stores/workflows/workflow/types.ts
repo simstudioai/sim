@@ -87,6 +87,7 @@ export interface BlockState {
   triggerMode?: boolean
   data?: BlockData
   layout?: BlockLayoutState
+  locked?: boolean
 }
 
 export interface SubBlockState {
@@ -131,6 +132,7 @@ export interface Loop {
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
   enabled: boolean
+  locked?: boolean
 }
 
 export interface Parallel {
@@ -140,6 +142,7 @@ export interface Parallel {
   count?: number // Number of parallel executions for count-based parallel
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
   enabled: boolean
+  locked?: boolean
 }
 
 export interface Variable {
@@ -175,22 +178,6 @@ export interface WorkflowState {
 }
 
 export interface WorkflowActions {
-  addBlock: (
-    id: string,
-    type: string,
-    name: string,
-    position: Position,
-    data?: Record<string, any>,
-    parentId?: string,
-    extent?: 'parent',
-    blockProperties?: {
-      enabled?: boolean
-      horizontalHandles?: boolean
-      advancedMode?: boolean
-      triggerMode?: boolean
-      height?: number
-    }
-  ) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
   batchUpdateBlocksWithParent: (
     updates: Array<{
@@ -203,12 +190,13 @@ export interface WorkflowActions {
   batchAddBlocks: (
     blocks: BlockState[],
     edges?: Edge[],
-    subBlockValues?: Record<string, Record<string, unknown>>
+    subBlockValues?: Record<string, Record<string, unknown>>,
+    options?: { skipEdgeValidation?: boolean }
   ) => void
   batchRemoveBlocks: (ids: string[]) => void
   batchToggleEnabled: (ids: string[]) => void
   batchToggleHandles: (ids: string[]) => void
-  batchAddEdges: (edges: Edge[]) => void
+  batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
   batchRemoveEdges: (ids: string[]) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
@@ -241,7 +229,6 @@ export interface WorkflowActions {
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
-  toggleBlockTriggerMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
   getWorkflowState: () => WorkflowState
@@ -249,6 +236,8 @@ export interface WorkflowActions {
     workflowState: WorkflowState,
     options?: { updateLastSaved?: boolean }
   ) => void
+  setBlockLocked: (id: string, locked: boolean) => void
+  batchToggleLocked: (ids: string[]) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

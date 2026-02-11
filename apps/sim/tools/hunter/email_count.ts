@@ -1,4 +1,5 @@
 import type { HunterEmailCountParams, HunterEmailCountResponse } from '@/tools/hunter/types'
+import { DEPARTMENT_OUTPUT, SENIORITY_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCountResponse> = {
@@ -12,19 +13,22 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Domain to count emails for (required if company not provided)',
+      description:
+        'Domain to count emails for (e.g., "stripe.com"). Required if company not provided',
     },
     company: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company name to count emails for (required if domain not provided)',
+      description:
+        'Company name to count emails for (e.g., "Stripe", "Acme Inc"). Required if domain not provided',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter for personal or generic emails only',
+      visibility: 'user-or-llm',
+      description:
+        'Filter for personal or generic emails only (e.g., "personal", "generic", "all")',
     },
     apiKey: {
       type: 'string',
@@ -75,6 +79,10 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
           hr: 0,
           marketing: 0,
           communication: 0,
+          education: 0,
+          design: 0,
+          health: 0,
+          operations: 0,
         },
         seniority: data.data?.seniority || {
           junior: 0,
@@ -92,20 +100,13 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
     },
     personal_emails: {
       type: 'number',
-      description: 'Number of personal email addresses found',
+      description: 'Number of personal email addresses (individual employees)',
     },
     generic_emails: {
       type: 'number',
-      description: 'Number of generic email addresses found',
+      description: 'Number of generic/role-based email addresses (e.g., contact@, info@)',
     },
-    department: {
-      type: 'object',
-      description:
-        'Breakdown of email addresses by department (executive, it, finance, management, sales, legal, support, hr, marketing, communication)',
-    },
-    seniority: {
-      type: 'object',
-      description: 'Breakdown of email addresses by seniority level (junior, senior, executive)',
-    },
+    department: DEPARTMENT_OUTPUT,
+    seniority: SENIORITY_OUTPUT,
   },
 }

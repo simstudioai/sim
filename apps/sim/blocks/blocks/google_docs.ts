@@ -157,11 +157,10 @@ Return ONLY the document content - no explanations, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, documentId, manualDocumentId, folderSelector, folderId, ...rest } =
-          params
+        const { credential, documentId, folderId, ...rest } = params
 
-        const effectiveDocumentId = (documentId || manualDocumentId || '').trim()
-        const effectiveFolderId = (folderSelector || folderId || '').trim()
+        const effectiveDocumentId = documentId ? String(documentId).trim() : ''
+        const effectiveFolderId = folderId ? String(folderId).trim() : ''
 
         return {
           ...rest,
@@ -175,11 +174,9 @@ Return ONLY the document content - no explanations, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google Docs access token' },
-    documentId: { type: 'string', description: 'Document identifier' },
-    manualDocumentId: { type: 'string', description: 'Manual document identifier' },
+    documentId: { type: 'string', description: 'Document identifier (canonical param)' },
     title: { type: 'string', description: 'Document title' },
-    folderSelector: { type: 'string', description: 'Selected folder' },
-    folderId: { type: 'string', description: 'Folder identifier' },
+    folderId: { type: 'string', description: 'Parent folder identifier (canonical param)' },
     content: { type: 'string', description: 'Document content' },
   },
   outputs: {

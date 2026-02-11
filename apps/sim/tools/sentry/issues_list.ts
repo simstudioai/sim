@@ -18,14 +18,14 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     projectSlug: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter issues by specific project slug (optional)',
+      visibility: 'user-or-llm',
+      description: 'Filter issues by specific project slug (e.g., "my-project")',
     },
     query: {
       type: 'string',
@@ -44,13 +44,13 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
     cursor: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for retrieving next page of results',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of issues to return per page (default: 25, max: 100)',
     },
     status: {

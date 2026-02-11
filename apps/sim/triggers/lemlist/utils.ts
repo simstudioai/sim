@@ -22,7 +22,7 @@ export const lemlistTriggerOptions = [
 export function lemlistSetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Lemlist API Key above.',
-    'You can find your API key in Lemlist at <strong>Settings > Integrations > API</strong>.',
+    'You can find your API key in Lemlist at <strong>Settings > Integrations</strong>. See the <a href="https://help.lemlist.com/en/articles/4452694-find-and-use-the-lemlist-api" target="_blank" rel="noopener noreferrer">Lemlist API documentation</a> for details.',
     'The webhook will be automatically deleted when you remove this trigger.',
   ]
 

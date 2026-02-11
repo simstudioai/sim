@@ -7,18 +7,20 @@ import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockDbSelect } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockDbSelect: vi.fn(),
-}))
+const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission, mockDbSelect } = vi.hoisted(
+  () => ({
+    mockGetSession: vi.fn(),
+    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
+    mockDbSelect: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -80,7 +82,12 @@ describe('Schedule GET API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: 'read',
+    })
   })
 
   afterEach(() => {
@@ -89,7 +96,6 @@ describe('Schedule GET API', () => {
 
   it('returns schedule data for authorized user', async () => {
     mockDbChain([
-      [{ userId: 'user-1', workspaceId: null }],
       [
         {
           schedule: {
@@ -111,7 +117,7 @@ describe('Schedule GET API', () => {
   })
 
   it('returns null when no schedule exists', async () => {
-    mockDbChain([[{ userId: 'user-1', workspaceId: null }], []])
+    mockDbChain([[]])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
     const data = await res.json()
@@ -135,6 +141,13 @@ describe('Schedule GET API', () => {
   })
 
   it('returns 404 for non-existent workflow', async () => {
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    })
     mockDbChain([[]])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
@@ -143,6 +156,13 @@ describe('Schedule GET API', () => {
   })
 
   it('denies access for unauthorized user', async () => {
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 403,
+      message: 'Unauthorized: Access denied to read this workflow',
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: null,
+    })
     mockDbChain([[{ userId: 'other-user', workspaceId: null }]])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
@@ -151,10 +171,7 @@ describe('Schedule GET API', () => {
   })
 
   it('allows workspace members to view', async () => {
-    mockDbChain([
-      [{ userId: 'other-user', workspaceId: 'ws-1' }],
-      [{ schedule: { id: 'sched-1', status: 'active', failedCount: 0 } }],
-    ])
+    mockDbChain([[{ schedule: { id: 'sched-1', status: 'active', failedCount: 0 } }]])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
 
@@ -162,10 +179,7 @@ describe('Schedule GET API', () => {
   })
 
   it('indicates disabled schedule with failures', async () => {
-    mockDbChain([
-      [{ userId: 'user-1', workspaceId: null }],
-      [{ schedule: { id: 'sched-1', status: 'disabled', failedCount: 100 } }],
-    ])
+    mockDbChain([[{ schedule: { id: 'sched-1', status: 'disabled', failedCount: 100 } }]])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
     const data = await res.json()

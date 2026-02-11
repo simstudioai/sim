@@ -14,7 +14,7 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
   const { signal, executionId } = options
   const useRedis = isRedisCancellationEnabled() && !!executionId
 
-  if (!useRedis && signal?.aborted) {
+  if (signal?.aborted) {
     return false
   }
 
@@ -27,7 +27,7 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
     const cleanup = () => {
       if (mainTimeoutId) clearTimeout(mainTimeoutId)
       if (checkIntervalId) clearInterval(checkIntervalId)
-      if (!useRedis && signal) signal.removeEventListener('abort', onAbort)
+      if (signal) signal.removeEventListener('abort', onAbort)
     }
 
     const onAbort = () => {
@@ -35,6 +35,10 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
       resolved = true
       cleanup()
       resolve(false)
+    }
+
+    if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true })
     }
 
     if (useRedis) {
@@ -49,8 +53,6 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
           }
         } catch {}
       }, CANCELLATION_CHECK_INTERVAL_MS)
-    } else if (signal) {
-      signal.addEventListener('abort', onAbort, { once: true })
     }
 
     mainTimeoutId = setTimeout(() => {

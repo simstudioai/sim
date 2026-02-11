@@ -48,6 +48,11 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       visibility: 'user-or-llm',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
+    timeout: {
+      type: 'number',
+      visibility: 'user-only',
+      description: 'Request timeout in milliseconds (default: 300000 = 5 minutes)',
+    },
   },
 
   request: {
@@ -100,7 +105,10 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           const urlencoded = new URLSearchParams()
           Object.entries(params.body as Record<string, unknown>).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
-              urlencoded.append(key, String(value))
+              urlencoded.append(
+                key,
+                typeof value === 'object' ? JSON.stringify(value) : String(value)
+              )
             }
           })
           return urlencoded.toString()

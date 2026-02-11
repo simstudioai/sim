@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateCaseParams,
   SalesforceUpdateCaseResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,32 +39,32 @@ export const salesforceUpdateCaseTool: ToolConfig<
     caseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Case ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Case ID to update (18-character string starting with 500)',
     },
     subject: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Case subject',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Status',
+      visibility: 'user-or-llm',
+      description: 'Status (e.g., New, Working, Escalated, Closed)',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Priority',
+      visibility: 'user-or-llm',
+      description: 'Priority (e.g., Low, Medium, High)',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Case description',
     },
   },
 
@@ -104,10 +105,7 @@ export const salesforceUpdateCaseTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated case data',
-      properties: {
-        id: { type: 'string', description: 'Updated case ID' },
-        updated: { type: 'boolean', description: 'Whether case was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

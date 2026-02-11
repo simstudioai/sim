@@ -1,4 +1,5 @@
 import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/tools/github/types'
+import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateBranchProtectionTool: ToolConfig<
@@ -244,26 +245,5 @@ export const updateBranchProtectionV2Tool: ToolConfig = {
       },
     }
   },
-  outputs: {
-    url: { type: 'string', description: 'Protection URL' },
-    required_status_checks: {
-      type: 'json',
-      description: 'Status check requirements',
-      optional: true,
-    },
-    enforce_admins: { type: 'json', description: 'Admin enforcement settings' },
-    required_pull_request_reviews: {
-      type: 'json',
-      description: 'PR review requirements',
-      optional: true,
-    },
-    restrictions: { type: 'json', description: 'Push restrictions', optional: true },
-    required_linear_history: {
-      type: 'json',
-      description: 'Linear history requirement',
-      optional: true,
-    },
-    allow_force_pushes: { type: 'json', description: 'Force push settings', optional: true },
-    allow_deletions: { type: 'json', description: 'Deletion settings', optional: true },
-  },
+  outputs: BRANCH_PROTECTION_OUTPUT_PROPERTIES,
 }

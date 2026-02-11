@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomListMeetingsParams, ZoomListMeetingsResponse } from '@/tools/zoom/types'
+import {
+  MEETING_LIST_ITEM_OUTPUT_PROPERTIES,
+  MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMeetingsResponse> = {
   id: 'zoom_list_meetings',
@@ -17,8 +21,9 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The user ID or email address. Use "me" for the authenticated user.',
+      visibility: 'user-or-llm',
+      description:
+        'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
     },
     type: {
       type: 'string',
@@ -31,7 +36,7 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',
@@ -122,17 +127,15 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
     meetings: {
       type: 'array',
       description: 'List of meetings',
+      items: {
+        type: 'object',
+        properties: MEETING_LIST_ITEM_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        pageCount: { type: 'number', description: 'Total number of pages' },
-        pageNumber: { type: 'number', description: 'Current page number' },
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

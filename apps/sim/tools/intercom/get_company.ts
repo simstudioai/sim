@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildIntercomUrl, handleIntercomError } from './types'
-
-const logger = createLogger('IntercomGetCompany')
 
 export interface IntercomGetCompanyParams {
   accessToken: string
@@ -25,7 +22,7 @@ const getCompanyBase = {
     accessToken: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Intercom API access token',
     },
     companyId: {

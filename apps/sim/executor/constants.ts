@@ -1,4 +1,16 @@
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
+
+/**
+ * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
+ * These are added during execution but aren't part of the block's static output schema.
+ */
+export const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
+export type TriggerInternalKey = (typeof TRIGGER_INTERNAL_KEYS)[number]
+
+export function isTriggerInternalKey(key: string): key is TriggerInternalKey {
+  return TRIGGER_INTERNAL_KEYS.includes(key as TriggerInternalKey)
+}
 
 export enum BlockType {
   PARALLEL = 'parallel',
@@ -120,6 +132,12 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
+export const RESERVED_BLOCK_NAMES = [
+  REFERENCE.PREFIX.LOOP,
+  REFERENCE.PREFIX.PARALLEL,
+  REFERENCE.PREFIX.VARIABLE,
+] as const
+
 export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
@@ -170,8 +188,12 @@ export const HTTP = {
 
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
-  DEFAULT_FUNCTION_TIMEOUT: 600000,
-  REQUEST_TIMEOUT: 600000,
+  get DEFAULT_FUNCTION_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
+  get REQUEST_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
   CUSTOM_TOOL_PREFIX: 'custom_',
 } as const
 
@@ -267,6 +289,26 @@ export interface ConditionConfig {
 
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
+}
+
+/**
+ * Determines if a block behaves as a trigger based on its metadata and config.
+ * This is used for execution flow decisions where trigger-like behavior matters.
+ *
+ * A block is considered trigger-like if:
+ * - Its category is 'triggers'
+ * - It has triggerMode enabled
+ * - It's a starter block (legacy entry point)
+ */
+export function isTriggerBehavior(block: {
+  metadata?: { category?: string; id?: string }
+  config?: { params?: { triggerMode?: boolean } }
+}): boolean {
+  return (
+    block.metadata?.category === 'triggers' ||
+    block.config?.params?.triggerMode === true ||
+    block.metadata?.id === BlockType.STARTER
+  )
 }
 
 export function isMetadataOnlyBlockType(blockType: string | undefined): boolean {

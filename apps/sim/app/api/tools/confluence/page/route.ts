@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -61,6 +62,7 @@ const deletePageSchema = z
     accessToken: z.string().min(1, 'Access token is required'),
     cloudId: z.string().optional(),
     pageId: z.string().min(1, 'Page ID is required'),
+    purge: z.boolean().optional(),
   })
   .refine(
     (data) => {
@@ -73,8 +75,13 @@ const deletePageSchema = z
     }
   )
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
 
     const validation = postPageSchema.safeParse(body)
@@ -92,7 +99,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?expand=body.storage,body.view,body.atlas_doc_format`
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?body-format=storage`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -124,16 +131,18 @@ export async function POST(request: Request) {
       id: data.id,
       title: data.title,
       body: {
-        view: {
-          value:
-            data.body?.storage?.value ||
-            data.body?.view?.value ||
-            data.body?.atlas_doc_format?.value ||
-            data.content || // try alternative fields
-            data.description ||
-            `Content for page ${data.title}`, // fallback content
+        storage: {
+          value: data.body?.storage?.value ?? null,
+          representation: 'storage',
         },
       },
+      status: data.status ?? null,
+      spaceId: data.spaceId ?? null,
+      parentId: data.parentId ?? null,
+      authorId: data.authorId ?? null,
+      createdAt: data.createdAt ?? null,
+      version: data.version ?? null,
+      _links: data._links ?? null,
     })
   } catch (error) {
     logger.error('Error fetching Confluence page:', error)
@@ -144,8 +153,13 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
 
     const validation = putPageSchema.safeParse(body)
@@ -248,8 +262,13 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
 
     const validation = deletePageSchema.safeParse(body)
@@ -258,7 +277,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: firstError.message }, { status: 400 })
     }
 
-    const { domain, accessToken, cloudId: providedCloudId, pageId } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, pageId, purge } = validation.data
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -267,7 +286,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`
+    const queryParams = new URLSearchParams()
+    if (purge) {
+      queryParams.append('purge', 'true')
+    }
+    const queryString = queryParams.toString()
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}${queryString ? `?${queryString}` : ''}`
 
     const response = await fetch(url, {
       method: 'DELETE',

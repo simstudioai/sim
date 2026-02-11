@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { OUTPUT_PANEL_WIDTH } from '@/stores/constants'
+import { OUTPUT_PANEL_WIDTH, TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import { useTerminalStore } from '@/stores/terminal'
-
-const BLOCK_COLUMN_WIDTH = 240
 
 export function useOutputPanelResize() {
   const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
@@ -25,7 +23,7 @@ export function useOutputPanelResize() {
 
       const newWidth = window.innerWidth - e.clientX - panelWidth
       const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
-      const maxWidth = terminalWidth - BLOCK_COLUMN_WIDTH
+      const maxWidth = terminalWidth - TERMINAL_BLOCK_COLUMN_WIDTH
       const clampedWidth = Math.max(OUTPUT_PANEL_WIDTH.MIN, Math.min(newWidth, maxWidth))
 
       setOutputPanelWidth(clampedWidth)

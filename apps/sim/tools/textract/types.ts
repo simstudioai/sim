@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type TextractProcessingMode = 'sync' | 'async'
@@ -8,11 +10,20 @@ export interface TextractParserInput {
   region: string
   processingMode?: TextractProcessingMode
   filePath?: string
+  file?: RawFileInput
   s3Uri?: string
-  fileUpload?: {
-    url?: string
-    path?: string
-  }
+  fileUpload?: RawFileInput
+  featureTypes?: TextractFeatureType[]
+  queries?: TextractQuery[]
+}
+
+export interface TextractParserV2Input {
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+  processingMode?: TextractProcessingMode
+  file?: UserFile
+  s3Uri?: string
   featureTypes?: TextractFeatureType[]
   queries?: TextractQuery[]
 }

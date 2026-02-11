@@ -1,6 +1,7 @@
 import { DiscordIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { DiscordResponse } from '@/tools/discord/types'
 
 export const DiscordBlock: BlockConfig<DiscordResponse> = {
@@ -578,13 +579,14 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         if (!params.serverId) throw new Error('Server ID is required')
 
         switch (params.operation) {
-          case 'discord_send_message':
+          case 'discord_send_message': {
             return {
               ...commonParams,
               channelId: params.channelId,
               content: params.content,
-              files: params.attachmentFiles || params.files,
+              files: normalizeFileInput(params.files),
             }
+          }
           case 'discord_get_messages':
             return {
               ...commonParams,
@@ -771,8 +773,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     nick: { type: 'string', description: 'Member nickname' },
     reason: { type: 'string', description: 'Reason for moderation action' },
     archived: { type: 'string', description: 'Archive status (true/false)' },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'array', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     limit: { type: 'number', description: 'Message limit' },
     autoArchiveDuration: { type: 'number', description: 'Thread auto-archive duration in minutes' },
     channelType: { type: 'number', description: 'Discord channel type (0=text, 2=voice, etc.)' },
@@ -789,6 +790,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   },
   outputs: {
     message: { type: 'string', description: 'Status message' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     data: { type: 'json', description: 'Response data' },
   },
 }

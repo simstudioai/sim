@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Combobox } from '@/components/emcn/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 
@@ -13,6 +14,7 @@ interface McpToolSelectorProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
+  previewContextValues?: Record<string, unknown>
 }
 
 export function McpToolSelector({
@@ -21,6 +23,7 @@ export function McpToolSelector({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: McpToolSelectorProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -31,7 +34,10 @@ export function McpToolSelector({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [, setSchemaCache] = useSubBlockValue(blockId, '_toolSchema')
 
-  const [serverValue] = useSubBlockValue(blockId, 'server')
+  const [serverFromStore] = useSubBlockValue(blockId, 'server')
+  const serverValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.server)
+    : serverFromStore
 
   const label = subBlock.placeholder || 'Select tool'
 

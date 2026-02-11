@@ -1,4 +1,5 @@
 import type { JsmGetCommentsParams, JsmGetCommentsResponse } from '@/tools/jsm/types'
+import { COMMENT_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetCommentsResponse> = {
@@ -40,26 +41,32 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
     isPublic: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter to only public comments',
+      visibility: 'user-or-llm',
+      description: 'Filter to only public comments (true/false)',
     },
     internal: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter to only internal comments',
+      visibility: 'user-or-llm',
+      description: 'Filter to only internal comments (true/false)',
+    },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated fields to expand: renderedBody, attachment',
     },
     start: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Start index for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Start index for pagination (e.g., 0, 50, 100)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Maximum results to return (e.g., 10, 25, 50)',
     },
   },
 
@@ -76,6 +83,7 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
       issueIdOrKey: params.issueIdOrKey,
       isPublic: params.isPublic,
       internal: params.internal,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -120,7 +128,14 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    comments: { type: 'json', description: 'Array of comments' },
+    comments: {
+      type: 'array',
+      description: 'List of comments',
+      items: {
+        type: 'object',
+        properties: COMMENT_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of comments' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

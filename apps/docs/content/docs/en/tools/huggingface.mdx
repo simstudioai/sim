@@ -43,7 +43,7 @@ Generate completions using Hugging Face Inference API
 | `systemPrompt` | string | No | System prompt to guide the model behavior |
 | `content` | string | Yes | The user message content to send to the model |
 | `provider` | string | Yes | The provider to use for the API request \(e.g., novita, cerebras, etc.\) |
-| `model` | string | Yes | Model to use for chat completions \(e.g., deepseek/deepseek-v3-0324\) |
+| `model` | string | Yes | Model to use for chat completions \(e.g., "deepseek/deepseek-v3-0324", "meta-llama/Llama-3.3-70B-Instruct"\) |
 | `maxTokens` | number | No | Maximum number of tokens to generate |
 | `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
 | `apiKey` | string | Yes | Hugging Face API token |
@@ -54,14 +54,11 @@ Generate completions using Hugging Face Inference API
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Chat completion results |
-| ↳ `content` | string | Generated text content |
-| ↳ `model` | string | Model used for generation |
-| ↳ `usage` | object | Token usage information |
-|   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
-|   ↳ `completion_tokens` | number | Number of tokens in the completion |
-|   ↳ `total_tokens` | number | Total number of tokens used |
-| ↳ `prompt_tokens` | number | Number of tokens in the prompt |
-| ↳ `completion_tokens` | number | Number of tokens in the completion |
-| ↳ `total_tokens` | number | Total number of tokens used |
+|   ↳ `content` | string | Generated text content |
+|   ↳ `model` | string | Model used for generation |
+|   ↳ `usage` | object | Token usage information |
+|     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|     ↳ `completion_tokens` | number | Number of tokens in the completion |
+|     ↳ `total_tokens` | number | Total number of tokens used |
 
 

@@ -1,4 +1,5 @@
 import type { LinearGetCycleParams, LinearGetCycleResponse } from '@/tools/linear/types'
+import { CYCLE_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycleResponse> = {
@@ -44,6 +45,7 @@ export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycle
             endsAt
             completedAt
             progress
+            createdAt
             team {
               id
               name
@@ -80,15 +82,7 @@ export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycle
     cycle: {
       type: 'object',
       description: 'The cycle with full details',
-      properties: {
-        id: { type: 'string', description: 'Cycle ID' },
-        number: { type: 'number', description: 'Cycle number' },
-        name: { type: 'string', description: 'Cycle name' },
-        startsAt: { type: 'string', description: 'Start date' },
-        endsAt: { type: 'string', description: 'End date' },
-        progress: { type: 'number', description: 'Progress percentage' },
-        team: { type: 'object', description: 'Team this cycle belongs to' },
-      },
+      properties: CYCLE_FULL_OUTPUT_PROPERTIES,
     },
   },
 }

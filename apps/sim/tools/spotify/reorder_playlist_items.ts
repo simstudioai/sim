@@ -52,15 +52,15 @@ export const spotifyReorderPlaylistItemsTool: ToolConfig<
     range_length: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 1,
       description: 'Number of items to reorder',
     },
     snapshot_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Playlist snapshot ID for concurrency control',
+      visibility: 'user-or-llm',
+      description: 'Playlist snapshot ID for concurrency control (22-character base62 string)',
     },
   },
 

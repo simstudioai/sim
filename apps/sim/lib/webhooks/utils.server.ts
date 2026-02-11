@@ -1,15 +1,23 @@
+import crypto from 'crypto'
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
+import { safeCompare } from '@/lib/core/security/encryption'
 import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
-} from '@/lib/core/security/input-validation'
+} from '@/lib/core/security/input-validation.server'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { DbOrTx } from '@/lib/db/types'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
+import {
+  getCredentialsForCredentialSet,
+  refreshAccessTokenIfNeeded,
+} from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
 
@@ -107,7 +115,7 @@ async function fetchWithDNSPinning(
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, {
-        url: url.substring(0, 100),
+        url,
       })
       return null
     }
@@ -126,7 +134,7 @@ async function fetchWithDNSPinning(
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
       error: error instanceof Error ? error.message : String(error),
-      url: url.substring(0, 100),
+      url: sanitizeUrlForLog(url),
     })
     return null
   }
@@ -512,20 +520,163 @@ export async function validateTwilioSignature(
       match: signatureBase64 === signature,
     })
 
-    if (signatureBase64.length !== signature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < signatureBase64.length; i++) {
-      result |= signatureBase64.charCodeAt(i) ^ signature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(signatureBase64, signature)
   } catch (error) {
     logger.error('Error validating Twilio signature:', error)
     return false
   }
+}
+
+const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+const SLACK_MAX_FILES = 15
+
+/**
+ * Resolves the full file object from the Slack API when the event payload
+ * only contains a partial file (e.g. missing url_private due to file_access restrictions).
+ * @see https://docs.slack.dev/reference/methods/files.info
+ */
+async function resolveSlackFileInfo(
+  fileId: string,
+  botToken: string
+): Promise<{ url_private?: string; name?: string; mimetype?: string; size?: number } | null> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
+      {
+        headers: { Authorization: `Bearer ${botToken}` },
+      }
+    )
+
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      file?: Record<string, any>
+    }
+
+    if (!data.ok || !data.file) {
+      logger.warn('Slack files.info failed', { fileId, error: data.error })
+      return null
+    }
+
+    return {
+      url_private: data.file.url_private,
+      name: data.file.name,
+      mimetype: data.file.mimetype,
+      size: data.file.size,
+    }
+  } catch (error) {
+    logger.error('Error calling Slack files.info', {
+      fileId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
+/**
+ * Downloads file attachments from Slack using the bot token.
+ * Returns files in the format expected by WebhookAttachmentProcessor:
+ * { name, data (base64 string), mimeType, size }
+ *
+ * When the event payload contains partial file objects (missing url_private),
+ * falls back to the Slack files.info API to resolve the full file metadata.
+ *
+ * Security:
+ * - Uses validateUrlWithDNS + secureFetchWithPinnedIP to prevent SSRF
+ * - Enforces per-file size limit and max file count
+ */
+async function downloadSlackFiles(
+  rawFiles: any[],
+  botToken: string
+): Promise<Array<{ name: string; data: string; mimeType: string; size: number }>> {
+  const filesToProcess = rawFiles.slice(0, SLACK_MAX_FILES)
+  const downloaded: Array<{ name: string; data: string; mimeType: string; size: number }> = []
+
+  for (const file of filesToProcess) {
+    let urlPrivate = file.url_private as string | undefined
+    let fileName = file.name as string | undefined
+    let fileMimeType = file.mimetype as string | undefined
+    let fileSize = file.size as number | undefined
+
+    // If url_private is missing, resolve via files.info API
+    if (!urlPrivate && file.id) {
+      const resolved = await resolveSlackFileInfo(file.id, botToken)
+      if (resolved?.url_private) {
+        urlPrivate = resolved.url_private
+        fileName = fileName || resolved.name
+        fileMimeType = fileMimeType || resolved.mimetype
+        fileSize = fileSize ?? resolved.size
+      }
+    }
+
+    if (!urlPrivate) {
+      logger.warn('Slack file has no url_private and could not be resolved, skipping', {
+        fileId: file.id,
+      })
+      continue
+    }
+
+    // Skip files that exceed the size limit
+    const reportedSize = Number(fileSize) || 0
+    if (reportedSize > SLACK_MAX_FILE_SIZE) {
+      logger.warn('Slack file exceeds size limit, skipping', {
+        fileId: file.id,
+        size: reportedSize,
+        limit: SLACK_MAX_FILE_SIZE,
+      })
+      continue
+    }
+
+    try {
+      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private')
+      if (!urlValidation.isValid) {
+        logger.warn('Slack file url_private failed DNS validation, skipping', {
+          fileId: file.id,
+          error: urlValidation.error,
+        })
+        continue
+      }
+
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+
+      if (!response.ok) {
+        logger.warn('Failed to download Slack file, skipping', {
+          fileId: file.id,
+          status: response.status,
+        })
+        continue
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      // Verify the actual downloaded size doesn't exceed our limit
+      if (buffer.length > SLACK_MAX_FILE_SIZE) {
+        logger.warn('Downloaded Slack file exceeds size limit, skipping', {
+          fileId: file.id,
+          actualSize: buffer.length,
+          limit: SLACK_MAX_FILE_SIZE,
+        })
+        continue
+      }
+
+      downloaded.push({
+        name: fileName || 'download',
+        data: buffer.toString('base64'),
+        mimeType: fileMimeType || 'application/octet-stream',
+        size: buffer.length,
+      })
+    } catch (error) {
+      logger.error('Error downloading Slack file, skipping', {
+        fileId: file.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return downloaded
 }
 
 /**
@@ -788,43 +939,44 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'slack') {
-    const event = body?.event
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const botToken = providerConfig.botToken as string | undefined
+    const includeFiles = Boolean(providerConfig.includeFiles)
 
-    if (event && body?.type === 'event_callback') {
-      return {
-        event: {
-          event_type: event.type || '',
-          channel: event.channel || '',
-          channel_name: '',
-          user: event.user || '',
-          user_name: '',
-          text: event.text || '',
-          timestamp: event.ts || event.event_ts || '',
-          thread_ts: event.thread_ts || '',
-          team_id: body.team_id || event.team || '',
-          event_id: body.event_id || '',
-        },
-      }
+    const rawEvent = body?.event
+
+    if (!rawEvent) {
+      logger.warn('Unknown Slack event type', {
+        type: body?.type,
+        hasEvent: false,
+        bodyKeys: Object.keys(body || {}),
+      })
     }
 
-    logger.warn('Unknown Slack event type', {
-      type: body?.type,
-      hasEvent: !!body?.event,
-      bodyKeys: Object.keys(body || {}),
-    })
+    const rawFiles: any[] = rawEvent?.files ?? []
+    const hasFiles = rawFiles.length > 0
+
+    let files: any[] = []
+    if (hasFiles && includeFiles && botToken) {
+      files = await downloadSlackFiles(rawFiles, botToken)
+    } else if (hasFiles && includeFiles && !botToken) {
+      logger.warn('Slack message has files and includeFiles is enabled, but no bot token provided')
+    }
 
     return {
       event: {
-        event_type: body?.event?.type || body?.type || 'unknown',
-        channel: body?.event?.channel || '',
+        event_type: rawEvent?.type || body?.type || 'unknown',
+        channel: rawEvent?.channel || '',
         channel_name: '',
-        user: body?.event?.user || '',
+        user: rawEvent?.user || '',
         user_name: '',
-        text: body?.event?.text || '',
-        timestamp: body?.event?.ts || '',
-        thread_ts: body?.event?.thread_ts || '',
-        team_id: body?.team_id || '',
+        text: rawEvent?.text || '',
+        timestamp: rawEvent?.ts || rawEvent?.event_ts || '',
+        thread_ts: rawEvent?.thread_ts || '',
+        team_id: body?.team_id || rawEvent?.team || '',
         event_id: body?.event_id || '',
+        hasFiles,
+        files,
       },
     }
   }
@@ -1041,21 +1193,11 @@ export function validateMicrosoftTeamsSignature(
 
     const providedSignature = signature.substring(5)
 
-    const crypto = require('crypto')
     const secretBytes = Buffer.from(hmacSecret, 'base64')
     const bodyBytes = Buffer.from(body, 'utf8')
     const computedHash = crypto.createHmac('sha256', secretBytes).update(bodyBytes).digest('base64')
 
-    if (computedHash.length !== providedSignature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Microsoft Teams signature:', error)
     return false
@@ -1085,19 +1227,9 @@ export function validateTypeformSignature(
 
     const providedSignature = signature.substring(7)
 
-    const crypto = require('crypto')
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
 
-    if (computedHash.length !== providedSignature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Typeform signature:', error)
     return false
@@ -1122,7 +1254,6 @@ export function validateLinearSignature(secret: string, signature: string, body:
       return false
     }
 
-    const crypto = require('crypto')
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 
     logger.debug('Linear signature comparison', {
@@ -1133,16 +1264,7 @@ export function validateLinearSignature(secret: string, signature: string, body:
       match: computedHash === signature,
     })
 
-    if (computedHash.length !== signature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ signature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, signature)
   } catch (error) {
     logger.error('Error validating Linear signature:', error)
     return false
@@ -1171,7 +1293,6 @@ export function validateCirclebackSignature(
       return false
     }
 
-    const crypto = require('crypto')
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 
     logger.debug('Circleback signature comparison', {
@@ -1182,16 +1303,7 @@ export function validateCirclebackSignature(
       match: computedHash === signature,
     })
 
-    if (computedHash.length !== signature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ signature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, signature)
   } catch (error) {
     logger.error('Error validating Circleback signature:', error)
     return false
@@ -1225,7 +1337,6 @@ export function validateJiraSignature(secret: string, signature: string, body: s
 
     const providedSignature = signature.substring(7)
 
-    const crypto = require('crypto')
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 
     logger.debug('Jira signature comparison', {
@@ -1236,16 +1347,7 @@ export function validateJiraSignature(secret: string, signature: string, body: s
       match: computedHash === providedSignature,
     })
 
-    if (computedHash.length !== providedSignature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Jira signature:', error)
     return false
@@ -1283,7 +1385,6 @@ export function validateFirefliesSignature(
 
     const providedSignature = signature.substring(7)
 
-    const crypto = require('crypto')
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 
     logger.debug('Fireflies signature comparison', {
@@ -1294,16 +1395,7 @@ export function validateFirefliesSignature(
       match: computedHash === providedSignature,
     })
 
-    if (computedHash.length !== providedSignature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Fireflies signature:', error)
     return false
@@ -1328,7 +1420,6 @@ export function validateGitHubSignature(secret: string, signature: string, body:
       return false
     }
 
-    const crypto = require('crypto')
     let algorithm: 'sha256' | 'sha1'
     let providedSignature: string
 
@@ -1356,16 +1447,7 @@ export function validateGitHubSignature(secret: string, signature: string, body:
       match: computedHash === providedSignature,
     })
 
-    if (computedHash.length !== providedSignature.length) {
-      return false
-    }
-
-    let result = 0
-    for (let i = 0; i < computedHash.length; i++) {
-      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-    }
-
-    return result === 0
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating GitHub signature:', error)
     return false
@@ -1388,21 +1470,6 @@ export function verifyProviderWebhook(
     case 'stripe':
       break
     case 'gmail':
-      if (providerConfig.secret) {
-        const secretHeader = request.headers.get('X-Webhook-Secret')
-        if (!secretHeader || secretHeader.length !== providerConfig.secret.length) {
-          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse('Unauthorized', { status: 401 })
-        }
-        let result = 0
-        for (let i = 0; i < secretHeader.length; i++) {
-          result |= secretHeader.charCodeAt(i) ^ providerConfig.secret.charCodeAt(i)
-        }
-        if (result !== 0) {
-          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse('Unauthorized', { status: 401 })
-        }
-      }
       break
     case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
@@ -1946,6 +2013,10 @@ export interface CredentialSetWebhookSyncResult {
   created: number
   updated: number
   deleted: number
+  failed: Array<{
+    credentialId: string
+    error: string
+  }>
 }
 
 /**
@@ -1997,9 +2068,6 @@ export async function syncWebhooksForCredentialSet(params: {
     `[${requestId}] Syncing webhooks for credential set ${credentialSetId}, provider ${provider}`
   )
 
-  const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
-  const { nanoid } = await import('nanoid')
-
   // Polling providers get unique paths per credential (for independent state)
   // External webhook providers share the same path (external service sends to one URL)
   const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
@@ -2011,7 +2079,7 @@ export async function syncWebhooksForCredentialSet(params: {
     syncLogger.warn(
       `[${requestId}] No credentials found in credential set ${credentialSetId} for provider ${oauthProviderId}`
     )
-    return { webhooks: [], created: 0, updated: 0, deleted: 0 }
+    return { webhooks: [], created: 0, updated: 0, deleted: 0, failed: [] }
   }
 
   syncLogger.info(
@@ -2033,10 +2101,9 @@ export async function syncWebhooksForCredentialSet(params: {
     )
 
   // Filter to only webhooks belonging to this credential set
-  const credentialSetWebhooks = existingWebhooks.filter((wh) => {
-    const config = wh.providerConfig as Record<string, any>
-    return config?.credentialSetId === credentialSetId
-  })
+  const credentialSetWebhooks = existingWebhooks.filter(
+    (wh) => wh.credentialSetId === credentialSetId
+  )
 
   syncLogger.info(
     `[${requestId}] Found ${credentialSetWebhooks.length} existing webhooks for credential set`
@@ -2058,103 +2125,128 @@ export async function syncWebhooksForCredentialSet(params: {
     created: 0,
     updated: 0,
     deleted: 0,
+    failed: [],
   }
 
   // Process each credential in the set
   for (const cred of credentials) {
-    const existingWebhook = existingByCredentialId.get(cred.credentialId)
+    try {
+      const existingWebhook = existingByCredentialId.get(cred.credentialId)
 
-    if (existingWebhook) {
-      // Update existing webhook - preserve state fields
-      const existingConfig = existingWebhook.providerConfig as Record<string, any>
+      if (existingWebhook) {
+        // Update existing webhook - preserve state fields
+        const existingConfig = existingWebhook.providerConfig as Record<string, any>
 
-      const updatedConfig = {
-        ...providerConfig,
-        basePath, // Store basePath for reliable reconstruction during membership sync
-        credentialId: cred.credentialId,
-        credentialSetId: credentialSetId,
-        // Preserve state fields from existing config
-        historyId: existingConfig.historyId,
-        lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
-        setupCompleted: existingConfig.setupCompleted,
-        externalId: existingConfig.externalId,
-        userId: cred.userId,
-      }
+        const updatedConfig = {
+          ...providerConfig,
+          basePath, // Store basePath for reliable reconstruction during membership sync
+          credentialId: cred.credentialId,
+          credentialSetId: credentialSetId,
+          // Preserve state fields from existing config
+          historyId: existingConfig?.historyId,
+          lastCheckedTimestamp: existingConfig?.lastCheckedTimestamp,
+          setupCompleted: existingConfig?.setupCompleted,
+          externalId: existingConfig?.externalId,
+          userId: cred.userId,
+        }
 
-      await dbCtx
-        .update(webhook)
-        .set({
-          ...(deploymentVersionId ? { deploymentVersionId } : {}),
-          providerConfig: updatedConfig,
+        await dbCtx
+          .update(webhook)
+          .set({
+            ...(deploymentVersionId ? { deploymentVersionId } : {}),
+            providerConfig: updatedConfig,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(webhook.id, existingWebhook.id))
+
+        result.webhooks.push({
+          id: existingWebhook.id,
+          credentialId: cred.credentialId,
+          isNew: false,
+        })
+        result.updated++
+
+        syncLogger.debug(
+          `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
+        )
+      } else {
+        // Create new webhook for this credential
+        const webhookId = nanoid()
+        const webhookPath = useUniquePaths
+          ? `${basePath}-${cred.credentialId.slice(0, 8)}`
+          : basePath
+
+        const newConfig = {
+          ...providerConfig,
+          basePath, // Store basePath for reliable reconstruction during membership sync
+          credentialId: cred.credentialId,
+          credentialSetId: credentialSetId,
+          userId: cred.userId,
+        }
+
+        await dbCtx.insert(webhook).values({
+          id: webhookId,
+          workflowId,
+          blockId,
+          path: webhookPath,
+          provider,
+          providerConfig: newConfig,
+          credentialSetId, // Indexed column for efficient credential set queries
           isActive: true,
+          ...(deploymentVersionId ? { deploymentVersionId } : {}),
+          createdAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(webhook.id, existingWebhook.id))
 
-      result.webhooks.push({
-        id: existingWebhook.id,
-        credentialId: cred.credentialId,
-        isNew: false,
-      })
-      result.updated++
+        result.webhooks.push({
+          id: webhookId,
+          credentialId: cred.credentialId,
+          isNew: true,
+        })
+        result.created++
 
-      syncLogger.debug(
-        `[${requestId}] Updated webhook ${existingWebhook.id} for credential ${cred.credentialId}`
-      )
-    } else {
-      // Create new webhook for this credential
-      const webhookId = nanoid()
-      const webhookPath = useUniquePaths ? `${basePath}-${cred.credentialId.slice(0, 8)}` : basePath
-
-      const newConfig = {
-        ...providerConfig,
-        basePath, // Store basePath for reliable reconstruction during membership sync
-        credentialId: cred.credentialId,
-        credentialSetId: credentialSetId,
-        userId: cred.userId,
+        syncLogger.debug(
+          `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+        )
       }
-
-      await dbCtx.insert(webhook).values({
-        id: webhookId,
-        workflowId,
-        blockId,
-        path: webhookPath,
-        provider,
-        providerConfig: newConfig,
-        credentialSetId, // Indexed column for efficient credential set queries
-        isActive: true,
-        ...(deploymentVersionId ? { deploymentVersionId } : {}),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-
-      result.webhooks.push({
-        id: webhookId,
-        credentialId: cred.credentialId,
-        isNew: true,
-      })
-      result.created++
-
-      syncLogger.debug(
-        `[${requestId}] Created webhook ${webhookId} for credential ${cred.credentialId}`
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      syncLogger.error(
+        `[${requestId}] Failed to sync webhook for credential ${cred.credentialId}: ${errorMessage}`
       )
+      result.failed.push({
+        credentialId: cred.credentialId,
+        error: errorMessage,
+      })
     }
   }
 
   // Delete webhooks for credentials no longer in the set
   for (const [credentialId, existingWebhook] of existingByCredentialId) {
     if (!credentialIdsInSet.has(credentialId)) {
-      await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
-      result.deleted++
+      try {
+        await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+        result.deleted++
 
-      syncLogger.debug(
-        `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
-      )
+        syncLogger.debug(
+          `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
+        )
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        syncLogger.error(
+          `[${requestId}] Failed to delete webhook ${existingWebhook.id} for credential ${credentialId}: ${errorMessage}`
+        )
+        result.failed.push({
+          credentialId,
+          error: `Failed to delete: ${errorMessage}`,
+        })
+      }
     }
   }
 
   syncLogger.info(
-    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted`
+    `[${requestId}] Credential set webhook sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted, ${result.failed.length} failed`
   )
 
   return result
@@ -2174,8 +2266,6 @@ export async function syncAllWebhooksForCredentialSet(
   const dbCtx = tx ?? db
   const syncLogger = createLogger('CredentialSetMembershipSync')
   syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
-
-  const { getProviderIdFromServiceId } = await import('@/lib/oauth')
 
   // Find all webhooks that use this credential set using the indexed column
   const webhooksForSet = await dbCtx
@@ -2523,4 +2613,49 @@ export function convertSquareBracketsToTwiML(twiml: string | undefined): string 
 
   // Replace [Tag] with <Tag> and [/Tag] with </Tag>
   return twiml.replace(/\[(\/?[^\]]+)\]/g, '<$1>')
+}
+
+/**
+ * Validates a Cal.com webhook request signature using HMAC SHA-256
+ * @param secret - Cal.com webhook secret (plain text)
+ * @param signature - X-Cal-Signature-256 header value (hex-encoded HMAC SHA-256 signature)
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateCalcomSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Cal.com signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    // Cal.com sends signature in format: sha256=<hex>
+    // We need to strip the prefix before comparing
+    let providedSignature: string
+    if (signature.startsWith('sha256=')) {
+      providedSignature = signature.substring(7)
+    } else {
+      // If no prefix, use as-is (for backwards compatibility)
+      providedSignature = signature
+    }
+
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Cal.com signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
+
+    return safeCompare(computedHash, providedSignature)
+  } catch (error) {
+    logger.error('Error validating Cal.com signature:', error)
+    return false
+  }
 }

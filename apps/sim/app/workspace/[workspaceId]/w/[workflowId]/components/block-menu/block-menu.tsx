@@ -20,6 +20,9 @@ export interface BlockInfo {
   horizontalHandles: boolean
   parentId?: string
   parentType?: string
+  locked?: boolean
+  isParentLocked?: boolean
+  isParentDisabled?: boolean
 }
 
 /**
@@ -40,9 +43,23 @@ export interface BlockMenuProps {
   onRemoveFromSubflow: () => void
   onOpenEditor: () => void
   onRename: () => void
+  onRunFromBlock?: () => void
+  onRunUntilBlock?: () => void
   hasClipboard?: boolean
   showRemoveFromSubflow?: boolean
+  /** Whether run from block is available (has snapshot, was executed, not inside subflow) */
+  canRunFromBlock?: boolean
+  /** Whether to disable edit actions (user can't edit OR blocks are locked) */
   disableEdit?: boolean
+  /** Whether the user has edit permission (ignoring locked state) */
+  userCanEdit?: boolean
+  isExecuting?: boolean
+  /** Whether the selected block is a trigger (has no incoming edges) */
+  isPositionalTrigger?: boolean
+  /** Callback to toggle locked state of selected blocks */
+  onToggleLocked?: () => void
+  /** Whether the user has admin permissions */
+  canAdmin?: boolean
 }
 
 /**
@@ -65,23 +82,42 @@ export function BlockMenu({
   onRemoveFromSubflow,
   onOpenEditor,
   onRename,
+  onRunFromBlock,
+  onRunUntilBlock,
   hasClipboard = false,
   showRemoveFromSubflow = false,
+  canRunFromBlock = false,
   disableEdit = false,
+  userCanEdit = true,
+  isExecuting = false,
+  isPositionalTrigger = false,
+  onToggleLocked,
+  canAdmin = false,
 }: BlockMenuProps) {
   const isSingleBlock = selectedBlocks.length === 1
 
   const allEnabled = selectedBlocks.every((b) => b.enabled)
   const allDisabled = selectedBlocks.every((b) => !b.enabled)
+  const allLocked = selectedBlocks.every((b) => b.locked)
+  const allUnlocked = selectedBlocks.every((b) => !b.locked)
+  // Can't unlock blocks that have locked parents
+  const hasBlockWithLockedParent = selectedBlocks.some((b) => b.locked && b.isParentLocked)
+  // Can't enable blocks that have disabled parents
+  const hasBlockWithDisabledParent = selectedBlocks.some((b) => !b.enabled && b.isParentDisabled)
 
   const hasSingletonBlock = selectedBlocks.some(
     (b) =>
       TriggerUtils.requiresSingleInstance(b.type) || TriggerUtils.isSingleInstanceBlockType(b.type)
   )
-  const hasTriggerBlock = selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b))
+  // A block is a trigger if it's explicitly a trigger type OR has no incoming edges (positional trigger)
+  const hasTriggerBlock =
+    selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b)) || isPositionalTrigger
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
+  const isInsideSubflow =
+    isSingleBlock &&
+    (selectedBlocks[0]?.parentType === 'loop' || selectedBlocks[0]?.parentType === 'parallel')
 
   const canRemoveFromSubflow = showRemoveFromSubflow && !hasTriggerBlock
 
@@ -89,6 +125,12 @@ export function BlockMenu({
     if (allEnabled) return 'Disable'
     if (allDisabled) return 'Enable'
     return 'Toggle Enabled'
+  }
+
+  const getToggleLockedLabel = () => {
+    if (allLocked) return 'Unlock'
+    if (allUnlocked) return 'Lock'
+    return 'Toggle Lock'
   }
 
   return (
@@ -122,7 +164,7 @@ export function BlockMenu({
         </PopoverItem>
         <PopoverItem
           className='group'
-          disabled={disableEdit || !hasClipboard}
+          disabled={!userCanEdit || !hasClipboard}
           onClick={() => {
             onPaste()
             onClose()
@@ -147,13 +189,15 @@ export function BlockMenu({
         {!allNoteBlocks && <PopoverDivider />}
         {!allNoteBlocks && (
           <PopoverItem
-            disabled={disableEdit}
+            disabled={disableEdit || hasBlockWithDisabledParent}
             onClick={() => {
-              onToggleEnabled()
-              onClose()
+              if (!disableEdit && !hasBlockWithDisabledParent) {
+                onToggleEnabled()
+                onClose()
+              }
             }}
           >
-            {getToggleEnabledLabel()}
+            {hasBlockWithDisabledParent ? 'Parent is disabled' : getToggleEnabledLabel()}
           </PopoverItem>
         )}
         {!allNoteBlocks && !isSubflow && (
@@ -176,6 +220,19 @@ export function BlockMenu({
             }}
           >
             Remove from Subflow
+          </PopoverItem>
+        )}
+        {canAdmin && onToggleLocked && (
+          <PopoverItem
+            disabled={hasBlockWithLockedParent}
+            onClick={() => {
+              if (!hasBlockWithLockedParent) {
+                onToggleLocked()
+                onClose()
+              }
+            }}
+          >
+            {hasBlockWithLockedParent ? 'Parent is locked' : getToggleLockedLabel()}
           </PopoverItem>
         )}
 
@@ -201,6 +258,38 @@ export function BlockMenu({
           >
             Open Editor
           </PopoverItem>
+        )}
+
+        {/* Run from/until block - only for single non-note block, not inside subflows */}
+        {isSingleBlock && !allNoteBlocks && !isInsideSubflow && (
+          <>
+            <PopoverDivider />
+            <PopoverItem
+              disabled={!canRunFromBlock || isExecuting}
+              onClick={() => {
+                if (canRunFromBlock && !isExecuting) {
+                  onRunFromBlock?.()
+                  onClose()
+                }
+              }}
+            >
+              Run from block
+            </PopoverItem>
+            {/* Hide "Run until" for triggers - they're always at the start */}
+            {!hasTriggerBlock && (
+              <PopoverItem
+                disabled={isExecuting}
+                onClick={() => {
+                  if (!isExecuting) {
+                    onRunUntilBlock?.()
+                    onClose()
+                  }
+                }}
+              >
+                Run until block
+              </PopoverItem>
+            )}
+          </>
         )}
 
         {/* Destructive action */}

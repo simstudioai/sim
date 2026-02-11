@@ -3,9 +3,10 @@ import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
-import { useExecutionStore } from '@/stores/execution'
+import { useLastRunEdges } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
+/** Extended edge props with optional handle identifiers */
 interface WorkflowEdgeProps extends EdgeProps {
   sourceHandle?: string | null
   targetHandle?: string | null
@@ -48,7 +49,7 @@ const WorkflowEdgeComponent = ({
       isDiffReady: state.isDiffReady,
     }))
   )
-  const lastRunEdges = useExecutionStore((state) => state.lastRunEdges)
+  const lastRunEdges = useLastRunEdges()
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
@@ -90,14 +91,15 @@ const WorkflowEdgeComponent = ({
     if (edgeDiffStatus === 'deleted') {
       color = 'var(--text-error)'
       opacity = 0.7
-    } else if (isErrorEdge) {
-      color = 'var(--text-error)'
     } else if (edgeDiffStatus === 'new') {
       color = 'var(--brand-tertiary-2)'
     } else if (edgeRunStatus === 'success') {
       // Use green for preview mode, default for canvas execution
       color = previewExecutionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
     } else if (edgeRunStatus === 'error') {
+      color = 'var(--text-error)'
+    } else if (isErrorEdge) {
+      // Error edges that weren't taken stay red
       color = 'var(--text-error)'
     }
 
@@ -151,4 +153,14 @@ const WorkflowEdgeComponent = ({
   )
 }
 
+/**
+ * Workflow edge component with execution status and diff visualization.
+ *
+ * @remarks
+ * Edge coloring priority:
+ * 1. Diff status (deleted/new) - for version comparison
+ * 2. Execution status (success/error) - for run visualization
+ * 3. Error edge default (red) - for untaken error paths
+ * 4. Default edge color - normal workflow connections
+ */
 export const WorkflowEdge = memo(WorkflowEdgeComponent)

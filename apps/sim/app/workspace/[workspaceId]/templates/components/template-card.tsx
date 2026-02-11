@@ -3,7 +3,7 @@ import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -206,15 +206,15 @@ function TemplateCardInner({
         className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
       >
         {normalizedState && isInView ? (
-          <WorkflowPreview
+          <PreviewWorkflow
             workflowState={normalizedState}
             height={180}
             width='100%'
             isPannable={false}
             defaultZoom={0.8}
             fitPadding={0.2}
-            lightweight
             cursorStyle='pointer'
+            lightweight
           />
         ) : (
           <div className='h-full w-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />

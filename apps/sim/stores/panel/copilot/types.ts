@@ -1,7 +1,9 @@
 import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+import type { AvailableModel } from '@/lib/copilot/types'
 
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 
+import type { ClientContentBlock } from '@/lib/copilot/client-sse/types'
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -21,7 +23,8 @@ export interface CopilotToolCall {
   id: string
   name: string
   state: ClientToolCallState
-  params?: Record<string, any>
+  params?: Record<string, unknown>
+  input?: Record<string, unknown>
   display?: ClientToolDisplay
   /** Content streamed from a subagent (e.g., debug agent) */
   subAgentContent?: string
@@ -31,6 +34,20 @@ export interface CopilotToolCall {
   subAgentBlocks?: SubAgentContentBlock[]
   /** Whether subagent is currently streaming */
   subAgentStreaming?: boolean
+}
+
+export interface CopilotStreamInfo {
+  streamId: string
+  workflowId: string
+  chatId?: string
+  userMessageId: string
+  assistantMessageId: string
+  lastEventId: number
+  resumeAttempts: number
+  userMessageContent: string
+  fileAttachments?: MessageFileAttachment[]
+  contexts?: ChatContext[]
+  startedAt: number
 }
 
 export interface MessageFileAttachment {
@@ -48,18 +65,7 @@ export interface CopilotMessage {
   timestamp: string
   citations?: { id: number; title: string; url: string; similarity?: number }[]
   toolCalls?: CopilotToolCall[]
-  contentBlocks?: Array<
-    | { type: 'text'; content: string; timestamp: number }
-    | {
-        type: 'thinking'
-        content: string
-        timestamp: number
-        duration?: number
-        startTime?: number
-      }
-    | { type: 'tool_call'; toolCall: CopilotToolCall; timestamp: number }
-    | { type: 'contexts'; contexts: ChatContext[]; timestamp: number }
-  >
+  contentBlocks?: ClientContentBlock[]
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
@@ -96,11 +102,22 @@ import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
 export type CopilotChat = ApiCopilotChat
 
+/**
+ * A checkpoint entry as returned from the checkpoints API.
+ */
+export interface CheckpointEntry {
+  id: string
+  messageId?: string
+  workflowState?: Record<string, unknown>
+  createdAt?: string
+}
+
 export interface CopilotState {
   mode: CopilotMode
   selectedModel: CopilotModelId
   agentPrefetch: boolean
-  enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
+  availableModels: AvailableModel[]
+  isLoadingModels: boolean
   isCollapsed: boolean
 
   currentChat: CopilotChat | null
@@ -108,8 +125,7 @@ export interface CopilotState {
   messages: CopilotMessage[]
   workflowId: string | null
 
-  checkpoints: any[]
-  messageCheckpoints: Record<string, any[]>
+  messageCheckpoints: Record<string, CheckpointEntry[]>
   messageSnapshots: Record<string, WorkflowState>
 
   isLoading: boolean
@@ -153,21 +169,27 @@ export interface CopilotState {
 
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
+  autoAllowedToolsLoaded: boolean
+
+  // Active stream metadata for reconnect/replay
+  activeStream: CopilotStreamInfo | null
 
   // Message queue for messages sent while another is in progress
   messageQueue: QueuedMessage[]
+
+  // Credential IDs to mask in UI (for sensitive data protection)
+  sensitiveCredentialIds: Set<string>
 }
 
 export interface CopilotActions {
   setMode: (mode: CopilotMode) => void
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
-  setEnabledModels: (models: string[] | null) => void
+  loadAvailableModels: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
   loadChats: (forceRefresh?: boolean) => Promise<void>
-  areChatsFresh: (workflowId: string) => boolean
   selectChat: (chat: CopilotChat) => Promise<void>
   createNewChat: () => Promise<void>
   deleteChat: (chatId: string) => Promise<void>
@@ -191,22 +213,18 @@ export interface CopilotActions {
     toolCallState: 'accepted' | 'rejected' | 'error',
     toolCallId?: string
   ) => void
-  setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
-  updateToolCallParams: (toolCallId: string, params: Record<string, any>) => void
-  sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
-  saveChatMessages: (chatId: string) => Promise<void>
-
-  loadCheckpoints: (chatId: string) => Promise<void>
+  resumeActiveStream: () => Promise<boolean>
+  setToolCallState: (toolCall: CopilotToolCall, newState: ClientToolCallState | string) => void
+  updateToolCallParams: (toolCallId: string, params: Record<string, unknown>) => void
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
-  getCheckpointsForMessage: (messageId: string) => any[]
+  getCheckpointsForMessage: (messageId: string) => CheckpointEntry[]
   saveMessageCheckpoint: (messageId: string) => Promise<boolean>
 
   clearMessages: () => void
   clearError: () => void
   clearSaveError: () => void
   clearCheckpointError: () => void
-  retrySave: (chatId: string) => Promise<void>
   cleanup: () => void
   reset: () => void
 
@@ -225,15 +243,18 @@ export interface CopilotActions {
     stream: ReadableStream,
     messageId: string,
     isContinuation?: boolean,
-    triggerUserMessageId?: string
+    triggerUserMessageId?: string,
+    abortSignal?: AbortSignal
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
-  executeIntegrationTool: (toolCallId: string) => Promise<void>
-  skipIntegrationTool: (toolCallId: string) => void
   loadAutoAllowedTools: () => Promise<void>
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Credential masking
+  loadSensitiveCredentialIds: () => Promise<void>
+  maskCredentialValue: (value: string) => string
 
   // Message queue actions
   addToQueue: (

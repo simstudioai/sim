@@ -1,16 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
+import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
-import { navigatePath } from '@/executor/variables/resolvers/reference'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -386,7 +388,12 @@ function resolveWorkflowVariables(
       if (type === 'number') {
         variableValue = Number(variableValue)
       } else if (type === 'boolean') {
-        variableValue = variableValue === 'true' || variableValue === true
+        if (typeof variableValue === 'boolean') {
+          // Already a boolean, keep as-is
+        } else {
+          const normalized = String(variableValue).toLowerCase().trim()
+          variableValue = normalized === 'true'
+        }
       } else if (type === 'json' && typeof variableValue === 'string') {
         try {
           variableValue = JSON.parse(variableValue)
@@ -470,14 +477,17 @@ function resolveEnvironmentVariables(
 
 function resolveTagVariables(
   code: string,
-  blockData: Record<string, any>,
+  blockData: Record<string, unknown>,
   blockNameMapping: Record<string, string>,
-  contextVariables: Record<string, any>
+  blockOutputSchemas: Record<string, OutputSchema>,
+  contextVariables: Record<string, unknown>,
+  language = 'javascript'
 ): string {
   let resolvedCode = code
+  const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_][a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])${REFERENCE.END}`,
+    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
     'g'
   )
   const tagMatches = resolvedCode.match(tagPattern) || []
@@ -486,41 +496,37 @@ function resolveTagVariables(
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
     const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
     const blockName = pathParts[0]
+    const fieldPath = pathParts.slice(1)
 
-    const blockId = blockNameMapping[blockName]
-    if (!blockId) {
+    const result = resolveBlockReference(blockName, fieldPath, {
+      blockNameMapping,
+      blockData,
+      blockOutputSchemas,
+    })
+
+    if (!result) {
       continue
     }
 
-    const blockOutput = blockData[blockId]
-    if (blockOutput === undefined) {
-      continue
-    }
-
-    let tagValue: any
-    if (pathParts.length === 1) {
-      tagValue = blockOutput
-    } else {
-      tagValue = navigatePath(blockOutput, pathParts.slice(1))
-    }
+    let tagValue = result.value
 
     if (tagValue === undefined) {
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), undefinedLiteral)
       continue
     }
 
-    if (
-      typeof tagValue === 'string' &&
-      tagValue.length > 100 &&
-      (tagValue.startsWith('{') || tagValue.startsWith('['))
-    ) {
-      try {
-        tagValue = JSON.parse(tagValue)
-      } catch {
-        // Keep as-is
+    if (typeof tagValue === 'string') {
+      const trimmed = tagValue.trimStart()
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          tagValue = JSON.parse(tagValue)
+        } catch {
+          // Keep as string if not valid JSON
+        }
       }
     }
 
-    const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
@@ -537,18 +543,27 @@ function resolveTagVariables(
  */
 function resolveCodeVariables(
   code: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   envVars: Record<string, string> = {},
-  blockData: Record<string, any> = {},
+  blockData: Record<string, unknown> = {},
   blockNameMapping: Record<string, string> = {},
-  workflowVariables: Record<string, any> = {}
-): { resolvedCode: string; contextVariables: Record<string, any> } {
+  blockOutputSchemas: Record<string, OutputSchema> = {},
+  workflowVariables: Record<string, unknown> = {},
+  language = 'javascript'
+): { resolvedCode: string; contextVariables: Record<string, unknown> } {
   let resolvedCode = code
-  const contextVariables: Record<string, any> = {}
+  const contextVariables: Record<string, unknown> = {}
 
   resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
   resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
-  resolvedCode = resolveTagVariables(resolvedCode, blockData, blockNameMapping, contextVariables)
+  resolvedCode = resolveTagVariables(
+    resolvedCode,
+    blockData,
+    blockNameMapping,
+    blockOutputSchemas,
+    contextVariables,
+    language
+  )
 
   return { resolvedCode, contextVariables }
 }
@@ -573,6 +588,12 @@ export async function POST(req: NextRequest) {
   let resolvedCode = '' // Store resolved code for error reporting
 
   try {
+    const auth = await checkInternalAuth(req)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized function execution attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
@@ -585,6 +606,7 @@ export async function POST(req: NextRequest) {
       envVars = {},
       blockData = {},
       blockNameMapping = {},
+      blockOutputSchemas = {},
       workflowVariables = {},
       workflowId,
       isCustomTool = false,
@@ -601,19 +623,20 @@ export async function POST(req: NextRequest) {
       isCustomTool,
     })
 
-    // Resolve variables in the code with workflow environment variables
+    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
+
     const codeResolution = resolveCodeVariables(
       code,
       executionParams,
       envVars,
       blockData,
       blockNameMapping,
-      workflowVariables
+      blockOutputSchemas,
+      workflowVariables,
+      lang
     )
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
-
-    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
     let jsImports = ''
     let jsRemainingCode = resolvedCode
@@ -670,7 +693,7 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
+          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
           prologueLineCount++
         }
 
@@ -741,7 +764,7 @@ export async function POST(req: NextRequest) {
       prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
       prologueLineCount++
       for (const [k, v] of Object.entries(contextVariables)) {
-        prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
+        prologue += `${k} = ${formatLiteralForCode(v, 'python')}\n`
         prologueLineCount++
       }
       const wrapped = [
@@ -822,6 +845,8 @@ export async function POST(req: NextRequest) {
       contextVariables,
       timeoutMs: timeout,
       requestId,
+      ownerKey: `user:${auth.userId}`,
+      ownerWeight: 1,
     })
 
     const executionTime = Date.now() - startTime

@@ -1,5 +1,5 @@
 /**
- * Pure utility functions for TwiML processing
+ * Pure utility functions for webhook processing
  * This file has NO server-side dependencies to ensure it can be safely imported in client-side code
  */
 
@@ -17,4 +17,20 @@ export function convertSquareBracketsToTwiML(twiml: string | undefined): string 
   }
   // Replace [Tag] with <Tag> and [/Tag] with </Tag>
   return twiml.replace(/\[(\/?[^\]]+)\]/g, '<$1>')
+}
+
+/**
+ * Merges fields from source into target, but only if they don't exist in the base config.
+ * Used to preserve system-managed fields while respecting user-provided values.
+ */
+export function mergeNonUserFields(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+  userProvided: Record<string, unknown>
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    if (!(key in userProvided)) {
+      target[key] = value
+    }
+  }
 }

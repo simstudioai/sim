@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskCreateUser')
 
@@ -56,49 +56,49 @@ export const zendeskCreateUserTool: ToolConfig<ZendeskCreateUserParams, ZendeskC
       name: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'User name',
+        visibility: 'user-or-llm',
+        description: 'User full name (e.g., "John Smith")',
       },
       userEmail: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'User email',
+        visibility: 'user-or-llm',
+        description: 'User email address (e.g., "john@example.com")',
       },
       role: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'User role (end-user, agent, admin)',
+        visibility: 'user-or-llm',
+        description: 'User role: "end-user", "agent", or "admin"',
       },
       phone: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'User phone number',
+        visibility: 'user-or-llm',
+        description: 'User phone number (e.g., "+1-555-123-4567")',
       },
       organizationId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Organization ID',
+        visibility: 'user-or-llm',
+        description: 'Organization ID as a numeric string (e.g., "12345")',
       },
       verified: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Set to "true" to skip email verification',
+        visibility: 'user-or-llm',
+        description: 'Set to "true" to skip email verification, or "false" otherwise',
       },
       tags: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Comma-separated tags',
+        visibility: 'user-or-llm',
+        description: 'Comma-separated tags (e.g., "vip, enterprise")',
       },
       customFields: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Custom fields as JSON object (e.g., {"field_id": "value"})',
       },
     },
@@ -157,7 +157,11 @@ export const zendeskCreateUserTool: ToolConfig<ZendeskCreateUserParams, ZendeskC
     },
 
     outputs: {
-      user: { type: 'object', description: 'Created user object' },
+      user: {
+        type: 'object',
+        description: 'Created user object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
       user_id: { type: 'number', description: 'The created user ID' },
     },
   }

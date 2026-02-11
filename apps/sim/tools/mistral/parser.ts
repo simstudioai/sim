@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type {
   MistralParserInput,
   MistralParserOutput,
+  MistralParserV2Input,
   MistralParserV2Output,
 } from '@/tools/mistral/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,9 +19,15 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   params: {
     filePath: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'URL to a PDF document to be processed',
+    },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'hidden',
+      description: 'Document file to be processed',
     },
     fileUpload: {
       type: 'object',
@@ -83,162 +90,84 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }
 
-      // Validate required parameters
       if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
         throw new Error('Missing or invalid API key: A valid Mistral API key is required')
       }
 
-      // Check if we have a file upload instead of direct URL
-      if (
-        params.fileUpload &&
-        (!params.filePath || params.filePath === 'null' || params.filePath === '')
-      ) {
-        // Try to extract file path from upload data
-        if (
-          typeof params.fileUpload === 'object' &&
-          params.fileUpload !== null &&
-          (params.fileUpload.url || params.fileUpload.path)
-        ) {
-          // Get the full URL to the file - prefer url over path for UserFile compatibility
-          let uploadedFilePath = params.fileUpload.url || params.fileUpload.path
+      const fileInput =
+        params.file && typeof params.file === 'object' ? params.file : params.fileUpload
+      const hasFileUpload = fileInput && typeof fileInput === 'object'
+      const hasFilePath =
+        typeof params.filePath === 'string' &&
+        params.filePath !== 'null' &&
+        params.filePath.trim() !== ''
 
-          // Make sure the file path is an absolute URL
-          if (uploadedFilePath.startsWith('/')) {
-            // If it's a relative path starting with /, convert to absolute URL
-            const baseUrl = getBaseUrl()
-            if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-            uploadedFilePath = `${baseUrl}${uploadedFilePath}`
-          }
-
-          // Set the filePath parameter
-          params.filePath = uploadedFilePath
-          logger.info('Using uploaded file:', uploadedFilePath)
-        } else {
-          throw new Error('Invalid file upload: Upload data is missing or invalid')
-        }
-      }
-
-      if (
-        !params.filePath ||
-        typeof params.filePath !== 'string' ||
-        params.filePath.trim() === ''
-      ) {
-        throw new Error('Missing or invalid file path: Please provide a URL to a PDF document')
-      }
-
-      let filePathToValidate = params.filePath.trim()
-      if (filePathToValidate.startsWith('/')) {
-        const baseUrl = getBaseUrl()
-        if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-        filePathToValidate = `${baseUrl}${filePathToValidate}`
-      }
-
-      let url
-      try {
-        url = new URL(filePathToValidate)
-
-        // Validate protocol
-        if (!['http:', 'https:'].includes(url.protocol)) {
-          throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`)
-        }
-
-        // Validate against known unsupported services
-        if (url.hostname.includes('drive.google.com') || url.hostname.includes('docs.google.com')) {
-          throw new Error(
-            'Google Drive links are not supported by the Mistral OCR API. ' +
-              'Please upload your PDF to a public web server or provide a direct download link ' +
-              'that ends with .pdf extension.'
-          )
-        }
-
-        // Validate file appears to be a PDF (stricter check with informative warning)
-        const pathname = url.pathname.toLowerCase()
-        if (!pathname.endsWith('.pdf')) {
-          // Check if PDF is included in the path at all
-          if (!pathname.includes('pdf')) {
-            logger.warn(
-              'Warning: URL does not appear to point to a PDF document. ' +
-                'The Mistral OCR API is designed to work with PDF files. ' +
-                'Please ensure your URL points to a valid PDF document (ideally ending with .pdf extension).'
-            )
-          } else {
-            // If "pdf" is in the URL but not at the end, give a different warning
-            logger.warn(
-              'Warning: URL contains "pdf" but does not end with .pdf extension. ' +
-                'This might still work if the server returns a valid PDF document despite the missing extension.'
-            )
-          }
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        throw new Error(
-          `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document (e.g., https://example.com/document.pdf)`
-        )
-      }
-
-      // Create the request body with required parameters
-      const requestBody: Record<string, any> = {
+      const requestBody: Record<string, unknown> = {
         apiKey: params.apiKey,
-        filePath: url.toString(),
       }
 
-      // Check if this is an internal workspace file path
-      if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
-        // Update filePath to the internal path for workspace files
-        requestBody.filePath = params.fileUpload.path
-      }
+      if (hasFilePath) {
+        const filePathToValidate = params.filePath!.trim()
 
-      // Add optional parameters with proper validation
-      // Include images (base64)
-      if (params.includeImageBase64 !== undefined) {
-        if (typeof params.includeImageBase64 !== 'boolean') {
-          logger.warn('includeImageBase64 parameter should be a boolean, using default (false)')
+        if (filePathToValidate.startsWith('/')) {
+          if (!isInternalFileUrl(filePathToValidate)) {
+            throw new Error(
+              'Invalid file path. Only uploaded files are supported for internal paths.'
+            )
+          }
+          requestBody.filePath = filePathToValidate
         } else {
-          requestBody.includeImageBase64 = params.includeImageBase64
-        }
-      }
-
-      // Page selection - safely handle null and undefined
-      if (params.pages !== undefined && params.pages !== null) {
-        if (Array.isArray(params.pages) && params.pages.length > 0) {
-          // Validate all page numbers are non-negative integers
-          const validPages = params.pages.filter(
-            (page) => typeof page === 'number' && Number.isInteger(page) && page >= 0
-          )
-
-          if (validPages.length > 0) {
-            requestBody.pages = validPages
-
-            if (validPages.length !== params.pages.length) {
-              logger.warn(
-                `Some invalid page numbers were removed. Using ${validPages.length} valid pages: ${validPages.join(', ')}`
+          let url
+          try {
+            url = new URL(filePathToValidate)
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              throw new Error(
+                `Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`
               )
             }
-          } else {
-            logger.warn('No valid page numbers provided, processing all pages')
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw new Error(
+              `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document (e.g., https://example.com/document.pdf)`
+            )
           }
-        } else if (Array.isArray(params.pages) && params.pages.length === 0) {
-          logger.warn('Empty pages array provided, processing all pages')
+
+          requestBody.filePath = url.toString()
+        }
+      } else if (hasFileUpload) {
+        requestBody.file = fileInput
+      } else {
+        throw new Error('Missing file input: Please provide a PDF URL or upload a file')
+      }
+
+      if (params.includeImageBase64 !== undefined) {
+        requestBody.includeImageBase64 = params.includeImageBase64
+      }
+
+      if (Array.isArray(params.pages) && params.pages.length > 0) {
+        const validPages = params.pages.filter(
+          (page) => typeof page === 'number' && Number.isInteger(page) && page >= 0
+        )
+        if (validPages.length > 0) {
+          requestBody.pages = validPages
         }
       }
 
-      // Image limit - safely handle null and undefined
+      if (typeof params.resultType === 'string' && params.resultType.trim() !== '') {
+        requestBody.resultType = params.resultType
+      }
+
       if (params.imageLimit !== undefined && params.imageLimit !== null) {
         const imageLimit = Number(params.imageLimit)
-        if (Number.isInteger(imageLimit) && imageLimit > 0) {
+        if (!Number.isNaN(imageLimit) && imageLimit >= 0) {
           requestBody.imageLimit = imageLimit
-        } else {
-          logger.warn('imageLimit must be a positive integer, ignoring this parameter')
         }
       }
 
-      // Minimum image size - safely handle null and undefined
       if (params.imageMinSize !== undefined && params.imageMinSize !== null) {
         const imageMinSize = Number(params.imageMinSize)
-        if (Number.isInteger(imageMinSize) && imageMinSize > 0) {
+        if (!Number.isNaN(imageMinSize) && imageMinSize >= 0) {
           requestBody.imageMinSize = imageMinSize
-        } else {
-          logger.warn('imageMinSize must be a positive integer, ignoring this parameter')
         }
       }
 
@@ -551,6 +480,76 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
       type: 'string',
       description: 'Structured annotation data as JSON string (when applicable)',
       optional: true,
+    },
+  },
+}
+
+/**
+ * V3 tool - Updated for new file handling pattern with UserFile normalization
+ * Used by MistralParseV3Block which uses fileUpload (basic) and fileReference (advanced) subblocks
+ */
+export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParserV2Output> = {
+  ...mistralParserV2Tool,
+  id: 'mistral_parser_v3',
+  version: '3.0.0',
+  params: {
+    file: {
+      type: 'file',
+      required: true,
+      visibility: 'hidden',
+      description: 'Normalized UserFile from file upload or file reference',
+    },
+    resultType: mistralParserTool.params.resultType,
+    includeImageBase64: mistralParserTool.params.includeImageBase64,
+    pages: mistralParserTool.params.pages,
+    imageLimit: mistralParserTool.params.imageLimit,
+    imageMinSize: mistralParserTool.params.imageMinSize,
+    apiKey: mistralParserTool.params.apiKey,
+  },
+  request: {
+    url: '/api/tools/mistral/parse',
+    method: 'POST',
+    headers: (params) => {
+      return {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
+      }
+    },
+    body: (params) => {
+      if (!params || typeof params !== 'object') {
+        throw new Error('Invalid parameters: Parameters must be provided as an object')
+      }
+      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+        throw new Error('Missing or invalid API key: A valid Mistral API key is required')
+      }
+
+      // V3 expects normalized UserFile object via `file` param
+      const file = params.file
+      if (!file || typeof file !== 'object') {
+        throw new Error('File input is required: provide a file upload or file reference')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: params.apiKey,
+        resultType: params.resultType || 'markdown',
+        file: file,
+      }
+
+      if (params.pages) {
+        requestBody.pages = params.pages
+      }
+      if (params.includeImageBase64 !== undefined) {
+        requestBody.includeImageBase64 = params.includeImageBase64
+      }
+      if (params.imageLimit !== undefined) {
+        requestBody.imageLimit = params.imageLimit
+      }
+      if (params.imageMinSize !== undefined) {
+        requestBody.imageMinSize = params.imageMinSize
+      }
+
+      return requestBody
     },
   },
 }

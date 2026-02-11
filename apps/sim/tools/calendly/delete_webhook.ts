@@ -23,8 +23,9 @@ export const deleteWebhookTool: ToolConfig<
     webhookUuid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Webhook subscription UUID to delete (can be full URI or just the UUID)',
+      visibility: 'user-or-llm',
+      description:
+        'Webhook subscription UUID to delete. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/webhook_subscriptions/abc123-def456")',
     },
   },
 

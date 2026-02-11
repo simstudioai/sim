@@ -30,13 +30,13 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit to fetch posts from (without the r/ prefix)',
+      description: 'The subreddit to fetch hot posts from (e.g., "technology", "news")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of posts to return (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of posts to return (e.g., 25). Default: 10, max: 100',
     },
   },
 
@@ -108,6 +108,24 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       type: 'array',
       description:
         'Array of hot posts with title, author, URL, score, comments count, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Post ID' },
+          title: { type: 'string', description: 'Post title' },
+          author: { type: 'string', description: 'Author username' },
+          url: { type: 'string', description: 'Post URL' },
+          permalink: { type: 'string', description: 'Reddit permalink' },
+          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
+          num_comments: { type: 'number', description: 'Number of comments' },
+          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
+          is_self: { type: 'boolean', description: 'Whether this is a text post' },
+          selftext: { type: 'string', description: 'Text content for self posts' },
+          thumbnail: { type: 'string', description: 'Thumbnail URL' },
+          subreddit: { type: 'string', description: 'Subreddit name' },
+          subreddit_name_prefixed: { type: 'string', description: 'Subreddit name with r/ prefix' },
+        },
+      },
     },
   },
 }

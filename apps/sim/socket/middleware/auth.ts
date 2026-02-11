@@ -21,7 +21,7 @@ export interface AuthenticatedSocket extends Socket {
  * Socket.IO authentication middleware.
  * Handles both anonymous mode (DISABLE_AUTH=true) and normal token-based auth.
  */
-export async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
+export async function authenticateSocket(socket: AuthenticatedSocket, next: (err?: Error) => void) {
   try {
     if (isAuthDisabled) {
       socket.userId = ANONYMOUS_USER_ID

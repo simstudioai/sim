@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -18,14 +19,14 @@ const OutlookDraftSchema = z.object({
   contentType: z.enum(['text', 'html']).optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
-  attachments: z.array(z.any()).optional().nullable(),
+  attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized Outlook draft attempt: ${authResult.error}`)

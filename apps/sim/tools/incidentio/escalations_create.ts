@@ -31,7 +31,7 @@ export const escalationsCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Title of the escalation',
+      description: 'Title of the escalation (e.g., "Database Critical Alert")',
     },
     escalation_path_id: {
       type: 'string',

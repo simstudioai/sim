@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { USER_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Get User Tool - Retrieve user information (Zep v3)
 export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_user',
   name: 'Get User',
@@ -12,8 +12,8 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'User ID to retrieve (e.g., "user_123")',
     },
     apiKey: {
       type: 'string',
@@ -56,37 +56,13 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    userId: {
-      type: 'string',
-      description: 'The user ID',
-    },
-    email: {
-      type: 'string',
-      description: 'User email',
-    },
-    firstName: {
-      type: 'string',
-      description: 'User first name',
-    },
-    lastName: {
-      type: 'string',
-      description: 'User last name',
-    },
-    uuid: {
-      type: 'string',
-      description: 'Internal UUID',
-    },
-    createdAt: {
-      type: 'string',
-      description: 'Creation timestamp',
-    },
-    updatedAt: {
-      type: 'string',
-      description: 'Last update timestamp',
-    },
-    metadata: {
-      type: 'object',
-      description: 'User metadata',
-    },
+    userId: USER_OUTPUT_PROPERTIES.userId,
+    email: USER_OUTPUT_PROPERTIES.email,
+    firstName: USER_OUTPUT_PROPERTIES.firstName,
+    lastName: USER_OUTPUT_PROPERTIES.lastName,
+    uuid: USER_OUTPUT_PROPERTIES.uuid,
+    createdAt: USER_OUTPUT_PROPERTIES.createdAt,
+    updatedAt: USER_OUTPUT_PROPERTIES.updatedAt,
+    metadata: USER_OUTPUT_PROPERTIES.metadata,
   },
 }

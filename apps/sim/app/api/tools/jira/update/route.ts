@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
@@ -15,14 +16,26 @@ const jiraUpdateSchema = z.object({
   summary: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
-  status: z.string().optional(),
   priority: z.string().optional(),
   assignee: z.string().optional(),
+  labels: z.array(z.string()).optional(),
+  components: z.array(z.string()).optional(),
+  duedate: z.string().optional(),
+  fixVersions: z.array(z.string()).optional(),
+  environment: z.string().optional(),
+  customFieldId: z.string().optional(),
+  customFieldValue: z.string().optional(),
+  notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
 })
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const validation = jiraUpdateSchema.safeParse(body)
 
@@ -39,9 +52,16 @@ export async function PUT(request: Request) {
       summary,
       title,
       description,
-      status,
       priority,
       assignee,
+      labels,
+      components,
+      duedate,
+      fixVersions,
+      environment,
+      customFieldId,
+      customFieldValue,
+      notifyUsers,
       cloudId: providedCloudId,
     } = validation.data
 
@@ -58,7 +78,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: issueKeyValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
+    const notifyParam = notifyUsers === false ? '?notifyUsers=false' : ''
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}${notifyParam}`
 
     logger.info('Updating Jira issue at:', url)
 
@@ -87,22 +108,63 @@ export async function PUT(request: Request) {
       }
     }
 
-    if (status !== undefined && status !== null && status !== '') {
-      fields.status = {
-        name: status,
-      }
-    }
-
     if (priority !== undefined && priority !== null && priority !== '') {
-      fields.priority = {
-        name: priority,
-      }
+      const isNumericId = /^\d+$/.test(priority)
+      fields.priority = isNumericId ? { id: priority } : { name: priority }
     }
 
     if (assignee !== undefined && assignee !== null && assignee !== '') {
       fields.assignee = {
-        id: assignee,
+        accountId: assignee,
       }
+    }
+
+    if (labels !== undefined && labels !== null && labels.length > 0) {
+      fields.labels = labels
+    }
+
+    if (components !== undefined && components !== null && components.length > 0) {
+      fields.components = components.map((name) => ({ name }))
+    }
+
+    if (duedate !== undefined && duedate !== null && duedate !== '') {
+      fields.duedate = duedate
+    }
+
+    if (fixVersions !== undefined && fixVersions !== null && fixVersions.length > 0) {
+      fields.fixVersions = fixVersions.map((name) => ({ name }))
+    }
+
+    if (environment !== undefined && environment !== null && environment !== '') {
+      fields.environment = {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: environment,
+              },
+            ],
+          },
+        ],
+      }
+    }
+
+    if (
+      customFieldId !== undefined &&
+      customFieldId !== null &&
+      customFieldId !== '' &&
+      customFieldValue !== undefined &&
+      customFieldValue !== null &&
+      customFieldValue !== ''
+    ) {
+      const fieldId = customFieldId.startsWith('customfield_')
+        ? customFieldId
+        : `customfield_${customFieldId}`
+      fields[fieldId] = customFieldValue
     }
 
     const requestBody = { fields }

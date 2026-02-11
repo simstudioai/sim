@@ -1,6 +1,7 @@
-import type {
-  SupabaseStorageDeleteParams,
-  SupabaseStorageDeleteResponse,
+import {
+  STORAGE_DELETED_FILE_OUTPUT_PROPERTIES,
+  type SupabaseStorageDeleteParams,
+  type SupabaseStorageDeleteResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -80,6 +81,10 @@ export const storageDeleteTool: ToolConfig<
     results: {
       type: 'array',
       description: 'Array of deleted file objects',
+      items: {
+        type: 'object',
+        properties: STORAGE_DELETED_FILE_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

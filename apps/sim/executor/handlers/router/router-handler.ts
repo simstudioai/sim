@@ -6,16 +6,16 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
+import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import {
   BlockType,
   DEFAULTS,
-  HTTP,
   isAgentBlockType,
   isRouterV2BlockType,
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { validateModelProvider } from '@/executor/utils/permission-check'
+import { buildAuthHeaders } from '@/executor/utils/http'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -80,6 +80,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
@@ -96,31 +97,20 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: routerConfig.vertexProject,
+        vertexLocation: routerConfig.vertexLocation,
+        bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
+        bedrockSecretKey: routerConfig.bedrockSecretKey,
+        bedrockRegion: routerConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
       }
 
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = routerConfig.vertexProject
-        providerRequest.vertexLocation = routerConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = routerConfig.bedrockRegion
-      }
-
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: JSON.stringify(providerRequest),
       })
 
@@ -220,6 +210,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.context }]
       const systemPrompt = generateRouterV2Prompt(routerConfig.context, routes)
@@ -236,31 +227,39 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: routerConfig.vertexProject,
+        vertexLocation: routerConfig.vertexLocation,
+        bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
+        bedrockSecretKey: routerConfig.bedrockSecretKey,
+        bedrockRegion: routerConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
-      }
-
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = routerConfig.vertexProject
-        providerRequest.vertexLocation = routerConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = routerConfig.bedrockRegion
+        responseFormat: {
+          name: 'router_response',
+          schema: {
+            type: 'object',
+            properties: {
+              route: {
+                type: 'string',
+                description: 'The selected route ID or NO_MATCH',
+              },
+              reasoning: {
+                type: 'string',
+                description: 'Brief explanation of why this route was chosen',
+              },
+            },
+            required: ['route', 'reasoning'],
+            additionalProperties: false,
+          },
+          strict: true,
+        },
       }
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: JSON.stringify(providerRequest),
       })
 
@@ -277,16 +276,31 @@ export class RouterBlockHandler implements BlockHandler {
 
       const result = await response.json()
 
-      const chosenRouteId = result.content.trim()
+      let chosenRouteId: string
+      let reasoning = ''
+
+      try {
+        const parsedResponse = JSON.parse(result.content)
+        chosenRouteId = parsedResponse.route?.trim() || ''
+        reasoning = parsedResponse.reasoning || ''
+      } catch (_parseError) {
+        logger.error('Router response was not valid JSON despite responseFormat', {
+          content: result.content,
+        })
+        chosenRouteId = result.content.trim()
+      }
 
       if (chosenRouteId === 'NO_MATCH' || chosenRouteId.toUpperCase() === 'NO_MATCH') {
         logger.info('Router determined no route matches the context, routing to error path')
-        throw new Error('Router could not determine a matching route for the given context')
+        throw new Error(
+          reasoning
+            ? `Router could not determine a matching route: ${reasoning}`
+            : 'Router could not determine a matching route for the given context'
+        )
       }
 
       const chosenRoute = routes.find((r) => r.id === chosenRouteId)
 
-      // Throw error if LLM returns invalid route ID - this routes through error path
       if (!chosenRoute) {
         const availableRoutes = routes.map((r) => ({ id: r.id, title: r.title }))
         logger.error(
@@ -298,7 +312,6 @@ export class RouterBlockHandler implements BlockHandler {
         )
       }
 
-      // Find the target block connected to this route's handle
       const connection = ctx.workflow?.connections.find(
         (conn) => conn.source === block.id && conn.sourceHandle === `router-${chosenRoute.id}`
       )
@@ -334,6 +347,7 @@ export class RouterBlockHandler implements BlockHandler {
           total: cost.total,
         },
         selectedRoute: chosenRoute.id,
+        reasoning,
         selectedPath: targetBlock
           ? {
               blockId: targetBlock.id,
@@ -353,7 +367,7 @@ export class RouterBlockHandler implements BlockHandler {
   }
 
   /**
-   * Parse routes from input (can be JSON string or array).
+   * Parse routes from input (can be JSON string or array)
    */
   private parseRoutes(input: any): RouteDefinition[] {
     try {

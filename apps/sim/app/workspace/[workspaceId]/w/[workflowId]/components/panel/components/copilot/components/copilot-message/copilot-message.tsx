@@ -80,6 +80,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       isAborting,
     } = useCopilotStore()
 
+    const maskCredentialValue = useCopilotStore((s) => s.maskCredentialValue)
+
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
     const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some((cp) => cp?.id)
 
@@ -209,8 +211,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (block.type === 'text') {
           const isLastTextBlock =
             index === message.contentBlocks!.length - 1 && block.type === 'text'
-          const parsed = parseSpecialTags(block.content)
-          const cleanBlockContent = parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
+          const parsed = parseSpecialTags(block.content ?? '')
+          // Mask credential IDs in the displayed content
+          const cleanBlockContent = maskCredentialValue(
+            parsed.cleanContent.replace(/\n{3,}/g, '\n\n')
+          )
 
           if (!cleanBlockContent.trim()) return null
 
@@ -238,7 +243,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div key={blockKey} className='w-full'>
               <ThinkingBlock
-                content={block.content}
+                content={maskCredentialValue(block.content ?? '')}
                 isStreaming={isActivelyStreaming}
                 hasFollowingContent={hasFollowingContent}
                 hasSpecialTags={hasSpecialTags}
@@ -246,7 +251,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )
         }
-        if (block.type === 'tool_call') {
+        if (block.type === 'tool_call' && block.toolCall) {
           const blockKey = `tool-${block.toolCall.id}`
 
           return (

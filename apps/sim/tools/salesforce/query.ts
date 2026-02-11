@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { SalesforceQueryParams, SalesforceQueryResponse } from '@/tools/salesforce/types'
+import { QUERY_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -27,7 +28,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
     query: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'SOQL query to execute (e.g., SELECT Id, Name FROM Account LIMIT 10)',
     },
   },
@@ -86,29 +87,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
     output: {
       type: 'object',
       description: 'Query results',
-      properties: {
-        records: { type: 'array', description: 'Array of record objects' },
-        totalSize: { type: 'number', description: 'Total number of records matching query' },
-        done: { type: 'boolean', description: 'Whether all records have been returned' },
-        nextRecordsUrl: {
-          type: 'string',
-          description: 'URL to fetch next batch of records',
-          optional: true,
-        },
-        query: { type: 'string', description: 'The executed SOQL query' },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: {
-              type: 'number',
-              description: 'Number of records returned in this response',
-            },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: QUERY_OUTPUT_PROPERTIES,
     },
   },
 }

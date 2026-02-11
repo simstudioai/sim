@@ -121,7 +121,7 @@ export const openRouterProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
@@ -431,17 +431,11 @@ export const openRouterProvider: ProviderConfig = {
         const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
 
         const streamingParams: ChatCompletionCreateParamsStreaming & { provider?: any } = {
-          model: payload.model,
+          ...payload,
           messages: [...currentMessages],
+          tool_choice: 'auto',
           stream: true,
           stream_options: { include_usage: true },
-        }
-
-        if (payload.temperature !== undefined) {
-          streamingParams.temperature = payload.temperature
-        }
-        if (payload.max_tokens !== undefined) {
-          streamingParams.max_tokens = payload.max_tokens
         }
 
         if (request.responseFormat) {
@@ -516,7 +510,7 @@ export const openRouterProvider: ProviderConfig = {
         return streamingResult as StreamingExecution
       }
 
-      if (request.responseFormat && hasActiveTools && toolCalls.length > 0) {
+      if (request.responseFormat && hasActiveTools) {
         const finalPayload: any = {
           model: payload.model,
           messages: [...currentMessages],

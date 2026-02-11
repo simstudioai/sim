@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
-import { getUserId } from '@/app/api/auth/oauth/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 
@@ -38,13 +38,14 @@ export async function GET(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized chunks access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -54,7 +55,7 @@ export async function GET(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized chunks access: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized chunks access: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -113,13 +114,25 @@ export async function POST(
     const body = await req.json()
     const { workflowId, ...searchParams } = body
 
-    const userId = await getUserId(requestId, workflowId)
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
 
-    if (!userId) {
-      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
-      const statusCode = workflowId ? 404 : 401
-      logger.warn(`[${requestId}] Authentication failed: ${errorMessage}`)
-      return NextResponse.json({ error: errorMessage }, { status: statusCode })
+    if (workflowId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'write',
+      })
+      if (!authorization.allowed) {
+        return NextResponse.json(
+          { error: authorization.message || 'Access denied' },
+          { status: authorization.status }
+        )
+      }
     }
 
     const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
@@ -248,13 +261,14 @@ export async function PATCH(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized batch chunk operation attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -264,7 +278,7 @@ export async function PATCH(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

@@ -1,5 +1,9 @@
+import type {
+  SpotifyGetRecentlyPlayedParams,
+  SpotifyGetRecentlyPlayedResponse,
+} from '@/tools/spotify/types'
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetRecentlyPlayedParams, SpotifyGetRecentlyPlayedResponse } from './types'
 
 export const spotifyGetRecentlyPlayedTool: ToolConfig<
   SpotifyGetRecentlyPlayedParams,
@@ -20,20 +24,20 @@ export const spotifyGetRecentlyPlayedTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     after: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unix timestamp in milliseconds. Returns items after this cursor.',
     },
     before: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unix timestamp in milliseconds. Returns items before this cursor.',
     },
   },
@@ -93,7 +97,11 @@ export const spotifyGetRecentlyPlayedTool: ToolConfig<
         type: 'object',
         properties: {
           played_at: { type: 'string', description: 'When the track was played' },
-          track: { type: 'object', description: 'Track information' },
+          track: {
+            type: 'object',
+            description: 'Track information',
+            properties: CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES,
+          },
         },
       },
     },

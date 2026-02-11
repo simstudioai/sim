@@ -1,20 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
 import { Badge, Button, Tooltip } from '@/components/emcn'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { WorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import type { WorkspacePermissions } from '@/hooks/queries/workspace'
 import { PermissionSelector } from './permission-selector'
-import { PermissionsTableSkeleton } from './permissions-table-skeleton'
 import type { UserPermissions } from './types'
+
+const PermissionsTableSkeleton = () => (
+  <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
+    <div className='flex items-center justify-between gap-[8px] py-[8px]'>
+      <div className='min-w-0 flex-1'>
+        <div className='flex items-center gap-[8px]'>
+          <Skeleton className='h-[14px] w-40 rounded-[4px]' />
+        </div>
+      </div>
+      <div className='flex flex-shrink-0 items-center'>
+        <div className='inline-flex gap-[2px]'>
+          <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
+          <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
+          <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
+        </div>
+      </div>
+    </div>
+  </div>
+)
 
 export interface PermissionsTableProps {
   userPermissions: UserPermissions[]
   onPermissionChange: (userId: string, permissionType: PermissionType) => void
   onRemoveMember?: (userId: string, email: string) => void
   onRemoveInvitation?: (invitationId: string, email: string) => void
-  onResendInvitation?: (invitationId: string, email: string) => void
+  onResendInvitation?: (invitationId: string) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -143,7 +162,6 @@ export const PermissionsTable = ({
         <div>
           {allUsers.map((user) => {
             const isCurrentUser = user.isCurrentUser === true
-            const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
             const isPendingInvitation = user.isPendingInvitation === true
             const userIdentifier = user.userId || user.email
             const originalPermission = workspacePermissions?.users?.find(
@@ -205,7 +223,7 @@ export const PermissionsTable = ({
                             <span className='inline-flex'>
                               <Button
                                 variant='ghost'
-                                onClick={() => onResendInvitation(user.invitationId!, user.email)}
+                                onClick={() => onResendInvitation(user.invitationId!)}
                                 disabled={
                                   disabled ||
                                   isSaving ||

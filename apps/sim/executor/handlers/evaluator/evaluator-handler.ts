@@ -4,11 +4,11 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
+import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
+import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
+import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
-import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -104,7 +104,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = buildAPIUrl('/api/providers')
+      const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
 
       const providerRequest: Record<string, any> = {
         provider: providerId,
@@ -121,31 +121,20 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: evaluatorConfig.vertexProject,
+        vertexLocation: evaluatorConfig.vertexLocation,
+        bedrockAccessKeyId: evaluatorConfig.bedrockAccessKeyId,
+        bedrockSecretKey: evaluatorConfig.bedrockSecretKey,
+        bedrockRegion: evaluatorConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
       }
 
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = evaluatorConfig.vertexProject
-        providerRequest.vertexLocation = evaluatorConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = evaluatorConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = evaluatorConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = evaluatorConfig.bedrockRegion
-      }
-
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: stringifyJSON(providerRequest),
       })
 

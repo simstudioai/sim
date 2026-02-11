@@ -1,0 +1,183 @@
+---
+title: Similarweb
+description: Website traffic and analytics data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="similarweb"
+  color="#000922"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Similarweb](https://www.similarweb.com/) is a leading platform for web analytics that provides in-depth traffic and engagement data for millions of websites. Similarweb gives you insights into website visits, traffic sources, audience behavior, and competitive benchmarks.
+
+With Similarweb in Sim, your agents can:
+
+- **Analyze website traffic**: Retrieve key metrics such as monthly visits, average duration, bounce rates, and top countries.
+- **Understand audience engagement**: Gain insights into how users interact with websites, including pages per visit and engagement duration.
+- **Track rankings and performance**: Access global, country, and category ranks to benchmark sites against competitors.
+- **Discover traffic sources**: Break down traffic by channels like direct, search, social, referrals, and more.
+
+Use Sim's Similarweb integration to automate the monitoring of competitors, track your site’s performance, or surface actionable market research—all integrated directly into your workflows and automations. Empower your agents to access and utilize reliable web analytics data easily and programmatically.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.
+
+
+
+## Tools
+
+### `similarweb_website_overview`
+
+Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb API key |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `siteName` | string | Website name |
+| `description` | string | Website description |
+| `globalRank` | number | Global traffic rank |
+| `countryRank` | number | Country traffic rank |
+| `categoryRank` | number | Category traffic rank |
+| `category` | string | Website category |
+| `monthlyVisits` | number | Estimated monthly visits |
+| `engagementVisitDuration` | number | Average visit duration in seconds |
+| `engagementPagesPerVisit` | number | Average pages per visit |
+| `engagementBounceRate` | number | Bounce rate \(0-1\) |
+| `topCountries` | array | Top countries by traffic share |
+|   ↳ `country` | string | Country code |
+|   ↳ `share` | number | Traffic share \(0-1\) |
+| `trafficSources` | json | Traffic source breakdown |
+|   ↳ `direct` | number | Direct traffic share |
+|   ↳ `referrals` | number | Referral traffic share |
+|   ↳ `search` | number | Search traffic share |
+|   ↳ `social` | number | Social traffic share |
+|   ↳ `mail` | number | Email traffic share |
+|   ↳ `paidReferrals` | number | Paid referral traffic share |
+
+### `similarweb_traffic_visits`
+
+Get total website visits over time (desktop and mobile combined)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb API key |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Analyzed domain |
+| `country` | string | Country filter applied |
+| `granularity` | string | Data granularity |
+| `lastUpdated` | string | Data last updated timestamp |
+| `visits` | array | Visit data over time |
+|   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+|   ↳ `visits` | number | Number of visits |
+
+### `similarweb_bounce_rate`
+
+Get website bounce rate over time (desktop and mobile combined)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb API key |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Analyzed domain |
+| `country` | string | Country filter applied |
+| `granularity` | string | Data granularity |
+| `lastUpdated` | string | Data last updated timestamp |
+| `bounceRate` | array | Bounce rate data over time |
+|   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+|   ↳ `bounceRate` | number | Bounce rate \(0-1\) |
+
+### `similarweb_pages_per_visit`
+
+Get average pages per visit over time (desktop and mobile combined)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb API key |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Analyzed domain |
+| `country` | string | Country filter applied |
+| `granularity` | string | Data granularity |
+| `lastUpdated` | string | Data last updated timestamp |
+| `pagesPerVisit` | array | Pages per visit data over time |
+|   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+|   ↳ `pagesPerVisit` | number | Average pages per visit |
+
+### `similarweb_visit_duration`
+
+Get average desktop visit duration over time (in seconds)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb API key |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Analyzed domain |
+| `country` | string | Country filter applied |
+| `granularity` | string | Data granularity |
+| `lastUpdated` | string | Data last updated timestamp |
+| `averageVisitDuration` | array | Desktop visit duration data over time |
+|   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+|   ↳ `durationSeconds` | number | Average visit duration in seconds |
+
+

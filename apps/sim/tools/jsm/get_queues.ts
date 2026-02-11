@@ -1,4 +1,5 @@
 import type { JsmGetQueuesParams, JsmGetQueuesResponse } from '@/tools/jsm/types'
+import { QUEUE_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesResponse> = {
@@ -34,26 +35,26 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to get queues for',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     includeCount: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Include issue count for each queue',
+      visibility: 'user-or-llm',
+      description: 'Include issue count for each queue (true/false)',
     },
     start: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Start index for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Start index for pagination (e.g., 0, 50, 100)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Maximum results to return (e.g., 10, 25, 50)',
     },
   },
 
@@ -110,7 +111,14 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    queues: { type: 'json', description: 'Array of queues' },
+    queues: {
+      type: 'array',
+      description: 'List of queues',
+      items: {
+        type: 'object',
+        properties: QUEUE_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of queues' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

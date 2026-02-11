@@ -1,5 +1,6 @@
+import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from '@/tools/spotify/types'
+import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from './types'
 
 export const spotifyGetPlaylistTool: ToolConfig<
   SpotifyGetPlaylistParams,
@@ -25,8 +26,8 @@ export const spotifyGetPlaylistTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code for track availability',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code for track availability (e.g., "US", "GB")',
     },
   },
 
@@ -74,7 +75,11 @@ export const spotifyGetPlaylistTool: ToolConfig<
     description: { type: 'string', description: 'Playlist description', optional: true },
     public: { type: 'boolean', description: 'Whether the playlist is public' },
     collaborative: { type: 'boolean', description: 'Whether the playlist is collaborative' },
-    owner: { type: 'object', description: 'Playlist owner information' },
+    owner: {
+      type: 'object',
+      description: 'Playlist owner information',
+      properties: PLAYLIST_OWNER_OUTPUT_PROPERTIES,
+    },
     image_url: { type: 'string', description: 'Playlist cover image URL', optional: true },
     total_tracks: { type: 'number', description: 'Total number of tracks' },
     snapshot_id: { type: 'string', description: 'Playlist snapshot ID for versioning' },

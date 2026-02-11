@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { uploadFilesForTeamsMessage } from '@/tools/microsoft_teams/server-utils'
+import type { GraphApiErrorResponse, GraphChatMessage } from '@/tools/microsoft_teams/types'
 import { resolveMentionsForChannel, type TeamsMention } from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,14 +18,14 @@ const TeamsWriteChannelSchema = z.object({
   teamId: z.string().min(1, 'Team ID is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
   content: z.string().min(1, 'Message content is required'),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized Teams channel write attempt: ${authResult.error}`)
@@ -53,93 +55,12 @@ export async function POST(request: NextRequest) {
       fileCount: validatedData.files?.length || 0,
     })
 
-    const attachments: any[] = []
-    if (validatedData.files && validatedData.files.length > 0) {
-      const rawFiles = validatedData.files
-      logger.info(`[${requestId}] Processing ${rawFiles.length} file(s) for upload to OneDrive`)
-
-      const userFiles = processFilesToUserFiles(rawFiles, requestId, logger)
-
-      for (const file of userFiles) {
-        try {
-          logger.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
-
-          const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-          const uploadUrl =
-            'https://graph.microsoft.com/v1.0/me/drive/root:/TeamsAttachments/' +
-            encodeURIComponent(file.name) +
-            ':/content'
-
-          logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
-
-          const uploadResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${validatedData.accessToken}`,
-              'Content-Type': file.type || 'application/octet-stream',
-            },
-            body: new Uint8Array(buffer),
-          })
-
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json().catch(() => ({}))
-            logger.error(`[${requestId}] Teams upload failed:`, errorData)
-            throw new Error(
-              `Failed to upload file to Teams: ${errorData.error?.message || 'Unknown error'}`
-            )
-          }
-
-          const uploadedFile = await uploadResponse.json()
-          logger.info(`[${requestId}] File uploaded to Teams successfully`, {
-            id: uploadedFile.id,
-            webUrl: uploadedFile.webUrl,
-          })
-
-          const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
-
-          const fileDetailsResponse = await fetch(fileDetailsUrl, {
-            headers: {
-              Authorization: `Bearer ${validatedData.accessToken}`,
-            },
-          })
-
-          if (!fileDetailsResponse.ok) {
-            const errorData = await fileDetailsResponse.json().catch(() => ({}))
-            logger.error(`[${requestId}] Failed to get file details:`, errorData)
-            throw new Error(
-              `Failed to get file details: ${errorData.error?.message || 'Unknown error'}`
-            )
-          }
-
-          const fileDetails = await fileDetailsResponse.json()
-          logger.info(`[${requestId}] Got file details`, {
-            webDavUrl: fileDetails.webDavUrl,
-            eTag: fileDetails.eTag,
-          })
-
-          const attachmentId = fileDetails.eTag?.match(/\{([a-f0-9-]+)\}/i)?.[1] || fileDetails.id
-
-          attachments.push({
-            id: attachmentId,
-            contentType: 'reference',
-            contentUrl: fileDetails.webDavUrl,
-            name: file.name,
-          })
-
-          logger.info(`[${requestId}] Created attachment reference for ${file.name}`)
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to process file ${file.name}:`, error)
-          throw new Error(
-            `Failed to process file "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
-          )
-        }
-      }
-
-      logger.info(
-        `[${requestId}] All ${attachments.length} file(s) uploaded and attachment references created`
-      )
-    }
+    const { attachments, filesOutput } = await uploadFilesForTeamsMessage({
+      rawFiles: validatedData.files || [],
+      accessToken: validatedData.accessToken,
+      requestId,
+      logger,
+    })
 
     let messageContent = validatedData.content
     let contentType: 'text' | 'html' = 'text'
@@ -197,17 +118,21 @@ export async function POST(request: NextRequest) {
 
     const teamsUrl = `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(validatedData.teamId)}/channels/${encodeURIComponent(validatedData.channelId)}/messages`
 
-    const teamsResponse = await fetch(teamsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${validatedData.accessToken}`,
+    const teamsResponse = await secureFetchWithValidation(
+      teamsUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${validatedData.accessToken}`,
+        },
+        body: JSON.stringify(messageBody),
       },
-      body: JSON.stringify(messageBody),
-    })
+      'teamsUrl'
+    )
 
     if (!teamsResponse.ok) {
-      const errorData = await teamsResponse.json().catch(() => ({}))
+      const errorData = (await teamsResponse.json().catch(() => ({}))) as GraphApiErrorResponse
       logger.error(`[${requestId}] Microsoft Teams API error:`, errorData)
       return NextResponse.json(
         {
@@ -218,7 +143,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const responseData = await teamsResponse.json()
+    const responseData = (await teamsResponse.json()) as GraphChatMessage
     logger.info(`[${requestId}] Teams channel message sent successfully`, {
       messageId: responseData.id,
       attachmentCount: attachments.length,
@@ -237,6 +162,7 @@ export async function POST(request: NextRequest) {
           url: responseData.webUrl || '',
           attachmentCount: attachments.length,
         },
+        files: filesOutput,
       },
     })
   } catch (error) {

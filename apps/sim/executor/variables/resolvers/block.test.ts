@@ -5,10 +5,10 @@ import { BlockResolver } from './block'
 import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
-
-vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
-  getBlockOutputs: vi.fn(() => ({})),
-}))
+vi.mock('@/blocks/registry', async () => {
+  const actual = await vi.importActual<typeof import('@/blocks/registry')>('@/blocks/registry')
+  return actual
+})
 
 function createTestWorkflow(
   blocks: Array<{
@@ -135,7 +135,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should return undefined for non-existent path when no schema defined', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { existing: 'value' },
@@ -144,54 +144,92 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
     })
 
-    it.concurrent('should throw error for path not in output schema', async () => {
-      const { getBlockOutputs } = await import('@/lib/workflows/blocks/block-outputs')
-      const mockGetBlockOutputs = vi.mocked(getBlockOutputs)
-      const customOutputs = {
-        validField: { type: 'string', description: 'A valid field' },
-        nested: {
-          child: { type: 'number', description: 'Nested child' },
-        },
-      }
-      mockGetBlockOutputs.mockReturnValue(customOutputs as any)
-
+    it.concurrent('should throw error for path not in output schema', () => {
       const workflow = createTestWorkflow([
         {
           id: 'source',
-          outputs: customOutputs,
+          type: 'start_trigger',
         },
       ])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
-        source: { validField: 'value', nested: { child: 42 } },
+        source: { input: 'value' },
       })
 
       expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(
         /"invalidField" doesn't exist on block "source"/
       )
       expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(/Available fields:/)
-
-      mockGetBlockOutputs.mockReturnValue({})
     })
 
     it.concurrent('should return undefined for path in schema but missing in data', () => {
       const workflow = createTestWorkflow([
         {
           id: 'source',
-          outputs: {
-            requiredField: { type: 'string', description: 'Always present' },
-            optionalField: { type: 'string', description: 'Sometimes missing' },
-          },
+          type: 'function',
         },
       ])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
-        source: { requiredField: 'value' },
+        source: { stdout: 'log output' },
       })
 
-      expect(resolver.resolve('<source.requiredField>', ctx)).toBe('value')
-      expect(resolver.resolve('<source.optionalField>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<source.stdout>', ctx)).toBe('log output')
+      expect(resolver.resolve('<source.result>', ctx)).toBeUndefined()
     })
+
+    it.concurrent(
+      'should allow hiddenFromDisplay fields for pre-execution schema validation',
+      () => {
+        const workflow = createTestWorkflow([
+          {
+            id: 'workflow-block',
+            name: 'Workflow',
+            type: 'workflow',
+          },
+        ])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {})
+
+        expect(resolver.resolve('<workflow.childTraceSpans>', ctx)).toBeUndefined()
+      }
+    )
+
+    it.concurrent(
+      'should allow hiddenFromDisplay fields for workflow_input pre-execution schema validation',
+      () => {
+        const workflow = createTestWorkflow([
+          {
+            id: 'workflow-input-block',
+            name: 'Workflow Input',
+            type: 'workflow_input',
+          },
+        ])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {})
+
+        expect(resolver.resolve('<workflowinput.childTraceSpans>', ctx)).toBeUndefined()
+      }
+    )
+
+    it.concurrent(
+      'should allow hiddenFromDisplay fields for HITL pre-execution schema validation',
+      () => {
+        const workflow = createTestWorkflow([
+          {
+            id: 'hitl-block',
+            name: 'HITL',
+            type: 'human_in_the_loop',
+          },
+        ])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {})
+
+        expect(resolver.resolve('<hitl.response>', ctx)).toBeUndefined()
+        expect(resolver.resolve('<hitl.submission>', ctx)).toBeUndefined()
+        expect(resolver.resolve('<hitl.resumeInput>', ctx)).toBeUndefined()
+      }
+    )
 
     it.concurrent('should return undefined for non-existent block', () => {
       const workflow = createTestWorkflow([{ id: 'existing' }])
@@ -257,15 +295,9 @@ describe('BlockResolver', () => {
       expect(result).toBe('"hello"')
     })
 
-    it.concurrent('should format string for function block in template literal', () => {
+    it.concurrent('should format object for function block', () => {
       const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock('hello', 'function', true)
-      expect(result).toBe('hello')
-    })
-
-    it.concurrent('should format object for function block in template literal', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock({ a: 1 }, 'function', true)
+      const result = resolver.formatValueForBlock({ a: 1 }, 'function')
       expect(result).toBe('{"a":1}')
     })
 
@@ -981,7 +1013,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should handle output with undefined values', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { value: undefined, other: 'exists' },
@@ -991,7 +1023,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should return undefined for deeply nested non-existent path', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { level1: { level2: {} } },

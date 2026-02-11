@@ -1,135 +1,22 @@
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import {
   isReference,
   normalizeName,
   parseReferencePath,
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
+import { getBlockSchema } from '@/executor/utils/block-data'
+import {
+  InvalidFieldError,
+  type OutputSchema,
+  resolveBlockReference,
+} from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   navigatePath,
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { getTool } from '@/tools/utils'
-
-function isPathInOutputSchema(
-  outputs: Record<string, any> | undefined,
-  pathParts: string[]
-): boolean {
-  if (!outputs || pathParts.length === 0) {
-    return true
-  }
-
-  const isFileArrayType = (value: any): boolean =>
-    value?.type === 'file[]' || value?.type === 'files'
-
-  let current: any = outputs
-  for (let i = 0; i < pathParts.length; i++) {
-    const part = pathParts[i]
-
-    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
-    if (arrayMatch) {
-      const [, prop] = arrayMatch
-      let fieldDef: any
-
-      if (prop in current) {
-        fieldDef = current[prop]
-      } else if (current.properties && prop in current.properties) {
-        fieldDef = current.properties[prop]
-      } else if (current.type === 'array' && current.items) {
-        if (current.items.properties && prop in current.items.properties) {
-          fieldDef = current.items.properties[prop]
-        } else if (prop in current.items) {
-          fieldDef = current.items[prop]
-        }
-      }
-
-      if (!fieldDef) {
-        return false
-      }
-
-      if (isFileArrayType(fieldDef)) {
-        if (i + 1 < pathParts.length) {
-          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(pathParts[i + 1] as any)
-        }
-        return true
-      }
-
-      if (fieldDef.type === 'array' && fieldDef.items) {
-        current = fieldDef.items
-        continue
-      }
-
-      current = fieldDef
-      continue
-    }
-
-    if (/^\d+$/.test(part)) {
-      if (isFileArrayType(current)) {
-        if (i + 1 < pathParts.length) {
-          const nextPart = pathParts[i + 1]
-          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(nextPart as any)
-        }
-        return true
-      }
-      continue
-    }
-
-    if (current === null || current === undefined) {
-      return false
-    }
-
-    if (part in current) {
-      const nextCurrent = current[part]
-      if (nextCurrent?.type === 'file[]' && i + 1 < pathParts.length) {
-        const nextPart = pathParts[i + 1]
-        if (/^\d+$/.test(nextPart) && i + 2 < pathParts.length) {
-          const propertyPart = pathParts[i + 2]
-          return USER_FILE_ACCESSIBLE_PROPERTIES.includes(propertyPart as any)
-        }
-      }
-      current = nextCurrent
-      continue
-    }
-
-    if (current.properties && part in current.properties) {
-      current = current.properties[part]
-      continue
-    }
-
-    if (current.type === 'array' && current.items) {
-      if (current.items.properties && part in current.items.properties) {
-        current = current.items.properties[part]
-        continue
-      }
-      if (part in current.items) {
-        current = current.items[part]
-        continue
-      }
-    }
-
-    if (isFileArrayType(current) && USER_FILE_ACCESSIBLE_PROPERTIES.includes(part as any)) {
-      return true
-    }
-
-    if ('type' in current && typeof current.type === 'string') {
-      if (!current.properties && !current.items) {
-        return false
-      }
-    }
-
-    return false
-  }
-
-  return true
-}
-
-function getSchemaFieldNames(outputs: Record<string, any> | undefined): string[] {
-  if (!outputs) return []
-  return Object.keys(outputs)
-}
 
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
@@ -170,81 +57,84 @@ export class BlockResolver implements Resolver {
       return undefined
     }
 
-    const block = this.blockById.get(blockId)
+    const block = this.blockById.get(blockId)!
     const output = this.getBlockOutput(blockId, context)
 
-    if (output === undefined) {
+    const blockData: Record<string, unknown> = {}
+    const blockOutputSchemas: Record<string, OutputSchema> = {}
+
+    if (output !== undefined) {
+      blockData[blockId] = output
+    }
+
+    const outputSchema = getBlockSchema(block)
+
+    if (outputSchema && Object.keys(outputSchema).length > 0) {
+      blockOutputSchemas[blockId] = outputSchema
+    }
+
+    try {
+      const result = resolveBlockReference(blockName, pathParts, {
+        blockNameMapping: Object.fromEntries(this.nameToBlockId),
+        blockData,
+        blockOutputSchemas,
+      })!
+
+      if (result.value !== undefined) {
+        return result.value
+      }
+
+      return this.handleBackwardsCompat(block, output, pathParts)
+    } catch (error) {
+      if (error instanceof InvalidFieldError) {
+        const fallback = this.handleBackwardsCompat(block, output, pathParts)
+        if (fallback !== undefined) {
+          return fallback
+        }
+        throw new Error(error.message)
+      }
+      throw error
+    }
+  }
+
+  private handleBackwardsCompat(
+    block: SerializedBlock,
+    output: unknown,
+    pathParts: string[]
+  ): unknown {
+    if (output === undefined || pathParts.length === 0) {
       return undefined
     }
-    if (pathParts.length === 0) {
-      return output
-    }
 
-    // Try the original path first
-    let result = navigatePath(output, pathParts)
-
-    // If successful, return it immediately
-    if (result !== undefined) {
-      return result
-    }
-
-    // Response block backwards compatibility:
-    // Old: <responseBlock.response.data> -> New: <responseBlock.data>
-    // Only apply fallback if:
-    // 1. Block type is 'response'
-    // 2. Path starts with 'response.'
-    // 3. Output doesn't have a 'response' key (confirming it's the new format)
     if (
-      block?.metadata?.id === 'response' &&
+      block.metadata?.id === 'response' &&
       pathParts[0] === 'response' &&
-      output?.response === undefined
+      (output as Record<string, unknown>)?.response === undefined
     ) {
       const adjustedPathParts = pathParts.slice(1)
       if (adjustedPathParts.length === 0) {
         return output
       }
-      result = navigatePath(output, adjustedPathParts)
-      if (result !== undefined) {
-        return result
+      const fallbackResult = navigatePath(output, adjustedPathParts)
+      if (fallbackResult !== undefined) {
+        return fallbackResult
       }
     }
 
-    // Workflow block backwards compatibility:
-    // Old: <workflowBlock.result.response.data> -> New: <workflowBlock.result.data>
-    // Only apply fallback if:
-    // 1. Block type is 'workflow' or 'workflow_input'
-    // 2. Path starts with 'result.response.'
-    // 3. output.result.response doesn't exist (confirming child used new format)
     const isWorkflowBlock =
-      block?.metadata?.id === 'workflow' || block?.metadata?.id === 'workflow_input'
+      block.metadata?.id === 'workflow' || block.metadata?.id === 'workflow_input'
+    const outputRecord = output as Record<string, Record<string, unknown> | undefined>
     if (
       isWorkflowBlock &&
       pathParts[0] === 'result' &&
       pathParts[1] === 'response' &&
-      output?.result?.response === undefined
+      outputRecord?.result?.response === undefined
     ) {
       const adjustedPathParts = ['result', ...pathParts.slice(2)]
-      result = navigatePath(output, adjustedPathParts)
-      if (result !== undefined) {
-        return result
+      const fallbackResult = navigatePath(output, adjustedPathParts)
+      if (fallbackResult !== undefined) {
+        return fallbackResult
       }
-    }
-
-    const blockType = block?.metadata?.id
-    const params = block?.config?.params as Record<string, unknown> | undefined
-    const subBlocks = params
-      ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, { value: v }]))
-      : undefined
-    const toolId = block?.config?.tool
-    const toolConfig = toolId ? getTool(toolId) : undefined
-    const outputSchema =
-      toolConfig?.outputs ?? (blockType ? getBlockOutputs(blockType, subBlocks) : block?.outputs)
-    const schemaFields = getSchemaFieldNames(outputSchema)
-    if (schemaFields.length > 0 && !isPathInOutputSchema(outputSchema, pathParts)) {
-      throw new Error(
-        `"${pathParts.join('.')}" doesn't exist on block "${blockName}". ` +
-          `Available fields: ${schemaFields.join(', ')}`
-      )
     }
 
     return undefined
@@ -267,17 +157,13 @@ export class BlockResolver implements Resolver {
     return this.nameToBlockId.get(normalizeName(name))
   }
 
-  public formatValueForBlock(
-    value: any,
-    blockType: string | undefined,
-    isInTemplateLiteral = false
-  ): string {
+  public formatValueForBlock(value: any, blockType: string | undefined, language?: string): string {
     if (blockType === 'condition') {
       return this.stringifyForCondition(value)
     }
 
     if (blockType === 'function') {
-      return this.formatValueForCodeContext(value, isInTemplateLiteral)
+      return this.formatValueForCodeContext(value, language)
     }
 
     if (blockType === 'response') {
@@ -318,29 +204,7 @@ export class BlockResolver implements Resolver {
     return String(value)
   }
 
-  private formatValueForCodeContext(value: any, isInTemplateLiteral: boolean): string {
-    if (isInTemplateLiteral) {
-      if (typeof value === 'string') {
-        return value
-      }
-      if (typeof value === 'object' && value !== null) {
-        return JSON.stringify(value)
-      }
-      return String(value)
-    }
-
-    if (typeof value === 'string') {
-      return JSON.stringify(value)
-    }
-    if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value)
-    }
-    if (value === undefined) {
-      return 'undefined'
-    }
-    if (value === null) {
-      return 'null'
-    }
-    return String(value)
+  private formatValueForCodeContext(value: any, language?: string): string {
+    return formatLiteralForCode(value, language === 'python' ? 'python' : 'javascript')
   }
 }

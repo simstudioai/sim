@@ -12,7 +12,7 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the downtime to cancel',
+      description: 'The ID of the downtime to cancel (e.g., "abc123def456")',
     },
     apiKey: {
       type: 'string',

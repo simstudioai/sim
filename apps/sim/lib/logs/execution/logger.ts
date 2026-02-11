@@ -33,6 +33,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 export interface ToolCall {
   name: string
@@ -187,6 +188,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    executionState?: SerializableExecutionState
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
@@ -199,6 +201,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       finalOutput,
       traceSpans,
       workflowInput,
+      executionState,
       isResume,
       level: levelOverride,
       status: statusOverride,
@@ -206,22 +209,22 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     logger.debug(`Completing workflow execution ${executionId}`, { isResume })
 
-    // If this is a resume, fetch the existing log to merge data
-    let existingLog: any = null
-    if (isResume) {
-      const [existing] = await db
-        .select()
-        .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, executionId))
-        .limit(1)
-      existingLog = existing
-    }
+    const [existingLog] = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+    const billingUserId = this.extractBillingUserId(existingLog?.executionData)
+    const existingExecutionData = existingLog?.executionData as
+      | { traceSpans?: TraceSpan[] }
+      | undefined
 
-    // Determine if workflow failed by checking trace spans for errors
+    // Determine if workflow failed by checking trace spans for unhandled errors
+    // Errors handled by error handler paths (errorHandled: true) don't count as workflow failures
     // Use the override if provided (for cost-only fallback scenarios)
     const hasErrors = traceSpans?.some((span: any) => {
       const checkSpanForErrors = (s: any): boolean => {
-        if (s.status === 'error') return true
+        if (s.status === 'error' && !s.errorHandled) return true
         if (s.children && Array.isArray(s.children)) {
           return s.children.some(checkSpanForErrors)
         }
@@ -240,7 +243,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const mergedTraceSpans = isResume
       ? traceSpans && traceSpans.length > 0
         ? traceSpans
-        : existingLog?.executionData?.traceSpans || []
+        : existingExecutionData?.traceSpans || []
       : traceSpans
 
     const filteredTraceSpans = filterForDisplay(mergedTraceSpans)
@@ -260,10 +263,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
-    const totalDuration =
+    const rawDurationMs =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
         : totalDurationMs
+    const totalDuration =
+      typeof rawDurationMs === 'number' && Number.isFinite(rawDurationMs)
+        ? Math.max(0, Math.round(rawDurationMs))
+        : 0
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -282,6 +289,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
             total: executionCost.tokens.total,
           },
           models: executionCost.models,
+          ...(executionState ? { executionState } : {}),
         },
         cost: executionCost,
       })
@@ -293,12 +301,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     try {
-      const [wf] = await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId))
-      if (wf) {
+      // Skip workflow lookup if workflow was deleted
+      const wf = updatedLog.workflowId
+        ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
+        : undefined
+      if (wf && billingUserId) {
         const [usr] = await db
           .select({ id: userTable.id, email: userTable.email, name: userTable.name })
           .from(userTable)
-          .where(eq(userTable.id, wf.userId))
+          .where(eq(userTable.id, billingUserId))
           .limit(1)
 
         if (usr?.email) {
@@ -317,7 +328,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
               updatedLog.workflowId,
               costSummary,
               updatedLog.trigger as ExecutionTrigger['type'],
-              executionId
+              executionId,
+              billingUserId
             )
 
             const limit = before.usageData.limit
@@ -355,7 +367,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
               updatedLog.workflowId,
               costSummary,
               updatedLog.trigger as ExecutionTrigger['type'],
-              executionId
+              executionId,
+              billingUserId
             )
 
             const percentBefore =
@@ -381,7 +394,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
             updatedLog.workflowId,
             costSummary,
             updatedLog.trigger as ExecutionTrigger['type'],
-            executionId
+            executionId,
+            billingUserId
           )
         }
       } else {
@@ -389,7 +403,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           updatedLog.workflowId,
           costSummary,
           updatedLog.trigger as ExecutionTrigger['type'],
-          executionId
+          executionId,
+          billingUserId
         )
       }
     } catch (e) {
@@ -398,7 +413,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           updatedLog.workflowId,
           costSummary,
           updatedLog.trigger as ExecutionTrigger['type'],
-          executionId
+          executionId,
+          billingUserId
         )
       } catch {}
       logger.warn('Usage threshold notification check failed (non-fatal)', { error: e })
@@ -460,8 +476,24 @@ export class ExecutionLogger implements IExecutionLoggerService {
    * Updates user stats with cost and token information
    * Maintains same logic as original execution logger for billing consistency
    */
+  private extractBillingUserId(executionData: unknown): string | null {
+    if (!executionData || typeof executionData !== 'object') {
+      return null
+    }
+
+    const environment = (executionData as { environment?: { userId?: unknown } }).environment
+    const userId = environment?.userId
+
+    if (typeof userId !== 'string') {
+      return null
+    }
+
+    const trimmedUserId = userId.trim()
+    return trimmedUserId.length > 0 ? trimmedUserId : null
+  }
+
   private async updateUserStats(
-    workflowId: string,
+    workflowId: string | null,
     costSummary: {
       totalCost: number
       totalInputCost: number
@@ -482,7 +514,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       >
     },
     trigger: ExecutionTrigger['type'],
-    executionId?: string
+    executionId?: string,
+    billingUserId?: string | null
   ): Promise<void> {
     if (!isBillingEnabled) {
       logger.debug('Billing is disabled, skipping user stats cost update')
@@ -494,8 +527,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       return
     }
 
+    if (!workflowId) {
+      logger.debug('Workflow was deleted, skipping user stats update')
+      return
+    }
+
     try {
-      // Get the workflow record to get the userId
       const [workflowRecord] = await db
         .select()
         .from(workflow)
@@ -507,7 +544,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
-      const userId = workflowRecord.userId
+      const userId = billingUserId?.trim() || null
+      if (!userId) {
+        logger.error('Missing billing actor in execution context; skipping stats update', {
+          workflowId,
+          trigger,
+          executionId,
+        })
+        return
+      }
+
       const costToStore = costSummary.totalCost
 
       const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))

@@ -13,12 +13,21 @@ export interface WorkflowDiffState {
   _triggerMessageId?: string | null
 }
 
+export interface DiffActionOptions {
+  /** Skip recording this operation for undo/redo. Used during undo/redo replay. */
+  skipRecording?: boolean
+}
+
 export interface WorkflowDiffActions {
-  setProposedChanges: (workflowState: WorkflowState, diffAnalysis?: DiffAnalysis) => Promise<void>
+  setProposedChanges: (
+    workflowState: WorkflowState,
+    diffAnalysis?: DiffAnalysis,
+    options?: DiffActionOptions
+  ) => Promise<void>
   clearDiff: (options?: { restoreBaseline?: boolean }) => void
   toggleDiffView: () => void
-  acceptChanges: () => Promise<void>
-  rejectChanges: () => Promise<void>
+  acceptChanges: (options?: DiffActionOptions) => Promise<void>
+  rejectChanges: (options?: DiffActionOptions) => Promise<void>
   reapplyDiffMarkers: () => void
   _batchedStateUpdate: (updates: Partial<WorkflowDiffState>) => void
 }

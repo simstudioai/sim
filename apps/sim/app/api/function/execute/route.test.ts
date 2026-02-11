@@ -84,6 +84,14 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
 
 vi.mock('@sim/logger', () => loggerMock)
 
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkInternalAuth: vi.fn().mockResolvedValue({
+    success: true,
+    userId: 'user-123',
+    authType: 'internal_jwt',
+  }),
+}))
+
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: vi.fn(),
 }))
@@ -110,6 +118,24 @@ describe('Function Execute API Route', () => {
   })
 
   describe('Security Tests', () => {
+    it('should reject unauthorized requests', async () => {
+      const { checkInternalAuth } = await import('@/lib/auth/hybrid')
+      vi.mocked(checkInternalAuth).mockResolvedValueOnce({
+        success: false,
+        error: 'Unauthorized',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return "test"',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
     it.concurrent('should use isolated-vm for secure sandboxed execution', async () => {
       const req = createMockRequest('POST', {
         code: 'return "test"',
@@ -313,7 +339,7 @@ describe('Function Execute API Route', () => {
           'block-2': 'world',
         },
         blockNameMapping: {
-          validVar: 'block-1',
+          validvar: 'block-1',
           another_valid: 'block-2',
         },
       })
@@ -539,7 +565,7 @@ describe('Function Execute API Route', () => {
           'block-complex': complexData,
         },
         blockNameMapping: {
-          complexData: 'block-complex',
+          complexdata: 'block-complex',
         },
       })
 

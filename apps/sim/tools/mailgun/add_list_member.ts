@@ -18,13 +18,13 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Mailing list address',
+      description: 'Mailing list address (e.g., list@mg.example.com)',
     },
     address: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Member email address',
+      description: 'Member email address to add (e.g., user@example.com)',
     },
     name: {
       type: 'string',

@@ -19,3 +19,16 @@ export {
   zepGetUserTool,
   zepGetUserThreadsTool,
 }
+
+export type { ZepMessage, ZepResponse, ZepThread, ZepUser } from '@/tools/zep/types'
+export {
+  MESSAGE_OUTPUT,
+  MESSAGE_OUTPUT_PROPERTIES,
+  MESSAGES_ARRAY_OUTPUT,
+  PAGINATION_OUTPUT_PROPERTIES,
+  THREAD_OUTPUT,
+  THREAD_OUTPUT_PROPERTIES,
+  THREADS_ARRAY_OUTPUT,
+  USER_OUTPUT,
+  USER_OUTPUT_PROPERTIES,
+} from '@/tools/zep/types'

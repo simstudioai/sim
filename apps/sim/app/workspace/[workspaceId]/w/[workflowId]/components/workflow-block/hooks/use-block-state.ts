@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { DiffStatus } from '@/lib/workflows/diff/types'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
-import { useExecutionStore } from '@/stores/execution'
+import { useIsBlockActive } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import type { CurrentWorkflow } from '../../../hooks/use-current-workflow'
 import type { WorkflowBlockProps } from '../types'
@@ -18,6 +18,8 @@ export interface UseBlockStateReturn {
   diffStatus: DiffStatus
   /** Whether this is a deleted block in diff mode */
   isDeletedBlock: boolean
+  /** Whether the block is locked */
+  isLocked: boolean
 }
 
 /**
@@ -40,6 +42,11 @@ export function useBlockState(
     ? (data.blockState?.enabled ?? true)
     : (currentBlock?.enabled ?? true)
 
+  // Determine if block is locked
+  const isLocked = data.isPreview
+    ? (data.blockState?.locked ?? false)
+    : (currentBlock?.locked ?? false)
+
   // Get diff status
   const diffStatus: DiffStatus =
     currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
@@ -60,7 +67,7 @@ export function useBlockState(
   const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(blockId)
 
   // Execution state
-  const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(blockId))
+  const isActiveBlock = useIsBlockActive(blockId)
   const isActive = data.isActive || isActiveBlock
 
   return {
@@ -68,5 +75,6 @@ export function useBlockState(
     isActive,
     diffStatus,
     isDeletedBlock: isDeletedBlock ?? false,
+    isLocked,
   }
 }

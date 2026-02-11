@@ -1,3 +1,4 @@
+import { ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetArtistsParams {
@@ -77,6 +78,10 @@ export const spotifyGetArtistsTool: ToolConfig<SpotifyGetArtistsParams, SpotifyG
     },
 
     outputs: {
-      artists: { type: 'json', description: 'List of artists' },
+      artists: {
+        type: 'array',
+        description: 'List of artists',
+        items: { type: 'object', properties: ARTIST_OUTPUT_PROPERTIES },
+      },
     },
   }

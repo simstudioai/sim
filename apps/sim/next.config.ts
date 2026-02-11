@@ -77,6 +77,7 @@ const nextConfig: NextConfig = {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
   serverExternalPackages: [
+    '@1password/sdk',
     'unpdf',
     'ffmpeg-static',
     'fluent-ffmpeg',
@@ -324,18 +325,6 @@ const nextConfig: NextConfig = {
     }
 
     return redirects
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/ingest/static/:path*',
-        destination: 'https://us-assets.i.posthog.com/static/:path*',
-      },
-      {
-        source: '/ingest/:path*',
-        destination: 'https://us.i.posthog.com/:path*',
-      },
-    ]
   },
 }
 

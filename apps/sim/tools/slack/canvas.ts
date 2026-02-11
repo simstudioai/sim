@@ -1,4 +1,5 @@
 import type { SlackCanvasParams, SlackCanvasResponse } from '@/tools/slack/types'
+import { CANVAS_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse> = {
@@ -35,8 +36,8 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target Slack channel (e.g., #general)',
+      visibility: 'user-or-llm',
+      description: 'Slack channel ID (e.g., C1234567890)',
     },
     title: {
       type: 'string',
@@ -99,9 +100,5 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     }
   },
 
-  outputs: {
-    canvas_id: { type: 'string', description: 'ID of the created canvas' },
-    channel: { type: 'string', description: 'Channel where canvas was created' },
-    title: { type: 'string', description: 'Title of the canvas' },
-  },
+  outputs: CANVAS_OUTPUT_PROPERTIES,
 }

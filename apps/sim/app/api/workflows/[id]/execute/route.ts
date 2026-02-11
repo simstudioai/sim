@@ -1,10 +1,14 @@
 import { createLogger } from '@sim/logger'
-import { tasks } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import {
+  createTimeoutAbortController,
+  getTimeoutErrorMessage,
+  isTimeoutError,
+} from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -12,6 +16,7 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -24,12 +29,21 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
-import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  createHttpResponseFromBlock,
+  workflowHasResponseBlock,
+} from '@/lib/workflows/utils'
+import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
+import type {
+  ExecutionMetadata,
+  IterationContext,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -50,6 +64,29 @@ const ExecuteWorkflowSchema = z.object({
       edges: z.array(z.any()),
       loops: z.record(z.any()).optional(),
       parallels: z.record(z.any()).optional(),
+    })
+    .optional(),
+  stopAfterBlockId: z.string().optional(),
+  runFromBlock: z
+    .object({
+      startBlockId: z.string().min(1, 'Start block ID is required'),
+      sourceSnapshot: z
+        .object({
+          blockStates: z.record(z.any()),
+          executedBlocks: z.array(z.string()),
+          blockLogs: z.array(z.any()),
+          decisions: z.object({
+            router: z.record(z.string()),
+            condition: z.record(z.string()),
+          }),
+          completedLoops: z.array(z.string()),
+          loopExecutions: z.record(z.any()).optional(),
+          parallelExecutions: z.record(z.any()).optional(),
+          parallelBlockMapping: z.record(z.any()).optional(),
+          activeExecutionPath: z.array(z.string()),
+        })
+        .optional(),
+      executionId: z.string().optional(),
     })
     .optional(),
 })
@@ -116,47 +153,66 @@ type AsyncExecutionParams = {
   userId: string
   input: any
   triggerType: CoreTriggerType
-  preflighted?: boolean
+  executionId: string
 }
 
-/**
- * Handles async workflow execution by queueing a background job.
- * Returns immediately with a 202 Accepted response containing the job ID.
- */
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
-  const { requestId, workflowId, userId, input, triggerType } = params
-
-  if (!isTriggerDevEnabled) {
-    logger.warn(`[${requestId}] Async mode requested but TRIGGER_DEV_ENABLED is false`)
-    return NextResponse.json(
-      { error: 'Async execution is not enabled. Set TRIGGER_DEV_ENABLED=true to use async mode.' },
-      { status: 400 }
-    )
-  }
+  const { requestId, workflowId, userId, input, triggerType, executionId } = params
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
     input,
     triggerType,
-    preflighted: params.preflighted,
+    executionId,
   }
 
   try {
-    const handle = await tasks.trigger('workflow-execution', payload)
+    const jobQueue = await getJobQueue()
+    const jobId = await jobQueue.enqueue('workflow-execution', payload, {
+      metadata: { workflowId, userId },
+    })
 
     logger.info(`[${requestId}] Queued async workflow execution`, {
       workflowId,
-      jobId: handle.id,
+      jobId,
     })
+
+    if (shouldExecuteInline()) {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWorkflowJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error(`[${requestId}] Async workflow execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
+          try {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${requestId}] Failed to mark job as failed`, {
+              jobId,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
+            })
+          }
+        }
+      })()
+    }
 
     return NextResponse.json(
       {
         success: true,
         async: true,
-        jobId: handle.id,
+        jobId,
+        executionId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/jobs/${handle.id}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
       },
       { status: 202 }
     )
@@ -223,7 +279,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      stopAfterBlockId,
+      runFromBlock: rawRunFromBlock,
     } = validation.data
+
+    // Resolve runFromBlock snapshot from executionId if needed
+    let resolvedRunFromBlock:
+      | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
+      | undefined
+    if (rawRunFromBlock) {
+      if (rawRunFromBlock.sourceSnapshot) {
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
+        }
+      } else if (rawRunFromBlock.executionId) {
+        const { getExecutionState, getLatestExecutionState } = await import(
+          '@/lib/workflows/executor/execution-state'
+        )
+        const snapshot =
+          rawRunFromBlock.executionId === 'latest'
+            ? await getLatestExecutionState(workflowId)
+            : await getExecutionState(rawRunFromBlock.executionId)
+        if (!snapshot) {
+          return NextResponse.json(
+            {
+              error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+            },
+            { status: 400 }
+          )
+        }
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: snapshot,
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'runFromBlock requires either sourceSnapshot or executionId' },
+          { status: 400 }
+        )
+      }
+    }
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
@@ -238,6 +334,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
+              stopAfterBlockId: _stopAfterBlockId,
+              runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
@@ -246,6 +344,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : validatedInput
 
     const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+    const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: shouldUseDraftState ? 'write' : 'read',
+    })
+    if (!workflowAuthorization.allowed) {
+      return NextResponse.json(
+        { error: workflowAuthorization.message || 'Access denied' },
+        { status: workflowAuthorization.status }
+      )
+    }
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
@@ -276,7 +385,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId
     )
 
-    const shouldPreflightEnvVars = isAsyncMode && isTriggerDevEnabled
+    // Client-side sessions and personal API keys bill/permission-check the
+    // authenticated user, not the workspace billed account.
+    const useAuthenticatedUserAsActor =
+      isClientSession || (auth.authType === 'api_key' && auth.apiKeyType === 'personal')
+
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,
@@ -285,9 +398,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId,
       checkDeployment: !shouldUseDraftState,
       loggingSession,
-      preflightEnvVars: shouldPreflightEnvVars,
       useDraftState: shouldUseDraftState,
-      envUserId: isClientSession ? userId : undefined,
+      useAuthenticatedUserAsActor,
     })
 
     if (!preprocessResult.success) {
@@ -319,7 +431,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         userId: actorUserId,
         input,
         triggerType: loggingTriggerType,
-        preflighted: shouldPreflightEnvVars,
+        executionId,
       })
     }
 
@@ -407,6 +519,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
+      const timeoutController = createTimeoutAbortController(
+        preprocessResult.executionTimeout?.sync
+      )
+
       try {
         const metadata: ExecutionMetadata = {
           requestId,
@@ -439,7 +555,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           loggingSession,
           includeFileBase64,
           base64MaxBytes,
+          stopAfterBlockId,
+          runFromBlock: resolvedRunFromBlock,
+          abortSignal: timeoutController.signal,
         })
+
+        if (
+          result.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          logger.info(`[${requestId}] Non-SSE execution timed out`, {
+            timeoutMs: timeoutController.timeoutMs,
+          })
+          await loggingSession.markAsFailed(timeoutErrorMessage)
+
+          return NextResponse.json(
+            {
+              success: false,
+              output: result.output,
+              error: timeoutErrorMessage,
+              metadata: result.metadata
+                ? {
+                    duration: result.metadata.duration,
+                    startTime: result.metadata.startTime,
+                    endTime: result.metadata.endTime,
+                  }
+                : undefined,
+            },
+            { status: 408 }
+          )
+        }
 
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
@@ -451,9 +598,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         const resultWithBase64 = { ...result, output: outputWithBase64 }
 
-        // Cleanup base64 cache for this execution
-        await cleanupExecutionBase64Cache(executionId)
-
         const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
           return createHttpResponseFromBlock(resultWithBase64)
@@ -461,6 +605,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         const filteredResult = {
           success: result.success,
+          executionId,
           output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
@@ -473,17 +618,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         return NextResponse.json(filteredResult)
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error'
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
-        const executionResult = error.executionResult
+        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+
+        await loggingSession.safeCompleteWithError({
+          totalDurationMs: executionResult?.metadata?.duration,
+          error: { message: errorMessage },
+          traceSpans: executionResult?.logs as any,
+        })
 
         return NextResponse.json(
           {
             success: false,
             output: executionResult?.output,
-            error: executionResult?.error || error.message || 'Execution failed',
+            error: executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -494,6 +646,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
           { status: 500 }
         )
+      } finally {
+        timeoutController.cleanup()
+        if (executionId) {
+          try {
+            await cleanupExecutionBase64Cache(executionId)
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+          }
+        }
       }
     }
 
@@ -507,7 +668,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         cachedWorkflowData?.blocks || {}
       )
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
-
       const stream = await createStreamingResponse({
         requestId,
         workflow: {
@@ -525,6 +685,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
           includeFileBase64,
           base64MaxBytes,
+          timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId,
       })
@@ -536,7 +697,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    const abortController = new AbortController()
+    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
     let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -568,6 +729,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockId: string,
             blockName: string,
             blockType: string,
+            executionOrder: number,
             iterationContext?: IterationContext
           ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
@@ -580,10 +742,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 blockId,
                 blockName,
                 blockType,
+                executionOrder,
                 ...(iterationContext && {
                   iterationCurrent: iterationContext.iterationCurrent,
                   iterationTotal: iterationContext.iterationTotal,
                   iterationType: iterationContext.iterationType,
+                  iterationContainerId: iterationContext.iterationContainerId,
                 }),
               },
             })
@@ -617,10 +781,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  executionOrder: callbackData.executionOrder,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
+                    iterationContainerId: iterationContext.iterationContainerId,
                   }),
                 },
               })
@@ -642,10 +810,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  executionOrder: callbackData.executionOrder,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
+                    iterationContainerId: iterationContext.iterationContainerId,
                   }),
                 },
               })
@@ -724,9 +896,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onStream,
             },
             loggingSession,
-            abortSignal: abortController.signal,
+            abortSignal: timeoutController.signal,
             includeFileBase64,
             base64MaxBytes,
+            stopAfterBlockId,
+            runFromBlock: resolvedRunFromBlock,
           })
 
           if (result.status === 'paused') {
@@ -759,16 +933,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
 
           if (result.status === 'cancelled') {
-            logger.info(`[${requestId}] Workflow execution was cancelled`)
-            sendEvent({
-              type: 'execution:cancelled',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: {
-                duration: result.metadata?.duration || 0,
-              },
-            })
+            if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
+              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              logger.info(`[${requestId}] Workflow execution timed out`, {
+                timeoutMs: timeoutController.timeoutMs,
+              })
+
+              await loggingSession.markAsFailed(timeoutErrorMessage)
+
+              sendEvent({
+                type: 'execution:error',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  error: timeoutErrorMessage,
+                  duration: result.metadata?.duration || 0,
+                },
+              })
+            } else {
+              logger.info(`[${requestId}] Workflow execution was cancelled`)
+
+              sendEvent({
+                type: 'execution:cancelled',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  duration: result.metadata?.duration || 0,
+                },
+              })
+            }
             return
           }
 
@@ -791,14 +986,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
+        } catch (error: unknown) {
+          const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
+          const errorMessage = isTimeout
+            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error'
 
-          // Cleanup base64 cache for this execution
-          await cleanupExecutionBase64Cache(executionId)
-        } catch (error: any) {
-          const errorMessage = error.message || 'Unknown error'
-          logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
+          logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`, { isTimeout })
 
-          const executionResult = error.executionResult
+          const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans, totalDuration } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [], totalDuration: 0 }
+
+          await loggingSession.safeCompleteWithError({
+            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
+            error: { message: errorMessage },
+            traceSpans,
+          })
 
           sendEvent({
             type: 'execution:error',
@@ -811,20 +1018,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } finally {
+          timeoutController.cleanup()
+          if (executionId) {
+            await cleanupExecutionBase64Cache(executionId)
+          }
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
               controller.close()
-            } catch {
-              // Stream already closed - nothing to do
-            }
+            } catch {}
           }
         }
       },
       cancel() {
         isStreamClosed = true
+        timeoutController.cleanup()
         logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
-        abortController.abort()
+        timeoutController.abort()
         markExecutionCancelled(executionId).catch(() => {})
       },
     })

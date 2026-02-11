@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { runs } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getJobQueue, JOB_STATUS } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
@@ -15,8 +15,6 @@ export async function GET(
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Getting status for task: ${taskId}`)
-
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized task status request`)
@@ -25,76 +23,60 @@ export async function GET(
 
     const authenticatedUserId = authResult.userId
 
-    const run = await runs.retrieve(taskId)
+    const jobQueue = await getJobQueue()
+    const job = await jobQueue.getJob(taskId)
 
-    logger.debug(`[${requestId}] Task ${taskId} status: ${run.status}`)
-
-    const payload = run.payload as any
-    if (payload?.workflowId) {
-      const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
-      const accessCheck = await verifyWorkflowAccess(authenticatedUserId, payload.workflowId)
-      if (!accessCheck.hasAccess) {
-        logger.warn(`[${requestId}] User ${authenticatedUserId} denied access to task ${taskId}`, {
-          workflowId: payload.workflowId,
-        })
-        return createErrorResponse('Access denied', 403)
-      }
-      logger.debug(`[${requestId}] User ${authenticatedUserId} has access to task ${taskId}`)
-    } else {
-      if (payload?.userId && payload.userId !== authenticatedUserId) {
-        logger.warn(
-          `[${requestId}] User ${authenticatedUserId} attempted to access task ${taskId} owned by ${payload.userId}`
-        )
-        return createErrorResponse('Access denied', 403)
-      }
-      if (!payload?.userId) {
-        logger.warn(
-          `[${requestId}] Task ${taskId} has no ownership information in payload. Denying access for security.`
-        )
-        return createErrorResponse('Access denied', 403)
-      }
+    if (!job) {
+      return createErrorResponse('Task not found', 404)
     }
 
-    const statusMap = {
-      QUEUED: 'queued',
-      WAITING_FOR_DEPLOY: 'queued',
-      EXECUTING: 'processing',
-      RESCHEDULED: 'processing',
-      FROZEN: 'processing',
-      COMPLETED: 'completed',
-      CANCELED: 'cancelled',
-      FAILED: 'failed',
-      CRASHED: 'failed',
-      INTERRUPTED: 'failed',
-      SYSTEM_FAILURE: 'failed',
-      EXPIRED: 'failed',
-    } as const
+    if (job.metadata?.workflowId) {
+      const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
+      const accessCheck = await verifyWorkflowAccess(
+        authenticatedUserId,
+        job.metadata.workflowId as string
+      )
+      if (!accessCheck.hasAccess) {
+        logger.warn(`[${requestId}] Access denied to workflow ${job.metadata.workflowId}`)
+        return createErrorResponse('Access denied', 403)
+      }
+    } else if (job.metadata?.userId && job.metadata.userId !== authenticatedUserId) {
+      logger.warn(`[${requestId}] Access denied to user ${job.metadata.userId}`)
+      return createErrorResponse('Access denied', 403)
+    } else if (!job.metadata?.userId && !job.metadata?.workflowId) {
+      logger.warn(`[${requestId}] Access denied to job ${taskId}`)
+      return createErrorResponse('Access denied', 403)
+    }
 
-    const mappedStatus = statusMap[run.status as keyof typeof statusMap] || 'unknown'
+    const mappedStatus = job.status === JOB_STATUS.PENDING ? 'queued' : job.status
 
     const response: any = {
       success: true,
       taskId,
       status: mappedStatus,
       metadata: {
-        startedAt: run.startedAt,
+        startedAt: job.startedAt,
       },
     }
 
-    if (mappedStatus === 'completed') {
-      response.output = run.output // This contains the workflow execution results
-      response.metadata.completedAt = run.finishedAt
-      response.metadata.duration = run.durationMs
+    if (job.status === JOB_STATUS.COMPLETED) {
+      response.output = job.output
+      response.metadata.completedAt = job.completedAt
+      if (job.startedAt && job.completedAt) {
+        response.metadata.duration = job.completedAt.getTime() - job.startedAt.getTime()
+      }
     }
 
-    if (mappedStatus === 'failed') {
-      response.error = run.error
-      response.metadata.completedAt = run.finishedAt
-      response.metadata.duration = run.durationMs
+    if (job.status === JOB_STATUS.FAILED) {
+      response.error = job.error
+      response.metadata.completedAt = job.completedAt
+      if (job.startedAt && job.completedAt) {
+        response.metadata.duration = job.completedAt.getTime() - job.startedAt.getTime()
+      }
     }
 
-    if (mappedStatus === 'processing' || mappedStatus === 'queued') {
-      response.estimatedDuration = 180000 // 3 minutes max from our config
+    if (job.status === JOB_STATUS.PROCESSING || job.status === JOB_STATUS.PENDING) {
+      response.estimatedDuration = 300000
     }
 
     return NextResponse.json(response)

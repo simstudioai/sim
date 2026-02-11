@@ -19,9 +19,11 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 
@@ -29,6 +31,12 @@ export const dynamic = 'force-dynamic'
 
 interface RouteParams {
   serverId: string
+}
+
+interface ExecuteAuthContext {
+  authType?: AuthResult['authType']
+  userId: string
+  apiKey?: string | null
 }
 
 function createResponse(id: RequestId, result: unknown): JSONRPCResponse {
@@ -72,6 +80,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       return NextResponse.json({ error: 'Server not found' }, { status: 404 })
     }
 
+    if (!server.isPublic) {
+      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const workspacePermission = await getUserEntityPermissions(
+        auth.userId,
+        'workspace',
+        server.workspaceId
+      )
+      if (workspacePermission === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     return NextResponse.json({
       name: server.name,
       version: '1.0.0',
@@ -93,10 +117,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       return NextResponse.json({ error: 'Server not found' }, { status: 404 })
     }
 
+    let executeAuthContext: ExecuteAuthContext | null = null
     if (!server.isPublic) {
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const workspacePermission = await getUserEntityPermissions(
+        auth.userId,
+        'workspace',
+        server.workspaceId
+      )
+      if (workspacePermission === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      executeAuthContext = {
+        authType: auth.authType,
+        userId: auth.userId,
+        apiKey: auth.authType === 'api_key' ? request.headers.get('X-API-Key') : null,
       }
     }
 
@@ -118,9 +158,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     }
 
     const { id, method, params: rpcParams } = message
-    const apiKey =
-      request.headers.get('X-API-Key') ||
-      request.headers.get('Authorization')?.replace('Bearer ', '')
 
     switch (method) {
       case 'initialize': {
@@ -143,7 +180,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
           id,
           serverId,
           rpcParams as { name: string; arguments?: Record<string, unknown> },
-          apiKey,
+          executeAuthContext,
           server.isPublic ? server.createdBy : undefined
         )
 
@@ -206,7 +243,7 @@ async function handleToolsCall(
   id: RequestId,
   serverId: string,
   params: { name: string; arguments?: Record<string, unknown> } | undefined,
-  apiKey?: string | null,
+  executeAuthContext?: ExecuteAuthContext | null,
   publicServerOwnerId?: string
 ): Promise<NextResponse> {
   try {
@@ -254,8 +291,13 @@ async function handleToolsCall(
     if (publicServerOwnerId) {
       const internalToken = await generateInternalToken(publicServerOwnerId)
       headers.Authorization = `Bearer ${internalToken}`
-    } else if (apiKey) {
-      headers['X-API-Key'] = apiKey
+    } else if (executeAuthContext) {
+      if (executeAuthContext.authType === 'api_key' && executeAuthContext.apiKey) {
+        headers['X-API-Key'] = executeAuthContext.apiKey
+      } else {
+        const internalToken = await generateInternalToken(executeAuthContext.userId)
+        headers.Authorization = `Bearer ${internalToken}`
+      }
     }
 
     logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name}`)
@@ -264,7 +306,7 @@ async function handleToolsCall(
       method: 'POST',
       headers,
       body: JSON.stringify({ input: params.arguments || {}, triggerType: 'mcp' }),
-      signal: AbortSignal.timeout(300000), // 5 minute timeout
+      signal: AbortSignal.timeout(getMaxExecutionTimeout()),
     })
 
     const executeResult = await response.json()
@@ -284,7 +326,7 @@ async function handleToolsCall(
       content: [
         { type: 'text', text: JSON.stringify(executeResult.output || executeResult, null, 2) },
       ],
-      isError: !executeResult.success,
+      isError: executeResult.success === false,
     }
 
     return NextResponse.json(createResponse(id, result))
@@ -308,6 +350,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!server.isPublic) {
+      const workspacePermission = await getUserEntityPermissions(
+        auth.userId,
+        'workspace',
+        server.workspaceId
+      )
+      if (workspacePermission === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     logger.info(`MCP session terminated for server ${serverId}`)

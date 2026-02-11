@@ -1,9 +1,12 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { mergeSubBlockValues, mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { isAnnotationOnlyBlock, normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type {
   BlockState,
@@ -15,7 +18,34 @@ import type {
 } from '@/stores/workflows/workflow/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
-const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
+/** Threshold to detect viewport-based offsets vs small duplicate offsets */
+const LARGE_OFFSET_THRESHOLD = 300
+
+/**
+ * Checks if an edge is valid (source and target exist, not annotation-only, target is not a trigger)
+ */
+function isValidEdge(
+  edge: Edge,
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): boolean {
+  const sourceBlock = blocks[edge.source]
+  const targetBlock = blocks[edge.target]
+  if (!sourceBlock || !targetBlock) return false
+  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
+  if (isAnnotationOnlyBlock(targetBlock.type)) return false
+  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
+  return true
+}
+
+/**
+ * Filters edges to only include valid ones (target exists and is not a trigger block)
+ */
+export function filterValidEdges(
+  edges: Edge[],
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): Edge[] {
+  return edges.filter((edge) => isValidEdge(edge, blocks))
+}
 
 export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
   return edgesToAdd.filter((edge) => {
@@ -159,7 +189,12 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     })
   }
 
-  const outputs = getBlockOutputs(type, subBlocks, triggerMode)
+  const isTriggerCapable = hasTriggerCapability(blockConfig)
+  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
+  const outputs = getEffectiveBlockOutputs(type, subBlocks, {
+    triggerMode: effectiveTriggerMode,
+    preferToolOutputs: !effectiveTriggerMode,
+  })
 
   return {
     id,
@@ -174,65 +209,8 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     advancedMode: false,
     triggerMode,
     height: 0,
+    locked: false,
   }
-}
-
-export interface PrepareDuplicateBlockStateOptions {
-  sourceBlock: BlockState
-  newId: string
-  newName: string
-  positionOffset: { x: number; y: number }
-  subBlockValues: Record<string, unknown>
-}
-
-/**
- * Prepares a BlockState for duplicating an existing block.
- * Copies block structure and subblock values, excluding webhook fields.
- */
-export function prepareDuplicateBlockState(options: PrepareDuplicateBlockStateOptions): {
-  block: BlockState
-  subBlockValues: Record<string, unknown>
-} {
-  const { sourceBlock, newId, newName, positionOffset, subBlockValues } = options
-
-  const filteredSubBlockValues = Object.fromEntries(
-    Object.entries(subBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
-  )
-
-  const baseSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
-    ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
-    : {}
-
-  WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
-    if (field in baseSubBlocks) {
-      delete baseSubBlocks[field]
-    }
-  })
-
-  const mergedSubBlocks = mergeSubBlockValues(baseSubBlocks, filteredSubBlockValues) as Record<
-    string,
-    SubBlockState
-  >
-
-  const block: BlockState = {
-    id: newId,
-    type: sourceBlock.type,
-    name: newName,
-    position: {
-      x: sourceBlock.position.x + positionOffset.x,
-      y: sourceBlock.position.y + positionOffset.y,
-    },
-    data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-    subBlocks: mergedSubBlocks,
-    outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
-    enabled: sourceBlock.enabled ?? true,
-    horizontalHandles: sourceBlock.horizontalHandles ?? true,
-    advancedMode: sourceBlock.advancedMode ?? false,
-    triggerMode: sourceBlock.triggerMode ?? false,
-    height: sourceBlock.height || 0,
-  }
-
-  return { block, subBlockValues: filteredSubBlockValues }
 }
 
 /**
@@ -321,78 +299,6 @@ export function mergeSubblockState(
   )
 }
 
-/**
- * Asynchronously merges workflow block states with subblock values
- * Ensures all values are properly resolved before returning
- *
- * @param blocks - Block configurations from workflow store
- * @param workflowId - ID of the workflow to merge values for
- * @param blockId - Optional specific block ID to merge (merges all if not provided)
- * @returns Promise resolving to merged block states with updated values
- */
-export async function mergeSubblockStateAsync(
-  blocks: Record<string, BlockState>,
-  workflowId?: string,
-  blockId?: string
-): Promise<Record<string, BlockState>> {
-  const subBlockStore = useSubBlockStore.getState()
-
-  if (workflowId) {
-    const workflowValues = subBlockStore.workflowValues[workflowId] || {}
-    return mergeSubblockStateWithValues(blocks, workflowValues, blockId)
-  }
-
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
-
-  // Process blocks in parallel for better performance
-  const processedBlockEntries = await Promise.all(
-    Object.entries(blocksToProcess).map(async ([id, block]) => {
-      // Skip if block is undefined or doesn't have subBlocks
-      if (!block || !block.subBlocks) {
-        return [id, block] as const
-      }
-
-      // Process all subblocks in parallel
-      const subBlockEntries = await Promise.all(
-        Object.entries(block.subBlocks).map(async ([subBlockId, subBlock]) => {
-          // Skip if subBlock is undefined
-          if (!subBlock) {
-            return null
-          }
-
-          const storedValue = subBlockStore.getValue(id, subBlockId)
-
-          return [
-            subBlockId,
-            {
-              ...subBlock,
-              value: (storedValue !== undefined && storedValue !== null
-                ? storedValue
-                : subBlock.value) as SubBlockState['value'],
-            },
-          ] as const
-        })
-      )
-
-      // Convert entries back to an object
-      const mergedSubBlocks = Object.fromEntries(
-        subBlockEntries.filter((entry): entry is readonly [string, SubBlockState] => entry !== null)
-      ) as Record<string, SubBlockState>
-
-      // Return the full block state with updated subBlocks (including orphaned values)
-      return [
-        id,
-        {
-          ...block,
-          subBlocks: mergedSubBlocks,
-        },
-      ] as const
-    })
-  )
-
-  return Object.fromEntries(processedBlockEntries) as Record<string, BlockState>
-}
-
 function updateValueReferences(value: unknown, nameMap: Map<string, string>): unknown {
   if (typeof value === 'string') {
     let updatedValue = value
@@ -417,14 +323,10 @@ function updateValueReferences(value: unknown, nameMap: Map<string, string>): un
 
 function updateBlockReferences(
   blocks: Record<string, BlockState>,
-  idMap: Map<string, string>,
   nameMap: Map<string, string>,
   clearTriggerRuntimeValues = false
 ): void {
   Object.entries(blocks).forEach(([_, block]) => {
-    // NOTE: parentId remapping is handled in regenerateBlockIds' second pass.
-    // Do NOT remap parentId here as it would incorrectly clear already-mapped IDs.
-
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
         if (clearTriggerRuntimeValues && TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subBlockId)) {
@@ -506,7 +408,7 @@ export function regenerateWorkflowIds(
     })
   }
 
-  updateBlockReferences(newBlocks, blockIdMap, nameMap, clearTriggerRuntimeValues)
+  updateBlockReferences(newBlocks, nameMap, clearTriggerRuntimeValues)
 
   return {
     blocks: newBlocks,
@@ -547,13 +449,36 @@ export function regenerateBlockIds(
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 
-    // Check if this block has a parent that's also being copied
-    // If so, it's a nested block and should keep its relative position (no offset)
-    // Only top-level blocks (no parent in the paste set) get the position offset
+    // Determine position offset based on parent relationship:
+    // 1. Parent also being copied: keep exact relative position (parent itself will be offset)
+    // 2. Parent exists in existing workflow: use provided offset, but cap large viewport-based
+    //    offsets since they don't make sense for relative positions
+    // 3. Top-level block (no parent): apply full paste offset
     const hasParentInPasteSet = block.data?.parentId && blocks[block.data.parentId]
-    const newPosition = hasParentInPasteSet
-      ? { x: block.position.x, y: block.position.y } // Keep relative position
-      : { x: block.position.x + positionOffset.x, y: block.position.y + positionOffset.y }
+    const hasParentInExistingWorkflow =
+      block.data?.parentId && existingBlockNames[block.data.parentId]
+
+    let newPosition: Position
+    if (hasParentInPasteSet) {
+      // Parent also being copied - keep exact relative position
+      newPosition = { x: block.position.x, y: block.position.y }
+    } else if (hasParentInExistingWorkflow) {
+      // Block stays in existing subflow - use provided offset unless it's viewport-based (large)
+      const isLargeOffset =
+        Math.abs(positionOffset.x) > LARGE_OFFSET_THRESHOLD ||
+        Math.abs(positionOffset.y) > LARGE_OFFSET_THRESHOLD
+      const effectiveOffset = isLargeOffset ? DEFAULT_DUPLICATE_OFFSET : positionOffset
+      newPosition = {
+        x: block.position.x + effectiveOffset.x,
+        y: block.position.y + effectiveOffset.y,
+      }
+    } else {
+      // Top-level block - apply full paste offset
+      newPosition = {
+        x: block.position.x + positionOffset.x,
+        y: block.position.y + positionOffset.y,
+      }
+    }
 
     // Placeholder block - we'll update parentId in second pass
     const newBlock: BlockState = {
@@ -563,6 +488,8 @@ export function regenerateBlockIds(
       position: newPosition,
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
+      // Duplicated blocks are always unlocked so users can edit them
+      locked: false,
     }
 
     newBlocks[newId] = newBlock
@@ -575,19 +502,30 @@ export function regenerateBlockIds(
   })
 
   // Second pass: update parentId references for nested blocks
-  // If a block's parent is also being pasted, map to new parentId; otherwise clear it
+  // If a block's parent is also being pasted, map to new parentId
+  // If parent exists in existing workflow, keep the original parentId (block stays in same subflow)
+  // Otherwise clear the parentId
   Object.entries(newBlocks).forEach(([, block]) => {
     if (block.data?.parentId) {
       const oldParentId = block.data.parentId
       const newParentId = blockIdMap.get(oldParentId)
 
       if (newParentId) {
+        // Parent is being pasted - map to new parent ID
         block.data = {
           ...block.data,
           parentId: newParentId,
           extent: 'parent',
         }
+      } else if (existingBlockNames[oldParentId] && !existingBlockNames[oldParentId].locked) {
+        // Parent exists in existing workflow and is not locked - keep original parentId
+        block.data = {
+          ...block.data,
+          parentId: oldParentId,
+          extent: 'parent',
+        }
       } else {
+        // Parent doesn't exist anywhere OR parent is locked - clear the relationship
         block.data = { ...block.data, parentId: undefined, extent: undefined }
       }
     }
@@ -620,7 +558,7 @@ export function regenerateBlockIds(
     }
   })
 
-  updateBlockReferences(newBlocks, blockIdMap, nameMap, false)
+  updateBlockReferences(newBlocks, nameMap, false)
 
   Object.entries(newSubBlockValues).forEach(([_, blockValues]) => {
     Object.keys(blockValues).forEach((subBlockId) => {

@@ -1,5 +1,6 @@
 import type React from 'react'
 import { findNeighbour } from 'fumadocs-core/page-tree'
+import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -21,6 +22,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   const data = page.data as PageData
   const MDX = data.body
   const baseUrl = 'https://docs.sim.ai'
+  const markdownContent = await data.getText('processed')
 
   const pageTreeRecord = source.pageTree as Record<string, any>
   const pageTree =
@@ -185,11 +187,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         tableOfContent={{
           style: 'clerk',
           enabled: true,
-          header: (
-            <div key='toc-header' className='mb-2 font-medium text-sm'>
-              On this page
-            </div>
-          ),
           footer: <TOCFooter />,
           single: false,
         }}
@@ -205,7 +202,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         <div className='relative mt-6 sm:mt-0'>
           <div className='absolute top-1 right-0 flex items-center gap-2'>
             <div className='hidden sm:flex'>
-              <LLMCopyButton markdownUrl={`${page.url}.mdx`} />
+              <LLMCopyButton content={markdownContent} />
             </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </div>
@@ -216,7 +213,11 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           <MDX
             components={{
               ...defaultMdxComponents,
-              CodeBlock,
+              pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
+                <CodeBlock {...props}>
+                  <Pre>{props.children}</Pre>
+                </CodeBlock>
+              ),
               h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
                 <Heading as='h1' {...props} />
               ),

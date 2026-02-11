@@ -16,6 +16,7 @@ const badgeVariants = cva(
           'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
         outline:
           'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-5)] dark:hover:bg-transparent dark:hover:border-[var(--surface-6)]',
+        type: 'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
         green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
         red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
         gray: `${STATUS_BASE} bg-[#e7e5e4] text-[#57534e] dark:bg-[var(--terminal-status-info-bg)] dark:text-[var(--terminal-status-info-color)]`,
@@ -26,6 +27,7 @@ const badgeVariants = cva(
         amber: `${STATUS_BASE} bg-[#fde68a] text-[#a16207] dark:bg-[rgba(245,158,11,0.2)] dark:text-[#fcd34d]`,
         teal: `${STATUS_BASE} bg-[#99f6e4] text-[#0f766e] dark:bg-[rgba(20,184,166,0.2)] dark:text-[#5eead4]`,
         cyan: `${STATUS_BASE} bg-[var(--surface-4)] text-[#0891b2] dark:bg-[rgba(14,165,233,0.2)] dark:text-[#7dd3fc]`,
+        pink: `${STATUS_BASE} bg-[#fbcfe8] text-[#be185d] dark:bg-[rgba(236,72,153,0.2)] dark:text-[#f9a8d4]`,
         'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
       },
       size: {
@@ -53,6 +55,7 @@ const STATUS_VARIANTS = [
   'amber',
   'teal',
   'cyan',
+  'pink',
   'gray-secondary',
 ] as const
 
@@ -84,9 +87,9 @@ export interface BadgeProps
  *
  * @remarks
  * Supports two categories of variants:
- * - **Bordered**: `default`, `outline` - traditional badges with borders
+ * - **Bordered**: `default`, `outline`, `type` - traditional badges with borders
  * - **Status colors**: `green`, `red`, `gray`, `blue`, `blue-secondary`, `purple`,
- *   `orange`, `amber`, `teal`, `cyan`, `gray-secondary` - borderless colored badges
+ *   `orange`, `amber`, `teal`, `cyan`, `pink`, `gray-secondary` - borderless colored badges
  *
  * Status color variants can display a dot indicator via the `dot` prop.
  * All variants support an optional `icon` prop for leading icons.

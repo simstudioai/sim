@@ -6,7 +6,7 @@ description: Extract text from PDF documents
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="mistral_parse_v2"
+  type="mistral_parse_v3"
   color="#000000"
 />
 
@@ -35,13 +35,12 @@ Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF do
 
 ### `mistral_parser`
 
-Parse PDF documents using Mistral OCR API
-
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | Yes | URL to a PDF document to be processed |
+| `filePath` | string | No | URL to a PDF document to be processed |
+| `file` | file | No | Document file to be processed |
 | `fileUpload` | object | No | File upload data from file-upload component |
 | `resultType` | string | No | Type of parsed result \(markdown, text, or json\). Defaults to markdown. |
 | `includeImageBase64` | boolean | No | Include base64-encoded images in the response |
@@ -55,36 +54,8 @@ Parse PDF documents using Mistral OCR API
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | Array of page objects from Mistral OCR |
-|   ↳ `index` | number | Page index \(zero-based\) |
-|   ↳ `markdown` | string | Extracted markdown content |
-|   ↳ `images` | array | Images extracted from this page with bounding boxes |
-|   ↳ `id` | string | Image identifier \(e.g., img-0.jpeg\) |
-|   ↳ `top_left_x` | number | Top-left X coordinate in pixels |
-|   ↳ `top_left_y` | number | Top-left Y coordinate in pixels |
-|   ↳ `bottom_right_x` | number | Bottom-right X coordinate in pixels |
-|   ↳ `bottom_right_y` | number | Bottom-right Y coordinate in pixels |
-|   ↳ `image_base64` | string | Base64-encoded image data \(when include_image_base64=true\) |
-|   ↳ `id` | string | Image identifier \(e.g., img-0.jpeg\) |
-|   ↳ `top_left_x` | number | Top-left X coordinate in pixels |
-|   ↳ `top_left_y` | number | Top-left Y coordinate in pixels |
-|   ↳ `bottom_right_x` | number | Bottom-right X coordinate in pixels |
-|   ↳ `bottom_right_y` | number | Bottom-right Y coordinate in pixels |
-|   ↳ `image_base64` | string | Base64-encoded image data \(when include_image_base64=true\) |
-|   ↳ `dimensions` | object | Page dimensions |
-|   ↳ `dpi` | number | Dots per inch |
-|   ↳ `height` | number | Page height in pixels |
-|   ↳ `width` | number | Page width in pixels |
-|   ↳ `dpi` | number | Dots per inch |
-|   ↳ `height` | number | Page height in pixels |
-|   ↳ `width` | number | Page width in pixels |
-|   ↳ `tables` | array | Extracted tables as HTML/markdown \(when table_format is set\). Referenced via placeholders like \[tbl-0.html\] |
-|   ↳ `hyperlinks` | array | Array of URL strings detected in the page \(e.g., \[ |
-|   ↳ `header` | string | Page header content \(when extract_header=true\) |
-|   ↳ `footer` | string | Page footer content \(when extract_footer=true\) |
-| `model` | string | Mistral OCR model identifier \(e.g., mistral-ocr-latest\) |
-| `usage_info` | object | Usage and processing statistics |
-| ↳ `pages_processed` | number | Total number of pages processed |
-| ↳ `doc_size_bytes` | number | Document file size in bytes |
-| `document_annotation` | string | Structured annotation data as JSON string \(when applicable\) |
+| `model` | string | Mistral OCR model identifier |
+| `usage_info` | json | Usage statistics from the API |
+| `document_annotation` | string | Structured annotation data |
 
 

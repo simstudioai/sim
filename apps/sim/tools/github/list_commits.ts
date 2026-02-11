@@ -1,3 +1,9 @@
+import {
+  COMMIT_DATA_OUTPUT,
+  COMMIT_PARENT_OUTPUT_PROPERTIES,
+  COMMIT_SUMMARY_OUTPUT_PROPERTIES,
+  USER_FULL_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListCommitsParams {
@@ -229,96 +235,16 @@ export const listCommitsV2Tool: ToolConfig<ListCommitsParams, any> = {
       items: {
         type: 'object',
         properties: {
-          sha: { type: 'string', description: 'Commit SHA' },
-          node_id: { type: 'string', description: 'GraphQL node ID' },
-          html_url: { type: 'string', description: 'Web URL' },
-          url: { type: 'string', description: 'API URL' },
-          comments_url: { type: 'string', description: 'Comments API URL' },
-          commit: {
-            type: 'object',
-            description: 'Core commit data',
-            properties: {
-              url: { type: 'string', description: 'Commit API URL' },
-              message: { type: 'string', description: 'Commit message' },
-              comment_count: { type: 'number', description: 'Number of comments' },
-              author: {
-                type: 'object',
-                description: 'Git author',
-                properties: {
-                  name: { type: 'string', description: 'Author name' },
-                  email: { type: 'string', description: 'Author email' },
-                  date: { type: 'string', description: 'Author date (ISO 8601)' },
-                },
-              },
-              committer: {
-                type: 'object',
-                description: 'Git committer',
-                properties: {
-                  name: { type: 'string', description: 'Committer name' },
-                  email: { type: 'string', description: 'Committer email' },
-                  date: { type: 'string', description: 'Commit date (ISO 8601)' },
-                },
-              },
-              tree: {
-                type: 'object',
-                description: 'Tree object',
-                properties: {
-                  sha: { type: 'string', description: 'Tree SHA' },
-                  url: { type: 'string', description: 'Tree API URL' },
-                },
-              },
-              verification: {
-                type: 'object',
-                description: 'Signature verification',
-                properties: {
-                  verified: { type: 'boolean', description: 'Whether signature is verified' },
-                  reason: { type: 'string', description: 'Verification reason' },
-                  signature: { type: 'string', description: 'GPG signature', optional: true },
-                  payload: { type: 'string', description: 'Signed payload', optional: true },
-                },
-              },
-            },
-          },
-          author: {
-            type: 'object',
-            description: 'GitHub user (author)',
-            optional: true,
-            properties: {
-              login: { type: 'string', description: 'Username' },
-              id: { type: 'number', description: 'User ID' },
-              node_id: { type: 'string', description: 'GraphQL node ID' },
-              avatar_url: { type: 'string', description: 'Avatar URL' },
-              url: { type: 'string', description: 'API URL' },
-              html_url: { type: 'string', description: 'Profile URL' },
-              type: { type: 'string', description: 'User or Organization' },
-              site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-            },
-          },
-          committer: {
-            type: 'object',
-            description: 'GitHub user (committer)',
-            optional: true,
-            properties: {
-              login: { type: 'string', description: 'Username' },
-              id: { type: 'number', description: 'User ID' },
-              node_id: { type: 'string', description: 'GraphQL node ID' },
-              avatar_url: { type: 'string', description: 'Avatar URL' },
-              url: { type: 'string', description: 'API URL' },
-              html_url: { type: 'string', description: 'Profile URL' },
-              type: { type: 'string', description: 'User or Organization' },
-              site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-            },
-          },
+          ...COMMIT_SUMMARY_OUTPUT_PROPERTIES,
+          commit: COMMIT_DATA_OUTPUT,
+          author: USER_FULL_OUTPUT,
+          committer: USER_FULL_OUTPUT,
           parents: {
             type: 'array',
             description: 'Parent commits',
             items: {
               type: 'object',
-              properties: {
-                sha: { type: 'string', description: 'Parent SHA' },
-                url: { type: 'string', description: 'Parent API URL' },
-                html_url: { type: 'string', description: 'Parent web URL' },
-              },
+              properties: COMMIT_PARENT_OUTPUT_PROPERTIES,
             },
           },
         },

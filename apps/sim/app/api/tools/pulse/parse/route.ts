@@ -1,16 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { StorageService } from '@/lib/uploads'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
-  extractStorageKey,
-  inferContextFromKey,
-  isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +17,8 @@ const logger = createLogger('PulseParseAPI')
 
 const PulseParseSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required'),
+  filePath: z.string().optional(),
+  file: RawFileInputSchema.optional(),
   pages: z.string().optional(),
   extractFigure: z.boolean().optional(),
   figureDescription: z.boolean().optional(),
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Pulse parse attempt`, {
@@ -51,50 +51,30 @@ export async function POST(request: NextRequest) {
     const validatedData = PulseParseSchema.parse(body)
 
     logger.info(`[${requestId}] Pulse parse request`, {
+      fileName: validatedData.file?.name,
       filePath: validatedData.filePath,
-      isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
+      isWorkspaceFile: validatedData.filePath ? isInternalFileUrl(validatedData.filePath) : false,
       userId,
     })
 
-    let fileUrl = validatedData.filePath
+    const resolution = await resolveFileInputToUrl({
+      file: validatedData.file,
+      filePath: validatedData.filePath,
+      userId,
+      requestId,
+      logger,
+    })
 
-    if (isInternalFileUrl(validatedData.filePath)) {
-      try {
-        const storageKey = extractStorageKey(validatedData.filePath)
-        const context = inferContextFromKey(storageKey)
+    if (resolution.error) {
+      return NextResponse.json(
+        { success: false, error: resolution.error.message },
+        { status: resolution.error.status }
+      )
+    }
 
-        const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
-
-        if (!hasAccess) {
-          logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-            userId,
-            key: storageKey,
-            context,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'File not found',
-            },
-            { status: 404 }
-          )
-        }
-
-        fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
-        logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Failed to generate file access URL',
-          },
-          { status: 500 }
-        )
-      }
-    } else if (validatedData.filePath?.startsWith('/')) {
-      const baseUrl = getBaseUrl()
-      fileUrl = `${baseUrl}${validatedData.filePath}`
+    const fileUrl = resolution.fileUrl
+    if (!fileUrl) {
+      return NextResponse.json({ success: false, error: 'File input is required' }, { status: 400 })
     }
 
     const formData = new FormData()
@@ -119,13 +99,36 @@ export async function POST(request: NextRequest) {
       formData.append('chunk_size', String(validatedData.chunkSize))
     }
 
-    const pulseResponse = await fetch('https://api.runpulse.com/extract', {
-      method: 'POST',
-      headers: {
-        'x-api-key': validatedData.apiKey,
-      },
-      body: formData,
-    })
+    const pulseEndpoint = 'https://api.runpulse.com/extract'
+    const pulseValidation = await validateUrlWithDNS(pulseEndpoint, 'Pulse API URL')
+    if (!pulseValidation.isValid) {
+      logger.error(`[${requestId}] Pulse API URL validation failed`, {
+        error: pulseValidation.error,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to reach Pulse API',
+        },
+        { status: 502 }
+      )
+    }
+
+    const pulsePayload = new Response(formData)
+    const contentType = pulsePayload.headers.get('content-type') || 'multipart/form-data'
+    const bodyBuffer = Buffer.from(await pulsePayload.arrayBuffer())
+    const pulseResponse = await secureFetchWithPinnedIP(
+      pulseEndpoint,
+      pulseValidation.resolvedIP!,
+      {
+        method: 'POST',
+        headers: {
+          'x-api-key': validatedData.apiKey,
+          'Content-Type': contentType,
+        },
+        body: bodyBuffer,
+      }
+    )
 
     if (!pulseResponse.ok) {
       const errorText = await pulseResponse.text()

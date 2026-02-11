@@ -2,8 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import clsx from 'clsx'
-import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -15,9 +14,11 @@ import {
   PopoverContent,
   PopoverDivider,
   PopoverItem,
+  Tooltip,
 } from '@/components/emcn'
-import { WorkflowIcon } from '@/components/icons'
+import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
@@ -26,7 +27,6 @@ import type { TraceSpan } from '@/stores/logs/filters/types'
 
 interface TraceSpansProps {
   traceSpans?: TraceSpan[]
-  totalDuration?: number
 }
 
 /**
@@ -58,40 +58,6 @@ function useSetToggle() {
 }
 
 /**
- * Generates a unique key for a trace span
- */
-function getSpanKey(span: TraceSpan): string {
-  if (span.id) {
-    return span.id
-  }
-  const name = span.name || 'span'
-  const start = span.startTime || 'unknown-start'
-  const end = span.endTime || 'unknown-end'
-  return `${name}|${start}|${end}`
-}
-
-/**
- * Merges multiple arrays of trace span children, deduplicating by span key
- */
-function mergeTraceSpanChildren(...groups: TraceSpan[][]): TraceSpan[] {
-  const merged: TraceSpan[] = []
-  const seen = new Set<string>()
-
-  groups.forEach((group) => {
-    group.forEach((child) => {
-      const key = getSpanKey(child)
-      if (seen.has(key)) {
-        return
-      }
-      seen.add(key)
-      merged.push(child)
-    })
-  })
-
-  return merged
-}
-
-/**
  * Parses a time value to milliseconds
  */
 function parseTime(value?: string | number | null): number {
@@ -101,35 +67,48 @@ function parseTime(value?: string | number | null): number {
 }
 
 /**
+ * Checks if a span or any of its descendants has an error (any error).
+ */
+function hasErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error') return true
+  if (span.children && span.children.length > 0) {
+    return span.children.some((child) => hasErrorInTree(child))
+  }
+  if (span.toolCalls && span.toolCalls.length > 0) {
+    return span.toolCalls.some((tc) => tc.error)
+  }
+  return false
+}
+
+/**
+ * Checks if a span or any of its descendants has an unhandled error.
+ * Spans with errorHandled: true (including containers that propagate it)
+ * are skipped. Used only for the root workflow span to match the actual
+ * workflow status.
+ */
+function hasUnhandledErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error' && !span.errorHandled) return true
+  if (span.children && span.children.length > 0) {
+    return span.children.some((child) => hasUnhandledErrorInTree(child))
+  }
+  if (span.toolCalls && span.toolCalls.length > 0 && !span.errorHandled) {
+    return span.toolCalls.some((tc) => tc.error)
+  }
+  return false
+}
+
+/**
  * Normalizes and sorts trace spans recursively.
- * Merges children from both span.children and span.output.childTraceSpans,
- * deduplicates them, and sorts by start time.
+ * Deduplicates children and sorts by start time.
  */
 function normalizeAndSortSpans(spans: TraceSpan[]): TraceSpan[] {
   return spans
     .map((span) => {
       const enrichedSpan: TraceSpan = { ...span }
 
-      // Clean output by removing childTraceSpans after extracting
-      if (enrichedSpan.output && typeof enrichedSpan.output === 'object') {
-        enrichedSpan.output = { ...enrichedSpan.output }
-        if ('childTraceSpans' in enrichedSpan.output) {
-          const { childTraceSpans, ...cleanOutput } = enrichedSpan.output as {
-            childTraceSpans?: TraceSpan[]
-          } & Record<string, unknown>
-          enrichedSpan.output = cleanOutput
-        }
-      }
-
-      // Merge and deduplicate children from both sources
-      const directChildren = Array.isArray(span.children) ? span.children : []
-      const outputChildren = Array.isArray(span.output?.childTraceSpans)
-        ? (span.output!.childTraceSpans as TraceSpan[])
-        : []
-
-      const mergedChildren = mergeTraceSpanChildren(directChildren, outputChildren)
-      enrichedSpan.children =
-        mergedChildren.length > 0 ? normalizeAndSortSpans(mergedChildren) : undefined
+      // Process and deduplicate children
+      const children = Array.isArray(span.children) ? span.children : []
+      enrichedSpan.children = children.length > 0 ? normalizeAndSortSpans(children) : undefined
 
       return enrichedSpan
     })
@@ -141,14 +120,6 @@ function normalizeAndSortSpans(spans: TraceSpan[]): TraceSpan[] {
 }
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
-
-/**
- * Formats duration in ms
- */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
 
 /**
  * Gets icon and color for a span type using block config
@@ -164,6 +135,10 @@ function getBlockIconAndColor(
 
   // Check for tool by name first (most specific)
   if (lowerType === 'tool' && toolName) {
+    // Handle load_skill tool with the AgentSkillsIcon
+    if (toolName === 'load_skill') {
+      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    }
     const toolBlock = getBlockByToolName(toolName)
     if (toolBlock) {
       return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
@@ -230,7 +205,7 @@ function ProgressBar({
   }, [span, childSpans, workflowStartTime, totalDuration])
 
   return (
-    <div className='relative mb-[8px] h-[5px] w-full overflow-hidden rounded-[18px] bg-[var(--divider)]'>
+    <div className='relative h-[5px] w-full overflow-hidden rounded-[18px] bg-[var(--divider)]'>
       {segments.map((segment, index) => (
         <div
           key={index}
@@ -243,143 +218,6 @@ function ProgressBar({
         />
       ))}
     </div>
-  )
-}
-
-interface ExpandableRowHeaderProps {
-  name: string
-  duration: number
-  isError: boolean
-  isExpanded: boolean
-  hasChildren: boolean
-  showIcon: boolean
-  icon: React.ComponentType<{ className?: string }> | null
-  bgColor: string
-  onToggle: () => void
-}
-
-/**
- * Reusable expandable row header with chevron, icon, name, and duration
- */
-function ExpandableRowHeader({
-  name,
-  duration,
-  isError,
-  isExpanded,
-  hasChildren,
-  showIcon,
-  icon: Icon,
-  bgColor,
-  onToggle,
-}: ExpandableRowHeaderProps) {
-  return (
-    <div
-      className={clsx('group flex items-center justify-between', hasChildren && 'cursor-pointer')}
-      onClick={hasChildren ? onToggle : undefined}
-      onKeyDown={
-        hasChildren
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onToggle()
-              }
-            }
-          : undefined
-      }
-      role={hasChildren ? 'button' : undefined}
-      tabIndex={hasChildren ? 0 : undefined}
-      aria-expanded={hasChildren ? isExpanded : undefined}
-      aria-label={hasChildren ? (isExpanded ? 'Collapse' : 'Expand') : undefined}
-    >
-      <div className='flex items-center gap-[8px]'>
-        {hasChildren && (
-          <ChevronDown
-            className='h-[10px] w-[10px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]'
-            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-          />
-        )}
-        {showIcon && (
-          <div
-            className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-            style={{ background: bgColor }}
-          >
-            {Icon && <Icon className={clsx('text-white', '!h-[9px] !w-[9px]')} />}
-          </div>
-        )}
-        <span
-          className='font-medium text-[12px]'
-          style={{ color: isError ? 'var(--text-error)' : 'var(--text-secondary)' }}
-        >
-          {name}
-        </span>
-      </div>
-      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-        {formatDuration(duration)}
-      </span>
-    </div>
-  )
-}
-
-interface SpanContentProps {
-  span: TraceSpan
-  spanId: string
-  isError: boolean
-  workflowStartTime: number
-  totalDuration: number
-  expandedSections: Set<string>
-  onToggle: (section: string) => void
-}
-
-/**
- * Reusable component for rendering span content (progress bar + input/output sections)
- */
-function SpanContent({
-  span,
-  spanId,
-  isError,
-  workflowStartTime,
-  totalDuration,
-  expandedSections,
-  onToggle,
-}: SpanContentProps) {
-  const hasInput = Boolean(span.input)
-  const hasOutput = Boolean(span.output)
-
-  return (
-    <>
-      <ProgressBar
-        span={span}
-        childSpans={span.children}
-        workflowStartTime={workflowStartTime}
-        totalDuration={totalDuration}
-      />
-
-      {hasInput && (
-        <InputOutputSection
-          label='Input'
-          data={span.input}
-          isError={false}
-          spanId={spanId}
-          sectionType='input'
-          expandedSections={expandedSections}
-          onToggle={onToggle}
-        />
-      )}
-
-      {hasInput && hasOutput && <div className='border-[var(--border)] border-t border-dashed' />}
-
-      {hasOutput && (
-        <InputOutputSection
-          label={isError ? 'Error' : 'Output'}
-          data={span.output}
-          isError={isError}
-          spanId={spanId}
-          sectionType='output'
-          expandedSections={expandedSections}
-          onToggle={onToggle}
-        />
-      )}
-    </>
   )
 }
 
@@ -406,16 +244,14 @@ function InputOutputSection({
   const sectionKey = `${spanId}-${sectionType}`
   const isExpanded = expandedSections.has(sectionKey)
   const contentRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   // Context menu state
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const [copied, setCopied] = useState(false)
 
   // Code viewer features
   const {
-    wrapText,
-    toggleWrapText,
     isSearchActive,
     searchQuery,
     setSearchQuery,
@@ -447,6 +283,8 @@ function InputOutputSection({
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(jsonString)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
     closeContextMenu()
   }, [jsonString, closeContextMenu])
 
@@ -455,13 +293,8 @@ function InputOutputSection({
     closeContextMenu()
   }, [activateSearch, closeContextMenu])
 
-  const handleToggleWrap = useCallback(() => {
-    toggleWrapText()
-    closeContextMenu()
-  }, [toggleWrapText, closeContextMenu])
-
   return (
-    <div className='relative flex min-w-0 flex-col gap-[8px] overflow-hidden'>
+    <div className='relative flex min-w-0 flex-col gap-[6px] overflow-hidden'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => onToggle(sectionKey)}
@@ -477,7 +310,7 @@ function InputOutputSection({
         aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${label.toLowerCase()}`}
       >
         <span
-          className={clsx(
+          className={cn(
             'font-medium text-[12px] transition-colors',
             isError
               ? 'text-[var(--text-error)]'
@@ -487,9 +320,7 @@ function InputOutputSection({
           {label}
         </span>
         <ChevronDown
-          className={clsx(
-            'h-[10px] w-[10px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
-          )}
+          className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
           style={{
             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
           }}
@@ -497,16 +328,57 @@ function InputOutputSection({
       </div>
       {isExpanded && (
         <>
-          <div ref={contentRef} onContextMenu={handleContextMenu}>
+          <div ref={contentRef} onContextMenu={handleContextMenu} className='relative'>
             <Code.Viewer
               code={jsonString}
               language='json'
-              className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-              wrapText={wrapText}
+              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+              wrapText
               searchQuery={isSearchActive ? searchQuery : undefined}
               currentMatchIndex={currentMatchIndex}
               onMatchCountChange={handleMatchCountChange}
             />
+            {/* Glass action buttons overlay */}
+            {!isSearchActive && (
+              <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCopy()
+                      }}
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                    >
+                      {copied ? (
+                        <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                      ) : (
+                        <Clipboard className='h-[10px] w-[10px]' />
+                      )}
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        activateSearch()
+                      }}
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                    >
+                      <Search className='h-[10px] w-[10px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>Search</Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            )}
           </div>
 
           {/* Search Overlay */}
@@ -579,13 +451,10 @@ function InputOutputSection({
                     height: '1px',
                   }}
                 />
-                <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+                <PopoverContent align='start' side='bottom' sideOffset={4}>
                   <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
                   <PopoverDivider />
                   <PopoverItem onClick={handleSearch}>Search</PopoverItem>
-                  <PopoverItem showCheck={wrapText} onClick={handleToggleWrap}>
-                    Wrap Text
-                  </PopoverItem>
                 </PopoverContent>
               </Popover>,
               document.body
@@ -596,355 +465,240 @@ function InputOutputSection({
   )
 }
 
-interface NestedBlockItemProps {
+interface TraceSpanNodeProps {
   span: TraceSpan
-  parentId: string
-  index: number
+  workflowStartTime: number
+  totalDuration: number
+  depth: number
+  expandedNodes: Set<string>
   expandedSections: Set<string>
-  onToggle: (section: string) => void
-  workflowStartTime: number
-  totalDuration: number
-  expandedChildren: Set<string>
-  onToggleChildren: (spanId: string) => void
+  onToggleNode: (nodeId: string) => void
+  onToggleSection: (section: string) => void
 }
 
 /**
- * Recursive component for rendering nested blocks at any depth
+ * Recursive tree node component for rendering trace spans
  */
-function NestedBlockItem({
+const TraceSpanNode = memo(function TraceSpanNode({
   span,
-  parentId,
-  index,
+  workflowStartTime,
+  totalDuration,
+  depth,
+  expandedNodes,
   expandedSections,
-  onToggle,
-  workflowStartTime,
-  totalDuration,
-  expandedChildren,
-  onToggleChildren,
-}: NestedBlockItemProps): React.ReactNode {
-  const spanId = span.id || `${parentId}-nested-${index}`
-  const isError = span.status === 'error'
-  const { icon: SpanIcon, bgColor } = getBlockIconAndColor(span.type, span.name)
-  const hasChildren = Boolean(span.children && span.children.length > 0)
-  const isChildrenExpanded = expandedChildren.has(spanId)
-
-  return (
-    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
-      <ExpandableRowHeader
-        name={span.name}
-        duration={span.duration || 0}
-        isError={isError}
-        isExpanded={isChildrenExpanded}
-        hasChildren={hasChildren}
-        showIcon={!isIterationType(span.type)}
-        icon={SpanIcon}
-        bgColor={bgColor}
-        onToggle={() => onToggleChildren(spanId)}
-      />
-
-      <SpanContent
-        span={span}
-        spanId={spanId}
-        isError={isError}
-        workflowStartTime={workflowStartTime}
-        totalDuration={totalDuration}
-        expandedSections={expandedSections}
-        onToggle={onToggle}
-      />
-
-      {/* Nested children */}
-      {hasChildren && isChildrenExpanded && (
-        <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
-          {span.children!.map((child, childIndex) => (
-            <NestedBlockItem
-              key={child.id || `${spanId}-child-${childIndex}`}
-              span={child}
-              parentId={spanId}
-              index={childIndex}
-              expandedSections={expandedSections}
-              onToggle={onToggle}
-              workflowStartTime={workflowStartTime}
-              totalDuration={totalDuration}
-              expandedChildren={expandedChildren}
-              onToggleChildren={onToggleChildren}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface TraceSpanItemProps {
-  span: TraceSpan
-  totalDuration: number
-  workflowStartTime: number
-  isFirstSpan?: boolean
-}
-
-/**
- * Individual trace span card component.
- * Memoized to prevent re-renders when sibling spans change.
- */
-const TraceSpanItem = memo(function TraceSpanItem({
-  span,
-  totalDuration,
-  workflowStartTime,
-  isFirstSpan = false,
-}: TraceSpanItemProps): React.ReactNode {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
-  const [expandedChildren, setExpandedChildren] = useState<Set<string>>(new Set())
-  const [isCardExpanded, setIsCardExpanded] = useState(false)
-  const toggleSet = useSetToggle()
-
+  onToggleNode,
+  onToggleSection,
+}: TraceSpanNodeProps): React.ReactNode {
   const spanId = span.id || `span-${span.name}-${span.startTime}`
   const spanStartTime = new Date(span.startTime).getTime()
   const spanEndTime = new Date(span.endTime).getTime()
   const duration = span.duration || spanEndTime - spanStartTime
 
-  const hasChildren = Boolean(span.children && span.children.length > 0)
-  const hasToolCalls = Boolean(span.toolCalls && span.toolCalls.length > 0)
-  const isError = span.status === 'error'
-
-  const inlineChildTypes = new Set([
-    'tool',
-    'model',
-    'loop-iteration',
-    'parallel-iteration',
-    'workflow',
-  ])
-
-  // For workflow-in-workflow blocks, all children should be rendered inline/nested
-  const isWorkflowBlock = span.type?.toLowerCase().includes('workflow')
-  const inlineChildren = isWorkflowBlock
-    ? span.children || []
-    : span.children?.filter((child) => inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
-  const otherChildren = isWorkflowBlock
-    ? []
-    : span.children?.filter((child) => !inlineChildTypes.has(child.type?.toLowerCase() || '')) || []
-
-  const toolCallSpans = useMemo(() => {
-    if (!hasToolCalls) return []
-    return span.toolCalls!.map((toolCall, index) => {
-      const toolStartTime = toolCall.startTime
-        ? new Date(toolCall.startTime).getTime()
-        : spanStartTime
-      const toolEndTime = toolCall.endTime
-        ? new Date(toolCall.endTime).getTime()
-        : toolStartTime + (toolCall.duration || 0)
-
-      return {
-        id: `${spanId}-tool-${index}`,
-        name: toolCall.name,
-        type: 'tool',
-        duration: toolCall.duration || toolEndTime - toolStartTime,
-        startTime: new Date(toolStartTime).toISOString(),
-        endTime: new Date(toolEndTime).toISOString(),
-        status: toolCall.error ? ('error' as const) : ('success' as const),
-        input: toolCall.input,
-        output: toolCall.error
-          ? { error: toolCall.error, ...(toolCall.output || {}) }
-          : toolCall.output,
-      } as TraceSpan
-    })
-  }, [hasToolCalls, span.toolCalls, spanId, spanStartTime])
-
-  const handleSectionToggle = useCallback(
-    (section: string) => toggleSet(setExpandedSections, section),
-    [toggleSet]
-  )
-
-  const handleChildrenToggle = useCallback(
-    (childSpanId: string) => toggleSet(setExpandedChildren, childSpanId),
-    [toggleSet]
-  )
+  const isDirectError = span.status === 'error'
+  const isRootWorkflow = depth === 0
+  const isRootWorkflowSpan = isRootWorkflow && span.type?.toLowerCase() === 'workflow'
+  const hasNestedError = isRootWorkflowSpan ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
+  const showErrorStyle = isDirectError || hasNestedError
 
   const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name)
 
-  // Check if this card has expandable inline content
-  const hasInlineContent =
-    (isWorkflowBlock && inlineChildren.length > 0) ||
-    (!isWorkflowBlock && (toolCallSpans.length > 0 || inlineChildren.length > 0))
+  // Build all children including tool calls
+  const allChildren = useMemo(() => {
+    const children: TraceSpan[] = []
 
-  const isExpandable = !isFirstSpan && hasInlineContent
+    // Add tool calls as child spans
+    if (span.toolCalls && span.toolCalls.length > 0) {
+      span.toolCalls.forEach((toolCall, index) => {
+        const toolStartTime = toolCall.startTime
+          ? new Date(toolCall.startTime).getTime()
+          : spanStartTime
+        const toolEndTime = toolCall.endTime
+          ? new Date(toolCall.endTime).getTime()
+          : toolStartTime + (toolCall.duration || 0)
+
+        children.push({
+          id: `${spanId}-tool-${index}`,
+          name: toolCall.name,
+          type: 'tool',
+          duration: toolCall.duration || toolEndTime - toolStartTime,
+          startTime: new Date(toolStartTime).toISOString(),
+          endTime: new Date(toolEndTime).toISOString(),
+          status: toolCall.error ? ('error' as const) : ('success' as const),
+          input: toolCall.input,
+          output: toolCall.error
+            ? { error: toolCall.error, ...(toolCall.output || {}) }
+            : toolCall.output,
+        } as TraceSpan)
+      })
+    }
+
+    // Add regular children
+    if (span.children && span.children.length > 0) {
+      children.push(...span.children)
+    }
+
+    // Sort by start time
+    return children.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime))
+  }, [span, spanId, spanStartTime])
+
+  // Hide empty model timing segments for agents without tool calls
+  const filteredChildren = useMemo(() => {
+    const isAgent = span.type?.toLowerCase() === 'agent'
+    const hasToolCalls =
+      (span.toolCalls?.length ?? 0) > 0 || allChildren.some((c) => c.type?.toLowerCase() === 'tool')
+
+    if (isAgent && !hasToolCalls) {
+      return allChildren.filter((c) => c.type?.toLowerCase() !== 'model')
+    }
+    return allChildren
+  }, [allChildren, span.type, span.toolCalls])
+
+  const hasChildren = filteredChildren.length > 0
+  const isExpanded = isRootWorkflow || expandedNodes.has(spanId)
+  const isToggleable = !isRootWorkflow
+
+  const hasInput = Boolean(span.input)
+  const hasOutput = Boolean(span.output)
+
+  // For progress bar - show child segments for workflow/iteration types
+  const lowerType = span.type?.toLowerCase() || ''
+  const showChildrenInProgressBar =
+    isIterationType(lowerType) || lowerType === 'workflow' || lowerType === 'workflow_input'
 
   return (
-    <>
-      <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px]'>
-        <ExpandableRowHeader
-          name={span.name}
-          duration={duration}
-          isError={isError}
-          isExpanded={isCardExpanded}
-          hasChildren={isExpandable}
-          showIcon={!isFirstSpan}
-          icon={BlockIcon}
-          bgColor={bgColor}
-          onToggle={() => setIsCardExpanded((prev) => !prev)}
-        />
-
-        <SpanContent
-          span={span}
-          spanId={spanId}
-          isError={isError}
-          workflowStartTime={workflowStartTime}
-          totalDuration={totalDuration}
-          expandedSections={expandedSections}
-          onToggle={handleSectionToggle}
-        />
-
-        {/* For workflow blocks, keep children nested within the card (not as separate cards) */}
-        {!isFirstSpan && isWorkflowBlock && inlineChildren.length > 0 && isCardExpanded && (
-          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
-            {inlineChildren.map((childSpan, index) => (
-              <NestedBlockItem
-                key={childSpan.id || `${spanId}-nested-${index}`}
-                span={childSpan}
-                parentId={spanId}
-                index={index}
-                expandedSections={expandedSections}
-                onToggle={handleSectionToggle}
-                workflowStartTime={workflowStartTime}
-                totalDuration={totalDuration}
-                expandedChildren={expandedChildren}
-                onToggleChildren={handleChildrenToggle}
-              />
-            ))}
-          </div>
+    <div className='flex min-w-0 flex-col'>
+      {/* Node Header Row */}
+      <div
+        className={cn(
+          'group flex items-center justify-between gap-[8px] py-[6px]',
+          isToggleable && 'cursor-pointer'
         )}
-
-        {/* For non-workflow blocks, render inline children/tool calls */}
-        {!isFirstSpan && !isWorkflowBlock && isCardExpanded && (
-          <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
-            {[...toolCallSpans, ...inlineChildren].map((childSpan, index) => {
-              const childId = childSpan.id || `${spanId}-inline-${index}`
-              const childIsError = childSpan.status === 'error'
-              const childLowerType = childSpan.type?.toLowerCase() || ''
-              const hasNestedChildren = Boolean(childSpan.children && childSpan.children.length > 0)
-              const isNestedExpanded = expandedChildren.has(childId)
-              const showChildrenInProgressBar =
-                isIterationType(childLowerType) || childLowerType === 'workflow'
-              const { icon: ChildIcon, bgColor: childBgColor } = getBlockIconAndColor(
-                childSpan.type,
-                childSpan.name
-              )
-
-              return (
-                <div
-                  key={`inline-${childId}`}
-                  className='flex min-w-0 flex-col gap-[8px] overflow-hidden'
-                >
-                  <ExpandableRowHeader
-                    name={childSpan.name}
-                    duration={childSpan.duration || 0}
-                    isError={childIsError}
-                    isExpanded={isNestedExpanded}
-                    hasChildren={hasNestedChildren}
-                    showIcon={!isIterationType(childSpan.type)}
-                    icon={ChildIcon}
-                    bgColor={childBgColor}
-                    onToggle={() => handleChildrenToggle(childId)}
-                  />
-
-                  <ProgressBar
-                    span={childSpan}
-                    childSpans={showChildrenInProgressBar ? childSpan.children : undefined}
-                    workflowStartTime={workflowStartTime}
-                    totalDuration={totalDuration}
-                  />
-
-                  {childSpan.input && (
-                    <InputOutputSection
-                      label='Input'
-                      data={childSpan.input}
-                      isError={false}
-                      spanId={childId}
-                      sectionType='input'
-                      expandedSections={expandedSections}
-                      onToggle={handleSectionToggle}
-                    />
-                  )}
-
-                  {childSpan.input && childSpan.output && (
-                    <div className='border-[var(--border)] border-t border-dashed' />
-                  )}
-
-                  {childSpan.output && (
-                    <InputOutputSection
-                      label={childIsError ? 'Error' : 'Output'}
-                      data={childSpan.output}
-                      isError={childIsError}
-                      spanId={childId}
-                      sectionType='output'
-                      expandedSections={expandedSections}
-                      onToggle={handleSectionToggle}
-                    />
-                  )}
-
-                  {/* Nested children */}
-                  {showChildrenInProgressBar && hasNestedChildren && isNestedExpanded && (
-                    <div className='mt-[2px] flex min-w-0 flex-col gap-[10px] overflow-hidden border-[var(--border)] border-l pl-[10px]'>
-                      {childSpan.children!.map((nestedChild, nestedIndex) => (
-                        <NestedBlockItem
-                          key={nestedChild.id || `${childId}-nested-${nestedIndex}`}
-                          span={nestedChild}
-                          parentId={childId}
-                          index={nestedIndex}
-                          expandedSections={expandedSections}
-                          onToggle={handleSectionToggle}
-                          workflowStartTime={workflowStartTime}
-                          totalDuration={totalDuration}
-                          expandedChildren={expandedChildren}
-                          onToggleChildren={handleChildrenToggle}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        onClick={isToggleable ? () => onToggleNode(spanId) : undefined}
+        onKeyDown={
+          isToggleable
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onToggleNode(spanId)
+                }
+              }
+            : undefined
+        }
+        role={isToggleable ? 'button' : undefined}
+        tabIndex={isToggleable ? 0 : undefined}
+        aria-expanded={isToggleable ? isExpanded : undefined}
+        aria-label={isToggleable ? (isExpanded ? 'Collapse' : 'Expand') : undefined}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          {!isIterationType(span.type) && (
+            <div
+              className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              style={{ background: bgColor }}
+            >
+              {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            </div>
+          )}
+          <span
+            className='min-w-0 max-w-[180px] truncate font-medium text-[12px]'
+            style={{ color: showErrorStyle ? 'var(--text-error)' : 'var(--text-secondary)' }}
+          >
+            {span.name}
+          </span>
+          {isToggleable && (
+            <ChevronDown
+              className='h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]'
+              style={{
+                transform: `translateY(-0.25px) ${isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)'}`,
+              }}
+            />
+          )}
+        </div>
+        <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+          {formatDuration(duration, { precision: 2 })}
+        </span>
       </div>
 
-      {/* For the first span (workflow execution), render all children as separate top-level cards */}
-      {isFirstSpan &&
-        hasChildren &&
-        span.children!.map((childSpan, index) => (
-          <TraceSpanItem
-            key={childSpan.id || `${spanId}-child-${index}`}
-            span={childSpan}
-            totalDuration={totalDuration}
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className='flex min-w-0 flex-col gap-[10px]'>
+          {/* Progress Bar */}
+          <ProgressBar
+            span={span}
+            childSpans={showChildrenInProgressBar ? span.children : undefined}
             workflowStartTime={workflowStartTime}
-            isFirstSpan={false}
+            totalDuration={totalDuration}
           />
-        ))}
 
-      {!isFirstSpan &&
-        otherChildren.map((childSpan, index) => (
-          <TraceSpanItem
-            key={childSpan.id || `${spanId}-other-${index}`}
-            span={childSpan}
-            totalDuration={totalDuration}
-            workflowStartTime={workflowStartTime}
-            isFirstSpan={false}
-          />
-        ))}
-    </>
+          {/* Input/Output Sections */}
+          {(hasInput || hasOutput) && (
+            <div className='flex min-w-0 flex-col gap-[6px] overflow-hidden py-[2px]'>
+              {hasInput && (
+                <InputOutputSection
+                  label='Input'
+                  data={span.input}
+                  isError={false}
+                  spanId={spanId}
+                  sectionType='input'
+                  expandedSections={expandedSections}
+                  onToggle={onToggleSection}
+                />
+              )}
+
+              {hasInput && hasOutput && (
+                <div className='border-[var(--border)] border-t border-dashed' />
+              )}
+
+              {hasOutput && (
+                <InputOutputSection
+                  label={isDirectError ? 'Error' : 'Output'}
+                  data={span.output}
+                  isError={isDirectError}
+                  spanId={spanId}
+                  sectionType='output'
+                  expandedSections={expandedSections}
+                  onToggle={onToggleSection}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Nested Children */}
+          {hasChildren && (
+            <div className='flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[10px]'>
+              {filteredChildren.map((child, index) => (
+                <div key={child.id || `${spanId}-child-${index}`} className='pl-[6px]'>
+                  <TraceSpanNode
+                    span={child}
+                    workflowStartTime={workflowStartTime}
+                    totalDuration={totalDuration}
+                    depth={depth + 1}
+                    expandedNodes={expandedNodes}
+                    expandedSections={expandedSections}
+                    onToggleNode={onToggleNode}
+                    onToggleSection={onToggleSection}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 })
 
 /**
- * Displays workflow execution trace spans with nested structure.
+ * Displays workflow execution trace spans with nested tree structure.
  * Memoized to prevent re-renders when parent LogDetails updates.
  */
-export const TraceSpans = memo(function TraceSpans({
-  traceSpans,
-  totalDuration = 0,
-}: TraceSpansProps) {
+export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansProps) {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const toggleSet = useSetToggle()
+
   const { workflowStartTime, actualTotalDuration, normalizedSpans } = useMemo(() => {
     if (!traceSpans || traceSpans.length === 0) {
-      return { workflowStartTime: 0, actualTotalDuration: totalDuration, normalizedSpans: [] }
+      return { workflowStartTime: 0, actualTotalDuration: 0, normalizedSpans: [] }
     }
 
     let earliest = Number.POSITIVE_INFINITY
@@ -962,26 +716,37 @@ export const TraceSpans = memo(function TraceSpans({
       actualTotalDuration: latest - earliest,
       normalizedSpans: normalizeAndSortSpans(traceSpans),
     }
-  }, [traceSpans, totalDuration])
+  }, [traceSpans])
+
+  const handleToggleNode = useCallback(
+    (nodeId: string) => toggleSet(setExpandedNodes, nodeId),
+    [toggleSet]
+  )
+
+  const handleToggleSection = useCallback(
+    (section: string) => toggleSet(setExpandedSections, section),
+    [toggleSet]
+  )
 
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-[12px] text-[var(--text-secondary)]'>No trace data available</div>
   }
 
   return (
-    <div className='flex w-full min-w-0 flex-col gap-[6px] overflow-hidden rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>Trace Span</span>
-      <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
-        {normalizedSpans.map((span, index) => (
-          <TraceSpanItem
-            key={span.id || index}
-            span={span}
-            totalDuration={actualTotalDuration}
-            workflowStartTime={workflowStartTime}
-            isFirstSpan={index === 0}
-          />
-        ))}
-      </div>
+    <div className='flex w-full min-w-0 flex-col overflow-hidden'>
+      {normalizedSpans.map((span, index) => (
+        <TraceSpanNode
+          key={span.id || index}
+          span={span}
+          workflowStartTime={workflowStartTime}
+          totalDuration={actualTotalDuration}
+          depth={0}
+          expandedNodes={expandedNodes}
+          expandedSections={expandedSections}
+          onToggleNode={handleToggleNode}
+          onToggleSection={handleToggleSection}
+        />
+      ))}
     </div>
   )
 })

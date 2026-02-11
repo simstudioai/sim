@@ -5,8 +5,42 @@ import { CheckCircle, ChevronDown, ChevronRight, Loader2, Settings, XCircle } fr
 import { Badge } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import type { ToolCallGroup, ToolCallState } from '@/lib/copilot/types'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
+
+interface ToolCallState {
+  id: string
+  name: string
+  displayName?: string
+  parameters?: Record<string, unknown>
+  state:
+    | 'detecting'
+    | 'pending'
+    | 'executing'
+    | 'completed'
+    | 'error'
+    | 'rejected'
+    | 'applied'
+    | 'ready_for_review'
+    | 'aborted'
+    | 'skipped'
+    | 'background'
+  startTime?: number
+  endTime?: number
+  duration?: number
+  result?: unknown
+  error?: string
+  progress?: string
+}
+
+interface ToolCallGroup {
+  id: string
+  toolCalls: ToolCallState[]
+  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  startTime?: number
+  endTime?: number
+  summary?: string
+}
 
 interface ToolCallProps {
   toolCall: ToolCallState
@@ -225,11 +259,6 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
   const isError = toolCall.state === 'error'
   const isAborted = toolCall.state === 'aborted'
 
-  const formatDuration = (duration?: number) => {
-    if (!duration) return ''
-    return duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`
-  }
-
   return (
     <div
       className={cn(
@@ -279,7 +308,7 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                   )}
                   style={{ fontSize: '0.625rem' }}
                 >
-                  {formatDuration(toolCall.duration)}
+                  {toolCall.duration ? formatDuration(toolCall.duration, { precision: 1 }) : ''}
                 </Badge>
               )}
             </div>

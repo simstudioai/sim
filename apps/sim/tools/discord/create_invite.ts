@@ -20,8 +20,8 @@ export const discordCreateInviteTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID to create an invite for',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID to create an invite for, e.g., 123456789012345678',
     },
     maxAge: {
       type: 'number',
@@ -44,8 +44,8 @@ export const discordCreateInviteTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

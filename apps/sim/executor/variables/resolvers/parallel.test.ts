@@ -1,5 +1,6 @@
 import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
+import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { ParallelResolver } from './parallel'
 import type { ResolutionContext } from './reference'
 
@@ -81,7 +82,12 @@ function createTestContext(
 
 describe('ParallelResolver', () => {
   describe('canResolve', () => {
-    it.concurrent('should return true for parallel references', () => {
+    it.concurrent('should return true for bare parallel reference', () => {
+      const resolver = new ParallelResolver(createTestWorkflow())
+      expect(resolver.canResolve('<parallel>')).toBe(true)
+    })
+
+    it.concurrent('should return true for known parallel properties', () => {
       const resolver = new ParallelResolver(createTestWorkflow())
       expect(resolver.canResolve('<parallel.index>')).toBe(true)
       expect(resolver.canResolve('<parallel.currentItem>')).toBe(true)
@@ -93,6 +99,16 @@ describe('ParallelResolver', () => {
       expect(resolver.canResolve('<parallel.currentItem.name>')).toBe(true)
       expect(resolver.canResolve('<parallel.items.0>')).toBe(true)
     })
+
+    it.concurrent(
+      'should return true for unknown parallel properties (validates in resolve)',
+      () => {
+        const resolver = new ParallelResolver(createTestWorkflow())
+        expect(resolver.canResolve('<parallel.results>')).toBe(true)
+        expect(resolver.canResolve('<parallel.output>')).toBe(true)
+        expect(resolver.canResolve('<parallel.unknownProperty>')).toBe(true)
+      }
+    )
 
     it.concurrent('should return false for non-parallel references', () => {
       const resolver = new ParallelResolver(createTestWorkflow())
@@ -254,24 +270,40 @@ describe('ParallelResolver', () => {
   })
 
   describe('edge cases', () => {
-    it.concurrent(
-      'should return undefined for invalid parallel reference (missing property)',
-      () => {
-        const resolver = new ParallelResolver(createTestWorkflow())
-        const ctx = createTestContext('block-1₍0₎')
+    it.concurrent('should return context object for bare parallel reference', () => {
+      const workflow = createTestWorkflow({
+        'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b', 'c'] },
+      })
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-1₍1₎')
 
-        expect(resolver.resolve('<parallel>', ctx)).toBeUndefined()
-      }
-    )
+      expect(resolver.resolve('<parallel>', ctx)).toEqual({
+        index: 1,
+        currentItem: 'b',
+        items: ['a', 'b', 'c'],
+      })
+    })
 
-    it.concurrent('should return undefined for unknown parallel property', () => {
+    it.concurrent('should return minimal context object when no distribution', () => {
+      const workflow = createTestWorkflow({
+        'parallel-1': { nodes: ['block-1'] },
+      })
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-1₍0₎')
+
+      const result = resolver.resolve('<parallel>', ctx)
+      expect(result).toHaveProperty('index', 0)
+      expect(result).toHaveProperty('items')
+    })
+
+    it.concurrent('should throw InvalidFieldError for unknown parallel property', () => {
       const workflow = createTestWorkflow({
         'parallel-1': { nodes: ['block-1'], distribution: ['a'] },
       })
       const resolver = new ParallelResolver(workflow)
       const ctx = createTestContext('block-1₍0₎')
 
-      expect(resolver.resolve('<parallel.unknownProperty>', ctx)).toBeUndefined()
+      expect(() => resolver.resolve('<parallel.unknownProperty>', ctx)).toThrow(InvalidFieldError)
     })
 
     it.concurrent('should return undefined when block is not in any parallel', () => {

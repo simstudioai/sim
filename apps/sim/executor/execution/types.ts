@@ -1,5 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockLog, BlockState, NormalizedBlockOutput } from '@/executor/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ExecutionMetadata {
@@ -48,13 +49,20 @@ export interface SerializableExecutionState {
 
 export interface IterationContext {
   iterationCurrent: number
-  iterationTotal: number
+  iterationTotal?: number
   iterationType: SubflowType
+  iterationContainerId?: string
 }
 
 export interface ExecutionCallbacks {
   onStream?: (streamingExec: any) => Promise<void>
-  onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
+  onBlockStart?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    executionOrder: number,
+    iterationContext?: IterationContext
+  ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
@@ -96,15 +104,34 @@ export interface ContextExtensions {
     blockId: string,
     blockName: string,
     blockType: string,
+    executionOrder: number,
     iterationContext?: IterationContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
     blockType: string,
-    output: { input?: any; output: NormalizedBlockOutput; executionTime: number },
+    output: {
+      input?: any
+      output: NormalizedBlockOutput
+      executionTime: number
+      startedAt: string
+      executionOrder: number
+      endedAt: string
+    },
     iterationContext?: IterationContext
   ) => Promise<void>
+
+  /**
+   * Run-from-block configuration. When provided, executor runs in partial
+   * execution mode starting from the specified block.
+   */
+  runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
 }
 
 export interface WorkflowInput {

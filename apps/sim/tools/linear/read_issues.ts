@@ -1,4 +1,5 @@
 import type { LinearReadIssuesParams, LinearReadIssuesResponse } from '@/tools/linear/types'
+import { ISSUE_LIST_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearReadIssuesResponse> = {
@@ -16,14 +17,14 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     teamId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Linear team ID to filter by',
+      visibility: 'user-or-llm',
+      description: 'Linear team ID (UUID format) to filter issues by team',
     },
     projectId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Linear project ID to filter by',
+      visibility: 'user-or-llm',
+      description: 'Linear project ID (UUID format) to filter issues by project',
     },
     assigneeId: {
       type: 'string',
@@ -271,36 +272,10 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       description: 'Array of filtered issues from Linear',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          priority: { type: 'number', description: 'Issue priority' },
-          estimate: { type: 'number', description: 'Issue estimate' },
-          url: { type: 'string', description: 'Issue URL' },
-          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
-          updatedAt: { type: 'string', description: 'Last update timestamp' },
-          state: { type: 'object', description: 'Issue state' },
-          assignee: { type: 'object', description: 'Assigned user' },
-          teamId: { type: 'string', description: 'Team ID' },
-          teamName: { type: 'string', description: 'Team name' },
-          projectId: { type: 'string', description: 'Project ID' },
-          projectName: { type: 'string', description: 'Project name' },
-          cycleId: { type: 'string', description: 'Cycle ID' },
-          cycleNumber: { type: 'number', description: 'Cycle number' },
-          cycleName: { type: 'string', description: 'Cycle name' },
-          labels: { type: 'array', description: 'Issue labels' },
-        },
+        properties: ISSUE_LIST_OUTPUT_PROPERTIES,
       },
     },
-    hasNextPage: {
-      type: 'boolean',
-      description: 'Whether there are more results available',
-    },
-    endCursor: {
-      type: 'string',
-      description: 'Cursor for fetching the next page (use as "after" parameter)',
-    },
+    hasNextPage: PAGE_INFO_OUTPUT_PROPERTIES.hasNextPage,
+    endCursor: PAGE_INFO_OUTPUT_PROPERTIES.endCursor,
   },
 }

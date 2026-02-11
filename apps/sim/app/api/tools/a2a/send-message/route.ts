@@ -3,7 +3,8 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized A2A send message attempt: ${authResult.error}`)
@@ -95,6 +96,14 @@ export async function POST(request: NextRequest) {
     if (validatedData.files && validatedData.files.length > 0) {
       for (const file of validatedData.files) {
         if (file.type === 'url') {
+          const urlValidation = await validateUrlWithDNS(file.data, 'fileUrl')
+          if (!urlValidation.isValid) {
+            return NextResponse.json(
+              { success: false, error: urlValidation.error },
+              { status: 400 }
+            )
+          }
+
           const filePart: FilePart = {
             kind: 'file',
             file: {

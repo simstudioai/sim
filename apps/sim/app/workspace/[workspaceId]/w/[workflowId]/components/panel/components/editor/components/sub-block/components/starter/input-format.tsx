@@ -26,7 +26,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 interface Field {
   id: string
   name: string
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
   value?: string
   description?: string
   collapsed?: boolean
@@ -57,7 +57,7 @@ const TYPE_OPTIONS: ComboboxOption[] = [
   { label: 'Boolean', value: 'boolean' },
   { label: 'Object', value: 'object' },
   { label: 'Array', value: 'array' },
-  { label: 'Files', value: 'files' },
+  { label: 'Files', value: 'file[]' },
 ]
 
 /**
@@ -269,7 +269,10 @@ export function FieldFormat({
           ref={(el) => {
             if (el) nameOverlayRefs.current[field.id] = el
           }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
           style={{ scrollbarWidth: 'none' }}
         >
           <div
@@ -310,7 +313,11 @@ export function FieldFormat({
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {field.name || `${title} ${index + 1}`}
         </span>
-        {field.name && showType && <Badge size='sm'>{field.type}</Badge>}
+        {field.name && showType && (
+          <Badge variant='type' size='sm'>
+            {field.type}
+          </Badge>
+        )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
@@ -444,7 +451,7 @@ export function FieldFormat({
       )
     }
 
-    if (field.type === 'files') {
+    if (field.type === 'file[]') {
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
 
@@ -510,7 +517,10 @@ export function FieldFormat({
           ref={(el) => {
             if (el) overlayRefs.current[field.id] = el
           }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
           style={{ scrollbarWidth: 'none' }}
         >
           <div

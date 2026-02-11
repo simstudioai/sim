@@ -1,17 +1,12 @@
 import { createLogger } from '@sim/logger'
-import type { HandlerDependencies } from '@/socket/handlers/workflow'
+import { cleanupPendingSubblocksForSocket } from '@/socket/handlers/subblocks'
+import { cleanupPendingVariablesForSocket } from '@/socket/handlers/variables'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('ConnectionHandlers')
 
-export function setupConnectionHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
-
+export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('error', (error) => {
     logger.error(`Socket ${socket.id} error:`, error)
   })
@@ -20,13 +15,23 @@ export function setupConnectionHandlers(
     logger.error(`Socket ${socket.id} connection error:`, error)
   })
 
-  socket.on('disconnect', (reason) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+  socket.on('disconnect', async (reason) => {
+    try {
+      // Clean up pending debounce entries for this socket to prevent memory leaks
+      cleanupPendingSubblocksForSocket(socket.id)
+      cleanupPendingVariablesForSocket(socket.id)
 
-    if (workflowId && session) {
-      roomManager.cleanupUserFromRoom(socket.id, workflowId)
-      roomManager.broadcastPresenceUpdate(workflowId)
+      const workflowIdHint = [...socket.rooms].find((roomId) => roomId !== socket.id)
+      const workflowId = await roomManager.removeUserFromRoom(socket.id, workflowIdHint)
+
+      if (workflowId) {
+        await roomManager.broadcastPresenceUpdate(workflowId)
+        logger.info(
+          `Socket ${socket.id} disconnected from workflow ${workflowId} (reason: ${reason})`
+        )
+      }
+    } catch (error) {
+      logger.error(`Error handling disconnect for socket ${socket.id}:`, error)
     }
   })
 }

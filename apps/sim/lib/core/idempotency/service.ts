@@ -2,8 +2,9 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
 
@@ -36,9 +37,9 @@ export interface AtomicClaimResult {
   storageMethod: StorageMethod
 }
 
-const DEFAULT_TTL = 60 * 60 * 24 * 7 // 7 days
+const DEFAULT_TTL = 60 * 60 * 24 * 7
 const REDIS_KEY_PREFIX = 'idempotency:'
-const MAX_WAIT_TIME_MS = 300000 // 5 minutes max wait
+const MAX_WAIT_TIME_MS = getMaxExecutionTimeout()
 const POLL_INTERVAL_MS = 1000
 
 /**
@@ -124,12 +125,7 @@ export class IdempotencyService {
     const existing = await db
       .select({ result: idempotencyKey.result, createdAt: idempotencyKey.createdAt })
       .from(idempotencyKey)
-      .where(
-        and(
-          eq(idempotencyKey.key, normalizedKey),
-          eq(idempotencyKey.namespace, this.config.namespace)
-        )
-      )
+      .where(eq(idempotencyKey.key, normalizedKey))
       .limit(1)
 
     if (existing.length > 0) {
@@ -224,11 +220,12 @@ export class IdempotencyService {
       .insert(idempotencyKey)
       .values({
         key: normalizedKey,
-        namespace: this.config.namespace,
         result: inProgressResult,
         createdAt: new Date(),
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing({
+        target: [idempotencyKey.key],
+      })
       .returning({ key: idempotencyKey.key })
 
     if (insertResult.length > 0) {
@@ -243,12 +240,7 @@ export class IdempotencyService {
     const existing = await db
       .select({ result: idempotencyKey.result })
       .from(idempotencyKey)
-      .where(
-        and(
-          eq(idempotencyKey.key, normalizedKey),
-          eq(idempotencyKey.namespace, this.config.namespace)
-        )
-      )
+      .where(eq(idempotencyKey.key, normalizedKey))
       .limit(1)
 
     const existingResult =
@@ -280,12 +272,7 @@ export class IdempotencyService {
         const existing = await db
           .select({ result: idempotencyKey.result })
           .from(idempotencyKey)
-          .where(
-            and(
-              eq(idempotencyKey.key, normalizedKey),
-              eq(idempotencyKey.namespace, this.config.namespace)
-            )
-          )
+          .where(eq(idempotencyKey.key, normalizedKey))
           .limit(1)
         currentResult = existing.length > 0 ? (existing[0].result as ProcessingResult) : null
       }
@@ -339,12 +326,11 @@ export class IdempotencyService {
       .insert(idempotencyKey)
       .values({
         key: normalizedKey,
-        namespace: this.config.namespace,
         result: result,
         createdAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [idempotencyKey.key, idempotencyKey.namespace],
+        target: [idempotencyKey.key],
         set: {
           result: result,
           createdAt: new Date(),

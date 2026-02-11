@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
   validateEnum,
@@ -15,7 +16,12 @@ const logger = createLogger('JsmApprovalsAPI')
 const VALID_ACTIONS = ['get', 'answer'] as const
 const VALID_DECISIONS = ['approve', 'decline'] as const
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const {
@@ -159,8 +165,26 @@ export async function POST(request: Request) {
           issueIdOrKey,
           approvalId,
           decision,
-          success: true,
+          id: data.id ?? null,
+          name: data.name ?? null,
+          finalDecision: data.finalDecision ?? null,
+          canAnswerApproval: data.canAnswerApproval ?? null,
+          approvers: (data.approvers ?? []).map((a: Record<string, unknown>) => {
+            const approver = a.approver as Record<string, unknown> | undefined
+            return {
+              approver: {
+                accountId: approver?.accountId ?? null,
+                displayName: approver?.displayName ?? null,
+                emailAddress: approver?.emailAddress ?? null,
+                active: approver?.active ?? null,
+              },
+              approverDecision: a.approverDecision ?? null,
+            }
+          }),
+          createdDate: data.createdDate ?? null,
+          completedDate: data.completedDate ?? null,
           approval: data,
+          success: true,
         },
       })
     }

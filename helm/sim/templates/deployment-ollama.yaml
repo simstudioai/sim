@@ -92,6 +92,7 @@ spec:
             {{- toYaml .Values.ollama.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.ollama | nindent 10 }}
+          {{- if or .Values.ollama.persistence.enabled .Values.extraVolumeMounts .Values.ollama.extraVolumeMounts }}
           volumeMounts:
             {{- if .Values.ollama.persistence.enabled }}
             - name: ollama-data
@@ -100,12 +101,21 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-      {{- if .Values.ollama.persistence.enabled }}
+            {{- with .Values.ollama.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.ollama.persistence.enabled .Values.extraVolumes .Values.ollama.extraVolumes }}
       volumes:
+        {{- if .Values.ollama.persistence.enabled }}
         - name: ollama-data
           persistentVolumeClaim:
             claimName: {{ include "sim.fullname" . }}-ollama-data
+        {{- end }}
         {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.ollama.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}

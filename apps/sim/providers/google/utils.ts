@@ -109,6 +109,7 @@ export function extractFunctionCall(candidate: Candidate | undefined): ParsedFun
 
 /**
  * Extracts the full Part containing the function call (preserves thoughtSignature)
+ * @deprecated Use extractAllFunctionCallParts for proper multi-tool handling
  */
 export function extractFunctionCallPart(candidate: Candidate | undefined): Part | null {
   if (!candidate?.content?.parts) return null
@@ -123,17 +124,32 @@ export function extractFunctionCallPart(candidate: Candidate | undefined): Part 
 }
 
 /**
- * Converts usage metadata from SDK response to our format
+ * Extracts ALL Parts containing function calls from a candidate.
+ * Gemini can return multiple function calls in a single response,
+ * and all should be executed before continuing the conversation.
+ */
+export function extractAllFunctionCallParts(candidate: Candidate | undefined): Part[] {
+  if (!candidate?.content?.parts) return []
+
+  return candidate.content.parts.filter((part) => part.functionCall)
+}
+
+/**
+ * Converts usage metadata from SDK response to our format.
+ * Per Gemini docs, total = promptTokenCount + candidatesTokenCount + toolUsePromptTokenCount + thoughtsTokenCount
+ * We include toolUsePromptTokenCount in input and thoughtsTokenCount in output for correct billing.
  */
 export function convertUsageMetadata(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined
 ): GeminiUsage {
-  const promptTokenCount = usageMetadata?.promptTokenCount ?? 0
-  const candidatesTokenCount = usageMetadata?.candidatesTokenCount ?? 0
+  const thoughtsTokenCount = usageMetadata?.thoughtsTokenCount ?? 0
+  const toolUsePromptTokenCount = usageMetadata?.toolUsePromptTokenCount ?? 0
+  const promptTokenCount = (usageMetadata?.promptTokenCount ?? 0) + toolUsePromptTokenCount
+  const candidatesTokenCount = (usageMetadata?.candidatesTokenCount ?? 0) + thoughtsTokenCount
   return {
     promptTokenCount,
     candidatesTokenCount,
-    totalTokenCount: usageMetadata?.totalTokenCount ?? promptTokenCount + candidatesTokenCount,
+    totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
   }
 }
 

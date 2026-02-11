@@ -21,13 +21,13 @@ export const customFieldsUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Custom field ID',
+      description: 'Custom field ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'New name for the custom field (required)',
+      description: 'New name for the custom field (e.g., "Affected Service")',
     },
     description: {
       type: 'string',

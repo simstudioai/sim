@@ -1,2 +1,6 @@
-export { BlockDetailsSidebar } from './components/block-details-sidebar'
-export { getLeftmostBlockId, WorkflowPreview } from './preview'
+export { PreviewContextMenu } from './components/preview-context-menu'
+export { PreviewEditor } from './components/preview-editor'
+export { getLeftmostBlockId, PreviewWorkflow } from './components/preview-workflow'
+export { PreviewBlock } from './components/preview-workflow/components/block'
+export { PreviewSubflow } from './components/preview-workflow/components/subflow'
+export { buildBlockExecutions, Preview } from './preview'

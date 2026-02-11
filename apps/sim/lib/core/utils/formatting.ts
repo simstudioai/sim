@@ -82,10 +82,26 @@ export function formatDateTime(date: Date, timezone?: string): string {
  * @returns A formatted date string in the format "MMM D, YYYY"
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleString('en-US', {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
+  })
+}
+
+/**
+ * Formats a date string to absolute format for tooltip display
+ * @param dateString - ISO date string to format
+ * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM")
+ */
+export function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -137,22 +153,62 @@ export function formatCompactTimestamp(iso: string): string {
 }
 
 /**
- * Format a duration in milliseconds to a human-readable format
- * @param durationMs - The duration in milliseconds
- * @returns A formatted duration string
+ * Format a duration to a human-readable format
+ * @param duration - Duration in milliseconds (number) or as string (e.g., "500ms")
+ * @param options - Optional formatting options
+ * @param options.precision - Number of decimal places for seconds (default: 0), trailing zeros are stripped
+ * @returns A formatted duration string, or null if input is null/undefined
  */
-export function formatDuration(durationMs: number): string {
-  if (durationMs < 1000) {
-    return `${durationMs}ms`
+export function formatDuration(
+  duration: number | string | undefined | null,
+  options?: { precision?: number }
+): string | null {
+  if (duration === undefined || duration === null) {
+    return null
   }
 
-  const seconds = Math.floor(durationMs / 1000)
+  // Parse string durations (e.g., "500ms", "0.44ms", "1234")
+  let ms: number
+  if (typeof duration === 'string') {
+    ms = Number.parseFloat(duration.replace(/[^0-9.-]/g, ''))
+    if (!Number.isFinite(ms)) {
+      return duration
+    }
+  } else {
+    ms = duration
+    // Handle NaN/Infinity (e.g., cancelled blocks with no end time)
+    if (!Number.isFinite(ms)) {
+      return '—'
+    }
+  }
+
+  const precision = options?.precision ?? 0
+
+  if (ms < 1) {
+    // Zero or near-zero: show "0ms" instead of "0.00ms"
+    if (ms === 0 || ms < 0.005) {
+      return '0ms'
+    }
+    // Sub-millisecond: show with 2 decimal places
+    return `${ms.toFixed(2)}ms`
+  }
+
+  if (ms < 1000) {
+    // Milliseconds: round to integer
+    return `${Math.round(ms)}ms`
+  }
+
+  const seconds = ms / 1000
   if (seconds < 60) {
-    return `${seconds}s`
+    if (precision > 0) {
+      // Strip trailing zeros (e.g., "5.00s" -> "5s", "5.10s" -> "5.1s")
+      return `${seconds.toFixed(precision).replace(/\.?0+$/, '')}s`
+    }
+    return `${Math.floor(seconds)}s`
   }
 
   const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
+  const remainingSeconds = Math.floor(seconds % 60)
   if (minutes < 60) {
     return `${minutes}m ${remainingSeconds}s`
   }
@@ -160,4 +216,41 @@ export function formatDuration(durationMs: number): string {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
+}
+
+/**
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ * @param dateString - ISO date string to format
+ * @returns A human-readable relative time string
+ */
+export function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return 'just now'
+  }
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60)
+    return `${minutes}m ago`
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600)
+    return `${hours}h ago`
+  }
+  if (diffInSeconds < 604800) {
+    const days = Math.floor(diffInSeconds / 86400)
+    return `${days}d ago`
+  }
+  if (diffInSeconds < 2592000) {
+    const weeks = Math.floor(diffInSeconds / 604800)
+    return `${weeks}w ago`
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000)
+    return `${months}mo ago`
+  }
+  const years = Math.floor(diffInSeconds / 31536000)
+  return `${years}y ago`
 }

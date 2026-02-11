@@ -9,7 +9,8 @@ export type PrimitiveValueType =
   | 'boolean'
   | 'json'
   | 'array'
-  | 'files'
+  | 'file'
+  | 'file[]'
   | 'any'
 
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
@@ -39,6 +40,7 @@ export type GenerationType =
   | 'neo4j-cypher'
   | 'neo4j-parameters'
   | 'timestamp'
+  | 'timezone'
 
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -50,6 +52,7 @@ export type SubBlockType =
   | 'code' // Code editor
   | 'switch' // Toggle button
   | 'tool-input' // Tool configuration
+  | 'skill-input' // Skill selection for agent blocks
   | 'checkbox-list' // Multiple selection
   | 'grouped-checkbox-list' // Grouped, scrollable checkbox list with select all
   | 'condition-input' // Conditional logic
@@ -162,7 +165,18 @@ export type OutputFieldDefinition =
        * Uses the same condition format as subBlocks.
        */
       condition?: OutputCondition
+      /**
+       * If true, this output is hidden from display in the tag dropdown and logs,
+       * but still available for resolution and execution.
+       */
+      hiddenFromDisplay?: boolean
     }
+
+export function isHiddenFromDisplay(def: unknown): boolean {
+  return Boolean(
+    def && typeof def === 'object' && 'hiddenFromDisplay' in def && def.hiddenFromDisplay
+  )
+}
 
 export interface ParamConfig {
   type: ParamType
@@ -199,7 +213,7 @@ export interface SubBlockConfig {
           not?: boolean
         }
       }
-    | (() => {
+    | ((values?: Record<string, unknown>) => {
         field: string
         value: string | number | boolean | Array<string | number | boolean>
         not?: boolean
@@ -252,7 +266,7 @@ export interface SubBlockConfig {
           not?: boolean
         }
       }
-    | (() => {
+    | ((values?: Record<string, unknown>) => {
         field: string
         value: string | number | boolean | Array<string | number | boolean>
         not?: boolean

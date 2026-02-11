@@ -1,14 +1,27 @@
 import { db } from '@sim/db'
-import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createExternalWebhookSubscription } from '@/lib/webhooks/provider-subscriptions'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
+import {
+  cleanupExternalWebhook,
+  createExternalWebhookSubscription,
+} from '@/lib/webhooks/provider-subscriptions'
+import { mergeNonUserFields } from '@/lib/webhooks/utils'
+import {
+  configureGmailPolling,
+  configureOutlookPolling,
+  configureRssPolling,
+  syncWebhooksForCredentialSet,
+} from '@/lib/webhooks/utils.server'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
 
@@ -44,15 +57,12 @@ export async function GET(request: NextRequest) {
       }
 
       const wfRecord = wf[0]
-      let canRead = wfRecord.userId === session.user.id
-      if (!canRead && wfRecord.workspaceId) {
-        const permission = await getUserEntityPermissions(
-          session.user.id,
-          'workspace',
-          wfRecord.workspaceId
-        )
-        canRead = permission === 'read' || permission === 'write' || permission === 'admin'
-      }
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: wfRecord.id,
+        userId: session.user.id,
+        action: 'read',
+      })
+      const canRead = authorization.allowed
 
       if (!canRead) {
         logger.warn(
@@ -101,8 +111,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    // Default: list webhooks owned by the session user
-    logger.debug(`[${requestId}] Fetching user-owned webhooks for ${session.user.id}`)
+    logger.debug(`[${requestId}] Fetching workspace-accessible webhooks for ${session.user.id}`)
+    const workspacePermissionRows = await db
+      .select({ workspaceId: permissions.entityId })
+      .from(permissions)
+      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+
+    const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
+    if (workspaceIds.length === 0) {
+      return NextResponse.json({ webhooks: [] }, { status: 200 })
+    }
+
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -113,9 +132,9 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(workflow.userId, session.user.id))
+      .where(inArray(workflow.workspaceId, workspaceIds))
 
-    logger.info(`[${requestId}] Retrieved ${webhooks.length} user-owned webhooks`)
+    logger.info(`[${requestId}] Retrieved ${webhooks.length} workspace-accessible webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
@@ -224,25 +243,12 @@ export async function POST(request: NextRequest) {
 
     const workflowRecord = workflowData[0]
 
-    // Check if user has permission to modify this workflow
-    let canModify = false
-
-    // Case 1: User owns the workflow
-    if (workflowRecord.userId === userId) {
-      canModify = true
-    }
-
-    // Case 2: Workflow belongs to a workspace and user has write or admin permission
-    if (!canModify && workflowRecord.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowRecord.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
-        canModify = true
-      }
-    }
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'write',
+    })
+    const canModify = authorization.allowed
 
     if (!canModify) {
       logger.warn(
@@ -298,14 +304,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let savedWebhook: any = null // Variable to hold the result of save/update
-
-    // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
-    const finalProviderConfig = providerConfig || {}
-
-    const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
+    let savedWebhook: any = null
+    const originalProviderConfig = providerConfig || {}
     let resolvedProviderConfig = await resolveEnvVarsInObject(
-      finalProviderConfig,
+      originalProviderConfig,
       userId,
       workflowRecord.workspaceId || undefined
     )
@@ -319,8 +321,6 @@ export async function POST(request: NextRequest) {
     const directCredentialSetId = resolvedProviderConfig?.credentialSetId as string | undefined
 
     if (directCredentialSetId || rawCredentialId) {
-      const { isCredentialSetValue, extractCredentialSetId } = await import('@/executor/constants')
-
       const credentialSetId =
         directCredentialSetId ||
         (rawCredentialId && isCredentialSetValue(rawCredentialId)
@@ -332,11 +332,6 @@ export async function POST(request: NextRequest) {
           `[${requestId}] Credential set detected for ${provider} trigger. Syncing webhooks for set ${credentialSetId}`
         )
 
-        const { getProviderIdFromServiceId } = await import('@/lib/oauth')
-        const { syncWebhooksForCredentialSet, configureGmailPolling, configureOutlookPolling } =
-          await import('@/lib/webhooks/utils.server')
-
-        // Map provider to OAuth provider ID
         const oauthProviderId = getProviderIdFromServiceId(provider)
 
         const {
@@ -469,6 +464,9 @@ export async function POST(request: NextRequest) {
       providerConfig: providerConfigOverride,
     })
 
+    const userProvided = originalProviderConfig as Record<string, unknown>
+    const configToSave: Record<string, unknown> = { ...userProvided }
+
     try {
       const result = await createExternalWebhookSubscription(
         request,
@@ -477,7 +475,9 @@ export async function POST(request: NextRequest) {
         userId,
         requestId
       )
-      resolvedProviderConfig = result.updatedProviderConfig as Record<string, unknown>
+      const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
+      mergeNonUserFields(configToSave, updatedConfig, userProvided)
+      resolvedProviderConfig = updatedConfig
       externalSubscriptionCreated = result.externalSubscriptionCreated
     } catch (err) {
       logger.error(`[${requestId}] Error creating external webhook subscription`, err)
@@ -490,25 +490,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
     try {
       if (targetWebhookId) {
         logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
           webhookId: targetWebhookId,
           provider,
-          hasCredentialId: !!(resolvedProviderConfig as any)?.credentialId,
-          credentialId: (resolvedProviderConfig as any)?.credentialId,
+          hasCredentialId: !!(configToSave as any)?.credentialId,
+          credentialId: (configToSave as any)?.credentialId,
         })
         const updatedResult = await db
           .update(webhook)
           .set({
             blockId,
             provider,
-            providerConfig: resolvedProviderConfig,
+            providerConfig: configToSave,
             credentialSetId:
-              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
-                | string
-                | null) || null,
+              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -531,11 +528,9 @@ export async function POST(request: NextRequest) {
             blockId,
             path: finalPath,
             provider,
-            providerConfig: resolvedProviderConfig,
+            providerConfig: configToSave,
             credentialSetId:
-              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
-                | string
-                | null) || null,
+              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -547,9 +542,8 @@ export async function POST(request: NextRequest) {
       if (externalSubscriptionCreated) {
         logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
         try {
-          const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
           await cleanupExternalWebhook(
-            createTempWebhookData(resolvedProviderConfig),
+            createTempWebhookData(configToSave),
             workflowRecord,
             requestId
           )
@@ -567,7 +561,6 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
-        const { configureGmailPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureGmailPolling(savedWebhook, requestId)
 
         if (!success) {
@@ -606,7 +599,6 @@ export async function POST(request: NextRequest) {
         `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
       )
       try {
-        const { configureOutlookPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureOutlookPolling(savedWebhook, requestId)
 
         if (!success) {
@@ -643,7 +635,6 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'rss') {
       logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
       try {
-        const { configureRssPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureRssPolling(savedWebhook, requestId)
 
         if (!success) {

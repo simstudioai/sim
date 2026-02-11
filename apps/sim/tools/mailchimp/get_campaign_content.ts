@@ -1,8 +1,9 @@
-import { createLogger } from '@sim/logger'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpCampaignContent,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaignContent } from './types'
-
-const logger = createLogger('MailchimpGetCampaignContent')
 
 export interface MailchimpGetCampaignContentParams {
   apiKey: string
@@ -35,8 +36,8 @@ export const mailchimpGetCampaignContentTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign (e.g., "abc123def4")',
     },
   },
 

@@ -46,11 +46,11 @@ Retrieves campaign activities and steps performed, including email opens, clicks
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Lemlist API key |
 | `type` | string | No | Filter by activity type \(e.g., emailOpened, emailClicked, emailReplied, paused\) |
-| `campaignId` | string | No | Filter by campaign ID |
-| `leadId` | string | No | Filter by lead ID |
+| `campaignId` | string | No | Filter by campaign ID \(e.g., "cam_abc123def456"\) |
+| `leadId` | string | No | Filter by lead ID \(e.g., "lea_abc123def456"\) |
 | `isFirst` | boolean | No | Filter for first activity only |
-| `limit` | number | No | Number of results per request \(max 100, default 100\) |
-| `offset` | number | No | Number of records to skip for pagination |
+| `limit` | number | No | Number of results per request \(e.g., 50\). Max 100, default 100 |
+| `offset` | number | No | Number of records to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -75,7 +75,7 @@ Retrieves lead information by email address or lead ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Lemlist API key |
-| `leadIdentifier` | string | Yes | Lead email address or lead ID |
+| `leadIdentifier` | string | Yes | Lead email address \(e.g., "john@example.com"\) or lead ID \(e.g., "lea_abc123def456"\) |
 
 #### Output
 
@@ -102,11 +102,11 @@ Sends an email to a contact through the Lemlist inbox.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Lemlist API key |
-| `sendUserId` | string | Yes | Identifier for the user sending the message |
-| `sendUserEmail` | string | Yes | Email address of the sender |
-| `sendUserMailboxId` | string | Yes | Mailbox identifier for the sender |
-| `contactId` | string | Yes | Recipient contact identifier |
-| `leadId` | string | Yes | Associated lead identifier |
+| `sendUserId` | string | Yes | Identifier for the user sending the message \(e.g., "usr_abc123def456"\) |
+| `sendUserEmail` | string | Yes | Email address of the sender \(e.g., "sales@company.com"\) |
+| `sendUserMailboxId` | string | Yes | Mailbox identifier for the sender \(e.g., "mbx_abc123def456"\) |
+| `contactId` | string | Yes | Recipient contact identifier \(e.g., "con_abc123def456"\) |
+| `leadId` | string | Yes | Associated lead identifier \(e.g., "lea_abc123def456"\) |
 | `subject` | string | Yes | Email subject line |
 | `message` | string | Yes | Email message body in HTML format |
 | `cc` | json | No | Array of CC email addresses |

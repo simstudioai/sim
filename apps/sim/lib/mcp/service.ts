@@ -8,8 +8,9 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { McpClient } from '@/lib/mcp/client'
+import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
+import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
   getMcpCacheType,
@@ -25,82 +26,47 @@ import type {
   McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpService')
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
+  private unsubscribeConnectionManager?: () => void
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
     logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
+
+    if (mcpConnectionManager) {
+      this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {
+        this.clearCache(event.workspaceId)
+      })
+    }
   }
 
   /**
    * Dispose of the service and cleanup resources
    */
   dispose(): void {
+    this.unsubscribeConnectionManager?.()
     this.cacheAdapter.dispose()
     logger.info('MCP Service disposed')
   }
 
   /**
-   * Resolve environment variables in strings
-   */
-  private resolveEnvVars(value: string, envVars: Record<string, string>): string {
-    const missingVars: string[] = []
-    const resolvedValue = resolveEnvVarReferences(value, envVars, {
-      allowEmbedded: true,
-      resolveExactMatch: true,
-      trimKeys: true,
-      onMissing: 'keep',
-      deep: false,
-      missingKeys: missingVars,
-    }) as string
-
-    if (missingVars.length > 0) {
-      const uniqueMissing = Array.from(new Set(missingVars))
-      throw new Error(
-        `Missing required environment variable${uniqueMissing.length > 1 ? 's' : ''}: ${uniqueMissing.join(', ')}. ` +
-          `Please set ${uniqueMissing.length > 1 ? 'these variables' : 'this variable'} in your workspace or personal environment settings.`
-      )
-    }
-
-    return resolvedValue
-  }
-
-  /**
-   * Resolve environment variables in server config
+   * Resolve environment variables in server config.
+   * Uses shared utility with strict mode (throws on missing vars).
    */
   private async resolveConfigEnvVars(
     config: McpServerConfig,
     userId: string,
     workspaceId?: string
   ): Promise<McpServerConfig> {
-    try {
-      const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-
-      const resolvedConfig = { ...config }
-
-      if (resolvedConfig.url) {
-        resolvedConfig.url = this.resolveEnvVars(resolvedConfig.url, envVars)
-      }
-
-      if (resolvedConfig.headers) {
-        const resolvedHeaders: Record<string, string> = {}
-        for (const [key, value] of Object.entries(resolvedConfig.headers)) {
-          resolvedHeaders[key] = this.resolveEnvVars(value, envVars)
-        }
-        resolvedConfig.headers = resolvedHeaders
-      }
-
-      return resolvedConfig
-    } catch (error) {
-      logger.error('Failed to resolve environment variables for MCP server config:', error)
-      return config
-    }
+    const { config: resolvedConfig } = await resolveMcpConfigEnvVars(config, userId, workspaceId, {
+      strict: true,
+    })
+    return resolvedConfig
   }
 
   /**
@@ -371,7 +337,7 @@ class McpService {
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return { serverId: config.id, tools }
+            return { serverId: config.id, tools, resolvedConfig }
           } finally {
             await client.disconnect()
           }
@@ -406,6 +372,21 @@ class McpService {
       Promise.allSettled(statusUpdates).catch((err) => {
         logger.error(`[${requestId}] Error updating server statuses:`, err)
       })
+
+      // Fire-and-forget persistent connections for servers that support listChanged
+      if (mcpConnectionManager) {
+        for (const [index, result] of results.entries()) {
+          if (result.status === 'fulfilled') {
+            const { resolvedConfig } = result.value
+            mcpConnectionManager.connect(resolvedConfig, userId, workspaceId).catch((err) => {
+              logger.warn(
+                `[${requestId}] Persistent connection failed for ${servers[index].name}:`,
+                err
+              )
+            })
+          }
+        }
+      }
 
       if (failedCount === 0) {
         try {

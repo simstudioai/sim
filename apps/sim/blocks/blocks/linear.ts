@@ -1,6 +1,7 @@
 import { LinearIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
@@ -668,17 +669,44 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
+    // Attachment file
+    {
+      id: 'attachmentFileUpload',
+      title: 'Attachment',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload attachment',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'basic',
+      multiple: false,
+    },
+    {
+      id: 'file',
+      title: 'File Reference',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'File reference from previous block',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'advanced',
+    },
     // Attachment URL
     {
       id: 'url',
       title: 'URL',
       type: 'short-input',
       placeholder: 'Enter URL',
-      required: true,
+      required: false,
       condition: {
         field: 'operation',
         value: ['linear_create_attachment'],
       },
+      mode: 'advanced',
     },
     // Attachment title
     {
@@ -782,7 +810,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Number of items to return (default: 50)',
       condition: {
         field: 'operation',
-        value: ['linear_list_favorites'],
+        value: [
+          'linear_read_issues',
+          'linear_search_issues',
+          'linear_list_comments',
+          'linear_list_projects',
+          'linear_list_users',
+          'linear_list_teams',
+          'linear_list_labels',
+          'linear_list_workflow_states',
+          'linear_list_cycles',
+          'linear_list_attachments',
+          'linear_list_issue_relations',
+          'linear_list_favorites',
+          'linear_list_project_updates',
+          'linear_list_notifications',
+          'linear_list_customer_statuses',
+          'linear_list_customer_tiers',
+          'linear_list_customers',
+          'linear_list_customer_requests',
+          'linear_list_project_labels',
+          'linear_list_project_milestones',
+          'linear_list_project_statuses',
+        ],
       },
     },
     // Pagination - After (for list operations)
@@ -793,7 +843,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Cursor for pagination',
       condition: {
         field: 'operation',
-        value: ['linear_list_favorites'],
+        value: [
+          'linear_read_issues',
+          'linear_search_issues',
+          'linear_list_comments',
+          'linear_list_projects',
+          'linear_list_users',
+          'linear_list_teams',
+          'linear_list_labels',
+          'linear_list_workflow_states',
+          'linear_list_cycles',
+          'linear_list_attachments',
+          'linear_list_issue_relations',
+          'linear_list_favorites',
+          'linear_list_project_updates',
+          'linear_list_notifications',
+          'linear_list_customers',
+          'linear_list_customer_requests',
+          'linear_list_customer_statuses',
+          'linear_list_customer_tiers',
+          'linear_list_project_labels',
+          'linear_list_project_milestones',
+          'linear_list_project_statuses',
+        ],
       },
     },
     // Project health (for project updates)
@@ -1023,28 +1095,6 @@ Return ONLY the description text - no explanations.`,
       condition: {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
-      },
-    },
-    // Pagination - first
-    {
-      id: 'first',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Number of items (default: 50)',
-      condition: {
-        field: 'operation',
-        value: ['linear_list_customers', 'linear_list_customer_requests'],
-      },
-    },
-    // Pagination - after
-    {
-      id: 'after',
-      title: 'After Cursor',
-      type: 'short-input',
-      placeholder: 'Cursor for pagination',
-      condition: {
-        field: 'operation',
-        value: ['linear_list_customers', 'linear_list_customer_requests'],
       },
     },
     // Customer ID for get/update/delete/merge operations
@@ -1448,9 +1498,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         return params.operation || 'linear_read_issues'
       },
       params: (params) => {
-        // Handle both selector and manual inputs
-        const effectiveTeamId = (params.teamId || params.manualTeamId || '').trim()
-        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveTeamId = params.teamId ? String(params.teamId).trim() : ''
+        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
 
         // Base params that most operations need
         const baseParams: Record<string, any> = {
@@ -1465,6 +1515,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId || undefined,
               projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_issue':
@@ -1530,6 +1582,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               query: params.query.trim(),
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_add_label_to_issue':
@@ -1579,6 +1633,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_list_projects':
@@ -1586,6 +1642,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_project':
@@ -1637,6 +1695,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
           case 'linear_list_users':
           case 'linear_list_teams':
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
+
           case 'linear_get_viewer':
             return baseParams
 
@@ -1644,6 +1708,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_create_label':
@@ -1681,6 +1747,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_create_workflow_state':
@@ -1710,6 +1778,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_cycle':
@@ -1742,16 +1812,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
             }
 
-          case 'linear_create_attachment':
-            if (!params.issueId?.trim() || !params.url?.trim()) {
-              throw new Error('Issue ID and URL are required.')
+          case 'linear_create_attachment': {
+            if (!params.issueId?.trim()) {
+              throw new Error('Issue ID is required.')
+            }
+            // Normalize file input - use canonical param 'file' (raw subBlock IDs are deleted after serialization)
+            const attachmentFile = normalizeFileInput(params.file, {
+              single: true,
+              errorMessage: 'Attachment file must be a single file.',
+            })
+            const attachmentUrl =
+              params.url?.trim() ||
+              (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
+            if (!attachmentUrl) {
+              throw new Error('URL or file is required.')
             }
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
-              url: params.url.trim(),
+              url: attachmentUrl,
+              file: attachmentFile,
               title: params.attachmentTitle,
             }
+          }
 
           case 'linear_list_attachments':
             if (!params.issueId?.trim()) {
@@ -1760,6 +1843,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_update_attachment':
@@ -1799,6 +1884,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_delete_issue_relation':
@@ -1845,10 +1932,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: effectiveProjectId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_list_notifications':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           case 'linear_update_notification':
             if (!params.notificationId?.trim()) {
@@ -1977,9 +2070,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               name: params.statusName.trim(),
-              displayName: params.statusDisplayName?.trim() || params.statusName.trim(),
               color: params.statusColor.trim(),
               description: params.statusDescription?.trim() || undefined,
+              displayName: params.statusDisplayName?.trim() || undefined,
             }
 
           case 'linear_update_customer_status':
@@ -1990,9 +2083,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               statusId: params.statusId.trim(),
               name: params.statusName?.trim() || undefined,
-              displayName: params.statusDisplayName?.trim() || undefined,
               color: params.statusColor?.trim() || undefined,
               description: params.statusDescription?.trim() || undefined,
+              displayName: params.statusDisplayName?.trim() || undefined,
             }
 
           case 'linear_delete_customer_status':
@@ -2005,7 +2098,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_customer_statuses':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           // Customer Tier Operations
           case 'linear_create_customer_tier':
@@ -2043,7 +2140,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_customer_tiers':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           // Project Management Operations
           case 'linear_delete_project':
@@ -2094,6 +2195,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: effectiveProjectId || undefined,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_add_label_to_project':
@@ -2157,6 +2260,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: params.projectIdForMilestone.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           // Project Status Operations
@@ -2204,7 +2309,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_project_statuses':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           default:
             return baseParams
@@ -2215,10 +2324,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Linear access token' },
-    teamId: { type: 'string', description: 'Linear team identifier' },
-    projectId: { type: 'string', description: 'Linear project identifier' },
-    manualTeamId: { type: 'string', description: 'Manual team identifier' },
-    manualProjectId: { type: 'string', description: 'Manual project identifier' },
+    teamId: { type: 'string', description: 'Linear team identifier (canonical param)' },
+    projectId: { type: 'string', description: 'Linear project identifier (canonical param)' },
     issueId: { type: 'string', description: 'Issue identifier' },
     title: { type: 'string', description: 'Title' },
     description: { type: 'string', description: 'Description' },
@@ -2248,6 +2355,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     endDate: { type: 'string', description: 'End date' },
     targetDate: { type: 'string', description: 'Target date' },
     url: { type: 'string', description: 'URL' },
+    file: { type: 'json', description: 'File to attach (canonical param)' },
     attachmentTitle: { type: 'string', description: 'Attachment title' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
     relationType: { type: 'string', description: 'Relation type' },
@@ -2281,9 +2389,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     // Customer status and tier inputs
     statusId: { type: 'string', description: 'Status identifier' },
     statusName: { type: 'string', description: 'Status name' },
-    statusDisplayName: { type: 'string', description: 'Status display name' },
     statusColor: { type: 'string', description: 'Status color in hex format' },
     statusDescription: { type: 'string', description: 'Status description' },
+    statusDisplayName: { type: 'string', description: 'Status display name' },
     tierId: { type: 'string', description: 'Tier identifier' },
     tierName: { type: 'string', description: 'Tier name' },
     tierDisplayName: { type: 'string', description: 'Tier display name' },

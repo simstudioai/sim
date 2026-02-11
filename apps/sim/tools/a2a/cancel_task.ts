@@ -1,5 +1,6 @@
+import type { A2ACancelTaskParams, A2ACancelTaskResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2ACancelTaskParams, A2ACancelTaskResponse } from './types'
 
 export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskResponse> = {
   id: 'a2a_cancel_task',
@@ -49,13 +50,7 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
   },
 
   outputs: {
-    cancelled: {
-      type: 'boolean',
-      description: 'Whether cancellation was successful',
-    },
-    state: {
-      type: 'string',
-      description: 'Task state after cancellation',
-    },
+    cancelled: A2A_OUTPUT_PROPERTIES.cancelled,
+    state: A2A_OUTPUT_PROPERTIES.state,
   },
 }

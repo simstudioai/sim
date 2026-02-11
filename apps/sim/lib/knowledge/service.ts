@@ -86,18 +86,16 @@ export async function createKnowledgeBase(
   const kbId = randomUUID()
   const now = new Date()
 
-  if (data.workspaceId) {
-    const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
-    if (hasPermission === null) {
-      throw new Error('User does not have permission to create knowledge bases in this workspace')
-    }
+  const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
+  if (hasPermission !== 'admin' && hasPermission !== 'write') {
+    throw new Error('User does not have permission to create knowledge bases in this workspace')
   }
 
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
     description: data.description ?? null,
-    workspaceId: data.workspaceId ?? null,
+    workspaceId: data.workspaceId,
     userId: data.userId,
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
@@ -122,7 +120,7 @@ export async function createKnowledgeBase(
     chunkingConfig: data.chunkingConfig,
     createdAt: now,
     updatedAt: now,
-    workspaceId: data.workspaceId ?? null,
+    workspaceId: data.workspaceId,
     docCount: 0,
   }
 }

@@ -1,5 +1,5 @@
+import type { GoogleGroupsListParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsListParams, GoogleGroupsResponse } from './types'
 
 export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResponse> = {
   id: 'google_groups_list_groups',
@@ -34,14 +34,14 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return (1-200)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (1-200). Example: 50',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'Token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Token for fetching the next page of results',
     },
     query: {
       type: 'string',

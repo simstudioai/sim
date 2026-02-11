@@ -4,6 +4,10 @@ import { a2aPushNotificationConfig, a2aTask } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('A2APushNotifications')
 
@@ -45,7 +49,17 @@ export async function deliverPushNotification(taskId: string, state: TaskState):
   }
 
   try {
-    const response = await fetch(config.url, {
+    const urlValidation = await validateUrlWithDNS(config.url, 'webhook URL')
+    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+      logger.error('Push notification URL validation failed', {
+        taskId,
+        url: config.url,
+        error: urlValidation.error,
+      })
+      return false
+    }
+
+    const response = await secureFetchWithPinnedIP(config.url, urlValidation.resolvedIP, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -59,7 +73,7 @@ export async function deliverPushNotification(taskId: string, state: TaskState):
           artifacts: (task.artifacts as Artifact[]) || [],
         },
       }),
-      signal: AbortSignal.timeout(30000),
+      timeout: 30000,
     })
 
     if (!response.ok) {

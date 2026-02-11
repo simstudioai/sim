@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -8,8 +9,13 @@ const logger = createLogger('ConfluencePagesAPI')
 export const dynamic = 'force-dynamic'
 
 // List pages or search pages
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const {
       domain,
       accessToken,
@@ -26,7 +32,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
-    // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -34,7 +39,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Build the URL with query parameters
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages`
     const queryParams = new URLSearchParams()
 
@@ -51,7 +55,6 @@ export async function POST(request: Request) {
 
     logger.info(`Fetching Confluence pages from: ${url}`)
 
-    // Make the request to Confluence API with OAuth Bearer token
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -73,7 +76,6 @@ export async function POST(request: Request) {
       } catch (e) {
         logger.error('Could not parse error response as JSON:', e)
 
-        // Try to get the response text for more context
         try {
           const text = await response.text()
           logger.error('Response text:', text)

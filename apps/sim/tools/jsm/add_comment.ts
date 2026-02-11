@@ -1,4 +1,5 @@
 import type { JsmAddCommentParams, JsmAddCommentResponse } from '@/tools/jsm/types'
+import { USER_OUTPUT_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentResponse> = {
@@ -46,8 +47,8 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
     isPublic: {
       type: 'boolean',
       required: true,
-      visibility: 'user-only',
-      description: 'Whether the comment is public (visible to customer) or internal',
+      visibility: 'user-or-llm',
+      description: 'Whether the comment is public (visible to customer) or internal (true/false)',
     },
   },
 
@@ -79,6 +80,8 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
           commentId: '',
           body: '',
           isPublic: false,
+          author: null,
+          createdDate: null,
           success: false,
         },
         error: 'Empty response from API',
@@ -99,6 +102,8 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
         commentId: '',
         body: '',
         isPublic: false,
+        author: null,
+        createdDate: null,
         success: false,
       },
       error: data.error,
@@ -111,6 +116,17 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
     commentId: { type: 'string', description: 'Created comment ID' },
     body: { type: 'string', description: 'Comment body text' },
     isPublic: { type: 'boolean', description: 'Whether the comment is public' },
+    author: {
+      type: 'object',
+      description: 'Comment author',
+      properties: USER_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    createdDate: {
+      type: 'json',
+      description: 'Comment creation date with iso8601, friendly, epochMillis',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Whether the comment was added successfully' },
   },
 }

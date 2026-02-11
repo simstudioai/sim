@@ -1,4 +1,5 @@
 import type { GetPRFilesParams, PRFilesListResponse } from '@/tools/github/types'
+import { PR_FILE_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> = {
@@ -162,22 +163,7 @@ export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
       description: 'Array of changed file objects',
       items: {
         type: 'object',
-        properties: {
-          filename: { type: 'string', description: 'File path' },
-          status: { type: 'string', description: 'Change status (added/modified/deleted/renamed)' },
-          additions: { type: 'number', description: 'Lines added' },
-          deletions: { type: 'number', description: 'Lines deleted' },
-          changes: { type: 'number', description: 'Total changes' },
-          patch: { type: 'string', description: 'File diff patch', optional: true },
-          sha: { type: 'string', description: 'File SHA' },
-          blob_url: { type: 'string', description: 'GitHub blob URL' },
-          raw_url: { type: 'string', description: 'Raw file URL' },
-          previous_filename: {
-            type: 'string',
-            description: 'Previous filename (for renamed files)',
-            optional: true,
-          },
-        },
+        properties: PR_FILE_OUTPUT_PROPERTIES,
       },
     },
     count: { type: 'number', description: 'Total number of files' },

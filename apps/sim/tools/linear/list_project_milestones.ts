@@ -2,6 +2,7 @@ import type {
   LinearListProjectMilestonesParams,
   LinearListProjectMilestonesResponse,
 } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, PROJECT_MILESTONE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListProjectMilestonesTool: ToolConfig<
@@ -25,6 +26,18 @@ export const linearListProjectMilestonesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID to list milestones for',
     },
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of milestones to return (default: 50)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
   },
 
   request: {
@@ -41,17 +54,26 @@ export const linearListProjectMilestonesTool: ToolConfig<
     },
     body: (params) => ({
       query: `
-        query Project($id: String!) {
+        query Project($id: String!, $first: Int, $after: String) {
           project(id: $id) {
-            projectMilestones {
+            projectMilestones(first: $first, after: $after) {
               nodes {
                 id
                 name
                 description
-                projectId
                 targetDate
+                progress
+                sortOrder
+                status
                 createdAt
                 archivedAt
+                project {
+                  id
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
               }
             }
           }
@@ -59,6 +81,8 @@ export const linearListProjectMilestonesTool: ToolConfig<
       `,
       variables: {
         id: params.projectId,
+        first: params.first ? Number(params.first) : 50,
+        after: params.after,
       },
     }),
   },
@@ -74,10 +98,20 @@ export const linearListProjectMilestonesTool: ToolConfig<
       }
     }
 
+    const result = data.data.project?.projectMilestones
+    const milestones = (result?.nodes || []).map((node: Record<string, unknown>) => ({
+      ...node,
+      projectId: (node.project as Record<string, string>)?.id ?? null,
+      project: undefined,
+    }))
     return {
       success: true,
       output: {
-        projectMilestones: data.data.project?.projectMilestones?.nodes || [],
+        projectMilestones: milestones,
+        pageInfo: {
+          hasNextPage: result?.pageInfo?.hasNextPage ?? false,
+          endCursor: result?.pageInfo?.endCursor,
+        },
       },
     }
   },
@@ -86,6 +120,11 @@ export const linearListProjectMilestonesTool: ToolConfig<
     projectMilestones: {
       type: 'array',
       description: 'List of project milestones',
+      items: {
+        type: 'object',
+        properties: PROJECT_MILESTONE_OUTPUT_PROPERTIES,
+      },
     },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

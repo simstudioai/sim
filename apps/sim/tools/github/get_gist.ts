@@ -1,3 +1,4 @@
+import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetGistParams {
@@ -164,53 +165,8 @@ export const getGistV2Tool: ToolConfig<GetGistParams, any> = {
   },
 
   outputs: {
-    id: { type: 'string', description: 'Gist ID' },
-    node_id: { type: 'string', description: 'GraphQL node ID' },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    url: { type: 'string', description: 'API URL' },
-    forks_url: { type: 'string', description: 'Forks API URL' },
-    commits_url: { type: 'string', description: 'Commits API URL' },
-    git_pull_url: { type: 'string', description: 'Git clone URL' },
-    git_push_url: { type: 'string', description: 'Git push URL' },
-    description: { type: 'string', description: 'Gist description', optional: true },
-    public: { type: 'boolean', description: 'Whether gist is public' },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    updated_at: { type: 'string', description: 'Last update timestamp' },
-    comments: { type: 'number', description: 'Number of comments' },
-    comments_url: { type: 'string', description: 'Comments API URL' },
-    truncated: { type: 'boolean', description: 'Whether content is truncated' },
-    files: {
-      type: 'object',
-      description: 'Files in the gist (keyed by filename)',
-      properties: {
-        '[filename]': {
-          type: 'object',
-          description: 'File object',
-          properties: {
-            filename: { type: 'string', description: 'File name' },
-            type: { type: 'string', description: 'MIME type' },
-            language: { type: 'string', description: 'Programming language', optional: true },
-            raw_url: { type: 'string', description: 'Raw file URL' },
-            size: { type: 'number', description: 'File size in bytes' },
-            truncated: { type: 'boolean', description: 'Whether content is truncated' },
-            content: { type: 'string', description: 'File content' },
-          },
-        },
-      },
-    },
-    owner: {
-      type: 'object',
-      description: 'Gist owner',
-      properties: {
-        login: { type: 'string', description: 'Username' },
-        id: { type: 'number', description: 'User ID' },
-        node_id: { type: 'string', description: 'GraphQL node ID' },
-        avatar_url: { type: 'string', description: 'Avatar image URL' },
-        url: { type: 'string', description: 'API URL' },
-        html_url: { type: 'string', description: 'Profile page URL' },
-        type: { type: 'string', description: 'User or Organization' },
-        site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-      },
-    },
+    ...GIST_OUTPUT_PROPERTIES,
+    files: GIST_FILES_OUTPUT,
+    owner: GIST_OWNER_OUTPUT,
   },
 }

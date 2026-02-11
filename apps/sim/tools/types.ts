@@ -13,13 +13,23 @@ export type WorkflowToolExecutionContext = {
   userId?: string
 }
 
+export type OutputType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'json'
+  | 'file'
+  | 'file[]'
+  | 'array'
+  | 'object'
+
 export interface OutputProperty {
-  type: string
+  type: OutputType
   description?: string
   optional?: boolean
   properties?: Record<string, OutputProperty>
   items?: {
-    type: string
+    type: OutputType
     description?: string
     properties?: Record<string, OutputProperty>
   }
@@ -75,7 +85,7 @@ export interface ToolConfig<P = any, R = any> {
   outputs?: Record<
     string,
     {
-      type: 'string' | 'number' | 'boolean' | 'json' | 'file' | 'file[]' | 'array' | 'object'
+      type: OutputType
       description?: string
       optional?: boolean
       fileConfig?: {
@@ -83,7 +93,8 @@ export interface ToolConfig<P = any, R = any> {
         extension?: string // Expected file extension
       }
       items?: {
-        type: string
+        type: OutputType
+        description?: string
         properties?: Record<string, OutputProperty>
       }
       properties?: Record<string, OutputProperty>

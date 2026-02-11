@@ -2,6 +2,7 @@ import type {
   LinearUpdateCustomerStatusParams,
   LinearUpdateCustomerStatusResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateCustomerStatusTool: ToolConfig<
@@ -37,17 +38,17 @@ export const linearUpdateCustomerStatusTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Updated status color',
     },
-    displayName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Updated display name',
-    },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Updated description',
+    },
+    displayName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Updated display name',
     },
     position: {
       type: 'number',
@@ -78,11 +79,11 @@ export const linearUpdateCustomerStatusTool: ToolConfig<
       if (params.color != null && params.color !== '') {
         input.color = params.color
       }
-      if (params.displayName != null && params.displayName !== '') {
-        input.displayName = params.displayName
-      }
       if (params.description != null && params.description !== '') {
         input.description = params.description
+      }
+      if (params.displayName != null && params.displayName !== '') {
+        input.displayName = params.displayName
       }
       if (params.position != null) {
         input.position = params.position
@@ -96,11 +97,12 @@ export const linearUpdateCustomerStatusTool: ToolConfig<
               customerStatus {
                 id
                 name
-                displayName
                 description
                 color
                 position
+                type
                 createdAt
+                updatedAt
                 archivedAt
               }
             }
@@ -138,6 +140,7 @@ export const linearUpdateCustomerStatusTool: ToolConfig<
     customerStatus: {
       type: 'object',
       description: 'The updated customer status',
+      properties: CUSTOMER_STATUS_OUTPUT_PROPERTIES,
     },
   },
 }

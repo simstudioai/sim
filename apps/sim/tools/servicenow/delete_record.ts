@@ -34,13 +34,13 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name',
+      description: 'Table name (e.g., incident, task, sys_user, change_request)',
     },
     sysId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Record sys_id to delete',
+      description: 'Record sys_id to delete (e.g., 6816f79cc0a8016401c5a33be04be441)',
     },
   },
 

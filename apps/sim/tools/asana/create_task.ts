@@ -22,8 +22,8 @@ export const asanaCreateTaskTool: ToolConfig<AsanaCreateTaskParams, AsanaCreateT
     workspace: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Workspace GID where the task will be created',
+      visibility: 'user-or-llm',
+      description: 'Asana workspace GID (numeric string) where the task will be created',
     },
     name: {
       type: 'string',

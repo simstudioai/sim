@@ -11,8 +11,10 @@ export interface CodeExecutionInput {
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>
   blockNameMapping?: Record<string, string>
+  blockOutputSchemas?: Record<string, Record<string, unknown>>
   _context?: {
     workflowId?: string
+    userId?: string
   }
   isCustomTool?: boolean
 }

@@ -27,26 +27,29 @@ export const updateChannelMessageTool: ToolConfig<
     teamId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the team',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info)',
     },
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the channel containing the message',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the channel containing the message (e.g., "19:abc123def456@thread.tacv2" - from channel listings)',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message to update',
+      description:
+        'The ID of the message to update (e.g., "1234567890123" - a numeric string from message responses)',
     },
     content: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The new content for the message',
+      description: 'The new content for the message (plain text or HTML formatted)',
     },
   },
 

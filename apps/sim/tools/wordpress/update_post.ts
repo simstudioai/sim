@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdatePostParams,
   type WordPressUpdatePostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpdatePostResponse> = {
   id: 'wordpress_update_post',
@@ -21,7 +21,7 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     postId: {
@@ -45,7 +45,7 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Post status: publish, draft, pending, private, or future',
     },
     excerpt: {
@@ -57,19 +57,19 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
     categories: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comma-separated category IDs',
     },
     tags: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comma-separated tag IDs',
     },
     featuredMedia: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Featured image media ID',
     },
     slug: {

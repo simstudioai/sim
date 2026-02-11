@@ -1,10 +1,10 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {
-  test('should extract sequential segments from timeSegments data', () => {
+  it.concurrent('extracts sequential segments from timeSegments data', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -119,7 +119,7 @@ describe('buildTraceSpans', () => {
     expect(segments[3].status).toBe('success')
   })
 
-  test('should fallback to toolCalls extraction when timeSegments not available', () => {
+  it.concurrent('falls back to toolCalls extraction when timeSegments not available', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -194,60 +194,63 @@ describe('buildTraceSpans', () => {
     expect(secondToolCall.output).toEqual({ status: 200, data: 'response' })
   })
 
-  test('should extract tool calls from agent block output with direct toolCalls array format (fallback)', () => {
-    const mockExecutionResult: ExecutionResult = {
-      success: true,
-      output: { content: 'Final output' },
-      logs: [
-        {
-          blockId: 'agent-2',
-          blockName: 'Test Agent 2',
-          blockType: 'agent',
-          startedAt: '2024-01-01T10:00:00.000Z',
-          endedAt: '2024-01-01T10:00:03.000Z',
-          durationMs: 3000,
-          success: true,
-          input: { userPrompt: 'Test prompt' },
-          output: {
-            content: 'Agent response',
-            model: 'gpt-4o',
-            providerTiming: {
-              duration: 2500,
-              startTime: '2024-01-01T10:00:00.250Z',
-              endTime: '2024-01-01T10:00:02.750Z',
-              // No timeSegments - should fallback to toolCalls
-            },
-            toolCalls: [
-              {
-                name: 'serper_search',
-                arguments: { query: 'test search' },
-                result: { results: ['result1', 'result2'] },
-                duration: 1500,
-                startTime: '2024-01-01T10:00:00.500Z',
-                endTime: '2024-01-01T10:00:02.000Z',
+  it.concurrent(
+    'extracts tool calls from agent block output with direct toolCalls array format',
+    () => {
+      const mockExecutionResult: ExecutionResult = {
+        success: true,
+        output: { content: 'Final output' },
+        logs: [
+          {
+            blockId: 'agent-2',
+            blockName: 'Test Agent 2',
+            blockType: 'agent',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 3000,
+            success: true,
+            input: { userPrompt: 'Test prompt' },
+            output: {
+              content: 'Agent response',
+              model: 'gpt-4o',
+              providerTiming: {
+                duration: 2500,
+                startTime: '2024-01-01T10:00:00.250Z',
+                endTime: '2024-01-01T10:00:02.750Z',
+                // No timeSegments - should fallback to toolCalls
               },
-            ],
+              toolCalls: [
+                {
+                  name: 'serper_search',
+                  arguments: { query: 'test search' },
+                  result: { results: ['result1', 'result2'] },
+                  duration: 1500,
+                  startTime: '2024-01-01T10:00:00.500Z',
+                  endTime: '2024-01-01T10:00:02.000Z',
+                },
+              ],
+            },
           },
-        },
-      ],
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+      expect(traceSpans).toHaveLength(1)
+      const agentSpan = traceSpans[0]
+      expect(agentSpan.toolCalls).toBeDefined()
+      expect(agentSpan.toolCalls).toHaveLength(1)
+
+      const toolCall = agentSpan.toolCalls![0]
+      expect(toolCall.name).toBe('serper_search')
+      expect(toolCall.duration).toBe(1500)
+      expect(toolCall.status).toBe('success')
+      expect(toolCall.input).toEqual({ query: 'test search' })
+      expect(toolCall.output).toEqual({ results: ['result1', 'result2'] })
     }
+  )
 
-    const { traceSpans } = buildTraceSpans(mockExecutionResult)
-
-    expect(traceSpans).toHaveLength(1)
-    const agentSpan = traceSpans[0]
-    expect(agentSpan.toolCalls).toBeDefined()
-    expect(agentSpan.toolCalls).toHaveLength(1)
-
-    const toolCall = agentSpan.toolCalls![0]
-    expect(toolCall.name).toBe('serper_search')
-    expect(toolCall.duration).toBe(1500)
-    expect(toolCall.status).toBe('success')
-    expect(toolCall.input).toEqual({ query: 'test search' })
-    expect(toolCall.output).toEqual({ results: ['result1', 'result2'] })
-  })
-
-  test('should extract tool calls from streaming response with executionData format (fallback)', () => {
+  it.concurrent('extracts tool calls from streaming response with executionData format', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -301,7 +304,7 @@ describe('buildTraceSpans', () => {
     expect(toolCall.output).toEqual({ analysis: 'completed' })
   })
 
-  test('should handle tool calls with errors in timeSegments', () => {
+  it.concurrent('handles tool calls with errors in timeSegments', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -380,7 +383,7 @@ describe('buildTraceSpans', () => {
     expect(toolSegment.output).toEqual({ error: 'Tool execution failed' })
   })
 
-  test('should handle blocks without tool calls', () => {
+  it.concurrent('handles blocks without tool calls', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -407,7 +410,7 @@ describe('buildTraceSpans', () => {
     expect(textSpan.toolCalls).toBeUndefined()
   })
 
-  test('should handle complex multi-iteration agent execution with sequential segments', () => {
+  it.concurrent('handles complex multi-iteration agent execution with sequential segments', () => {
     // This test simulates a real agent execution with multiple tool calls and model iterations
     const mockExecutionResult: ExecutionResult = {
       success: true,
@@ -581,7 +584,7 @@ describe('buildTraceSpans', () => {
     expect(agentSpan.toolCalls).toBeUndefined()
   })
 
-  test('should flatten nested child workflow trace spans recursively', () => {
+  it.concurrent('flattens nested child workflow trace spans recursively', () => {
     const nestedChildSpan = {
       id: 'nested-workflow-span',
       name: 'Nested Workflow Block',
@@ -685,7 +688,7 @@ describe('buildTraceSpans', () => {
     expect(syntheticWrappers).toHaveLength(0)
   })
 
-  test('should handle nested child workflow errors with proper hierarchy', () => {
+  it.concurrent('handles nested child workflow errors with proper hierarchy', () => {
     const functionErrorSpan = {
       id: 'function-error-span',
       name: 'Function 1',
@@ -770,7 +773,7 @@ describe('buildTraceSpans', () => {
     expect((functionSpan?.output as { error?: string })?.error).toContain('Syntax Error')
   })
 
-  test('should remove childTraceSpans from output after integrating them as children', () => {
+  it.concurrent('removes childTraceSpans from output after integrating them as children', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { result: 'parent output' },
@@ -843,15 +846,686 @@ describe('buildTraceSpans', () => {
       data: 'some result',
     })
   })
+
+  it.concurrent('matches multiple tool calls with same name by sequential order', () => {
+    // This test verifies that when an agent makes multiple calls to the same tool
+    // (e.g., search_tool called 3 times with different queries), each tool segment
+    // is matched to the correct tool call by their sequential order, not just by name.
+    const mockExecutionResult: ExecutionResult = {
+      success: true,
+      output: { content: 'Final output with multiple searches' },
+      logs: [
+        {
+          blockId: 'agent-multi-search',
+          blockName: 'Multi-Search Agent',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:10.000Z',
+          durationMs: 10000,
+          success: true,
+          input: { userPrompt: 'Search for multiple topics' },
+          output: {
+            content: 'Results from multiple searches',
+            model: 'gpt-4o',
+            tokens: { input: 50, output: 100, total: 150 },
+            providerTiming: {
+              duration: 10000,
+              startTime: '2024-01-01T10:00:00.000Z',
+              endTime: '2024-01-01T10:00:10.000Z',
+              timeSegments: [
+                {
+                  type: 'model',
+                  name: 'Initial response',
+                  startTime: 1704103200000, // 2024-01-01T10:00:00.000Z
+                  endTime: 1704103201000,
+                  duration: 1000,
+                },
+                {
+                  type: 'tool',
+                  name: 'search_tool',
+                  startTime: 1704103201000, // 2024-01-01T10:00:01.000Z
+                  endTime: 1704103202000,
+                  duration: 1000,
+                },
+                {
+                  type: 'model',
+                  name: 'Model response (iteration 1)',
+                  startTime: 1704103202000,
+                  endTime: 1704103203000,
+                  duration: 1000,
+                },
+                {
+                  type: 'tool',
+                  name: 'search_tool',
+                  startTime: 1704103203000, // 2024-01-01T10:00:03.000Z
+                  endTime: 1704103204500,
+                  duration: 1500,
+                },
+                {
+                  type: 'model',
+                  name: 'Model response (iteration 2)',
+                  startTime: 1704103204500,
+                  endTime: 1704103206000,
+                  duration: 1500,
+                },
+                {
+                  type: 'tool',
+                  name: 'search_tool',
+                  startTime: 1704103206000, // 2024-01-01T10:00:06.000Z
+                  endTime: 1704103208000,
+                  duration: 2000,
+                },
+                {
+                  type: 'model',
+                  name: 'Model response (iteration 3)',
+                  startTime: 1704103208000,
+                  endTime: 1704103210000,
+                  duration: 2000,
+                },
+              ],
+            },
+            toolCalls: {
+              list: [
+                {
+                  name: 'search_tool',
+                  arguments: { query: 'first query' },
+                  result: { results: ['first result'] },
+                  duration: 1000,
+                  startTime: '2024-01-01T10:00:01.000Z', // Matches first segment
+                  endTime: '2024-01-01T10:00:02.000Z',
+                },
+                {
+                  name: 'search_tool',
+                  arguments: { query: 'second query' },
+                  result: { results: ['second result'] },
+                  duration: 1500,
+                  startTime: '2024-01-01T10:00:03.000Z', // Matches second segment
+                  endTime: '2024-01-01T10:00:04.500Z',
+                },
+                {
+                  name: 'search_tool',
+                  arguments: { query: 'third query' },
+                  result: { results: ['third result'] },
+                  duration: 2000,
+                  startTime: '2024-01-01T10:00:06.000Z', // Matches third segment
+                  endTime: '2024-01-01T10:00:08.000Z',
+                },
+              ],
+              count: 3,
+            },
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans).toHaveLength(1)
+    const agentSpan = traceSpans[0]
+    expect(agentSpan.children).toBeDefined()
+    expect(agentSpan.children).toHaveLength(7)
+
+    const segments = agentSpan.children!
+
+    // First search_tool call should have "first query"
+    const firstToolSegment = segments[1]
+    expect(firstToolSegment.name).toBe('search_tool')
+    expect(firstToolSegment.type).toBe('tool')
+    expect(firstToolSegment.input).toEqual({ query: 'first query' })
+    expect(firstToolSegment.output).toEqual({ results: ['first result'] })
+
+    // Second search_tool call should have "second query"
+    const secondToolSegment = segments[3]
+    expect(secondToolSegment.name).toBe('search_tool')
+    expect(secondToolSegment.type).toBe('tool')
+    expect(secondToolSegment.input).toEqual({ query: 'second query' })
+    expect(secondToolSegment.output).toEqual({ results: ['second result'] })
+
+    // Third search_tool call should have "third query"
+    const thirdToolSegment = segments[5]
+    expect(thirdToolSegment.name).toBe('search_tool')
+    expect(thirdToolSegment.type).toBe('tool')
+    expect(thirdToolSegment.input).toEqual({ query: 'third query' })
+    expect(thirdToolSegment.output).toEqual({ results: ['third result'] })
+  })
+})
+
+describe('errorHandled - handled errors should not bubble up', () => {
+  it.concurrent('block span stays error but is marked errorHandled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Request failed with status 500',
+          errorHandled: true,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'fallback-1',
+          blockName: 'Fallback',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 2,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const apiSpan = traceSpans.find((s) => s.blockId === 'api-1')!
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBe(true)
+    expect((apiSpan.output as { error?: string }).error).toBe('Request failed with status 500')
+
+    const fallbackSpan = traceSpans.find((s) => s.blockId === 'fallback-1')!
+    expect(fallbackSpan.status).toBe('success')
+    expect(fallbackSpan.errorHandled).toBeUndefined()
+  })
+
+  it.concurrent('unhandled errors still produce error status', () => {
+    const result: ExecutionResult = {
+      success: false,
+      output: {},
+      metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Request failed with status 500',
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('error')
+
+    const apiSpan = workflowSpan.children![0]
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBeUndefined()
+  })
+
+  it.concurrent('workflow-level span is success when all errors are handled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'recovered' },
+      metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Connection timeout',
+          errorHandled: true,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'handler-1',
+          blockName: 'Error Handler',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 2,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('success')
+  })
+
+  it.concurrent(
+    'workflow-level span is error when there is a mix of handled and unhandled errors',
+    () => {
+      const result: ExecutionResult = {
+        success: false,
+        output: {},
+        metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (handled)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Handled error',
+            errorHandled: true,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Error Handler',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            executionOrder: 2,
+          },
+          {
+            blockId: 'api-2',
+            blockName: 'API Call (unhandled)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:02.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Unhandled crash',
+            executionOrder: 3,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('error')
+
+      const handledSpan = workflowSpan.children!.find((s) => s.blockId === 'api-1')!
+      expect(handledSpan.status).toBe('error')
+      expect(handledSpan.errorHandled).toBe(true)
+
+      const unhandledSpan = workflowSpan.children!.find((s) => s.blockId === 'api-2')!
+      expect(unhandledSpan.status).toBe('error')
+      expect(unhandledSpan.errorHandled).toBeUndefined()
+    }
+  )
+
+  it.concurrent(
+    'handled errors inside loop iterations still show error on loop but not on workflow',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'all iterations recovered' },
+        metadata: { duration: 5000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Rate limited',
+            errorHandled: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Rate Limit Handler (iteration 0)',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 2,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:02.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 1,
+            executionOrder: 3,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 2)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:03.000Z',
+            endedAt: '2024-01-01T10:00:04.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Rate limited again',
+            errorHandled: true,
+            loopId: 'loop-1',
+            iterationIndex: 2,
+            executionOrder: 4,
+          },
+          {
+            blockId: 'handler-1',
+            blockName: 'Rate Limit Handler (iteration 2)',
+            blockType: 'function',
+            startedAt: '2024-01-01T10:00:04.000Z',
+            endedAt: '2024-01-01T10:00:05.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 2,
+            executionOrder: 5,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('success')
+
+      const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+      expect(loopSpan).toBeDefined()
+      expect(loopSpan.status).toBe('error')
+
+      const iterations = loopSpan.children!
+      expect(iterations).toHaveLength(3)
+      expect(iterations[0].status).toBe('error')
+      expect(iterations[1].status).toBe('success')
+      expect(iterations[2].status).toBe('error')
+    }
+  )
+
+  it.concurrent(
+    'handled errors inside parallel iterations still show error on parallel but not on workflow',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'parallel done' },
+        metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Timeout on iteration 0',
+            errorHandled: true,
+            parallelId: 'parallel-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            parallelId: 'parallel-1',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('success')
+
+      const parallelSpan = workflowSpan.children!.find((s) => s.type === 'parallel')!
+      expect(parallelSpan).toBeDefined()
+      expect(parallelSpan.status).toBe('error')
+
+      const iterations = parallelSpan.children!
+      expect(iterations).toHaveLength(2)
+      expect(iterations[0].status).toBe('error')
+      expect(iterations[1].status).toBe('success')
+    }
+  )
+
+  it.concurrent(
+    'unhandled error in one loop iteration still makes the loop and workflow error',
+    () => {
+      const result: ExecutionResult = {
+        success: false,
+        output: {},
+        metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-1',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'API Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: false,
+            error: 'Unhandled crash in iteration 1',
+            loopId: 'loop-1',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+
+      const workflowSpan = traceSpans[0]
+      expect(workflowSpan.name).toBe('Workflow Execution')
+      expect(workflowSpan.status).toBe('error')
+
+      const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+      expect(loopSpan.status).toBe('error')
+
+      const iterations = loopSpan.children!
+      expect(iterations[0].status).toBe('success')
+      expect(iterations[1].status).toBe('error')
+    }
+  )
+
+  it.concurrent('error output is preserved on the span even when error is handled', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'recovered' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'Flaky API',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'ECONNRESET',
+          errorHandled: true,
+          output: { error: 'ECONNRESET' },
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const apiSpan = traceSpans[0]
+    expect(apiSpan.status).toBe('error')
+    expect(apiSpan.errorHandled).toBe(true)
+    expect((apiSpan.output as { error?: string }).error).toBe('ECONNRESET')
+  })
+
+  it.concurrent('block with error and errorHandled=false is treated as unhandled', () => {
+    const result: ExecutionResult = {
+      success: false,
+      output: {},
+      metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1',
+          blockName: 'API Call',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: false,
+          error: 'Server error',
+          errorHandled: false,
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('error')
+
+    const apiSpan = workflowSpan.children![0]
+    expect(apiSpan.status).toBe('error')
+  })
+
+  it.concurrent('many loop iterations with handled errors produce a successful workflow', () => {
+    const logs = []
+    for (let i = 0; i < 10; i++) {
+      const startMs = 1704103200000 + i * 2000
+      if (i % 3 === 0) {
+        logs.push({
+          blockId: 'api-1',
+          blockName: `API Call (iteration ${i})`,
+          blockType: 'api',
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: new Date(startMs + 1000).toISOString(),
+          durationMs: 1000,
+          success: false,
+          error: `Error in iteration ${i}`,
+          errorHandled: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 1,
+        })
+        logs.push({
+          blockId: 'handler-1',
+          blockName: `Error Handler (iteration ${i})`,
+          blockType: 'function',
+          startedAt: new Date(startMs + 1000).toISOString(),
+          endedAt: new Date(startMs + 2000).toISOString(),
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 2,
+        })
+      } else {
+        logs.push({
+          blockId: 'api-1',
+          blockName: `API Call (iteration ${i})`,
+          blockType: 'api',
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: new Date(startMs + 1000).toISOString(),
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: i,
+          executionOrder: i * 2 + 1,
+        })
+      }
+    }
+
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'all done' },
+      metadata: { duration: 20000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: logs as any,
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.name).toBe('Workflow Execution')
+    expect(workflowSpan.status).toBe('success')
+
+    const loopSpan = workflowSpan.children!.find((s) => s.type === 'loop')!
+    expect(loopSpan).toBeDefined()
+    expect(loopSpan.status).toBe('error')
+
+    loopSpan.children!.forEach((iteration, i) => {
+      if (i % 3 === 0) {
+        expect(iteration.status).toBe('error')
+      } else {
+        expect(iteration.status).toBe('success')
+      }
+    })
+  })
+
+  it.concurrent('successful blocks without errors have no errorHandled flag', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'fine' },
+      logs: [
+        {
+          blockId: 'text-1',
+          blockName: 'Text Block',
+          blockType: 'text',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const span = traceSpans[0]
+    expect(span.status).toBe('success')
+    expect(span.errorHandled).toBeUndefined()
+  })
 })
 
 describe('stripCustomToolPrefix', () => {
-  test('should strip custom_ prefix from tool names', () => {
+  it.concurrent('strips custom_ prefix from tool names', () => {
     expect(stripCustomToolPrefix('custom_test_tool')).toBe('test_tool')
     expect(stripCustomToolPrefix('custom_analysis')).toBe('analysis')
   })
 
-  test('should leave non-custom tool names unchanged', () => {
+  it.concurrent('leaves non-custom tool names unchanged', () => {
     expect(stripCustomToolPrefix('http_request')).toBe('http_request')
     expect(stripCustomToolPrefix('serper_search')).toBe('serper_search')
     expect(stripCustomToolPrefix('regular_tool')).toBe('regular_tool')

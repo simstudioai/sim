@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -35,6 +35,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -123,6 +124,11 @@ export function ConditionInput({
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
+  const shouldHighlightEnvVar = useMemo(
+    () => createShouldHighlightEnvVar(availableEnvVars),
+    [availableEnvVars]
+  )
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
@@ -1136,14 +1142,18 @@ export function ConditionInput({
                           let processedCode = codeToHighlight
 
                           processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
-                            const placeholder = `__ENV_VAR_${placeholders.length}__`
-                            placeholders.push({
-                              placeholder,
-                              original: match,
-                              type: 'env',
-                              shouldHighlight: true,
-                            })
-                            return placeholder
+                            const varName = match.slice(2, -2).trim()
+                            if (shouldHighlightEnvVar(varName)) {
+                              const placeholder = `__ENV_VAR_${placeholders.length}__`
+                              placeholders.push({
+                                placeholder,
+                                original: match,
+                                type: 'env',
+                                shouldHighlight: true,
+                              })
+                              return placeholder
+                            }
+                            return match
                           })
 
                           processedCode = processedCode.replace(

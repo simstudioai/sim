@@ -1,30 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { WorkflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-const logger = createLogger('WorkflowBlock')
-
-// Helper function to get available workflows for the dropdown
-const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
-  try {
-    const { workflows, activeWorkflowId } = useWorkflowRegistry.getState()
-
-    // Filter out the current workflow to prevent recursion
-    const availableWorkflows = Object.entries(workflows)
-      .filter(([id]) => id !== activeWorkflowId)
-      .map(([id, workflow]) => ({
-        label: workflow.name || `Workflow ${id.slice(0, 8)}`,
-        id: id,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-
-    return availableWorkflows
-  } catch (error) {
-    logger.error('Error getting available workflows:', error)
-    return []
-  }
-}
 
 export const WorkflowBlock: BlockConfig = {
   type: 'workflow',
@@ -38,8 +13,7 @@ export const WorkflowBlock: BlockConfig = {
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'combobox',
-      options: getAvailableWorkflows,
+      type: 'workflow-selector',
       placeholder: 'Search workflows...',
       required: true,
     },
@@ -68,8 +42,14 @@ export const WorkflowBlock: BlockConfig = {
   outputs: {
     success: { type: 'boolean', description: 'Execution success status' },
     childWorkflowName: { type: 'string', description: 'Child workflow name' },
+    childWorkflowId: { type: 'string', description: 'Child workflow ID' },
     result: { type: 'json', description: 'Workflow execution result' },
     error: { type: 'string', description: 'Error message' },
+    childTraceSpans: {
+      type: 'json',
+      description: 'Child workflow trace spans',
+      hiddenFromDisplay: true,
+    },
   },
   hideFromToolbar: true,
 }

@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateTaskParams,
   SalesforceUpdateTaskResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,38 +39,38 @@ export const salesforceUpdateTaskTool: ToolConfig<
     taskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Task ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Task ID to update (18-character string starting with 00T)',
     },
     subject: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Task subject',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Status',
+      visibility: 'user-or-llm',
+      description: 'Status (e.g., Not Started, In Progress, Completed)',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Priority',
+      visibility: 'user-or-llm',
+      description: 'Priority (e.g., Low, Normal, High)',
     },
     activityDate: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Due date YYYY-MM-DD',
+      visibility: 'user-or-llm',
+      description: 'Due date in YYYY-MM-DD format',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Task description',
     },
   },
 
@@ -111,10 +112,7 @@ export const salesforceUpdateTaskTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated task data',
-      properties: {
-        id: { type: 'string', description: 'Updated task ID' },
-        updated: { type: 'boolean', description: 'Whether task was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

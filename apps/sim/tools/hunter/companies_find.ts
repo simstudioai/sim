@@ -1,4 +1,5 @@
 import type { HunterEnrichmentParams, HunterEnrichmentResponse } from '@/tools/hunter/types'
+import { COMPANY_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichmentResponse> = {
@@ -12,7 +13,7 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Domain to find company data for',
+      description: 'Domain to find company data for (e.g., "stripe.com", "company.io")',
     },
     apiKey: {
       type: 'string',
@@ -62,11 +63,8 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
     person: {
       type: 'object',
       description: 'Person information (undefined for companies_find tool)',
+      optional: true,
     },
-    company: {
-      type: 'object',
-      description:
-        'Company information including name, domain, industry, size, country, linkedin, and twitter',
-    },
+    company: COMPANY_OUTPUT,
   },
 }

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
@@ -139,10 +140,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
 
     {
-      id: 'folderSelector',
+      id: 'uploadFolderSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'uploadFolderId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -159,10 +160,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
-      id: 'manualFolderId',
+      id: 'uploadManualFolderId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'uploadFolderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -176,10 +177,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       condition: { field: 'operation', value: 'create_folder' },
     },
     {
-      id: 'folderSelector',
+      id: 'createFolderParentSelector',
       title: 'Select Parent Folder',
       type: 'file-selector',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'createFolderParentId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -197,10 +198,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // Manual Folder ID input (advanced mode)
     {
-      id: 'manualFolderId',
+      id: 'createFolderManualParentId',
       title: 'Parent Folder ID',
       type: 'short-input',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'createFolderParentId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -208,10 +209,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // List Fields - Folder Selector (basic mode)
     {
-      id: 'folderSelector',
+      id: 'listFolderSelector',
       title: 'Select Folder',
       type: 'file-selector',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'listFolderId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -229,10 +230,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // Manual Folder ID input (advanced mode)
     {
-      id: 'manualFolderId',
+      id: 'listManualFolderId',
       title: 'Folder ID',
       type: 'short-input',
-      canonicalParamId: 'folderId',
+      canonicalParamId: 'listFolderId',
       placeholder: 'Enter folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -254,10 +255,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // Download File Fields - File Selector (basic mode)
     {
-      id: 'fileSelector',
+      id: 'downloadFileSelector',
       title: 'Select File',
       type: 'file-selector',
-      canonicalParamId: 'fileId',
+      canonicalParamId: 'downloadFileId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -272,13 +273,14 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       mode: 'basic',
       dependsOn: ['credential'],
       condition: { field: 'operation', value: 'download' },
+      required: true,
     },
     // Manual File ID input (advanced mode)
     {
-      id: 'manualFileId',
+      id: 'downloadManualFileId',
       title: 'File ID',
       type: 'short-input',
-      canonicalParamId: 'fileId',
+      canonicalParamId: 'downloadFileId',
       placeholder: 'Enter file ID',
       mode: 'advanced',
       condition: { field: 'operation', value: 'download' },
@@ -293,10 +295,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // Delete File Fields - File Selector (basic mode)
     {
-      id: 'fileSelector',
+      id: 'deleteFileSelector',
       title: 'Select File to Delete',
       type: 'file-selector',
-      canonicalParamId: 'fileId',
+      canonicalParamId: 'deleteFileId',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -315,10 +317,10 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
     // Manual File ID input (advanced mode)
     {
-      id: 'manualFileId',
+      id: 'deleteManualFileId',
       title: 'File ID',
       type: 'short-input',
-      canonicalParamId: 'fileId',
+      canonicalParamId: 'deleteFileId',
       placeholder: 'Enter file or folder ID to delete',
       mode: 'advanced',
       condition: { field: 'operation', value: 'delete' },
@@ -352,19 +354,63 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
+        const {
+          credential,
+          // Folder canonical params (per-operation)
+          uploadFolderId,
+          createFolderParentId,
+          listFolderId,
+          // File canonical params (per-operation)
+          downloadFileId,
+          deleteFileId,
+          mimeType,
+          values,
+          downloadFileName,
+          file,
+          ...rest
+        } = params
 
         let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
         if (values !== undefined) {
           normalizedValues = normalizeExcelValuesForToolParams(values)
         }
 
+        // Normalize file input from the canonical param
+        const normalizedFile = normalizeFileInput(file, { single: true })
+
+        // Resolve folderId based on operation
+        let resolvedFolderId: string | undefined
+        switch (params.operation) {
+          case 'create_file':
+          case 'upload':
+            resolvedFolderId = uploadFolderId?.trim() || undefined
+            break
+          case 'create_folder':
+            resolvedFolderId = createFolderParentId?.trim() || undefined
+            break
+          case 'list':
+            resolvedFolderId = listFolderId?.trim() || undefined
+            break
+        }
+
+        // Resolve fileId based on operation
+        let resolvedFileId: string | undefined
+        switch (params.operation) {
+          case 'download':
+            resolvedFileId = downloadFileId?.trim() || undefined
+            break
+          case 'delete':
+            resolvedFileId = deleteFileId?.trim() || undefined
+            break
+        }
+
         return {
           credential,
           ...rest,
           values: normalizedValues,
-          folderId: folderId || undefined,
-          fileId: fileId || undefined,
+          file: normalizedFile,
+          folderId: resolvedFolderId,
+          fileId: resolvedFileId,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...(downloadFileName && { fileName: downloadFileName }),
@@ -375,16 +421,22 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Microsoft account credential' },
-    // Upload and Create Folder operation inputs
+    // Upload and Create operation inputs
     fileName: { type: 'string', description: 'File name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },
-    fileReference: { type: 'json', description: 'File reference from previous block' },
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
     values: { type: 'json', description: 'Cell values for new Excel as JSON' },
-    fileId: { type: 'string', description: 'File ID to download' },
+    // Folder canonical params (per-operation)
+    uploadFolderId: { type: 'string', description: 'Parent folder for upload/create file' },
+    createFolderParentId: { type: 'string', description: 'Parent folder for create folder' },
+    listFolderId: { type: 'string', description: 'Folder to list files from' },
+    // File canonical params (per-operation)
+    downloadFileId: { type: 'string', description: 'File to download' },
+    deleteFileId: { type: 'string', description: 'File to delete' },
     downloadFileName: { type: 'string', description: 'File name override for download' },
-    folderId: { type: 'string', description: 'Folder ID' },
+    folderName: { type: 'string', description: 'Folder name for create_folder' },
+    // List operation inputs
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
   },
@@ -393,7 +445,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     deleted: { type: 'boolean', description: 'Whether the file was deleted' },
     fileId: { type: 'string', description: 'The ID of the deleted file' },
     file: {
-      type: 'json',
+      type: 'file',
       description: 'The OneDrive file object, including details such as id, name, size, and more.',
     },
     files: {

@@ -28,13 +28,13 @@ export const s3PutObjectTool: ToolConfig = {
     bucketName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 bucket name',
+      visibility: 'user-or-llm',
+      description: 'S3 bucket name (e.g., my-bucket)',
     },
     objectKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Object key/path in S3 (e.g., folder/filename.ext)',
     },
     file: {

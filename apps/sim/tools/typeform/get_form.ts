@@ -17,8 +17,8 @@ export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormRespo
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Form unique identifier',
+      visibility: 'user-or-llm',
+      description: 'Form unique identifier (e.g., "abc123XYZ")',
     },
   },
 
