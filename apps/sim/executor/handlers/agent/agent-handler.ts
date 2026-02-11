@@ -1070,6 +1070,7 @@ export class AgentBlockHandler implements BlockHandler {
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
+        previousInteractionId: providerRequest.previousInteractionId,
       })
 
       return this.processProviderResponse(response, block, responseFormat)
