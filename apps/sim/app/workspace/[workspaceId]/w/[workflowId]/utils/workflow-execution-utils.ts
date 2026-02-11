@@ -35,6 +35,7 @@ export async function executeWorkflowWithFullLogging(
   const executionId = options.executionId || uuidv4()
   const { addConsole } = useTerminalConsoleStore.getState()
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus } = useExecutionStore.getState()
+  const wfId = activeWorkflowId
   const workflowEdges = useWorkflowStore.getState().edges
 
   const activeBlocksSet = new Set<string>()
@@ -103,22 +104,22 @@ export async function executeWorkflowWithFullLogging(
           switch (event.type) {
             case 'block:started': {
               activeBlocksSet.add(event.data.blockId)
-              setActiveBlocks(new Set(activeBlocksSet))
+              setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               const incomingEdges = workflowEdges.filter(
                 (edge) => edge.target === event.data.blockId
               )
               incomingEdges.forEach((edge) => {
-                setEdgeRunStatus(edge.id, 'success')
+                setEdgeRunStatus(wfId, edge.id, 'success')
               })
               break
             }
 
             case 'block:completed':
               activeBlocksSet.delete(event.data.blockId)
-              setActiveBlocks(new Set(activeBlocksSet))
+              setActiveBlocks(wfId, new Set(activeBlocksSet))
 
-              setBlockRunStatus(event.data.blockId, 'success')
+              setBlockRunStatus(wfId, event.data.blockId, 'success')
 
               addConsole({
                 input: event.data.input || {},
@@ -145,9 +146,9 @@ export async function executeWorkflowWithFullLogging(
 
             case 'block:error':
               activeBlocksSet.delete(event.data.blockId)
-              setActiveBlocks(new Set(activeBlocksSet))
+              setActiveBlocks(wfId, new Set(activeBlocksSet))
 
-              setBlockRunStatus(event.data.blockId, 'error')
+              setBlockRunStatus(wfId, event.data.blockId, 'error')
 
               addConsole({
                 input: event.data.input || {},
@@ -192,7 +193,7 @@ export async function executeWorkflowWithFullLogging(
     }
   } finally {
     reader.releaseLock()
-    setActiveBlocks(new Set())
+    setActiveBlocks(wfId, new Set())
   }
 
   return executionResult

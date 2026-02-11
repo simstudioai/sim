@@ -50,20 +50,22 @@ async function doExecuteRunTool(
   toolName: string,
   params: Record<string, unknown>
 ): Promise<void> {
-  const { isExecuting, setIsExecuting } = useExecutionStore.getState()
+  const { activeWorkflowId } = useWorkflowRegistry.getState()
+
+  if (!activeWorkflowId) {
+    logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
+    setToolState(toolCallId, ClientToolCallState.error)
+    await reportCompletion(toolCallId, false, 'No active workflow found')
+    return
+  }
+
+  const { getWorkflowExecution, setIsExecuting } = useExecutionStore.getState()
+  const { isExecuting } = getWorkflowExecution(activeWorkflowId)
 
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(toolCallId, false, 'Workflow is already executing. Try again later')
-    return
-  }
-
-  const { activeWorkflowId } = useWorkflowRegistry.getState()
-  if (!activeWorkflowId) {
-    logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
-    setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, false, 'No active workflow found')
     return
   }
 
@@ -95,7 +97,7 @@ async function doExecuteRunTool(
     return undefined
   })()
 
-  setIsExecuting(true)
+  setIsExecuting(activeWorkflowId, true)
   const executionId = uuidv4()
   const executionStartTime = new Date().toISOString()
 
@@ -160,7 +162,7 @@ async function doExecuteRunTool(
     setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(toolCallId, false, msg)
   } finally {
-    setIsExecuting(false)
+    setIsExecuting(activeWorkflowId, false)
   }
 }
 

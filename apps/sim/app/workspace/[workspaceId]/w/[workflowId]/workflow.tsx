@@ -74,7 +74,7 @@ import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { useExecutionStore } from '@/stores/execution'
+import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { useCopilotStore, usePanelEditorStore } from '@/stores/panel'
@@ -740,16 +740,18 @@ const WorkflowContent = React.memo(() => {
     [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
   )
 
-  const { activeBlockIds, pendingBlocks, isDebugging, isExecuting, getLastExecutionSnapshot } =
-    useExecutionStore(
-      useShallow((state) => ({
-        activeBlockIds: state.activeBlockIds,
-        pendingBlocks: state.pendingBlocks,
-        isDebugging: state.isDebugging,
-        isExecuting: state.isExecuting,
-        getLastExecutionSnapshot: state.getLastExecutionSnapshot,
-      }))
-    )
+  const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useExecutionStore(
+    useShallow((state) => {
+      const wf = activeWorkflowId ? state.workflowExecutions.get(activeWorkflowId) : undefined
+      return {
+        activeBlockIds: wf?.activeBlockIds ?? defaultWorkflowExecutionState.activeBlockIds,
+        pendingBlocks: wf?.pendingBlocks ?? defaultWorkflowExecutionState.pendingBlocks,
+        isDebugging: wf?.isDebugging ?? false,
+        isExecuting: wf?.isExecuting ?? false,
+      }
+    })
+  )
+  const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
 
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 

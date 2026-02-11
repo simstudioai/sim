@@ -208,7 +208,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
           }))
-          useExecutionStore.getState().clearRunPath()
+          useExecutionStore.getState().clearRunPath(workflowId)
         },
 
         exportConsoleCSV: (workflowId: string) => {
