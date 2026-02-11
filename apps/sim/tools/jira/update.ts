@@ -1,5 +1,5 @@
 import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
@@ -176,6 +176,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     issueKey: { type: 'string', description: 'Updated issue key (e.g., PROJ-123)' },
     summary: { type: 'string', description: 'Issue summary after update' },
   },

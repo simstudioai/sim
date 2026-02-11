@@ -44,6 +44,7 @@ Retrieve detailed information about a specific Jira issue
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to retrieve \(e.g., PROJ-123\) |
+| `includeAttachments` | boolean | No | Download attachment file contents and include them as files in the output |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -65,6 +66,7 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `key` | string | Status category key \(e.g., new, indeterminate, done\) |
 |     ↳ `name` | string | Status category name \(e.g., To Do, In Progress, Done\) |
 |     ↳ `colorName` | string | Status category color \(e.g., blue-gray, yellow, green\) |
+| `statusName` | string | Issue status name \(e.g., Open, In Progress, Done\) |
 | `issuetype` | object | Issue type |
 |   ↳ `id` | string | Issue type ID |
 |   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story, Epic\) |
@@ -88,6 +90,7 @@ Retrieve detailed information about a specific Jira issue
 |   ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |   ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |   ↳ `timeZone` | string | User timezone |
+| `assigneeName` | string | Assignee display name or account ID |
 | `reporter` | object | Reporter user |
 |   ↳ `accountId` | string | Atlassian account ID of the user |
 |   ↳ `displayName` | string | Display name of the user |
@@ -173,6 +176,7 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Comment author display name |
 |   ↳ `updateAuthor` | object | User who last updated the comment |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -196,6 +200,7 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Worklog author display name |
 |   ↳ `updateAuthor` | object | User who last updated the worklog |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -225,9 +230,11 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Attachment author display name |
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
 | `issueKey` | string | Issue key \(e.g., PROJ-123\) |
 | `issue` | json | Complete raw Jira issue object from the API |
+| `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
 ### `jira_update`
 
@@ -258,6 +265,7 @@ Update a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Updated issue key \(e.g., PROJ-123\) |
 | `summary` | string | Issue summary after update |
 
@@ -296,6 +304,7 @@ Create a new Jira issue
 | `issueKey` | string | Created issue key \(e.g., PROJ-123\) |
 | `self` | string | REST API URL for the created issue |
 | `summary` | string | Issue summary |
+| `success` | boolean | Whether the issue was created successfully |
 | `url` | string | URL to the created issue in Jira |
 | `assigneeId` | string | Account ID of the assigned user \(null if no assignee was set\) |
 
@@ -358,6 +367,7 @@ Delete a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Deleted issue key |
 
 ### `jira_assign_issue`
@@ -378,6 +388,7 @@ Assign a Jira issue to a user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key that was assigned |
 | `assigneeId` | string | Account ID of the assignee \(use "-1" for auto-assign, null to unassign\) |
 
@@ -401,6 +412,7 @@ Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key that was transitioned |
 | `transitionId` | string | Applied transition ID |
 | `transitionName` | string | Applied transition name |
@@ -443,6 +455,7 @@ Search for Jira issues using JQL (Jira Query Language)
 |       ↳ `key` | string | Status category key \(e.g., new, indeterminate, done\) |
 |       ↳ `name` | string | Status category name \(e.g., To Do, In Progress, Done\) |
 |       ↳ `colorName` | string | Status category color \(e.g., blue-gray, yellow, green\) |
+|   ↳ `statusName` | string | Issue status name \(e.g., Open, In Progress, Done\) |
 |   ↳ `issuetype` | object | Issue type |
 |     ↳ `id` | string | Issue type ID |
 |     ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story, Epic\) |
@@ -466,6 +479,7 @@ Search for Jira issues using JQL (Jira Query Language)
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `assigneeName` | string | Assignee display name or account ID |
 |   ↳ `reporter` | object | Reporter user |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -509,6 +523,7 @@ Add a comment to a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key the comment was added to |
 | `commentId` | string | Created comment ID |
 | `body` | string | Comment text content |
@@ -558,6 +573,7 @@ Get all comments from a Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Comment author display name |
 |   ↳ `updateAuthor` | object | User who last updated the comment |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -592,6 +608,7 @@ Update an existing comment on a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `commentId` | string | Updated comment ID |
 | `body` | string | Updated comment text |
@@ -624,6 +641,7 @@ Delete a comment from a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `commentId` | string | Deleted comment ID |
 
@@ -637,6 +655,7 @@ Get all attachments from a Jira issue
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to get attachments from \(e.g., PROJ-123\) |
+| `includeAttachments` | boolean | No | Download attachment file contents and include them as files in the output |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -660,7 +679,9 @@ Get all attachments from a Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Attachment author display name |
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
+| `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
 
 ### `jira_add_attachment`
 
@@ -688,10 +709,7 @@ Add attachments to a Jira issue
 |   ↳ `size` | number | File size in bytes |
 |   ↳ `content` | string | URL to download the attachment |
 | `attachmentIds` | array | Array of attachment IDs |
-| `files` | array | Uploaded file metadata |
-|   ↳ `name` | string | File name |
-|   ↳ `mimeType` | string | MIME type |
-|   ↳ `size` | number | File size in bytes |
+| `files` | file[] | Uploaded attachment files |
 
 ### `jira_delete_attachment`
 
@@ -710,6 +728,7 @@ Delete an attachment from a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `attachmentId` | string | Deleted attachment ID |
 
 ### `jira_add_worklog`
@@ -733,6 +752,7 @@ Add a time tracking worklog entry to a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key the worklog was added to |
 | `worklogId` | string | Created worklog ID |
 | `timeSpent` | string | Time spent in human-readable format \(e.g., 3h 20m\) |
@@ -781,6 +801,7 @@ Get all worklog entries from a Jira issue
 |     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |     ↳ `timeZone` | string | User timezone |
+|   ↳ `authorName` | string | Worklog author display name |
 |   ↳ `updateAuthor` | object | User who last updated the worklog |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -818,6 +839,7 @@ Update an existing worklog entry on a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `worklogId` | string | Updated worklog ID |
 | `timeSpent` | string | Human-readable time spent \(e.g., "3h 20m"\) |
@@ -861,6 +883,7 @@ Delete a worklog entry from a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `worklogId` | string | Deleted worklog ID |
 
@@ -884,6 +907,7 @@ Create a link relationship between two Jira issues
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `inwardIssue` | string | Inward issue key |
 | `outwardIssue` | string | Outward issue key |
 | `linkType` | string | Type of issue link |
@@ -906,6 +930,7 @@ Delete a link between two Jira issues
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `linkId` | string | Deleted link ID |
 
 ### `jira_add_watcher`
@@ -926,6 +951,7 @@ Add a watcher to a Jira issue to receive notifications about updates
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Added watcher account ID |
 
@@ -947,6 +973,7 @@ Remove a watcher from a Jira issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `issueKey` | string | Issue key |
 | `watcherAccountId` | string | Removed watcher account ID |
 
@@ -977,6 +1004,8 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 |   ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
 |   ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
 |   ↳ `timeZone` | string | User timezone |
+|   ↳ `avatarUrls` | json | User avatar URLs in multiple sizes \(16x16, 24x24, 32x32, 48x48\) |
+|   ↳ `self` | string | REST API URL for this user |
 | `total` | number | Total number of users returned |
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |

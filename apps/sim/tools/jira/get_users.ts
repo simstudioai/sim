@@ -14,7 +14,9 @@ function transformUserOutput(user: any) {
     displayName: user.displayName ?? '',
     emailAddress: user.emailAddress ?? null,
     avatarUrl: user.avatarUrls?.['48x48'] ?? null,
+    avatarUrls: user.avatarUrls ?? null,
     timeZone: user.timeZone ?? null,
+    self: user.self ?? null,
   }
 }
 
@@ -165,7 +167,19 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
       description: 'Array of Jira users',
       items: {
         type: 'object',
-        properties: USER_OUTPUT_PROPERTIES,
+        properties: {
+          ...USER_OUTPUT_PROPERTIES,
+          avatarUrls: {
+            type: 'json',
+            description: 'User avatar URLs in multiple sizes (16x16, 24x24, 32x32, 48x48)',
+            optional: true,
+          },
+          self: {
+            type: 'string',
+            description: 'REST API URL for this user',
+            optional: true,
+          },
+        },
       },
     },
     total: { type: 'number', description: 'Total number of users returned' },

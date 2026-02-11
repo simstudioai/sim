@@ -1,5 +1,5 @@
 import type { JiraAssignIssueParams, JiraAssignIssueResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -130,6 +130,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key that was assigned' },
     assigneeId: {
       type: 'string',

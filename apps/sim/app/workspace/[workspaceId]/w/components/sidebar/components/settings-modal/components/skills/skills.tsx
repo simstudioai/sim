@@ -4,17 +4,8 @@ import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import { Input, Skeleton } from '@/components/ui'
 import { SkillModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/skills/components/skill-modal'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
@@ -105,12 +96,7 @@ export function Skills() {
     <>
       <div className='flex h-full flex-col gap-[16px]'>
         <div className='flex items-center gap-[8px]'>
-          <div
-            className={cn(
-              'flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]',
-              isLoading && 'opacity-50'
-            )}
-          >
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -120,7 +106,7 @@ export function Skills() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-100'
+              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>

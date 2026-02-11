@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { redactApiKeys } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -376,6 +377,7 @@ export class BlockExecutor {
    * - Filters out system fields (UI-only, readonly, internal flags)
    * - Removes UI state from inputFormat items (e.g., collapsed)
    * - Parses JSON strings to objects for readability
+   * - Redacts sensitive fields (privateKey, password, tokens, etc.)
    * Returns a new object - does not mutate the original inputs.
    */
   private sanitizeInputsForLog(inputs: Record<string, any>): Record<string, any> {
@@ -410,7 +412,7 @@ export class BlockExecutor {
       }
     }
 
-    return result
+    return redactApiKeys(result)
   }
 
   private callOnBlockStart(

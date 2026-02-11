@@ -1,3 +1,9 @@
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('JiraUtils')
+
+const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
+
 /**
  * Extracts plain text from Atlassian Document Format (ADF) content.
  * Returns null if content is falsy.
@@ -38,6 +44,58 @@ export function transformUser(user: any): {
   }
 }
 
+/**
+ * Downloads Jira attachment file content given attachment metadata and an access token.
+ * Returns an array of downloaded files with base64-encoded data.
+ */
+export async function downloadJiraAttachments(
+  attachments: Array<{
+    content: string
+    filename: string
+    mimeType: string
+    size: number
+    id: string
+  }>,
+  accessToken: string
+): Promise<Array<{ name: string; mimeType: string; data: string; size: number }>> {
+  const downloaded: Array<{ name: string; mimeType: string; data: string; size: number }> = []
+
+  for (const att of attachments) {
+    if (!att.content) continue
+    if (att.size > MAX_ATTACHMENT_SIZE) {
+      logger.warn(`Skipping attachment ${att.filename} (${att.size} bytes): exceeds size limit`)
+      continue
+    }
+    try {
+      const response = await fetch(att.content, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: '*/*',
+        },
+      })
+
+      if (!response.ok) {
+        logger.warn(`Failed to download attachment ${att.filename}: HTTP ${response.status}`)
+        continue
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      downloaded.push({
+        name: att.filename || `attachment-${att.id}`,
+        mimeType: att.mimeType || 'application/octet-stream',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      })
+    } catch (error) {
+      logger.warn(`Failed to download attachment ${att.filename}:`, error)
+    }
+  }
+
+  return downloaded
+}
+
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
   const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
     method: 'GET',
@@ -49,7 +107,6 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
 
   const resources = await response.json()
 
-  // If we have resources, find the matching one
   if (Array.isArray(resources) && resources.length > 0) {
     const normalizedInput = `https://${domain}`.toLowerCase()
     const matchedResource = resources.find((r) => r.url.toLowerCase() === normalizedInput)
@@ -59,8 +116,6 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
     }
   }
 
-  // If we couldn't find a match, return the first resource's ID
-  // This is a fallback in case the URL matching fails
   if (Array.isArray(resources) && resources.length > 0) {
     return resources[0].id
   }

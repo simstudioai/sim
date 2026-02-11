@@ -1,6 +1,6 @@
 import type { JiraGetAttachmentsParams, JiraGetAttachmentsResponse } from '@/tools/jira/types'
 import { ATTACHMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import { downloadJiraAttachments, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -15,6 +15,7 @@ function transformAttachment(att: any) {
     content: att.content ?? '',
     thumbnail: att.thumbnail ?? null,
     author: transformUser(att.author),
+    authorName: att.author?.displayName ?? att.author?.accountId ?? 'Unknown',
     created:
       typeof att.created === 'number' ? new Date(att.created).toISOString() : (att.created ?? ''),
   }
@@ -52,6 +53,12 @@ export const jiraGetAttachmentsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description: 'Jira issue key to get attachments from (e.g., PROJ-123)',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Download attachment file contents and include them as files in the output',
     },
     cloudId: {
       type: 'string',
@@ -118,12 +125,20 @@ export const jiraGetAttachmentsTool: ToolConfig<
       data = await response.json()
     }
 
+    const attachments = (data?.fields?.attachment ?? []).map(transformAttachment)
+
+    let files: Array<{ name: string; mimeType: string; data: string; size: number }> | undefined
+    if (params?.includeAttachments && attachments.length > 0) {
+      files = await downloadJiraAttachments(attachments, params.accessToken)
+    }
+
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
         issueKey: params?.issueKey ?? 'unknown',
-        attachments: (data?.fields?.attachment ?? []).map(transformAttachment),
+        attachments,
+        ...(files && files.length > 0 ? { files } : {}),
       },
     }
   },
@@ -138,6 +153,11 @@ export const jiraGetAttachmentsTool: ToolConfig<
         type: 'object',
         properties: ATTACHMENT_ITEM_PROPERTIES,
       },
+    },
+    files: {
+      type: 'file[]',
+      description: 'Downloaded attachment files (only when includeAttachments is true)',
+      optional: true,
     },
   },
 }

@@ -49,7 +49,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       title: 'Domain',
       type: 'short-input',
       required: true,
-      placeholder: 'Enter Jira domain (e.g., simstudio.atlassian.net)',
+      placeholder: 'Enter Jira domain (e.g., company.atlassian.net)',
     },
     {
       id: 'credential',

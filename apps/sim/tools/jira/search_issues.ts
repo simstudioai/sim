@@ -47,7 +47,9 @@ function transformSearchIssue(issue: any) {
           iconUrl: fields.priority.iconUrl ?? null,
         }
       : null,
+    statusName: fields.status?.name ?? '',
     assignee: transformUser(fields.assignee),
+    assigneeName: fields.assignee?.displayName ?? fields.assignee?.accountId ?? null,
     reporter: transformUser(fields.reporter),
     labels: fields.labels ?? [],
     components: (fields.components ?? []).map((c: any) => ({

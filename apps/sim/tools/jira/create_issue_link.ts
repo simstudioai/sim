@@ -1,5 +1,5 @@
 import type { JiraCreateIssueLinkParams, JiraCreateIssueLinkResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -184,9 +184,10 @@ export const jiraCreateIssueLinkTool: ToolConfig<
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     inwardIssue: { type: 'string', description: 'Inward issue key' },
     outwardIssue: { type: 'string', description: 'Outward issue key' },
     linkType: { type: 'string', description: 'Type of issue link' },
-    linkId: { type: 'string', description: 'Created link ID' },
+    linkId: { type: 'string', description: 'Created link ID', optional: true },
   },
 }

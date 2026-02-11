@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { JiraRetrieveParams, JiraRetrieveResponse } from '@/tools/jira/types'
 import { ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import {
+  downloadJiraAttachments,
+  extractAdfText,
+  getJiraCloudId,
+  transformUser,
+} from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('JiraRetrieveTool')
@@ -51,7 +56,9 @@ function transformIssueData(data: any) {
           iconUrl: fields.priority.iconUrl ?? null,
         }
       : null,
+    statusName: fields.status?.name ?? '',
     assignee: transformUser(fields.assignee),
+    assigneeName: fields.assignee?.displayName ?? fields.assignee?.accountId ?? null,
     reporter: transformUser(fields.reporter),
     creator: transformUser(fields.creator),
     labels: fields.labels ?? [],
@@ -143,13 +150,18 @@ function transformIssueData(data: any) {
       id: c.id ?? '',
       body: extractAdfText(c.body) ?? '',
       author: transformUser(c.author),
+      authorName: c.author?.displayName ?? c.author?.accountId ?? 'Unknown',
       updateAuthor: transformUser(c.updateAuthor),
       created: c.created ?? '',
       updated: c.updated ?? '',
+      visibility: c.visibility
+        ? { type: c.visibility.type ?? '', value: c.visibility.value ?? '' }
+        : null,
     })),
     worklogs: ((fields.worklog?.worklogs ?? fields.worklog) || []).map((w: any) => ({
       id: w.id ?? '',
       author: transformUser(w.author),
+      authorName: w.author?.displayName ?? w.author?.accountId ?? 'Unknown',
       updateAuthor: transformUser(w.updateAuthor),
       comment: w.comment ? (extractAdfText(w.comment) ?? null) : null,
       started: w.started ?? '',
@@ -166,6 +178,7 @@ function transformIssueData(data: any) {
       content: att.content ?? '',
       thumbnail: att.thumbnail ?? null,
       author: transformUser(att.author),
+      authorName: att.author?.displayName ?? att.author?.accountId ?? 'Unknown',
       created: att.created ?? '',
     })),
   }
@@ -200,6 +213,12 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       required: true,
       visibility: 'user-or-llm',
       description: 'Jira issue key to retrieve (e.g., PROJ-123)',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Download attachment file contents and include them as files in the output',
     },
     cloudId: {
       type: 'string',
@@ -316,12 +335,20 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       await fetchSupplementary(params.cloudId, data)
     }
 
+    const issueData = transformIssueData(data)
+
+    let files: Array<{ name: string; mimeType: string; data: string; size: number }> | undefined
+    if (params?.includeAttachments && issueData.attachments.length > 0) {
+      files = await downloadJiraAttachments(issueData.attachments, params.accessToken)
+    }
+
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        ...transformIssueData(data),
+        ...issueData,
         issue: data,
+        ...(files && files.length > 0 ? { files } : {}),
       },
     }
   },
@@ -332,6 +359,11 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     issue: {
       type: 'json',
       description: 'Complete raw Jira issue object from the API',
+      optional: true,
+    },
+    files: {
+      type: 'file[]',
+      description: 'Downloaded attachment files (only when includeAttachments is true)',
       optional: true,
     },
   },

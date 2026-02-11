@@ -255,7 +255,7 @@ export function useUpdateOrganizationUsageLimit() {
  * Invite member mutation
  */
 interface InviteMemberParams {
-  email: string
+  emails: string[]
   workspaceInvitations?: Array<{ workspaceId: string; permission: 'admin' | 'write' | 'read' }>
   orgId: string
 }
@@ -264,12 +264,12 @@ export function useInviteMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ email, workspaceInvitations, orgId }: InviteMemberParams) => {
+    mutationFn: async ({ emails, workspaceInvitations, orgId }: InviteMemberParams) => {
       const response = await fetch(`/api/organizations/${orgId}/invitations?batch=true`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          emails: [email],
+          emails,
           workspaceInvitations,
         }),
       })

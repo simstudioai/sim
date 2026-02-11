@@ -1,5 +1,5 @@
 import type { JiraAddWatcherParams, JiraAddWatcherResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -125,6 +125,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key' },
     watcherAccountId: { type: 'string', description: 'Added watcher account ID' },
   },

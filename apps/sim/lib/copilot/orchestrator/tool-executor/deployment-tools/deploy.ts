@@ -4,6 +4,8 @@ import { chat, workflowMcpTool } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
@@ -245,7 +247,10 @@ export async function executeDeployMcp(
       params.toolDescription ||
       workflowRecord.description ||
       `Execute ${workflowRecord.name} workflow`
-    const parameterSchema = params.parameterSchema || {}
+    const parameterSchema =
+      params.parameterSchema && Object.keys(params.parameterSchema).length > 0
+        ? params.parameterSchema
+        : await generateParameterSchemaForWorkflow(workflowId)
 
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
@@ -261,6 +266,9 @@ export async function executeDeployMcp(
           updatedAt: new Date(),
         })
         .where(eq(workflowMcpTool.id, toolId))
+
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
       return {
         success: true,
         output: { toolId, toolName, toolDescription, updated: true, mcpServerUrl, baseUrl },
@@ -278,6 +286,8 @@ export async function executeDeployMcp(
       createdAt: new Date(),
       updatedAt: new Date(),
     })
+
+    mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
     return {
       success: true,

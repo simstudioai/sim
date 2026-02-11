@@ -1,5 +1,5 @@
 import type { JiraUpdateWorklogParams, JiraUpdateWorklogResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -186,6 +186,7 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
 
     outputs: {
       ts: TIMESTAMP_OUTPUT,
+      success: SUCCESS_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
       worklogId: { type: 'string', description: 'Updated worklog ID' },
       timeSpent: { type: 'string', description: 'Human-readable time spent (e.g., "3h 20m")' },
