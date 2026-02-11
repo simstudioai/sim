@@ -36,7 +36,7 @@ spec:
       {{- if .Values.copilot.postgresql.enabled }}
       initContainers:
         - name: wait-for-postgres
-          image: postgres:16-alpine
+          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.postgresql.image) }}
           command:
             - /bin/sh
             - -c

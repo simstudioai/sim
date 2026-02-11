@@ -80,6 +80,9 @@ spec:
             - name: postgresql
               containerPort: {{ .Values.copilot.postgresql.service.targetPort }}
               protocol: TCP
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           envFrom:
             - secretRef:
                 name: {{ include "sim.fullname" . }}-copilot-postgresql-secret

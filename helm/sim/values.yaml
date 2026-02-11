@@ -1073,11 +1073,11 @@ copilot:
   postgresql:
     # Enable/disable internal PostgreSQL for copilot
     enabled: true
-    
+
     # Image configuration
     image:
       repository: postgres
-      tag: 16-alpine
+      tag: 17-alpine
       pullPolicy: IfNotPresent
     
     # Authentication configuration

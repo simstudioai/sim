@@ -63,7 +63,7 @@ copilot:
     
     image:
       repository: postgres
-      tag: 16-alpine
+      tag: 17-alpine
       pullPolicy: IfNotPresent
     
     auth:
