@@ -394,6 +394,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         // Page Property Operations
         { label: 'List Page Properties', id: 'list_page_properties' },
         { label: 'Create Page Property', id: 'create_page_property' },
+        { label: 'Delete Page Property', id: 'delete_page_property' },
         // Search Operations
         { label: 'Search Content', id: 'search' },
         { label: 'Search in Space', id: 'search_in_space' },
@@ -414,6 +415,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         // Label Operations
         { label: 'List Labels', id: 'list_labels' },
         { label: 'Add Label', id: 'add_label' },
+        { label: 'Delete Label', id: 'delete_label' },
+        { label: 'Get Pages by Label', id: 'get_pages_by_label' },
+        { label: 'List Space Labels', id: 'list_space_labels' },
         // Space Operations
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
@@ -485,6 +489,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'search_in_space',
           'get_space',
           'list_spaces',
+          'get_pages_by_label',
+          'list_space_labels',
         ],
         not: true,
       },
@@ -500,6 +506,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_labels',
           'upload_attachment',
           'add_label',
+          'delete_label',
+          'delete_page_property',
           'get_page_children',
           'get_page_ancestors',
           'list_page_versions',
@@ -527,6 +535,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'search_in_space',
           'get_space',
           'list_spaces',
+          'get_pages_by_label',
+          'list_space_labels',
         ],
         not: true,
       },
@@ -542,6 +552,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_labels',
           'upload_attachment',
           'add_label',
+          'delete_label',
+          'delete_page_property',
           'get_page_children',
           'get_page_ancestors',
           'list_page_versions',
@@ -566,6 +578,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'search_in_space',
           'create_blogpost',
           'list_blogposts_in_space',
+          'list_space_labels',
         ],
       },
     },
@@ -600,6 +613,14 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Enter property value (JSON supported)',
       required: true,
       condition: { field: 'operation', value: 'create_page_property' },
+    },
+    {
+      id: 'propertyId',
+      title: 'Property ID',
+      type: 'short-input',
+      placeholder: 'Enter property ID to delete',
+      required: true,
+      condition: { field: 'operation', value: 'delete_page_property' },
     },
     {
       id: 'title',
@@ -694,7 +715,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       placeholder: 'Enter label name',
       required: true,
-      condition: { field: 'operation', value: 'add_label' },
+      condition: { field: 'operation', value: ['add_label', 'delete_label'] },
     },
     {
       id: 'labelPrefix',
@@ -708,6 +729,14 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       ],
       value: () => 'global',
       condition: { field: 'operation', value: 'add_label' },
+    },
+    {
+      id: 'labelId',
+      title: 'Label ID',
+      type: 'short-input',
+      placeholder: 'Enter label ID',
+      required: true,
+      condition: { field: 'operation', value: 'get_pages_by_label' },
     },
     {
       id: 'blogPostStatus',
@@ -759,6 +788,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_page_versions',
           'list_page_properties',
           'list_labels',
+          'get_pages_by_label',
+          'list_space_labels',
         ],
       },
     },
@@ -780,6 +811,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_page_versions',
           'list_page_properties',
           'list_labels',
+          'get_pages_by_label',
+          'list_space_labels',
         ],
       },
     },
@@ -800,6 +833,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       // Property Tools
       'confluence_list_page_properties',
       'confluence_create_page_property',
+      'confluence_delete_page_property',
       // Search Tools
       'confluence_search',
       'confluence_search_in_space',
@@ -820,6 +854,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       // Label Tools
       'confluence_list_labels',
       'confluence_add_label',
+      'confluence_delete_label',
+      'confluence_get_pages_by_label',
+      'confluence_list_space_labels',
       // Space Tools
       'confluence_get_space',
       'confluence_list_spaces',
@@ -852,6 +889,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_list_page_properties'
           case 'create_page_property':
             return 'confluence_create_page_property'
+          case 'delete_page_property':
+            return 'confluence_delete_page_property'
           // Search Operations
           case 'search':
             return 'confluence_search'
@@ -887,6 +926,12 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_list_labels'
           case 'add_label':
             return 'confluence_add_label'
+          case 'delete_label':
+            return 'confluence_delete_label'
+          case 'get_pages_by_label':
+            return 'confluence_get_pages_by_label'
+          case 'list_space_labels':
+            return 'confluence_list_space_labels'
           // Space Operations
           case 'get_space':
             return 'confluence_get_space'
@@ -908,7 +953,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           versionNumber,
           propertyKey,
           propertyValue,
+          propertyId,
           labelPrefix,
+          labelId,
           blogPostStatus,
           purge,
           bodyFormat,
@@ -959,7 +1006,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           }
         }
 
-        // Operations that support cursor pagination
+        // Operations that support generic cursor pagination.
+        // get_pages_by_label and list_space_labels have dedicated handlers
+        // below that pass cursor along with their required params (labelId, spaceId).
         const supportsCursor = [
           'list_attachments',
           'list_spaces',
@@ -992,6 +1041,35 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             operation,
             key: propertyKey,
             value: propertyValue,
+            ...rest,
+          }
+        }
+
+        if (operation === 'delete_page_property') {
+          return {
+            credential,
+            pageId: effectivePageId,
+            operation,
+            propertyId,
+            ...rest,
+          }
+        }
+
+        if (operation === 'get_pages_by_label') {
+          return {
+            credential,
+            operation,
+            labelId,
+            cursor: cursor || undefined,
+            ...rest,
+          }
+        }
+
+        if (operation === 'list_space_labels') {
+          return {
+            credential,
+            operation,
+            cursor: cursor || undefined,
             ...rest,
           }
         }
@@ -1044,7 +1122,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
     attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },
+    labelId: { type: 'string', description: 'Label identifier' },
     labelPrefix: { type: 'string', description: 'Label prefix (global, my, team, system)' },
+    propertyId: { type: 'string', description: 'Property identifier' },
     blogPostStatus: { type: 'string', description: 'Blog post status (current or draft)' },
     purge: { type: 'boolean', description: 'Permanently delete instead of moving to trash' },
     bodyFormat: { type: 'string', description: 'Body format for comments' },
@@ -1080,6 +1160,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     // Label Results
     labels: { type: 'array', description: 'List of labels' },
     labelName: { type: 'string', description: 'Label name' },
+    labelId: { type: 'string', description: 'Label identifier' },
     // Space Results
     spaces: { type: 'array', description: 'List of spaces' },
     spaceId: { type: 'string', description: 'Space identifier' },
