@@ -310,6 +310,58 @@ function parseModelKey(compositeKey: string): { provider: string; modelId: strin
   return { provider: compositeKey.slice(0, slashIdx), modelId: compositeKey.slice(slashIdx + 1) }
 }
 
+const MODEL_PROVIDER_PRIORITY = [
+  'anthropic',
+  'bedrock',
+  'azure-anthropic',
+  'openai',
+  'azure-openai',
+  'gemini',
+  'google',
+  'azure',
+  'unknown',
+] as const
+
+const KNOWN_COPILOT_PROVIDERS = new Set<string>(MODEL_PROVIDER_PRIORITY)
+
+function isCompositeModelId(modelId: string): boolean {
+  const slashIdx = modelId.indexOf('/')
+  if (slashIdx <= 0 || slashIdx === modelId.length - 1) return false
+  const provider = modelId.slice(0, slashIdx)
+  return KNOWN_COPILOT_PROVIDERS.has(provider)
+}
+
+function toCompositeModelId(modelId: string, provider: string): string {
+  if (!modelId) return modelId
+  return isCompositeModelId(modelId) ? modelId : `${provider}/${modelId}`
+}
+
+function pickPreferredProviderModel(matches: AvailableModel[]): AvailableModel | undefined {
+  for (const provider of MODEL_PROVIDER_PRIORITY) {
+    const found = matches.find((m) => m.provider === provider)
+    if (found) return found
+  }
+  return matches[0]
+}
+
+function normalizeSelectedModelKey(selectedModel: string, models: AvailableModel[]): string {
+  if (!selectedModel || models.length === 0) return selectedModel
+  if (models.some((m) => m.id === selectedModel)) return selectedModel
+
+  const { provider, modelId } = parseModelKey(selectedModel)
+  const targetModelId = modelId || selectedModel
+
+  const matches = models.filter((m) => m.id.endsWith(`/${targetModelId}`))
+  if (matches.length === 0) return selectedModel
+
+  if (provider) {
+    const sameProvider = matches.find((m) => m.provider === provider)
+    if (sameProvider) return sameProvider.id
+  }
+
+  return (pickPreferredProviderModel(matches) ?? matches[0]).id
+}
+
 /** Look up the provider for the currently selected model from the composite key. */
 function getSelectedProvider(get: CopilotGet): string | undefined {
   const { provider } = parseModelKey(get().selectedModel)
@@ -2230,6 +2282,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const data = await response.json()
         const models: unknown[] = Array.isArray(data?.models) ? data.models : []
 
+        const seenModelIds = new Set<string>()
         const normalizedModels: AvailableModel[] = models
           .filter((model: unknown): model is AvailableModel => {
             return (
@@ -2240,27 +2293,35 @@ export const useCopilotStore = create<CopilotStore>()(
             )
           })
           .map((model: AvailableModel) => {
-            const provider = model.provider || 'unknown'
-            // Use composite provider/modelId keys (matching agent block pattern in providers/models.ts)
-            // so models with the same raw ID from different providers are uniquely identified.
-            const compositeId = `${provider}/${model.id}`
+            const idProvider = isCompositeModelId(model.id) ? parseModelKey(model.id).provider : ''
+            const provider = model.provider || idProvider || 'unknown'
+            // Use stable composite provider/modelId keys so same model IDs from different
+            // providers remain uniquely addressable.
+            const compositeId = toCompositeModelId(model.id, provider)
             return {
               id: compositeId,
               friendlyName: model.friendlyName || model.id,
               provider,
             }
           })
+          .filter((model) => {
+            if (seenModelIds.has(model.id)) return false
+            seenModelIds.add(model.id)
+            return true
+          })
 
         const { selectedModel } = get()
-        const selectedModelExists = normalizedModels.some((model) => model.id === selectedModel)
+        const normalizedSelectedModel = normalizeSelectedModelKey(selectedModel, normalizedModels)
+        const selectedModelExists = normalizedModels.some(
+          (model) => model.id === normalizedSelectedModel
+        )
 
         // Pick the best default: prefer claude-opus-4-6 with provider priority:
         // direct anthropic > bedrock > azure-anthropic > any other.
-        let nextSelectedModel = selectedModel
+        let nextSelectedModel = normalizedSelectedModel
         if (!selectedModelExists && normalizedModels.length > 0) {
-          const providerPriority = ['anthropic', 'bedrock', 'azure-anthropic']
           let opus46: AvailableModel | undefined
-          for (const prov of providerPriority) {
+          for (const prov of MODEL_PROVIDER_PRIORITY) {
             opus46 = normalizedModels.find((m) => m.id === `${prov}/claude-opus-4-6`)
             if (opus46) break
           }

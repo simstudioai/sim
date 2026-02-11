@@ -67,12 +67,21 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
    */
   const getProviderForModel = (compositeKey: string): string | undefined => {
     const slashIdx = compositeKey.indexOf('/')
-    if (slashIdx === -1) return undefined
-    return compositeKey.slice(0, slashIdx)
+    if (slashIdx !== -1) return compositeKey.slice(0, slashIdx)
+
+    // Legacy migration path: allow old raw IDs (without provider prefix)
+    // by resolving against current available model options.
+    const exact = modelOptions.find((m) => m.value === compositeKey)
+    if (exact?.provider) return exact.provider
+
+    const byRawSuffix = modelOptions.find((m) => m.value.endsWith(`/${compositeKey}`))
+    return byRawSuffix?.provider
   }
 
   const getCollapsedModeLabel = () => {
-    const model = modelOptions.find((m) => m.value === selectedModel)
+    const model =
+      modelOptions.find((m) => m.value === selectedModel) ??
+      modelOptions.find((m) => m.value.endsWith(`/${selectedModel}`))
     return model?.label || selectedModel || 'No models available'
   }
 
