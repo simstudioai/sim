@@ -416,7 +416,7 @@ function collapseMessagesToInput(request: ProviderRequest): {
     for (const msg of request.messages) {
       if (msg.role === 'system' && msg.content) {
         systemParts.push(msg.content)
-      } else if (msg.content) {
+      } else if (msg.role === 'user' && msg.content) {
         userParts.push(msg.content)
       }
     }
