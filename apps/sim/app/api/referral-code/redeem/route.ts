@@ -20,11 +20,16 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { applyBonusCredits } from '@/lib/billing/credits/bonus'
 
 const logger = createLogger('ReferralCodeRedemption')
+
+const RedeemCodeSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+})
 
 export async function POST(request: Request) {
   try {
@@ -34,11 +39,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { code } = body
-
-    if (!code || typeof code !== 'string') {
-      return NextResponse.json({ error: 'Code is required' }, { status: 400 })
-    }
+    const { code } = RedeemCodeSchema.parse(body)
 
     const subscription = await getHighestPrioritySubscription(session.user.id)
 
@@ -160,6 +161,9 @@ export async function POST(request: Request) {
       bonusAmount,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+    }
     logger.error('Referral code redemption error', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

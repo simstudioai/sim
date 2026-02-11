@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { applyBonusCredits } from '@/lib/billing/credits/bonus'
 
@@ -26,11 +27,21 @@ const logger = createLogger('AttributionAPI')
 const COOKIE_NAME = 'sim_utm'
 const CLOCK_DRIFT_TOLERANCE_MS = 60 * 1000
 
+const UtmCookieSchema = z.object({
+  utm_source: z.string().optional(),
+  utm_medium: z.string().optional(),
+  utm_campaign: z.string().optional(),
+  utm_content: z.string().optional(),
+  referrer_url: z.string().optional(),
+  landing_page: z.string().optional(),
+  created_at: z.string().min(1),
+})
+
 /**
  * Finds the most specific active campaign matching the given UTM params.
  * Null fields on a campaign act as wildcards. Ties broken by newest campaign.
  */
-async function findMatchingCampaign(utmData: Record<string, string>) {
+async function findMatchingCampaign(utmData: z.infer<typeof UtmCookieSchema>) {
   const campaigns = await db
     .select()
     .from(referralCampaigns)
@@ -89,16 +100,15 @@ export async function POST() {
       return NextResponse.json({ attributed: false, reason: 'no_utm_cookie' })
     }
 
-    let utmData: Record<string, string>
+    let utmData: z.infer<typeof UtmCookieSchema>
     try {
-      // Decode first, falling back to raw value if UTM params contain bare %
       let decoded: string
       try {
         decoded = decodeURIComponent(utmCookie.value)
       } catch {
         decoded = utmCookie.value
       }
-      utmData = JSON.parse(decoded)
+      utmData = UtmCookieSchema.parse(JSON.parse(decoded))
     } catch {
       logger.warn('Failed to parse UTM cookie', { userId: session.user.id })
       cookieStore.delete(COOKIE_NAME)
@@ -106,8 +116,8 @@ export async function POST() {
     }
 
     const cookieCreatedAt = Number(utmData.created_at)
-    if (!cookieCreatedAt || !Number.isFinite(cookieCreatedAt)) {
-      logger.warn('UTM cookie missing created_at timestamp', { userId: session.user.id })
+    if (!Number.isFinite(cookieCreatedAt)) {
+      logger.warn('UTM cookie has invalid created_at timestamp', { userId: session.user.id })
       cookieStore.delete(COOKIE_NAME)
       return NextResponse.json({ attributed: false, reason: 'invalid_cookie' })
     }
