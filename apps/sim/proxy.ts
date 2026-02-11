@@ -140,24 +140,6 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
-  if (url.pathname.startsWith('/ingest/')) {
-    const hostname = url.pathname.startsWith('/ingest/static/')
-      ? 'us-assets.i.posthog.com'
-      : 'us.i.posthog.com'
-
-    const targetPath = url.pathname.replace(/^\/ingest/, '')
-    const targetUrl = `https://${hostname}${targetPath}${url.search}`
-
-    return NextResponse.rewrite(new URL(targetUrl), {
-      request: {
-        headers: new Headers({
-          ...Object.fromEntries(request.headers),
-          host: hostname,
-        }),
-      },
-    })
-  }
-
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
@@ -219,7 +201,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/ingest/:path*', // PostHog proxy for session recording
     '/', // Root path for self-hosted redirect logic
     '/terms', // Whitelabel terms redirect
     '/privacy', // Whitelabel privacy redirect
@@ -230,6 +211,6 @@ export const config = {
     '/signup',
     '/invite/:path*', // Match invitation routes
     // Catch-all for other pages, excluding static assets and public directories
-    '/((?!_next/static|_next/image|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+    '/((?!_next/static|_next/image|ingest|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }
