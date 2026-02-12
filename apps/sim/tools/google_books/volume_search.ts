@@ -155,6 +155,10 @@ export const googleBooksVolumeSearchTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (data.error) {
+      throw new Error(`Google Books API error: ${data.error.message || 'Unknown error'}`)
+    }
+
     const items: GoogleBooksVolumeItem[] = data.items ?? []
     const volumes = items.map(extractVolumeInfo)
 

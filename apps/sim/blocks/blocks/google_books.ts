@@ -1,10 +1,12 @@
 import { GoogleBooksIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const GoogleBooksBlock: BlockConfig = {
   type: 'google_books',
   name: 'Google Books',
   description: 'Search and retrieve book information',
+  authMode: AuthMode.ApiKey,
   longDescription:
     'Search for books using the Google Books API. Find volumes by title, author, ISBN, or keywords, and retrieve detailed information about specific books including descriptions, ratings, and publication details.',
   docsLink: 'https://docs.sim.ai/tools/google_books',
@@ -120,6 +122,7 @@ export const GoogleBooksBlock: BlockConfig = {
         { label: 'Lite', id: 'lite' },
       ],
       value: () => 'full',
+      condition: { field: 'operation', value: 'volume_details' },
       mode: 'advanced',
     },
   ],
