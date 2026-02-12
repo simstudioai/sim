@@ -1162,7 +1162,10 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
     }
 
     if (params.mode === 'dry_run') {
-      const workflowId = params.workflowId || getContextPack(params.contextPackId || '')?.workflowId
+      const contextPack = params.contextPackId
+        ? await getContextPack(params.contextPackId)
+        : null
+      const workflowId = params.workflowId || contextPack?.workflowId
       if (!workflowId) {
         throw new Error('workflowId is required for dry_run')
       }
@@ -1231,7 +1234,7 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
           unresolvedRisks: params.changeSpec.unresolvedRisks,
         },
       }
-      const proposalId = saveProposal(proposal)
+      const proposalId = await saveProposal(proposal)
 
       logger.info('Compiled workflow_change dry run', {
         workflowId,
@@ -1265,7 +1268,7 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       throw new Error('proposalId is required for apply')
     }
 
-    const proposal = getProposal(proposalId)
+    const proposal = await getProposal(proposalId)
     if (!proposal) {
       throw new Error(`Proposal not found or expired: ${proposalId}`)
     }

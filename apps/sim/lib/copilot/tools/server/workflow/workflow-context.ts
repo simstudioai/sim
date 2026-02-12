@@ -84,7 +84,7 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
     const suggestedSchemaTypes = [...new Set(blockTypesInWorkflow.filter(Boolean))]
 
     const summary = summarizeWorkflowState(workflowState)
-    const packId = saveContextPack({
+    const packId = await saveContextPack({
       workflowId: params.workflowId,
       snapshotHash,
       workflowState,
@@ -128,7 +128,7 @@ export const workflowContextExpandServerTool: BaseServerTool<WorkflowContextExpa
       throw new Error('Unauthorized workflow access')
     }
 
-    const contextPack = getContextPack(params.contextPackId)
+    const contextPack = await getContextPack(params.contextPackId)
     if (!contextPack) {
       throw new Error(`Context pack not found or expired: ${params.contextPackId}`)
     }

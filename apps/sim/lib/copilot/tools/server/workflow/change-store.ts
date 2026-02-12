@@ -1,4 +1,6 @@
 import crypto from 'crypto'
+import { createLogger } from '@sim/logger'
+import { getRedisClient } from '@/lib/core/config/redis'
 
 type StoreEntry<T> = {
   value: T
@@ -7,6 +9,11 @@ type StoreEntry<T> = {
 
 const DEFAULT_TTL_MS = 30 * 60 * 1000
 const MAX_ENTRIES = 500
+const DEFAULT_TTL_SECONDS = Math.floor(DEFAULT_TTL_MS / 1000)
+const CONTEXT_PREFIX = 'copilot:workflow_change:context'
+const PROPOSAL_PREFIX = 'copilot:workflow_change:proposal'
+
+const logger = createLogger('WorkflowChangeStore')
 
 class TTLStore<T> {
   private readonly data = new Map<string, StoreEntry<T>>()
@@ -89,18 +96,90 @@ export type WorkflowChangeProposal = {
 const contextPackStore = new TTLStore<WorkflowContextPack>()
 const proposalStore = new TTLStore<WorkflowChangeProposal>()
 
-export function saveContextPack(pack: WorkflowContextPack): string {
-  return contextPackStore.set(pack)
+function getContextRedisKey(id: string): string {
+  return `${CONTEXT_PREFIX}:${id}`
 }
 
-export function getContextPack(id: string): WorkflowContextPack | null {
+function getProposalRedisKey(id: string): string {
+  return `${PROPOSAL_PREFIX}:${id}`
+}
+
+async function writeRedisJson(key: string, value: unknown): Promise<void> {
+  const redis = getRedisClient()!
+  await redis.set(key, JSON.stringify(value), 'EX', DEFAULT_TTL_SECONDS)
+}
+
+async function readRedisJson<T>(key: string): Promise<T | null> {
+  const redis = getRedisClient()!
+
+  const raw = await redis.get(key)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    return JSON.parse(raw) as T
+  } catch (error) {
+    logger.warn('Failed parsing workflow change store JSON payload', { key, error })
+    await redis.del(key).catch(() => {})
+    return null
+  }
+}
+
+export async function saveContextPack(pack: WorkflowContextPack): Promise<string> {
+  if (!getRedisClient()) {
+    return contextPackStore.set(pack)
+  }
+  const id = crypto.randomUUID()
+  try {
+    await writeRedisJson(getContextRedisKey(id), pack)
+    return id
+  } catch (error) {
+    logger.warn('Redis write failed for workflow context pack, using memory fallback', { error })
+    return contextPackStore.set(pack)
+  }
+}
+
+export async function getContextPack(id: string): Promise<WorkflowContextPack | null> {
+  if (!getRedisClient()) {
+    return contextPackStore.get(id)
+  }
+  try {
+    const redisPayload = await readRedisJson<WorkflowContextPack>(getContextRedisKey(id))
+    if (redisPayload) {
+      return redisPayload
+    }
+  } catch (error) {
+    logger.warn('Redis read failed for workflow context pack, using memory fallback', { error })
+  }
   return contextPackStore.get(id)
 }
 
-export function saveProposal(proposal: WorkflowChangeProposal): string {
-  return proposalStore.set(proposal)
+export async function saveProposal(proposal: WorkflowChangeProposal): Promise<string> {
+  if (!getRedisClient()) {
+    return proposalStore.set(proposal)
+  }
+  const id = crypto.randomUUID()
+  try {
+    await writeRedisJson(getProposalRedisKey(id), proposal)
+    return id
+  } catch (error) {
+    logger.warn('Redis write failed for workflow proposal, using memory fallback', { error })
+    return proposalStore.set(proposal)
+  }
 }
 
-export function getProposal(id: string): WorkflowChangeProposal | null {
+export async function getProposal(id: string): Promise<WorkflowChangeProposal | null> {
+  if (!getRedisClient()) {
+    return proposalStore.get(id)
+  }
+  try {
+    const redisPayload = await readRedisJson<WorkflowChangeProposal>(getProposalRedisKey(id))
+    if (redisPayload) {
+      return redisPayload
+    }
+  } catch (error) {
+    logger.warn('Redis read failed for workflow proposal, using memory fallback', { error })
+  }
   return proposalStore.get(id)
 }

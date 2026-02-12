@@ -139,6 +139,98 @@ async function waitForClientCapabilityAndReport(
   markToolResultSeen(toolCall.id)
 }
 
+function markToolCallAndNotify(
+  toolCall: ToolCallState,
+  statusCode: number,
+  message: string,
+  data: Record<string, unknown> | undefined,
+  logScope: string
+): void {
+  markToolComplete(toolCall.id, toolCall.name, statusCode, message, data).catch((err) => {
+    logger.error(`markToolComplete fire-and-forget failed (${logScope})`, {
+      toolCallId: toolCall.id,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+  markToolResultSeen(toolCall.id)
+}
+
+async function executeToolCallWithPolicy(
+  toolCall: ToolCallState,
+  toolName: string,
+  toolData: Record<string, unknown>,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: OrchestratorOptions,
+  logScope: string
+): Promise<void> {
+  const execution = getExecutionTarget(toolData, toolName)
+  const isInteractive = options.interactive === true
+  const requiresApproval = isInteractive && needsApproval(toolData)
+
+  if (toolData.state) {
+    toolCall.status = mapServerStateToToolStatus(toolData.state)
+  }
+
+  if (requiresApproval) {
+    const decision = await waitForToolDecision(
+      toolCall.id,
+      options.timeout || STREAM_TIMEOUT_MS,
+      options.abortSignal
+    )
+
+    if (decision?.status === 'accepted' || decision?.status === 'success') {
+      // Continue below into normal execution path.
+    } else if (decision?.status === 'rejected' || decision?.status === 'error') {
+      toolCall.status = 'rejected'
+      toolCall.endTime = Date.now()
+      markToolCallAndNotify(
+        toolCall,
+        400,
+        decision.message || 'Tool execution rejected',
+        { skipped: true, reason: 'user_rejected' },
+        `${logScope} rejected`
+      )
+      return
+    } else if (decision?.status === 'background') {
+      toolCall.status = 'skipped'
+      toolCall.endTime = Date.now()
+      markToolCallAndNotify(
+        toolCall,
+        202,
+        decision.message || 'Tool execution moved to background',
+        { background: true },
+        `${logScope} background`
+      )
+      return
+    } else {
+      // Decision was null (timeout/abort).
+      toolCall.status = 'rejected'
+      toolCall.endTime = Date.now()
+      markToolCallAndNotify(
+        toolCall,
+        408,
+        'Tool approval timed out',
+        { skipped: true, reason: 'timeout' },
+        `${logScope} timeout`
+      )
+      return
+    }
+  }
+
+  if (execution.target === 'sim_client_capability' && isInteractive) {
+    await waitForClientCapabilityAndReport(toolCall, options, logScope)
+    return
+  }
+
+  if (
+    (execution.target === 'sim_server' || execution.target === 'sim_client_capability') &&
+    options.autoExecuteTools !== false
+  ) {
+    await executeToolAndReport(toolCall.id, context, execContext, options)
+  }
+}
+
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
 function inferToolSuccess(data: Record<string, unknown> | undefined): {
@@ -272,101 +364,15 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    const execution = getExecutionTarget(toolData, toolName)
-    const isInteractive = options.interactive === true
-    const requiresApproval = isInteractive && needsApproval(toolData)
-    if (toolData.state) {
-      toolCall.status = mapServerStateToToolStatus(toolData.state)
-    }
-
-    if (requiresApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (execution.target === 'sim_client_capability' && isInteractive) {
-          await waitForClientCapabilityAndReport(toolCall, options, 'run tool')
-          return
-        }
-        if (execution.target === 'sim_server' || execution.target === 'sim_client_capability') {
-          if (options.autoExecuteTools !== false) {
-            await executeToolAndReport(toolCallId, context, execContext, options)
-          }
-        }
-        return
-      }
-
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      // Decision was null — timed out or aborted.
-      // Do NOT fall through to auto-execute. Mark the tool as timed out
-      // and notify Go so it can unblock waitForExternalTool.
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
-      return
-    }
-
-    if (execution.target === 'sim_client_capability' && isInteractive) {
-      await waitForClientCapabilityAndReport(toolCall, options, 'run tool')
-      return
-    }
-
-    if (
-      (execution.target === 'sim_server' || execution.target === 'sim_client_capability') &&
-      options.autoExecuteTools !== false
-    ) {
-      await executeToolAndReport(toolCallId, context, execContext, options)
-    }
+    await executeToolCallWithPolicy(
+      toolCall,
+      toolName,
+      toolData,
+      context,
+      execContext,
+      options,
+      'run tool'
+    )
   },
   reasoning: (event, context) => {
     const d = asRecord(event.data)
@@ -484,95 +490,15 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
-    const execution = getExecutionTarget(toolData, toolName)
-    const isInteractive = options.interactive === true
-    const requiresApproval = isInteractive && needsApproval(toolData)
-
-    if (requiresApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (execution.target === 'sim_client_capability' && isInteractive) {
-          await waitForClientCapabilityAndReport(toolCall, options, 'subagent run tool')
-          return
-        }
-        if (execution.target === 'sim_server' || execution.target === 'sim_client_capability') {
-          if (options.autoExecuteTools !== false) {
-            await executeToolAndReport(toolCallId, context, execContext, options)
-          }
-        }
-        return
-      }
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      // Decision was null — timed out or aborted.
-      // Do NOT fall through to auto-execute.
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (subagent timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
-      return
-    }
-
-    if (execution.target === 'sim_client_capability' && isInteractive) {
-      await waitForClientCapabilityAndReport(toolCall, options, 'subagent run tool')
-      return
-    }
-
-    if (
-      (execution.target === 'sim_server' || execution.target === 'sim_client_capability') &&
-      options.autoExecuteTools !== false
-    ) {
-      await executeToolAndReport(toolCallId, context, execContext, options)
-    }
+    await executeToolCallWithPolicy(
+      toolCall,
+      toolName,
+      toolData,
+      context,
+      execContext,
+      options,
+      'subagent run tool'
+    )
   },
   tool_result: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
