@@ -1042,7 +1042,7 @@ const cachedAutoAllowedTools = readAutoAllowedToolsFromStorage()
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
-  selectedModel: 'anthropic/claude-opus-4-6' as CopilotStore['selectedModel'],
+  selectedModel: 'anthropic/claude-opus-4-5' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   availableModels: [] as AvailableModel[],
   isLoadingModels: false,
@@ -2381,17 +2381,17 @@ export const useCopilotStore = create<CopilotStore>()(
           (model) => model.id === normalizedSelectedModel
         )
 
-        // Pick the best default: prefer claude-opus-4-6 with provider priority:
+        // Pick the best default: prefer claude-opus-4-5 with provider priority:
         // direct anthropic > bedrock > azure-anthropic > any other.
         let nextSelectedModel = normalizedSelectedModel
         if (!selectedModelExists && normalizedModels.length > 0) {
-          let opus46: AvailableModel | undefined
+          let opus45: AvailableModel | undefined
           for (const prov of MODEL_PROVIDER_PRIORITY) {
-            opus46 = normalizedModels.find((m) => m.id === `${prov}/claude-opus-4-6`)
-            if (opus46) break
+            opus45 = normalizedModels.find((m) => m.id === `${prov}/claude-opus-4-5`)
+            if (opus45) break
           }
-          if (!opus46) opus46 = normalizedModels.find((m) => m.id.endsWith('/claude-opus-4-6'))
-          nextSelectedModel = opus46 ? opus46.id : normalizedModels[0].id
+          if (!opus45) opus45 = normalizedModels.find((m) => m.id.endsWith('/claude-opus-4-5'))
+          nextSelectedModel = opus45 ? opus45.id : normalizedModels[0].id
         }
 
         set({
