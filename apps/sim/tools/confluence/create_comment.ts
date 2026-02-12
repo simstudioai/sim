@@ -1,3 +1,4 @@
+import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateCommentParams {
@@ -99,7 +100,7 @@ export const confluenceCreateCommentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of creation' },
+    ts: TIMESTAMP_OUTPUT,
     commentId: { type: 'string', description: 'Created comment ID' },
     pageId: { type: 'string', description: 'Page ID' },
   },

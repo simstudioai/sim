@@ -383,6 +383,393 @@ export const LABELS_OUTPUT: OutputProperty = {
 }
 
 /**
+ * Blog post item properties from Confluence API v2.
+ * Based on GET /wiki/api/v2/blogposts response structure.
+ */
+export const BLOGPOST_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique blog post identifier' },
+  title: { type: 'string', description: 'Blog post title' },
+  status: {
+    type: 'string',
+    description: 'Blog post status (e.g., current, draft)',
+    optional: true,
+  },
+  spaceId: {
+    type: 'string',
+    description: 'ID of the space containing the blog post',
+    optional: true,
+  },
+  authorId: { type: 'string', description: 'Account ID of the blog post author', optional: true },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the blog post was created',
+    optional: true,
+  },
+  version: {
+    type: 'object',
+    description: 'Blog post version information',
+    properties: VERSION_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  body: {
+    type: 'object',
+    description: 'Blog post body content',
+    properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  webUrl: {
+    type: 'string',
+    description: 'URL to view the blog post in Confluence',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete blog post object output definition.
+ */
+export const BLOGPOST_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Confluence blog post object',
+  properties: BLOGPOST_ITEM_PROPERTIES,
+}
+
+/**
+ * Blog posts array output definition for list endpoints.
+ */
+export const BLOGPOSTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Confluence blog posts',
+  items: {
+    type: 'object',
+    properties: BLOGPOST_ITEM_PROPERTIES,
+  },
+}
+
+/**
+ * Page property item properties from Confluence API v2.
+ * Based on GET /wiki/api/v2/pages/{id}/properties response structure.
+ */
+export const PAGE_PROPERTY_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique property identifier' },
+  key: { type: 'string', description: 'Property key/name' },
+  value: { type: 'json', description: 'Property value (can be any JSON)' },
+  version: {
+    type: 'object',
+    description: 'Property version information',
+    properties: VERSION_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Space property item properties from Confluence API v2.
+ * Same shape as page properties (id, key, value, version).
+ */
+export const SPACE_PROPERTY_ITEM_PROPERTIES = {
+  ...PAGE_PROPERTY_ITEM_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Task item properties from Confluence API v2.
+ * Based on GET /wiki/api/v2/tasks response structure.
+ */
+export const TASK_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique task identifier' },
+  localId: { type: 'string', description: 'Local task identifier within the content' },
+  spaceId: { type: 'string', description: 'ID of the space containing the task', optional: true },
+  pageId: {
+    type: 'string',
+    description: 'ID of the page containing the task',
+    optional: true,
+  },
+  blogPostId: {
+    type: 'string',
+    description: 'ID of the blog post containing the task',
+    optional: true,
+  },
+  status: { type: 'string', description: 'Task status (e.g., complete, incomplete)' },
+  body: {
+    type: 'object',
+    description: 'Task body content',
+    properties: {
+      value: { type: 'string', description: 'Task body text' },
+      representation: { type: 'string', description: 'Content representation format' },
+    },
+    optional: true,
+  },
+  createdBy: { type: 'string', description: 'Account ID of the task creator', optional: true },
+  assignedTo: {
+    type: 'string',
+    description: 'Account ID of the assigned user',
+    optional: true,
+  },
+  completedBy: {
+    type: 'string',
+    description: 'Account ID of the user who completed the task',
+    optional: true,
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the task was created',
+    optional: true,
+  },
+  updatedAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the task was last updated',
+    optional: true,
+  },
+  dueAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp for the task due date',
+    optional: true,
+  },
+  completedAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the task was completed',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete task object output definition.
+ */
+export const TASK_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Confluence task object',
+  properties: TASK_ITEM_PROPERTIES,
+}
+
+/**
+ * Tasks array output definition for list endpoints.
+ */
+export const TASKS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Confluence tasks',
+  items: {
+    type: 'object',
+    properties: TASK_ITEM_PROPERTIES,
+  },
+}
+
+/**
+ * Whiteboard item properties from Confluence API v2.
+ * Based on POST /wiki/api/v2/whiteboards response structure.
+ */
+export const WHITEBOARD_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique whiteboard identifier' },
+  title: { type: 'string', description: 'Whiteboard title' },
+  spaceId: { type: 'string', description: 'ID of the space containing the whiteboard' },
+  parentId: {
+    type: 'string',
+    description: 'ID of the parent content',
+    optional: true,
+  },
+  parentType: {
+    type: 'string',
+    description: 'Type of the parent content (e.g., page, space, whiteboard)',
+    optional: true,
+  },
+  position: {
+    type: 'number',
+    description: 'Position of the whiteboard among siblings',
+    optional: true,
+  },
+  authorId: {
+    type: 'string',
+    description: 'Account ID of the whiteboard creator',
+    optional: true,
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the whiteboard was created',
+    optional: true,
+  },
+  version: {
+    type: 'object',
+    description: 'Whiteboard version information',
+    properties: VERSION_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Database item properties from Confluence API v2.
+ * Based on POST /wiki/api/v2/databases response structure.
+ */
+export const DATABASE_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique database identifier' },
+  title: { type: 'string', description: 'Database title' },
+  spaceId: { type: 'string', description: 'ID of the space containing the database' },
+  parentId: {
+    type: 'string',
+    description: 'ID of the parent content',
+    optional: true,
+  },
+  parentType: {
+    type: 'string',
+    description: 'Type of the parent content',
+    optional: true,
+  },
+  position: {
+    type: 'number',
+    description: 'Position of the database among siblings',
+    optional: true,
+  },
+  status: {
+    type: 'string',
+    description: 'Database status (e.g., current, trashed)',
+    optional: true,
+  },
+  authorId: {
+    type: 'string',
+    description: 'Account ID of the database creator',
+    optional: true,
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the database was created',
+    optional: true,
+  },
+  version: {
+    type: 'object',
+    description: 'Database version information',
+    properties: VERSION_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Folder item properties from Confluence API v2.
+ * Based on POST /wiki/api/v2/folders response structure.
+ */
+export const FOLDER_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique folder identifier' },
+  title: { type: 'string', description: 'Folder title' },
+  spaceId: { type: 'string', description: 'ID of the space containing the folder' },
+  parentId: {
+    type: 'string',
+    description: 'ID of the parent content',
+    optional: true,
+  },
+  parentType: {
+    type: 'string',
+    description: 'Type of the parent content',
+    optional: true,
+  },
+  position: {
+    type: 'number',
+    description: 'Position of the folder among siblings',
+    optional: true,
+  },
+  status: {
+    type: 'string',
+    description: 'Folder status (e.g., current, trashed)',
+    optional: true,
+  },
+  authorId: {
+    type: 'string',
+    description: 'Account ID of the folder creator',
+    optional: true,
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the folder was created',
+    optional: true,
+  },
+  version: {
+    type: 'object',
+    description: 'Folder version information',
+    properties: VERSION_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Inline comment item properties from Confluence API v2.
+ * Extends COMMENT_ITEM_PROPERTIES with resolution fields.
+ */
+export const INLINE_COMMENT_ITEM_PROPERTIES = {
+  ...COMMENT_ITEM_PROPERTIES,
+  resolutionStatus: {
+    type: 'string',
+    description: 'Resolution status of the inline comment (e.g., open, resolved)',
+    optional: true,
+  },
+  resolutionLastModifiedBy: {
+    type: 'string',
+    description: 'Account ID of the user who last modified the resolution status',
+    optional: true,
+  },
+  resolutionLastModifiedAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the resolution was last modified',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Space permission item properties from Confluence API v2.
+ * Based on GET /wiki/api/v2/spaces/{id}/permissions response structure.
+ */
+export const SPACE_PERMISSION_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Unique permission identifier' },
+  principalType: {
+    type: 'string',
+    description: 'Type of the principal (e.g., user, group, role)',
+  },
+  principalId: { type: 'string', description: 'ID of the principal' },
+  operationKey: {
+    type: 'string',
+    description: 'Permission operation key (e.g., read, delete, administer)',
+  },
+  operationTargetType: {
+    type: 'string',
+    description: 'Target type for the operation (e.g., space, page, blogpost)',
+  },
+  isAnonymous: {
+    type: 'boolean',
+    description: 'Whether this permission applies to anonymous users',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * User item properties from Confluence API v2.
+ * Based on GET /wiki/api/v2/users-bulk response structure.
+ */
+export const USER_ITEM_PROPERTIES = {
+  accountId: { type: 'string', description: 'Unique Atlassian account identifier' },
+  accountType: {
+    type: 'string',
+    description: 'Account type (e.g., atlassian, app, customer)',
+  },
+  accountStatus: {
+    type: 'string',
+    description: 'Account status (e.g., active, inactive, closed)',
+    optional: true,
+  },
+  displayName: { type: 'string', description: 'User display name' },
+  publicName: { type: 'string', description: 'User public name', optional: true },
+  email: { type: 'string', description: 'User email address', optional: true },
+  timeZone: { type: 'string', description: 'User time zone', optional: true },
+  personalSpaceId: {
+    type: 'string',
+    description: 'ID of the user personal space',
+    optional: true,
+  },
+  isExternalCollaborator: {
+    type: 'boolean',
+    description: 'Whether the user is an external collaborator',
+    optional: true,
+  },
+  profilePicture: {
+    type: 'string',
+    description: 'URL to the user profile picture',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Search result space info properties.
  * Based on Confluence search API space object in results.
  */
@@ -493,6 +880,14 @@ export const DELETED_OUTPUT: OutputProperty = {
 export const URL_OUTPUT: OutputProperty = {
   type: 'string',
   description: 'URL to view in Confluence',
+}
+
+/**
+ * Common updated status output property.
+ */
+export const UPDATED_OUTPUT: OutputProperty = {
+  type: 'boolean',
+  description: 'Update status',
 }
 
 // Page operations
@@ -710,6 +1105,149 @@ export interface ConfluenceSpaceResponse extends ToolResponse {
   }
 }
 
+// Blog post update/delete operations
+export interface ConfluenceUpdateBlogPostParams {
+  accessToken: string
+  domain: string
+  blogPostId: string
+  title?: string
+  content?: string
+  status?: string
+  cloudId?: string
+}
+
+export interface ConfluenceUpdateBlogPostResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    title: string
+    status: string | null
+    spaceId: string | null
+    authorId: string | null
+    body: Record<string, unknown> | null
+    version: Record<string, unknown> | null
+    webUrl: string | null
+  }
+}
+
+export interface ConfluenceDeleteBlogPostParams {
+  accessToken: string
+  domain: string
+  blogPostId: string
+  cloudId?: string
+}
+
+export interface ConfluenceDeleteBlogPostResponse extends ToolResponse {
+  output: {
+    ts: string
+    blogPostId: string
+    deleted: boolean
+  }
+}
+
+// Page property update
+export interface ConfluenceUpdatePagePropertyParams {
+  accessToken: string
+  domain: string
+  pageId: string
+  propertyId: string
+  key: string
+  value: unknown
+  versionNumber: number
+  cloudId?: string
+}
+
+export interface ConfluenceUpdatePagePropertyResponse extends ToolResponse {
+  output: {
+    ts: string
+    pageId: string
+    propertyId: string
+    key: string
+    value: unknown
+    version: Record<string, unknown> | null
+  }
+}
+
+// Task operations
+export interface ConfluenceTaskResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Whiteboard operations
+export interface ConfluenceWhiteboardResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Database operations
+export interface ConfluenceDatabaseResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Folder operations
+export interface ConfluenceFolderResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Inline comment operations
+export interface ConfluenceInlineCommentResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Space permission operations
+export interface ConfluenceSpacePermissionResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Space property operations
+export interface ConfluenceSpacePropertyResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// User bulk operations
+export interface ConfluenceUserBulkResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Blog post label operations
+export interface ConfluenceBlogPostLabelResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
+// Blog post version operations
+export interface ConfluenceBlogPostVersionResponse extends ToolResponse {
+  output: {
+    ts: string
+    [key: string]: unknown
+  }
+}
+
 export type ConfluenceResponse =
   | ConfluenceRetrieveResponse
   | ConfluenceUpdateResponse
@@ -721,3 +1259,16 @@ export type ConfluenceResponse =
   | ConfluenceUploadAttachmentResponse
   | ConfluenceLabelResponse
   | ConfluenceSpaceResponse
+  | ConfluenceUpdateBlogPostResponse
+  | ConfluenceDeleteBlogPostResponse
+  | ConfluenceUpdatePagePropertyResponse
+  | ConfluenceTaskResponse
+  | ConfluenceWhiteboardResponse
+  | ConfluenceDatabaseResponse
+  | ConfluenceFolderResponse
+  | ConfluenceInlineCommentResponse
+  | ConfluenceSpacePermissionResponse
+  | ConfluenceSpacePropertyResponse
+  | ConfluenceUserBulkResponse
+  | ConfluenceBlogPostLabelResponse
+  | ConfluenceBlogPostVersionResponse

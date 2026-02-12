@@ -1,4 +1,8 @@
-import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import {
+  CONTENT_BODY_OUTPUT_PROPERTIES,
+  TIMESTAMP_OUTPUT,
+  VERSION_OUTPUT_PROPERTIES,
+} from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePageParams {
@@ -128,7 +132,7 @@ export const confluenceCreatePageTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of creation' },
+    ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'Created page ID' },
     title: { type: 'string', description: 'Page title' },
     status: { type: 'string', description: 'Page status', optional: true },

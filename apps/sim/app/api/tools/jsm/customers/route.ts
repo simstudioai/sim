@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
+    const { action: customerAction } = body
+
     const rawIds = accountIds || emails
     const parsedAccountIds = rawIds
       ? typeof rawIds === 'string'
@@ -69,7 +71,50 @@ export async function POST(request: NextRequest) {
           : []
       : []
 
-    const isAddOperation = parsedAccountIds.length > 0
+    const isRemoveOperation = customerAction === 'remove'
+    const isAddOperation = !isRemoveOperation && parsedAccountIds.length > 0
+
+    if (isRemoveOperation) {
+      if (parsedAccountIds.length === 0) {
+        return NextResponse.json(
+          { error: 'Account IDs or emails are required for removal' },
+          { status: 400 }
+        )
+      }
+
+      const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
+
+      logger.info('Removing customers from:', url, { accountIds: parsedAccountIds })
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: getJsmHeaders(accessToken),
+        body: JSON.stringify({ accountIds: parsedAccountIds }),
+      })
+
+      if (response.status === 204 || response.ok) {
+        return NextResponse.json({
+          success: true,
+          output: {
+            ts: new Date().toISOString(),
+            serviceDeskId,
+            success: true,
+          },
+        })
+      }
+
+      const errorText = await response.text()
+      logger.error('JSM API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      })
+
+      return NextResponse.json(
+        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        { status: response.status }
+      )
+    }
 
     if (isAddOperation) {
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`

@@ -1,5 +1,10 @@
 import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from '@/tools/confluence/types'
-import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import {
+  CONTENT_BODY_OUTPUT_PROPERTIES,
+  SUCCESS_OUTPUT,
+  TIMESTAMP_OUTPUT,
+  VERSION_OUTPUT_PROPERTIES,
+} from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, ConfluenceUpdateResponse> = {
@@ -112,7 +117,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of update' },
+    ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'Confluence page ID' },
     title: { type: 'string', description: 'Updated page title' },
     status: { type: 'string', description: 'Page status', optional: true },
@@ -130,6 +135,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       optional: true,
     },
     url: { type: 'string', description: 'URL to view the page in Confluence', optional: true },
-    success: { type: 'boolean', description: 'Update operation success status' },
+    success: SUCCESS_OUTPUT,
   },
 }
