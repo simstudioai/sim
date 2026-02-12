@@ -3,30 +3,31 @@
  *
  * List referral campaigns with optional filtering and pagination.
  *
- * Query params:
- *   - active?: 'true' | 'false' — Filter by active status
- *   - limit?: number — Page size (default 50)
- *   - offset?: number — Offset for pagination
+ * Query Parameters:
+ *   - active: string (optional) - Filter by active status ('true' or 'false')
+ *   - limit: number (default: 50, max: 250)
+ *   - offset: number (default: 0)
  *
  * POST /api/v1/admin/referral-campaigns
  *
  * Create a new referral campaign.
  *
  * Body:
- *   - name: string — Campaign name (required)
- *   - bonusCreditAmount: number — Bonus credits in dollars (required, > 0)
- *   - code?: string | null — Redeemable code (min 6 chars, auto-uppercased)
- *   - utmSource?: string | null — UTM source match (null = wildcard)
- *   - utmMedium?: string | null — UTM medium match (null = wildcard)
- *   - utmCampaign?: string | null — UTM campaign match (null = wildcard)
- *   - utmContent?: string | null — UTM content match (null = wildcard)
+ *   - name: string (required) - Campaign name
+ *   - bonusCreditAmount: number (required, > 0) - Bonus credits in dollars
+ *   - code: string | null (optional, min 6 chars, auto-uppercased) - Redeemable code
+ *   - utmSource: string | null (optional) - UTM source match (null = wildcard)
+ *   - utmMedium: string | null (optional) - UTM medium match (null = wildcard)
+ *   - utmCampaign: string | null (optional) - UTM campaign match (null = wildcard)
+ *   - utmContent: string | null (optional) - UTM content match (null = wildcard)
  */
 
 import { db } from '@sim/db'
 import { referralCampaigns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { count, eq, type SQL } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -34,38 +35,51 @@ import {
   listResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
-import { createPaginationMeta, parsePaginationParams } from '@/app/api/v1/admin/types'
+import {
+  type AdminReferralCampaign,
+  createPaginationMeta,
+  parsePaginationParams,
+  toAdminReferralCampaign,
+} from '@/app/api/v1/admin/types'
 
-const logger = createLogger('AdminReferralCampaigns')
+const logger = createLogger('AdminReferralCampaignsAPI')
 
 export const GET = withAdminAuth(async (request) => {
+  const url = new URL(request.url)
+  const { limit, offset } = parsePaginationParams(url)
+  const activeFilter = url.searchParams.get('active')
+
   try {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
-    const activeFilter = url.searchParams.get('active')
-
-    let query = db.select().from(referralCampaigns).$dynamic()
-
+    const conditions: SQL<unknown>[] = []
     if (activeFilter === 'true') {
-      query = query.where(eq(referralCampaigns.isActive, true))
+      conditions.push(eq(referralCampaigns.isActive, true))
     } else if (activeFilter === 'false') {
-      query = query.where(eq(referralCampaigns.isActive, false))
+      conditions.push(eq(referralCampaigns.isActive, false))
     }
 
-    const rows = await query.limit(limit).offset(offset)
+    const whereClause = conditions.length > 0 ? conditions[0] : undefined
+    const baseUrl = getBaseUrl()
 
-    let countQuery = db.select().from(referralCampaigns).$dynamic()
-    if (activeFilter === 'true') {
-      countQuery = countQuery.where(eq(referralCampaigns.isActive, true))
-    } else if (activeFilter === 'false') {
-      countQuery = countQuery.where(eq(referralCampaigns.isActive, false))
-    }
-    const allRows = await countQuery
-    const total = allRows.length
+    const [countResult, campaigns] = await Promise.all([
+      db.select({ total: count() }).from(referralCampaigns).where(whereClause),
+      db
+        .select()
+        .from(referralCampaigns)
+        .where(whereClause)
+        .orderBy(referralCampaigns.createdAt)
+        .limit(limit)
+        .offset(offset),
+    ])
 
-    return listResponse(rows, createPaginationMeta(total, limit, offset))
+    const total = countResult[0].total
+    const data: AdminReferralCampaign[] = campaigns.map((c) => toAdminReferralCampaign(c, baseUrl))
+    const pagination = createPaginationMeta(total, limit, offset)
+
+    logger.info(`Admin API: Listed ${data.length} referral campaigns (total: ${total})`)
+
+    return listResponse(data, pagination)
   } catch (error) {
-    logger.error('Failed to list referral campaigns', { error })
+    logger.error('Admin API: Failed to list referral campaigns', { error })
     return internalErrorResponse('Failed to list referral campaigns')
   }
 })
@@ -112,20 +126,15 @@ export const POST = withAdminAuth(async (request) => {
       })
       .returning()
 
-    logger.info('Created referral campaign', {
-      id,
+    logger.info(`Admin API: Created referral campaign ${id}`, {
       name,
       code: campaign.code,
-      utmSource,
-      utmMedium,
-      utmCampaign,
-      utmContent,
       bonusCreditAmount,
     })
 
-    return singleResponse(campaign)
+    return singleResponse(toAdminReferralCampaign(campaign, getBaseUrl()))
   } catch (error) {
-    logger.error('Failed to create referral campaign', { error })
+    logger.error('Admin API: Failed to create referral campaign', { error })
     return internalErrorResponse('Failed to create referral campaign')
   }
 })

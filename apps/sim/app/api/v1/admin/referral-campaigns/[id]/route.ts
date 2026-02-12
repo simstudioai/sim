@@ -8,20 +8,21 @@
  * Update campaign fields. All fields are optional.
  *
  * Body:
- *   - name?: string — Campaign name (non-empty)
- *   - bonusCreditAmount?: number — Bonus credits in dollars (> 0)
- *   - isActive?: boolean — Enable/disable the campaign
- *   - code?: string | null — Redeemable code (min 6 chars, auto-uppercased, null to remove)
- *   - utmSource?: string | null — UTM source match (null = wildcard)
- *   - utmMedium?: string | null — UTM medium match (null = wildcard)
- *   - utmCampaign?: string | null — UTM campaign match (null = wildcard)
- *   - utmContent?: string | null — UTM content match (null = wildcard)
+ *   - name: string (non-empty) - Campaign name
+ *   - bonusCreditAmount: number (> 0) - Bonus credits in dollars
+ *   - isActive: boolean - Enable/disable the campaign
+ *   - code: string | null (min 6 chars, auto-uppercased, null to remove) - Redeemable code
+ *   - utmSource: string | null - UTM source match (null = wildcard)
+ *   - utmMedium: string | null - UTM medium match (null = wildcard)
+ *   - utmCampaign: string | null - UTM campaign match (null = wildcard)
+ *   - utmContent: string | null - UTM content match (null = wildcard)
  */
 
 import { db } from '@sim/db'
 import { referralCampaigns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -29,56 +30,59 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
+import { toAdminReferralCampaign } from '@/app/api/v1/admin/types'
 
-const logger = createLogger('AdminReferralCampaign')
+const logger = createLogger('AdminReferralCampaignDetailAPI')
 
 interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (_request, context) => {
+export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
   try {
-    const { id } = await context.params
+    const { id: campaignId } = await context.params
 
     const [campaign] = await db
       .select()
       .from(referralCampaigns)
-      .where(eq(referralCampaigns.id, id))
+      .where(eq(referralCampaigns.id, campaignId))
       .limit(1)
 
     if (!campaign) {
       return notFoundResponse('Campaign')
     }
 
-    return singleResponse(campaign)
+    logger.info(`Admin API: Retrieved referral campaign ${campaignId}`)
+
+    return singleResponse(toAdminReferralCampaign(campaign, getBaseUrl()))
   } catch (error) {
-    logger.error('Failed to get referral campaign', { error })
+    logger.error('Admin API: Failed to get referral campaign', { error })
     return internalErrorResponse('Failed to get referral campaign')
   }
 })
 
 export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) => {
   try {
-    const { id } = await context.params
+    const { id: campaignId } = await context.params
     const body = await request.json()
 
     const [existing] = await db
       .select()
       .from(referralCampaigns)
-      .where(eq(referralCampaigns.id, id))
+      .where(eq(referralCampaigns.id, campaignId))
       .limit(1)
 
     if (!existing) {
       return notFoundResponse('Campaign')
     }
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
+    const updateData: Record<string, unknown> = { updatedAt: new Date() }
 
     if (body.name !== undefined) {
-      if (typeof body.name !== 'string' || !body.name) {
+      if (typeof body.name !== 'string' || body.name.trim().length === 0) {
         return badRequestResponse('name must be a non-empty string')
       }
-      updates.name = body.name
+      updateData.name = body.name.trim()
     }
 
     if (body.bonusCreditAmount !== undefined) {
@@ -89,14 +93,14 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       ) {
         return badRequestResponse('bonusCreditAmount must be a positive number')
       }
-      updates.bonusCreditAmount = body.bonusCreditAmount.toString()
+      updateData.bonusCreditAmount = body.bonusCreditAmount.toString()
     }
 
     if (body.isActive !== undefined) {
       if (typeof body.isActive !== 'boolean') {
         return badRequestResponse('isActive must be a boolean')
       }
-      updates.isActive = body.isActive
+      updateData.isActive = body.isActive
     }
 
     if (body.code !== undefined) {
@@ -108,7 +112,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
           return badRequestResponse('code must be at least 6 characters')
         }
       }
-      updates.code = body.code ? body.code.trim().toUpperCase() : null
+      updateData.code = body.code ? body.code.trim().toUpperCase() : null
     }
 
     for (const field of ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const) {
@@ -116,21 +120,23 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
         if (body[field] !== null && typeof body[field] !== 'string') {
           return badRequestResponse(`${field} must be a string or null`)
         }
-        updates[field] = body[field]
+        updateData[field] = body[field] || null
       }
     }
 
     const [updated] = await db
       .update(referralCampaigns)
-      .set(updates)
-      .where(eq(referralCampaigns.id, id))
+      .set(updateData)
+      .where(eq(referralCampaigns.id, campaignId))
       .returning()
 
-    logger.info('Updated referral campaign', { id, updates })
+    logger.info(`Admin API: Updated referral campaign ${campaignId}`, {
+      fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+    })
 
-    return singleResponse(updated)
+    return singleResponse(toAdminReferralCampaign(updated, getBaseUrl()))
   } catch (error) {
-    logger.error('Failed to update referral campaign', { error })
+    logger.error('Admin API: Failed to update referral campaign', { error })
     return internalErrorResponse('Failed to update referral campaign')
   }
 })
