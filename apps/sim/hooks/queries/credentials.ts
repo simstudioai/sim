@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { environmentKeys } from '@/hooks/queries/environment'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal'
@@ -186,6 +187,7 @@ export function useDeleteWorkspaceCredential() {
     onSuccess: (_data, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
 }

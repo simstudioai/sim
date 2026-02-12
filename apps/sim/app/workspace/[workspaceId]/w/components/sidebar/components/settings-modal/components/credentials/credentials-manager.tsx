@@ -283,7 +283,7 @@ export function CredentialsManager() {
     const request = readPendingCredentialCreateRequest()
     if (!request) return
 
-    if (request.workspaceId !== workspaceId || request.type !== 'oauth') {
+    if (request.workspaceId !== workspaceId) {
       return
     }
 
@@ -293,10 +293,22 @@ export function CredentialsManager() {
     }
 
     setShowCreateModal(true)
-    setCreateType('oauth')
-    setCreateOAuthProviderId(request.providerId)
-    setCreateDisplayName(request.displayName)
+    setShowCreateOAuthRequiredModal(false)
     setCreateError(null)
+    setCreateEnvValue('')
+
+    if (request.type === 'oauth') {
+      setCreateType('oauth')
+      setCreateOAuthProviderId(request.providerId)
+      setCreateDisplayName(request.displayName)
+      setCreateEnvKey('')
+    } else {
+      setCreateType(request.type)
+      setCreateOAuthProviderId('')
+      setCreateDisplayName('')
+      setCreateEnvKey(request.envKey || '')
+    }
+
     clearPendingCredentialCreateRequest()
   }, [workspaceId])
 
@@ -635,7 +647,7 @@ export function CredentialsManager() {
           ) : sortedCredentials.length === 0 ? (
             <div className='rounded-[8px] border border-[var(--border-1)] px-[12px] py-[10px] text-[12px] text-[var(--text-tertiary)]'>
               {bootstrapCredentials.isPending
-                ? 'Syncing credentials from connected accounts and env vars...'
+                ? 'Syncing credentials from connected accounts and secrets...'
                 : 'No credentials available for this workspace.'}
             </div>
           ) : (
@@ -1031,14 +1043,14 @@ export function CredentialsManager() {
                   {selectedExistingEnvCredential && (
                     <div className='rounded-[8px] border border-[var(--brand-9)]/40 bg-[var(--surface-3)] px-[10px] py-[8px]'>
                       <p className='text-[12px] text-[var(--text-primary)]'>
-                        This env key already maps to credential{' '}
+                        This secret key already maps to credential{' '}
                         <span className='font-medium'>
                           {selectedExistingEnvCredential.displayName}
                         </span>
                         .
                       </p>
                       <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                        Create will update the env value and reuse the existing credential.
+                        Create will update the secret value and reuse the existing credential.
                       </p>
                       <Button
                         variant='ghost'

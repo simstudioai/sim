@@ -9,6 +9,7 @@ import {
   PopoverSection,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   usePersonalEnvironment,
   useWorkspaceEnvironment,
@@ -168,6 +169,14 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }, [searchTerm])
 
   const openEnvironmentSettings = () => {
+    if (workspaceId) {
+      writePendingCredentialCreateRequest({
+        workspaceId,
+        type: 'env_personal',
+        envKey: searchTerm.trim(),
+        requestedAt: Date.now(),
+      })
+    }
     window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
     onClose?.()
   }
