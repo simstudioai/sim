@@ -1905,51 +1905,37 @@ describe('AgentBlockHandler', () => {
     describe('customToolId resolution - DB as source of truth', () => {
       const staleInlineSchema = {
         function: {
-          name: 'buttonTemplate',
-          description: 'Creates a button template',
+          name: 'formatReport',
+          description: 'Formats a report',
           parameters: {
             type: 'object',
             properties: {
-              sender_id: { type: 'string', description: 'Sender ID' },
-              header_value: { type: 'string', description: 'Header text' },
-              body_value: { type: 'string', description: 'Body text' },
-              button_array: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Button labels',
-              },
+              title: { type: 'string', description: 'Report title' },
+              content: { type: 'string', description: 'Report content' },
             },
-            required: ['sender_id', 'header_value', 'body_value', 'button_array'],
+            required: ['title', 'content'],
           },
         },
       }
 
       const dbSchema = {
         function: {
-          name: 'buttonTemplate',
-          description: 'Creates a button template',
+          name: 'formatReport',
+          description: 'Formats a report',
           parameters: {
             type: 'object',
             properties: {
-              sender_id: { type: 'string', description: 'Sender ID' },
-              header_value: { type: 'string', description: 'Header text' },
-              body_value: { type: 'string', description: 'Body text' },
-              button_array: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Button labels',
-              },
-              channel: { type: 'string', description: 'Channel name' },
+              title: { type: 'string', description: 'Report title' },
+              content: { type: 'string', description: 'Report content' },
+              format: { type: 'string', description: 'Output format' },
             },
-            required: ['sender_id', 'header_value', 'body_value', 'button_array', 'channel'],
+            required: ['title', 'content', 'format'],
           },
         },
       }
 
-      const staleInlineCode =
-        'return JSON.stringify({ type: "button", phone: sender_id, header: header_value, body: body_value, buttons: button_array });'
-      const dbCode =
-        'if (channel === "whatsapp") { return JSON.stringify({ type: "button", phone: sender_id, header: header_value, body: body_value, buttons: button_array }); }'
+      const staleInlineCode = 'return { title, content };'
+      const dbCode = 'return { title, content, format };'
 
       function mockFetchForCustomTool(toolId: string) {
         mockFetch.mockImplementation((url: string) => {
@@ -1962,7 +1948,7 @@ describe('AgentBlockHandler', () => {
                   data: [
                     {
                       id: toolId,
-                      title: 'buttonTemplate',
+                      title: 'formatReport',
                       schema: dbSchema,
                       code: dbCode,
                     },
@@ -2010,13 +1996,13 @@ describe('AgentBlockHandler', () => {
 
         const inputs = {
           model: 'gpt-4o',
-          userPrompt: 'Send a button template',
+          userPrompt: 'Format a report',
           apiKey: 'test-api-key',
           tools: [
             {
               type: 'custom-tool',
               customToolId: toolId,
-              title: 'buttonTemplate',
+              title: 'formatReport',
               schema: staleInlineSchema,
               code: staleInlineCode,
               usageControl: 'auto' as const,
@@ -2033,9 +2019,9 @@ describe('AgentBlockHandler', () => {
         const tools = providerCall[1].tools
 
         expect(tools.length).toBe(1)
-        // DB schema wins over stale inline — includes channel param
-        expect(tools[0].parameters.required).toContain('channel')
-        expect(tools[0].parameters.properties).toHaveProperty('channel')
+        // DB schema wins over stale inline — includes format param
+        expect(tools[0].parameters.required).toContain('format')
+        expect(tools[0].parameters.properties).toHaveProperty('format')
       })
 
       it('should fetch from DB when customToolId has no inline schema', async () => {
@@ -2044,7 +2030,7 @@ describe('AgentBlockHandler', () => {
 
         const inputs = {
           model: 'gpt-4o',
-          userPrompt: 'Send a button template',
+          userPrompt: 'Format a report',
           apiKey: 'test-api-key',
           tools: [
             {
@@ -2064,8 +2050,8 @@ describe('AgentBlockHandler', () => {
         const tools = providerCall[1].tools
 
         expect(tools.length).toBe(1)
-        expect(tools[0].name).toBe('buttonTemplate')
-        expect(tools[0].parameters.required).toContain('channel')
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).toContain('format')
       })
 
       it('should fall back to inline schema when DB fetch fails and inline exists', async () => {
@@ -2073,13 +2059,13 @@ describe('AgentBlockHandler', () => {
 
         const inputs = {
           model: 'gpt-4o',
-          userPrompt: 'Send a button template',
+          userPrompt: 'Format a report',
           apiKey: 'test-api-key',
           tools: [
             {
               type: 'custom-tool',
               customToolId: 'custom-tool-123',
-              title: 'buttonTemplate',
+              title: 'formatReport',
               schema: staleInlineSchema,
               code: staleInlineCode,
               usageControl: 'auto' as const,
@@ -2095,10 +2081,9 @@ describe('AgentBlockHandler', () => {
         const providerCall = mockExecuteProviderRequest.mock.calls[0]
         const tools = providerCall[1].tools
 
-        // Falls back to inline schema (4 params, no channel)
         expect(tools.length).toBe(1)
-        expect(tools[0].name).toBe('buttonTemplate')
-        expect(tools[0].parameters.required).not.toContain('channel')
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).not.toContain('format')
       })
 
       it('should return null when DB fetch fails and no inline schema exists', async () => {
@@ -2106,7 +2091,7 @@ describe('AgentBlockHandler', () => {
 
         const inputs = {
           model: 'gpt-4o',
-          userPrompt: 'Send a button template',
+          userPrompt: 'Format a report',
           apiKey: 'test-api-key',
           tools: [
             {
@@ -2145,13 +2130,13 @@ describe('AgentBlockHandler', () => {
 
         const inputs = {
           model: 'gpt-4o',
-          userPrompt: 'Send a button template',
+          userPrompt: 'Format a report',
           apiKey: 'test-api-key',
           tools: [
             {
               type: 'custom-tool',
               customToolId: toolId,
-              title: 'buttonTemplate',
+              title: 'formatReport',
               schema: staleInlineSchema,
               code: staleInlineCode,
               usageControl: 'auto' as const,
@@ -2166,9 +2151,8 @@ describe('AgentBlockHandler', () => {
         expect(capturedTools.length).toBe(1)
         expect(typeof capturedTools[0].executeFunction).toBe('function')
 
-        await capturedTools[0].executeFunction({ sender_id: '123', channel: 'whatsapp' })
+        await capturedTools[0].executeFunction({ title: 'Q1', format: 'pdf' })
 
-        // Should use DB code, not stale inline code
         expect(mockExecuteTool).toHaveBeenCalledWith(
           'function_execute',
           expect.objectContaining({
@@ -2187,7 +2171,7 @@ describe('AgentBlockHandler', () => {
           tools: [
             {
               type: 'custom-tool',
-              title: 'inlineTool',
+              title: 'formatReport',
               schema: staleInlineSchema,
               code: staleInlineCode,
               usageControl: 'auto' as const,
@@ -2209,8 +2193,8 @@ describe('AgentBlockHandler', () => {
         const tools = providerCall[1].tools
 
         expect(tools.length).toBe(1)
-        expect(tools[0].name).toBe('buttonTemplate')
-        expect(tools[0].parameters.required).not.toContain('channel')
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).not.toContain('format')
       })
     })
   })
