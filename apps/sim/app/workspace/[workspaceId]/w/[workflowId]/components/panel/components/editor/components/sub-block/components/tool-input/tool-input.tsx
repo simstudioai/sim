@@ -1067,7 +1067,7 @@ export const ToolInput = memo(function ToolInput({
         <ShortInput
           blockId={blockId}
           subBlockId={uniqueSubBlockId}
-          placeholder={param.description}
+          placeholder={param.description || `Enter ${formatParameterLabel(param.id).toLowerCase()}`}
           password={isPasswordParameter(param.id)}
           config={{
             id: uniqueSubBlockId,
@@ -1747,7 +1747,7 @@ export const ToolInput = memo(function ToolInput({
                   {requiresOAuth && oauthConfig && (
                     <div className='relative min-w-0 space-y-[6px]'>
                       <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Account
+                        Account <span className='ml-0.5'>*</span>
                       </div>
                       <div className='w-full min-w-0'>
                         <ToolCredentialSelector

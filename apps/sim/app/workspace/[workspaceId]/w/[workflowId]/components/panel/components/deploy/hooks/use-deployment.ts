@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useDeployment')
 
@@ -33,6 +36,24 @@ export function useDeployment({
 
     if (isDeployed) {
       return { success: true, shouldOpenModal: true }
+    }
+
+    const { blocks, edges, loops, parallels } = useWorkflowStore.getState()
+    const liveBlocks = mergeSubblockState(blocks, workflowId)
+    const checkResult = runPreDeployChecks({
+      blocks: liveBlocks,
+      edges,
+      loops,
+      parallels,
+      workflowId,
+    })
+    if (!checkResult.passed) {
+      addNotification({
+        level: 'error',
+        message: checkResult.error || 'Pre-deploy validation failed',
+        workflowId,
+      })
+      return { success: false, shouldOpenModal: false }
     }
 
     setIsDeploying(true)

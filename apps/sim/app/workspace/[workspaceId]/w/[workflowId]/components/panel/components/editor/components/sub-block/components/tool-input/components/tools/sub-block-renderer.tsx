@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
@@ -77,21 +77,10 @@ export function ToolSubBlockRenderer({
     }
   }, [storeValue, toolIndex, effectiveParamId, onParamChange])
 
-  // Determine if the parameter is optional for the user (LLM can fill it)
+  // Suppress SubBlock's "*" required indicator when the LLM can fill the param
   const visibility = subBlock.paramVisibility ?? 'user-or-llm'
   const isOptionalForUser = visibility !== 'user-only'
 
-  const labelSuffix = useMemo(
-    () =>
-      isOptionalForUser ? (
-        <span className='-ml-[3px] font-normal text-[12px] text-[var(--text-tertiary)]'>
-          (optional)
-        </span>
-      ) : null,
-    [isOptionalForUser]
-  )
-
-  // Suppress SubBlock's "*" required indicator for optional-for-user params
   const config = {
     ...subBlock,
     id: syntheticId,
@@ -105,7 +94,6 @@ export function ToolSubBlockRenderer({
       isPreview={false}
       disabled={disabled}
       canonicalToggle={canonicalToggle}
-      labelSuffix={labelSuffix}
       dependencyContext={toolParams}
     />
   )

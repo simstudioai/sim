@@ -90,11 +90,6 @@ export function ParameterWithLabel({
         <Label className='flex items-baseline gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
           {title}
           {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
-          {visibility !== 'user-only' && (
-            <span className='-ml-[3px] font-normal text-[12px] text-[var(--text-tertiary)]'>
-              (optional)
-            </span>
-          )}
         </Label>
         <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
           {showWand &&
