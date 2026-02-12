@@ -418,8 +418,46 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
  */
 export function filterSubBlockIds(subBlockIds: string[]): string[] {
   return subBlockIds
-    .filter((id) => !SYSTEM_SUBBLOCK_IDS.includes(id) && !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id))
+    .filter((id) => {
+      if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id)) return false
+      if (SYSTEM_SUBBLOCK_IDS.some((sysId) => id === sysId || id.startsWith(`${sysId}_`)))
+        return false
+      return true
+    })
     .sort()
+}
+
+/**
+ * Normalizes trigger block subBlocks by populating null/empty individual fields
+ * from the triggerConfig aggregate subBlock. This compensates for the runtime
+ * population done by populateTriggerFieldsFromConfig, ensuring consistent
+ * comparison between client state (with populated values) and deployed state
+ * (with null values from DB).
+ */
+export function normalizeTriggerConfigValues(
+  subBlocks: Record<string, unknown>
+): Record<string, unknown> {
+  const triggerConfigSub = subBlocks.triggerConfig as Record<string, unknown> | undefined
+  const triggerConfigValue = triggerConfigSub?.value
+  if (!triggerConfigValue || typeof triggerConfigValue !== 'object') {
+    return subBlocks
+  }
+
+  const result = { ...subBlocks }
+  for (const [fieldId, configValue] of Object.entries(
+    triggerConfigValue as Record<string, unknown>
+  )) {
+    if (configValue === null || configValue === undefined) continue
+    const existingSub = result[fieldId] as Record<string, unknown> | undefined
+    if (
+      existingSub &&
+      (existingSub.value === null || existingSub.value === undefined || existingSub.value === '')
+    ) {
+      result[fieldId] = { ...existingSub, value: configValue }
+    }
+  }
+
+  return result
 }
 
 /**

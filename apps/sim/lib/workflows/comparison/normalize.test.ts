@@ -4,10 +4,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
+  filterSubBlockIds,
   normalizedStringify,
   normalizeEdge,
   normalizeLoop,
   normalizeParallel,
+  normalizeTriggerConfigValues,
   normalizeValue,
   sanitizeInputFormat,
   sanitizeTools,
@@ -582,6 +584,216 @@ describe('Workflow Normalization Utilities', () => {
 
       expect(result1).toBe(result2)
       expect(result2).toBe(result3)
+    })
+  })
+
+  describe('filterSubBlockIds', () => {
+    it.concurrent('should exclude exact SYSTEM_SUBBLOCK_IDS', () => {
+      const ids = ['signingSecret', 'samplePayload', 'triggerInstructions', 'botToken']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['botToken', 'signingSecret'])
+    })
+
+    it.concurrent('should exclude namespaced SYSTEM_SUBBLOCK_IDS (prefix matching)', () => {
+      const ids = [
+        'signingSecret',
+        'samplePayload_slack_webhook',
+        'triggerInstructions_slack_webhook',
+        'webhookUrlDisplay_slack_webhook',
+        'botToken',
+      ]
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['botToken', 'signingSecret'])
+    })
+
+    it.concurrent('should exclude exact TRIGGER_RUNTIME_SUBBLOCK_IDS', () => {
+      const ids = ['webhookId', 'triggerPath', 'triggerConfig', 'triggerId', 'signingSecret']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['signingSecret'])
+    })
+
+    it.concurrent('should not exclude IDs that merely contain a system ID substring', () => {
+      const ids = ['mySamplePayload', 'notSamplePayload']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['mySamplePayload', 'notSamplePayload'])
+    })
+
+    it.concurrent('should return sorted results', () => {
+      const ids = ['zebra', 'alpha', 'middle']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['alpha', 'middle', 'zebra'])
+    })
+
+    it.concurrent('should handle empty array', () => {
+      expect(filterSubBlockIds([])).toEqual([])
+    })
+
+    it.concurrent('should handle all IDs being excluded', () => {
+      const ids = ['webhookId', 'triggerPath', 'samplePayload', 'triggerConfig']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual([])
+    })
+
+    it.concurrent('should exclude setupScript and scheduleInfo namespaced variants', () => {
+      const ids = ['setupScript_google_sheets_row', 'scheduleInfo_cron_trigger', 'realField']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['realField'])
+    })
+
+    it.concurrent('should exclude triggerCredentials namespaced variants', () => {
+      const ids = ['triggerCredentials_slack_webhook', 'signingSecret']
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['signingSecret'])
+    })
+  })
+
+  describe('normalizeTriggerConfigValues', () => {
+    it.concurrent('should return subBlocks unchanged when no triggerConfig exists', () => {
+      const subBlocks = {
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: 'secret123' },
+        botToken: { id: 'botToken', type: 'short-input', value: 'token456' },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect(result).toEqual(subBlocks)
+    })
+
+    it.concurrent('should return subBlocks unchanged when triggerConfig value is null', () => {
+      const subBlocks = {
+        triggerConfig: { id: 'triggerConfig', type: 'short-input', value: null },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect(result).toEqual(subBlocks)
+    })
+
+    it.concurrent(
+      'should return subBlocks unchanged when triggerConfig value is not an object',
+      () => {
+        const subBlocks = {
+          triggerConfig: { id: 'triggerConfig', type: 'short-input', value: 'string-value' },
+          signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+        }
+        const result = normalizeTriggerConfigValues(subBlocks)
+        expect(result).toEqual(subBlocks)
+      }
+    )
+
+    it.concurrent('should populate null individual fields from triggerConfig', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'secret123', botToken: 'token456' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+        botToken: { id: 'botToken', type: 'short-input', value: null },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect((result.signingSecret as Record<string, unknown>).value).toBe('secret123')
+      expect((result.botToken as Record<string, unknown>).value).toBe('token456')
+    })
+
+    it.concurrent('should populate undefined individual fields from triggerConfig', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'secret123' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: undefined },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect((result.signingSecret as Record<string, unknown>).value).toBe('secret123')
+    })
+
+    it.concurrent('should populate empty string individual fields from triggerConfig', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'secret123' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: '' },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect((result.signingSecret as Record<string, unknown>).value).toBe('secret123')
+    })
+
+    it.concurrent('should NOT overwrite existing non-empty individual field values', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'old-secret' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: 'user-edited-secret' },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect((result.signingSecret as Record<string, unknown>).value).toBe('user-edited-secret')
+    })
+
+    it.concurrent('should skip triggerConfig fields that are null/undefined', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: null, botToken: undefined },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+        botToken: { id: 'botToken', type: 'short-input', value: null },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect((result.signingSecret as Record<string, unknown>).value).toBe(null)
+      expect((result.botToken as Record<string, unknown>).value).toBe(null)
+    })
+
+    it.concurrent('should skip fields from triggerConfig that have no matching subBlock', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { nonExistentField: 'value123' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      expect(result.nonExistentField).toBeUndefined()
+      expect((result.signingSecret as Record<string, unknown>).value).toBe(null)
+    })
+
+    it.concurrent('should not mutate the original subBlocks object', () => {
+      const original = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'secret123' },
+        },
+        signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+      }
+      normalizeTriggerConfigValues(original)
+      expect((original.signingSecret as Record<string, unknown>).value).toBe(null)
+    })
+
+    it.concurrent('should preserve other subBlock properties when populating value', () => {
+      const subBlocks = {
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'short-input',
+          value: { signingSecret: 'secret123' },
+        },
+        signingSecret: {
+          id: 'signingSecret',
+          type: 'short-input',
+          value: null,
+          placeholder: 'Enter signing secret',
+        },
+      }
+      const result = normalizeTriggerConfigValues(subBlocks)
+      const normalized = result.signingSecret as Record<string, unknown>
+      expect(normalized.value).toBe('secret123')
+      expect(normalized.id).toBe('signingSecret')
+      expect(normalized.type).toBe('short-input')
+      expect(normalized.placeholder).toBe('Enter signing secret')
     })
   })
 })
