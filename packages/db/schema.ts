@@ -2095,6 +2095,30 @@ export const credentialMember = pgTable(
   })
 )
 
+export const pendingCredentialDraft = pgTable(
+  'pending_credential_draft',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    displayName: text('display_name').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueDraft: uniqueIndex('pending_draft_user_provider_ws').on(
+      table.userId,
+      table.providerId,
+      table.workspaceId
+    ),
+  })
+)
+
 export const credentialSet = pgTable(
   'credential_set',
   {

@@ -1,8 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  clearPendingOAuthCredentialDraft,
-  readPendingOAuthCredentialDraft,
-} from '@/lib/credentials/client-state'
 import type { Credential } from '@/lib/oauth'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
@@ -14,10 +10,6 @@ interface CredentialListResponse {
 
 interface CredentialDetailResponse {
   credentials?: Credential[]
-}
-
-interface AuthAccountsResponse {
-  accounts?: Array<{ id: string }>
 }
 
 export const oauthCredentialKeys = {
@@ -38,80 +30,11 @@ interface FetchOAuthCredentialsParams {
   workflowId?: string
 }
 
-async function finalizePendingOAuthCredentialDraftIfNeeded(params: {
-  providerId: string
-  workspaceId?: string
-}) {
-  const { providerId, workspaceId } = params
-  if (!workspaceId || !providerId) return
-  if (typeof window === 'undefined') return
-
-  const draft = readPendingOAuthCredentialDraft()
-  if (!draft) return
-  if (draft.workspaceId !== workspaceId || draft.providerId !== providerId) return
-
-  const draftAgeMs = Date.now() - draft.requestedAt
-  if (draftAgeMs > 15 * 60 * 1000) {
-    clearPendingOAuthCredentialDraft()
-    return
-  }
-
-  const bootstrapResponse = await fetch('/api/credentials/bootstrap', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workspaceId }),
-  })
-  if (!bootstrapResponse.ok) {
-    return
-  }
-
-  const accountsResponse = await fetch(
-    `/api/auth/accounts?provider=${encodeURIComponent(providerId)}`
-  )
-  if (!accountsResponse.ok) {
-    return
-  }
-  const accountsData = (await accountsResponse.json()) as AuthAccountsResponse
-  const accountIds = (accountsData.accounts ?? []).map((account) => account.id)
-  if (accountIds.length === 0) {
-    return
-  }
-
-  const targetAccountId =
-    accountIds.find((accountId) => !draft.existingAccountIds.includes(accountId)) ?? accountIds[0]
-  if (!targetAccountId) {
-    return
-  }
-
-  const createResponse = await fetch('/api/credentials', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      workspaceId,
-      type: 'oauth',
-      displayName: draft.displayName,
-      providerId,
-      accountId: targetAccountId,
-    }),
-  })
-  if (!createResponse.ok) {
-    return
-  }
-
-  clearPendingOAuthCredentialDraft()
-  window.dispatchEvent(
-    new CustomEvent('oauth-credentials-updated', {
-      detail: { providerId, workspaceId },
-    })
-  )
-}
-
 export async function fetchOAuthCredentials(
   params: FetchOAuthCredentialsParams
 ): Promise<Credential[]> {
   const { providerId, workspaceId, workflowId } = params
   if (!providerId) return []
-  await finalizePendingOAuthCredentialDraftIfNeeded({ providerId, workspaceId })
   const data = await fetchJson<CredentialListResponse>('/api/auth/oauth/credentials', {
     searchParams: {
       provider: providerId,

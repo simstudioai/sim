@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       })
       .from(account)
       .where(and(...whereConditions))
+      .orderBy(desc(account.updatedAt))
 
     const accountsWithDisplayName = accounts.map((acc) => ({
       id: acc.id,

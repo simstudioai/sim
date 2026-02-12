@@ -22,10 +22,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
-  clearPendingOAuthCredentialDraft,
   readPendingCredentialCreateRequest,
-  readPendingOAuthCredentialDraft,
-  writePendingOAuthCredentialDraft,
 } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -60,17 +57,6 @@ import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('CredentialsManager')
 
-interface AuthAccount {
-  id: string
-  accountId: string
-  providerId: string
-  displayName: string
-}
-
-interface AuthAccountsResponse {
-  accounts?: AuthAccount[]
-}
-
 const roleOptions = [
   { value: 'member', label: 'Member' },
   { value: 'admin', label: 'Admin' },
@@ -78,8 +64,8 @@ const roleOptions = [
 
 const typeOptions = [
   { value: 'oauth', label: 'OAuth Account' },
-  { value: 'env_workspace', label: 'Workspace Environment' },
-  { value: 'env_personal', label: 'Personal Environment' },
+  { value: 'env_workspace', label: 'Workspace Secret' },
+  { value: 'env_personal', label: 'Personal Secret' },
 ] as const
 
 function typeBadgeVariant(type: WorkspaceCredential['type']): 'blue' | 'amber' | 'gray-secondary' {
@@ -90,8 +76,8 @@ function typeBadgeVariant(type: WorkspaceCredential['type']): 'blue' | 'amber' |
 
 function typeLabel(type: WorkspaceCredential['type']): string {
   if (type === 'oauth') return 'OAuth'
-  if (type === 'env_workspace') return 'Workspace Env'
-  return 'Personal Env'
+  if (type === 'env_workspace') return 'Workspace Secret'
+  return 'Personal Secret'
 }
 
 function normalizeEnvKeyInput(raw: string): string {
@@ -119,7 +105,6 @@ export function CredentialsManager() {
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
   const [isEditingEnvValue, setIsEditingEnvValue] = useState(false)
-  const [isFinalizingOAuthDraft, setIsFinalizingOAuthDraft] = useState(false)
   const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -167,16 +152,6 @@ export function CredentialsManager() {
     if (!workspaceId) return
     runBootstrapCredentials()
   }, [workspaceId, runBootstrapCredentials])
-
-  const fetchOAuthAccountsForProvider = async (providerId: string): Promise<AuthAccount[]> => {
-    const response = await fetch(`/api/auth/accounts?provider=${encodeURIComponent(providerId)}`)
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'Failed to fetch OAuth accounts')
-    }
-    const data = (await response.json()) as AuthAccountsResponse
-    return data.accounts ?? []
-  }
 
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const selectedCredential = useMemo(
@@ -326,92 +301,6 @@ export function CredentialsManager() {
   }, [workspaceId])
 
   useEffect(() => {
-    if (!workspaceId) return
-    if (isFinalizingOAuthDraft) return
-
-    const draft = readPendingOAuthCredentialDraft()
-    if (!draft) return
-
-    if (draft.workspaceId !== workspaceId) {
-      return
-    }
-
-    const draftAgeMs = Date.now() - draft.requestedAt
-    if (draftAgeMs > 15 * 60 * 1000) {
-      clearPendingOAuthCredentialDraft()
-      return
-    }
-
-    const finalize = async () => {
-      setIsFinalizingOAuthDraft(true)
-      try {
-        await bootstrapCredentials.mutateAsync()
-        const refetched = await refetchCredentials()
-        const latestCredentials = refetched.data ?? credentials
-
-        const providerCredentials = latestCredentials
-          .filter(
-            (row): row is WorkspaceCredential & { accountId: string; providerId: string } =>
-              row.type === 'oauth' && Boolean(row.accountId) && Boolean(row.providerId)
-          )
-          .filter((row) => row.providerId === draft.providerId)
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-
-        const newAccountCredential = providerCredentials.find(
-          (row) => !draft.existingAccountIds.includes(row.accountId)
-        )
-        const newCredential = providerCredentials.find(
-          (row) => !draft.existingCredentialIds.includes(row.id)
-        )
-        const targetCredential = newAccountCredential || newCredential || providerCredentials[0]
-
-        if (!targetCredential?.accountId || !targetCredential.providerId) {
-          return
-        }
-
-        const response = await createCredential.mutateAsync({
-          workspaceId,
-          type: 'oauth',
-          displayName: draft.displayName,
-          providerId: targetCredential.providerId,
-          accountId: targetCredential.accountId,
-        })
-
-        const credentialId = response?.credential?.id || targetCredential.id
-        if (credentialId) {
-          setSelectedCredentialId(credentialId)
-        }
-
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('oauth-credentials-updated', {
-              detail: { providerId: draft.providerId, workspaceId },
-            })
-          )
-        }
-
-        setShowCreateModal(false)
-        setCreateDisplayName('')
-        setCreateError(null)
-        clearPendingOAuthCredentialDraft()
-      } catch (error) {
-        logger.error('Failed to finalize OAuth credential draft', error)
-      } finally {
-        setIsFinalizingOAuthDraft(false)
-      }
-    }
-
-    void finalize()
-  }, [
-    workspaceId,
-    credentials,
-    isFinalizingOAuthDraft,
-    bootstrapCredentials,
-    refetchCredentials,
-    createCredential,
-  ])
-
-  useEffect(() => {
     if (!selectedCredential) {
       setSelectedEnvValueDraft('')
       setIsEditingEnvValue(false)
@@ -542,13 +431,11 @@ export function CredentialsManager() {
       if (!createEnvKey.trim()) return
       const normalizedEnvKey = normalizeEnvKeyInput(createEnvKey)
       if (!isValidEnvVarName(normalizedEnvKey)) {
-        setCreateError(
-          'Environment variable key must contain only letters, numbers, and underscores.'
-        )
+        setCreateError('Secret key must contain only letters, numbers, and underscores.')
         return
       }
       if (!createEnvValue.trim()) {
-        setCreateError('Environment variable value is required.')
+        setCreateError('Secret value is required.')
         return
       }
 
@@ -617,29 +504,14 @@ export function CredentialsManager() {
 
     setCreateError(null)
     try {
-      let existingAccountIds: string[] = []
-      try {
-        const accounts = await fetchOAuthAccountsForProvider(selectedOAuthService.providerId)
-        existingAccountIds = accounts.map((account) => account.id)
-      } catch (error) {
-        logger.warn('Failed to capture OAuth account snapshot before connect', { error })
-      }
-
-      const existingCredentialIds = credentials
-        .filter(
-          (row): row is WorkspaceCredential & { providerId: string } =>
-            row.type === 'oauth' && Boolean(row.providerId)
-        )
-        .filter((row) => row.providerId === selectedOAuthService.providerId)
-        .map((row) => row.id)
-
-      writePendingOAuthCredentialDraft({
-        workspaceId,
-        providerId: selectedOAuthService.providerId,
-        displayName,
-        existingCredentialIds,
-        existingAccountIds,
-        requestedAt: Date.now(),
+      await fetch('/api/credentials/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          providerId: selectedOAuthService.providerId,
+          displayName,
+        }),
       })
 
       await connectOAuthService.mutateAsync({
@@ -647,7 +519,6 @@ export function CredentialsManager() {
         callbackURL: window.location.href,
       })
     } catch (error: unknown) {
-      clearPendingOAuthCredentialDraft()
       const message = error instanceof Error ? error.message : 'Failed to start OAuth connection'
       setCreateError(message)
       logger.error('Failed to connect OAuth service', error)
@@ -878,7 +749,7 @@ export function CredentialsManager() {
                 </div>
               ) : (
                 <div className='flex flex-col gap-[10px]'>
-                  <Label htmlFor='credential-env-key'>Environment variable key</Label>
+                  <Label htmlFor='credential-env-key'>Secret key</Label>
                   <Input
                     id='credential-env-key'
                     value={selectedCredential.envKey || ''}
@@ -889,7 +760,7 @@ export function CredentialsManager() {
                   />
                   <div>
                     <div className='flex items-center justify-between'>
-                      <Label htmlFor='credential-env-value'>Environment variable value</Label>
+                      <Label htmlFor='credential-env-value'>Secret value</Label>
                       {canEditSelectedEnvValue && (
                         <Button
                           variant='ghost'
@@ -936,11 +807,6 @@ export function CredentialsManager() {
                     </Button>
                   )}
                 </div>
-              )}
-              {selectedCredential.type !== 'oauth' && (
-                <p className='mt-[8px] text-[12px] text-[var(--text-tertiary)]'>
-                  {`Linked env key: ${selectedCredential.envKey || 'unknown'} (${selectedCredential.type === 'env_workspace' ? 'workspace' : 'personal'})`}
-                </p>
               )}
               {detailsError && (
                 <div className='mt-[8px] rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[12px] text-[var(--status-red)]'>
@@ -1126,7 +992,7 @@ export function CredentialsManager() {
               ) : (
                 <div className='flex flex-col gap-[10px]'>
                   <div>
-                    <Label>Environment variable key</Label>
+                    <Label>Secret key</Label>
                     <Input
                       value={createEnvKey}
                       onChange={(event) => {
@@ -1146,7 +1012,7 @@ export function CredentialsManager() {
                     </p>
                   </div>
                   <div>
-                    <Label>Environment variable value</Label>
+                    <Label>Secret value</Label>
                     <Input
                       type='password'
                       value={createEnvValue}

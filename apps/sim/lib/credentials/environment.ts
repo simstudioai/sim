@@ -9,6 +9,12 @@ interface AccessibleEnvCredential {
   updatedAt: Date
 }
 
+function getPostgresErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined
+  const err = error as { code?: string; cause?: { code?: string } }
+  return err.code || err.cause?.code
+}
+
 export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<string[]> {
   const [workspaceRows, permissionRows] = await Promise.all([
     db
@@ -184,17 +190,22 @@ export async function syncWorkspaceEnvCredentials(params: {
     }
 
     const createdId = crypto.randomUUID()
-    await db.insert(credential).values({
-      id: createdId,
-      workspaceId,
-      type: 'env_workspace',
-      displayName: envKey,
-      envKey,
-      createdBy: actingUserId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    credentialIdsToEnsureMembership.add(createdId)
+    try {
+      await db.insert(credential).values({
+        id: createdId,
+        workspaceId,
+        type: 'env_workspace',
+        displayName: envKey,
+        envKey,
+        createdBy: actingUserId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      credentialIdsToEnsureMembership.add(createdId)
+    } catch (error: unknown) {
+      const code = getPostgresErrorCode(error)
+      if (code !== '23505') throw error
+    }
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
@@ -259,18 +270,23 @@ export async function syncPersonalEnvCredentialsForUser(params: {
       }
 
       const createdId = crypto.randomUUID()
-      await db.insert(credential).values({
-        id: createdId,
-        workspaceId,
-        type: 'env_personal',
-        displayName: envKey,
-        envKey,
-        envOwnerUserId: userId,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      await upsertCredentialAdminMember(createdId, userId)
+      try {
+        await db.insert(credential).values({
+          id: createdId,
+          workspaceId,
+          type: 'env_personal',
+          displayName: envKey,
+          envKey,
+          envOwnerUserId: userId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await upsertCredentialAdminMember(createdId, userId)
+      } catch (error: unknown) {
+        const code = getPostgresErrorCode(error)
+        if (code !== '23505') throw error
+      }
     }
 
     if (normalizedKeys.length > 0) {

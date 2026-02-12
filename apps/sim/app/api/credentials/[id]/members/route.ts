@@ -1,39 +1,49 @@
 import { db } from '@sim/db'
-import { credentialMember, user } from '@sim/db/schema'
+import { credential, credentialMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { getCredentialActorContext } from '@/lib/credentials/access'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
 
-const upsertMemberSchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(['admin', 'member']),
-})
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
 
-const deleteMemberSchema = z.object({
-  userId: z.string().min(1),
-})
+async function requireAdminMembership(credentialId: string, userId: string) {
+  const [membership] = await db
+    .select({ role: credentialMember.role, status: credentialMember.status })
+    .from(credentialMember)
+    .where(
+      and(eq(credentialMember.credentialId, credentialId), eq(credentialMember.userId, userId))
+    )
+    .limit(1)
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!membership || membership.status !== 'active' || membership.role !== 'admin') {
+    return null
   }
+  return membership
+}
 
-  const { id } = await params
-
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+
+    const { id: credentialId } = await context.params
+
+    const [cred] = await db
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+
+    if (!cred) {
+      return NextResponse.json({ members: [] }, { status: 200 })
     }
 
     const members = await db
@@ -43,178 +53,142 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         role: credentialMember.role,
         status: credentialMember.status,
         joinedAt: credentialMember.joinedAt,
-        invitedBy: credentialMember.invitedBy,
-        createdAt: credentialMember.createdAt,
-        updatedAt: credentialMember.updatedAt,
         userName: user.name,
         userEmail: user.email,
-        userImage: user.image,
       })
       .from(credentialMember)
-      .leftJoin(user, eq(credentialMember.userId, user.id))
-      .where(eq(credentialMember.credentialId, id))
+      .innerJoin(user, eq(credentialMember.userId, user.id))
+      .where(eq(credentialMember.credentialId, credentialId))
 
-    return NextResponse.json({ members }, { status: 200 })
+    return NextResponse.json({ members })
   } catch (error) {
-    logger.error('Failed to list credential members', error)
+    logger.error('Failed to fetch credential members', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const addMemberSchema = z.object({
+  userId: z.string().min(1),
+  role: z.enum(['admin', 'member']).default('member'),
+})
 
-  const { id } = await params
-
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const parseResult = upsertMemberSchema.safeParse(await request.json())
-    if (!parseResult.success) {
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+    const { id: credentialId } = await context.params
+
+    const admin = await requireAdminMembership(credentialId, session.user.id)
+    if (!admin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const targetWorkspaceAccess = await checkWorkspaceAccess(
-      access.credential.workspaceId,
-      parseResult.data.userId
-    )
-    if (!targetWorkspaceAccess.hasAccess) {
-      return NextResponse.json(
-        { error: 'User must have workspace access before being added to a credential' },
-        { status: 400 }
-      )
+    const body = await request.json()
+    const parsed = addMemberSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
+    const { userId, role } = parsed.data
     const now = new Date()
-    const [existingMember] = await db
-      .select()
+
+    const [existing] = await db
+      .select({ id: credentialMember.id, status: credentialMember.status })
       .from(credentialMember)
       .where(
-        and(
-          eq(credentialMember.credentialId, id),
-          eq(credentialMember.userId, parseResult.data.userId)
-        )
+        and(eq(credentialMember.credentialId, credentialId), eq(credentialMember.userId, userId))
       )
       .limit(1)
 
-    if (existingMember) {
+    if (existing) {
       await db
         .update(credentialMember)
-        .set({
-          role: parseResult.data.role,
-          status: 'active',
-          joinedAt: existingMember.joinedAt ?? now,
-          invitedBy: session.user.id,
-          updatedAt: now,
-        })
-        .where(eq(credentialMember.id, existingMember.id))
-    } else {
-      await db.insert(credentialMember).values({
-        id: crypto.randomUUID(),
-        credentialId: id,
-        userId: parseResult.data.userId,
-        role: parseResult.data.role,
-        status: 'active',
-        joinedAt: now,
-        invitedBy: session.user.id,
-        createdAt: now,
-        updatedAt: now,
-      })
+        .set({ role, status: 'active', updatedAt: now })
+        .where(eq(credentialMember.id, existing.id))
+      return NextResponse.json({ success: true })
     }
 
-    return NextResponse.json({ success: true }, { status: 200 })
+    await db.insert(credentialMember).values({
+      id: crypto.randomUUID(),
+      credentialId,
+      userId,
+      role,
+      status: 'active',
+      joinedAt: now,
+      invitedBy: session.user.id,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return NextResponse.json({ success: true }, { status: 201 })
   } catch (error) {
-    logger.error('Failed to upsert credential member', error)
+    logger.error('Failed to add credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const parseResult = deleteMemberSchema.safeParse({
-      userId: new URL(request.url).searchParams.get('userId'),
-    })
-    if (!parseResult.success) {
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+    const { id: credentialId } = await context.params
+    const targetUserId = new URL(request.url).searchParams.get('userId')
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'userId query parameter required' }, { status: 400 })
     }
 
-    const [memberToRevoke] = await db
-      .select()
+    const admin = await requireAdminMembership(credentialId, session.user.id)
+    if (!admin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const [target] = await db
+      .select({
+        id: credentialMember.id,
+        role: credentialMember.role,
+        status: credentialMember.status,
+      })
       .from(credentialMember)
       .where(
         and(
-          eq(credentialMember.credentialId, id),
-          eq(credentialMember.userId, parseResult.data.userId)
+          eq(credentialMember.credentialId, credentialId),
+          eq(credentialMember.userId, targetUserId)
         )
       )
       .limit(1)
 
-    if (!memberToRevoke) {
+    if (!target) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    if (memberToRevoke.status !== 'active') {
-      return NextResponse.json({ success: true }, { status: 200 })
-    }
-
-    if (memberToRevoke.role === 'admin') {
+    if (target.role === 'admin') {
       const activeAdmins = await db
         .select({ id: credentialMember.id })
         .from(credentialMember)
         .where(
           and(
-            eq(credentialMember.credentialId, id),
+            eq(credentialMember.credentialId, credentialId),
             eq(credentialMember.role, 'admin'),
             eq(credentialMember.status, 'active')
           )
         )
 
       if (activeAdmins.length <= 1) {
-        return NextResponse.json(
-          { error: 'Cannot revoke the last active admin from a credential' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Cannot remove the last admin' }, { status: 400 })
       }
     }
 
-    await db
-      .update(credentialMember)
-      .set({
-        status: 'revoked',
-        updatedAt: new Date(),
-      })
-      .where(eq(credentialMember.id, memberToRevoke.id))
+    await db.delete(credentialMember).where(eq(credentialMember.id, target.id))
 
-    return NextResponse.json({ success: true }, { status: 200 })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error('Failed to revoke credential member', error)
+    logger.error('Failed to remove credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

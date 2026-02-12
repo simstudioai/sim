@@ -51,6 +51,20 @@ CREATE INDEX "credential_member_role_idx" ON "credential_member" USING btree ("r
 CREATE INDEX "credential_member_status_idx" ON "credential_member" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "credential_member_unique" ON "credential_member" USING btree ("credential_id","user_id");
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "pending_credential_draft" (
+	"id" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"workspace_id" text NOT NULL,
+	"provider_id" text NOT NULL,
+	"display_name" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "pending_credential_draft" ADD CONSTRAINT "pending_credential_draft_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pending_credential_draft" ADD CONSTRAINT "pending_credential_draft_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "pending_draft_user_provider_ws" ON "pending_credential_draft" USING btree ("user_id","provider_id","workspace_id");
+--> statement-breakpoint
 DROP INDEX IF EXISTS "account_user_provider_unique";
 --> statement-breakpoint
 WITH workspace_user_access AS (

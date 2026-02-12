@@ -134,7 +134,7 @@ function WorkspaceVariableRow({
               <Trash />
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content>Delete environment variable</Tooltip.Content>
+          <Tooltip.Content>Delete secret</Tooltip.Content>
         </Tooltip.Root>
       </div>
     </div>
@@ -637,7 +637,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                     <Trash />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Delete environment variable</Tooltip.Content>
+                <Tooltip.Content>Delete secret</Tooltip.Content>
               </Tooltip.Root>
             </div>
           </div>
@@ -811,7 +811,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
                   filteredWorkspaceEntries.length === 0 &&
                   (envVars.length > 0 || Object.keys(workspaceVars).length > 0) && (
                     <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                      No environment variables found matching "{searchTerm}"
+                      No secrets found matching "{searchTerm}"
                     </div>
                   )}
               </>

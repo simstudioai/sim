@@ -302,7 +302,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
               }}
             >
               <Plus className='h-3 w-3' />
-              <span>Create environment variable</span>
+              <span>Create Secret</span>
             </PopoverItem>
           </PopoverScrollArea>
         ) : (

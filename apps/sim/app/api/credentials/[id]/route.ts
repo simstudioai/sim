@@ -1,11 +1,15 @@
 import { db } from '@sim/db'
-import { credential, credentialMember } from '@sim/db/schema'
+import { credential, credentialMember, environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import {
+  syncPersonalEnvCredentialsForUser,
+  syncWorkspaceEnvCredentials,
+} from '@/lib/credentials/environment'
 
 const logger = createLogger('CredentialByIdAPI')
 
@@ -136,6 +140,89 @@ export async function DELETE(
     }
     if (!access.hasWorkspaceAccess || !access.isAdmin) {
       return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+    }
+
+    if (access.credential.type === 'env_personal' && access.credential.envKey) {
+      const ownerUserId = access.credential.envOwnerUserId
+      if (!ownerUserId) {
+        return NextResponse.json({ error: 'Invalid personal secret owner' }, { status: 400 })
+      }
+
+      const [personalRow] = await db
+        .select({ variables: environment.variables })
+        .from(environment)
+        .where(eq(environment.userId, ownerUserId))
+        .limit(1)
+
+      const current = ((personalRow?.variables as Record<string, string> | null) ?? {}) as Record<
+        string,
+        string
+      >
+      if (access.credential.envKey in current) {
+        delete current[access.credential.envKey]
+      }
+
+      await db
+        .insert(environment)
+        .values({
+          id: ownerUserId,
+          userId: ownerUserId,
+          variables: current,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [environment.userId],
+          set: { variables: current, updatedAt: new Date() },
+        })
+
+      await syncPersonalEnvCredentialsForUser({
+        userId: ownerUserId,
+        envKeys: Object.keys(current),
+      })
+
+      return NextResponse.json({ success: true }, { status: 200 })
+    }
+
+    if (access.credential.type === 'env_workspace' && access.credential.envKey) {
+      const [workspaceRow] = await db
+        .select({
+          id: workspaceEnvironment.id,
+          createdAt: workspaceEnvironment.createdAt,
+          variables: workspaceEnvironment.variables,
+        })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
+        .limit(1)
+
+      const current = ((workspaceRow?.variables as Record<string, string> | null) ?? {}) as Record<
+        string,
+        string
+      >
+      if (access.credential.envKey in current) {
+        delete current[access.credential.envKey]
+      }
+
+      await db
+        .insert(workspaceEnvironment)
+        .values({
+          id: workspaceRow?.id || crypto.randomUUID(),
+          workspaceId: access.credential.workspaceId,
+          variables: current,
+          createdAt: workspaceRow?.createdAt || new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workspaceEnvironment.workspaceId],
+          set: { variables: current, updatedAt: new Date() },
+        })
+
+      await syncWorkspaceEnvCredentials({
+        workspaceId: access.credential.workspaceId,
+        envKeys: Object.keys(current),
+        actingUserId: session.user.id,
+      })
+
+      return NextResponse.json({ success: true }, { status: 200 })
     }
 
     await db.delete(credential).where(eq(credential.id, id))
