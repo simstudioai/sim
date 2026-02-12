@@ -341,6 +341,80 @@ const BUILT_IN_TOOL_TYPES = new Set([
 ])
 
 /**
+ * Checks if a block supports multiple operations.
+ *
+ * @param blockType - The block type to check
+ * @returns `true` if the block has more than one tool operation available
+ */
+function hasMultipleOperations(blockType: string): boolean {
+  const block = getAllBlocks().find((b) => b.type === blockType)
+  return (block?.tools?.access?.length || 0) > 1
+}
+
+/**
+ * Gets the available operation options for a multi-operation tool.
+ *
+ * @param blockType - The block type to get operations for
+ * @returns Array of operation options with label and id properties
+ */
+function getOperationOptions(blockType: string): { label: string; id: string }[] {
+  const block = getAllBlocks().find((b) => b.type === blockType)
+  if (!block || !block.tools?.access) return []
+
+  const operationSubBlock = block.subBlocks.find((sb) => sb.id === 'operation')
+  if (
+    operationSubBlock &&
+    operationSubBlock.type === 'dropdown' &&
+    Array.isArray(operationSubBlock.options)
+  ) {
+    return operationSubBlock.options as { label: string; id: string }[]
+  }
+
+  return block.tools.access.map((toolId) => {
+    try {
+      const toolParams = getToolParametersConfig(toolId)
+      return {
+        id: toolId,
+        label: toolParams?.toolConfig?.name || toolId,
+      }
+    } catch (error) {
+      logger.error(`Error getting tool config for ${toolId}:`, error)
+      return { id: toolId, label: toolId }
+    }
+  })
+}
+
+/**
+ * Gets the correct tool ID for a given operation.
+ *
+ * @param blockType - The block type
+ * @param operation - The selected operation (for multi-operation tools)
+ * @returns The tool ID to use for execution, or `undefined` if not found
+ */
+function getToolIdForOperation(blockType: string, operation?: string): string | undefined {
+  const block = getAllBlocks().find((b) => b.type === blockType)
+  if (!block || !block.tools?.access) return undefined
+
+  if (block.tools.access.length === 1) {
+    return block.tools.access[0]
+  }
+
+  if (operation && block.tools?.config?.tool) {
+    try {
+      return block.tools.config.tool({ operation })
+    } catch (error) {
+      logger.error('Error selecting tool for operation:', error)
+    }
+  }
+
+  if (operation && block.tools.access.includes(operation)) {
+    return operation
+  }
+
+  return block.tools.access[0]
+}
+
+/**
  * Creates a styled icon element for tool items in the selection dropdown.
  *
  * @param bgColor - Background color for the icon container
@@ -605,103 +679,10 @@ export const ToolInput = memo(function ToolInput({
     if (hasMultipleOperations(blockType)) {
       return false
     }
-    // Allow multiple instances for workflow and knowledge blocks
-    // Each instance can target a different workflow/knowledge base
     if (blockType === 'workflow' || blockType === 'knowledge') {
       return false
     }
     return selectedTools.some((tool) => tool.toolId === toolId)
-  }
-
-  /**
-   * Checks if a block supports multiple operations.
-   *
-   * @param blockType - The block type to check
-   * @returns `true` if the block has more than one tool operation available
-   */
-  const hasMultipleOperations = (blockType: string): boolean => {
-    const block = getAllBlocks().find((block) => block.type === blockType)
-    return (block?.tools?.access?.length || 0) > 1
-  }
-
-  /**
-   * Gets the available operation options for a multi-operation tool.
-   *
-   * @remarks
-   * First attempts to find options from the block's operation dropdown subBlock,
-   * then falls back to creating options from the tools.access array.
-   *
-   * @param blockType - The block type to get operations for
-   * @returns Array of operation options with label and id properties
-   */
-  const getOperationOptions = (blockType: string): { label: string; id: string }[] => {
-    const block = getAllBlocks().find((block) => block.type === blockType)
-    if (!block || !block.tools?.access) return []
-
-    // Look for an operation dropdown in the block's subBlocks
-    const operationSubBlock = block.subBlocks.find((sb) => sb.id === 'operation')
-    if (
-      operationSubBlock &&
-      operationSubBlock.type === 'dropdown' &&
-      Array.isArray(operationSubBlock.options)
-    ) {
-      return operationSubBlock.options as { label: string; id: string }[]
-    }
-
-    // Fallback: create options from tools.access
-    return block.tools.access.map((toolId) => {
-      try {
-        const toolParams = getToolParametersConfig(toolId)
-        return {
-          id: toolId,
-          label: toolParams?.toolConfig?.name || toolId,
-        }
-      } catch (error) {
-        logger.error(`Error getting tool config for ${toolId}:`, error)
-        return {
-          id: toolId,
-          label: toolId,
-        }
-      }
-    })
-  }
-
-  /**
-   * Gets the correct tool ID for a given operation.
-   *
-   * @remarks
-   * For single-tool blocks, returns the first tool. For multi-operation blocks,
-   * uses the block's tool selection function or matches the operation to a tool ID.
-   *
-   * @param blockType - The block type
-   * @param operation - The selected operation (for multi-operation tools)
-   * @returns The tool ID to use for execution, or `undefined` if not found
-   */
-  const getToolIdForOperation = (blockType: string, operation?: string): string | undefined => {
-    const block = getAllBlocks().find((block) => block.type === blockType)
-    if (!block || !block.tools?.access) return undefined
-
-    // If there's only one tool, return it
-    if (block.tools.access.length === 1) {
-      return block.tools.access[0]
-    }
-
-    // If there's an operation and a tool selection function, use it
-    if (operation && block.tools?.config?.tool) {
-      try {
-        return block.tools.config.tool({ operation })
-      } catch (error) {
-        logger.error('Error selecting tool for operation:', error)
-      }
-    }
-
-    // If there's an operation that matches a tool ID, use it
-    if (operation && block.tools.access.includes(operation)) {
-      return operation
-    }
-
-    // Default to first tool
-    return block.tools.access[0]
   }
 
   const handleSelectTool = useCallback(
@@ -746,17 +727,7 @@ export const ToolInput = memo(function ToolInput({
 
       setOpen(false)
     },
-    [
-      isPreview,
-      disabled,
-      hasMultipleOperations,
-      getOperationOptions,
-      getToolIdForOperation,
-      isToolAlreadySelected,
-      blockId,
-      selectedTools,
-      setStoreValue,
-    ]
+    [isPreview, disabled, isToolAlreadySelected, selectedTools, setStoreValue]
   )
 
   const handleAddCustomTool = useCallback(
@@ -1013,19 +984,22 @@ export const ToolInput = memo(function ToolInput({
     setDragOverIndex(null)
   }
 
-  const handleMcpToolSelect = (newTool: StoredTool, closePopover = true) => {
-    setStoreValue([
-      ...selectedTools.map((tool) => ({
-        ...tool,
-        isExpanded: false,
-      })),
-      newTool,
-    ])
+  const handleMcpToolSelect = useCallback(
+    (newTool: StoredTool, closePopover = true) => {
+      setStoreValue([
+        ...selectedTools.map((tool) => ({
+          ...tool,
+          isExpanded: false,
+        })),
+        newTool,
+      ])
 
-    if (closePopover) {
-      setOpen(false)
-    }
-  }
+      if (closePopover) {
+        setOpen(false)
+      }
+    },
+    [selectedTools, setStoreValue]
+  )
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     if (isPreview || disabled || draggedIndex === null || draggedIndex === dropIndex) return
@@ -1421,7 +1395,6 @@ export const ToolInput = memo(function ToolInput({
     permissionConfig.disableCustomTools,
     permissionConfig.disableMcpTools,
     availableWorkflows,
-    getToolIdForOperation,
     isToolAlreadySelected,
   ])
 
