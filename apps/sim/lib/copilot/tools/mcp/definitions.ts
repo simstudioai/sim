@@ -191,6 +191,52 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     },
   },
   {
+    name: 'workflow_run',
+    toolId: 'workflow_run',
+    description:
+      'Run a workflow using one unified interface. Supports full runs and partial execution modes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID to run.',
+        },
+        mode: {
+          type: 'string',
+          description: 'Execution mode: full, until_block, from_block, or block. Default: full.',
+          enum: ['full', 'until_block', 'from_block', 'block'],
+        },
+        workflow_input: {
+          type: 'object',
+          description:
+            'JSON object with input values. Keys should match workflow start block input names.',
+        },
+        stopAfterBlockId: {
+          type: 'string',
+          description: 'Required when mode is until_block.',
+        },
+        startBlockId: {
+          type: 'string',
+          description: 'Required when mode is from_block.',
+        },
+        blockId: {
+          type: 'string',
+          description: 'Required when mode is block.',
+        },
+        executionId: {
+          type: 'string',
+          description: 'Optional execution snapshot ID for from_block or block modes.',
+        },
+        useDeployedState: {
+          type: 'boolean',
+          description: 'When true, runs deployed state instead of draft. Default: false.',
+        },
+      },
+      required: ['workflowId'],
+    },
+  },
+  {
     name: 'run_workflow',
     toolId: 'run_workflow',
     description:
@@ -531,10 +577,10 @@ ALSO CAN:
     description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.
 
 Supports full and partial execution:
-- Full run with test inputs
-- Stop after a specific block (run_workflow_until_block)
-- Run a single block in isolation (run_block)
-- Resume from a specific block (run_from_block)`,
+- Full run with test inputs using workflow_run mode "full"
+- Stop after a specific block using workflow_run mode "until_block"
+- Run a single block in isolation using workflow_run mode "block"
+- Resume from a specific block using workflow_run mode "from_block"`,
     inputSchema: {
       type: 'object',
       properties: {

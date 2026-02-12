@@ -14,7 +14,7 @@ describe('sse-utils', () => {
       type: 'tool_result',
       data: JSON.stringify({
         id: 'tool_1',
-        name: 'edit_workflow',
+        name: 'workflow_change',
         success: true,
         result: { ok: true },
       }),
@@ -23,7 +23,7 @@ describe('sse-utils', () => {
     const normalized = normalizeSseEvent(event as any)
 
     expect(normalized.toolCallId).toBe('tool_1')
-    expect(normalized.toolName).toBe('edit_workflow')
+    expect(normalized.toolName).toBe('workflow_change')
     expect(normalized.success).toBe(true)
     expect(normalized.result).toEqual({ ok: true })
   })

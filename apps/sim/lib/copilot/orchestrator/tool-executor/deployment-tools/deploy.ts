@@ -220,7 +220,8 @@ export async function executeDeployMcp(
     if (!workflowRecord.isDeployed) {
       return {
         success: false,
-        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
+        error:
+          'Workflow must be deployed before adding as an MCP tool. Use workflow_deploy(mode: "api") first.',
       }
     }
 

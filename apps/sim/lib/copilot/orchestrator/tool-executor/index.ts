@@ -50,6 +50,8 @@ import type {
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
+  WorkflowDeployParams,
+  WorkflowRunParams,
 } from './param-types'
 import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import {
@@ -318,13 +320,87 @@ async function executeManageCustomTool(
   }
 }
 
+async function executeWorkflowRunUnified(
+  rawParams: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  const params = rawParams as WorkflowRunParams
+  const mode = params.mode || 'full'
+
+  switch (mode) {
+    case 'full':
+      return executeRunWorkflow(params as RunWorkflowParams, context)
+    case 'until_block':
+      if (!params.stopAfterBlockId) {
+        return { success: false, error: 'stopAfterBlockId is required for mode=until_block' }
+      }
+      return executeRunWorkflowUntilBlock(params as RunWorkflowUntilBlockParams, context)
+    case 'from_block':
+      if (!params.startBlockId) {
+        return { success: false, error: 'startBlockId is required for mode=from_block' }
+      }
+      return executeRunFromBlock(params as RunFromBlockParams, context)
+    case 'block':
+      if (!params.blockId) {
+        return { success: false, error: 'blockId is required for mode=block' }
+      }
+      return executeRunBlock(params as RunBlockParams, context)
+    default:
+      return {
+        success: false,
+        error: `Unsupported workflow_run mode: ${String(mode)}`,
+      }
+  }
+}
+
+async function executeWorkflowDeployUnified(
+  rawParams: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  const params = rawParams as unknown as WorkflowDeployParams
+  const mode = params.mode
+
+  if (!mode) {
+    return { success: false, error: 'mode is required for workflow_deploy' }
+  }
+
+  const scopedContext =
+    params.workflowId && params.workflowId !== context.workflowId
+      ? { ...context, workflowId: params.workflowId }
+      : context
+
+  switch (mode) {
+    case 'status':
+      return executeCheckDeploymentStatus(params as CheckDeploymentStatusParams, scopedContext)
+    case 'redeploy':
+      return executeRedeploy(scopedContext)
+    case 'api':
+      return executeDeployApi(params as DeployApiParams, scopedContext)
+    case 'chat':
+      return executeDeployChat(params as DeployChatParams, scopedContext)
+    case 'mcp':
+      return executeDeployMcp(params as DeployMcpParams, scopedContext)
+    case 'list_mcp_servers':
+      return executeListWorkspaceMcpServers(params as ListWorkspaceMcpServersParams, scopedContext)
+    case 'create_mcp_server':
+      return executeCreateWorkspaceMcpServer(
+        params as CreateWorkspaceMcpServerParams,
+        scopedContext
+      )
+    default:
+      return {
+        success: false,
+        error: `Unsupported workflow_deploy mode: ${String(mode)}`,
+      }
+  }
+}
+
 const SERVER_TOOLS = new Set<string>([
   'get_blocks_and_tools',
   'get_blocks_metadata',
   'get_block_options',
   'get_block_config',
   'get_trigger_blocks',
-  'edit_workflow',
   'workflow_context_get',
   'workflow_context_expand',
   'workflow_change',
@@ -356,6 +432,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   get_block_outputs: (p, c) => executeGetBlockOutputs(p as GetBlockOutputsParams, c),
   get_block_upstream_references: (p, c) =>
     executeGetBlockUpstreamReferences(p as unknown as GetBlockUpstreamReferencesParams, c),
+  workflow_run: (p, c) => executeWorkflowRunUnified(p, c),
   run_workflow: (p, c) => executeRunWorkflow(p as RunWorkflowParams, c),
   run_workflow_until_block: (p, c) =>
     executeRunWorkflowUntilBlock(p as unknown as RunWorkflowUntilBlockParams, c),
@@ -371,6 +448,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     }),
   set_global_workflow_variables: (p, c) =>
     executeSetGlobalWorkflowVariables(p as SetGlobalWorkflowVariablesParams, c),
+  workflow_deploy: (p, c) => executeWorkflowDeployUnified(p, c),
   deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),
   deploy_chat: (p, c) => executeDeployChat(p as DeployChatParams, c),
   deploy_mcp: (p, c) => executeDeployMcp(p as DeployMcpParams, c),

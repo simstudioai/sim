@@ -29,6 +29,7 @@ const logger = createLogger('CopilotSseHandlers')
  * execution to the browser client instead of running executeWorkflow directly.
  */
 const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
+  'workflow_run',
   'run_workflow',
   'run_workflow_until_block',
   'run_from_block',

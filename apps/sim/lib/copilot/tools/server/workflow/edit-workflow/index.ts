@@ -68,8 +68,8 @@ async function getCurrentWorkflowStateFromDb(
   return { workflowState, subBlockValues }
 }
 
-export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
-  name: 'edit_workflow',
+export const applyWorkflowOperationsServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
+  name: '__internal_apply_workflow_operations',
   async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<unknown> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
@@ -90,7 +90,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
-    logger.info('Executing edit_workflow', {
+    logger.info('Executing internal workflow operation apply', {
       operationCount: operations.length,
       workflowId,
       hasCurrentUserWorkflow: !!currentUserWorkflow,
@@ -210,7 +210,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       logger.warn('No userId in context - skipping custom tools persistence', { workflowId })
     }
 
-    logger.info('edit_workflow successfully applied operations', {
+    logger.info('Internal workflow operation apply succeeded', {
       operationCount: operations.length,
       blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
       edgesCount: modifiedWorkflowState.edges.length,

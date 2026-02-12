@@ -65,7 +65,6 @@ function isWorkflowChangeApplyMode(toolCall?: CopilotToolCall): boolean {
 
 function isWorkflowEditSummaryTool(toolCall?: CopilotToolCall): boolean {
   if (!toolCall) return false
-  if (toolCall.name === 'edit_workflow') return true
   return isWorkflowChangeApplyMode(toolCall)
 }
 
@@ -2209,7 +2208,7 @@ export function ToolCall({
           </Button>
         </div>
       ) : null}
-      {/* Workflow edit summary - shows block changes after edit_workflow/workflow_change(apply) */}
+      {/* Workflow edit summary - shows block changes after workflow_change(apply) */}
       <WorkflowEditSummary toolCall={toolCall} />
 
       {/* Render subagent content as thinking text */}

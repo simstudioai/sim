@@ -592,23 +592,6 @@ const META_edit: ToolMetadata = {
   },
 }
 
-const META_edit_workflow: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Editing your workflow', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Editing your workflow', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Edited your workflow', icon: Grid2x2Check },
-    [ClientToolCallState.error]: { text: 'Failed to edit your workflow', icon: XCircle },
-    [ClientToolCallState.review]: { text: 'Review your workflow changes', icon: Grid2x2 },
-    [ClientToolCallState.rejected]: { text: 'Rejected workflow changes', icon: Grid2x2X },
-    [ClientToolCallState.aborted]: { text: 'Aborted editing your workflow', icon: MinusCircle },
-    [ClientToolCallState.pending]: { text: 'Editing your workflow', icon: Loader2 },
-  },
-  uiConfig: {
-    isSpecial: true,
-    customRenderer: 'edit_summary',
-  },
-}
-
 const META_workflow_change: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Planning workflow changes', icon: Loader2 },
@@ -2618,11 +2601,12 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
   edit: META_edit,
-  edit_workflow: META_edit_workflow,
   workflow_context_get: META_workflow_context_get,
   workflow_context_expand: META_workflow_context_expand,
   workflow_change: META_workflow_change,
   workflow_verify: META_workflow_verify,
+  workflow_run: META_run_workflow,
+  workflow_deploy: META_deploy_api,
   evaluate: META_evaluate,
   get_block_config: META_get_block_config,
   get_block_options: META_get_block_options,

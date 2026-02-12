@@ -93,6 +93,18 @@ export interface RunBlockParams {
   useDeployedState?: boolean
 }
 
+export interface WorkflowRunParams {
+  mode?: 'full' | 'until_block' | 'from_block' | 'block'
+  workflowId?: string
+  workflow_input?: unknown
+  input?: unknown
+  useDeployedState?: boolean
+  stopAfterBlockId?: string
+  startBlockId?: string
+  blockId?: string
+  executionId?: string
+}
+
 export interface GetDeployedWorkflowStateParams {
   workflowId?: string
 }
@@ -165,6 +177,39 @@ export interface CreateWorkspaceMcpServerParams {
   toolName?: string
   toolDescription?: string
   serverName?: string
+  isPublic?: boolean
+  workflowIds?: string[]
+}
+
+export interface WorkflowDeployParams {
+  mode:
+    | 'status'
+    | 'redeploy'
+    | 'api'
+    | 'chat'
+    | 'mcp'
+    | 'list_mcp_servers'
+    | 'create_mcp_server'
+  workflowId?: string
+  action?: 'deploy' | 'undeploy'
+  identifier?: string
+  title?: string
+  description?: string
+  customizations?: {
+    primaryColor?: string
+    secondaryColor?: string
+    welcomeMessage?: string
+    iconUrl?: string
+  }
+  authType?: 'none' | 'password' | 'public' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: string[]
+  outputConfigs?: unknown[]
+  serverId?: string
+  toolName?: string
+  toolDescription?: string
+  parameterSchema?: Record<string, unknown>
+  name?: string
   isPublic?: boolean
   workflowIds?: string[]
 }

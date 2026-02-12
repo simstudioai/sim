@@ -71,6 +71,19 @@ export type WorkflowChangeProposal = {
   warnings: string[]
   diagnostics: string[]
   touchedBlocks: string[]
+  acceptanceAssertions: string[]
+  postApply?: {
+    verify?: boolean
+    run?: Record<string, any>
+    evaluator?: Record<string, any>
+  }
+  handoff?: {
+    objective?: string
+    constraints?: string[]
+    resolvedIds?: Record<string, string>
+    assumptions?: string[]
+    unresolvedRisks?: string[]
+  }
 }
 
 const contextPackStore = new TTLStore<WorkflowContextPack>()

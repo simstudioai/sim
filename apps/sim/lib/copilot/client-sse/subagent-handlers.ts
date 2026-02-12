@@ -6,7 +6,7 @@ import {
   shouldSkipToolResultEvent,
 } from '@/lib/copilot/orchestrator/sse-utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
-import { resolveToolDisplay } from '@/lib/copilot/store-utils'
+import { humanizedFallback, resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -90,6 +90,45 @@ function extractToolExecutionMetadata(
     target: typeof execution.target === 'string' ? execution.target : undefined,
     capabilityId: typeof execution.capabilityId === 'string' ? execution.capabilityId : undefined,
   }
+}
+
+function displayVerb(state: ClientToolCallState): string {
+  switch (state) {
+    case ClientToolCallState.success:
+      return 'Completed'
+    case ClientToolCallState.error:
+      return 'Failed'
+    case ClientToolCallState.rejected:
+      return 'Skipped'
+    case ClientToolCallState.aborted:
+      return 'Aborted'
+    case ClientToolCallState.generating:
+      return 'Preparing'
+    case ClientToolCallState.pending:
+      return 'Waiting'
+    default:
+      return 'Running'
+  }
+}
+
+function resolveDisplayFromServerUi(
+  toolName: string,
+  state: ClientToolCallState,
+  toolCallId: string,
+  params: Record<string, unknown> | undefined,
+  ui?: CopilotToolCall['ui']
+) {
+  const fallback =
+    resolveToolDisplay(toolName, state, toolCallId, params) ||
+    humanizedFallback(toolName, state)
+  if (!fallback) return undefined
+  if (ui?.phaseLabel) {
+    return { text: ui.phaseLabel, icon: fallback.icon }
+  }
+  if (ui?.title) {
+    return { text: `${displayVerb(state)} ${ui.title}`, icon: fallback.icon }
+  }
+  return fallback
 }
 
 function isClientRunCapability(toolCall: CopilotToolCall): boolean {
@@ -329,7 +368,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       ui: uiMetadata,
       execution: executionMetadata,
       ...(args ? { params: args } : {}),
-      display: resolveToolDisplay(name, initialState, id, args),
+      display: resolveDisplayFromServerUi(name, initialState, id, args, uiMetadata),
     }
 
     if (existingIndex >= 0) {
@@ -421,7 +460,13 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
         ui: uiMetadata || existing.ui,
         execution: executionMetadata || existing.execution,
         state: targetState,
-        display: resolveToolDisplay(existing.name, targetState, toolCallId, nextParams),
+        display: resolveDisplayFromServerUi(
+          existing.name,
+          targetState,
+          toolCallId,
+          nextParams,
+          uiMetadata || existing.ui
+        ),
       }
       context.subAgentToolCalls[parentToolCallId][existingIndex] = updatedSubAgentToolCall
 

@@ -11,7 +11,6 @@ import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
-import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
 import { workflowChangeServerTool } from '@/lib/copilot/tools/server/workflow/workflow-change'
 import {
@@ -33,7 +32,6 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [getBlockOptionsServerTool.name]: getBlockOptionsServerTool,
   [getBlockConfigServerTool.name]: getBlockConfigServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
-  [editWorkflowServerTool.name]: editWorkflowServerTool,
   [getWorkflowConsoleServerTool.name]: getWorkflowConsoleServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,

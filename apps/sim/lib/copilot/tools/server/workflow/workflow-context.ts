@@ -18,6 +18,7 @@ const WorkflowContextGetInputSchema = z.object({
   objective: z.string().optional(),
   includeBlockTypes: z.array(z.string()).optional(),
   includeAllSchemas: z.boolean().optional(),
+  schemaMode: z.enum(['minimal', 'workflow', 'all']).optional(),
 })
 
 type WorkflowContextGetParams = z.infer<typeof WorkflowContextGetInputSchema>
@@ -71,11 +72,16 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
       String(block?.type || '')
     )
     const requestedTypes = params.includeBlockTypes || []
-    const includeAllSchemas = params.includeAllSchemas === true
-    const candidateTypes = includeAllSchemas
-      ? getAllKnownBlockTypes()
-      : [...blockTypesInWorkflow, ...requestedTypes]
+    const schemaMode =
+      params.includeAllSchemas === true ? 'all' : (params.schemaMode || 'minimal')
+    const candidateTypes =
+      schemaMode === 'all'
+        ? getAllKnownBlockTypes()
+        : schemaMode === 'workflow'
+          ? [...blockTypesInWorkflow, ...requestedTypes]
+          : [...requestedTypes]
     const { schemasByType, schemaRefsByType } = buildSchemasByType(candidateTypes)
+    const suggestedSchemaTypes = [...new Set(blockTypesInWorkflow.filter(Boolean))]
 
     const summary = summarizeWorkflowState(workflowState)
     const packId = saveContextPack({
@@ -101,12 +107,14 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
       contextPackId: packId,
       workflowId: params.workflowId,
       snapshotHash,
+      schemaMode,
       summary: {
         ...summary,
         objective: params.objective || null,
       },
       schemaRefsByType,
       availableBlockCatalog: buildAvailableBlockCatalog(schemaRefsByType),
+      suggestedSchemaTypes,
       inScopeSchemas: schemasByType,
     }
   },

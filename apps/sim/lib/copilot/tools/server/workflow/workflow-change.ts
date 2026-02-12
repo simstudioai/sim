@@ -2,6 +2,13 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import {
+  executeRunBlock,
+  executeRunFromBlock,
+  executeRunWorkflow,
+  executeRunWorkflowUntilBlock,
+} from '@/lib/copilot/orchestrator/tool-executor/workflow-tools'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getBlock } from '@/blocks/registry'
@@ -12,9 +19,10 @@ import {
   saveProposal,
   type WorkflowChangeProposal,
 } from './change-store'
-import { editWorkflowServerTool } from './edit-workflow'
+import { applyWorkflowOperationsServerTool } from './edit-workflow'
 import { applyOperationsToWorkflowState } from './edit-workflow/engine'
 import { preValidateCredentialInputs } from './edit-workflow/validation'
+import { workflowVerifyServerTool } from './workflow-verify'
 import { hashWorkflowState, loadWorkflowStateFromDb } from './workflow-state'
 
 const logger = createLogger('WorkflowChangeServerTool')
@@ -31,6 +39,9 @@ const TargetSchema = z
       .optional(),
   })
   .strict()
+  .refine((target) => Boolean(target.blockId || target.alias || target.match), {
+    message: 'target must include blockId, alias, or match',
+  })
 
 const CredentialSelectionSchema = z
   .object({
@@ -51,32 +62,62 @@ const ChangeOperationSchema = z
   })
   .strict()
 
-const MutationSchema = z
+const EnsureBlockMutationSchema = z
   .object({
-    action: z.enum([
-      'ensure_block',
-      'patch_block',
-      'remove_block',
-      'connect',
-      'disconnect',
-      'ensure_variable',
-      'set_variable',
-    ]),
-    target: TargetSchema.optional(),
+    action: z.literal('ensure_block'),
+    target: TargetSchema,
     type: z.string().optional(),
     name: z.string().optional(),
     inputs: z.record(z.any()).optional(),
     triggerMode: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
     enabled: z.boolean().optional(),
-    changes: z.array(ChangeOperationSchema).optional(),
-    from: TargetSchema.optional(),
-    to: TargetSchema.optional(),
+  })
+  .strict()
+
+const PatchBlockMutationSchema = z
+  .object({
+    action: z.literal('patch_block'),
+    target: TargetSchema,
+    changes: z.array(ChangeOperationSchema).min(1),
+  })
+  .strict()
+
+const RemoveBlockMutationSchema = z
+  .object({
+    action: z.literal('remove_block'),
+    target: TargetSchema,
+  })
+  .strict()
+
+const ConnectMutationSchema = z
+  .object({
+    action: z.literal('connect'),
+    from: TargetSchema,
+    to: TargetSchema,
     handle: z.string().optional(),
     toHandle: z.string().optional(),
     mode: z.enum(['set', 'append', 'remove']).optional(),
   })
   .strict()
+
+const DisconnectMutationSchema = z
+  .object({
+    action: z.literal('disconnect'),
+    from: TargetSchema,
+    to: TargetSchema,
+    handle: z.string().optional(),
+    toHandle: z.string().optional(),
+  })
+  .strict()
+
+const MutationSchema = z.discriminatedUnion('action', [
+  EnsureBlockMutationSchema,
+  PatchBlockMutationSchema,
+  RemoveBlockMutationSchema,
+  ConnectMutationSchema,
+  DisconnectMutationSchema,
+])
 
 const LinkEndpointSchema = z
   .object({
@@ -100,16 +141,64 @@ const LinkSchema = z
   })
   .strict()
 
+const PostApplyRunSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    mode: z.enum(['full', 'until_block', 'from_block', 'block']).optional(),
+    useDeployedState: z.boolean().optional(),
+    workflowInput: z.record(z.any()).optional(),
+    stopAfterBlockId: z.string().optional(),
+    startBlockId: z.string().optional(),
+    blockId: z.string().optional(),
+  })
+  .strict()
+
+const PostApplyEvaluatorSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    requireVerified: z.boolean().optional(),
+    maxWarnings: z.number().int().min(0).optional(),
+    maxDiagnostics: z.number().int().min(0).optional(),
+    requireRunSuccess: z.boolean().optional(),
+  })
+  .strict()
+
+const PostApplySchema = z
+  .object({
+    verify: z.boolean().optional(),
+    run: PostApplyRunSchema.optional(),
+    evaluator: PostApplyEvaluatorSchema.optional(),
+  })
+  .strict()
+
+const AcceptanceItemSchema = z.union([
+  z.string(),
+  z
+    .object({
+      kind: z.string().optional(),
+      assert: z.string(),
+    })
+    .strict(),
+])
+
 const ChangeSpecSchema = z
   .object({
+    version: z.literal('1').optional(),
     objective: z.string().optional(),
-    constraints: z.record(z.any()).optional(),
+    constraints: z.array(z.string()).optional(),
+    assumptions: z.array(z.string()).optional(),
+    unresolvedRisks: z.array(z.string()).optional(),
+    resolvedIds: z.record(z.string()).optional(),
     resources: z.record(z.any()).optional(),
     mutations: z.array(MutationSchema).optional(),
     links: z.array(LinkSchema).optional(),
-    acceptance: z.array(z.any()).optional(),
+    acceptance: z.array(AcceptanceItemSchema).optional(),
+    postApply: PostApplySchema.optional(),
   })
   .strict()
+  .refine((spec) => Boolean((spec.mutations && spec.mutations.length > 0) || (spec.links && spec.links.length > 0)), {
+    message: 'changeSpec must include at least one mutation or link',
+  })
 
 const WorkflowChangeInputSchema = z
   .object({
@@ -120,13 +209,69 @@ const WorkflowChangeInputSchema = z
     baseSnapshotHash: z.string().optional(),
     expectedSnapshotHash: z.string().optional(),
     changeSpec: ChangeSpecSchema.optional(),
+    postApply: PostApplySchema.optional(),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    if (value.mode === 'dry_run') {
+      if (!value.workflowId && !value.contextPackId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['workflowId'],
+          message: 'workflowId is required for dry_run when contextPackId is not provided',
+        })
+      }
+      if (!value.changeSpec) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['changeSpec'],
+          message: 'changeSpec is required for dry_run',
+        })
+      }
+      return
+    }
+
+    if (!value.proposalId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['proposalId'],
+        message: 'proposalId is required for apply',
+      })
+    }
+    if (!value.expectedSnapshotHash) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expectedSnapshotHash'],
+        message: 'expectedSnapshotHash is required for apply',
+      })
+    }
+  })
 
 type WorkflowChangeParams = z.input<typeof WorkflowChangeInputSchema>
 type ChangeSpec = z.input<typeof ChangeSpecSchema>
 type TargetRef = z.input<typeof TargetSchema>
 type ChangeOperation = z.input<typeof ChangeOperationSchema>
+type PostApply = z.input<typeof PostApplySchema>
+
+type NormalizedPostApply = {
+  verify: boolean
+  run: {
+    enabled: boolean
+    mode: 'full' | 'until_block' | 'from_block' | 'block'
+    useDeployedState: boolean
+    workflowInput?: Record<string, any>
+    stopAfterBlockId?: string
+    startBlockId?: string
+    blockId?: string
+  }
+  evaluator: {
+    enabled: boolean
+    requireVerified: boolean
+    maxWarnings: number
+    maxDiagnostics: number
+    requireRunSuccess: boolean
+  }
+}
 
 type CredentialRecord = {
   id: string
@@ -160,6 +305,173 @@ function deepClone<T>(value: T): T {
 
 function stableUnique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
+}
+
+function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): string[] {
+  if (!Array.isArray(assertions)) return []
+  return assertions
+    .map((item) => (typeof item === 'string' ? item : item?.assert))
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function normalizePostApply(postApply?: PostApply): NormalizedPostApply {
+  const run = postApply?.run
+  const evaluator = postApply?.evaluator
+
+  return {
+    verify: postApply?.verify !== false,
+    run: {
+      enabled: run?.enabled === true,
+      mode: run?.mode || 'full',
+      useDeployedState: run?.useDeployedState === true,
+      workflowInput:
+        run?.workflowInput && typeof run.workflowInput === 'object'
+          ? (run.workflowInput as Record<string, any>)
+          : undefined,
+      stopAfterBlockId: run?.stopAfterBlockId,
+      startBlockId: run?.startBlockId,
+      blockId: run?.blockId,
+    },
+    evaluator: {
+      enabled: evaluator?.enabled !== false,
+      requireVerified: evaluator?.requireVerified !== false,
+      maxWarnings:
+        typeof evaluator?.maxWarnings === 'number' && evaluator.maxWarnings >= 0
+          ? evaluator.maxWarnings
+          : 50,
+      maxDiagnostics:
+        typeof evaluator?.maxDiagnostics === 'number' && evaluator.maxDiagnostics >= 0
+          ? evaluator.maxDiagnostics
+          : 0,
+      requireRunSuccess: evaluator?.requireRunSuccess === true,
+    },
+  }
+}
+
+async function executePostApplyRun(params: {
+  workflowId: string
+  userId: string
+  run: NormalizedPostApply['run']
+}): Promise<ToolCallResult> {
+  const context: ExecutionContext = {
+    userId: params.userId,
+    workflowId: params.workflowId,
+  }
+
+  switch (params.run.mode) {
+    case 'until_block': {
+      if (!params.run.stopAfterBlockId) {
+        return {
+          success: false,
+          error: 'postApply.run.stopAfterBlockId is required for mode "until_block"',
+        }
+      }
+      return executeRunWorkflowUntilBlock(
+        {
+          workflowId: params.workflowId,
+          stopAfterBlockId: params.run.stopAfterBlockId,
+          useDeployedState: params.run.useDeployedState,
+          workflow_input: params.run.workflowInput,
+        },
+        context
+      )
+    }
+    case 'from_block': {
+      if (!params.run.startBlockId) {
+        return {
+          success: false,
+          error: 'postApply.run.startBlockId is required for mode "from_block"',
+        }
+      }
+      return executeRunFromBlock(
+        {
+          workflowId: params.workflowId,
+          startBlockId: params.run.startBlockId,
+          useDeployedState: params.run.useDeployedState,
+          workflow_input: params.run.workflowInput,
+        },
+        context
+      )
+    }
+    case 'block': {
+      if (!params.run.blockId) {
+        return {
+          success: false,
+          error: 'postApply.run.blockId is required for mode "block"',
+        }
+      }
+      return executeRunBlock(
+        {
+          workflowId: params.workflowId,
+          blockId: params.run.blockId,
+          useDeployedState: params.run.useDeployedState,
+          workflow_input: params.run.workflowInput,
+        },
+        context
+      )
+    }
+    default:
+      return executeRunWorkflow(
+        {
+          workflowId: params.workflowId,
+          useDeployedState: params.run.useDeployedState,
+          workflow_input: params.run.workflowInput,
+        },
+        context
+      )
+  }
+}
+
+function evaluatePostApplyGate(params: {
+  verifyEnabled: boolean
+  verifyResult: any | null
+  runEnabled: boolean
+  runResult: ToolCallResult | null
+  evaluator: NormalizedPostApply['evaluator']
+  warnings: string[]
+  diagnostics: string[]
+}): {
+  passed: boolean
+  reasons: string[]
+  summary: string
+} {
+  if (!params.evaluator.enabled) {
+    return {
+      passed: true,
+      reasons: [],
+      summary: 'Evaluator gate disabled',
+    }
+  }
+
+  const reasons: string[] = []
+
+  if (params.verifyEnabled && params.evaluator.requireVerified) {
+    const verified = params.verifyResult?.verified === true
+    if (!verified) {
+      reasons.push('verification_failed')
+    }
+  }
+
+  if (params.warnings.length > params.evaluator.maxWarnings) {
+    reasons.push(`warnings_exceeded:${params.warnings.length}`)
+  }
+
+  if (params.diagnostics.length > params.evaluator.maxDiagnostics) {
+    reasons.push(`diagnostics_exceeded:${params.diagnostics.length}`)
+  }
+
+  if (params.runEnabled && params.evaluator.requireRunSuccess) {
+    if (!params.runResult || params.runResult.success !== true) {
+      reasons.push('run_failed')
+    }
+  }
+
+  const passed = reasons.length === 0
+  return {
+    passed,
+    reasons,
+    summary: passed ? 'Evaluator gate passed' : `Evaluator gate failed: ${reasons.join(', ')}`,
+  }
 }
 
 function buildConnectionState(workflowState: {
@@ -679,7 +991,8 @@ async function compileChangeSpec(params: {
         connectionState.set(from, sourceMap)
       }
       const existingTargets = sourceMap.get(sourceHandle) || []
-      const mode = mutation.action === 'disconnect' ? 'remove' : mutation.mode || 'set'
+      const mode =
+        mutation.action === 'disconnect' ? 'remove' : ('mode' in mutation ? mutation.mode : undefined) || 'set'
       const nextTargets = ensureConnectionTarget(
         existingTargets,
         { block: to, handle: targetHandle },
@@ -895,6 +1208,10 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       )
       const diagnostics = [...compileResult.diagnostics, ...simulation.diagnostics]
       const warnings = [...compileResult.warnings, ...simulation.warnings]
+      const acceptanceAssertions = normalizeAcceptance(params.changeSpec.acceptance)
+      const normalizedPostApply = normalizePostApply(
+        (params.postApply as PostApply | undefined) || params.changeSpec.postApply
+      )
 
       const proposal: WorkflowChangeProposal = {
         workflowId,
@@ -904,6 +1221,15 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         warnings,
         diagnostics,
         touchedBlocks: compileResult.touchedBlocks,
+        acceptanceAssertions,
+        postApply: normalizedPostApply,
+        handoff: {
+          objective: params.changeSpec.objective,
+          constraints: params.changeSpec.constraints,
+          resolvedIds: params.changeSpec.resolvedIds,
+          assumptions: params.changeSpec.assumptions,
+          unresolvedRisks: params.changeSpec.unresolvedRisks,
+        },
       }
       const proposalId = saveProposal(proposal)
 
@@ -913,6 +1239,7 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         operationCount: proposal.compiledOperations.length,
         warningCount: warnings.length,
         diagnosticsCount: diagnostics.length,
+        acceptanceCount: acceptanceAssertions.length,
       })
 
       return {
@@ -926,6 +1253,9 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         warnings,
         diagnostics,
         touchedBlocks: proposal.touchedBlocks,
+        acceptance: proposal.acceptanceAssertions,
+        postApply: normalizedPostApply,
+        handoff: proposal.handoff,
       }
     }
 
@@ -951,12 +1281,17 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
 
     const { workflowState } = await loadWorkflowStateFromDb(proposal.workflowId)
     const currentHash = hashWorkflowState(workflowState as unknown as Record<string, unknown>)
-    const expectedHash = params.expectedSnapshotHash || proposal.baseSnapshotHash
-    if (expectedHash && expectedHash !== currentHash) {
+    const expectedHash = params.expectedSnapshotHash
+    if (expectedHash !== proposal.baseSnapshotHash) {
+      throw new Error(
+        `snapshot_mismatch: expectedSnapshotHash ${expectedHash} does not match proposal base ${proposal.baseSnapshotHash}`
+      )
+    }
+    if (expectedHash !== currentHash) {
       throw new Error(`snapshot_mismatch: expected ${expectedHash} but current is ${currentHash}`)
     }
 
-    const applyResult = await editWorkflowServerTool.execute(
+    const applyResult = await applyWorkflowOperationsServerTool.execute(
       {
         workflowId: proposal.workflowId,
         operations: proposal.compiledOperations as any,
@@ -968,9 +1303,43 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
     const newSnapshotHash = appliedWorkflowState
       ? hashWorkflowState(appliedWorkflowState as Record<string, unknown>)
       : null
+    const normalizedPostApply = normalizePostApply(
+      (params.postApply as PostApply | undefined) || (proposal.postApply as PostApply | undefined)
+    )
+
+    let verifyResult: any | null = null
+    if (normalizedPostApply.verify) {
+      verifyResult = await workflowVerifyServerTool.execute(
+        {
+          workflowId: proposal.workflowId,
+          baseSnapshotHash: newSnapshotHash || undefined,
+          acceptance: proposal.acceptanceAssertions,
+        },
+        { userId: context.userId }
+      )
+    }
+
+    let runResult: ToolCallResult | null = null
+    if (normalizedPostApply.run.enabled) {
+      runResult = await executePostApplyRun({
+        workflowId: proposal.workflowId,
+        userId: context.userId,
+        run: normalizedPostApply.run,
+      })
+    }
+
+    const evaluatorGate = evaluatePostApplyGate({
+      verifyEnabled: normalizedPostApply.verify,
+      verifyResult,
+      runEnabled: normalizedPostApply.run.enabled,
+      runResult,
+      evaluator: normalizedPostApply.evaluator,
+      warnings: proposal.warnings,
+      diagnostics: proposal.diagnostics,
+    })
 
     return {
-      success: true,
+      success: evaluatorGate.passed,
       mode: 'apply',
       workflowId: proposal.workflowId,
       proposalId,
@@ -982,6 +1351,14 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       warnings: proposal.warnings,
       diagnostics: proposal.diagnostics,
       editResult: applyResult,
+      postApply: {
+        ok: evaluatorGate.passed,
+        policy: normalizedPostApply,
+        verify: verifyResult,
+        run: runResult,
+        evaluator: evaluatorGate,
+      },
+      handoff: proposal.handoff,
     }
   },
 }

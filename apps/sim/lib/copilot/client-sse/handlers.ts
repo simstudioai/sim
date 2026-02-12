@@ -3,6 +3,7 @@ import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
+  humanizedFallback,
   isBackgroundState,
   isRejectedState,
   isReviewState,
@@ -27,7 +28,6 @@ const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
 
 function isWorkflowEditToolCall(toolName?: string, params?: Record<string, unknown>): boolean {
-  if (toolName === 'edit_workflow') return true
   if (toolName !== 'workflow_change') return false
 
   const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
@@ -107,6 +107,45 @@ function extractToolExecutionMetadata(
     target: typeof execution.target === 'string' ? execution.target : undefined,
     capabilityId: typeof execution.capabilityId === 'string' ? execution.capabilityId : undefined,
   }
+}
+
+function displayVerb(state: ClientToolCallState): string {
+  switch (state) {
+    case ClientToolCallState.success:
+      return 'Completed'
+    case ClientToolCallState.error:
+      return 'Failed'
+    case ClientToolCallState.rejected:
+      return 'Skipped'
+    case ClientToolCallState.aborted:
+      return 'Aborted'
+    case ClientToolCallState.generating:
+      return 'Preparing'
+    case ClientToolCallState.pending:
+      return 'Waiting'
+    default:
+      return 'Running'
+  }
+}
+
+function resolveDisplayFromServerUi(
+  toolName: string,
+  state: ClientToolCallState,
+  toolCallId: string,
+  params: Record<string, unknown> | undefined,
+  ui?: CopilotToolCall['ui']
+) {
+  const fallback =
+    resolveToolDisplay(toolName, state, toolCallId, params) ||
+    humanizedFallback(toolName, state)
+  if (!fallback) return undefined
+  if (ui?.phaseLabel) {
+    return { text: ui.phaseLabel, icon: fallback.icon }
+  }
+  if (ui?.title) {
+    return { text: `${displayVerb(state)} ${ui.title}`, icon: fallback.icon }
+  }
+  return fallback
 }
 
 function isWorkflowChangeApplyCall(toolName?: string, params?: Record<string, unknown>): boolean {
@@ -392,11 +431,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
           execution: executionMetadata || current.execution,
           params: paramsForCurrentToolCall,
           state: targetState,
-          display: resolveToolDisplay(
+          display: resolveDisplayFromServerUi(
             current.name,
             targetState,
             current.id,
-            paramsForCurrentToolCall
+            paramsForCurrentToolCall,
+            uiMetadata || current.ui
           ),
         }
         set({ toolCallsById: updatedMap })
@@ -483,7 +523,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
           (current.name === 'deploy_api' ||
             current.name === 'deploy_chat' ||
             current.name === 'deploy_mcp' ||
-            current.name === 'redeploy')
+            current.name === 'redeploy' ||
+            current.name === 'workflow_deploy')
         ) {
           try {
             const resultPayload = asRecord(
@@ -494,7 +535,19 @@ export const sseHandlers: Record<string, SSEHandler> = {
               (resultPayload?.workflowId as string) ||
               (input?.workflowId as string) ||
               useWorkflowRegistry.getState().activeWorkflowId
-            const isDeployed = resultPayload?.isDeployed !== false
+            const deployMode = String(input?.mode || '')
+            const action = String(input?.action || 'deploy')
+            const isDeployed = (() => {
+              if (typeof resultPayload?.isDeployed === 'boolean') return resultPayload.isDeployed
+              if (current.name !== 'workflow_deploy') return true
+              if (deployMode === 'status') {
+                const statusIsDeployed = resultPayload?.isDeployed
+                return typeof statusIsDeployed === 'boolean' ? statusIsDeployed : true
+              }
+              if (deployMode === 'api' || deployMode === 'chat') return action !== 'undeploy'
+              if (deployMode === 'redeploy' || deployMode === 'mcp') return true
+              return true
+            })()
             if (workflowId) {
               useWorkflowRegistry
                 .getState()
@@ -608,11 +661,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
               ui: uiMetadata || b.toolCall?.ui,
               execution: executionMetadata || b.toolCall?.execution,
               state: targetState,
-              display: resolveToolDisplay(
+              display: resolveDisplayFromServerUi(
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                paramsForBlock
+                paramsForBlock,
+                uiMetadata || b.toolCall?.ui
               ),
             },
           }
@@ -658,7 +712,13 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ui: uiMetadata || current.ui,
           execution: executionMetadata || current.execution,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          display: resolveDisplayFromServerUi(
+            current.name,
+            targetState,
+            current.id,
+            current.params,
+            uiMetadata || current.ui
+          ),
         }
         set({ toolCallsById: updatedMap })
       }
@@ -685,11 +745,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
               ui: uiMetadata || b.toolCall?.ui,
               execution: executionMetadata || b.toolCall?.execution,
               state: targetState,
-              display: resolveToolDisplay(
+              display: resolveDisplayFromServerUi(
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                b.toolCall?.params
+                b.toolCall?.params,
+                uiMetadata || b.toolCall?.ui
               ),
             },
           }
@@ -718,13 +779,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (!toolCallsById[toolCallId]) {
       const initialState = ClientToolCallState.generating
+      const uiMetadata = extractToolUiMetadata(eventData)
       const tc: CopilotToolCall = {
         id: toolCallId,
         name: toolName,
         state: initialState,
-        ui: extractToolUiMetadata(eventData),
+        ui: uiMetadata,
         execution: extractToolExecutionMetadata(eventData),
-        display: resolveToolDisplay(toolName, initialState, toolCallId),
+        display: resolveDisplayFromServerUi(toolName, initialState, toolCallId, undefined, uiMetadata),
       }
       const updated = { ...toolCallsById, [toolCallId]: tc }
       set({ toolCallsById: updated })
@@ -774,7 +836,13 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ui: uiMetadata || existing.ui,
           execution: executionMetadata || existing.execution,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args || existing.params),
+          display: resolveDisplayFromServerUi(
+            toolName,
+            initialState,
+            id,
+            args || existing.params,
+            uiMetadata || existing.ui
+          ),
         }
       : {
           id,
@@ -783,7 +851,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ui: uiMetadata,
           execution: executionMetadata,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args),
+          display: resolveDisplayFromServerUi(toolName, initialState, id, args, uiMetadata),
         }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })

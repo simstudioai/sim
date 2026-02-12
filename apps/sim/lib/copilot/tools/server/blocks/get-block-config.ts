@@ -109,7 +109,7 @@ function resolveSubBlockOptions(sb: SubBlockConfig): string[] | undefined {
     return undefined
   }
 
-  // Return the actual option ID/value that edit_workflow expects, not the display label
+  // Return canonical option IDs/values expected by workflow_change compilation and apply
   return rawOptions
     .map((opt: any) => {
       if (!opt) return undefined

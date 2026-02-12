@@ -84,7 +84,6 @@ function isPageUnloading(): boolean {
 }
 
 function isWorkflowEditToolCall(name?: string, params?: Record<string, unknown>): boolean {
-  if (name === 'edit_workflow') return true
   if (name !== 'workflow_change') return false
 
   const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''

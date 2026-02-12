@@ -130,13 +130,12 @@ export async function findLatestEditWorkflowToolCallId(): Promise<string | undef
 }
 
 function isWorkflowEditToolCall(name?: string, params?: Record<string, unknown>): boolean {
-  if (name === 'edit_workflow') return true
   if (name !== 'workflow_change') return false
 
   const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
   if (mode === 'apply') return true
 
-  // Be permissive for legacy/incomplete events: apply calls always include proposalId.
+  // Be permissive for incomplete events: apply calls always include proposalId.
   return typeof params?.proposalId === 'string' && params.proposalId.length > 0
 }
 
