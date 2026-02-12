@@ -87,7 +87,7 @@ export function ParameterWithLabel({
   return (
     <div key={paramId} className='relative min-w-0 space-y-[6px]'>
       <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-        <Label className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='flex items-baseline gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
           {title}
           {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
           {visibility !== 'user-only' && (

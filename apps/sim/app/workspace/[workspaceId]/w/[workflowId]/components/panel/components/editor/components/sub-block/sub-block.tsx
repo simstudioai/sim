@@ -215,7 +215,7 @@ const renderLabel = (
 
   return (
     <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-      <Label className='flex items-center gap-[6px] whitespace-nowrap'>
+      <Label className='flex items-baseline gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
