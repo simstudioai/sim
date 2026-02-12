@@ -32,7 +32,6 @@ export function parseS3Uri(
     const url = new URL(s3Uri)
     const hostname = url.hostname
     const normalizedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
-    const pathSegments = normalizedPath.split('/').filter(Boolean)
 
     const virtualHostedDualstackMatch = hostname.match(
       /^(.+)\.s3\.dualstack\.([^.]+)\.amazonaws\.com(?:\.cn)?$/
@@ -52,14 +51,20 @@ export function parseS3Uri(
       pathStyleDualstackMatch || pathStyleRegionalMatch || pathStyleGlobalMatch
     )
 
+    const firstSlashIndex = normalizedPath.indexOf('/')
+    const pathStyleBucketName =
+      firstSlashIndex === -1 ? normalizedPath : normalizedPath.slice(0, firstSlashIndex)
+    const pathStyleObjectKey =
+      firstSlashIndex === -1 ? '' : normalizedPath.slice(firstSlashIndex + 1)
+
     const bucketName = isPathStyleHost
-      ? pathSegments[0]
+      ? pathStyleBucketName
       : (virtualHostedDualstackMatch?.[1] ??
         virtualHostedRegionalMatch?.[1] ??
         virtualHostedGlobalMatch?.[1] ??
         '')
 
-    const rawObjectKey = isPathStyleHost ? pathSegments.slice(1).join('/') : normalizedPath
+    const rawObjectKey = isPathStyleHost ? pathStyleObjectKey : normalizedPath
     const objectKey = (() => {
       try {
         return decodeURIComponent(rawObjectKey)
@@ -68,13 +73,13 @@ export function parseS3Uri(
       }
     })()
 
-    const region =
+    const normalizedFallbackRegion = fallbackRegion?.trim()
+    const regionFromHost =
       virtualHostedDualstackMatch?.[2] ??
       virtualHostedRegionalMatch?.[2] ??
       pathStyleDualstackMatch?.[1] ??
-      pathStyleRegionalMatch?.[1] ??
-      fallbackRegion ??
-      'us-east-1'
+      pathStyleRegionalMatch?.[1]
+    const region = regionFromHost || normalizedFallbackRegion || 'us-east-1'
 
     if (!bucketName || !objectKey) {
       throw new Error('Invalid S3 URI format')
