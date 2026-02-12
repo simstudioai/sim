@@ -104,6 +104,7 @@ export function ToolSubBlockRenderer({
       disabled={disabled}
       canonicalToggle={canonicalToggle}
       labelSuffix={labelSuffix}
+      dependencyContext={toolParams}
     />
   )
 }
