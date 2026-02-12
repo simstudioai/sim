@@ -26,6 +26,7 @@ const listCredentialsSchema = z.object({
   workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
   type: credentialTypeSchema.optional(),
   providerId: z.string().optional(),
+  credentialId: z.string().optional(),
 })
 
 const createCredentialSchema = z
@@ -33,6 +34,7 @@ const createCredentialSchema = z
     workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
     type: credentialTypeSchema,
     displayName: z.string().trim().min(1).max(255).optional(),
+    description: z.string().trim().max(500).optional(),
     providerId: z.string().trim().min(1).optional(),
     accountId: z.string().trim().min(1).optional(),
     envKey: z.string().trim().min(1).optional(),
@@ -156,10 +158,12 @@ export async function GET(request: NextRequest) {
     const rawWorkspaceId = searchParams.get('workspaceId')
     const rawType = searchParams.get('type')
     const rawProviderId = searchParams.get('providerId')
+    const rawCredentialId = searchParams.get('credentialId')
     const parseResult = listCredentialsSchema.safeParse({
       workspaceId: rawWorkspaceId?.trim(),
       type: rawType?.trim() || undefined,
       providerId: rawProviderId?.trim() || undefined,
+      credentialId: rawCredentialId?.trim() || undefined,
     })
 
     if (!parseResult.success) {
@@ -172,11 +176,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
     }
 
-    const { workspaceId, type, providerId } = parseResult.data
+    const { workspaceId, type, providerId, credentialId: lookupCredentialId } = parseResult.data
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
 
     if (!workspaceAccess.hasAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (lookupCredentialId) {
+      const [row] = await db
+        .select({
+          id: credential.id,
+          displayName: credential.displayName,
+          type: credential.type,
+          providerId: credential.providerId,
+        })
+        .from(credential)
+        .where(and(eq(credential.id, lookupCredentialId), eq(credential.workspaceId, workspaceId)))
+        .limit(1)
+
+      return NextResponse.json({ credential: row ?? null })
     }
 
     if (!type || type === 'oauth') {
@@ -202,6 +221,7 @@ export async function GET(request: NextRequest) {
         workspaceId: credential.workspaceId,
         type: credential.type,
         displayName: credential.displayName,
+        description: credential.description,
         providerId: credential.providerId,
         accountId: credential.accountId,
         envKey: credential.envKey,
@@ -245,8 +265,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
     }
 
-    const { workspaceId, type, displayName, providerId, accountId, envKey, envOwnerUserId } =
-      parseResult.data
+    const {
+      workspaceId,
+      type,
+      displayName,
+      description,
+      providerId,
+      accountId,
+      envKey,
+      envOwnerUserId,
+    } = parseResult.data
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
     if (!workspaceAccess.canWrite) {
@@ -254,6 +282,7 @@ export async function POST(request: NextRequest) {
     }
 
     let resolvedDisplayName = displayName?.trim() ?? ''
+    const resolvedDescription = description?.trim() || null
     let resolvedProviderId: string | null = providerId ?? null
     let resolvedAccountId: string | null = accountId ?? null
     const resolvedEnvKey: string | null = envKey ? normalizeEnvKeyInput(envKey) : null
@@ -345,16 +374,21 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (
+      const canUpdateExistingCredential = membership.role === 'admin'
+      const shouldUpdateDisplayName =
         type === 'oauth' &&
-        membership.role === 'admin' &&
         resolvedDisplayName &&
         resolvedDisplayName !== existingCredential.displayName
-      ) {
+      const shouldUpdateDescription =
+        typeof description !== 'undefined' &&
+        (existingCredential.description ?? null) !== resolvedDescription
+
+      if (canUpdateExistingCredential && (shouldUpdateDisplayName || shouldUpdateDescription)) {
         await db
           .update(credential)
           .set({
-            displayName: resolvedDisplayName,
+            ...(shouldUpdateDisplayName ? { displayName: resolvedDisplayName } : {}),
+            ...(shouldUpdateDescription ? { description: resolvedDescription } : {}),
             updatedAt: new Date(),
           })
           .where(eq(credential.id, existingCredential.id))
@@ -388,6 +422,7 @@ export async function POST(request: NextRequest) {
         workspaceId,
         type,
         displayName: resolvedDisplayName,
+        description: resolvedDescription,
         providerId: resolvedProviderId,
         accountId: resolvedAccountId,
         envKey: resolvedEnvKey,

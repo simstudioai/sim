@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 
 interface SetEnvironmentVariablesParams {
   variables: Record<string, any> | Array<{ name: string; value: string }>
@@ -107,6 +108,11 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
           target: [environment.userId],
           set: { variables: finalEncrypted, updatedAt: new Date() },
         })
+
+      await syncPersonalEnvCredentialsForUser({
+        userId: authenticatedUserId,
+        envKeys: Object.keys(finalEncrypted),
+      })
 
       logger.info('Saved personal environment variables', {
         userId: authenticatedUserId,

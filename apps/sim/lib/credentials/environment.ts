@@ -106,6 +106,7 @@ async function ensureWorkspaceCredentialMemberships(
     .select({
       id: credentialMember.id,
       userId: credentialMember.userId,
+      status: credentialMember.status,
       joinedAt: credentialMember.joinedAt,
     })
     .from(credentialMember)
@@ -123,6 +124,9 @@ async function ensureWorkspaceCredentialMemberships(
     const targetRole = memberUserId === ownerUserId ? 'admin' : 'member'
     const existing = byUserId.get(memberUserId)
     if (existing) {
+      if (existing.status === 'revoked') {
+        continue
+      }
       await db
         .update(credentialMember)
         .set({

@@ -1,11 +1,12 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
+import { permissions, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import {
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
@@ -153,6 +154,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         })
       }
     })
+
+    const [wsEnvRow] = await db
+      .select({ variables: workspaceEnvironment.variables })
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+      .limit(1)
+    const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+    if (wsEnvKeys.length > 0) {
+      await syncWorkspaceEnvCredentials({
+        workspaceId,
+        envKeys: wsEnvKeys,
+        actingUserId: session.user.id,
+      })
+    }
 
     const updatedUsers = await getUsersWithPermissions(workspaceId)
 

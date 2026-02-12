@@ -14,6 +14,7 @@ const createDraftSchema = z.object({
   workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   displayName: z.string().min(1),
+  description: z.string().trim().max(500).optional(),
 })
 
 export async function POST(request: Request) {
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { workspaceId, providerId, displayName } = parsed.data
+    const { workspaceId, providerId, displayName, description } = parsed.data
     const userId = session.user.id
     const now = new Date()
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
         workspaceId,
         providerId,
         displayName,
+        description: description || null,
         expiresAt: new Date(now.getTime() + DRAFT_TTL_MS),
         createdAt: now,
       })
@@ -58,6 +60,7 @@ export async function POST(request: Request) {
         ],
         set: {
           displayName,
+          description: description || null,
           expiresAt: new Date(now.getTime() + DRAFT_TTL_MS),
           createdAt: now,
         },

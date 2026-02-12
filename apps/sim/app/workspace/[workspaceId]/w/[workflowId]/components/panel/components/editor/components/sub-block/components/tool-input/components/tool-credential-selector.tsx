@@ -85,19 +85,43 @@ export function ToolCredentialSelector({
     [credentials, selectedId]
   )
 
-  const resolvedLabel = useMemo(() => {
-    if (selectedCredential) return selectedCredential.name
-    return ''
-  }, [selectedCredential])
-
-  const inputValue = isEditing ? editingInputValue : resolvedLabel
-
-  const invalidSelection = Boolean(selectedId) && !selectedCredential && !credentialsLoading
+  const [inaccessibleCredentialName, setInaccessibleCredentialName] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!invalidSelection) return
-    onChange('')
-  }, [invalidSelection, onChange])
+    if (!selectedId || selectedCredential || credentialsLoading || !workspaceId) {
+      setInaccessibleCredentialName(null)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const response = await fetch(
+          `/api/credentials?workspaceId=${encodeURIComponent(workspaceId)}&credentialId=${encodeURIComponent(selectedId)}`
+        )
+        if (!response.ok || cancelled) return
+        const data = await response.json()
+        if (!cancelled && data.credential?.displayName) {
+          setInaccessibleCredentialName(data.credential.displayName)
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, selectedCredential, credentialsLoading, workspaceId])
+
+  const resolvedLabel = useMemo(() => {
+    if (selectedCredential) return selectedCredential.name
+    if (inaccessibleCredentialName) return inaccessibleCredentialName
+    if (selectedId && !credentialsLoading) return 'Credential (no access)'
+    return ''
+  }, [selectedCredential, inaccessibleCredentialName, selectedId, credentialsLoading])
+
+  const inputValue = isEditing ? editingInputValue : resolvedLabel
 
   useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
 

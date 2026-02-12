@@ -184,7 +184,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       }
     }
 
-    await db.delete(credentialMember).where(eq(credentialMember.id, target.id))
+    await db
+      .update(credentialMember)
+      .set({ status: 'revoked', updatedAt: new Date() })
+      .where(eq(credentialMember.id, target.id))
 
     return NextResponse.json({ success: true })
   } catch (error) {

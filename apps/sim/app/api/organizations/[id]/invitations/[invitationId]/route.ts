@@ -11,6 +11,7 @@ import {
   user,
   userStats,
   type WorkspaceInvitationStatus,
+  workspaceEnvironment,
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -23,6 +24,7 @@ import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const logger = createLogger('OrganizationInvitation')
@@ -494,6 +496,34 @@ export async function PUT(
           .where(eq(workspaceInvitation.orgInvitationId, invitationId))
       }
     })
+
+    if (status === 'accepted') {
+      const acceptedWsInvitations = await db
+        .select({ workspaceId: workspaceInvitation.workspaceId })
+        .from(workspaceInvitation)
+        .where(
+          and(
+            eq(workspaceInvitation.orgInvitationId, invitationId),
+            eq(workspaceInvitation.status, 'accepted' as WorkspaceInvitationStatus)
+          )
+        )
+
+      for (const wsInv of acceptedWsInvitations) {
+        const [wsEnvRow] = await db
+          .select({ variables: workspaceEnvironment.variables })
+          .from(workspaceEnvironment)
+          .where(eq(workspaceEnvironment.workspaceId, wsInv.workspaceId))
+          .limit(1)
+        const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+        if (wsEnvKeys.length > 0) {
+          await syncWorkspaceEnvCredentials({
+            workspaceId: wsInv.workspaceId,
+            envKeys: wsEnvKeys,
+            actingUserId: session.user.id,
+          })
+        }
+      }
+    }
 
     // Handle Pro subscription cancellation after transaction commits
     if (personalProToCancel) {

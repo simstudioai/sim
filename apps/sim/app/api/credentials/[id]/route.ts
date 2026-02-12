@@ -16,13 +16,20 @@ const logger = createLogger('CredentialByIdAPI')
 const updateCredentialSchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
+    description: z.string().trim().max(500).nullish(),
     accountId: z.string().trim().min(1).optional(),
   })
   .strict()
-  .refine((data) => Boolean(data.displayName || data.accountId), {
-    message: 'At least one field must be provided',
-    path: ['displayName'],
-  })
+  .refine(
+    (data) =>
+      data.displayName !== undefined ||
+      data.description !== undefined ||
+      data.accountId !== undefined,
+    {
+      message: 'At least one field must be provided',
+      path: ['displayName'],
+    }
+  )
 
 async function getCredentialResponse(credentialId: string, userId: string) {
   const [row] = await db
@@ -31,6 +38,7 @@ async function getCredentialResponse(credentialId: string, userId: string) {
       workspaceId: credential.workspaceId,
       type: credential.type,
       displayName: credential.displayName,
+      description: credential.description,
       providerId: credential.providerId,
       accountId: credential.accountId,
       envKey: credential.envKey,
@@ -99,23 +107,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
     }
 
-    if (access.credential.type === 'oauth') {
+    const updates: Record<string, unknown> = {}
+
+    if (parseResult.data.description !== undefined) {
+      updates.description = parseResult.data.description ?? null
+    }
+
+    if (Object.keys(updates).length === 0) {
+      if (access.credential.type === 'oauth') {
+        return NextResponse.json(
+          {
+            error: 'OAuth credential editing is limited to description only.',
+          },
+          { status: 400 }
+        )
+      }
       return NextResponse.json(
         {
           error:
-            'OAuth credential editing is disabled. Connect an account and create or use its linked credential.',
+            'Environment credentials cannot be updated via this endpoint. Use the environment value editor in credentials settings.',
         },
         { status: 400 }
       )
     }
 
-    return NextResponse.json(
-      {
-        error:
-          'Environment credentials cannot be updated via this endpoint. Use the environment value editor in credentials settings.',
-      },
-      { status: 400 }
-    )
+    updates.updatedAt = new Date()
+    await db.update(credential).set(updates).where(eq(credential.id, id))
+
+    const row = await getCredentialResponse(id, session.user.id)
+    return NextResponse.json({ credential: row }, { status: 200 })
   } catch (error) {
     logger.error('Failed to update credential', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

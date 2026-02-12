@@ -116,25 +116,50 @@ export function CredentialSelector({
     [credentialSets, selectedCredentialSetId]
   )
 
+  const [inaccessibleCredentialName, setInaccessibleCredentialName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedId || selectedCredential || credentialsLoading || !workspaceId) {
+      setInaccessibleCredentialName(null)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const response = await fetch(
+          `/api/credentials?workspaceId=${encodeURIComponent(workspaceId)}&credentialId=${encodeURIComponent(selectedId)}`
+        )
+        if (!response.ok || cancelled) return
+        const data = await response.json()
+        if (!cancelled && data.credential?.displayName) {
+          setInaccessibleCredentialName(data.credential.displayName)
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, selectedCredential, credentialsLoading, workspaceId])
+
   const resolvedLabel = useMemo(() => {
     if (selectedCredentialSet) return selectedCredentialSet.name
     if (selectedCredential) return selectedCredential.name
+    if (inaccessibleCredentialName) return inaccessibleCredentialName
+    if (selectedId && !credentialsLoading) return 'Credential (no access)'
     return ''
-  }, [selectedCredentialSet, selectedCredential])
+  }, [
+    selectedCredentialSet,
+    selectedCredential,
+    inaccessibleCredentialName,
+    selectedId,
+    credentialsLoading,
+  ])
 
   const displayValue = isEditing ? editingValue : resolvedLabel
-
-  const invalidSelection =
-    !isPreview && Boolean(selectedId) && !selectedCredential && !credentialsLoading
-
-  useEffect(() => {
-    if (!invalidSelection) return
-    logger.info('Clearing invalid credential selection - credential was disconnected', {
-      selectedId,
-      provider: effectiveProviderId,
-    })
-    setStoreValue('')
-  }, [invalidSelection, selectedId, effectiveProviderId, setStoreValue])
 
   useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
 

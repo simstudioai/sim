@@ -270,6 +270,7 @@ export const auth = betterAuth({
                   workspaceId: draft.workspaceId,
                   type: 'oauth',
                   displayName: draft.displayName,
+                  description: draft.description ?? null,
                   providerId: account.providerId,
                   accountId: account.id,
                   createdBy: account.userId,

@@ -6,6 +6,7 @@ import {
   user,
   type WorkspaceInvitationStatus,
   workspace,
+  workspaceEnvironment,
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -14,6 +15,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
@@ -161,6 +163,20 @@ export async function GET(
           })
           .where(eq(workspaceInvitation.id, invitation.id))
       })
+
+      const [wsEnvRow] = await db
+        .select({ variables: workspaceEnvironment.variables })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, invitation.workspaceId))
+        .limit(1)
+      const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+      if (wsEnvKeys.length > 0) {
+        await syncWorkspaceEnvCredentials({
+          workspaceId: invitation.workspaceId,
+          envKeys: wsEnvKeys,
+          actingUserId: session.user.id,
+        })
+      }
 
       return NextResponse.redirect(new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl()))
     }

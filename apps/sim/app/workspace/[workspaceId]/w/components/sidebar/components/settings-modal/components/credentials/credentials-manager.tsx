@@ -2,12 +2,13 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Combobox,
   Input,
   Label,
@@ -16,6 +17,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Textarea,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -35,12 +37,12 @@ import {
   useCreateWorkspaceCredential,
   useDeleteWorkspaceCredential,
   useRemoveWorkspaceCredentialMember,
+  useUpdateWorkspaceCredential,
   useUpsertWorkspaceCredentialMember,
   useWorkspaceCredentialMembers,
   useWorkspaceCredentials,
   type WorkspaceCredential,
   type WorkspaceCredentialRole,
-  workspaceCredentialKeys,
 } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
@@ -62,11 +64,19 @@ const roleOptions = [
   { value: 'admin', label: 'Admin' },
 ] as const
 
-const typeOptions = [
+type CreateCredentialType = 'oauth' | 'secret'
+type SecretScope = 'workspace' | 'personal'
+
+const createTypeOptions = [
   { value: 'oauth', label: 'OAuth Account' },
-  { value: 'env_workspace', label: 'Workspace Secret' },
-  { value: 'env_personal', label: 'Personal Secret' },
+  { value: 'secret', label: 'Secret' },
 ] as const
+
+function getSecretCredentialType(
+  scope: SecretScope
+): Extract<WorkspaceCredential['type'], 'env_workspace' | 'env_personal'> {
+  return scope === 'workspace' ? 'env_workspace' : 'env_personal'
+}
 
 function typeBadgeVariant(type: WorkspaceCredential['type']): 'blue' | 'amber' | 'gray-secondary' {
   if (type === 'oauth') return 'blue'
@@ -89,15 +99,16 @@ function normalizeEnvKeyInput(raw: string): string {
 export function CredentialsManager() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
-  const queryClient = useQueryClient()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('member')
   const [memberUserId, setMemberUserId] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createType, setCreateType] = useState<WorkspaceCredential['type']>('oauth')
+  const [createType, setCreateType] = useState<CreateCredentialType>('oauth')
+  const [createSecretScope, setCreateSecretScope] = useState<SecretScope>('personal')
   const [createDisplayName, setCreateDisplayName] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
   const [createEnvKey, setCreateEnvKey] = useState('')
   const [createEnvValue, setCreateEnvValue] = useState('')
   const [createOAuthProviderId, setCreateOAuthProviderId] = useState('')
@@ -105,6 +116,7 @@ export function CredentialsManager() {
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
   const [isEditingEnvValue, setIsEditingEnvValue] = useState(false)
+  const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -128,31 +140,6 @@ export function CredentialsManager() {
     select: (data) => data,
   })
 
-  const bootstrapCredentials = useMutation({
-    mutationFn: async () => {
-      if (!workspaceId) return null
-      const response = await fetch('/api/credentials/bootstrap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to bootstrap credentials')
-      }
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.list(workspaceId) })
-    },
-  })
-  const runBootstrapCredentials = bootstrapCredentials.mutate
-
-  useEffect(() => {
-    if (!workspaceId) return
-    runBootstrapCredentials()
-  }, [workspaceId, runBootstrapCredentials])
-
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const selectedCredential = useMemo(
     () => credentials.find((credential) => credential.id === selectedCredentialId) || null,
@@ -164,6 +151,7 @@ export function CredentialsManager() {
   )
 
   const createCredential = useCreateWorkspaceCredential()
+  const updateCredential = useUpdateWorkspaceCredential()
   const deleteCredential = useDeleteWorkspaceCredential()
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
@@ -182,6 +170,7 @@ export function CredentialsManager() {
     return credentials.filter((credential) => {
       return (
         credential.displayName.toLowerCase().includes(normalized) ||
+        (credential.description || '').toLowerCase().includes(normalized) ||
         (credential.providerId || '').toLowerCase().includes(normalized) ||
         resolveProviderLabel(credential.providerId).toLowerCase().includes(normalized) ||
         typeLabel(credential.type).toLowerCase().includes(normalized)
@@ -236,18 +225,21 @@ export function CredentialsManager() {
     }
     return getCanonicalScopesForProvider(createOAuthProviderId)
   }, [selectedOAuthService, createOAuthProviderId])
+  const createSecretType = useMemo(
+    () => getSecretCredentialType(createSecretScope),
+    [createSecretScope]
+  )
   const selectedExistingEnvCredential = useMemo(() => {
+    if (createType !== 'secret') return null
     const envKey = normalizeEnvKeyInput(createEnvKey)
     if (!envKey) return null
     return (
       credentials.find(
         (row) =>
-          row.type === createType &&
-          row.type !== 'oauth' &&
-          (row.envKey || '').toLowerCase() === envKey.toLowerCase()
+          row.type === createSecretType && (row.envKey || '').toLowerCase() === envKey.toLowerCase()
       ) ?? null
     )
-  }, [credentials, createEnvKey, createType])
+  }, [credentials, createEnvKey, createSecretType, createType])
   const selectedEnvCurrentValue = useMemo(() => {
     if (!selectedCredential || selectedCredential.type === 'oauth') return ''
     const envKey = selectedCredential.envKey || ''
@@ -267,6 +259,26 @@ export function CredentialsManager() {
     if (!selectedCredential || selectedCredential.type === 'oauth') return false
     return selectedEnvValueDraft !== selectedEnvCurrentValue
   }, [selectedCredential, selectedEnvValueDraft, selectedEnvCurrentValue])
+  useEffect(() => {
+    if (!selectedCredential || !isSelectedAdmin) return
+    if (selectedDescriptionDraft === (selectedCredential.description || '')) return
+
+    const timer = setTimeout(async () => {
+      try {
+        await updateCredential.mutateAsync({
+          credentialId: selectedCredential.id,
+          description: selectedDescriptionDraft.trim() || null,
+        })
+        await refetchCredentials()
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to update description'
+        setDetailsError(message)
+        logger.error('Failed to autosave credential description', error)
+      }
+    }, 600)
+
+    return () => clearTimeout(timer)
+  }, [selectedDescriptionDraft])
 
   useEffect(() => {
     if (createType !== 'oauth') return
@@ -295,6 +307,7 @@ export function CredentialsManager() {
     setShowCreateModal(true)
     setShowCreateOAuthRequiredModal(false)
     setCreateError(null)
+    setCreateDescription('')
     setCreateEnvValue('')
 
     if (request.type === 'oauth') {
@@ -303,7 +316,8 @@ export function CredentialsManager() {
       setCreateDisplayName(request.displayName)
       setCreateEnvKey('')
     } else {
-      setCreateType(request.type)
+      setCreateType('secret')
+      setCreateSecretScope(request.type === 'env_workspace' ? 'workspace' : 'personal')
       setCreateOAuthProviderId('')
       setCreateDisplayName('')
       setCreateEnvKey(request.envKey || '')
@@ -316,10 +330,13 @@ export function CredentialsManager() {
     if (!selectedCredential) {
       setSelectedEnvValueDraft('')
       setIsEditingEnvValue(false)
+      setSelectedDescriptionDraft('')
       return
     }
 
     setDetailsError(null)
+    setSelectedDescriptionDraft(selectedCredential.description || '')
+
     if (selectedCredential.type === 'oauth') {
       setSelectedEnvValueDraft('')
       setIsEditingEnvValue(false)
@@ -351,7 +368,9 @@ export function CredentialsManager() {
 
   const resetCreateForm = () => {
     setCreateType('oauth')
+    setCreateSecretScope('personal')
     setCreateDisplayName('')
+    setCreateDescription('')
     setCreateEnvKey('')
     setCreateEnvValue('')
     setCreateOAuthProviderId('')
@@ -412,7 +431,6 @@ export function CredentialsManager() {
         })
       }
 
-      await bootstrapCredentials.mutateAsync()
       await refetchCredentials()
       setIsEditingEnvValue(false)
     } catch (error: unknown) {
@@ -425,6 +443,7 @@ export function CredentialsManager() {
   const handleCreateCredential = async () => {
     if (!workspaceId) return
     setCreateError(null)
+    const normalizedDescription = createDescription.trim()
 
     try {
       if (createType === 'oauth') {
@@ -451,7 +470,7 @@ export function CredentialsManager() {
         return
       }
 
-      if (createType === 'env_personal') {
+      if (createSecretType === 'env_personal') {
         const personalVariables = Object.entries(personalEnvironment).reduce(
           (acc, [key, value]) => ({
             ...acc,
@@ -476,21 +495,18 @@ export function CredentialsManager() {
           },
         })
       }
-      if (selectedExistingEnvCredential) {
-        setSelectedCredentialId(selectedExistingEnvCredential.id)
-      } else {
-        const response = await createCredential.mutateAsync({
-          workspaceId,
-          type: createType,
-          envKey: normalizedEnvKey,
-        })
-        const credentialId = response?.credential?.id
-        if (credentialId) {
-          setSelectedCredentialId(credentialId)
-        }
+
+      const response = await createCredential.mutateAsync({
+        workspaceId,
+        type: createSecretType,
+        envKey: normalizedEnvKey,
+        description: normalizedDescription || undefined,
+      })
+      const credentialId = response?.credential?.id
+      if (credentialId) {
+        setSelectedCredentialId(credentialId)
       }
 
-      await bootstrapCredentials.mutateAsync()
       await refetchCredentials()
 
       setShowCreateModal(false)
@@ -523,8 +539,19 @@ export function CredentialsManager() {
           workspaceId,
           providerId: selectedOAuthService.providerId,
           displayName,
+          description: createDescription.trim() || undefined,
         }),
       })
+
+      window.sessionStorage.setItem(
+        'sim.oauth-connect-pending',
+        JSON.stringify({
+          displayName,
+          providerId: selectedOAuthService.providerId,
+          preCount: credentials.filter((c) => c.type === 'oauth').length,
+          workspaceId,
+        })
+      )
 
       await connectOAuthService.mutateAsync({
         providerId: selectedOAuthService.providerId,
@@ -565,7 +592,6 @@ export function CredentialsManager() {
       })
 
       setSelectedCredentialId(null)
-      await bootstrapCredentials.mutateAsync()
       await refetchCredentials()
       window.dispatchEvent(
         new CustomEvent('oauth-credentials-updated', {
@@ -646,9 +672,7 @@ export function CredentialsManager() {
             </div>
           ) : sortedCredentials.length === 0 ? (
             <div className='rounded-[8px] border border-[var(--border-1)] px-[12px] py-[10px] text-[12px] text-[var(--text-tertiary)]'>
-              {bootstrapCredentials.isPending
-                ? 'Syncing credentials from connected accounts and secrets...'
-                : 'No credentials available for this workspace.'}
+              No credentials available for this workspace.
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -742,6 +766,19 @@ export function CredentialsManager() {
                     />
                   </div>
                   <div>
+                    <Label htmlFor='credential-description'>Description</Label>
+                    <Textarea
+                      id='credential-description'
+                      value={selectedDescriptionDraft}
+                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
+                      placeholder='Add a description...'
+                      maxLength={500}
+                      autoComplete='off'
+                      disabled={!isSelectedAdmin}
+                      className='mt-[6px] min-h-[60px] resize-none'
+                    />
+                  </div>
+                  <div>
                     <Label>Connected service</Label>
                     <div className='mt-[6px] flex items-center gap-[10px] rounded-[8px] border border-[var(--border-1)] px-[10px] py-[8px]'>
                       <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
@@ -818,6 +855,19 @@ export function CredentialsManager() {
                       Save
                     </Button>
                   )}
+                  <div>
+                    <Label htmlFor='credential-description'>Description</Label>
+                    <Textarea
+                      id='credential-description'
+                      value={selectedDescriptionDraft}
+                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
+                      placeholder='Add a description...'
+                      maxLength={500}
+                      autoComplete='off'
+                      disabled={!isSelectedAdmin}
+                      className='mt-[6px] min-h-[60px] resize-none'
+                    />
+                  </div>
                 </div>
               )}
               {detailsError && (
@@ -950,14 +1000,16 @@ export function CredentialsManager() {
                 <Label>Type</Label>
                 <div className='mt-[6px]'>
                   <Combobox
-                    options={typeOptions.map((option) => ({
+                    options={createTypeOptions.map((option) => ({
                       value: option.value,
                       label: option.label,
                     }))}
-                    value={typeOptions.find((option) => option.value === createType)?.label || ''}
+                    value={
+                      createTypeOptions.find((option) => option.value === createType)?.label || ''
+                    }
                     selectedValue={createType}
                     onChange={(value) => {
-                      setCreateType(value as WorkspaceCredential['type'])
+                      setCreateType(value as CreateCredentialType)
                       setCreateError(null)
                     }}
                     placeholder='Select credential type'
@@ -978,6 +1030,17 @@ export function CredentialsManager() {
                     />
                   </div>
                   <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      value={createDescription}
+                      onChange={(event) => setCreateDescription(event.target.value)}
+                      placeholder='Optional description'
+                      maxLength={500}
+                      autoComplete='off'
+                      className='mt-[6px] min-h-[80px] resize-none'
+                    />
+                  </div>
+                  <div>
                     <Label>OAuth service</Label>
                     <div className='mt-[6px]'>
                       <Combobox
@@ -993,16 +1056,31 @@ export function CredentialsManager() {
                       />
                     </div>
                   </div>
-
-                  <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                    <p className='text-[12px] text-[var(--text-tertiary)]'>
-                      Connecting creates a credential for this workspace. Disconnecting from that
-                      credential removes it.
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <div className='flex flex-col gap-[10px]'>
+                  <div>
+                    <Label className='block'>Scope</Label>
+                    <div className='mt-[6px]'>
+                      <ButtonGroup
+                        value={createSecretScope}
+                        onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
+                      >
+                        <ButtonGroupItem
+                          value='personal'
+                          className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
+                        >
+                          Personal
+                        </ButtonGroupItem>
+                        <ButtonGroupItem
+                          value='workspace'
+                          className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
+                        >
+                          Workspace
+                        </ButtonGroupItem>
+                      </ButtonGroup>
+                    </div>
+                  </div>
                   <div>
                     <Label>Secret key</Label>
                     <Input
@@ -1037,6 +1115,17 @@ export function CredentialsManager() {
                       data-lpignore='true'
                       data-1p-ignore='true'
                       className='mt-[6px]'
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      value={createDescription}
+                      onChange={(event) => setCreateDescription(event.target.value)}
+                      placeholder='Optional description'
+                      maxLength={500}
+                      autoComplete='off'
+                      className='mt-[6px] min-h-[80px] resize-none'
                     />
                   </div>
 
@@ -1091,7 +1180,6 @@ export function CredentialsManager() {
                 createCredential.isPending ||
                 savePersonalEnvironment.isPending ||
                 upsertWorkspaceEnvironment.isPending ||
-                bootstrapCredentials.isPending ||
                 disconnectOAuthService.isPending
               }
             >

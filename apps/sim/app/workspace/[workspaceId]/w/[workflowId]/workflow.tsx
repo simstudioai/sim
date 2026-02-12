@@ -255,6 +255,54 @@ const WorkflowContent = React.memo(() => {
 
   const addNotification = useNotificationStore((state) => state.addNotification)
 
+  useEffect(() => {
+    const OAUTH_CONNECT_PENDING_KEY = 'sim.oauth-connect-pending'
+    const pending = window.sessionStorage.getItem(OAUTH_CONNECT_PENDING_KEY)
+    if (!pending) return
+    window.sessionStorage.removeItem(OAUTH_CONNECT_PENDING_KEY)
+
+    ;(async () => {
+      try {
+        const {
+          displayName,
+          providerId,
+          preCount,
+          workspaceId: wsId,
+        } = JSON.parse(pending) as {
+          displayName: string
+          providerId: string
+          preCount: number
+          workspaceId: string
+        }
+
+        const response = await fetch(
+          `/api/credentials?workspaceId=${encodeURIComponent(wsId)}&type=oauth`
+        )
+        const data = response.ok ? await response.json() : { credentials: [] }
+        const oauthCredentials = (data.credentials ?? []) as Array<{
+          displayName: string
+          providerId: string | null
+        }>
+
+        if (oauthCredentials.length > preCount) {
+          addNotification({
+            level: 'info',
+            message: `"${displayName}" credential connected successfully.`,
+          })
+        } else {
+          const existing = oauthCredentials.find((c) => c.providerId === providerId)
+          const existingName = existing?.displayName || displayName
+          addNotification({
+            level: 'info',
+            message: `This account is already connected as "${existingName}".`,
+          })
+        }
+      } catch {
+        // Ignore malformed sessionStorage data
+      }
+    })()
+  }, [])
+
   const {
     workflows,
     activeWorkflowId,

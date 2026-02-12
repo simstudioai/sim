@@ -110,10 +110,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
+    const callerUserId = new URL(request.url).searchParams.get('userId') || undefined
+
     const authz = await authorizeCredentialUse(request, {
       credentialId,
       workflowId: workflowId ?? undefined,
       requireWorkflowIdForInternal: false,
+      callerUserId,
     })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })

@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+
+/** Provider IDs that are not real OAuth integrations (e.g. Better Auth's password provider) */
+const NON_OAUTH_PROVIDER_IDS = ['credential'] as const
 
 interface SyncWorkspaceOAuthCredentialsForUserParams {
   workspaceId: string
@@ -34,7 +37,9 @@ export async function syncWorkspaceOAuthCredentialsForUser(
       accountId: account.accountId,
     })
     .from(account)
-    .where(eq(account.userId, userId))
+    .where(
+      and(eq(account.userId, userId), notInArray(account.providerId, [...NON_OAUTH_PROVIDER_IDS]))
+    )
 
   if (userAccounts.length === 0) {
     return { createdCredentials: 0, updatedMemberships: 0 }

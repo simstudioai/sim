@@ -23,9 +23,14 @@ export interface CredentialAccessResult {
  */
 export async function authorizeCredentialUse(
   request: NextRequest,
-  params: { credentialId: string; workflowId?: string; requireWorkflowIdForInternal?: boolean }
+  params: {
+    credentialId: string
+    workflowId?: string
+    requireWorkflowIdForInternal?: boolean
+    callerUserId?: string
+  }
 ): Promise<CredentialAccessResult> {
-  const { credentialId, workflowId, requireWorkflowIdForInternal = true } = params
+  const { credentialId, workflowId, requireWorkflowIdForInternal = true, callerUserId } = params
 
   const auth = await checkSessionOrInternalAuth(request, {
     requireWorkflowId: requireWorkflowIdForInternal,
@@ -76,26 +81,39 @@ export async function authorizeCredentialUse(
       return { ok: false, error: 'Credential account not found' }
     }
 
-    const requesterPerm =
-      auth.authType === 'internal_jwt'
-        ? null
-        : await getUserEntityPermissions(auth.userId, 'workspace', platformCredential.workspaceId)
+    const effectiveCallerId =
+      callerUserId || (auth.authType !== 'internal_jwt' ? auth.userId : null)
 
-    if (auth.authType !== 'internal_jwt') {
+    if (effectiveCallerId) {
+      const requesterPerm = await getUserEntityPermissions(
+        effectiveCallerId,
+        'workspace',
+        platformCredential.workspaceId
+      )
+
       const [membership] = await db
         .select({ id: credentialMember.id })
         .from(credentialMember)
         .where(
           and(
             eq(credentialMember.credentialId, platformCredential.id),
-            eq(credentialMember.userId, auth.userId),
+            eq(credentialMember.userId, effectiveCallerId),
             eq(credentialMember.status, 'active')
           )
         )
         .limit(1)
 
-      if (!membership || requesterPerm === null) {
-        return { ok: false, error: 'Unauthorized' }
+      if (!membership) {
+        return {
+          ok: false,
+          error: `You do not have access to this credential. Ask the credential admin to add you as a member.`,
+        }
+      }
+      if (requesterPerm === null) {
+        return {
+          ok: false,
+          error: 'You do not have access to this workspace.',
+        }
       }
     }
 
@@ -149,21 +167,27 @@ export async function authorizeCredentialUse(
       return { ok: false, error: 'Credential account not found' }
     }
 
-    if (auth.authType !== 'internal_jwt') {
+    const legacyCallerId = callerUserId || (auth.authType !== 'internal_jwt' ? auth.userId : null)
+
+    if (legacyCallerId) {
       const [membership] = await db
         .select({ id: credentialMember.id })
         .from(credentialMember)
         .where(
           and(
             eq(credentialMember.credentialId, workspaceCredential.id),
-            eq(credentialMember.userId, auth.userId),
+            eq(credentialMember.userId, legacyCallerId),
             eq(credentialMember.status, 'active')
           )
         )
         .limit(1)
 
       if (!membership) {
-        return { ok: false, error: 'Unauthorized' }
+        return {
+          ok: false,
+          error:
+            'You do not have access to this credential. Ask the credential admin to add you as a member.',
+        }
       }
     }
 

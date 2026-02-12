@@ -6,6 +6,7 @@ CREATE TABLE "credential" (
 	"workspace_id" text NOT NULL,
 	"type" "credential_type" NOT NULL,
 	"display_name" text NOT NULL,
+	"description" text,
 	"provider_id" text,
 	"account_id" text,
 	"env_key" text,
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS "pending_credential_draft" (
 	"workspace_id" text NOT NULL,
 	"provider_id" text NOT NULL,
 	"display_name" text NOT NULL,
+	"description" text,
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );

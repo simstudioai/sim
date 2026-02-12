@@ -13,6 +13,7 @@ export interface WorkspaceCredential {
   workspaceId: string
   type: WorkspaceCredentialType
   displayName: string
+  description: string | null
   providerId: string | null
   accountId: string | null
   envKey: string | null
@@ -107,6 +108,7 @@ export function useCreateWorkspaceCredential() {
       workspaceId: string
       type: WorkspaceCredentialType
       displayName?: string
+      description?: string
       providerId?: string
       accountId?: string
       envKey?: string
@@ -143,6 +145,7 @@ export function useUpdateWorkspaceCredential() {
     mutationFn: async (payload: {
       credentialId: string
       displayName?: string
+      description?: string | null
       accountId?: string
     }) => {
       const response = await fetch(`/api/credentials/${payload.credentialId}`, {
@@ -150,6 +153,7 @@ export function useUpdateWorkspaceCredential() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           displayName: payload.displayName,
+          description: payload.description,
           accountId: payload.accountId,
         }),
       })
