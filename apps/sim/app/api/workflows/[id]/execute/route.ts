@@ -1034,7 +1034,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
           finalMetaStatus = 'error'
         } finally {
-          await eventWriter.close()
+          try {
+            await eventWriter.close()
+          } catch (closeError) {
+            logger.warn(`[${requestId}] Failed to close event writer`, {
+              error: closeError instanceof Error ? closeError.message : String(closeError),
+            })
+          }
           if (finalMetaStatus) {
             setExecutionMeta(executionId, { status: finalMetaStatus }).catch(() => {})
           }

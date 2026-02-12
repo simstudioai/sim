@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import type {
   BlockCompletedData,
@@ -154,26 +154,30 @@ export interface ReconnectStreamOptions {
 }
 
 /**
+ * Module-level maps shared across all hook instances.
+ * This ensures ANY instance can cancel streams started by ANY other instance,
+ * which is critical for SPA navigation where the original hook instance unmounts
+ * but the SSE stream must be cancellable from the new instance.
+ */
+const sharedAbortControllers = new Map<string, AbortController>()
+const sharedCurrentExecutions = new Map<string, { workflowId: string; executionId: string }>()
+
+/**
  * Hook for executing workflows via server-side SSE streaming.
  * Supports concurrent executions via per-workflow AbortController maps.
  */
 export function useExecutionStream() {
-  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
-  const currentExecutionsRef = useRef<Map<string, { workflowId: string; executionId: string }>>(
-    new Map()
-  )
-
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, onExecutionId, ...payload } = options
 
-    const existing = abortControllersRef.current.get(workflowId)
+    const existing = sharedAbortControllers.get(workflowId)
     if (existing) {
       existing.abort()
     }
 
     const abortController = new AbortController()
-    abortControllersRef.current.set(workflowId, abortController)
-    currentExecutionsRef.current.delete(workflowId)
+    sharedAbortControllers.set(workflowId, abortController)
+    sharedCurrentExecutions.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -200,7 +204,7 @@ export function useExecutionStream() {
 
       const serverExecutionId = response.headers.get('X-Execution-Id')
       if (serverExecutionId) {
-        currentExecutionsRef.current.set(workflowId, { workflowId, executionId: serverExecutionId })
+        sharedCurrentExecutions.set(workflowId, { workflowId, executionId: serverExecutionId })
         onExecutionId?.(serverExecutionId)
       }
 
@@ -218,8 +222,12 @@ export function useExecutionStream() {
       })
       throw error
     } finally {
-      abortControllersRef.current.delete(workflowId)
-      currentExecutionsRef.current.delete(workflowId)
+      // Only clean up if this is still our controller — a concurrent stream
+      // (e.g. reconnection) may have replaced it while we were running.
+      if (sharedAbortControllers.get(workflowId) === abortController) {
+        sharedAbortControllers.delete(workflowId)
+        sharedCurrentExecutions.delete(workflowId)
+      }
     }
   }, [])
 
@@ -233,14 +241,14 @@ export function useExecutionStream() {
       callbacks = {},
     } = options
 
-    const existing = abortControllersRef.current.get(workflowId)
+    const existing = sharedAbortControllers.get(workflowId)
     if (existing) {
       existing.abort()
     }
 
     const abortController = new AbortController()
-    abortControllersRef.current.set(workflowId, abortController)
-    currentExecutionsRef.current.delete(workflowId)
+    sharedAbortControllers.set(workflowId, abortController)
+    sharedCurrentExecutions.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -276,7 +284,7 @@ export function useExecutionStream() {
 
       const serverExecutionId = response.headers.get('X-Execution-Id')
       if (serverExecutionId) {
-        currentExecutionsRef.current.set(workflowId, { workflowId, executionId: serverExecutionId })
+        sharedCurrentExecutions.set(workflowId, { workflowId, executionId: serverExecutionId })
         onExecutionId?.(serverExecutionId)
       }
 
@@ -294,17 +302,24 @@ export function useExecutionStream() {
       })
       throw error
     } finally {
-      abortControllersRef.current.delete(workflowId)
-      currentExecutionsRef.current.delete(workflowId)
+      if (sharedAbortControllers.get(workflowId) === abortController) {
+        sharedAbortControllers.delete(workflowId)
+        sharedCurrentExecutions.delete(workflowId)
+      }
     }
   }, [])
 
   const reconnect = useCallback(async (options: ReconnectStreamOptions) => {
     const { workflowId, executionId, fromEventId = 0, callbacks = {} } = options
 
+    const existing = sharedAbortControllers.get(workflowId)
+    if (existing) {
+      existing.abort()
+    }
+
     const abortController = new AbortController()
-    abortControllersRef.current.set(workflowId, abortController)
-    currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
+    sharedAbortControllers.set(workflowId, abortController)
+    sharedCurrentExecutions.set(workflowId, { workflowId, executionId })
 
     try {
       const response = await fetch(
@@ -320,25 +335,27 @@ export function useExecutionStream() {
       logger.error('Reconnection stream error:', error)
       throw error
     } finally {
-      abortControllersRef.current.delete(workflowId)
-      currentExecutionsRef.current.delete(workflowId)
+      if (sharedAbortControllers.get(workflowId) === abortController) {
+        sharedAbortControllers.delete(workflowId)
+        sharedCurrentExecutions.delete(workflowId)
+      }
     }
   }, [])
 
   const cancel = useCallback((workflowId?: string) => {
     if (workflowId) {
-      const controller = abortControllersRef.current.get(workflowId)
+      const controller = sharedAbortControllers.get(workflowId)
       if (controller) {
         controller.abort()
-        abortControllersRef.current.delete(workflowId)
+        sharedAbortControllers.delete(workflowId)
       }
-      currentExecutionsRef.current.delete(workflowId)
+      sharedCurrentExecutions.delete(workflowId)
     } else {
-      for (const [, controller] of abortControllersRef.current) {
+      for (const [, controller] of sharedAbortControllers) {
         controller.abort()
       }
-      abortControllersRef.current.clear()
-      currentExecutionsRef.current.clear()
+      sharedAbortControllers.clear()
+      sharedCurrentExecutions.clear()
     }
   }, [])
 

@@ -222,7 +222,14 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
       clearTimeout(flushTimer)
       flushTimer = null
     }
-    await flush()
+    // Wait for any in-flight flush to complete
+    if (flushPromise) {
+      await flushPromise
+    }
+    // Drain any remaining events that accumulated during the wait
+    if (pending.length > 0) {
+      await doFlush()
+    }
   }
 
   return { write, flush, close }

@@ -13,6 +13,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 const logger = createLogger('ExecutionStreamReconnectAPI')
 
 const POLL_INTERVAL_MS = 500
+const MAX_POLL_DURATION_MS = 10 * 60 * 1000 // 10 minutes
 
 function isTerminalStatus(status: ExecutionStreamStatus): boolean {
   return status === 'complete' || status === 'error' || status === 'cancelled'
@@ -70,10 +71,13 @@ export async function GET(
 
     const encoder = new TextEncoder()
 
+    // Hoisted so cancel() can signal the polling loop to stop
+    let closed = false
+
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let lastEventId = fromEventId
-        let closed = false
+        const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
 
         const enqueue = (text: string) => {
           if (closed) return
@@ -101,8 +105,8 @@ export async function GET(
             return
           }
 
-          // Poll for new events until execution completes
-          while (!closed) {
+          // Poll for new events until execution completes or deadline is reached
+          while (!closed && Date.now() < pollDeadline) {
             await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
             if (closed) return
 
@@ -127,6 +131,13 @@ export async function GET(
               return
             }
           }
+
+          // Deadline reached — close gracefully
+          if (!closed) {
+            logger.warn('Reconnection stream poll deadline reached', { executionId })
+            enqueue('data: [DONE]\n\n')
+            controller.close()
+          }
         } catch (error) {
           logger.error('Error in reconnection stream', {
             executionId,
@@ -140,6 +151,7 @@ export async function GET(
         }
       },
       cancel() {
+        closed = true
         logger.info('Client disconnected from reconnection stream', { executionId })
       },
     })

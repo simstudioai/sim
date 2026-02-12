@@ -46,6 +46,13 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useWorkflowExecution')
 
+/**
+ * Module-level Set tracking which workflows have an active reconnection effect.
+ * Prevents multiple hook instances (from different components) from starting
+ * concurrent reconnection streams for the same workflow during the same mount cycle.
+ */
+const activeReconnections = new Set<string>()
+
 // Debug state validation result
 interface DebugValidationResult {
   isValid: boolean
@@ -1016,24 +1023,6 @@ export function useWorkflowExecution() {
           if (result.metadata.pendingBlocks) {
             setPendingBlocks(activeWorkflowId, result.metadata.pendingBlocks)
           }
-        } else if (result && 'success' in result) {
-          setExecutionResult(result)
-          // Reset execution state after successful non-debug execution
-          setIsExecuting(activeWorkflowId, false)
-          setIsDebugging(activeWorkflowId, false)
-          setActiveBlocks(activeWorkflowId, new Set())
-
-          if (isChatExecution) {
-            if (!result.metadata) {
-              result.metadata = { duration: 0, startTime: new Date().toISOString() }
-            }
-            ;(result.metadata as any).source = 'chat'
-          }
-
-          // Invalidate subscription queries to update usage
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
-          }, 1000)
         }
         return result
       } catch (error: any) {
@@ -1455,6 +1444,19 @@ export function useWorkflowExecution() {
                   })
                 }
               }
+
+              // Reset execution state (unless in debug mode — debug session manages its own lifecycle)
+              const workflowExecState = activeWorkflowId
+                ? useExecutionStore.getState().getWorkflowExecution(activeWorkflowId)
+                : null
+              if (activeWorkflowId && !workflowExecState?.isDebugging) {
+                setExecutionResult(executionResult)
+                setIsExecuting(activeWorkflowId, false)
+                setActiveBlocks(activeWorkflowId, new Set())
+                setTimeout(() => {
+                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+                }, 1000)
+              }
             },
 
             onExecutionError: (data) => {
@@ -1489,6 +1491,12 @@ export function useWorkflowExecution() {
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
               })
+
+              if (activeWorkflowId) {
+                setIsExecuting(activeWorkflowId, false)
+                setIsDebugging(activeWorkflowId, false)
+                setActiveBlocks(activeWorkflowId, new Set())
+              }
             },
 
             onExecutionCancelled: (data) => {
@@ -1509,6 +1517,12 @@ export function useWorkflowExecution() {
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
               })
+
+              if (activeWorkflowId) {
+                setIsExecuting(activeWorkflowId, false)
+                setIsDebugging(activeWorkflowId, false)
+                setActiveBlocks(activeWorkflowId, new Set())
+              }
             },
           },
         })
@@ -1520,19 +1534,9 @@ export function useWorkflowExecution() {
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           logger.info('Execution aborted by user')
 
-          // Reset execution state
-          if (activeWorkflowId) {
-            setIsExecuting(activeWorkflowId, false)
-            setActiveBlocks(activeWorkflowId, new Set())
-          }
-
-          // Return gracefully without error
-          return {
-            success: false,
-            output: {},
-            metadata: { duration: 0 },
-            logs: [],
-          }
+          // Return gracefully with accumulated data (no state reset —
+          // event callbacks or explicit cancel handle that)
+          return executionResult
         }
 
         logger.error('Server-side execution failed:', error)
@@ -1777,36 +1781,29 @@ export function useWorkflowExecution() {
     // 1. Read + clear execution ID first so the isStaleExecution guard
     //    blocks any further SSE callbacks from the old execution.
     const storedExecutionId = activeWorkflowId ? getCurrentExecutionId(activeWorkflowId) : null
-    if (activeWorkflowId) {
-      setCurrentExecutionId(activeWorkflowId, null)
-    }
+    if (!activeWorkflowId || !storedExecutionId) return
+    setCurrentExecutionId(activeWorkflowId, null)
 
     // 2. Send cancel signal to server via stored executionId
-    if (activeWorkflowId && storedExecutionId) {
-      fetch(`/api/workflows/${activeWorkflowId}/executions/${storedExecutionId}/cancel`, {
-        method: 'POST',
-      }).catch(() => {})
-    }
+    fetch(`/api/workflows/${activeWorkflowId}/executions/${storedExecutionId}/cancel`, {
+      method: 'POST',
+    }).catch(() => {})
 
     // 3. Abort local SSE stream (if still connected)
-    executionStream.cancel(activeWorkflowId ?? undefined)
+    executionStream.cancel(activeWorkflowId)
 
     // 4. Update terminal: mark running entries as cancelled + add "Execution Cancelled" entry
-    if (activeWorkflowId) {
-      handleExecutionCancelledConsole({
-        workflowId: activeWorkflowId,
-        executionId: storedExecutionId ?? undefined,
-      })
-    }
+    handleExecutionCancelledConsole({
+      workflowId: activeWorkflowId,
+      executionId: storedExecutionId,
+    })
 
     currentChatExecutionIdRef.current = null
 
     // 5. Reset remaining execution state
-    if (activeWorkflowId) {
-      setIsExecuting(activeWorkflowId, false)
-      setIsDebugging(activeWorkflowId, false)
-      setActiveBlocks(activeWorkflowId, new Set())
-    }
+    setIsExecuting(activeWorkflowId, false)
+    setIsDebugging(activeWorkflowId, false)
+    setActiveBlocks(activeWorkflowId, new Set())
 
     if (isDebugging) {
       resetDebugState()
@@ -1980,6 +1977,10 @@ export function useWorkflowExecution() {
                 }
                 setLastExecutionSnapshot(workflowId, updatedSnapshot)
               }
+
+              setCurrentExecutionId(workflowId, null)
+              setIsExecuting(workflowId, false)
+              setActiveBlocks(workflowId, new Set())
             },
 
             onExecutionError: (data) => {
@@ -2004,6 +2005,10 @@ export function useWorkflowExecution() {
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
               })
+
+              setCurrentExecutionId(workflowId, null)
+              setIsExecuting(workflowId, false)
+              setActiveBlocks(workflowId, new Set())
             },
 
             onExecutionCancelled: (data) => {
@@ -2012,6 +2017,10 @@ export function useWorkflowExecution() {
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
               })
+
+              setCurrentExecutionId(workflowId, null)
+              setIsExecuting(workflowId, false)
+              setActiveBlocks(workflowId, new Set())
             },
           },
         })
@@ -2020,15 +2029,19 @@ export function useWorkflowExecution() {
           logger.error('Run-from-block failed:', error)
         }
       } finally {
-        setCurrentExecutionId(workflowId, null)
-        setIsExecuting(workflowId, false)
-        setActiveBlocks(workflowId, new Set())
+        const currentId = getCurrentExecutionId(workflowId)
+        if (currentId !== null) {
+          setCurrentExecutionId(workflowId, null)
+          setIsExecuting(workflowId, false)
+          setActiveBlocks(workflowId, new Set())
+        }
       }
     },
     [
       getLastExecutionSnapshot,
       setLastExecutionSnapshot,
       clearLastExecutionSnapshot,
+      getCurrentExecutionId,
       setCurrentExecutionId,
       setIsExecuting,
       setActiveBlocks,
@@ -2067,35 +2080,49 @@ export function useWorkflowExecution() {
           'manual',
           blockId
         )
-        if (result && 'success' in result) {
-          setExecutionResult(result)
-        }
       } catch (error) {
         const errorResult = handleExecutionError(error, { executionId })
         return errorResult
       } finally {
-        setIsExecuting(workflowId, false)
-        setIsDebugging(workflowId, false)
-        setActiveBlocks(workflowId, new Set())
+        const currentId = getCurrentExecutionId(workflowId)
+        if (currentId !== null) {
+          setCurrentExecutionId(workflowId, null)
+          setIsExecuting(workflowId, false)
+          setIsDebugging(workflowId, false)
+          setActiveBlocks(workflowId, new Set())
+        }
       }
     },
-    [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]
+    [
+      activeWorkflowId,
+      getCurrentExecutionId,
+      setCurrentExecutionId,
+      setExecutionResult,
+      setIsExecuting,
+      setIsDebugging,
+      setActiveBlocks,
+    ]
   )
 
   useEffect(() => {
     if (!activeWorkflowId || !hasHydrated) return
-
-    // Only attempt reconnection after a full page refresh.
-    // The execution store is NOT persisted, so isExecuting resets to false on refresh.
-    // During SPA navigation, isExecuting is still true → the SSE connection is alive.
-    const workflowExecState = useExecutionStore.getState().workflowExecutions.get(activeWorkflowId)
-    if (workflowExecState?.isExecuting) return
 
     const entries = useTerminalConsoleStore.getState().entries
     const runningEntries = entries.filter(
       (e) => e.isRunning && e.workflowId === activeWorkflowId && e.executionId
     )
     if (runningEntries.length === 0) return
+
+    // Coordination guard: only ONE instance of this hook should start reconnection.
+    // Multiple components mount useWorkflowExecution simultaneously; the first
+    // instance to reach here claims the lock, subsequent instances bail out.
+    // This is separate from currentExecutionId (which is set by normal execution too).
+    if (activeReconnections.has(activeWorkflowId)) return
+    activeReconnections.add(activeWorkflowId)
+
+    // Cancel any existing SSE stream for this workflow (SPA nav: old stream may be alive).
+    // Uses module-level shared AbortControllers, so this cancels streams from ANY instance.
+    executionStream.cancel(activeWorkflowId)
 
     // Pick the most recent execution by startedAt timestamp.
     // Old zombie entries from previous executions may still have isRunning=true.
@@ -2137,9 +2164,9 @@ export function useWorkflowExecution() {
       includeStartConsoleEntry: true,
     })
 
-    // Save original running entries so we can restore them if reconnection is interrupted.
-    // This ensures the next mount can retry reconnection.
-    const originalEntries = runningEntries
+    // Save ALL entries for this execution so we can restore them if reconnection is interrupted.
+    // clearExecutionEntries removes completed AND running entries, so we must save both.
+    const originalEntries = entries
       .filter((e) => e.executionId === executionId)
       .map((e) => ({ ...e }))
 
@@ -2175,15 +2202,35 @@ export function useWorkflowExecution() {
             handlers.onBlockError(data)
           },
           onExecutionCompleted: () => {
+            // Stale check: if another path (e.g. handleCancelExecution) already
+            // cleared currentExecutionId, skip to avoid duplicate state updates.
+            const currentId = useExecutionStore
+              .getState()
+              .getCurrentExecutionId(reconnectWorkflowId)
+            if (currentId !== executionId) {
+              reconnectionComplete = true
+              activeReconnections.delete(reconnectWorkflowId)
+              return
+            }
             clearOnce()
             reconnectionComplete = true
+            activeReconnections.delete(reconnectWorkflowId)
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
           },
           onExecutionError: (data) => {
+            const currentId = useExecutionStore
+              .getState()
+              .getCurrentExecutionId(reconnectWorkflowId)
+            if (currentId !== executionId) {
+              reconnectionComplete = true
+              activeReconnections.delete(reconnectWorkflowId)
+              return
+            }
             clearOnce()
             reconnectionComplete = true
+            activeReconnections.delete(reconnectWorkflowId)
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
@@ -2195,8 +2242,17 @@ export function useWorkflowExecution() {
             })
           },
           onExecutionCancelled: () => {
+            const currentId = useExecutionStore
+              .getState()
+              .getCurrentExecutionId(reconnectWorkflowId)
+            if (currentId !== executionId) {
+              reconnectionComplete = true
+              activeReconnections.delete(reconnectWorkflowId)
+              return
+            }
             clearOnce()
             reconnectionComplete = true
+            activeReconnections.delete(reconnectWorkflowId)
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
@@ -2209,6 +2265,7 @@ export function useWorkflowExecution() {
       })
       .catch((error) => {
         reconnectionComplete = true
+        activeReconnections.delete(reconnectWorkflowId)
         logger.warn('Execution reconnection failed', { executionId, error })
         clearExecutionEntries(executionId)
         for (const entry of originalEntries) {
@@ -2230,6 +2287,7 @@ export function useWorkflowExecution() {
 
     return () => {
       executionStream.cancel(reconnectWorkflowId)
+      activeReconnections.delete(reconnectWorkflowId)
 
       // If reconnection was interrupted (clearOnce fired but no terminal event arrived),
       // restore the original running entries so the next mount can retry.
@@ -2241,10 +2299,6 @@ export function useWorkflowExecution() {
           addConsole(entry)
         }
       }
-
-      setCurrentExecutionId(reconnectWorkflowId, null)
-      setIsExecuting(reconnectWorkflowId, false)
-      setActiveBlocks(reconnectWorkflowId, new Set())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkflowId, hasHydrated])
