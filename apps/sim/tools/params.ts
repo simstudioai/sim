@@ -907,8 +907,7 @@ export function getSubBlocksForToolInput(
         parts.length >= 3 ? parts.slice(2).join('_') : parts[parts.length - 1]
     }
 
-    // Build a set of param IDs from the tool config for fallback visibility inference
-    const toolParamIds = new Set(Object.keys(toolConfig.params || {}))
+    // Build a map of tool param IDs to their resolved visibility
     const toolParamVisibility: Record<string, ParameterVisibility> = {}
     for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
       toolParamVisibility[paramId] =
@@ -945,16 +944,21 @@ export function getSubBlocksForToolInput(
           // Auth tokens without explicit paramVisibility are hidden
           // (they're handled by the OAuth credential selector or structurally)
           // But only if they don't have a matching tool param
-          if (!toolParamIds.has(sb.id)) {
+          if (!(sb.id in toolParamVisibility)) {
             visibility = 'hidden'
           } else {
             visibility = toolParamVisibility[sb.id] || 'user-or-llm'
           }
-        } else if (toolParamIds.has(effectiveParamId)) {
+        } else if (effectiveParamId in toolParamVisibility) {
           // Fallback: infer from tool param visibility
           visibility = toolParamVisibility[effectiveParamId]
-        } else if (toolParamIds.has(sb.id)) {
+        } else if (sb.id in toolParamVisibility) {
           visibility = toolParamVisibility[sb.id]
+        } else if (sb.canonicalParamId) {
+          // SubBlock has a canonicalParamId that doesn't directly match a tool param.
+          // This means the block's params() function transforms it before sending to the tool
+          // (e.g. listFolderId → folderId). These are user-facing inputs, default to user-or-llm.
+          visibility = 'user-or-llm'
         } else {
           // SubBlock has no corresponding tool param — skip it
           continue
@@ -987,16 +991,16 @@ export function getSubBlocksForToolInput(
             // Find the advanced variant
             const advancedSb = allSubBlocks.find((s) => group.advancedIds.includes(s.id))
             if (advancedSb) {
-              filtered.push(advancedSb)
+              filtered.push({ ...advancedSb, paramVisibility: visibility })
             }
           } else {
             // Include basic variant (current sb if it's the basic one)
             if (group.basicId === sb.id) {
-              filtered.push(sb)
+              filtered.push({ ...sb, paramVisibility: visibility })
             } else {
               const basicSb = allSubBlocks.find((s) => s.id === group.basicId)
               if (basicSb) {
-                filtered.push(basicSb)
+                filtered.push({ ...basicSb, paramVisibility: visibility })
               }
             }
           }
@@ -1005,7 +1009,7 @@ export function getSubBlocksForToolInput(
       }
 
       // Non-canonical, non-hidden, condition-passing subblock
-      filtered.push(sb)
+      filtered.push({ ...sb, paramVisibility: visibility })
     }
 
     return {

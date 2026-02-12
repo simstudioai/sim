@@ -1,16 +1,13 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ArrowUp, Loader2, WrenchIcon, XIcon } from 'lucide-react'
+import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
-  Button,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
-  Input,
-  Label,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -26,6 +23,7 @@ import {
   isToolUnavailable,
   getMcpToolIssue as validateMcpTool,
 } from '@/lib/mcp/tool-validation'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -42,8 +40,15 @@ import {
   type CustomTool,
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
-import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
-import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-sub-block-renderer'
+import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/credential-selector'
+import { ParameterWithLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/parameter'
+import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/sub-block-renderer'
+import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
+import {
+  isCustomToolAlreadySelected,
+  isMcpToolAlreadySelected,
+  isWorkflowAlreadySelected,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { getAllBlocks } from '@/blocks'
@@ -91,281 +96,6 @@ import {
 } from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
-
-/**
- * Props for a generic parameter with label component
- */
-interface ParameterWithLabelProps {
-  paramId: string
-  title: string
-  isRequired: boolean
-  visibility: string
-  wandConfig?: {
-    enabled: boolean
-    prompt?: string
-    placeholder?: string
-  }
-  canonicalToggle?: {
-    mode: 'basic' | 'advanced'
-    disabled?: boolean
-    onToggle?: () => void
-  }
-  disabled: boolean
-  isPreview: boolean
-  children: (wandControlRef: React.MutableRefObject<WandControlHandlers | null>) => React.ReactNode
-}
-
-/**
- * Generic wrapper component for parameters that manages wand state and renders label + input
- */
-const ParameterWithLabel: React.FC<ParameterWithLabelProps> = ({
-  paramId,
-  title,
-  isRequired,
-  visibility,
-  wandConfig,
-  canonicalToggle,
-  disabled,
-  isPreview,
-  children,
-}) => {
-  const [isSearchActive, setIsSearchActive] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const wandControlRef = useRef<WandControlHandlers | null>(null)
-
-  const isWandEnabled = wandConfig?.enabled ?? false
-  const showWand = isWandEnabled && !isPreview && !disabled
-
-  const handleSearchClick = (): void => {
-    setIsSearchActive(true)
-    setTimeout(() => {
-      searchInputRef.current?.focus()
-    }, 0)
-  }
-
-  const handleSearchBlur = (): void => {
-    if (!searchQuery.trim() && !wandControlRef.current?.isWandStreaming) {
-      setIsSearchActive(false)
-    }
-  }
-
-  const handleSearchChange = (value: string): void => {
-    setSearchQuery(value)
-  }
-
-  const handleSearchSubmit = (): void => {
-    if (searchQuery.trim() && wandControlRef.current) {
-      wandControlRef.current.onWandTrigger(searchQuery)
-      setSearchQuery('')
-      setIsSearchActive(false)
-    }
-  }
-
-  const handleSearchCancel = (): void => {
-    setSearchQuery('')
-    setIsSearchActive(false)
-  }
-
-  const isStreaming = wandControlRef.current?.isWandStreaming ?? false
-
-  return (
-    <div key={paramId} className='relative min-w-0 space-y-[6px]'>
-      <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-        <Label className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-          {title}
-          {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
-          {visibility !== 'user-only' && (
-            <span className='ml-[6px] text-[12px] text-[var(--text-tertiary)]'>(optional)</span>
-          )}
-        </Label>
-        <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
-          {showWand && (
-            <>
-              {!isSearchActive ? (
-                <Button
-                  variant='active'
-                  className='-my-1 h-5 px-2 py-0 text-[11px]'
-                  onClick={handleSearchClick}
-                >
-                  Generate
-                </Button>
-              ) : (
-                <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-[4px]'>
-                  <Input
-                    ref={searchInputRef}
-                    value={isStreaming ? 'Generating...' : searchQuery}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      handleSearchChange(e.target.value)
-                    }
-                    onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                      const relatedTarget = e.relatedTarget as HTMLElement | null
-                      if (relatedTarget?.closest('button')) return
-                      handleSearchBlur()
-                    }}
-                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                      if (e.key === 'Enter' && searchQuery.trim() && !isStreaming) {
-                        handleSearchSubmit()
-                      } else if (e.key === 'Escape') {
-                        handleSearchCancel()
-                      }
-                    }}
-                    disabled={isStreaming}
-                    className={cn(
-                      'h-5 min-w-[80px] flex-1 text-[11px]',
-                      isStreaming && 'text-muted-foreground'
-                    )}
-                    placeholder='Generate with AI...'
-                  />
-                  <Button
-                    variant='tertiary'
-                    disabled={!searchQuery.trim() || isStreaming}
-                    onMouseDown={(e: React.MouseEvent) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }}
-                    onClick={(e: React.MouseEvent) => {
-                      e.stopPropagation()
-                      handleSearchSubmit()
-                    }}
-                    className='h-[20px] w-[20px] flex-shrink-0 p-0'
-                  >
-                    <ArrowUp className='h-[12px] w-[12px]' />
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-          {canonicalToggle && !isPreview && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  type='button'
-                  className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                  onClick={canonicalToggle.onToggle}
-                  disabled={canonicalToggle.disabled || disabled}
-                  aria-label={
-                    canonicalToggle.mode === 'advanced'
-                      ? 'Switch to selector'
-                      : 'Switch to manual ID'
-                  }
-                >
-                  <ArrowLeftRight
-                    className={cn(
-                      '!h-[12px] !w-[12px]',
-                      canonicalToggle.mode === 'advanced'
-                        ? 'text-[var(--text-primary)]'
-                        : 'text-[var(--text-secondary)]'
-                    )}
-                  />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>
-                  {canonicalToggle.mode === 'advanced'
-                    ? 'Switch to selector'
-                    : 'Switch to manual ID'}
-                </p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
-      </div>
-      <div className='relative w-full min-w-0'>{children(wandControlRef)}</div>
-    </div>
-  )
-}
-
-/**
- * Props for the ToolInput component
- */
-interface ToolInputProps {
-  /** Unique identifier for the block */
-  blockId: string
-  /** Unique identifier for the sub-block */
-  subBlockId: string
-  /** Whether component is in preview mode */
-  isPreview?: boolean
-  /** Value to display in preview mode */
-  previewValue?: any
-  /** Whether the input is disabled */
-  disabled?: boolean
-  /** Allow expanding tools in preview mode */
-  allowExpandInPreview?: boolean
-}
-
-/**
- * Represents a tool selected and configured in the workflow
- *
- * @remarks
- * For custom tools (new format), we only store: type, customToolId, usageControl, isExpanded.
- * Everything else (title, schema, code) is loaded dynamically from the database.
- * Legacy custom tools with inline schema/code are still supported for backwards compatibility.
- */
-interface StoredTool {
-  /** Block type identifier */
-  type: string
-  /** Display title for the tool (optional for new custom tool format) */
-  title?: string
-  /** Direct tool ID for execution (optional for new custom tool format) */
-  toolId?: string
-  /** Parameter values configured by the user (optional for new custom tool format) */
-  params?: Record<string, string>
-  /** Whether the tool details are expanded in UI */
-  isExpanded?: boolean
-  /** Database ID for custom tools (new format - reference only) */
-  customToolId?: string
-  /** Tool schema for custom tools (legacy format - inline) */
-  schema?: any
-  /** Implementation code for custom tools (legacy format - inline) */
-  code?: string
-  /** Selected operation for multi-operation tools */
-  operation?: string
-  /** Tool usage control mode for LLM */
-  usageControl?: 'auto' | 'force' | 'none'
-}
-
-/**
- * Resolves a custom tool reference to its full definition.
- *
- * @remarks
- * Custom tools can be stored in two formats:
- * 1. Reference-only (new): `{ customToolId: "...", usageControl: "auto" }` - loads from database
- * 2. Inline (legacy): `{ schema: {...}, code: "..." }` - uses embedded definition
- *
- * @param storedTool - The stored tool reference containing either a customToolId or inline definition
- * @param customToolsList - List of custom tools fetched from the database
- * @returns The resolved custom tool with schema, code, and title, or `null` if not found
- */
-function resolveCustomToolFromReference(
-  storedTool: StoredTool,
-  customToolsList: CustomToolDefinition[]
-): { schema: any; code: string; title: string } | null {
-  // If the tool has a customToolId (new reference format), look it up
-  if (storedTool.customToolId) {
-    const customTool = customToolsList.find((t) => t.id === storedTool.customToolId)
-    if (customTool) {
-      return {
-        schema: customTool.schema,
-        code: customTool.code,
-        title: customTool.title,
-      }
-    }
-    // If not found by ID, fall through to try other methods
-    logger.warn(`Custom tool not found by ID: ${storedTool.customToolId}`)
-  }
-
-  // Legacy format: inline schema and code
-  if (storedTool.schema && storedTool.code !== undefined) {
-    return {
-      schema: storedTool.schema,
-      code: storedTool.code,
-      title: storedTool.title || '',
-    }
-  }
-
-  return null
-}
 
 /**
  * Renders the input for workflow_executor's inputMapping parameter.
@@ -526,6 +256,66 @@ function WorkflowToolDeployBadge({
 }
 
 /**
+ * Props for the ToolInput component
+ */
+interface ToolInputProps {
+  /** Unique identifier for the block */
+  blockId: string
+  /** Unique identifier for the sub-block */
+  subBlockId: string
+  /** Whether component is in preview mode */
+  isPreview?: boolean
+  /** Value to display in preview mode */
+  previewValue?: any
+  /** Whether the input is disabled */
+  disabled?: boolean
+  /** Allow expanding tools in preview mode */
+  allowExpandInPreview?: boolean
+}
+
+/**
+ * Resolves a custom tool reference to its full definition.
+ *
+ * @remarks
+ * Custom tools can be stored in two formats:
+ * 1. Reference-only (new): `{ customToolId: "...", usageControl: "auto" }` - loads from database
+ * 2. Inline (legacy): `{ schema: {...}, code: "..." }` - uses embedded definition
+ *
+ * @param storedTool - The stored tool reference containing either a customToolId or inline definition
+ * @param customToolsList - List of custom tools fetched from the database
+ * @returns The resolved custom tool with schema, code, and title, or `null` if not found
+ */
+function resolveCustomToolFromReference(
+  storedTool: StoredTool,
+  customToolsList: CustomToolDefinition[]
+): { schema: any; code: string; title: string } | null {
+  // If the tool has a customToolId (new reference format), look it up
+  if (storedTool.customToolId) {
+    const customTool = customToolsList.find((t) => t.id === storedTool.customToolId)
+    if (customTool) {
+      return {
+        schema: customTool.schema,
+        code: customTool.code,
+        title: customTool.title,
+      }
+    }
+    // If not found by ID, fall through to try other methods
+    logger.warn(`Custom tool not found by ID: ${storedTool.customToolId}`)
+  }
+
+  // Legacy format: inline schema and code
+  if (storedTool.schema && storedTool.code !== undefined) {
+    return {
+      schema: storedTool.schema,
+      code: storedTool.code,
+      title: storedTool.title || '',
+    }
+  }
+
+  return null
+}
+
+/**
  * Set of built-in tool types that are core platform tools.
  *
  * @remarks
@@ -557,7 +347,10 @@ const BUILT_IN_TOOL_TYPES = new Set([
  * @param IconComponent - The Lucide icon component to render
  * @returns A styled div containing the icon with consistent dimensions
  */
-function createToolIcon(bgColor: string, IconComponent: any) {
+function createToolIcon(
+  bgColor: string,
+  IconComponent: React.ComponentType<{ className?: string }>
+) {
   return (
     <div
       className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
@@ -622,12 +415,7 @@ export const ToolInput = memo(function ToolInput({
   const shouldFetchCustomTools = !isPreview || hasReferenceOnlyCustomTools
   const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
-  const {
-    mcpTools,
-    isLoading: mcpLoading,
-    error: mcpError,
-    refreshTools,
-  } = useMcpTools(workspaceId)
+  const { mcpTools, isLoading: mcpLoading } = useMcpTools(workspaceId)
 
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
@@ -674,7 +462,7 @@ export const ToolInput = memo(function ToolInput({
         ) || storedMcpTools.find((st) => st.serverId === serverId && st.toolName === toolName)
 
       // Use DB schema if available, otherwise use Zustand schema
-      const schema = storedTool?.schema ?? tool.schema
+      const schema = storedTool?.schema ?? (tool.schema as McpToolSchema | undefined)
 
       return validateMcpTool(
         {
@@ -823,40 +611,6 @@ export const ToolInput = memo(function ToolInput({
       return false
     }
     return selectedTools.some((tool) => tool.toolId === toolId)
-  }
-
-  /**
-   * Checks if an MCP tool is already selected.
-   *
-   * @param mcpToolId - The MCP tool identifier to check
-   * @returns `true` if the MCP tool is already selected
-   */
-  const isMcpToolAlreadySelected = (mcpToolId: string): boolean => {
-    return selectedTools.some((tool) => tool.type === 'mcp' && tool.toolId === mcpToolId)
-  }
-
-  /**
-   * Checks if a custom tool is already selected.
-   *
-   * @param customToolId - The custom tool identifier to check
-   * @returns `true` if the custom tool is already selected
-   */
-  const isCustomToolAlreadySelected = (customToolId: string): boolean => {
-    return selectedTools.some(
-      (tool) => tool.type === 'custom-tool' && tool.customToolId === customToolId
-    )
-  }
-
-  /**
-   * Checks if a workflow is already selected.
-   *
-   * @param workflowId - The workflow identifier to check
-   * @returns `true` if the workflow is already selected
-   */
-  const isWorkflowAlreadySelected = (workflowId: string): boolean => {
-    return selectedTools.some(
-      (tool) => tool.type === 'workflow_input' && tool.params?.workflowId === workflowId
-    )
   }
 
   /**
@@ -1112,7 +866,7 @@ export const ToolInput = memo(function ToolInput({
           customTools.some(
             (customTool) =>
               customTool.id === toolId &&
-              customTool.schema?.function?.name === tool.schema.function.name
+              customTool.schema?.function?.name === tool.schema?.function?.name
           )
         ) {
           return false
@@ -1168,10 +922,6 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const initialParams: Record<string, string> = {}
-
-      const oldToolParams = tool.toolId ? getToolParametersConfig(tool.toolId, tool.type) : null
-      const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
       const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
 
       const preservedParams: Record<string, string> = {}
@@ -1197,7 +947,7 @@ export const ToolInput = memo(function ToolInput({
                 ...tool,
                 toolId: newToolId,
                 operation,
-                params: { ...initialParams, ...preservedParams }, // Preserve all compatible existing values
+                params: preservedParams,
               }
             : tool
         )
@@ -1298,230 +1048,20 @@ export const ToolInput = memo(function ToolInput({
     setDragOverIndex(null)
   }
 
-  const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
+  const IconComponent = ({
+    icon: Icon,
+    className,
+  }: {
+    icon?: React.ComponentType<{ className?: string }>
+    className?: string
+  }) => {
     if (!Icon) return null
     return <Icon className={className} />
   }
 
-  /**
-   * Generates grouped options for the tool selection combobox.
-   *
-   * @remarks
-   * Groups tools into categories: Actions (create/add), Custom Tools,
-   * MCP Tools, Built-in Tools, and Integrations.
-   *
-   * @returns Array of option groups for the combobox component
-   */
-  const toolGroups = useMemo((): ComboboxOptionGroup[] => {
-    const groups: ComboboxOptionGroup[] = []
-
-    // Actions group (no section header)
-    const actionItems: ComboboxOption[] = []
-    if (!permissionConfig.disableCustomTools) {
-      actionItems.push({
-        label: 'Create Tool',
-        value: 'action-create-tool',
-        icon: WrenchIcon,
-        onSelect: () => {
-          setCustomToolModalOpen(true)
-          setOpen(false)
-        },
-        disabled: isPreview,
-      })
-    }
-    if (!permissionConfig.disableMcpTools) {
-      actionItems.push({
-        label: 'Add MCP Server',
-        value: 'action-add-mcp',
-        icon: McpIcon,
-        onSelect: () => {
-          setOpen(false)
-          window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
-        },
-        disabled: isPreview,
-      })
-    }
-    if (actionItems.length > 0) {
-      groups.push({ items: actionItems })
-    }
-
-    // Custom Tools section
-    if (!permissionConfig.disableCustomTools && customTools.length > 0) {
-      groups.push({
-        section: 'Custom Tools',
-        items: customTools.map((customTool) => {
-          const alreadySelected = isCustomToolAlreadySelected(customTool.id)
-          return {
-            label: customTool.title,
-            value: `custom-${customTool.id}`,
-            iconElement: createToolIcon('#3B82F6', WrenchIcon),
-            disabled: isPreview || alreadySelected,
-            onSelect: () => {
-              if (alreadySelected) return
-              const newTool: StoredTool = {
-                type: 'custom-tool',
-                customToolId: customTool.id,
-                usageControl: 'auto',
-                isExpanded: true,
-              }
-              setStoreValue([
-                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-                newTool,
-              ])
-              setOpen(false)
-            },
-          }
-        }),
-      })
-    }
-
-    // MCP Tools section
-    if (!permissionConfig.disableMcpTools && availableMcpTools.length > 0) {
-      groups.push({
-        section: 'MCP Tools',
-        items: availableMcpTools.map((mcpTool) => {
-          const server = mcpServers.find((s) => s.id === mcpTool.serverId)
-          const alreadySelected = isMcpToolAlreadySelected(mcpTool.id)
-          return {
-            label: mcpTool.name,
-            value: `mcp-${mcpTool.id}`,
-            iconElement: createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon),
-            onSelect: () => {
-              if (alreadySelected) return
-              const newTool: StoredTool = {
-                type: 'mcp',
-                title: mcpTool.name,
-                toolId: mcpTool.id,
-                params: {
-                  serverId: mcpTool.serverId,
-                  ...(server?.url && { serverUrl: server.url }),
-                  toolName: mcpTool.name,
-                  serverName: mcpTool.serverName,
-                },
-                isExpanded: true,
-                usageControl: 'auto',
-                schema: {
-                  ...mcpTool.inputSchema,
-                  description: mcpTool.description,
-                },
-              }
-              handleMcpToolSelect(newTool, true)
-            },
-            disabled: isPreview || disabled || alreadySelected,
-          }
-        }),
-      })
-    }
-
-    // Split tool blocks into built-in tools and integrations
-    const builtInTools = toolBlocks.filter((block) => BUILT_IN_TOOL_TYPES.has(block.type))
-    const integrations = toolBlocks.filter((block) => !BUILT_IN_TOOL_TYPES.has(block.type))
-
-    // Built-in Tools section
-    if (builtInTools.length > 0) {
-      groups.push({
-        section: 'Built-in Tools',
-        items: builtInTools.map((block) => {
-          const toolId = getToolIdForOperation(block.type, undefined)
-          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
-          return {
-            label: block.name,
-            value: `builtin-${block.type}`,
-            iconElement: createToolIcon(block.bgColor, block.icon),
-            disabled: isPreview || alreadySelected,
-            onSelect: () => handleSelectTool(block),
-          }
-        }),
-      })
-    }
-
-    // Integrations section
-    if (integrations.length > 0) {
-      groups.push({
-        section: 'Integrations',
-        items: integrations.map((block) => {
-          const toolId = getToolIdForOperation(block.type, undefined)
-          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
-          return {
-            label: block.name,
-            value: `builtin-${block.type}`,
-            iconElement: createToolIcon(block.bgColor, block.icon),
-            disabled: isPreview || alreadySelected,
-            onSelect: () => handleSelectTool(block),
-          }
-        }),
-      })
-    }
-
-    // Workflows section - shows available workflows that can be executed as tools
-    if (availableWorkflows.length > 0) {
-      groups.push({
-        section: 'Workflows',
-        items: availableWorkflows.map((workflow) => {
-          const alreadySelected = isWorkflowAlreadySelected(workflow.id)
-          return {
-            label: workflow.name,
-            value: `workflow-${workflow.id}`,
-            iconElement: createToolIcon('#6366F1', WorkflowIcon),
-            onSelect: () => {
-              if (alreadySelected) return
-              const newTool: StoredTool = {
-                type: 'workflow_input',
-                title: 'Workflow',
-                toolId: 'workflow_executor',
-                params: {
-                  workflowId: workflow.id,
-                },
-                isExpanded: true,
-                usageControl: 'auto',
-              }
-              setStoreValue([
-                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-                newTool,
-              ])
-              setOpen(false)
-            },
-            disabled: isPreview || disabled || alreadySelected,
-          }
-        }),
-      })
-    }
-
-    return groups
-  }, [
-    customTools,
-    availableMcpTools,
-    mcpServers,
-    toolBlocks,
-    isPreview,
-    disabled,
-    selectedTools,
-    setStoreValue,
-    handleMcpToolSelect,
-    handleSelectTool,
-    permissionConfig.disableCustomTools,
-    permissionConfig.disableMcpTools,
-    availableWorkflows,
-    getToolIdForOperation,
-    isToolAlreadySelected,
-    isMcpToolAlreadySelected,
-    isCustomToolAlreadySelected,
-    isWorkflowAlreadySelected,
-  ])
-
-  const toolRequiresOAuth = (toolId: string): boolean => {
-    const toolParams = getToolParametersConfig(toolId)
-    return toolParams?.toolConfig?.oauth?.required || false
-  }
-
-  const getToolOAuthConfig = (toolId: string) => {
-    const toolParams = getToolParametersConfig(toolId)
-    return toolParams?.toolConfig?.oauth
-  }
-
-  const evaluateParameterCondition = (param: any, tool: StoredTool): boolean => {
+  const evaluateParameterCondition = (param: ToolParameterConfig, tool: StoredTool): boolean => {
     if (!('uiComponent' in param) || !param.uiComponent?.condition) return true
-    const currentValues: Record<string, any> = { operation: tool.operation, ...tool.params }
+    const currentValues: Record<string, unknown> = { operation: tool.operation, ...tool.params }
     return evaluateSubBlockCondition(
       param.uiComponent.condition as SubBlockCondition,
       currentValues
@@ -1682,6 +1222,219 @@ export const ToolInput = memo(function ToolInput({
     }
   }
 
+  /**
+   * Generates grouped options for the tool selection combobox.
+   *
+   * @remarks
+   * Groups tools into categories: Actions (create/add), Custom Tools,
+   * MCP Tools, Built-in Tools, and Integrations.
+   *
+   * @returns Array of option groups for the combobox component
+   */
+  const toolGroups = useMemo((): ComboboxOptionGroup[] => {
+    const groups: ComboboxOptionGroup[] = []
+
+    // Actions group (no section header)
+    const actionItems: ComboboxOption[] = []
+    if (!permissionConfig.disableCustomTools) {
+      actionItems.push({
+        label: 'Create Tool',
+        value: 'action-create-tool',
+        icon: WrenchIcon,
+        onSelect: () => {
+          setCustomToolModalOpen(true)
+          setOpen(false)
+        },
+        disabled: isPreview,
+      })
+    }
+    if (!permissionConfig.disableMcpTools) {
+      actionItems.push({
+        label: 'Add MCP Server',
+        value: 'action-add-mcp',
+        icon: McpIcon,
+        onSelect: () => {
+          setOpen(false)
+          window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
+        },
+        disabled: isPreview,
+      })
+    }
+    if (actionItems.length > 0) {
+      groups.push({ items: actionItems })
+    }
+
+    // Custom Tools section
+    if (!permissionConfig.disableCustomTools && customTools.length > 0) {
+      groups.push({
+        section: 'Custom Tools',
+        items: customTools.map((customTool) => {
+          const alreadySelected = isCustomToolAlreadySelected(selectedTools, customTool.id)
+          return {
+            label: customTool.title,
+            value: `custom-${customTool.id}`,
+            iconElement: createToolIcon('#3B82F6', WrenchIcon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'custom-tool',
+                customToolId: customTool.id,
+                usageControl: 'auto',
+                isExpanded: true,
+              }
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
+            },
+          }
+        }),
+      })
+    }
+
+    // MCP Tools section
+    if (!permissionConfig.disableMcpTools && availableMcpTools.length > 0) {
+      groups.push({
+        section: 'MCP Tools',
+        items: availableMcpTools.map((mcpTool) => {
+          const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+          const alreadySelected = isMcpToolAlreadySelected(selectedTools, mcpTool.id)
+          return {
+            label: mcpTool.name,
+            value: `mcp-${mcpTool.id}`,
+            iconElement: createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon),
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'mcp',
+                title: mcpTool.name,
+                toolId: mcpTool.id,
+                params: {
+                  serverId: mcpTool.serverId,
+                  ...(server?.url && { serverUrl: server.url }),
+                  toolName: mcpTool.name,
+                  serverName: mcpTool.serverName,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+                schema: {
+                  ...mcpTool.inputSchema,
+                  description: mcpTool.description,
+                },
+              }
+              handleMcpToolSelect(newTool, true)
+            },
+            disabled: isPreview || disabled || alreadySelected,
+          }
+        }),
+      })
+    }
+
+    // Split tool blocks into built-in tools and integrations
+    const builtInTools = toolBlocks.filter((block) => BUILT_IN_TOOL_TYPES.has(block.type))
+    const integrations = toolBlocks.filter((block) => !BUILT_IN_TOOL_TYPES.has(block.type))
+
+    // Built-in Tools section
+    if (builtInTools.length > 0) {
+      groups.push({
+        section: 'Built-in Tools',
+        items: builtInTools.map((block) => {
+          const toolId = getToolIdForOperation(block.type, undefined)
+          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
+          return {
+            label: block.name,
+            value: `builtin-${block.type}`,
+            iconElement: createToolIcon(block.bgColor, block.icon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => handleSelectTool(block),
+          }
+        }),
+      })
+    }
+
+    // Integrations section
+    if (integrations.length > 0) {
+      groups.push({
+        section: 'Integrations',
+        items: integrations.map((block) => {
+          const toolId = getToolIdForOperation(block.type, undefined)
+          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
+          return {
+            label: block.name,
+            value: `builtin-${block.type}`,
+            iconElement: createToolIcon(block.bgColor, block.icon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => handleSelectTool(block),
+          }
+        }),
+      })
+    }
+
+    // Workflows section - shows available workflows that can be executed as tools
+    if (availableWorkflows.length > 0) {
+      groups.push({
+        section: 'Workflows',
+        items: availableWorkflows.map((workflow) => {
+          const alreadySelected = isWorkflowAlreadySelected(selectedTools, workflow.id)
+          return {
+            label: workflow.name,
+            value: `workflow-${workflow.id}`,
+            iconElement: createToolIcon('#6366F1', WorkflowIcon),
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'workflow_input',
+                title: 'Workflow',
+                toolId: 'workflow_executor',
+                params: {
+                  workflowId: workflow.id,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+              }
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
+            },
+            disabled: isPreview || disabled || alreadySelected,
+          }
+        }),
+      })
+    }
+
+    return groups
+  }, [
+    customTools,
+    availableMcpTools,
+    mcpServers,
+    toolBlocks,
+    isPreview,
+    disabled,
+    selectedTools,
+    setStoreValue,
+    handleMcpToolSelect,
+    handleSelectTool,
+    permissionConfig.disableCustomTools,
+    permissionConfig.disableMcpTools,
+    availableWorkflows,
+    getToolIdForOperation,
+    isToolAlreadySelected,
+  ])
+
+  const toolRequiresOAuth = (toolId: string): boolean => {
+    const toolParams = getToolParametersConfig(toolId)
+    return toolParams?.toolConfig?.oauth?.required || false
+  }
+
+  const getToolOAuthConfig = (toolId: string) => {
+    const toolParams = getToolParametersConfig(toolId)
+    return toolParams?.toolConfig?.oauth
+  }
+
   return (
     <div className='w-full space-y-[8px]'>
       {/* Add Tool Combobox - always at top */}
@@ -1815,14 +1568,10 @@ export const ToolInput = memo(function ToolInput({
 
           // Determine if tool has expandable body content
           const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
-          // For subblock-based rendering, conditions are already evaluated in getSubBlocksForToolInput
-          const filteredDisplayParams = useSubBlocks
-            ? displayParams // unused when useSubBlocks, but needed for type consistency
-            : displayParams.filter((param) => evaluateParameterCondition(param, tool))
-          const hasToolBody =
-            hasOperations ||
-            (requiresOAuth && oauthConfig) ||
-            (useSubBlocks ? displaySubBlocks.length > 0 : filteredDisplayParams.length > 0)
+          const hasParams = useSubBlocks
+            ? displaySubBlocks.length > 0
+            : displayParams.filter((param) => evaluateParameterCondition(param, tool)).length > 0
+          const hasToolBody = hasOperations || (requiresOAuth && oauthConfig) || hasParams
 
           // Only show expansion if tool has body content
           const isExpandedForDisplay = hasToolBody
@@ -2030,7 +1779,9 @@ export const ToolInput = memo(function ToolInput({
                       <div className='w-full min-w-0'>
                         <ToolCredentialSelector
                           value={tool.params?.credential || ''}
-                          onChange={(value) => handleParamChange(toolIndex, 'credential', value)}
+                          onChange={(value: string) =>
+                            handleParamChange(toolIndex, 'credential', value)
+                          }
                           provider={oauthConfig.provider as OAuthProvider}
                           requiredScopes={
                             toolBlock?.subBlocks?.find((sb) => sb.id === 'credential')
@@ -2051,12 +1802,6 @@ export const ToolInput = memo(function ToolInput({
                     if (useSubBlocks && displaySubBlocks.length > 0) {
                       return displaySubBlocks.map((sb) => {
                         const effectiveParamId = sb.canonicalParamId || sb.id
-                        const visibility =
-                          sb.paramVisibility ||
-                          toolParams?.allParameters?.find((p) => p.id === effectiveParamId)
-                            ?.visibility ||
-                          'user-or-llm'
-                        const isRequired = sb.required === true
 
                         // Compute canonical toggle for basic/advanced mode switching
                         const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
@@ -2077,7 +1822,6 @@ export const ToolInput = memo(function ToolInput({
                           hasCanonicalPair && canonicalMode && canonicalId
                             ? {
                                 mode: canonicalMode,
-                                disabled: disabled,
                                 onToggle: () => {
                                   const nextMode =
                                     canonicalMode === 'advanced' ? 'basic' : 'advanced'
@@ -2086,33 +1830,24 @@ export const ToolInput = memo(function ToolInput({
                               }
                             : undefined
 
+                        // Ensure title is present for SubBlock's label rendering
+                        const sbWithTitle = sb.title
+                          ? sb
+                          : { ...sb, title: formatParameterLabel(effectiveParamId) }
+
                         return (
-                          <ParameterWithLabel
+                          <ToolSubBlockRenderer
                             key={sb.id}
-                            paramId={sb.id}
-                            title={sb.title || formatParameterLabel(effectiveParamId)}
-                            isRequired={isRequired}
-                            visibility={visibility}
-                            wandConfig={sb.wandConfig}
-                            canonicalToggle={canonicalToggleProp}
+                            blockId={blockId}
+                            subBlockId={subBlockId}
+                            toolIndex={toolIndex}
+                            subBlock={sbWithTitle}
+                            effectiveParamId={effectiveParamId}
+                            toolParams={tool.params}
+                            onParamChange={handleParamChange}
                             disabled={disabled}
-                            isPreview={isPreview || false}
-                          >
-                            {(wandControlRef) => (
-                              <ToolSubBlockRenderer
-                                blockId={blockId}
-                                subBlockId={subBlockId}
-                                toolIndex={toolIndex}
-                                subBlock={sb}
-                                effectiveParamId={effectiveParamId}
-                                toolParams={tool.params}
-                                onParamChange={handleParamChange}
-                                disabled={disabled}
-                                previewContextValues={toolContextValues}
-                                wandControlRef={wandControlRef}
-                              />
-                            )}
-                          </ParameterWithLabel>
+                            canonicalToggle={canonicalToggleProp}
+                          />
                         )
                       })
                     }
@@ -2137,35 +1872,14 @@ export const ToolInput = memo(function ToolInput({
                           disabled={disabled}
                           isPreview={isPreview || false}
                         >
-                          {(wandControlRef) =>
-                            param.uiComponent ? (
-                              renderParameterInput(
-                                param,
-                                tool.params?.[param.id] || '',
-                                (value) => handleParamChange(toolIndex, param.id, value),
-                                toolIndex,
-                                toolContextValues as Record<string, string>,
-                                wandControlRef
-                              )
-                            ) : (
-                              <ShortInput
-                                blockId={blockId}
-                                subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
-                                placeholder={
-                                  param.description ||
-                                  `Enter ${formatParameterLabel(param.id).toLowerCase()}`
-                                }
-                                password={isPasswordParameter(param.id)}
-                                config={{
-                                  id: `${subBlockId}-tool-${toolIndex}-${param.id}`,
-                                  type: 'short-input',
-                                  title: param.id,
-                                }}
-                                value={tool.params?.[param.id] || ''}
-                                onChange={(value) => handleParamChange(toolIndex, param.id, value)}
-                                wandControlRef={wandControlRef}
-                                hideInternalWand={true}
-                              />
+                          {(wandControlRef: React.MutableRefObject<WandControlHandlers | null>) =>
+                            renderParameterInput(
+                              param,
+                              tool.params?.[param.id] || '',
+                              (value) => handleParamChange(toolIndex, param.id, value),
+                              toolIndex,
+                              toolContextValues as Record<string, string>,
+                              wandControlRef
                             )
                           }
                         </ParameterWithLabel>

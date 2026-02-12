@@ -76,6 +76,7 @@ interface SubBlockProps {
     disabled?: boolean
     onToggle?: () => void
   }
+  labelSuffix?: React.ReactNode
 }
 
 /**
@@ -202,7 +203,8 @@ const renderLabel = (
     showCopyButton: boolean
     copied: boolean
     onCopy: () => void
-  }
+  },
+  labelSuffix?: React.ReactNode
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -218,6 +220,7 @@ const renderLabel = (
       <Label className='flex items-center gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
+        {labelSuffix}
         {config.type === 'code' &&
           config.language === 'json' &&
           !isValidJson &&
@@ -385,7 +388,8 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
-    canonicalToggleEqual
+    canonicalToggleEqual &&
+    prevProps.labelSuffix === nextProps.labelSuffix
   )
 }
 
@@ -415,6 +419,7 @@ function SubBlockComponent({
   fieldDiffStatus,
   allowExpandInPreview,
   canonicalToggle,
+  labelSuffix,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -1059,7 +1064,8 @@ function SubBlockComponent({
           showCopyButton: Boolean(config.showCopyButton && config.useWebhookUrl),
           copied,
           onCopy: handleCopy,
-        }
+        },
+        labelSuffix
       )}
       {renderInput()}
     </div>
