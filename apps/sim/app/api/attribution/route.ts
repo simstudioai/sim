@@ -142,19 +142,6 @@ export async function POST() {
       return NextResponse.json({ attributed: false, reason: 'account_predates_cookie' })
     }
 
-    const [existingStats] = await db
-      .select({ id: userStats.id })
-      .from(userStats)
-      .where(eq(userStats.userId, session.user.id))
-      .limit(1)
-
-    if (!existingStats) {
-      await db.insert(userStats).values({
-        id: nanoid(),
-        userId: session.user.id,
-      })
-    }
-
     const matchedCampaign = await findMatchingCampaign(utmData)
     if (!matchedCampaign) {
       cookieStore.delete(COOKIE_NAME)
@@ -165,6 +152,19 @@ export async function POST() {
 
     let attributed = false
     await db.transaction(async (tx) => {
+      const [existingStats] = await tx
+        .select({ id: userStats.id })
+        .from(userStats)
+        .where(eq(userStats.userId, session.user.id))
+        .limit(1)
+
+      if (!existingStats) {
+        await tx.insert(userStats).values({
+          id: nanoid(),
+          userId: session.user.id,
+        })
+      }
+
       const result = await tx
         .insert(referralAttribution)
         .values({
