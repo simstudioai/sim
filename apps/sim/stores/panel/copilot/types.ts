@@ -26,6 +26,26 @@ export interface CopilotToolCall {
   params?: Record<string, unknown>
   input?: Record<string, unknown>
   display?: ClientToolDisplay
+  /** Server-provided UI contract for this tool call phase */
+  ui?: {
+    title?: string
+    phaseLabel?: string
+    icon?: string
+    showInterrupt?: boolean
+    showRemember?: boolean
+    autoAllowed?: boolean
+    actions?: Array<{
+      id: string
+      label: string
+      kind: 'accept' | 'reject'
+      remember?: boolean
+    }>
+  }
+  /** Server-provided execution routing contract */
+  execution?: {
+    target?: 'go' | 'go_subagent' | 'sim_server' | 'sim_client_capability' | string
+    capabilityId?: string
+  }
   /** Content streamed from a subagent (e.g., debug agent) */
   subAgentContent?: string
   /** Tool calls made by the subagent */
@@ -167,10 +187,6 @@ export interface CopilotState {
 
   // Per-message metadata captured at send-time for reliable stats
 
-  // Auto-allowed integration tools (tools that can run without confirmation)
-  autoAllowedTools: string[]
-  autoAllowedToolsLoaded: boolean
-
   // Active stream metadata for reconnect/replay
   activeStream: CopilotStreamInfo | null
 
@@ -247,11 +263,6 @@ export interface CopilotActions {
     abortSignal?: AbortSignal
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
-  loadAutoAllowedTools: () => Promise<void>
-  addAutoAllowedTool: (toolId: string) => Promise<void>
-  removeAutoAllowedTool: (toolId: string) => Promise<void>
-  isToolAutoAllowed: (toolId: string) => boolean
-
   // Credential masking
   loadSensitiveCredentialIds: () => Promise<void>
   maskCredentialValue: (value: string) => string

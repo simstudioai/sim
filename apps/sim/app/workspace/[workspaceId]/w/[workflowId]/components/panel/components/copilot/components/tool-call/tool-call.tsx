@@ -1243,11 +1243,6 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
   )
 })
 
-/** Checks if a tool is server-side executed (not a client tool) */
-function isIntegrationTool(toolName: string): boolean {
-  return !TOOL_DISPLAY_REGISTRY[toolName]
-}
-
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   if (!toolCall.name || toolCall.name === 'unknown_tool') {
     return false
@@ -1257,59 +1252,96 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     return false
   }
 
-  // Never show buttons for tools the user has marked as always-allowed
-  if (useCopilotStore.getState().isToolAutoAllowed(toolCall.name)) {
+  if (toolCall.ui?.showInterrupt !== true) {
     return false
   }
 
-  const hasInterrupt = !!TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt
-  if (hasInterrupt) {
-    return true
-  }
-
-  // Integration tools (user-installed) always require approval
-  if (isIntegrationTool(toolCall.name)) {
-    return true
-  }
-
-  return false
+  return true
 }
 
 const toolCallLogger = createLogger('CopilotToolCall')
 
 async function sendToolDecision(
   toolCallId: string,
-  status: 'accepted' | 'rejected' | 'background'
+  status: 'accepted' | 'rejected' | 'background',
+  options?: {
+    toolName?: string
+    remember?: boolean
+  }
 ) {
   try {
     await fetch('/api/copilot/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toolCallId, status }),
+      body: JSON.stringify({
+        toolCallId,
+        status,
+        ...(options?.toolName ? { toolName: options.toolName } : {}),
+        ...(options?.remember ? { remember: true } : {}),
+      }),
     })
   } catch (error) {
     toolCallLogger.warn('Failed to send tool decision', {
       toolCallId,
       status,
+      remember: options?.remember === true,
+      toolName: options?.toolName,
       error: error instanceof Error ? error.message : String(error),
     })
   }
+}
+
+async function removeAutoAllowedToolPreference(toolName: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/copilot/auto-allowed-tools?toolId=${encodeURIComponent(toolName)}`, {
+      method: 'DELETE',
+    })
+    return response.ok
+  } catch (error) {
+    toolCallLogger.warn('Failed to remove auto-allowed tool preference', {
+      toolName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}
+
+type ToolUiAction = NonNullable<NonNullable<CopilotToolCall['ui']>['actions']>[number]
+
+function actionDecision(action: ToolUiAction): 'accepted' | 'rejected' | 'background' {
+  const id = action.id.toLowerCase()
+  if (id.includes('background')) return 'background'
+  if (action.kind === 'reject') return 'rejected'
+  return 'accepted'
+}
+
+function isClientRunCapability(toolCall: CopilotToolCall): boolean {
+  if (toolCall.execution?.target === 'sim_client_capability') {
+    return toolCall.execution.capabilityId === 'workflow.run' || !toolCall.execution.capabilityId
+  }
+  return CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)
 }
 
 async function handleRun(
   toolCall: CopilotToolCall,
   setToolCallState: any,
   onStateChange?: any,
-  editedParams?: any
+  editedParams?: any,
+  options?: {
+    remember?: boolean
+  }
 ) {
   setToolCallState(toolCall, 'executing', editedParams ? { params: editedParams } : undefined)
   onStateChange?.('executing')
-  await sendToolDecision(toolCall.id, 'accepted')
+  await sendToolDecision(toolCall.id, 'accepted', {
+    toolName: toolCall.name,
+    remember: options?.remember === true,
+  })
 
   // Client-executable run tools: execute on the client for real-time feedback
   // (block pulsing, console logs, stop button). The server defers execution
   // for these tools; the client reports back via mark-complete.
-  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)) {
+  if (isClientRunCapability(toolCall)) {
     const params = editedParams || toolCall.params || {}
     executeRunToolOnClient(toolCall.id, toolCall.name, params)
   }
@@ -1322,6 +1354,9 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
 }
 
 function getDisplayName(toolCall: CopilotToolCall): string {
+  if (toolCall.ui?.phaseLabel) return toolCall.ui.phaseLabel
+  if (toolCall.ui?.title) return `${getStateVerb(toolCall.state)} ${toolCall.ui.title}`
+
   const fromStore = (toolCall as any).display?.text
   if (fromStore) return fromStore
   const registryEntry = TOOL_DISPLAY_REGISTRY[toolCall.name]
@@ -1366,53 +1401,37 @@ function RunSkipButtons({
   toolCall,
   onStateChange,
   editedParams,
+  actions,
 }: {
   toolCall: CopilotToolCall
   onStateChange?: (state: any) => void
   editedParams?: any
+  actions: ToolUiAction[]
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const actionInProgressRef = useRef(false)
-  const { setToolCallState, addAutoAllowedTool } = useCopilotStore()
+  const { setToolCallState } = useCopilotStore()
 
-  const onRun = async () => {
+  const onAction = async (action: ToolUiAction) => {
     // Prevent race condition - check ref synchronously
     if (actionInProgressRef.current) return
     actionInProgressRef.current = true
     setIsProcessing(true)
     setButtonsHidden(true)
     try {
-      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
-    } finally {
-      setIsProcessing(false)
-      actionInProgressRef.current = false
-    }
-  }
-
-  const onAlwaysAllow = async () => {
-    // Prevent race condition - check ref synchronously
-    if (actionInProgressRef.current) return
-    actionInProgressRef.current = true
-    setIsProcessing(true)
-    setButtonsHidden(true)
-    try {
-      await addAutoAllowedTool(toolCall.name)
-      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
-    } finally {
-      setIsProcessing(false)
-      actionInProgressRef.current = false
-    }
-  }
-
-  const onSkip = async () => {
-    // Prevent race condition - check ref synchronously
-    if (actionInProgressRef.current) return
-    actionInProgressRef.current = true
-    setIsProcessing(true)
-    setButtonsHidden(true)
-    try {
-      await handleSkip(toolCall, setToolCallState, onStateChange)
+      const decision = actionDecision(action)
+      if (decision === 'accepted') {
+        await handleRun(toolCall, setToolCallState, onStateChange, editedParams, {
+          remember: action.remember === true,
+        })
+      } else if (decision === 'rejected') {
+        await handleSkip(toolCall, setToolCallState, onStateChange)
+      } else {
+        setToolCallState(toolCall, ClientToolCallState.background)
+        onStateChange?.('background')
+        await sendToolDecision(toolCall.id, 'background')
+      }
     } finally {
       setIsProcessing(false)
       actionInProgressRef.current = false
@@ -1421,23 +1440,22 @@ function RunSkipButtons({
 
   if (buttonsHidden) return null
 
-  // Show "Always Allow" for all tools that require confirmation
-  const showAlwaysAllow = true
-
-  // Standardized buttons for all interrupt tools: Allow, Always Allow, Skip
   return (
     <div className='mt-[10px] flex gap-[6px]'>
-      <Button onClick={onRun} disabled={isProcessing} variant='tertiary'>
-        {isProcessing ? 'Allowing...' : 'Allow'}
-      </Button>
-      {showAlwaysAllow && (
-        <Button onClick={onAlwaysAllow} disabled={isProcessing} variant='default'>
-          {isProcessing ? 'Allowing...' : 'Always Allow'}
-        </Button>
-      )}
-      <Button onClick={onSkip} disabled={isProcessing} variant='default'>
-        Skip
-      </Button>
+      {actions.map((action, index) => {
+        const variant =
+          action.kind === 'reject' ? 'default' : action.remember ? 'default' : 'tertiary'
+        return (
+          <Button
+            key={action.id}
+            onClick={() => onAction(action)}
+            disabled={isProcessing}
+            variant={variant}
+          >
+            {isProcessing && index === 0 ? 'Working...' : action.label}
+          </Button>
+        )
+      })}
     </div>
   )
 }
@@ -1454,10 +1472,16 @@ export function ToolCall({
   const liveToolCall = useCopilotStore((s) =>
     effectiveId ? s.toolCallsById[effectiveId] : undefined
   )
-  const toolCall = liveToolCall || toolCallProp
-
-  // Guard: nothing to render without a toolCall
-  if (!toolCall) return null
+  const rawToolCall = liveToolCall || toolCallProp
+  const hasRealToolCall = !!rawToolCall
+  const toolCall: CopilotToolCall =
+    rawToolCall ||
+    ({
+      id: effectiveId || '',
+      name: '',
+      state: ClientToolCallState.generating,
+      params: {},
+    } as CopilotToolCall)
 
   const isExpandablePending =
     toolCall?.state === 'pending' &&
@@ -1465,17 +1489,15 @@ export function ToolCall({
 
   const [expanded, setExpanded] = useState(isExpandablePending)
   const [showRemoveAutoAllow, setShowRemoveAutoAllow] = useState(false)
+  const [autoAllowRemovedForCall, setAutoAllowRemovedForCall] = useState(false)
 
   // State for editable parameters
   const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
   const [editedParams, setEditedParams] = useState(params)
   const paramsRef = useRef(params)
 
-  // Check if this integration tool is auto-allowed
-  const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
-  const isAutoAllowed = useCopilotStore(
-    (s) => isIntegrationTool(toolCall.name) && s.isToolAutoAllowed(toolCall.name)
-  )
+  const { setToolCallState } = useCopilotStore()
+  const isAutoAllowed = toolCall.ui?.autoAllowed === true && !autoAllowRemovedForCall
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -1484,6 +1506,14 @@ export function ToolCall({
       paramsRef.current = params
     }
   }, [params])
+
+  useEffect(() => {
+    setAutoAllowRemovedForCall(false)
+    setShowRemoveAutoAllow(false)
+  }, [toolCall.id])
+
+  // Guard: nothing to render without a toolCall
+  if (!hasRealToolCall) return null
 
   // Skip rendering some internal tools
   if (
@@ -1496,7 +1526,9 @@ export function ToolCall({
     return null
 
   // Special rendering for subagent tools - show as thinking text with tool calls at top level
-  const isSubagentTool = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.subagent === true
+  const isSubagentTool =
+    toolCall.execution?.target === 'go_subagent' ||
+    TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.subagent === true
 
   // For ALL subagent tools, don't show anything until we have blocks with content
   if (isSubagentTool) {
@@ -1523,28 +1555,6 @@ export function ToolCall({
     )
   }
 
-  // Get current mode from store to determine if we should render integration tools
-  const mode = useCopilotStore.getState().mode
-
-  // Check if this is a completed/historical tool call (not pending/executing)
-  // Use string comparison to handle both enum values and string values from DB
-  const stateStr = String(toolCall.state)
-  const isCompletedToolCall =
-    stateStr === 'success' ||
-    stateStr === 'error' ||
-    stateStr === 'rejected' ||
-    stateStr === 'aborted'
-
-  // Allow rendering if:
-  // 1. Tool is in TOOL_DISPLAY_REGISTRY (client tools), OR
-  // 2. We're in build mode (integration tools are executed server-side), OR
-  // 3. Tool call is already completed (historical - should always render)
-  const isClientTool = !!TOOL_DISPLAY_REGISTRY[toolCall.name]
-  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
-
-  if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
-    return null
-  }
   const toolUIConfig = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig
   // Check if tool has params table config (meaning it's expandable)
   const hasParamsTable = !!toolUIConfig?.paramsTable
@@ -1554,6 +1564,14 @@ export function ToolCall({
     toolCall.name === 'make_api_request' ||
     toolCall.name === 'set_global_workflow_variables'
 
+  const interruptActions =
+    (toolCall.ui?.actions && toolCall.ui.actions.length > 0
+      ? toolCall.ui.actions
+      : [
+          { id: 'allow_once', label: 'Allow', kind: 'accept' as const },
+          { id: 'allow_always', label: 'Always Allow', kind: 'accept' as const, remember: true },
+          { id: 'reject', label: 'Skip', kind: 'reject' as const },
+        ]) as ToolUiAction[]
   const showButtons = isCurrentMessage && shouldShowRunSkipButtons(toolCall)
 
   // Check UI config for secondary action - only show for current message tool calls
@@ -2011,9 +2029,12 @@ export function ToolCall({
           <div className='mt-[10px]'>
             <Button
               onClick={async () => {
-                await removeAutoAllowedTool(toolCall.name)
-                setShowRemoveAutoAllow(false)
-                forceUpdate({})
+                const removed = await removeAutoAllowedToolPreference(toolCall.name)
+                if (removed) {
+                  setAutoAllowRemovedForCall(true)
+                  setShowRemoveAutoAllow(false)
+                  forceUpdate({})
+                }
               }}
               variant='default'
               className='text-xs'
@@ -2027,6 +2048,7 @@ export function ToolCall({
             toolCall={toolCall}
             onStateChange={handleStateChange}
             editedParams={editedParams}
+            actions={interruptActions}
           />
         )}
         {/* Render subagent content as thinking text */}
@@ -2072,9 +2094,12 @@ export function ToolCall({
           <div className='mt-[10px]'>
             <Button
               onClick={async () => {
-                await removeAutoAllowedTool(toolCall.name)
-                setShowRemoveAutoAllow(false)
-                forceUpdate({})
+                const removed = await removeAutoAllowedToolPreference(toolCall.name)
+                if (removed) {
+                  setAutoAllowRemovedForCall(true)
+                  setShowRemoveAutoAllow(false)
+                  forceUpdate({})
+                }
               }}
               variant='default'
               className='text-xs'
@@ -2088,6 +2113,7 @@ export function ToolCall({
             toolCall={toolCall}
             onStateChange={handleStateChange}
             editedParams={editedParams}
+            actions={interruptActions}
           />
         )}
         {/* Render subagent content as thinking text */}
@@ -2133,9 +2159,12 @@ export function ToolCall({
         <div className='mt-[10px]'>
           <Button
             onClick={async () => {
-              await removeAutoAllowedTool(toolCall.name)
-              setShowRemoveAutoAllow(false)
-              forceUpdate({})
+              const removed = await removeAutoAllowedToolPreference(toolCall.name)
+              if (removed) {
+                setAutoAllowRemovedForCall(true)
+                setShowRemoveAutoAllow(false)
+                forceUpdate({})
+              }
             }}
             variant='default'
             className='text-xs'
@@ -2149,6 +2178,7 @@ export function ToolCall({
           toolCall={toolCall}
           onStateChange={handleStateChange}
           editedParams={editedParams}
+          actions={interruptActions}
         />
       ) : showMoveToBackground ? (
         <div className='mt-[10px]'>

@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
+import {
+  REDIS_TOOL_CALL_PREFIX,
+  REDIS_TOOL_CALL_TTL_SECONDS,
+  SIM_AGENT_API_URL,
+} from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -10,6 +14,7 @@ import {
   createUnauthorizedResponse,
   type NotificationStatus,
 } from '@/lib/copilot/request-helpers'
+import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('CopilotConfirmAPI')
@@ -21,6 +26,8 @@ const ConfirmationSchema = z.object({
     errorMap: () => ({ message: 'Invalid notification status' }),
   }),
   message: z.string().optional(), // Optional message for background moves or additional context
+  toolName: z.string().optional(),
+  remember: z.boolean().optional(),
 })
 
 /**
@@ -57,6 +64,44 @@ async function updateToolCallStatus(
   }
 }
 
+async function saveAutoAllowedToolPreference(userId: string, toolName: string): Promise<boolean> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+
+  try {
+    const response = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        userId,
+        toolId: toolName,
+      }),
+    })
+
+    if (!response.ok) {
+      logger.warn('Failed to persist auto-allowed tool preference', {
+        userId,
+        toolName,
+        status: response.status,
+      })
+      return false
+    }
+
+    return true
+  } catch (error) {
+    logger.error('Error persisting auto-allowed tool preference', {
+      userId,
+      toolName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}
+
 /**
  * POST /api/copilot/confirm
  * Update tool call status (Accept/Reject)
@@ -74,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { toolCallId, status, message } = ConfirmationSchema.parse(body)
+    const { toolCallId, status, message, toolName, remember } = ConfirmationSchema.parse(body)
 
     // Update the tool call status in Redis
     const updated = await updateToolCallStatus(toolCallId, status, message)
@@ -90,14 +135,22 @@ export async function POST(req: NextRequest) {
       return createBadRequestResponse('Failed to update tool call status or tool call not found')
     }
 
-    const duration = tracker.getDuration()
+    let rememberSaved = false
+    if (status === 'accepted' && remember === true && toolName && authenticatedUserId) {
+      rememberSaved = await saveAutoAllowedToolPreference(authenticatedUserId, toolName)
+    }
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       success: true,
       message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
       toolCallId,
       status,
-    })
+    }
+    if (remember === true) {
+      response.rememberSaved = rememberSaved
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     const duration = tracker.getDuration()
 

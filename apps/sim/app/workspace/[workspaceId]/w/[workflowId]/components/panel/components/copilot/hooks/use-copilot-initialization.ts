@@ -12,8 +12,6 @@ interface UseCopilotInitializationProps {
   setCopilotWorkflowId: (workflowId: string | null) => Promise<void>
   loadChats: (forceRefresh?: boolean) => Promise<void>
   loadAvailableModels: () => Promise<void>
-  loadAutoAllowedTools: () => Promise<void>
-  currentChat: any
   isSendingMessage: boolean
   resumeActiveStream: () => Promise<boolean>
 }
@@ -32,8 +30,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     setCopilotWorkflowId,
     loadChats,
     loadAvailableModels,
-    loadAutoAllowedTools,
-    currentChat,
     isSendingMessage,
     resumeActiveStream,
   } = props
@@ -119,17 +115,6 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       logger.warn('[Copilot] Failed to resume active stream', err)
     })
   }, [isSendingMessage, resumeActiveStream])
-
-  /** Load auto-allowed tools once on mount - runs immediately, independent of workflow */
-  const hasLoadedAutoAllowedToolsRef = useRef(false)
-  useEffect(() => {
-    if (!hasLoadedAutoAllowedToolsRef.current) {
-      hasLoadedAutoAllowedToolsRef.current = true
-      loadAutoAllowedTools().catch((err) => {
-        logger.warn('[Copilot] Failed to load auto-allowed tools', err)
-      })
-    }
-  }, [loadAutoAllowedTools])
 
   /** Load available models once on mount */
   const hasLoadedModelsRef = useRef(false)

@@ -1,145 +1,81 @@
-import { db } from '@sim/db'
-import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
+import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
 
-/**
- * GET - Fetch user's auto-allowed integration tools
- */
-export async function GET() {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-
-    const [userSettings] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.userId, userId))
-      .limit(1)
-
-    if (userSettings) {
-      const autoAllowedTools = (userSettings.copilotAutoAllowedTools as string[]) || []
-      return NextResponse.json({ autoAllowedTools })
-    }
-
-    await db.insert(settings).values({
-      id: userId,
-      userId,
-      copilotAutoAllowedTools: [],
-    })
-
-    return NextResponse.json({ autoAllowedTools: [] })
-  } catch (error) {
-    logger.error('Failed to fetch auto-allowed tools', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+function copilotHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
   }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+  return headers
 }
 
-/**
- * POST - Add a tool to the auto-allowed list
- */
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-    const body = await request.json()
-
-    if (!body.toolId || typeof body.toolId !== 'string') {
-      return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
-    }
-
-    const toolId = body.toolId
-
-    const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
-
-    if (existing) {
-      const currentTools = (existing.copilotAutoAllowedTools as string[]) || []
-
-      if (!currentTools.includes(toolId)) {
-        const updatedTools = [...currentTools, toolId]
-        await db
-          .update(settings)
-          .set({
-            copilotAutoAllowedTools: updatedTools,
-            updatedAt: new Date(),
-          })
-          .where(eq(settings.userId, userId))
-
-        logger.info('Added tool to auto-allowed list', { userId, toolId })
-        return NextResponse.json({ success: true, autoAllowedTools: updatedTools })
-      }
-
-      return NextResponse.json({ success: true, autoAllowedTools: currentTools })
-    }
-
-    await db.insert(settings).values({
-      id: userId,
-      userId,
-      copilotAutoAllowedTools: [toolId],
-    })
-
-    logger.info('Created settings and added tool to auto-allowed list', { userId, toolId })
-    return NextResponse.json({ success: true, autoAllowedTools: [toolId] })
-  } catch (error) {
-    logger.error('Failed to add auto-allowed tool', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-/**
- * DELETE - Remove a tool from the auto-allowed list
- */
 export async function DELETE(request: NextRequest) {
+  const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+  if (!isAuthenticated || !userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const toolIdFromQuery = new URL(request.url).searchParams.get('toolId') || undefined
+  const toolIdFromBody = await request
+    .json()
+    .then((body) => (typeof body?.toolId === 'string' ? body.toolId : undefined))
+    .catch(() => undefined)
+  const toolId = toolIdFromBody || toolIdFromQuery
+  if (!toolId) {
+    return NextResponse.json({ error: 'toolId is required' }, { status: 400 })
+  }
+
   try {
-    const session = await getSession()
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+      method: 'DELETE',
+      headers: copilotHeaders(),
+      body: JSON.stringify({
+        userId,
+        toolId,
+      }),
+    })
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const payload = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      logger.warn('Failed to remove auto-allowed tool via copilot backend', {
+        status: res.status,
+        userId,
+        toolId,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: payload?.error || 'Failed to remove auto-allowed tool',
+          autoAllowedTools: [],
+        },
+        { status: res.status }
+      )
     }
 
-    const userId = session.user.id
-    const { searchParams } = new URL(request.url)
-    const toolId = searchParams.get('toolId')
-
-    if (!toolId) {
-      return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
-    }
-
-    const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
-
-    if (existing) {
-      const currentTools = (existing.copilotAutoAllowedTools as string[]) || []
-      const updatedTools = currentTools.filter((t) => t !== toolId)
-
-      await db
-        .update(settings)
-        .set({
-          copilotAutoAllowedTools: updatedTools,
-          updatedAt: new Date(),
-        })
-        .where(eq(settings.userId, userId))
-
-      logger.info('Removed tool from auto-allowed list', { userId, toolId })
-      return NextResponse.json({ success: true, autoAllowedTools: updatedTools })
-    }
-
-    return NextResponse.json({ success: true, autoAllowedTools: [] })
+    return NextResponse.json({
+      success: true,
+      autoAllowedTools: Array.isArray(payload?.autoAllowedTools) ? payload.autoAllowedTools : [],
+    })
   } catch (error) {
-    logger.error('Failed to remove auto-allowed tool', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('Error removing auto-allowed tool', {
+      userId,
+      toolId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to remove auto-allowed tool',
+        autoAllowedTools: [],
+      },
+      { status: 500 }
+    )
   }
 }

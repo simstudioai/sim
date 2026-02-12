@@ -18,7 +18,6 @@ import {
 import { flushStreamingUpdates, stopStreamingUpdates } from '@/lib/copilot/client-sse/handlers'
 import type { ClientContentBlock, ClientStreamingContext } from '@/lib/copilot/client-sse/types'
 import {
-  COPILOT_AUTO_ALLOWED_TOOLS_API_PATH,
   COPILOT_CHAT_API_PATH,
   COPILOT_CHAT_STREAM_API_PATH,
   COPILOT_CHECKPOINTS_API_PATH,
@@ -147,41 +146,6 @@ function updateActiveStreamEventId(
   const next = { ...current, lastEventId: eventId }
   set({ activeStream: next })
   writeActiveStreamToStorage(next)
-}
-
-const AUTO_ALLOWED_TOOLS_STORAGE_KEY = 'copilot_auto_allowed_tools'
-
-function readAutoAllowedToolsFromStorage(): string[] | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = window.localStorage.getItem(AUTO_ALLOWED_TOOLS_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return null
-    return parsed.filter((item): item is string => typeof item === 'string')
-  } catch (error) {
-    logger.warn('[AutoAllowedTools] Failed to read local cache', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
-  }
-}
-
-function writeAutoAllowedToolsToStorage(tools: string[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(AUTO_ALLOWED_TOOLS_STORAGE_KEY, JSON.stringify(tools))
-  } catch (error) {
-    logger.warn('[AutoAllowedTools] Failed to write local cache', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
-
-function isToolAutoAllowedByList(toolId: string, autoAllowedTools: string[]): boolean {
-  if (!toolId) return false
-  const normalizedTarget = toolId.trim()
-  return autoAllowedTools.some((allowed) => allowed?.trim() === normalizedTarget)
 }
 
 /**
@@ -488,11 +452,6 @@ function prepareSendContext(
     .loadSensitiveCredentialIds()
     .catch((err) => {
       logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
-    })
-  get()
-    .loadAutoAllowedTools()
-    .catch((err) => {
-      logger.warn('[Copilot] Failed to load auto-allowed tools', err)
     })
 
   let newMessages: CopilotMessage[]
@@ -1046,8 +1005,6 @@ async function resumeFromLiveStream(
   return false
 }
 
-const cachedAutoAllowedTools = readAutoAllowedToolsFromStorage()
-
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
@@ -1082,8 +1039,6 @@ const initialState = {
   streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
-  autoAllowedTools: cachedAutoAllowedTools ?? ([] as string[]),
-  autoAllowedToolsLoaded: cachedAutoAllowedTools !== null,
   activeStream: null as CopilotStreamInfo | null,
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
@@ -1122,8 +1077,6 @@ export const useCopilotStore = create<CopilotStore>()(
         agentPrefetch: get().agentPrefetch,
         availableModels: get().availableModels,
         isLoadingModels: get().isLoadingModels,
-        autoAllowedTools: get().autoAllowedTools,
-        autoAllowedToolsLoaded: get().autoAllowedToolsLoaded,
       })
     },
 
@@ -1438,16 +1391,6 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
-      if (!get().autoAllowedToolsLoaded) {
-        try {
-          await get().loadAutoAllowedTools()
-        } catch (error) {
-          logger.warn('[Copilot] Failed to preload auto-allowed tools before send', {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
-
       const prepared = prepareSendContext(get, set, message, options as SendMessageOptionsInput)
       if (!prepared) return
 
@@ -2416,74 +2359,6 @@ export const useCopilotStore = create<CopilotStore>()(
         })
         set({ isLoadingModels: false })
       }
-    },
-
-    loadAutoAllowedTools: async () => {
-      try {
-        logger.debug('[AutoAllowedTools] Loading from API...')
-        const res = await fetch(COPILOT_AUTO_ALLOWED_TOOLS_API_PATH)
-        logger.debug('[AutoAllowedTools] Load response', { status: res.status, ok: res.ok })
-        if (res.ok) {
-          const data = await res.json()
-          const tools = data.autoAllowedTools ?? []
-          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
-          writeAutoAllowedToolsToStorage(tools)
-          logger.debug('[AutoAllowedTools] Loaded successfully', { count: tools.length, tools })
-        } else {
-          set({ autoAllowedToolsLoaded: true })
-          logger.warn('[AutoAllowedTools] Load failed with status', { status: res.status })
-        }
-      } catch (err) {
-        set({ autoAllowedToolsLoaded: true })
-        logger.error('[AutoAllowedTools] Failed to load', { error: err })
-      }
-    },
-
-    addAutoAllowedTool: async (toolId: string) => {
-      try {
-        logger.debug('[AutoAllowedTools] Adding tool...', { toolId })
-        const res = await fetch(COPILOT_AUTO_ALLOWED_TOOLS_API_PATH, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ toolId }),
-        })
-        logger.debug('[AutoAllowedTools] API response', { toolId, status: res.status, ok: res.ok })
-        if (res.ok) {
-          const data = await res.json()
-          logger.debug('[AutoAllowedTools] API returned', { toolId, tools: data.autoAllowedTools })
-          const tools = data.autoAllowedTools ?? []
-          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
-          writeAutoAllowedToolsToStorage(tools)
-          logger.debug('[AutoAllowedTools] Added tool to store', { toolId })
-        }
-      } catch (err) {
-        logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
-      }
-    },
-
-    removeAutoAllowedTool: async (toolId: string) => {
-      try {
-        const res = await fetch(
-          `${COPILOT_AUTO_ALLOWED_TOOLS_API_PATH}?toolId=${encodeURIComponent(toolId)}`,
-          {
-            method: 'DELETE',
-          }
-        )
-        if (res.ok) {
-          const data = await res.json()
-          const tools = data.autoAllowedTools ?? []
-          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
-          writeAutoAllowedToolsToStorage(tools)
-          logger.debug('[AutoAllowedTools] Removed tool', { toolId })
-        }
-      } catch (err) {
-        logger.error('[AutoAllowedTools] Failed to remove tool', { toolId, error: err })
-      }
-    },
-
-    isToolAutoAllowed: (toolId: string) => {
-      const { autoAllowedTools } = get()
-      return isToolAutoAllowedByList(toolId, autoAllowedTools)
     },
 
     // Credential masking

@@ -13,7 +13,6 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   type SSEHandler,
-  sendAutoAcceptConfirmation,
   sseHandlers,
   updateStreamingMessage,
 } from './handlers'
@@ -25,6 +24,80 @@ const logger = createLogger('CopilotClientSubagentHandlers')
 type StoreSet = (
   partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
 ) => void
+
+function mapServerStateToClientState(state: unknown): ClientToolCallState {
+  switch (String(state || '')) {
+    case 'generating':
+      return ClientToolCallState.generating
+    case 'pending':
+    case 'awaiting_approval':
+      return ClientToolCallState.pending
+    case 'executing':
+      return ClientToolCallState.executing
+    case 'success':
+      return ClientToolCallState.success
+    case 'rejected':
+    case 'skipped':
+      return ClientToolCallState.rejected
+    case 'aborted':
+      return ClientToolCallState.aborted
+    case 'error':
+    case 'failed':
+      return ClientToolCallState.error
+    default:
+      return ClientToolCallState.pending
+  }
+}
+
+function extractToolUiMetadata(data: Record<string, unknown>): CopilotToolCall['ui'] | undefined {
+  const ui = asRecord(data.ui)
+  if (!ui || Object.keys(ui).length === 0) return undefined
+  const autoAllowedFromUi = ui.autoAllowed === true
+  const autoAllowedFromData = data.autoAllowed === true
+  return {
+    title: typeof ui.title === 'string' ? ui.title : undefined,
+    phaseLabel: typeof ui.phaseLabel === 'string' ? ui.phaseLabel : undefined,
+    icon: typeof ui.icon === 'string' ? ui.icon : undefined,
+    showInterrupt: ui.showInterrupt === true,
+    showRemember: ui.showRemember === true,
+    autoAllowed: autoAllowedFromUi || autoAllowedFromData,
+    actions: Array.isArray(ui.actions)
+      ? ui.actions
+          .map((action) => {
+            const a = asRecord(action)
+            const id = typeof a.id === 'string' ? a.id : undefined
+            const label = typeof a.label === 'string' ? a.label : undefined
+            const kind: 'accept' | 'reject' = a.kind === 'reject' ? 'reject' : 'accept'
+            if (!id || !label) return null
+            return {
+              id,
+              label,
+              kind,
+              remember: a.remember === true,
+            }
+          })
+          .filter((a): a is NonNullable<typeof a> => !!a)
+      : undefined,
+  }
+}
+
+function extractToolExecutionMetadata(
+  data: Record<string, unknown>
+): CopilotToolCall['execution'] | undefined {
+  const execution = asRecord(data.execution)
+  if (!execution || Object.keys(execution).length === 0) return undefined
+  return {
+    target: typeof execution.target === 'string' ? execution.target : undefined,
+    capabilityId: typeof execution.capabilityId === 'string' ? execution.capabilityId : undefined,
+  }
+}
+
+function isClientRunCapability(toolCall: CopilotToolCall): boolean {
+  if (toolCall.execution?.target === 'sim_client_capability') {
+    return toolCall.execution.capabilityId === 'workflow.run' || !toolCall.execution.capabilityId
+  }
+  return CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)
+}
 
 function isWorkflowChangeApplyCall(toolCall: CopilotToolCall): boolean {
   if (toolCall.name !== 'workflow_change') return false
@@ -199,6 +272,8 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const name: string | undefined = (toolData.name as string | undefined) || data?.toolName
     if (!id || !name) return
     const isPartial = toolData.partial === true
+    const uiMetadata = extractToolUiMetadata(toolData)
+    const executionMetadata = extractToolExecutionMetadata(toolData)
 
     let args: Record<string, unknown> | undefined = (toolData.arguments || toolData.input) as
       | Record<string, unknown>
@@ -234,9 +309,10 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const existingToolCall =
       existingIndex >= 0 ? context.subAgentToolCalls[parentToolCallId][existingIndex] : undefined
 
-    // Auto-allowed tools skip pending state to avoid flashing interrupt buttons
-    const isAutoAllowed = get().isToolAutoAllowed(name)
-    let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
+    const serverState = toolData.state
+    let initialState = serverState
+      ? mapServerStateToClientState(serverState)
+      : ClientToolCallState.pending
 
     // Avoid flickering back to pending on partial/duplicate events once a tool is executing.
     if (
@@ -250,6 +326,8 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       id,
       name,
       state: initialState,
+      ui: uiMetadata,
+      execution: executionMetadata,
       ...(args ? { params: args } : {}),
       display: resolveToolDisplay(name, initialState, id, args),
     }
@@ -276,16 +354,11 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Auto-allowed tools: send confirmation to the server so it can proceed
-    // without waiting for the user to click "Allow".
-    if (isAutoAllowed) {
-      sendAutoAcceptConfirmation(id)
-    }
+    const shouldInterrupt = subAgentToolCall.ui?.showInterrupt === true
 
-    // Client-executable run tools: if auto-allowed, execute immediately for
-    // real-time feedback. For non-auto-allowed, the user must click "Allow"
-    // first — handleRun in tool-call.tsx triggers executeRunToolOnClient.
-    if (CLIENT_EXECUTABLE_RUN_TOOLS.has(name) && isAutoAllowed) {
+    // Client-run capability: execution is delegated to the browser.
+    // Execute immediately only for non-interrupting calls.
+    if (isClientRunCapability(subAgentToolCall) && !shouldInterrupt) {
       executeRunToolOnClient(id, name, args || {})
     }
   },
@@ -310,7 +383,14 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     if (!context.subAgentToolCalls[parentToolCallId]) return
     if (!context.subAgentBlocks[parentToolCallId]) return
 
-    const targetState = success ? ClientToolCallState.success : ClientToolCallState.error
+    const serverState = resultData.state
+    const targetState = serverState
+      ? mapServerStateToClientState(serverState)
+      : success
+        ? ClientToolCallState.success
+        : ClientToolCallState.error
+    const uiMetadata = extractToolUiMetadata(resultData)
+    const executionMetadata = extractToolExecutionMetadata(resultData)
     const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
       (tc: CopilotToolCall) => tc.id === toolCallId
     )
@@ -338,6 +418,8 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       const updatedSubAgentToolCall = {
         ...existing,
         params: nextParams,
+        ui: uiMetadata || existing.ui,
+        execution: executionMetadata || existing.execution,
         state: targetState,
         display: resolveToolDisplay(existing.name, targetState, toolCallId, nextParams),
       }

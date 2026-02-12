@@ -101,9 +101,6 @@ export const COPILOT_CHECKPOINTS_API_PATH = '/api/copilot/checkpoints'
 /** POST — revert to a checkpoint. */
 export const COPILOT_CHECKPOINTS_REVERT_API_PATH = '/api/copilot/checkpoints/revert'
 
-/** GET/POST/DELETE — manage auto-allowed tools. */
-export const COPILOT_AUTO_ALLOWED_TOOLS_API_PATH = '/api/copilot/auto-allowed-tools'
-
 /** GET — fetch dynamically available copilot models. */
 export const COPILOT_MODELS_API_PATH = '/api/copilot/models'
 

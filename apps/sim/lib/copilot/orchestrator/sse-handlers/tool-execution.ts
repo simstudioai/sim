@@ -4,7 +4,6 @@ import {
   TOOL_DECISION_MAX_POLL_MS,
   TOOL_DECISION_POLL_BACKOFF,
 } from '@/lib/copilot/constants'
-import { INTERRUPT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
   asRecord,
@@ -21,10 +20,6 @@ import type {
 
 const logger = createLogger('CopilotSseToolExecution')
 
-export function isInterruptToolName(toolName: string): boolean {
-  return INTERRUPT_TOOL_SET.has(toolName)
-}
-
 export async function executeToolAndReport(
   toolCallId: string,
   context: StreamingContext,
@@ -34,9 +29,11 @@ export async function executeToolAndReport(
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
 
-  if (toolCall.status === 'executing') return
+  const lockable = toolCall as typeof toolCall & { __simExecuting?: boolean }
+  if (lockable.__simExecuting) return
   if (wasToolResultSeen(toolCall.id)) return
 
+  lockable.__simExecuting = true
   toolCall.status = 'executing'
   try {
     const result = await executeToolServerSide(toolCall, execContext)
@@ -122,6 +119,8 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(errorEvent)
+  } finally {
+    delete lockable.__simExecuting
   }
 }
 

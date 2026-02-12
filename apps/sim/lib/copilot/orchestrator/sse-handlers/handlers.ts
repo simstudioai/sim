@@ -1,17 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
-import { RESPOND_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import {
   asRecord,
   getEventData,
   markToolResultSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-utils'
-import {
-  isIntegrationTool,
-  isToolAvailableOnSimSide,
-  markToolComplete,
-} from '@/lib/copilot/orchestrator/tool-executor'
+import { markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -22,7 +17,6 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import {
   executeToolAndReport,
-  isInterruptToolName,
   waitForToolCompletion,
   waitForToolDecision,
 } from './tool-execution'
@@ -40,6 +34,113 @@ const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
   'run_from_block',
   'run_block',
 ])
+
+function mapServerStateToToolStatus(state: unknown): ToolCallState['status'] {
+  switch (String(state || '')) {
+    case 'generating':
+    case 'pending':
+    case 'awaiting_approval':
+      return 'pending'
+    case 'executing':
+      return 'executing'
+    case 'success':
+      return 'success'
+    case 'rejected':
+    case 'skipped':
+      return 'rejected'
+    case 'aborted':
+      return 'skipped'
+    case 'error':
+    case 'failed':
+      return 'error'
+    default:
+      return 'pending'
+  }
+}
+
+function getExecutionTarget(
+  toolData: Record<string, unknown>,
+  toolName: string
+): { target: string; capabilityId?: string } {
+  const execution = asRecord(toolData.execution)
+  if (typeof execution.target === 'string' && execution.target.length > 0) {
+    return {
+      target: execution.target,
+      capabilityId:
+        typeof execution.capabilityId === 'string' ? execution.capabilityId : undefined,
+    }
+  }
+
+  // Fallback only when metadata is missing.
+  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName)) {
+    return { target: 'sim_client_capability', capabilityId: 'workflow.run' }
+  }
+  return { target: 'sim_server' }
+}
+
+function needsApproval(toolData: Record<string, unknown>): boolean {
+  const ui = asRecord(toolData.ui)
+  return ui.showInterrupt === true
+}
+
+async function waitForClientCapabilityAndReport(
+  toolCall: ToolCallState,
+  options: OrchestratorOptions,
+  logScope: string
+): Promise<void> {
+  toolCall.status = 'executing'
+  const completion = await waitForToolCompletion(
+    toolCall.id,
+    options.timeout || STREAM_TIMEOUT_MS,
+    options.abortSignal
+  )
+
+  if (completion?.status === 'background') {
+    toolCall.status = 'skipped'
+    toolCall.endTime = Date.now()
+    markToolComplete(
+      toolCall.id,
+      toolCall.name,
+      202,
+      completion.message || 'Tool execution moved to background',
+      { background: true }
+    ).catch((err) => {
+      logger.error(`markToolComplete fire-and-forget failed (${logScope} background)`, {
+        toolCallId: toolCall.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+    markToolResultSeen(toolCall.id)
+    return
+  }
+
+  if (completion?.status === 'rejected') {
+    toolCall.status = 'rejected'
+    toolCall.endTime = Date.now()
+    markToolComplete(toolCall.id, toolCall.name, 400, completion.message || 'Tool execution rejected')
+      .catch((err) => {
+        logger.error(`markToolComplete fire-and-forget failed (${logScope} rejected)`, {
+          toolCallId: toolCall.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+    markToolResultSeen(toolCall.id)
+    return
+  }
+
+  const success = completion?.status === 'success'
+  toolCall.status = success ? 'success' : 'error'
+  toolCall.endTime = Date.now()
+  const msg = completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
+  markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg).catch((err) => {
+    logger.error(`markToolComplete fire-and-forget failed (${logScope})`, {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+  markToolResultSeen(toolCall.id)
+}
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
@@ -85,7 +186,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
-    current.status = success ? 'success' : 'error'
+    current.status = data?.state
+      ? mapServerStateToToolStatus(data.state)
+      : success
+        ? 'success'
+        : 'error'
     current.endTime = Date.now()
     if (hasResultData) {
       current.result = {
@@ -104,7 +209,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     if (!toolCallId) return
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
-    current.status = 'error'
+    current.status = data?.state ? mapServerStateToToolStatus(data.state) : 'error'
     current.error = (data?.error as string | undefined) || 'Tool execution failed'
     current.endTime = Date.now()
   },
@@ -121,7 +226,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.toolCalls.set(toolCallId, {
         id: toolCallId,
         name: toolName,
-        status: 'pending',
+        status: data?.state ? mapServerStateToToolStatus(data.state) : 'pending',
         startTime: Date.now(),
       })
     }
@@ -156,7 +261,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.toolCalls.set(toolCallId, {
         id: toolCallId,
         name: toolName,
-        status: 'pending',
+        status: toolData.state ? mapServerStateToToolStatus(toolData.state) : 'pending',
         params: args,
         startTime: Date.now(),
       })
@@ -170,83 +275,29 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    // Subagent tools are executed by the copilot backend, not sim side.
-    if (SUBAGENT_TOOL_SET.has(toolName)) {
-      return
-    }
-
-    // Respond tools are internal to copilot's subagent system - skip execution.
-    // The copilot backend handles these internally to signal subagent completion.
-    if (RESPOND_TOOL_SET.has(toolName)) {
-      toolCall.status = 'success'
-      toolCall.endTime = Date.now()
-      toolCall.result = {
-        success: true,
-        output: 'Internal respond tool - handled by copilot backend',
-      }
-      return
-    }
-
-    const isInterruptTool = isInterruptToolName(toolName)
+    const execution = getExecutionTarget(toolData, toolName)
     const isInteractive = options.interactive === true
-    // Integration tools (user-installed) also require approval in interactive mode
-    const needsApproval = isInterruptTool || isIntegrationTool(toolName)
+    const requiresApproval = isInteractive && needsApproval(toolData)
+    if (toolData.state) {
+      toolCall.status = mapServerStateToToolStatus(toolData.state)
+    }
 
-    if (needsApproval && isInteractive) {
+    if (requiresApproval) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
         options.abortSignal
       )
       if (decision?.status === 'accepted' || decision?.status === 'success') {
-        // Client-executable run tools: defer execution to the browser client.
-        // The client calls executeWorkflowWithFullLogging for real-time feedback
-        // (block pulsing, logs, stop button) and reports completion via
-        // /api/copilot/confirm with status success/error. We poll Redis for
-        // that completion signal, then fire-and-forget markToolComplete to Go.
-        if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName)) {
-          toolCall.status = 'executing'
-          const completion = await waitForToolCompletion(
-            toolCallId,
-            options.timeout || STREAM_TIMEOUT_MS,
-            options.abortSignal
-          )
-          if (completion?.status === 'background') {
-            toolCall.status = 'skipped'
-            toolCall.endTime = Date.now()
-            markToolComplete(
-              toolCall.id,
-              toolCall.name,
-              202,
-              completion.message || 'Tool execution moved to background',
-              { background: true }
-            ).catch((err) => {
-              logger.error('markToolComplete fire-and-forget failed (run tool background)', {
-                toolCallId: toolCall.id,
-                error: err instanceof Error ? err.message : String(err),
-              })
-            })
-            markToolResultSeen(toolCallId)
-            return
-          }
-          const success = completion?.status === 'success'
-          toolCall.status = success ? 'success' : 'error'
-          toolCall.endTime = Date.now()
-          const msg =
-            completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
-          // Fire-and-forget: tell Go backend the tool is done
-          // (must NOT await — see deadlock note in executeToolAndReport)
-          markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg).catch((err) => {
-            logger.error('markToolComplete fire-and-forget failed (run tool)', {
-              toolCallId: toolCall.id,
-              toolName: toolCall.name,
-              error: err instanceof Error ? err.message : String(err),
-            })
-          })
-          markToolResultSeen(toolCallId)
+        if (execution.target === 'sim_client_capability' && isInteractive) {
+          await waitForClientCapabilityAndReport(toolCall, options, 'run tool')
           return
         }
-        await executeToolAndReport(toolCallId, context, execContext, options)
+        if (execution.target === 'sim_server' || execution.target === 'sim_client_capability') {
+          if (options.autoExecuteTools !== false) {
+            await executeToolAndReport(toolCallId, context, execContext, options)
+          }
+        }
         return
       }
 
@@ -308,7 +359,15 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (options.autoExecuteTools !== false) {
+    if (execution.target === 'sim_client_capability' && isInteractive) {
+      await waitForClientCapabilityAndReport(toolCall, options, 'run tool')
+      return
+    }
+
+    if (
+      (execution.target === 'sim_server' || execution.target === 'sim_client_capability') &&
+      options.autoExecuteTools !== false
+    ) {
       await executeToolAndReport(toolCallId, context, execContext, options)
     }
   },
@@ -410,7 +469,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const toolCall: ToolCallState = {
       id: toolCallId,
       name: toolName,
-      status: 'pending',
+      status: toolData.state ? mapServerStateToToolStatus(toolData.state) : 'pending',
       params: args,
       startTime: Date.now(),
     }
@@ -428,37 +487,26 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
-    // Respond tools are internal to copilot's subagent system - skip execution.
-    if (RESPOND_TOOL_SET.has(toolName)) {
-      toolCall.status = 'success'
-      toolCall.endTime = Date.now()
-      toolCall.result = {
-        success: true,
-        output: 'Internal respond tool - handled by copilot backend',
-      }
-      return
-    }
+    const execution = getExecutionTarget(toolData, toolName)
+    const isInteractive = options.interactive === true
+    const requiresApproval = isInteractive && needsApproval(toolData)
 
-    // Tools that only exist on the Go backend (e.g. search_patterns,
-    // search_errors, remember_debug) should NOT be re-executed on the Sim side.
-    // The Go backend already executed them and will send its own tool_result
-    // SSE event with the real outcome.  Trying to execute them here would fail
-    // with "Tool not found" and incorrectly mark the tool as failed.
-    if (!isToolAvailableOnSimSide(toolName)) {
-      return
-    }
-
-    // Interrupt tools and integration tools (user-installed) require approval
-    // in interactive mode, same as top-level handler.
-    const needsSubagentApproval = isInterruptToolName(toolName) || isIntegrationTool(toolName)
-    if (options.interactive === true && needsSubagentApproval) {
+    if (requiresApproval) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
         options.abortSignal
       )
       if (decision?.status === 'accepted' || decision?.status === 'success') {
-        await executeToolAndReport(toolCallId, context, execContext, options)
+        if (execution.target === 'sim_client_capability' && isInteractive) {
+          await waitForClientCapabilityAndReport(toolCall, options, 'subagent run tool')
+          return
+        }
+        if (execution.target === 'sim_server' || execution.target === 'sim_client_capability') {
+          if (options.autoExecuteTools !== false) {
+            await executeToolAndReport(toolCallId, context, execContext, options)
+          }
+        }
         return
       }
       if (decision?.status === 'rejected' || decision?.status === 'error') {
@@ -517,66 +565,15 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Client-executable run tools in interactive mode: defer to client.
-    // Same pattern as main handler: wait for client completion, then tell Go.
-    if (options.interactive === true && CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName)) {
-      toolCall.status = 'executing'
-      const completion = await waitForToolCompletion(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      if (completion?.status === 'rejected') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          completion.message || 'Tool execution rejected'
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent run tool rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCallId)
-        return
-      }
-      if (completion?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          completion.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent run tool background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCallId)
-        return
-      }
-      const success = completion?.status === 'success'
-      toolCall.status = success ? 'success' : 'error'
-      toolCall.endTime = Date.now()
-      const msg = completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
-      markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (subagent run tool)', {
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCallId)
+    if (execution.target === 'sim_client_capability' && isInteractive) {
+      await waitForClientCapabilityAndReport(toolCall, options, 'subagent run tool')
       return
     }
 
-    if (options.autoExecuteTools !== false) {
+    if (
+      (execution.target === 'sim_server' || execution.target === 'sim_client_capability') &&
+      options.autoExecuteTools !== false
+    ) {
       await executeToolAndReport(toolCallId, context, execContext, options)
     }
   },
@@ -596,7 +593,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
-    const status = success ? 'success' : 'error'
+    const status = data?.state ? mapServerStateToToolStatus(data.state) : success ? 'success' : 'error'
     const endTime = Date.now()
     const result = hasResultData ? { success, output: data?.result || data?.data } : undefined
 
