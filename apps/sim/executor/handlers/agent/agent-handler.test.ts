@@ -1901,5 +1901,317 @@ describe('AgentBlockHandler', () => {
 
       expect(discoveryCalls[0].url).toContain('serverId=mcp-legacy-server')
     })
+
+    describe('customToolId resolution - DB as source of truth', () => {
+      const staleInlineSchema = {
+        function: {
+          name: 'buttonTemplate',
+          description: 'Creates a button template',
+          parameters: {
+            type: 'object',
+            properties: {
+              sender_id: { type: 'string', description: 'Sender ID' },
+              header_value: { type: 'string', description: 'Header text' },
+              body_value: { type: 'string', description: 'Body text' },
+              button_array: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Button labels',
+              },
+            },
+            required: ['sender_id', 'header_value', 'body_value', 'button_array'],
+          },
+        },
+      }
+
+      const dbSchema = {
+        function: {
+          name: 'buttonTemplate',
+          description: 'Creates a button template',
+          parameters: {
+            type: 'object',
+            properties: {
+              sender_id: { type: 'string', description: 'Sender ID' },
+              header_value: { type: 'string', description: 'Header text' },
+              body_value: { type: 'string', description: 'Body text' },
+              button_array: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Button labels',
+              },
+              channel: { type: 'string', description: 'Channel name' },
+            },
+            required: ['sender_id', 'header_value', 'body_value', 'button_array', 'channel'],
+          },
+        },
+      }
+
+      const staleInlineCode =
+        'return JSON.stringify({ type: "button", phone: sender_id, header: header_value, body: body_value, buttons: button_array });'
+      const dbCode =
+        'if (channel === "whatsapp") { return JSON.stringify({ type: "button", phone: sender_id, header: header_value, body: body_value, buttons: button_array }); }'
+
+      function mockFetchForCustomTool(toolId: string) {
+        mockFetch.mockImplementation((url: string) => {
+          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
+            return Promise.resolve({
+              ok: true,
+              headers: { get: () => null },
+              json: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: toolId,
+                      title: 'buttonTemplate',
+                      schema: dbSchema,
+                      code: dbCode,
+                    },
+                  ],
+                }),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            headers: { get: () => null },
+            json: () => Promise.resolve({}),
+          })
+        })
+      }
+
+      function mockFetchFailure() {
+        mockFetch.mockImplementation((url: string) => {
+          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
+            return Promise.resolve({
+              ok: false,
+              status: 500,
+              headers: { get: () => null },
+              json: () => Promise.resolve({}),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            headers: { get: () => null },
+            json: () => Promise.resolve({}),
+          })
+        })
+      }
+
+      beforeEach(() => {
+        Object.defineProperty(global, 'window', {
+          value: undefined,
+          writable: true,
+          configurable: true,
+        })
+      })
+
+      it('should always fetch latest schema from DB when customToolId is present', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Send a button template',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              title: 'buttonTemplate',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        // DB schema wins over stale inline — includes channel param
+        expect(tools[0].parameters.required).toContain('channel')
+        expect(tools[0].parameters.properties).toHaveProperty('channel')
+      })
+
+      it('should fetch from DB when customToolId has no inline schema', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Send a button template',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('buttonTemplate')
+        expect(tools[0].parameters.required).toContain('channel')
+      })
+
+      it('should fall back to inline schema when DB fetch fails and inline exists', async () => {
+        mockFetchFailure()
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Send a button template',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-tool-123',
+              title: 'buttonTemplate',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        // Falls back to inline schema (4 params, no channel)
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('buttonTemplate')
+        expect(tools[0].parameters.required).not.toContain('channel')
+      })
+
+      it('should return null when DB fetch fails and no inline schema exists', async () => {
+        mockFetchFailure()
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Send a button template',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-tool-123',
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(0)
+      })
+
+      it('should use DB code for executeFunction when customToolId resolves', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        let capturedTools: any[] = []
+        Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
+          const result = originalPromiseAll.call(Promise, promises)
+          result.then((tools: any[]) => {
+            if (tools?.length) {
+              capturedTools = tools.filter((t) => t !== null)
+            }
+          })
+          return result
+        })
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Send a button template',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              title: 'buttonTemplate',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(capturedTools.length).toBe(1)
+        expect(typeof capturedTools[0].executeFunction).toBe('function')
+
+        await capturedTools[0].executeFunction({ sender_id: '123', channel: 'whatsapp' })
+
+        // Should use DB code, not stale inline code
+        expect(mockExecuteTool).toHaveBeenCalledWith(
+          'function_execute',
+          expect.objectContaining({
+            code: dbCode,
+          }),
+          false,
+          expect.any(Object)
+        )
+      })
+
+      it('should not fetch from DB when no customToolId is present', async () => {
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Use the tool',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              title: 'inlineTool',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        const customToolFetches = mockFetch.mock.calls.filter(
+          (call: any[]) => typeof call[0] === 'string' && call[0].includes('/api/tools/custom')
+        )
+        expect(customToolFetches.length).toBe(0)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('buttonTemplate')
+        expect(tools[0].parameters.required).not.toContain('channel')
+      })
+    })
   })
 })
