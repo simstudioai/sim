@@ -30,10 +30,6 @@ const logger = createLogger('CopilotSseHandlers')
  */
 const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
   'workflow_run',
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_from_block',
-  'run_block',
 ])
 
 function mapServerStateToToolStatus(state: unknown): ToolCallState['status'] {

@@ -9,14 +9,13 @@ import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { humanizedFallback, resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   type SSEHandler,
   sseHandlers,
   updateStreamingMessage,
 } from './handlers'
 import { CLIENT_EXECUTABLE_RUN_TOOLS, executeRunToolOnClient } from './run-tool-execution'
+import { applyToolEffects } from './tool-effects'
 import type { ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSubagentHandlers')
@@ -144,19 +143,6 @@ function isWorkflowChangeApplyCall(toolCall: CopilotToolCall): boolean {
   const mode = typeof params.mode === 'string' ? params.mode.toLowerCase() : ''
   if (mode === 'apply') return true
   return typeof params.proposalId === 'string' && params.proposalId.length > 0
-}
-
-function extractWorkflowStateFromResultPayload(
-  resultPayload: Record<string, unknown>
-): WorkflowState | null {
-  const directState = asRecord(resultPayload.workflowState)
-  if (directState) return directState as unknown as WorkflowState
-
-  const editResult = asRecord(resultPayload.editResult)
-  const nestedState = asRecord(editResult?.workflowState)
-  if (nestedState) return nestedState as unknown as WorkflowState
-
-  return null
 }
 
 function extractOperationListFromResultPayload(
@@ -491,21 +477,12 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
         })
       }
 
-      if (
-        targetState === ClientToolCallState.success &&
-        resultPayload &&
-        isWorkflowChangeApplyCall(updatedSubAgentToolCall)
-      ) {
-        const workflowState = extractWorkflowStateFromResultPayload(resultPayload)
-        if (workflowState) {
-          const diffStore = useWorkflowDiffStore.getState()
-          diffStore.setProposedChanges(workflowState).catch((error) => {
-            logger.error('[SubAgent] Failed to apply workflow_change diff', {
-              error: error instanceof Error ? error.message : String(error),
-              toolCallId,
-            })
-          })
-        }
+      if (targetState === ClientToolCallState.success) {
+        applyToolEffects({
+          effectsRaw: resultData.effects,
+          toolCall: updatedSubAgentToolCall,
+          resultPayload,
+        })
       }
     }
 

@@ -16,10 +16,6 @@ const logger = createLogger('CopilotRunToolExecution')
  */
 export const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
   'workflow_run',
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_from_block',
-  'run_block',
 ])
 
 /**
@@ -76,9 +72,7 @@ async function doExecuteRunTool(
     | undefined
 
   const runMode =
-    toolName === 'workflow_run'
-      ? ((params.mode as string | undefined) || 'full').toLowerCase()
-      : undefined
+    toolName === 'workflow_run' ? ((params.mode as string | undefined) || 'full').toLowerCase() : undefined
 
   if (
     toolName === 'workflow_run' &&
@@ -101,9 +95,6 @@ async function doExecuteRunTool(
     if (toolName === 'workflow_run' && runMode === 'until_block') {
       return params.stopAfterBlockId as string | undefined
     }
-    if (toolName === 'run_workflow_until_block')
-      return params.stopAfterBlockId as string | undefined
-    if (toolName === 'run_block') return params.blockId as string | undefined
     if (toolName === 'workflow_run' && runMode === 'block') {
       return params.blockId as string | undefined
     }
@@ -118,18 +109,6 @@ async function doExecuteRunTool(
       }
     }
     if (toolName === 'workflow_run' && runMode === 'block' && params.blockId) {
-      return {
-        startBlockId: params.blockId as string,
-        executionId: (params.executionId as string | undefined) || 'latest',
-      }
-    }
-    if (toolName === 'run_from_block' && params.startBlockId) {
-      return {
-        startBlockId: params.startBlockId as string,
-        executionId: (params.executionId as string | undefined) || 'latest',
-      }
-    }
-    if (toolName === 'run_block' && params.blockId) {
       return {
         startBlockId: params.blockId as string,
         executionId: (params.executionId as string | undefined) || 'latest',

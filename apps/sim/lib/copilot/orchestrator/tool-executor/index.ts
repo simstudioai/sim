@@ -433,11 +433,6 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   get_block_upstream_references: (p, c) =>
     executeGetBlockUpstreamReferences(p as unknown as GetBlockUpstreamReferencesParams, c),
   workflow_run: (p, c) => executeWorkflowRunUnified(p, c),
-  run_workflow: (p, c) => executeRunWorkflow(p as RunWorkflowParams, c),
-  run_workflow_until_block: (p, c) =>
-    executeRunWorkflowUntilBlock(p as unknown as RunWorkflowUntilBlockParams, c),
-  run_from_block: (p, c) => executeRunFromBlock(p as unknown as RunFromBlockParams, c),
-  run_block: (p, c) => executeRunBlock(p as unknown as RunBlockParams, c),
   get_deployed_workflow_state: (p, c) =>
     executeGetDeployedWorkflowState(p as GetDeployedWorkflowStateParams, c),
   generate_api_key: (p, c) => executeGenerateApiKey(p as unknown as GenerateApiKeyParams, c),
@@ -449,10 +444,6 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   set_global_workflow_variables: (p, c) =>
     executeSetGlobalWorkflowVariables(p as SetGlobalWorkflowVariablesParams, c),
   workflow_deploy: (p, c) => executeWorkflowDeployUnified(p, c),
-  deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),
-  deploy_chat: (p, c) => executeDeployChat(p as DeployChatParams, c),
-  deploy_mcp: (p, c) => executeDeployMcp(p as DeployMcpParams, c),
-  redeploy: (_p, c) => executeRedeploy(c),
   check_deployment_status: (p, c) =>
     executeCheckDeploymentStatus(p as CheckDeploymentStatusParams, c),
   list_workspace_mcp_servers: (p, c) =>

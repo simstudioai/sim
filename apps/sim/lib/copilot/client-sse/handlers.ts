@@ -11,13 +11,9 @@ import {
 } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
 import { CLIENT_EXECUTABLE_RUN_TOOLS, executeRunToolOnClient } from './run-tool-execution'
+import { applyToolEffects } from './tool-effects'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
@@ -26,14 +22,6 @@ const TEXT_BLOCK_TYPE = 'text'
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
-
-function isWorkflowEditToolCall(toolName?: string, params?: Record<string, unknown>): boolean {
-  if (toolName !== 'workflow_change') return false
-
-  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
-  if (mode === 'apply') return true
-  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
-}
 
 function isClientRunCapability(toolCall: CopilotToolCall): boolean {
   if (toolCall.execution?.target === 'sim_client_capability') {
@@ -153,19 +141,6 @@ function isWorkflowChangeApplyCall(toolName?: string, params?: Record<string, un
   const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
   if (mode === 'apply') return true
   return typeof params?.proposalId === 'string' && params.proposalId.length > 0
-}
-
-function extractWorkflowStateFromResultPayload(
-  resultPayload: Record<string, unknown>
-): WorkflowState | null {
-  const directState = asRecord(resultPayload.workflowState)
-  if (directState) return directState as unknown as WorkflowState
-
-  const editResult = asRecord(resultPayload.editResult)
-  const nestedState = asRecord(editResult?.workflowState)
-  if (nestedState) return nestedState as unknown as WorkflowState
-
-  return null
 }
 
 function extractOperationListFromResultPayload(
@@ -480,158 +455,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
           }
         }
 
-        if (
-          targetState === ClientToolCallState.success &&
-          isWorkflowEditToolCall(current.name, paramsForCurrentToolCall)
-        ) {
-          try {
-            const workflowState = resultPayload
-              ? extractWorkflowStateFromResultPayload(resultPayload)
-              : null
-            const hasWorkflowState = !!workflowState
-            logger.info('[SSE] workflow edit result received', {
-              toolName: current.name,
-              hasWorkflowState,
-              blockCount: hasWorkflowState
-                ? Object.keys((workflowState as any).blocks ?? {}).length
-                : 0,
-              edgeCount:
-                hasWorkflowState && Array.isArray((workflowState as any).edges)
-                  ? (workflowState as any).edges.length
-                  : 0,
-            })
-            if (workflowState) {
-              const diffStore = useWorkflowDiffStore.getState()
-              diffStore.setProposedChanges(workflowState).catch((err) => {
-                logger.error('[SSE] Failed to apply workflow edit diff', {
-                  error: err instanceof Error ? err.message : String(err),
-                  toolName: current.name,
-                })
-              })
-            }
-          } catch (err) {
-            logger.error('[SSE] workflow edit result handling failed', {
-              error: err instanceof Error ? err.message : String(err),
-              toolName: current.name,
-            })
-          }
-        }
-
-        // Deploy tools: update deployment status in workflow registry
-        if (
-          targetState === ClientToolCallState.success &&
-          (current.name === 'deploy_api' ||
-            current.name === 'deploy_chat' ||
-            current.name === 'deploy_mcp' ||
-            current.name === 'redeploy' ||
-            current.name === 'workflow_deploy')
-        ) {
-          try {
-            const resultPayload = asRecord(
-              data?.result || eventData.result || eventData.data || data?.data
-            )
-            const input = asRecord(current.params)
-            const workflowId =
-              (resultPayload?.workflowId as string) ||
-              (input?.workflowId as string) ||
-              useWorkflowRegistry.getState().activeWorkflowId
-            const deployMode = String(input?.mode || '')
-            const action = String(input?.action || 'deploy')
-            const isDeployed = (() => {
-              if (typeof resultPayload?.isDeployed === 'boolean') return resultPayload.isDeployed
-              if (current.name !== 'workflow_deploy') return true
-              if (deployMode === 'status') {
-                const statusIsDeployed = resultPayload?.isDeployed
-                return typeof statusIsDeployed === 'boolean' ? statusIsDeployed : true
-              }
-              if (deployMode === 'api' || deployMode === 'chat') return action !== 'undeploy'
-              if (deployMode === 'redeploy' || deployMode === 'mcp') return true
-              return true
-            })()
-            if (workflowId) {
-              useWorkflowRegistry
-                .getState()
-                .setDeploymentStatus(workflowId, isDeployed, isDeployed ? new Date() : undefined)
-              logger.info('[SSE] Updated deployment status from tool result', {
-                toolName: current.name,
-                workflowId,
-                isDeployed,
-              })
-            }
-          } catch (err) {
-            logger.warn('[SSE] Failed to hydrate deployment status', {
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
-        }
-
-        // Environment variables: reload store after successful set
-        if (
-          targetState === ClientToolCallState.success &&
-          current.name === 'set_environment_variables'
-        ) {
-          try {
-            useEnvironmentStore.getState().loadEnvironmentVariables()
-            logger.info('[SSE] Triggered environment variables reload')
-          } catch (err) {
-            logger.warn('[SSE] Failed to reload environment variables', {
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
-        }
-
-        // Workflow variables: reload store after successful set
-        if (
-          targetState === ClientToolCallState.success &&
-          current.name === 'set_global_workflow_variables'
-        ) {
-          try {
-            const input = asRecord(current.params)
-            const workflowId =
-              (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
-            if (workflowId) {
-              useVariablesStore.getState().loadForWorkflow(workflowId)
-              logger.info('[SSE] Triggered workflow variables reload', { workflowId })
-            }
-          } catch (err) {
-            logger.warn('[SSE] Failed to reload workflow variables', {
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
-        }
-
-        // Generate API key: update deployment status with the new key
-        if (targetState === ClientToolCallState.success && current.name === 'generate_api_key') {
-          try {
-            const resultPayload = asRecord(
-              data?.result || eventData.result || eventData.data || data?.data
-            )
-            const input = asRecord(current.params)
-            const workflowId =
-              (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
-            const apiKey = (resultPayload?.apiKey || resultPayload?.key) as string | undefined
-            if (workflowId) {
-              const existingStatus = useWorkflowRegistry
-                .getState()
-                .getWorkflowDeploymentStatus(workflowId)
-              useWorkflowRegistry
-                .getState()
-                .setDeploymentStatus(
-                  workflowId,
-                  existingStatus?.isDeployed ?? false,
-                  existingStatus?.deployedAt,
-                  apiKey
-                )
-              logger.info('[SSE] Updated deployment status with API key', {
-                workflowId,
-                hasKey: !!apiKey,
-              })
-            }
-          } catch (err) {
-            logger.warn('[SSE] Failed to hydrate API key status', {
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
+        if (targetState === ClientToolCallState.success) {
+          applyToolEffects({
+            effectsRaw: eventData.effects,
+            toolCall: updatedMap[toolCallId],
+            resultPayload,
+          })
         }
       }
 
