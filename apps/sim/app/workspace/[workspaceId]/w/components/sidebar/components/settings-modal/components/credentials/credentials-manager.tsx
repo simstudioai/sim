@@ -394,51 +394,53 @@ export function CredentialsManager() {
     )
   }, [selectedCredential, isSelectedAdmin, currentUserId])
 
-  const handleSaveEnvCredentialValue = async () => {
+  useEffect(() => {
     if (!selectedCredential || selectedCredential.type === 'oauth') return
+    if (!canEditSelectedEnvValue || !isEditingEnvValue) return
+    if (selectedEnvValueDraft === selectedEnvCurrentValue) return
+
     const envKey = selectedCredential.envKey || ''
     if (!envKey) return
-    if (!canEditSelectedEnvValue) {
-      setDetailsError('You do not have permission to edit this environment value')
-      return
-    }
 
-    try {
-      setDetailsError(null)
-      const nextValue = selectedEnvValueDraft
+    const timer = setTimeout(async () => {
+      try {
+        setDetailsError(null)
+        const nextValue = selectedEnvValueDraft
 
-      if (selectedCredential.type === 'env_workspace') {
-        await upsertWorkspaceEnvironment.mutateAsync({
-          workspaceId,
-          variables: {
-            [envKey]: nextValue,
-          },
-        })
-      } else {
-        const personalVariables = Object.entries(personalEnvironment).reduce(
-          (acc, [key, value]) => ({
-            ...acc,
-            [key]: value.value,
-          }),
-          {} as Record<string, string>
-        )
+        if (selectedCredential.type === 'env_workspace') {
+          await upsertWorkspaceEnvironment.mutateAsync({
+            workspaceId,
+            variables: {
+              [envKey]: nextValue,
+            },
+          })
+        } else {
+          const personalVariables = Object.entries(personalEnvironment).reduce(
+            (acc, [key, value]) => ({
+              ...acc,
+              [key]: value.value,
+            }),
+            {} as Record<string, string>
+          )
 
-        await savePersonalEnvironment.mutateAsync({
-          variables: {
-            ...personalVariables,
-            [envKey]: nextValue,
-          },
-        })
+          await savePersonalEnvironment.mutateAsync({
+            variables: {
+              ...personalVariables,
+              [envKey]: nextValue,
+            },
+          })
+        }
+
+        await refetchCredentials()
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to update secret value'
+        setDetailsError(message)
+        logger.error('Failed to autosave environment credential value', error)
       }
+    }, 600)
 
-      await refetchCredentials()
-      setIsEditingEnvValue(false)
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update environment value'
-      setDetailsError(message)
-      logger.error('Failed to update environment credential value', error)
-    }
-  }
+    return () => clearTimeout(timer)
+  }, [selectedEnvValueDraft])
 
   const handleCreateCredential = async () => {
     if (!workspaceId) return
@@ -840,21 +842,6 @@ export function CredentialsManager() {
                       className='mt-[6px]'
                     />
                   </div>
-                  {isSelectedAdmin && (
-                    <Button
-                      variant='active'
-                      onClick={handleSaveEnvCredentialValue}
-                      disabled={
-                        !canEditSelectedEnvValue ||
-                        !isEditingEnvValue ||
-                        !isEnvValueDirty ||
-                        upsertWorkspaceEnvironment.isPending ||
-                        savePersonalEnvironment.isPending
-                      }
-                    >
-                      Save
-                    </Button>
-                  )}
                   <div>
                     <Label htmlFor='credential-description'>Description</Label>
                     <Textarea
@@ -927,13 +914,15 @@ export function CredentialsManager() {
                               size='sm'
                               className='min-w-[120px]'
                             />
-                            <Button
-                              variant='ghost'
-                              onClick={() => handleRemoveMember(member.userId)}
-                              disabled={member.role === 'admin' && adminMemberCount <= 1}
-                            >
-                              Remove
-                            </Button>
+                            {selectedCredential.type !== 'env_workspace' && (
+                              <Button
+                                variant='ghost'
+                                onClick={() => handleRemoveMember(member.userId)}
+                                disabled={member.role === 'admin' && adminMemberCount <= 1}
+                              >
+                                Remove
+                              </Button>
+                            )}
                           </>
                         ) : (
                           <Badge variant={member.role === 'admin' ? 'blue' : 'gray-secondary'}>
@@ -946,7 +935,7 @@ export function CredentialsManager() {
                 </div>
               )}
 
-              {isSelectedAdmin && (
+              {isSelectedAdmin && selectedCredential.type !== 'env_workspace' && (
                 <div className='mt-[10px] rounded-[8px] border border-[var(--border-1)] p-[10px]'>
                   <Label>Add member</Label>
                   <div className='mt-[6px] grid grid-cols-[1fr_120px_auto] gap-[8px]'>
