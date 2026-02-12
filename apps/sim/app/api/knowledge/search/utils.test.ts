@@ -4,16 +4,12 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock, createMockLogger } from '@sim/testing'
+import { createEnvMock, databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const loggerMock = vi.hoisted(() => ({
-  createLogger: () => createMockLogger(),
-}))
 
 vi.mock('drizzle-orm')
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@sim/db')
+vi.mock('@sim/db', () => databaseMock)
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))

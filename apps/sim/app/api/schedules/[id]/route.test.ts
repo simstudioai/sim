@@ -3,17 +3,14 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission, mockDbSelect, mockDbUpdate } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-    mockDbSelect: vi.fn(),
-    mockDbUpdate: vi.fn(),
-  }))
+const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
@@ -23,12 +20,7 @@ vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-    update: mockDbUpdate,
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
@@ -58,6 +50,9 @@ function createRequest(body: Record<string, unknown>): NextRequest {
 function createParams(id: string): { params: Promise<{ id: string }> } {
   return { params: Promise.resolve({ id }) }
 }
+
+const mockDbSelect = databaseMock.db.select as ReturnType<typeof vi.fn>
+const mockDbUpdate = databaseMock.db.update as ReturnType<typeof vi.fn>
 
 function mockDbChain(selectResults: unknown[][]) {
   let selectCallIndex = 0

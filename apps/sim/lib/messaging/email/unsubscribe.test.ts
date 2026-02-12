@@ -1,20 +1,8 @@
-import { createEnvMock, createMockLogger } from '@sim/testing'
+import { createEnvMock, databaseMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 
-const loggerMock = vi.hoisted(() => ({
-  createLogger: () => createMockLogger(),
-}))
-
-const mockDb = vi.hoisted(() => ({
-  select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: mockDb,
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   user: { id: 'id', email: 'email' },
@@ -29,6 +17,8 @@ vi.mock('@sim/db/schema', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a, b) => ({ type: 'eq', left: a, right: b })),
 }))
+
+const mockDb = databaseMock.db as Record<string, ReturnType<typeof vi.fn>>
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ BETTER_AUTH_SECRET: 'test-secret-key' }))
 

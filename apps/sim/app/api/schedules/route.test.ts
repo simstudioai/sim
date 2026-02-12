@@ -3,17 +3,14 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission, mockDbSelect } = vi.hoisted(
-  () => ({
-    mockGetSession: vi.fn(),
-    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-    mockDbSelect: vi.fn(),
-  })
-)
+const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
@@ -23,11 +20,7 @@ vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
@@ -61,6 +54,8 @@ import { GET } from '@/app/api/schedules/route'
 function createRequest(url: string): NextRequest {
   return new NextRequest(new URL(url), { method: 'GET' })
 }
+
+const mockDbSelect = databaseMock.db.select as ReturnType<typeof vi.fn>
 
 function mockDbChain(results: any[]) {
   let callIndex = 0

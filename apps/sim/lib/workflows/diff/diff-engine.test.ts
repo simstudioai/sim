@@ -1,18 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
-// Mock all external dependencies before imports
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: {

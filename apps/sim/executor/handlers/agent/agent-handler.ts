@@ -272,15 +272,16 @@ export class AgentBlockHandler implements BlockHandler {
     let code = tool.code
     let title = tool.title
 
-    if (tool.customToolId && !schema) {
+    if (tool.customToolId) {
       const resolved = await this.fetchCustomToolById(ctx, tool.customToolId)
-      if (!resolved) {
+      if (resolved) {
+        schema = resolved.schema
+        code = resolved.code
+        title = resolved.title
+      } else if (!schema) {
         logger.error(`Custom tool not found: ${tool.customToolId}`)
         return null
       }
-      schema = resolved.schema
-      code = resolved.code
-      title = resolved.title
     }
 
     if (!schema?.function) {
