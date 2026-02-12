@@ -170,7 +170,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
         zaddArgs.push(entry.eventId, JSON.stringify(entry))
       }
       const pipeline = redis.pipeline()
-      pipeline.zadd(key, ...(zaddArgs as [number, string]))
+      pipeline.zadd(key, ...zaddArgs)
       pipeline.expire(key, TTL_SECONDS)
       pipeline.expire(getSeqKey(executionId), TTL_SECONDS)
       pipeline.zremrangebyrank(key, 0, -EVENT_LIMIT - 1)
