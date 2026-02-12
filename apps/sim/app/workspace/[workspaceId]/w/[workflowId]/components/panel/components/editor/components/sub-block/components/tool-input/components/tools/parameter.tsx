@@ -91,7 +91,9 @@ export function ParameterWithLabel({
           {title}
           {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
           {visibility !== 'user-only' && (
-            <span className='ml-[6px] text-[12px] text-[var(--text-tertiary)]'>(optional)</span>
+            <span className='-ml-[3px] text-[12px] font-normal text-[var(--text-tertiary)]'>
+              (optional)
+            </span>
           )}
         </Label>
         <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
