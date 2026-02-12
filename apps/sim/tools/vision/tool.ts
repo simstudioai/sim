@@ -106,7 +106,7 @@ export const visionToolV2: ToolConfig<VisionV2Params, VisionResponse> = {
     imageFile: {
       type: 'file',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Image file to analyze',
     },
     model: visionTool.params.model,

@@ -1761,7 +1761,6 @@ export const ToolInput = memo(function ToolInput({
                               ?.requiredScopes ||
                             getCanonicalScopesForProvider(oauthConfig.provider)
                           }
-                          label={`Select ${oauthConfig.provider} account`}
                           serviceId={oauthConfig.provider}
                           disabled={disabled}
                         />

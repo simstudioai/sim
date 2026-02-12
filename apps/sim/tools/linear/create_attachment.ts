@@ -35,7 +35,7 @@ export const linearCreateAttachmentTool: ToolConfig<
     file: {
       type: 'file',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'File to attach',
     },
     title: {

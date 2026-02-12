@@ -227,6 +227,8 @@ interface BlockData {
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
  */
 const WorkflowContent = React.memo(() => {
+  const workflowRootRef = useRef<HTMLDivElement | null>(null)
+  const viewportMoveLogCountRef = useRef(0)
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
@@ -254,6 +256,52 @@ const WorkflowContent = React.memo(() => {
   const workflowIdParam = params.workflowId as string
 
   const addNotification = useNotificationStore((state) => state.addNotification)
+
+  const logWorkflowLayoutSnapshot = useCallback(
+    (
+      hypothesisId: 'H8' | 'H9' | 'H10' | 'H11',
+      message: string,
+      extraData: Record<string, unknown>
+    ) => {
+      const workflowRoot = workflowRootRef.current
+      const flowContainer = document.querySelector('.workflow-container') as HTMLElement | null
+      const openDialogs = document.querySelectorAll('[role="dialog"][data-state="open"]').length
+      const bodyStyle = document.body.style
+
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/77a2b2bc-808d-4bfd-a366-739b0b04635d', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId: 'initial',
+          hypothesisId,
+          location: 'workflow.tsx:WorkflowContent',
+          message,
+          data: {
+            openDialogs,
+            windowInnerHeight: window.innerHeight,
+            windowInnerWidth: window.innerWidth,
+            pageScrollY: window.scrollY,
+            visualViewportHeight: window.visualViewport?.height ?? null,
+            visualViewportOffsetTop: window.visualViewport?.offsetTop ?? null,
+            bodyOverflow: bodyStyle.overflow || null,
+            bodyPaddingRight: bodyStyle.paddingRight || null,
+            bodyPosition: bodyStyle.position || null,
+            bodyTop: bodyStyle.top || null,
+            workflowRootTop: workflowRoot?.getBoundingClientRect().top ?? null,
+            workflowRootHeight: workflowRoot?.getBoundingClientRect().height ?? null,
+            flowContainerTop: flowContainer?.getBoundingClientRect().top ?? null,
+            flowContainerHeight: flowContainer?.getBoundingClientRect().height ?? null,
+            reactFlowViewport: reactFlowInstance.getViewport(),
+            ...extraData,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+      // #endregion
+    },
+    [reactFlowInstance]
+  )
 
   const {
     workflows,
@@ -1067,6 +1115,43 @@ const WorkflowContent = React.memo(() => {
     contextMenuPosition,
     isPointInLoopNode,
   ])
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const openDialogs = document.querySelectorAll('[role="dialog"][data-state="open"]').length
+      logWorkflowLayoutSnapshot('H8', 'Dialog/open-state mutation observed in workflow page', {
+        openDialogs,
+      })
+
+      requestAnimationFrame(() => {
+        logWorkflowLayoutSnapshot('H11', 'Next-frame workflow layout after dialog mutation', {
+          openDialogs,
+        })
+      })
+    })
+
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      childList: true,
+      attributeFilter: ['data-state', 'style'],
+    })
+
+    return () => observer.disconnect()
+  }, [logWorkflowLayoutSnapshot])
+
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+
+    const onViewportResize = () => {
+      if (document.querySelectorAll('[role="dialog"][data-state="open"]').length === 0) return
+      logWorkflowLayoutSnapshot('H10', 'visualViewport resize while modal open', {})
+    }
+
+    viewport.addEventListener('resize', onViewportResize)
+    return () => viewport.removeEventListener('resize', onViewportResize)
+  }, [logWorkflowLayoutSnapshot])
 
   const handleContextDuplicate = useCallback(() => {
     copyBlocks(contextMenuBlocks.map((b) => b.id))
@@ -3485,7 +3570,7 @@ const WorkflowContent = React.memo(() => {
   ])
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden'>
+    <div ref={workflowRootRef} className='flex h-full w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1'>
         {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
         <div
@@ -3569,6 +3654,18 @@ const WorkflowContent = React.memo(() => {
               elevateNodesOnSelect={true}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
+              onMoveEnd={(_, viewport) => {
+                if (viewportMoveLogCountRef.current >= 8) return
+                viewportMoveLogCountRef.current += 1
+                const openDialogs = document.querySelectorAll(
+                  '[role="dialog"][data-state="open"]'
+                ).length
+                logWorkflowLayoutSnapshot('H9', 'Main workflow ReactFlow viewport moved', {
+                  viewport,
+                  moveLogCount: viewportMoveLogCountRef.current,
+                  openDialogs,
+                })
+              }}
             />
 
             <Cursors />

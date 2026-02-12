@@ -4,6 +4,7 @@ import { Button, Combobox } from '@/components/emcn/components'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
+  getServiceConfigByProviderId,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   type OAuthService,
@@ -26,6 +27,11 @@ const getProviderIcon = (providerName: OAuthProvider) => {
 }
 
 const getProviderName = (providerName: OAuthProvider) => {
+  const serviceConfig = getServiceConfigByProviderId(providerName)
+  if (serviceConfig) {
+    return serviceConfig.name
+  }
+
   const { baseProvider } = parseProvider(providerName)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
@@ -54,7 +60,7 @@ export function ToolCredentialSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select account',
+  label,
   serviceId,
   disabled = false,
 }: ToolCredentialSelectorProps) {
@@ -64,6 +70,7 @@ export function ToolCredentialSelector({
   const { activeWorkflowId } = useWorkflowRegistry()
 
   const selectedId = value || ''
+  const effectiveLabel = label || `Select ${getProviderName(provider)} account`
 
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 
@@ -203,7 +210,7 @@ export function ToolCredentialSelector({
         selectedValue={selectedId}
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
-        placeholder={label}
+        placeholder={effectiveLabel}
         disabled={disabled}
         editable={true}
         filterOptions={!isForeign}
