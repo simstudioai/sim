@@ -1,6 +1,75 @@
 import { createLogger } from '@sim/logger'
+import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm/enrichment'
+import type { TableSummary } from '@/lib/table/types'
 
 const logger = createLogger('SchemaEnrichers')
+
+async function fetchTableSchema(tableId: string): Promise<TableSummary | null> {
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/table/${tableId}/schema`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      logger.warn(`Failed to fetch table schema for ${tableId}: ${response.status}`)
+      return null
+    }
+
+    const result = await response.json()
+    const data = result.data || result
+
+    return {
+      name: data.name || 'Table',
+      columns: data.columns || [],
+    }
+  } catch (error) {
+    logger.error('Failed to fetch table schema:', error)
+    return null
+  }
+}
+
+export async function enrichTableToolSchema(
+  tableId: string,
+  toolId: string,
+  originalSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required: string[]
+  },
+  originalDescription: string
+): Promise<{
+  description: string
+  parameters: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required: string[]
+  }
+} | null> {
+  const tableSchema = await fetchTableSchema(tableId)
+
+  if (!tableSchema) {
+    return null
+  }
+
+  const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
+  const enrichedParams = enrichTableToolParameters(
+    { properties: originalSchema.properties, required: originalSchema.required },
+    tableSchema,
+    toolId
+  )
+
+  return {
+    description: enrichedDescription,
+    parameters: {
+      type: 'object',
+      properties: enrichedParams.properties,
+      required:
+        enrichedParams.required.length > 0 ? enrichedParams.required : originalSchema.required,
+    },
+  }
+}
 
 interface TagDefinition {
   id: string

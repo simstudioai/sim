@@ -1545,6 +1545,7 @@ import {
   spotifyUnfollowPlaylistTool,
   spotifyUpdatePlaylistTool,
 } from '@/tools/spotify'
+import { sqsSendTool } from '@/tools/sqs'
 import {
   sshCheckCommandExistsTool,
   sshCheckFileExistsTool,
@@ -1649,6 +1650,20 @@ import {
   supabaseUpsertTool,
   supabaseVectorSearchTool,
 } from '@/tools/supabase'
+import {
+  tableBatchInsertRowsTool,
+  tableCreateTool,
+  tableDeleteRowsByFilterTool,
+  tableDeleteRowTool,
+  tableGetRowTool,
+  tableGetSchemaTool,
+  tableInsertRowTool,
+  tableListTool,
+  tableQueryRowsTool,
+  tableUpdateRowsByFilterTool,
+  tableUpdateRowTool,
+  tableUpsertRowTool,
+} from '@/tools/table'
 import { tavilyCrawlTool, tavilyExtractTool, tavilyMapTool, tavilySearchTool } from '@/tools/tavily'
 import {
   telegramDeleteMessageTool,
@@ -1814,7 +1829,6 @@ import {
   zoomListRecordingsTool,
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
-import { sqsSendTool } from './sqs'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -3260,6 +3274,18 @@ export const tools: Record<string, ToolConfig> = {
   salesforce_describe_object: salesforceDescribeObjectTool,
   salesforce_list_objects: salesforceListObjectsTool,
   sqs_send: sqsSendTool,
+  table_create: tableCreateTool,
+  table_list: tableListTool,
+  table_insert_row: tableInsertRowTool,
+  table_batch_insert_rows: tableBatchInsertRowsTool,
+  table_upsert_row: tableUpsertRowTool,
+  table_update_row: tableUpdateRowTool,
+  table_update_rows_by_filter: tableUpdateRowsByFilterTool,
+  table_delete_row: tableDeleteRowTool,
+  table_delete_rows_by_filter: tableDeleteRowsByFilterTool,
+  table_query_rows: tableQueryRowsTool,
+  table_get_row: tableGetRowTool,
+  table_get_schema: tableGetSchemaTool,
   mailchimp_get_audiences: mailchimpGetAudiencesTool,
   mailchimp_get_audience: mailchimpGetAudienceTool,
   mailchimp_create_audience: mailchimpCreateAudienceTool,
