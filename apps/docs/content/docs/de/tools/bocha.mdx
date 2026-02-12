@@ -1,0 +1,48 @@
+---
+title: BoCha
+description: Websuche mit BoCha
+---
+
+[BoCha](https://bocha.cn/) ist eine KI-gestützte Such-API, die speziell für LLM-Anwendungen entwickelt wurde. Sie bietet zuverlässige Echtzeit-Informationsabfragen und ist für KI-Anwendungsfälle optimiert.
+
+Mit BoCha in Sim können Sie:
+
+- **Webseiten durchsuchen**: Sofort Antworten, Fakten und Übersichten zu Suchanfragen finden
+- **Direkte Antworten erhalten**: Konkrete Ergebnisse für Berechnungen, Umrechnungen oder Faktenabfragen abrufen
+- **Zusammenfassungen erhalten**: Kurze Zusammenfassungen oder Beschreibungen zu Suchthemen bekommen
+- **Verwandte Themen entdecken**: Links und Referenzen zu verwandten Suchthemen finden
+
+Diese Funktionen ermöglichen es Sim-Agenten, automatisch auf aktuelles Webwissen zuzugreifen – von der Darstellung von Fakten in Workflows bis hin zur Anreicherung von Dokumenten und Analysen mit neuesten Informationen.
+
+## Verwendung
+
+Verwenden Sie die BoCha Instant Answer API, um das Web zu durchsuchen. Sie gibt direkte Antworten, Zusammenfassungen und verwandte Themen zurück.
+
+## Tool
+
+### `bocha_search`
+
+Durchsucht das Web mit der BoCha Instant Answer API und gibt direkte Antworten, Zusammenfassungen und verwandte Themen zurück.
+
+#### Eingaben
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | ---- | ----------- |
+| `query` | string | Ja | Die auszuführende Suchanfrage (z. B. „latest AI research papers 2024“) |
+| `freshness` | string | Nein | Zeitbereich der Suchergebnisse (noLimit / oneDay / oneWeek / oneMonth / oneYear / YYYY-MM-DD / YYYY-MM-DD..YYYY-MM-DD) |
+| `summary` | boolean | Nein | Ob eine Textzusammenfassung zurückgegeben werden soll |
+| `count` | number | Nein | Maximale Anzahl der Ergebnisse (1–50, z. B. 5) |
+| `include` | string | Nein | Eingeschränkte Domains für die Suche, getrennt durch `|` oder `,` (max. 100) |
+| `exclude` | string | Nein | Ausgeschlossene Domains, getrennt durch `|` oder `,` (max. 100) |
+
+#### Ausgaben
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `query` | string | Die ausgeführte Suchanfrage |
+| `results` | array | Suchergebnisse des Tools |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `bocha`
