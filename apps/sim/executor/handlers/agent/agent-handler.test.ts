@@ -1,3 +1,4 @@
+import { setupGlobalFetchMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
@@ -108,7 +109,7 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
-global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
+setupGlobalFetchMock()
 
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock

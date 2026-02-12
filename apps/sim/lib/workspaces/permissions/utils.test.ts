@@ -1,17 +1,7 @@
-import { drizzleOrmMock } from '@sim/testing/mocks'
+import { databaseMock, drizzleOrmMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(),
-    from: vi.fn(),
-    where: vi.fn(),
-    limit: vi.fn(),
-    innerJoin: vi.fn(),
-    leftJoin: vi.fn(),
-    orderBy: vi.fn(),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/db/schema', () => ({
   permissions: {

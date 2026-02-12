@@ -5,7 +5,7 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
+import { loggerMock, setupGlobalFetchMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -284,9 +284,7 @@ describe('Workflow By ID API Route', () => {
         where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
       })
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-      })
+      setupGlobalFetchMock({ ok: true })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'DELETE',
@@ -331,9 +329,7 @@ describe('Workflow By ID API Route', () => {
         where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
       })
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-      })
+      setupGlobalFetchMock({ ok: true })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'DELETE',
