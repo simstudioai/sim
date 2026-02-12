@@ -1,35 +1,9 @@
 import type {
   GoogleBooksVolumeDetailsParams,
   GoogleBooksVolumeDetailsResponse,
+  GoogleBooksVolumeResponse,
 } from '@/tools/google_books/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface GoogleBooksVolumeResponse {
-  id: string
-  volumeInfo: {
-    title?: string
-    subtitle?: string
-    authors?: string[]
-    publisher?: string
-    publishedDate?: string
-    description?: string
-    pageCount?: number
-    categories?: string[]
-    averageRating?: number
-    ratingsCount?: number
-    language?: string
-    previewLink?: string
-    infoLink?: string
-    imageLinks?: {
-      thumbnail?: string
-      smallThumbnail?: string
-    }
-    industryIdentifiers?: Array<{
-      type: string
-      identifier: string
-    }>
-  }
-}
 
 export const googleBooksVolumeDetailsTool: ToolConfig<
   GoogleBooksVolumeDetailsParams,
