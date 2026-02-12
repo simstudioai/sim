@@ -1864,7 +1864,7 @@ export const ToolInput = memo(function ToolInput({
                       })
 
                       return (
-                        <div className='flex flex-col gap-[10px] pt-[4px]'>{renderedElements}</div>
+                        <div className='flex flex-col gap-[14px] pt-[4px]'>{renderedElements}</div>
                       )
                     }
 
