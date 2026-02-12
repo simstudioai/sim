@@ -224,7 +224,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
           const newEntry = get().entries[0]
 
-          if (newEntry?.error) {
+          if (newEntry?.error && newEntry.blockType !== 'cancelled') {
             notifyBlockError({
               error: newEntry.error,
               blockName: newEntry.blockName || 'Unknown Block',
@@ -242,6 +242,11 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           }))
           useExecutionStore.getState().clearRunPath(workflowId)
         },
+
+        clearExecutionEntries: (executionId: string) =>
+          set((state) => ({
+            entries: state.entries.filter((e) => e.executionId !== executionId),
+          })),
 
         exportConsoleCSV: (workflowId: string) => {
           const entries = get().entries.filter((entry) => entry.workflowId === workflowId)
@@ -470,12 +475,24 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         },
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<ConsoleStore> | undefined
-          const entries = (persisted?.entries ?? currentState.entries).map((entry, index) => {
+          const rawEntries = persisted?.entries ?? currentState.entries
+          const oneHourAgo = Date.now() - 60 * 60 * 1000
+
+          const entries = rawEntries.map((entry, index) => {
+            let updated = entry
             if (entry.executionOrder === undefined) {
-              return { ...entry, executionOrder: index + 1 }
+              updated = { ...updated, executionOrder: index + 1 }
             }
-            return entry
+            if (
+              entry.isRunning &&
+              entry.startedAt &&
+              new Date(entry.startedAt).getTime() < oneHourAgo
+            ) {
+              updated = { ...updated, isRunning: false }
+            }
+            return updated
           })
+
           return {
             ...currentState,
             entries,
