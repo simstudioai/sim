@@ -154,13 +154,12 @@ export interface ReconnectStreamOptions {
 }
 
 /**
- * Module-level maps shared across all hook instances.
- * This ensures ANY instance can cancel streams started by ANY other instance,
+ * Module-level map shared across all hook instances.
+ * Ensures ANY instance can cancel streams started by ANY other instance,
  * which is critical for SPA navigation where the original hook instance unmounts
  * but the SSE stream must be cancellable from the new instance.
  */
 const sharedAbortControllers = new Map<string, AbortController>()
-const sharedCurrentExecutions = new Map<string, { workflowId: string; executionId: string }>()
 
 /**
  * Hook for executing workflows via server-side SSE streaming.
@@ -177,7 +176,6 @@ export function useExecutionStream() {
 
     const abortController = new AbortController()
     sharedAbortControllers.set(workflowId, abortController)
-    sharedCurrentExecutions.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -204,7 +202,6 @@ export function useExecutionStream() {
 
       const serverExecutionId = response.headers.get('X-Execution-Id')
       if (serverExecutionId) {
-        sharedCurrentExecutions.set(workflowId, { workflowId, executionId: serverExecutionId })
         onExecutionId?.(serverExecutionId)
       }
 
@@ -222,11 +219,8 @@ export function useExecutionStream() {
       })
       throw error
     } finally {
-      // Only clean up if this is still our controller — a concurrent stream
-      // (e.g. reconnection) may have replaced it while we were running.
       if (sharedAbortControllers.get(workflowId) === abortController) {
         sharedAbortControllers.delete(workflowId)
-        sharedCurrentExecutions.delete(workflowId)
       }
     }
   }, [])
@@ -248,7 +242,6 @@ export function useExecutionStream() {
 
     const abortController = new AbortController()
     sharedAbortControllers.set(workflowId, abortController)
-    sharedCurrentExecutions.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -284,7 +277,6 @@ export function useExecutionStream() {
 
       const serverExecutionId = response.headers.get('X-Execution-Id')
       if (serverExecutionId) {
-        sharedCurrentExecutions.set(workflowId, { workflowId, executionId: serverExecutionId })
         onExecutionId?.(serverExecutionId)
       }
 
@@ -304,7 +296,6 @@ export function useExecutionStream() {
     } finally {
       if (sharedAbortControllers.get(workflowId) === abortController) {
         sharedAbortControllers.delete(workflowId)
-        sharedCurrentExecutions.delete(workflowId)
       }
     }
   }, [])
@@ -319,8 +310,6 @@ export function useExecutionStream() {
 
     const abortController = new AbortController()
     sharedAbortControllers.set(workflowId, abortController)
-    sharedCurrentExecutions.set(workflowId, { workflowId, executionId })
-
     try {
       const response = await fetch(
         `/api/workflows/${workflowId}/executions/${executionId}/stream?from=${fromEventId}`,
@@ -337,7 +326,6 @@ export function useExecutionStream() {
     } finally {
       if (sharedAbortControllers.get(workflowId) === abortController) {
         sharedAbortControllers.delete(workflowId)
-        sharedCurrentExecutions.delete(workflowId)
       }
     }
   }, [])
@@ -349,13 +337,11 @@ export function useExecutionStream() {
         controller.abort()
         sharedAbortControllers.delete(workflowId)
       }
-      sharedCurrentExecutions.delete(workflowId)
     } else {
       for (const [, controller] of sharedAbortControllers) {
         controller.abort()
       }
       sharedAbortControllers.clear()
-      sharedCurrentExecutions.clear()
     }
   }, [])
 

@@ -71,7 +71,6 @@ export async function GET(
 
     const encoder = new TextEncoder()
 
-    // Hoisted so cancel() can signal the polling loop to stop
     let closed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -89,7 +88,6 @@ export async function GET(
         }
 
         try {
-          // Replay buffered events
           const events = await readExecutionEvents(executionId, lastEventId)
           for (const entry of events) {
             if (closed) return
@@ -97,7 +95,6 @@ export async function GET(
             lastEventId = entry.eventId
           }
 
-          // Check if execution is already done
           const currentMeta = await getExecutionMeta(executionId)
           if (!currentMeta || isTerminalStatus(currentMeta.status)) {
             enqueue('data: [DONE]\n\n')
@@ -105,7 +102,6 @@ export async function GET(
             return
           }
 
-          // Poll for new events until execution completes or deadline is reached
           while (!closed && Date.now() < pollDeadline) {
             await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
             if (closed) return
@@ -119,7 +115,6 @@ export async function GET(
 
             const polledMeta = await getExecutionMeta(executionId)
             if (!polledMeta || isTerminalStatus(polledMeta.status)) {
-              // One final read to catch any events flushed alongside the meta update
               const finalEvents = await readExecutionEvents(executionId, lastEventId)
               for (const entry of finalEvents) {
                 if (closed) return
@@ -132,7 +127,6 @@ export async function GET(
             }
           }
 
-          // Deadline reached — close gracefully
           if (!closed) {
             logger.warn('Reconnection stream poll deadline reached', { executionId })
             enqueue('data: [DONE]\n\n')

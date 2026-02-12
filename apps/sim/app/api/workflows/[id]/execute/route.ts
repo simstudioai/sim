@@ -841,14 +841,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
-            let chunkCount = 0
 
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
-                chunkCount++
                 const chunk = decoder.decode(value, { stream: true })
                 sendEvent({
                   type: 'stream:chunk',
