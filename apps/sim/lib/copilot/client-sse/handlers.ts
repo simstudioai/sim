@@ -332,13 +332,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
           }
         }
 
-        if (targetState === ClientToolCallState.success) {
-          applyToolEffects({
-            effectsRaw: eventData.effects,
-            toolCall: updatedMap[toolCallId],
-            resultPayload,
-          })
-        }
+        applyToolEffects({
+          effectsRaw: eventData.effects,
+          toolCall: updatedMap[toolCallId],
+          resultPayload,
+        })
       }
 
       for (let i = 0; i < context.contentBlocks.length; i++) {

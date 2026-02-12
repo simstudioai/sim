@@ -119,7 +119,21 @@ export function applyToolEffects(params: {
   resultPayload?: Record<string, unknown>
 }): void {
   const effects = parseToolEffects(params.effectsRaw)
-  if (effects.length === 0) return
+  if (effects.length === 0) {
+    if (params.toolCall?.name === 'workflow_change' && params.resultPayload) {
+      const workflowState = resolveWorkflowState({}, params.resultPayload)
+      if (!workflowState) return
+      useWorkflowDiffStore
+        .getState()
+        .setProposedChanges(workflowState)
+        .catch((error) => {
+          logger.error('Failed to apply fallback workflow diff from result payload', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+    }
+    return
+  }
 
   for (const effect of effects) {
     switch (effect.kind) {
@@ -159,4 +173,3 @@ export function applyToolEffects(params: {
     }
   }
 }
-

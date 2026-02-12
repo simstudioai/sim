@@ -358,13 +358,11 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
         })
       }
 
-      if (targetState === ClientToolCallState.success) {
-        applyToolEffects({
-          effectsRaw: resultData.effects,
-          toolCall: updatedSubAgentToolCall,
-          resultPayload,
-        })
-      }
+      applyToolEffects({
+        effectsRaw: resultData.effects,
+        toolCall: updatedSubAgentToolCall,
+        resultPayload,
+      })
     }
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
