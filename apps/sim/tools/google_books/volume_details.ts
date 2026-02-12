@@ -29,9 +29,6 @@ interface GoogleBooksVolumeResponse {
       identifier: string
     }>
   }
-  error?: {
-    message?: string
-  }
 }
 
 export const googleBooksVolumeDetailsTool: ToolConfig<
@@ -83,10 +80,6 @@ export const googleBooksVolumeDetailsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data: GoogleBooksVolumeResponse = await response.json()
-
-    if (data.error) {
-      throw new Error(`Google Books API error: ${data.error.message || 'Unknown error'}`)
-    }
 
     if (!data.volumeInfo) {
       throw new Error('Volume not found')

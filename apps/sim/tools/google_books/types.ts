@@ -1,6 +1,36 @@
 import type { ToolResponse } from '@/tools/types'
 
 /**
+ * Raw volume item from Google Books API response
+ */
+export interface GoogleBooksVolumeItem {
+  id: string
+  volumeInfo: {
+    title?: string
+    subtitle?: string
+    authors?: string[]
+    publisher?: string
+    publishedDate?: string
+    description?: string
+    pageCount?: number
+    categories?: string[]
+    averageRating?: number
+    ratingsCount?: number
+    language?: string
+    previewLink?: string
+    infoLink?: string
+    imageLinks?: {
+      thumbnail?: string
+      smallThumbnail?: string
+    }
+    industryIdentifiers?: Array<{
+      type: string
+      identifier: string
+    }>
+  }
+}
+
+/**
  * Volume information structure shared between search and details responses
  */
 export interface VolumeInfo {

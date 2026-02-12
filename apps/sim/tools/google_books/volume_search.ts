@@ -1,36 +1,10 @@
 import type {
+  GoogleBooksVolumeItem,
   GoogleBooksVolumeSearchParams,
   GoogleBooksVolumeSearchResponse,
   VolumeInfo,
 } from '@/tools/google_books/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface GoogleBooksVolumeItem {
-  id: string
-  volumeInfo: {
-    title?: string
-    subtitle?: string
-    authors?: string[]
-    publisher?: string
-    publishedDate?: string
-    description?: string
-    pageCount?: number
-    categories?: string[]
-    averageRating?: number
-    ratingsCount?: number
-    language?: string
-    previewLink?: string
-    infoLink?: string
-    imageLinks?: {
-      thumbnail?: string
-      smallThumbnail?: string
-    }
-    industryIdentifiers?: Array<{
-      type: string
-      identifier: string
-    }>
-  }
-}
 
 function extractVolumeInfo(item: GoogleBooksVolumeItem): VolumeInfo {
   const info = item.volumeInfo
@@ -154,10 +128,6 @@ export const googleBooksVolumeSearchTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (data.error) {
-      throw new Error(`Google Books API error: ${data.error.message || 'Unknown error'}`)
-    }
 
     const items: GoogleBooksVolumeItem[] = data.items ?? []
     const volumes = items.map(extractVolumeInfo)
