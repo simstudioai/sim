@@ -38,5 +38,4 @@ CREATE INDEX "referral_attribution_campaign_id_idx" ON "referral_attribution" US
 CREATE INDEX "referral_attribution_utm_campaign_idx" ON "referral_attribution" USING btree ("utm_campaign");--> statement-breakpoint
 CREATE INDEX "referral_attribution_utm_content_idx" ON "referral_attribution" USING btree ("utm_content");--> statement-breakpoint
 CREATE INDEX "referral_attribution_created_at_idx" ON "referral_attribution" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "referral_campaigns_active_idx" ON "referral_campaigns" USING btree ("is_active");--> statement-breakpoint
-CREATE UNIQUE INDEX "referral_campaigns_code_idx" ON "referral_campaigns" USING btree ("code");
+CREATE INDEX "referral_campaigns_active_idx" ON "referral_campaigns" USING btree ("is_active");
