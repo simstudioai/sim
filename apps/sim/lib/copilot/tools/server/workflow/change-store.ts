@@ -78,6 +78,7 @@ export type WorkflowChangeProposal = {
   warnings: string[]
   diagnostics: string[]
   touchedBlocks: string[]
+  resolvedIds?: Record<string, string>
   acceptanceAssertions: string[]
   postApply?: {
     verify?: boolean

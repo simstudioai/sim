@@ -14,6 +14,11 @@ type ParsedToolEffect = {
   payload: Record<string, unknown>
 }
 
+function asNonEmptyRecord(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value)
+  return Object.keys(record).length > 0 ? record : null
+}
+
 function parseToolEffects(raw: unknown): ParsedToolEffect[] {
   if (!Array.isArray(raw)) return []
   const effects: ParsedToolEffect[] = []
@@ -47,14 +52,14 @@ function resolveWorkflowState(
   payload: Record<string, unknown>,
   resultPayload?: Record<string, unknown>
 ): WorkflowState | null {
-  const payloadState = asRecord(payload.workflowState)
+  const payloadState = asNonEmptyRecord(payload.workflowState)
   if (payloadState) return payloadState as unknown as WorkflowState
 
   if (resultPayload) {
-    const directState = asRecord(resultPayload.workflowState)
+    const directState = asNonEmptyRecord(resultPayload.workflowState)
     if (directState) return directState as unknown as WorkflowState
     const editResult = asRecord(resultPayload.editResult)
-    const nestedState = asRecord(editResult?.workflowState)
+    const nestedState = asNonEmptyRecord(editResult?.workflowState)
     if (nestedState) return nestedState as unknown as WorkflowState
   }
 

@@ -28,7 +28,6 @@ import {
   executeToolServerSide,
   prepareExecutionContext,
 } from '@/lib/copilot/orchestrator/tool-executor'
-import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -39,6 +38,32 @@ import {
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
+const MCP_TOOL_MANIFEST_CACHE_TTL_MS = 60_000
+
+type McpDirectToolDef = {
+  name: string
+  description: string
+  inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
+  toolId: string
+}
+
+type McpSubagentToolDef = {
+  name: string
+  description: string
+  inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
+  agentId: string
+}
+
+type McpToolManifest = {
+  directTools: McpDirectToolDef[]
+  subagentTools: McpSubagentToolDef[]
+  generatedAt?: string
+}
+
+let cachedMcpToolManifest: {
+  value: McpToolManifest
+  expiresAt: number
+} | null = null
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -110,6 +135,58 @@ async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuth
         'Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.',
     }
   }
+}
+
+export function isMcpToolManifest(value: unknown): value is McpToolManifest {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Record<string, unknown>
+  return Array.isArray(payload.directTools) && Array.isArray(payload.subagentTools)
+}
+
+export async function fetchMcpToolManifestFromCopilot(): Promise<McpToolManifest> {
+  const internalSecret = env.INTERNAL_API_SECRET
+  if (!internalSecret) {
+    throw new Error('INTERNAL_API_SECRET not configured')
+  }
+
+  const res = await fetch(`${SIM_AGENT_API_URL}/api/mcp/tools/manifest`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': internalSecret,
+    },
+    signal: AbortSignal.timeout(10_000),
+  })
+
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '')
+    throw new Error(`manifest fetch failed (${res.status}): ${bodyText || res.statusText}`)
+  }
+
+  const payload: unknown = await res.json()
+  if (!isMcpToolManifest(payload)) {
+    throw new Error('invalid manifest payload from copilot')
+  }
+
+  return payload
+}
+
+export async function getMcpToolManifest(): Promise<McpToolManifest> {
+  const now = Date.now()
+  if (cachedMcpToolManifest && cachedMcpToolManifest.expiresAt > now) {
+    return cachedMcpToolManifest.value
+  }
+
+  const manifest = await fetchMcpToolManifestFromCopilot()
+  cachedMcpToolManifest = {
+    value: manifest,
+    expiresAt: now + MCP_TOOL_MANIFEST_CACHE_TTL_MS,
+  }
+  return manifest
+}
+
+export function clearMcpToolManifestCacheForTests(): void {
+  cachedMcpToolManifest = null
 }
 
 /**
@@ -380,13 +457,15 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
   )
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const directTools = DIRECT_TOOL_DEFS.map((tool) => ({
+    const manifest = await getMcpToolManifest()
+
+    const directTools = manifest.directTools.map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
     }))
 
-    const subagentTools = SUBAGENT_TOOL_DEFS.map((tool) => ({
+    const subagentTools = manifest.subagentTools.map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
@@ -455,12 +534,15 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
     }
 
+    const manifest = await getMcpToolManifest()
+
     const result = await handleToolsCall(
       {
         name: params.name,
         arguments: params.arguments,
       },
       authResult.userId,
+      manifest,
       abortSignal
     )
 
@@ -556,16 +638,17 @@ function trackMcpCopilotCall(userId: string): void {
 async function handleToolsCall(
   params: { name: string; arguments?: Record<string, unknown> },
   userId: string,
+  manifest: McpToolManifest,
   abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
   const args = params.arguments || {}
 
-  const directTool = DIRECT_TOOL_DEFS.find((tool) => tool.name === params.name)
+  const directTool = manifest.directTools.find((tool) => tool.name === params.name)
   if (directTool) {
     return handleDirectToolCall(directTool, args, userId)
   }
 
-  const subagentTool = SUBAGENT_TOOL_DEFS.find((tool) => tool.name === params.name)
+  const subagentTool = manifest.subagentTools.find((tool) => tool.name === params.name)
   if (subagentTool) {
     return handleSubagentToolCall(subagentTool, args, userId, abortSignal)
   }
@@ -574,7 +657,7 @@ async function handleToolsCall(
 }
 
 async function handleDirectToolCall(
-  toolDef: (typeof DIRECT_TOOL_DEFS)[number],
+  toolDef: McpDirectToolDef,
   args: Record<string, unknown>,
   userId: string
 ): Promise<CallToolResult> {
@@ -711,7 +794,7 @@ async function handleBuildToolCall(
 }
 
 async function handleSubagentToolCall(
-  toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
+  toolDef: McpSubagentToolDef,
   args: Record<string, unknown>,
   userId: string,
   abortSignal?: AbortSignal

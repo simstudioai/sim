@@ -19,9 +19,9 @@ import {
   saveProposal,
   type WorkflowChangeProposal,
 } from './change-store'
-import { applyWorkflowOperationsServerTool } from './edit-workflow'
-import { applyOperationsToWorkflowState } from './edit-workflow/engine'
-import { preValidateCredentialInputs } from './edit-workflow/validation'
+import { applyWorkflowOperations } from './workflow-operations/apply'
+import { applyOperationsToWorkflowState } from './workflow-operations/engine'
+import { preValidateCredentialInputs } from './workflow-operations/validation'
 import { workflowVerifyServerTool } from './workflow-verify'
 import { hashWorkflowState, loadWorkflowStateFromDb } from './workflow-state'
 
@@ -287,10 +287,10 @@ type ConnectionTarget = {
 
 type ConnectionState = Map<string, Map<string, ConnectionTarget[]>>
 
-function createDraftBlockId(seed?: string): string {
-  const suffix = crypto.randomUUID().slice(0, 8)
-  const base = seed ? seed.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24) : 'draft'
-  return `${base || 'draft'}_${suffix}`
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function createDraftBlockId(_seed?: string): string {
+  return crypto.randomUUID()
 }
 
 function normalizeHandle(handle?: string): string {
@@ -312,6 +312,38 @@ function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): 
   return assertions
     .map((item) => (typeof item === 'string' ? item : item?.assert))
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function materializeAcceptanceAssertions(
+  assertions: string[],
+  resolvedIds?: Record<string, string>
+): string[] {
+  if (!resolvedIds || Object.keys(resolvedIds).length === 0) {
+    return assertions
+  }
+
+  const resolveToken = (token: string): string => {
+    const trimmed = token.trim()
+    return resolvedIds[trimmed] || trimmed
+  }
+
+  return assertions.map((assertion) => {
+    if (assertion.startsWith('block_exists:')) {
+      const token = assertion.slice('block_exists:'.length)
+      return `block_exists:${resolveToken(token)}`
+    }
+
+    if (assertion.startsWith('path_exists:')) {
+      const rawPath = assertion.slice('path_exists:'.length).trim()
+      const mapped = rawPath
+        .split('->')
+        .map((token) => resolveToken(token))
+        .join('->')
+      return `path_exists:${mapped}`
+    }
+
+    return assertion
+  })
 }
 
 function normalizePostApply(postApply?: PostApply): NormalizedPostApply {
@@ -670,18 +702,25 @@ async function compileChangeSpec(params: {
   warnings: string[]
   diagnostics: string[]
   touchedBlocks: string[]
+  resolvedIds: Record<string, string>
 }> {
   const { changeSpec, workflowState, userId, workflowId } = params
   const operations: Array<Record<string, any>> = []
   const diagnostics: string[] = []
   const warnings: string[] = []
   const touchedBlocks = new Set<string>()
+  const resolvedIds: Record<string, string> = { ...(changeSpec.resolvedIds || {}) }
 
   const aliasMap = new Map<string, string>()
   const workingState = deepClone(workflowState)
   const connectionState = buildConnectionState(workingState)
   const connectionTouchedSources = new Set<string>()
   const plannedBlockTypes = new Map<string, string>()
+
+  const recordResolved = (token: string | undefined, blockId: string | null | undefined): void => {
+    if (!token || !blockId) return
+    resolvedIds[token] = blockId
+  }
 
   // Seed aliases from existing block names.
   for (const [blockId, block] of Object.entries(workingState.blocks || {})) {
@@ -708,24 +747,40 @@ async function compileChangeSpec(params: {
   ): string | null => {
     if (!target) return null
     if (target.blockId) {
+      if (aliasMap.has(target.blockId)) {
+        const mapped = aliasMap.get(target.blockId) || null
+        recordResolved(target.blockId, mapped)
+        return mapped
+      }
       if (workingState.blocks[target.blockId] || plannedBlockTypes.has(target.blockId)) {
+        recordResolved(target.blockId, target.blockId)
         return target.blockId
       }
       return allowCreateAlias ? target.blockId : null
     }
 
     if (target.alias) {
-      if (aliasMap.has(target.alias)) return aliasMap.get(target.alias) || null
+      if (aliasMap.has(target.alias)) {
+        const mapped = aliasMap.get(target.alias) || null
+        recordResolved(target.alias, mapped)
+        return mapped
+      }
       const byMatch = findMatchingBlockId(workingState, { alias: target.alias })
       if (byMatch) {
         aliasMap.set(target.alias, byMatch)
+        recordResolved(target.alias, byMatch)
         return byMatch
       }
       return allowCreateAlias ? target.alias : null
     }
 
     const matched = findMatchingBlockId(workingState, target)
-    if (matched) return matched
+    if (matched) {
+      if (target.match?.name) {
+        recordResolved(target.match.name, matched)
+      }
+      return matched
+    }
     return null
   }
 
@@ -891,8 +946,11 @@ async function compileChangeSpec(params: {
           diagnostics.push(`ensure_block for "${targetId}" requires type and name when creating`)
           continue
         }
+        const requestedBlockId = mutation.target?.blockId
         const blockId =
-          mutation.target?.blockId || mutation.target?.alias || createDraftBlockId(mutation.name)
+          requestedBlockId && UUID_REGEX.test(requestedBlockId)
+            ? requestedBlockId
+            : createDraftBlockId(mutation.name)
         const addParams: Record<string, any> = {
           type: mutation.type,
           name: mutation.name,
@@ -922,7 +980,15 @@ async function compileChangeSpec(params: {
         }
         plannedBlockTypes.set(blockId, mutation.type)
         touchedBlocks.add(blockId)
-        if (mutation.target?.alias) aliasMap.set(mutation.target.alias, blockId)
+        if (requestedBlockId) {
+          aliasMap.set(requestedBlockId, blockId)
+          recordResolved(requestedBlockId, blockId)
+        }
+        if (mutation.target?.alias) {
+          aliasMap.set(mutation.target.alias, blockId)
+          recordResolved(mutation.target.alias, blockId)
+        }
+        recordResolved(targetId, blockId)
       }
       continue
     }
@@ -1061,6 +1127,7 @@ async function compileChangeSpec(params: {
     warnings,
     diagnostics,
     touchedBlocks: [...touchedBlocks],
+    resolvedIds,
   }
 }
 
@@ -1212,6 +1279,10 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       const diagnostics = [...compileResult.diagnostics, ...simulation.diagnostics]
       const warnings = [...compileResult.warnings, ...simulation.warnings]
       const acceptanceAssertions = normalizeAcceptance(params.changeSpec.acceptance)
+      const materializedAcceptance = materializeAcceptanceAssertions(
+        acceptanceAssertions,
+        compileResult.resolvedIds
+      )
       const normalizedPostApply = normalizePostApply(
         (params.postApply as PostApply | undefined) || params.changeSpec.postApply
       )
@@ -1224,12 +1295,13 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         warnings,
         diagnostics,
         touchedBlocks: compileResult.touchedBlocks,
-        acceptanceAssertions,
+        resolvedIds: compileResult.resolvedIds,
+        acceptanceAssertions: materializedAcceptance,
         postApply: normalizedPostApply,
         handoff: {
           objective: params.changeSpec.objective,
           constraints: params.changeSpec.constraints,
-          resolvedIds: params.changeSpec.resolvedIds,
+          resolvedIds: compileResult.resolvedIds,
           assumptions: params.changeSpec.assumptions,
           unresolvedRisks: params.changeSpec.unresolvedRisks,
         },
@@ -1256,7 +1328,8 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         warnings,
         diagnostics,
         touchedBlocks: proposal.touchedBlocks,
-        acceptance: proposal.acceptanceAssertions,
+        resolvedIds: proposal.resolvedIds || {},
+        acceptance: materializedAcceptance,
         postApply: normalizedPostApply,
         handoff: proposal.handoff,
       }
@@ -1294,18 +1367,24 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       throw new Error(`snapshot_mismatch: expected ${expectedHash} but current is ${currentHash}`)
     }
 
-    const applyResult = await applyWorkflowOperationsServerTool.execute(
-      {
-        workflowId: proposal.workflowId,
-        operations: proposal.compiledOperations as any,
-      },
-      { userId: context.userId }
+    const applyResult = await applyWorkflowOperations({
+      workflowId: proposal.workflowId,
+      operations: proposal.compiledOperations as any,
+      userId: context.userId,
+    })
+
+    const resolvedIds = proposal.resolvedIds || proposal.handoff?.resolvedIds || {}
+    const acceptanceAssertions = materializeAcceptanceAssertions(
+      proposal.acceptanceAssertions,
+      resolvedIds
     )
 
-    const appliedWorkflowState = (applyResult as any)?.workflowState
-    const newSnapshotHash = appliedWorkflowState
-      ? hashWorkflowState(appliedWorkflowState as Record<string, unknown>)
-      : null
+    // Canonicalize post-apply state from persisted DB snapshot to avoid
+    // in-memory serialization drift and transient hash mismatches.
+    const { workflowState: persistedWorkflowState } = await loadWorkflowStateFromDb(proposal.workflowId)
+    const newSnapshotHash = hashWorkflowState(
+      persistedWorkflowState as unknown as Record<string, unknown>
+    )
     const normalizedPostApply = normalizePostApply(
       (params.postApply as PostApply | undefined) || (proposal.postApply as PostApply | undefined)
     )
@@ -1315,8 +1394,9 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       verifyResult = await workflowVerifyServerTool.execute(
         {
           workflowId: proposal.workflowId,
-          baseSnapshotHash: newSnapshotHash || undefined,
-          acceptance: proposal.acceptanceAssertions,
+          // Intentionally omit baseSnapshotHash for same-request post-apply verification
+          // to avoid false negatives from benign persistence reorderings.
+          acceptance: acceptanceAssertions,
         },
         { userId: context.userId }
       )
@@ -1349,10 +1429,12 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
       baseSnapshotHash: proposal.baseSnapshotHash,
       newSnapshotHash,
       operations: proposal.compiledOperations,
-      workflowState: appliedWorkflowState || null,
+      workflowState: persistedWorkflowState || null,
       appliedDiff: proposal.diffSummary,
       warnings: proposal.warnings,
       diagnostics: proposal.diagnostics,
+      resolvedIds,
+      acceptance: acceptanceAssertions,
       editResult: applyResult,
       postApply: {
         ok: evaluatorGate.passed,

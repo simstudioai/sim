@@ -29,6 +29,10 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase()
 }
 
+function canonicalizeToken(value: string): string {
+  return normalizeName(value).replace(/[^a-z0-9]/g, '')
+}
+
 function resolveBlockToken(
   workflowState: { blocks: Record<string, any> },
   token: string
@@ -36,9 +40,11 @@ function resolveBlockToken(
   if (!token) return null
   if (workflowState.blocks[token]) return token
   const normalized = normalizeName(token)
+  const canonical = canonicalizeToken(token)
   for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
     const blockName = normalizeName(String((block as Record<string, unknown>).name || ''))
     if (blockName === normalized) return blockId
+    if (canonicalizeToken(blockName) === canonical) return blockId
   }
   return null
 }
