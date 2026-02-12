@@ -151,6 +151,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     planTodos,
   })
 
+  const renderedChatTitle = currentChat?.title || 'New Chat'
+
   /** Gets markdown content for design document section (available in all modes once created) */
   const designDocumentContent = useMemo(() => {
     if (streamingPlanContent) {
@@ -162,6 +164,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
     return ''
   }, [streamingPlanContent])
+
+  useEffect(() => {
+    logger.info('[TitleRender] Copilot header title changed', {
+      currentChatId: currentChat?.id || null,
+      currentChatTitle: currentChat?.title || null,
+      renderedTitle: renderedChatTitle,
+    })
+  }, [currentChat?.id, currentChat?.title, renderedChatTitle])
 
   /** Focuses the copilot input */
   const focusInput = useCallback(() => {
@@ -345,7 +355,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         {/* Header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
           <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-            {currentChat?.title || 'New Chat'}
+            {renderedChatTitle}
           </h2>
           <div className='flex items-center gap-[8px]'>
             <Button variant='ghost' className='p-0' onClick={handleStartNewChat}>

@@ -28,13 +28,24 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
+function truncateForLog(value: string, maxLength = 120): string {
+  if (!value || maxLength <= 0) return ''
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength)}...`
+}
+
 async function requestChatTitleFromCopilot(params: {
   message: string
   model: string
   provider?: string
 }): Promise<string | null> {
   const { message, model, provider } = params
-  if (!message || !model) return null
+  if (!message || !model) {
+    logger.warn('Skipping chat title request because message/model is missing', {
+      hasMessage: !!message,
+      hasModel: !!model,
+    })
+    return null
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -44,6 +55,13 @@ async function requestChatTitleFromCopilot(params: {
   }
 
   try {
+    logger.info('Requesting chat title from copilot backend', {
+      model,
+      provider: provider || null,
+      messageLength: message.length,
+      messagePreview: truncateForLog(message),
+    })
+
     const response = await fetch(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
       method: 'POST',
       headers,
@@ -63,10 +81,32 @@ async function requestChatTitleFromCopilot(params: {
       return null
     }
 
-    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+    const rawTitle = typeof payload?.title === 'string' ? payload.title : ''
+    const title = rawTitle.trim()
+    logger.info('Received chat title response from copilot backend', {
+      status: response.status,
+      hasRawTitle: !!rawTitle,
+      rawTitle,
+      normalizedTitle: title,
+      messagePreview: truncateForLog(message),
+    })
+
+    if (!title) {
+      logger.warn('Copilot backend returned empty chat title', {
+        payload,
+        model,
+        provider: provider || null,
+      })
+    }
+
     return title || null
   } catch (error) {
-    logger.error('Error generating chat title:', error)
+    logger.error('Error generating chat title:', {
+      error,
+      model,
+      provider: provider || null,
+      messagePreview: truncateForLog(message),
+    })
     return null
   }
 }
@@ -238,6 +278,7 @@ export async function POST(req: NextRequest) {
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
+    let chatWasCreatedForRequest = false
     const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
@@ -249,11 +290,24 @@ export async function POST(req: NextRequest) {
       })
       currentChat = chatResult.chat
       actualChatId = chatResult.chatId || chatId
+      chatWasCreatedForRequest = chatResult.isNew
       const history = buildConversationHistory(
         chatResult.conversationHistory,
         (chatResult.chat?.conversationId as string | undefined) || conversationId
       )
       conversationHistory = history.history
+    }
+
+    const shouldGenerateTitleForRequest =
+      !!actualChatId &&
+      chatWasCreatedForRequest &&
+      !currentChat?.title &&
+      conversationHistory.length === 0
+
+    const titleGenerationParams = {
+      message,
+      model: selectedModel,
+      provider,
     }
 
     const effectiveMode = mode === 'agent' ? 'build' : mode
@@ -348,10 +402,22 @@ export async function POST(req: NextRequest) {
             await pushEvent({ type: 'chat_id', chatId: actualChatId })
           }
 
-          if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            requestChatTitleFromCopilot({ message, model: selectedModel, provider })
+          if (shouldGenerateTitleForRequest) {
+            logger.info(`[${tracker.requestId}] Starting title generation for streaming response`, {
+              chatId: actualChatId,
+              model: titleGenerationParams.model,
+              provider: provider || null,
+              messageLength: message.length,
+              messagePreview: truncateForLog(message),
+              chatWasCreatedForRequest,
+            })
+            requestChatTitleFromCopilot(titleGenerationParams)
               .then(async (title) => {
                 if (title) {
+                  logger.info(`[${tracker.requestId}] Generated title for streaming response`, {
+                    chatId: actualChatId,
+                    title,
+                  })
                   await db
                     .update(copilotChats)
                     .set({
@@ -359,12 +425,30 @@ export async function POST(req: NextRequest) {
                       updatedAt: new Date(),
                     })
                     .where(eq(copilotChats.id, actualChatId!))
-                  await pushEvent({ type: 'title_updated', title })
+                  await pushEvent({ type: 'title_updated', title, chatId: actualChatId })
+                  logger.info(`[${tracker.requestId}] Emitted title_updated SSE event`, {
+                    chatId: actualChatId,
+                    title,
+                  })
+                } else {
+                  logger.warn(`[${tracker.requestId}] No title returned for streaming response`, {
+                    chatId: actualChatId,
+                    model: selectedModel,
+                  })
                 }
               })
               .catch((error) => {
                 logger.error(`[${tracker.requestId}] Title generation failed:`, error)
               })
+          } else if (actualChatId && !chatWasCreatedForRequest) {
+            logger.info(
+              `[${tracker.requestId}] Skipping title generation because chat already exists`,
+              {
+                chatId: actualChatId,
+                model: titleGenerationParams.model,
+                provider: provider || null,
+              }
+            )
           }
 
           try {
@@ -479,9 +563,9 @@ export async function POST(req: NextRequest) {
       const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
 
       // Start title generation in parallel if this is first message (non-streaming)
-      if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
+      if (shouldGenerateTitleForRequest) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        requestChatTitleFromCopilot({ message, model: selectedModel, provider })
+        requestChatTitleFromCopilot(titleGenerationParams)
           .then(async (title) => {
             if (title) {
               await db
@@ -492,11 +576,22 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(copilotChats.id, actualChatId!))
               logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
+            } else {
+              logger.warn(`[${tracker.requestId}] No title returned for non-streaming response`, {
+                chatId: actualChatId,
+                model: selectedModel,
+              })
             }
           })
           .catch((error) => {
             logger.error(`[${tracker.requestId}] Title generation failed:`, error)
           })
+      } else if (actualChatId && !chatWasCreatedForRequest) {
+        logger.info(`[${tracker.requestId}] Skipping title generation because chat already exists`, {
+          chatId: actualChatId,
+          model: titleGenerationParams.model,
+          provider: provider || null,
+        })
       }
 
       // Update chat in database immediately (without blocking for title)

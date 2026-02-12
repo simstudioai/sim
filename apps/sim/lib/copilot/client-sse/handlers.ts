@@ -219,15 +219,59 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   title_updated: (_data, _context, get, set) => {
-    const title = _data.title
-    if (!title) return
+    const title = typeof _data.title === 'string' ? _data.title.trim() : ''
+    const eventChatId = typeof _data.chatId === 'string' ? _data.chatId : undefined
     const { currentChat, chats } = get()
-    if (currentChat) {
-      set({
-        currentChat: { ...currentChat, title },
-        chats: chats.map((c) => (c.id === currentChat.id ? { ...c, title } : c)),
+
+    logger.info('[Title] Received title_updated SSE event', {
+      eventTitle: title,
+      eventChatId: eventChatId || null,
+      currentChatId: currentChat?.id || null,
+      currentChatTitle: currentChat?.title || null,
+      chatCount: chats.length,
+    })
+
+    if (!title) {
+      logger.warn('[Title] Ignoring title_updated event with empty title', {
+        payload: _data,
+      })
+      return
+    }
+
+    if (!currentChat) {
+      logger.warn('[Title] Received title_updated event without an active currentChat', {
+        eventChatId: eventChatId || null,
+        title,
+      })
+      return
+    }
+
+    const targetChatId = eventChatId || currentChat.id
+    if (eventChatId && eventChatId !== currentChat.id) {
+      logger.warn('[Title] title_updated event chatId does not match currentChat', {
+        eventChatId,
+        currentChatId: currentChat.id,
       })
     }
+
+    set({
+      currentChat:
+        currentChat.id === targetChatId
+          ? {
+              ...currentChat,
+              title,
+            }
+          : currentChat,
+      chats: chats.map((c) => (c.id === targetChatId ? { ...c, title } : c)),
+    })
+
+    const updatedState = get()
+    logger.info('[Title] Applied title_updated event to copilot store', {
+      targetChatId,
+      renderedCurrentChatId: updatedState.currentChat?.id || null,
+      renderedCurrentChatTitle: updatedState.currentChat?.title || null,
+      chatListTitle: updatedState.chats.find((c) => c.id === targetChatId)?.title || null,
+    })
   },
   tool_result: (data, context, get, set) => {
     try {
