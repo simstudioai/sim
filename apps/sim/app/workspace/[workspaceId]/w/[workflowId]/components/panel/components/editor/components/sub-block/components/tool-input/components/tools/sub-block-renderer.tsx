@@ -84,7 +84,7 @@ export function ToolSubBlockRenderer({
   const labelSuffix = useMemo(
     () =>
       isOptionalForUser ? (
-        <span className='-ml-[3px] text-[12px] font-normal text-[var(--text-tertiary)]'>
+        <span className='-ml-[3px] font-normal text-[12px] text-[var(--text-tertiary)]'>
           (optional)
         </span>
       ) : null,
