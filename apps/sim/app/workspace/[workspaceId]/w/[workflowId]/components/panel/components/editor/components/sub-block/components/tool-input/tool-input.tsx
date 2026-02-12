@@ -1771,9 +1771,15 @@ export const ToolInput = memo(function ToolInput({
 
                   {/* Tool parameters */}
                   {(() => {
+                    const renderedElements: React.ReactNode[] = []
+
                     // SubBlock-first rendering for registry tools
                     if (useSubBlocks && displaySubBlocks.length > 0) {
-                      return displaySubBlocks.map((sb) => {
+                      const coveredParamIds = new Set(
+                        displaySubBlocks.map((sb) => sb.canonicalParamId || sb.id)
+                      )
+
+                      displaySubBlocks.forEach((sb) => {
                         const effectiveParamId = sb.canonicalParamId || sb.id
 
                         // Compute canonical toggle for basic/advanced mode switching
@@ -1808,7 +1814,7 @@ export const ToolInput = memo(function ToolInput({
                           ? sb
                           : { ...sb, title: formatParameterLabel(effectiveParamId) }
 
-                        return (
+                        renderedElements.push(
                           <ToolSubBlockRenderer
                             key={sb.id}
                             blockId={blockId}
@@ -1823,6 +1829,41 @@ export const ToolInput = memo(function ToolInput({
                           />
                         )
                       })
+
+                      // Render remaining tool params not covered by subblocks
+                      // (e.g. inputMapping for workflow tools with custom UI)
+                      const uncoveredParams = displayParams.filter(
+                        (param) =>
+                          !coveredParamIds.has(param.id) && evaluateParameterCondition(param, tool)
+                      )
+
+                      uncoveredParams.forEach((param) => {
+                        renderedElements.push(
+                          <ParameterWithLabel
+                            key={param.id}
+                            paramId={param.id}
+                            title={param.uiComponent?.title || formatParameterLabel(param.id)}
+                            isRequired={param.required === true}
+                            visibility={param.visibility || 'user-or-llm'}
+                            wandConfig={param.uiComponent?.wandConfig}
+                            disabled={disabled}
+                            isPreview={isPreview || false}
+                          >
+                            {(wandControlRef: React.MutableRefObject<WandControlHandlers | null>) =>
+                              renderParameterInput(
+                                param,
+                                tool.params?.[param.id] || '',
+                                (value) => handleParamChange(toolIndex, param.id, value),
+                                toolIndex,
+                                toolContextValues as Record<string, string>,
+                                wandControlRef
+                              )
+                            }
+                          </ParameterWithLabel>
+                        )
+                      })
+
+                      return renderedElements
                     }
 
                     // Fallback: legacy ToolParameterConfig-based rendering
@@ -1830,8 +1871,6 @@ export const ToolInput = memo(function ToolInput({
                     const filteredParams = displayParams.filter((param) =>
                       evaluateParameterCondition(param, tool)
                     )
-
-                    const renderedElements: React.ReactNode[] = []
 
                     filteredParams.forEach((param) => {
                       renderedElements.push(
