@@ -609,6 +609,83 @@ const META_edit_workflow: ToolMetadata = {
   },
 }
 
+const META_workflow_change: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Planning workflow changes', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Applying workflow changes', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Updated your workflow', icon: Grid2x2Check },
+    [ClientToolCallState.error]: { text: 'Failed to update your workflow', icon: XCircle },
+    [ClientToolCallState.review]: { text: 'Review your workflow changes', icon: Grid2x2 },
+    [ClientToolCallState.rejected]: { text: 'Rejected workflow changes', icon: Grid2x2X },
+    [ClientToolCallState.aborted]: { text: 'Aborted workflow changes', icon: MinusCircle },
+    [ClientToolCallState.pending]: { text: 'Planning workflow changes', icon: Loader2 },
+  },
+  getDynamicText: (params, state) => {
+    const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+    if (mode === 'dry_run') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return 'Planned workflow changes'
+        case ClientToolCallState.executing:
+        case ClientToolCallState.generating:
+        case ClientToolCallState.pending:
+          return 'Planning workflow changes'
+      }
+    }
+    if (mode === 'apply' || typeof params?.proposalId === 'string') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return 'Applied workflow changes'
+        case ClientToolCallState.executing:
+        case ClientToolCallState.generating:
+        case ClientToolCallState.pending:
+          return 'Applying workflow changes'
+      }
+    }
+    return undefined
+  },
+  uiConfig: {
+    isSpecial: true,
+    customRenderer: 'edit_summary',
+  },
+}
+
+const META_workflow_context_get: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Gathering workflow context', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Gathering workflow context', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Gathering workflow context', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Gathered workflow context', icon: FileText },
+    [ClientToolCallState.error]: { text: 'Failed to gather workflow context', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped workflow context', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted workflow context', icon: MinusCircle },
+  },
+}
+
+const META_workflow_context_expand: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Expanding workflow schemas', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Expanding workflow schemas', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Expanding workflow schemas', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Expanded workflow schemas', icon: FileText },
+    [ClientToolCallState.error]: { text: 'Failed to expand workflow schemas', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped schema expansion', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted schema expansion', icon: MinusCircle },
+  },
+}
+
+const META_workflow_verify: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Verifying workflow', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Verifying workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Verifying workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Verified workflow', icon: CheckCircle2 },
+    [ClientToolCallState.error]: { text: 'Workflow verification failed', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped workflow verification', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted workflow verification', icon: MinusCircle },
+  },
+}
+
 const META_evaluate: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Evaluating', icon: Loader2 },
@@ -2542,6 +2619,10 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   deploy_mcp: META_deploy_mcp,
   edit: META_edit,
   edit_workflow: META_edit_workflow,
+  workflow_context_get: META_workflow_context_get,
+  workflow_context_expand: META_workflow_context_expand,
+  workflow_change: META_workflow_change,
+  workflow_verify: META_workflow_verify,
   evaluate: META_evaluate,
   get_block_config: META_get_block_config,
   get_block_options: META_get_block_options,

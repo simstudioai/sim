@@ -9,6 +9,8 @@ import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   type SSEHandler,
   sendAutoAcceptConfirmation,
@@ -23,6 +25,39 @@ const logger = createLogger('CopilotClientSubagentHandlers')
 type StoreSet = (
   partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
 ) => void
+
+function isWorkflowChangeApplyCall(toolCall: CopilotToolCall): boolean {
+  if (toolCall.name !== 'workflow_change') return false
+  const params = (toolCall.params || {}) as Record<string, unknown>
+  const mode = typeof params.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params.proposalId === 'string' && params.proposalId.length > 0
+}
+
+function extractWorkflowStateFromResultPayload(
+  resultPayload: Record<string, unknown>
+): WorkflowState | null {
+  const directState = asRecord(resultPayload.workflowState)
+  if (directState) return directState as unknown as WorkflowState
+
+  const editResult = asRecord(resultPayload.editResult)
+  const nestedState = asRecord(editResult?.workflowState)
+  if (nestedState) return nestedState as unknown as WorkflowState
+
+  return null
+}
+
+function extractOperationListFromResultPayload(
+  resultPayload: Record<string, unknown>
+): Array<Record<string, unknown>> | undefined {
+  const operations = resultPayload.operations
+  if (Array.isArray(operations)) return operations as Array<Record<string, unknown>>
+
+  const compiled = resultPayload.compiledOperations
+  if (Array.isArray(compiled)) return compiled as Array<Record<string, unknown>>
+
+  return undefined
+}
 
 export function appendSubAgentContent(
   context: ClientStreamingContext,
@@ -282,10 +317,29 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     if (existingIndex >= 0) {
       const existing = context.subAgentToolCalls[parentToolCallId][existingIndex]
+      let nextParams = existing.params
+      const resultPayload = asRecord(
+        data?.result || resultData.result || resultData.data || data?.data
+      )
+      if (
+        targetState === ClientToolCallState.success &&
+        isWorkflowChangeApplyCall(existing) &&
+        resultPayload
+      ) {
+        const operations = extractOperationListFromResultPayload(resultPayload)
+        if (operations && operations.length > 0) {
+          nextParams = {
+            ...(existing.params || {}),
+            operations,
+          }
+        }
+      }
+
       const updatedSubAgentToolCall = {
         ...existing,
+        params: nextParams,
         state: targetState,
-        display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params),
+        display: resolveToolDisplay(existing.name, targetState, toolCallId, nextParams),
       }
       context.subAgentToolCalls[parentToolCallId][existingIndex] = updatedSubAgentToolCall
 
@@ -308,6 +362,23 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
           name: existing.name,
           state: targetState,
         })
+      }
+
+      if (
+        targetState === ClientToolCallState.success &&
+        resultPayload &&
+        isWorkflowChangeApplyCall(updatedSubAgentToolCall)
+      ) {
+        const workflowState = extractWorkflowStateFromResultPayload(resultPayload)
+        if (workflowState) {
+          const diffStore = useWorkflowDiffStore.getState()
+          diffStore.setProposedChanges(workflowState).catch((error) => {
+            logger.error('[SubAgent] Failed to apply workflow_change diff', {
+              error: error instanceof Error ? error.message : String(error),
+              toolCallId,
+            })
+          })
+        }
       }
     }
 

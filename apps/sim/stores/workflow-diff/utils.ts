@@ -126,6 +126,21 @@ export async function getLatestUserMessageId(): Promise<string | null> {
 }
 
 export async function findLatestEditWorkflowToolCallId(): Promise<string | undefined> {
+  return findLatestWorkflowEditToolCallId()
+}
+
+function isWorkflowEditToolCall(name?: string, params?: Record<string, unknown>): boolean {
+  if (name === 'edit_workflow') return true
+  if (name !== 'workflow_change') return false
+
+  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+
+  // Be permissive for legacy/incomplete events: apply calls always include proposalId.
+  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
+}
+
+export async function findLatestWorkflowEditToolCallId(): Promise<string | undefined> {
   try {
     const { useCopilotStore } = await import('@/stores/panel/copilot/store')
     const { messages, toolCallsById } = useCopilotStore.getState()
@@ -134,17 +149,22 @@ export async function findLatestEditWorkflowToolCallId(): Promise<string | undef
       const message = messages[mi]
       if (message.role !== 'assistant' || !message.contentBlocks) continue
       for (const block of message.contentBlocks) {
-        if (block?.type === 'tool_call' && block.toolCall?.name === 'edit_workflow') {
+        if (
+          block?.type === 'tool_call' &&
+          isWorkflowEditToolCall(block.toolCall?.name, block.toolCall?.params)
+        ) {
           return block.toolCall?.id
         }
       }
     }
 
-    const fallback = Object.values(toolCallsById).filter((call) => call.name === 'edit_workflow')
+    const fallback = Object.values(toolCallsById).filter((call) =>
+      isWorkflowEditToolCall(call.name, call.params)
+    )
 
     return fallback.length ? fallback[fallback.length - 1].id : undefined
   } catch (error) {
-    logger.warn('Failed to resolve edit_workflow tool call id', { error })
+    logger.warn('Failed to resolve workflow edit tool call id', { error })
     return undefined
   }
 }

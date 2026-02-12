@@ -84,6 +84,15 @@ function isPageUnloading(): boolean {
   return _isPageUnloading
 }
 
+function isWorkflowEditToolCall(name?: string, params?: Record<string, unknown>): boolean {
+  if (name === 'edit_workflow') return true
+  if (name !== 'workflow_change') return false
+
+  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
+}
+
 function readActiveStreamFromStorage(): CopilotStreamInfo | null {
   if (typeof window === 'undefined') return null
   try {
@@ -1705,7 +1714,7 @@ export const useCopilotStore = create<CopilotStore>()(
             const b = blocks[bi]
             if (b?.type === 'tool_call') {
               const tn = b.toolCall?.name
-              if (tn === 'edit_workflow') {
+              if (isWorkflowEditToolCall(tn, b.toolCall?.params)) {
                 id = b.toolCall?.id
                 break outer
               }
@@ -1714,7 +1723,9 @@ export const useCopilotStore = create<CopilotStore>()(
         }
         // Fallback to map if not found in messages
         if (!id) {
-          const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
+          const candidates = Object.values(toolCallsById).filter((t) =>
+            isWorkflowEditToolCall(t.name, t.params)
+          )
           id = candidates.length ? candidates[candidates.length - 1].id : undefined
         }
       }

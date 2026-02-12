@@ -47,6 +47,28 @@ interface ParsedTags {
   cleanContent: string
 }
 
+function getToolCallParams(toolCall?: CopilotToolCall): Record<string, unknown> {
+  const candidate = ((toolCall as any)?.parameters ||
+    (toolCall as any)?.input ||
+    (toolCall as any)?.params ||
+    {}) as Record<string, unknown>
+  return candidate && typeof candidate === 'object' ? candidate : {}
+}
+
+function isWorkflowChangeApplyMode(toolCall?: CopilotToolCall): boolean {
+  if (!toolCall || toolCall.name !== 'workflow_change') return false
+  const params = getToolCallParams(toolCall)
+  const mode = typeof params.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params.proposalId === 'string' && params.proposalId.length > 0
+}
+
+function isWorkflowEditSummaryTool(toolCall?: CopilotToolCall): boolean {
+  if (!toolCall) return false
+  if (toolCall.name === 'edit_workflow') return true
+  return isWorkflowChangeApplyMode(toolCall)
+}
+
 /**
  * Extracts plan steps from plan_respond tool calls in subagent blocks.
  * @param blocks - The subagent content blocks to search
@@ -871,7 +893,10 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
           )
         }
         if (segment.type === 'tool' && segment.block.toolCall) {
-          if (toolCall.name === 'edit' && segment.block.toolCall.name === 'edit_workflow') {
+          if (
+            (toolCall.name === 'edit' || toolCall.name === 'build') &&
+            isWorkflowEditSummaryTool(segment.block.toolCall)
+          ) {
             return (
               <div key={`tool-${segment.block.toolCall.id || index}`}>
                 <WorkflowEditSummary toolCall={segment.block.toolCall} />
@@ -968,12 +993,11 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
     }
   }, [blocks])
 
-  if (toolCall.name !== 'edit_workflow') {
+  if (!isWorkflowEditSummaryTool(toolCall)) {
     return null
   }
 
-  const params =
-    (toolCall as any).parameters || (toolCall as any).input || (toolCall as any).params || {}
+  const params = getToolCallParams(toolCall)
   let operations = Array.isArray(params.operations) ? params.operations : []
 
   if (operations.length === 0 && Array.isArray((toolCall as any).operations)) {
@@ -2087,7 +2111,7 @@ export function ToolCall({
     }
   }
 
-  const isEditWorkflow = toolCall.name === 'edit_workflow'
+  const isEditWorkflow = isWorkflowEditSummaryTool(toolCall)
   const shouldShowDetails = isRunWorkflow || (isExpandableTool && expanded)
   const hasOperations = Array.isArray(params.operations) && params.operations.length > 0
   const hideTextForEditWorkflow = isEditWorkflow && hasOperations
@@ -2155,7 +2179,7 @@ export function ToolCall({
           </Button>
         </div>
       ) : null}
-      {/* Workflow edit summary - shows block changes after edit_workflow completes */}
+      {/* Workflow edit summary - shows block changes after edit_workflow/workflow_change(apply) */}
       <WorkflowEditSummary toolCall={toolCall} />
 
       {/* Render subagent content as thinking text */}

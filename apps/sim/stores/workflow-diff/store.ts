@@ -15,7 +15,7 @@ import {
   captureBaselineSnapshot,
   cloneWorkflowState,
   createBatchedUpdater,
-  findLatestEditWorkflowToolCallId,
+  findLatestWorkflowEditToolCallId,
   getLatestUserMessageId,
   persistWorkflowStateToServer,
 } from './utils'
@@ -334,7 +334,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
           }
 
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
+          findLatestWorkflowEditToolCallId().then((toolCallId) => {
             if (toolCallId) {
               import('@/stores/panel/copilot/store')
                 .then(({ useCopilotStore }) => {
@@ -439,7 +439,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
           }
 
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
+          findLatestWorkflowEditToolCallId().then((toolCallId) => {
             if (toolCallId) {
               import('@/stores/panel/copilot/store')
                 .then(({ useCopilotStore }) => {

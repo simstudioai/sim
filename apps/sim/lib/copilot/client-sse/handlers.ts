@@ -26,6 +26,47 @@ const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
 
+function isWorkflowEditToolCall(toolName?: string, params?: Record<string, unknown>): boolean {
+  if (toolName === 'edit_workflow') return true
+  if (toolName !== 'workflow_change') return false
+
+  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
+}
+
+function isWorkflowChangeApplyCall(toolName?: string, params?: Record<string, unknown>): boolean {
+  if (toolName !== 'workflow_change') return false
+  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
+}
+
+function extractWorkflowStateFromResultPayload(
+  resultPayload: Record<string, unknown>
+): WorkflowState | null {
+  const directState = asRecord(resultPayload.workflowState)
+  if (directState) return directState as unknown as WorkflowState
+
+  const editResult = asRecord(resultPayload.editResult)
+  const nestedState = asRecord(editResult?.workflowState)
+  if (nestedState) return nestedState as unknown as WorkflowState
+
+  return null
+}
+
+function extractOperationListFromResultPayload(
+  resultPayload: Record<string, unknown>
+): Array<Record<string, unknown>> | undefined {
+  const operations = resultPayload.operations
+  if (Array.isArray(operations)) return operations as Array<Record<string, unknown>>
+
+  const compiled = resultPayload.compiledOperations
+  if (Array.isArray(compiled)) return compiled as Array<Record<string, unknown>>
+
+  return undefined
+}
+
 /**
  * Send an auto-accept confirmation to the server for auto-allowed tools.
  * The server-side orchestrator polls Redis for this decision.
@@ -252,6 +293,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
+      let paramsForCurrentToolCall: Record<string, unknown> | undefined = current?.params
       if (current) {
         if (
           isRejectedState(current.state) ||
@@ -265,11 +307,34 @@ export const sseHandlers: Record<string, SSEHandler> = {
           : failedDependency || skipped
             ? ClientToolCallState.rejected
             : ClientToolCallState.error
+        const resultPayload = asRecord(
+          data?.result || eventData.result || eventData.data || data?.data
+        )
+
+        if (
+          targetState === ClientToolCallState.success &&
+          isWorkflowChangeApplyCall(current.name, paramsForCurrentToolCall)
+        ) {
+          const operations = extractOperationListFromResultPayload(resultPayload || {})
+          if (operations && operations.length > 0) {
+            paramsForCurrentToolCall = {
+              ...(current.params || {}),
+              operations,
+            }
+          }
+        }
+
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
+          params: paramsForCurrentToolCall,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            paramsForCurrentToolCall
+          ),
         }
         set({ toolCallsById: updatedMap })
 
@@ -312,31 +377,39 @@ export const sseHandlers: Record<string, SSEHandler> = {
           }
         }
 
-        if (current.name === 'edit_workflow') {
+        if (
+          targetState === ClientToolCallState.success &&
+          isWorkflowEditToolCall(current.name, paramsForCurrentToolCall)
+        ) {
           try {
-            const resultPayload = asRecord(
-              data?.result || eventData.result || eventData.data || data?.data
-            )
-            const workflowState = asRecord(resultPayload?.workflowState)
-            const hasWorkflowState = !!resultPayload?.workflowState
-            logger.info('[SSE] edit_workflow result received', {
+            const workflowState = resultPayload
+              ? extractWorkflowStateFromResultPayload(resultPayload)
+              : null
+            const hasWorkflowState = !!workflowState
+            logger.info('[SSE] workflow edit result received', {
+              toolName: current.name,
               hasWorkflowState,
-              blockCount: hasWorkflowState ? Object.keys(workflowState.blocks ?? {}).length : 0,
-              edgeCount: Array.isArray(workflowState.edges) ? workflowState.edges.length : 0,
+              blockCount: hasWorkflowState
+                ? Object.keys((workflowState as any).blocks ?? {}).length
+                : 0,
+              edgeCount:
+                hasWorkflowState && Array.isArray((workflowState as any).edges)
+                  ? (workflowState as any).edges.length
+                  : 0,
             })
-            if (hasWorkflowState) {
+            if (workflowState) {
               const diffStore = useWorkflowDiffStore.getState()
-              diffStore
-                .setProposedChanges(resultPayload.workflowState as WorkflowState)
-                .catch((err) => {
-                  logger.error('[SSE] Failed to apply edit_workflow diff', {
-                    error: err instanceof Error ? err.message : String(err),
-                  })
+              diffStore.setProposedChanges(workflowState).catch((err) => {
+                logger.error('[SSE] Failed to apply workflow edit diff', {
+                  error: err instanceof Error ? err.message : String(err),
+                  toolName: current.name,
                 })
+              })
             }
           } catch (err) {
-            logger.error('[SSE] edit_workflow result handling failed', {
+            logger.error('[SSE] workflow edit result handling failed', {
               error: err instanceof Error ? err.message : String(err),
+              toolName: current.name,
             })
           }
         }
@@ -460,16 +533,21 @@ export const sseHandlers: Record<string, SSEHandler> = {
             : failedDependency || skipped
               ? ClientToolCallState.rejected
               : ClientToolCallState.error
+          const paramsForBlock =
+            b.toolCall?.id === toolCallId
+              ? paramsForCurrentToolCall || b.toolCall?.params
+              : b.toolCall?.params
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
               ...b.toolCall,
+              params: paramsForBlock,
               state: targetState,
               display: resolveToolDisplay(
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                b.toolCall?.params
+                paramsForBlock
               ),
             },
           }

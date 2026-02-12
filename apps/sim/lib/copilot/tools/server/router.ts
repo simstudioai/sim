@@ -13,6 +13,12 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
+import { workflowChangeServerTool } from '@/lib/copilot/tools/server/workflow/workflow-change'
+import {
+  workflowContextExpandServerTool,
+  workflowContextGetServerTool,
+} from '@/lib/copilot/tools/server/workflow/workflow-context'
+import { workflowVerifyServerTool } from '@/lib/copilot/tools/server/workflow/workflow-verify'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 
 export { ExecuteResponseSuccessSchema }
@@ -35,6 +41,10 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [makeApiRequestServerTool.name]: makeApiRequestServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
+  [workflowContextGetServerTool.name]: workflowContextGetServerTool,
+  [workflowContextExpandServerTool.name]: workflowContextExpandServerTool,
+  [workflowChangeServerTool.name]: workflowChangeServerTool,
+  [workflowVerifyServerTool.name]: workflowVerifyServerTool,
 }
 
 /**

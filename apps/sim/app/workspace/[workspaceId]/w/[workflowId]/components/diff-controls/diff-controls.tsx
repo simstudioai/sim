@@ -14,6 +14,15 @@ const logger = createLogger('DiffControls')
 const NOTIFICATION_WIDTH = 240
 const NOTIFICATION_GAP = 16
 
+function isWorkflowEditToolCall(name?: string, params?: Record<string, unknown>): boolean {
+  if (name === 'edit_workflow') return true
+  if (name !== 'workflow_change') return false
+
+  const mode = typeof params?.mode === 'string' ? params.mode.toLowerCase() : ''
+  if (mode === 'apply') return true
+  return typeof params?.proposalId === 'string' && params.proposalId.length > 0
+}
+
 export const DiffControls = memo(function DiffControls() {
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
   const isPanelResizing = usePanelStore((state) => state.isResizing)
@@ -64,7 +73,7 @@ export const DiffControls = memo(function DiffControls() {
           const b = blocks[bi]
           if (b?.type === 'tool_call') {
             const tn = b.toolCall?.name
-            if (tn === 'edit_workflow') {
+            if (isWorkflowEditToolCall(tn, b.toolCall?.params)) {
               id = b.toolCall?.id
               break outer
             }
@@ -72,7 +81,9 @@ export const DiffControls = memo(function DiffControls() {
         }
       }
       if (!id) {
-        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
+        const candidates = Object.values(toolCallsById).filter((t) =>
+          isWorkflowEditToolCall(t.name, t.params)
+        )
         id = candidates.length ? candidates[candidates.length - 1].id : undefined
       }
       if (id) updatePreviewToolCallState('accepted', id)
@@ -102,7 +113,7 @@ export const DiffControls = memo(function DiffControls() {
           const b = blocks[bi]
           if (b?.type === 'tool_call') {
             const tn = b.toolCall?.name
-            if (tn === 'edit_workflow') {
+            if (isWorkflowEditToolCall(tn, b.toolCall?.params)) {
               id = b.toolCall?.id
               break outer
             }
@@ -110,7 +121,9 @@ export const DiffControls = memo(function DiffControls() {
         }
       }
       if (!id) {
-        const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
+        const candidates = Object.values(toolCallsById).filter((t) =>
+          isWorkflowEditToolCall(t.name, t.params)
+        )
         id = candidates.length ? candidates[candidates.length - 1].id : undefined
       }
       if (id) updatePreviewToolCallState('rejected', id)
