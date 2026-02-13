@@ -166,11 +166,11 @@ export function CredentialsManager() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('member')
+  const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('admin')
   const [memberUserId, setMemberUserId] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createType, setCreateType] = useState<CreateCredentialType>('oauth')
-  const [createSecretScope, setCreateSecretScope] = useState<SecretScope>('personal')
+  const [createSecretScope, setCreateSecretScope] = useState<SecretScope>('workspace')
   const [createDisplayName, setCreateDisplayName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
   const [createEnvKey, setCreateEnvKey] = useState('')
@@ -434,7 +434,7 @@ export function CredentialsManager() {
 
   const resetCreateForm = () => {
     setCreateType('oauth')
-    setCreateSecretScope('personal')
+    setCreateSecretScope('workspace')
     setCreateSecretInputMode('single')
     setCreateDisplayName('')
     setCreateDescription('')
@@ -807,7 +807,7 @@ export function CredentialsManager() {
         role: memberRole,
       })
       setMemberUserId('')
-      setMemberRole('member')
+      setMemberRole('admin')
     } catch (error) {
       logger.error('Failed to add credential member', error)
     }
@@ -1266,16 +1266,16 @@ export function CredentialsManager() {
                         onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
                       >
                         <ButtonGroupItem
-                          value='personal'
-                          className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
-                        >
-                          Personal
-                        </ButtonGroupItem>
-                        <ButtonGroupItem
                           value='workspace'
                           className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
                         >
                           Workspace
+                        </ButtonGroupItem>
+                        <ButtonGroupItem
+                          value='personal'
+                          className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
+                        >
+                          Personal
                         </ButtonGroupItem>
                       </ButtonGroup>
                     </div>
