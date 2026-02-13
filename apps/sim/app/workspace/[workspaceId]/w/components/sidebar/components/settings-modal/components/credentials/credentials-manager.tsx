@@ -2,7 +2,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Share2, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -18,6 +18,7 @@ import {
   ModalFooter,
   ModalHeader,
   Textarea,
+  Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -720,6 +721,58 @@ export function CredentialsManager() {
     }
   }
 
+  const [isPromoting, setIsPromoting] = useState(false)
+
+  const handlePromoteToWorkspace = async () => {
+    if (!selectedCredential || selectedCredential.type !== 'env_personal' || !workspaceId) return
+    const envKey = selectedCredential.envKey || ''
+    if (!envKey) return
+
+    setDetailsError(null)
+    setIsPromoting(true)
+
+    try {
+      const currentValue =
+        personalEnvironment[envKey]?.value || workspaceEnvironmentData?.personal?.[envKey] || ''
+
+      if (!currentValue) {
+        setDetailsError('Cannot promote: secret value is empty.')
+        setIsPromoting(false)
+        return
+      }
+
+      const workspaceVariables = workspaceEnvironmentData?.workspace ?? {}
+      await upsertWorkspaceEnvironment.mutateAsync({
+        workspaceId,
+        variables: { ...workspaceVariables, [envKey]: currentValue },
+      })
+
+      const response = await createCredential.mutateAsync({
+        workspaceId,
+        type: 'env_workspace',
+        envKey,
+        description: selectedCredential.description || undefined,
+      })
+
+      await deleteCredential.mutateAsync(selectedCredential.id)
+
+      const newCredentialId = response?.credential?.id
+      if (newCredentialId) {
+        setSelectedCredentialId(newCredentialId)
+      } else {
+        setSelectedCredentialId(null)
+      }
+
+      await refetchCredentials()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to promote secret'
+      setDetailsError(message)
+      logger.error('Failed to promote personal secret to workspace', error)
+    } finally {
+      setIsPromoting(false)
+    }
+  }
+
   const handleDisconnectSelectedCredential = async () => {
     if (!selectedCredential || selectedCredential.type !== 'oauth' || !selectedCredential.accountId)
       return
@@ -885,11 +938,25 @@ export function CredentialsManager() {
                         Disconnect account
                       </Button>
                     )}
+                    {selectedCredential.type === 'env_personal' && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handlePromoteToWorkspace}
+                            disabled={isPromoting || deleteCredential.isPending}
+                          >
+                            <Share2 className='h-[14px] w-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>Promote to workspace secret</Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
                     {selectedCredential.type !== 'oauth' && (
                       <Button
                         variant='destructive'
                         onClick={handleDeleteCredential}
-                        disabled={deleteCredential.isPending}
+                        disabled={deleteCredential.isPending || isPromoting}
                       >
                         <Trash2 className='h-[14px] w-[14px]' />
                       </Button>
