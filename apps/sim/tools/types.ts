@@ -133,7 +133,7 @@ export interface ToolConfig<P = any, R = any> {
    * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
    * Usage is billed according to the pricing config.
    */
-  hosting?: ToolHostingConfig
+  hosting?: ToolHostingConfig<P, R extends ToolResponse ? R : ToolResponse>
 }
 
 export interface TableRow {
@@ -188,28 +188,6 @@ export interface PerRequestPricing {
   cost: number
 }
 
-/** Usage-based on input/output size (e.g., LLM tokens, TTS characters) */
-export interface PerUnitPricing {
-  type: 'per_unit'
-  /** Cost per unit in dollars */
-  costPerUnit: number
-  /** Unit of measurement */
-  unit: 'token' | 'character' | 'byte' | 'kb' | 'mb'
-  /** Extract usage count from params (before execution) or response (after execution) */
-  getUsage: (params: Record<string, unknown>, response?: Record<string, unknown>) => number
-}
-
-/** Based on result count (e.g., per search result, per email sent) */
-export interface PerResultPricing {
-  type: 'per_result'
-  /** Cost per result in dollars */
-  costPerResult: number
-  /** Maximum results to bill for (cap) */
-  maxResults?: number
-  /** Extract result count from response */
-  getResultCount: (response: Record<string, unknown>) => number
-}
-
 /** Billed by execution duration (e.g., browser sessions, video processing) */
 export interface PerSecondPricing {
   type: 'per_second'
@@ -221,14 +199,32 @@ export interface PerSecondPricing {
   getDuration: (response: Record<string, unknown>) => number
 }
 
+/** Result from custom pricing calculation */
+export interface CustomPricingResult {
+  /** Cost in dollars */
+  cost: number
+  /** Optional metadata about the cost calculation (e.g., breakdown from API) */
+  metadata?: Record<string, unknown>
+}
+
+/** Custom pricing calculated from params and response (e.g., Exa with different modes/result counts) */
+export interface CustomPricing<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> {
+  type: 'custom'
+  /** Calculate cost based on request params and response data. Returns cost or cost with metadata. */
+  getCost: (params: P, response: R['output']) => number | CustomPricingResult
+}
+
 /** Union of all pricing models */
-export type ToolHostingPricing = PerRequestPricing | PerUnitPricing | PerResultPricing | PerSecondPricing
+export type ToolHostingPricing<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> =
+  | PerRequestPricing
+  | PerSecondPricing
+  | CustomPricing<P, R>
 
 /**
  * Configuration for hosted API key support
  * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own
  */
-export interface ToolHostingConfig {
+export interface ToolHostingConfig<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> {
   /** Environment variable names to check for hosted keys (supports rotation with multiple keys) */
   envKeys: string[]
   /** The parameter name that receives the API key */
@@ -236,5 +232,5 @@ export interface ToolHostingConfig {
   /** BYOK provider ID for workspace key lookup (e.g., 'serper') */
   byokProviderId?: string
   /** Pricing when using hosted key */
-  pricing: ToolHostingPricing
+  pricing: ToolHostingPricing<P, R>
 }

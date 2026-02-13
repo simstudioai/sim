@@ -61,6 +61,22 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, response) => {
+        // Use costDollars from Exa API response
+        if (response.costDollars?.total) {
+          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+        }
+        // Fallback: $1/1000 pages
+        return (response.results?.length || 0) * 0.001
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/contents',
@@ -132,6 +148,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
           summary: result.summary || '',
           highlights: result.highlights,
         })),
+        costDollars: data.costDollars,
       },
     }
   },

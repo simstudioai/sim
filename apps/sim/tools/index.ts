@@ -77,7 +77,7 @@ async function injectHostedKeyIfNeeded(
     try {
       const byokResult = await getBYOKKey(
         executionContext.workspaceId,
-        byokProviderId as 'openai' | 'anthropic' | 'google' | 'mistral' | 'serper'
+        byokProviderId as 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
       )
       if (byokResult) {
         params[apiKeyParam] = byokResult.apiKey
@@ -146,6 +146,12 @@ async function executeWithRetry<T>(
   throw lastError
 }
 
+/** Result from cost calculation */
+interface ToolCostResult {
+  cost: number
+  metadata?: Record<string, unknown>
+}
+
 /**
  * Calculate cost based on pricing model
  */
@@ -153,30 +159,25 @@ function calculateToolCost(
   pricing: ToolHostingPricing,
   params: Record<string, unknown>,
   response: Record<string, unknown>
-): number {
+): ToolCostResult {
   switch (pricing.type) {
     case 'per_request':
-      return pricing.cost
-
-    case 'per_unit': {
-      const usage = pricing.getUsage(params, response)
-      return usage * pricing.costPerUnit
-    }
-
-    case 'per_result': {
-      const resultCount = pricing.getResultCount(response)
-      const billableResults = pricing.maxResults
-        ? Math.min(resultCount, pricing.maxResults)
-        : resultCount
-      return billableResults * pricing.costPerResult
-    }
+      return { cost: pricing.cost }
 
     case 'per_second': {
       const duration = pricing.getDuration(response)
       const billableDuration = pricing.minimumSeconds
         ? Math.max(duration, pricing.minimumSeconds)
         : duration
-      return billableDuration * pricing.costPerSecond
+      return { cost: billableDuration * pricing.costPerSecond }
+    }
+
+    case 'custom': {
+      const result = pricing.getCost(params, response)
+      if (typeof result === 'number') {
+        return { cost: result }
+      }
+      return result
     }
 
     default: {
@@ -200,7 +201,7 @@ async function logHostedToolUsage(
     return
   }
 
-  const cost = calculateToolCost(tool.hosting.pricing, params, response)
+  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
 
   if (cost <= 0) return
 
@@ -213,8 +214,9 @@ async function logHostedToolUsage(
       workspaceId: executionContext.workspaceId,
       workflowId: executionContext.workflowId,
       executionId: executionContext.executionId,
+      metadata,
     })
-    logger.debug(`[${requestId}] Logged hosted tool usage for ${tool.id}: $${cost}`)
+    logger.debug(`[${requestId}] Logged hosted tool usage for ${tool.id}: $${cost}`, metadata ? { metadata } : {})
   } catch (error) {
     logger.error(`[${requestId}] Failed to log hosted tool usage for ${tool.id}:`, error)
     // Don't throw - usage logging should not break the main flow

@@ -297,6 +297,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       placeholder: 'Enter your Exa API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

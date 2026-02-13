@@ -86,6 +86,28 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (params, response) => {
+        // Use costDollars from Exa API response
+        if (response.costDollars?.total) {
+          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+        }
+
+        // Fallback: estimate based on search type and result count
+        const isDeepSearch = params.type === 'neural'
+        if (isDeepSearch) {
+          return 0.015
+        }
+        const resultCount = response.results?.length || 0
+        return resultCount <= 25 ? 0.005 : 0.025
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/search',
@@ -167,6 +189,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           highlights: result.highlights,
           score: result.score,
         })),
+        costDollars: data.costDollars,
       },
     }
   },

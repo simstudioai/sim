@@ -48,15 +48,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       description: 'Serper API Key',
     },
   },
-  hosting: {
-    envKeys: ['SERPER_API_KEY'],
-    apiKeyParam: 'apiKey',
-    byokProviderId: 'serper',
-    pricing: {
-      type: 'per_request',
-      cost: 0.001, // $0.001 per search (Serper pricing: ~$50/50k searches)
-    },
-  },
 
   request: {
     url: (params) => `https://google.serper.dev/${params.type || 'search'}`,

@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('BYOKKeysQueries')
 
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'serper'
+export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
 
 export interface BYOKKey {
   id: string

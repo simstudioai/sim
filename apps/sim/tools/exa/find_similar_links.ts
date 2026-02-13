@@ -76,6 +76,23 @@ export const findSimilarLinksTool: ToolConfig<
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, response) => {
+        // Use costDollars from Exa API response
+        if (response.costDollars?.total) {
+          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+        }
+        // Fallback: $5/1000 (1-25 results) or $25/1000 (26-100 results)
+        const resultCount = response.similarLinks?.length || 0
+        return resultCount <= 25 ? 0.005 : 0.025
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/findSimilar',
@@ -140,6 +157,7 @@ export const findSimilarLinksTool: ToolConfig<
           highlights: result.highlights,
           score: result.score || 0,
         })),
+        costDollars: data.costDollars,
       },
     }
   },

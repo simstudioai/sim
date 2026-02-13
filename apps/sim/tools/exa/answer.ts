@@ -27,6 +27,22 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, response) => {
+        // Use costDollars from Exa API response
+        if (response.costDollars?.total) {
+          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+        }
+        // Fallback: $5/1000 requests
+        return 0.005
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/answer',
@@ -61,6 +77,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
             url: citation.url,
             text: citation.text || '',
           })) || [],
+        costDollars: data.costDollars,
       },
     }
   },
