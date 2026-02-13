@@ -1,9 +1,12 @@
 import { ConnectIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
-import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
+import {
+  getModelOptions,
+  getProviderCredentialSubBlocks,
+  PROVIDER_CREDENTIAL_INPUTS,
+} from '@/blocks/utils'
 import type { ProviderId } from '@/providers/types'
-import { getBaseModelProviders, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers'
+import { getBaseModelProviders } from '@/providers/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
@@ -132,25 +135,6 @@ ROUTING RULES:
 Respond with a JSON object containing:
 - route: EXACTLY one route ID (copied exactly as shown above) OR "NO_MATCH"
 - reasoning: A brief explanation (1-2 sentences) of why you chose this route`
-}
-
-/**
- * Helper to get model options for both router versions.
- */
-const getModelOptions = () => {
-  const providersState = useProvidersStore.getState()
-  const baseModels = providersState.providers.base.models
-  const ollamaModels = providersState.providers.ollama.models
-  const vllmModels = providersState.providers.vllm.models
-  const openrouterModels = providersState.providers.openrouter.models
-  const allModels = Array.from(
-    new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
-  )
-
-  return allModels.map((model) => {
-    const icon = getProviderIcon(model)
-    return { label: model, id: model, ...(icon && { icon }) }
-  })
 }
 
 /**

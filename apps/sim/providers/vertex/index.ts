@@ -30,8 +30,8 @@ export const vertexProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    const vertexProject = env.VERTEX_PROJECT || request.vertexProject
-    const vertexLocation = env.VERTEX_LOCATION || request.vertexLocation || 'us-central1'
+    const vertexProject = request.vertexProject || env.VERTEX_PROJECT
+    const vertexLocation = request.vertexLocation || env.VERTEX_LOCATION || 'us-central1'
 
     if (!vertexProject) {
       throw new Error(
