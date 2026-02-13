@@ -66,11 +66,74 @@ const roleOptions = [
 
 type CreateCredentialType = 'oauth' | 'secret'
 type SecretScope = 'workspace' | 'personal'
+type SecretInputMode = 'single' | 'bulk'
 
 const createTypeOptions = [
   { value: 'oauth', label: 'OAuth Account' },
   { value: 'secret', label: 'Secret' },
 ] as const
+
+interface ParsedEnvEntry {
+  key: string
+  value: string
+}
+
+/**
+ * Parses `.env`-style text into key-value pairs.
+ * Supports `KEY=VALUE`, quoted values, comments (#), and blank lines.
+ */
+function parseEnvText(text: string): { entries: ParsedEnvEntry[]; errors: string[] } {
+  const entries: ParsedEnvEntry[] = []
+  const errors: string[] = []
+  const seenKeys = new Set<string>()
+
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i].trim()
+    if (!raw || raw.startsWith('#')) continue
+
+    const eqIndex = raw.indexOf('=')
+    if (eqIndex === -1) {
+      errors.push(`Line ${i + 1}: missing "=" separator`)
+      continue
+    }
+
+    const key = raw.slice(0, eqIndex).trim()
+    let value = raw.slice(eqIndex + 1).trim()
+
+    if (!key) {
+      errors.push(`Line ${i + 1}: empty key`)
+      continue
+    }
+
+    if (!isValidEnvVarName(key)) {
+      errors.push(`Line ${i + 1}: "${key}" must contain only letters, numbers, and underscores`)
+      continue
+    }
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+
+    if (!value) {
+      errors.push(`Line ${i + 1}: "${key}" has an empty value`)
+      continue
+    }
+
+    if (seenKeys.has(key.toUpperCase())) {
+      errors.push(`Line ${i + 1}: duplicate key "${key}"`)
+      continue
+    }
+
+    seenKeys.add(key.toUpperCase())
+    entries.push({ key, value })
+  }
+
+  return { entries, errors }
+}
 
 function getSecretCredentialType(
   scope: SecretScope
@@ -112,6 +175,8 @@ export function CredentialsManager() {
   const [createEnvKey, setCreateEnvKey] = useState('')
   const [createEnvValue, setCreateEnvValue] = useState('')
   const [createOAuthProviderId, setCreateOAuthProviderId] = useState('')
+  const [createSecretInputMode, setCreateSecretInputMode] = useState<SecretInputMode>('single')
+  const [createBulkText, setCreateBulkText] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
@@ -369,10 +434,12 @@ export function CredentialsManager() {
   const resetCreateForm = () => {
     setCreateType('oauth')
     setCreateSecretScope('personal')
+    setCreateSecretInputMode('single')
     setCreateDisplayName('')
     setCreateDescription('')
     setCreateEnvKey('')
     setCreateEnvValue('')
+    setCreateBulkText('')
     setCreateOAuthProviderId('')
     setCreateError(null)
     setShowCreateOAuthRequiredModal(false)
@@ -461,6 +528,11 @@ export function CredentialsManager() {
         return
       }
 
+      if (createSecretInputMode === 'bulk') {
+        await handleBulkCreateSecrets()
+        return
+      }
+
       if (!createEnvKey.trim()) return
       const normalizedEnvKey = normalizeEnvKeyInput(createEnvKey)
       if (!isValidEnvVarName(normalizedEnvKey)) {
@@ -517,6 +589,74 @@ export function CredentialsManager() {
       const message = error instanceof Error ? error.message : 'Failed to create credential'
       setCreateError(message)
       logger.error('Failed to create credential', error)
+    }
+  }
+
+  const handleBulkCreateSecrets = async () => {
+    if (!workspaceId) return
+    setCreateError(null)
+
+    const { entries, errors } = parseEnvText(createBulkText)
+    if (errors.length > 0) {
+      setCreateError(errors.join('\n'))
+      return
+    }
+
+    if (entries.length === 0) {
+      setCreateError('No valid KEY=VALUE pairs found. Add one per line, e.g. API_KEY=sk-abc123')
+      return
+    }
+
+    try {
+      const newVars: Record<string, string> = {}
+      for (const entry of entries) {
+        newVars[entry.key] = entry.value
+      }
+
+      if (createSecretType === 'env_personal') {
+        const personalVariables = Object.entries(personalEnvironment).reduce(
+          (acc, [key, value]) => ({
+            ...acc,
+            [key]: value.value,
+          }),
+          {} as Record<string, string>
+        )
+
+        await savePersonalEnvironment.mutateAsync({
+          variables: { ...personalVariables, ...newVars },
+        })
+      } else {
+        const workspaceVariables = workspaceEnvironmentData?.workspace ?? {}
+        await upsertWorkspaceEnvironment.mutateAsync({
+          workspaceId,
+          variables: { ...workspaceVariables, ...newVars },
+        })
+      }
+
+      let lastCredentialId: string | null = null
+      for (const entry of entries) {
+        const response = await createCredential.mutateAsync({
+          workspaceId,
+          type: createSecretType,
+          envKey: entry.key,
+        })
+        if (response?.credential?.id) {
+          lastCredentialId = response.credential.id
+        }
+      }
+
+      if (lastCredentialId) {
+        setSelectedCredentialId(lastCredentialId)
+      }
+
+      await refetchCredentials()
+
+      setShowCreateModal(false)
+      resetCreateForm()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to create secrets'
+      setCreateError(message)
+      logger.error('Failed to bulk create secrets', error)
     }
   }
 
@@ -691,10 +831,13 @@ export function CredentialsManager() {
                   onClick={() => handleSelectCredential(credential)}
                 >
                   <div className='mb-[6px] flex items-center justify-between gap-[8px]'>
-                    <p className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                    <p className='min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
                       {credential.displayName}
                     </p>
-                    <Badge variant={typeBadgeVariant(credential.type)}>
+                    <Badge
+                      variant={typeBadgeVariant(credential.type)}
+                      className='shrink-0 whitespace-nowrap'
+                    >
                       {typeLabel(credential.type)}
                     </Badge>
                   </div>
@@ -1071,83 +1214,143 @@ export function CredentialsManager() {
                     </div>
                   </div>
                   <div>
-                    <Label>Secret key</Label>
-                    <Input
-                      value={createEnvKey}
-                      onChange={(event) => {
-                        setCreateEnvKey(event.target.value)
-                      }}
-                      placeholder='API_KEY'
-                      autoComplete='off'
-                      autoCapitalize='none'
-                      autoCorrect='off'
-                      spellCheck={false}
-                      data-lpignore='true'
-                      data-1p-ignore='true'
-                      className='mt-[6px]'
-                    />
-                    <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                      Use it in blocks as {'{{KEY}}'}, for example {'{{API_KEY}}'}.
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Secret value</Label>
-                    <Input
-                      type='password'
-                      value={createEnvValue}
-                      onChange={(event) => setCreateEnvValue(event.target.value)}
-                      placeholder='Enter secret value'
-                      autoComplete='new-password'
-                      autoCapitalize='none'
-                      autoCorrect='off'
-                      spellCheck={false}
-                      data-lpignore='true'
-                      data-1p-ignore='true'
-                      className='mt-[6px]'
-                    />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Textarea
-                      value={createDescription}
-                      onChange={(event) => setCreateDescription(event.target.value)}
-                      placeholder='Optional description'
-                      maxLength={500}
-                      autoComplete='off'
-                      className='mt-[6px] min-h-[80px] resize-none'
-                    />
-                  </div>
-
-                  {selectedExistingEnvCredential && (
-                    <div className='rounded-[8px] border border-[var(--brand-9)]/40 bg-[var(--surface-3)] px-[10px] py-[8px]'>
-                      <p className='text-[12px] text-[var(--text-primary)]'>
-                        This secret key already maps to credential{' '}
-                        <span className='font-medium'>
-                          {selectedExistingEnvCredential.displayName}
-                        </span>
-                        .
-                      </p>
-                      <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                        Create will update the secret value and reuse the existing credential.
-                      </p>
-                      <Button
-                        variant='ghost'
-                        className='mt-[6px]'
-                        onClick={() => {
-                          setSelectedCredentialId(selectedExistingEnvCredential.id)
-                          setShowCreateModal(false)
-                          resetCreateForm()
+                    <Label className='block'>Mode</Label>
+                    <div className='mt-[6px]'>
+                      <ButtonGroup
+                        value={createSecretInputMode}
+                        onValueChange={(value) => {
+                          setCreateSecretInputMode(value as SecretInputMode)
+                          setCreateError(null)
                         }}
                       >
-                        Open existing credential
-                      </Button>
+                        <ButtonGroupItem
+                          value='single'
+                          className='h-[28px] min-w-[56px] px-[10px] py-0 text-[12px]'
+                        >
+                          Single
+                        </ButtonGroupItem>
+                        <ButtonGroupItem
+                          value='bulk'
+                          className='h-[28px] min-w-[56px] px-[10px] py-0 text-[12px]'
+                        >
+                          Bulk
+                        </ButtonGroupItem>
+                      </ButtonGroup>
+                    </div>
+                  </div>
+
+                  {createSecretInputMode === 'single' ? (
+                    <>
+                      <div>
+                        <Label>Secret key</Label>
+                        <Input
+                          value={createEnvKey}
+                          onChange={(event) => {
+                            setCreateEnvKey(event.target.value)
+                          }}
+                          placeholder='API_KEY'
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          autoCorrect='off'
+                          spellCheck={false}
+                          data-lpignore='true'
+                          data-1p-ignore='true'
+                          className='mt-[6px]'
+                        />
+                        <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
+                          Use it in blocks as {'{{KEY}}'}, for example {'{{API_KEY}}'}.
+                        </p>
+                      </div>
+                      <div>
+                        <Label>Secret value</Label>
+                        <Input
+                          type='password'
+                          value={createEnvValue}
+                          onChange={(event) => setCreateEnvValue(event.target.value)}
+                          placeholder='Enter secret value'
+                          autoComplete='new-password'
+                          autoCapitalize='none'
+                          autoCorrect='off'
+                          spellCheck={false}
+                          data-lpignore='true'
+                          data-1p-ignore='true'
+                          className='mt-[6px]'
+                        />
+                      </div>
+                      <div>
+                        <Label>Description</Label>
+                        <Textarea
+                          value={createDescription}
+                          onChange={(event) => setCreateDescription(event.target.value)}
+                          placeholder='Optional description'
+                          maxLength={500}
+                          autoComplete='off'
+                          className='mt-[6px] min-h-[80px] resize-none'
+                        />
+                      </div>
+
+                      {selectedExistingEnvCredential && (
+                        <div className='rounded-[8px] border border-[var(--brand-9)]/40 bg-[var(--surface-3)] px-[10px] py-[8px]'>
+                          <p className='text-[12px] text-[var(--text-primary)]'>
+                            This secret key already maps to credential{' '}
+                            <span className='font-medium'>
+                              {selectedExistingEnvCredential.displayName}
+                            </span>
+                            .
+                          </p>
+                          <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
+                            Create will update the secret value and reuse the existing credential.
+                          </p>
+                          <Button
+                            variant='ghost'
+                            className='mt-[6px]'
+                            onClick={() => {
+                              setSelectedCredentialId(selectedExistingEnvCredential.id)
+                              setShowCreateModal(false)
+                              resetCreateForm()
+                            }}
+                          >
+                            Open existing credential
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div>
+                      <Label>Secrets</Label>
+                      <Textarea
+                        value={createBulkText}
+                        onChange={(event) => {
+                          setCreateBulkText(event.target.value)
+                          setCreateError(null)
+                        }}
+                        placeholder={
+                          'OPENAI_API_KEY=sk-abc123\nANTHROPIC_API_KEY=sk-ant-xyz\nSTRIPE_SECRET=sk_live_...'
+                        }
+                        autoComplete='off'
+                        spellCheck={false}
+                        className='mt-[6px] min-h-[160px] resize-none font-mono text-[12px]'
+                      />
+                      <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
+                        Paste KEY=VALUE pairs, one per line. Lines starting with # are ignored.
+                      </p>
+                      {createBulkText.trim()
+                        ? (() => {
+                            const { entries } = parseEnvText(createBulkText)
+                            return entries.length > 0 ? (
+                              <p className='mt-[2px] text-[11px] text-[var(--text-secondary)]'>
+                                {entries.length} secret{entries.length === 1 ? '' : 's'} detected
+                              </p>
+                            ) : null
+                          })()
+                        : null}
                     </div>
                   )}
                 </div>
               )}
 
               {createError && (
-                <div className='rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[12px] text-[var(--status-red)]'>
+                <div className='whitespace-pre-wrap rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[12px] text-[var(--status-red)]'>
                   {createError}
                 </div>
               )}
@@ -1165,7 +1368,9 @@ export function CredentialsManager() {
                   ? !createOAuthProviderId ||
                     !createDisplayName.trim() ||
                     connectOAuthService.isPending
-                  : !createEnvKey.trim() || !createEnvValue.trim()) ||
+                  : createSecretInputMode === 'bulk'
+                    ? !createBulkText.trim()
+                    : !createEnvKey.trim() || !createEnvValue.trim()) ||
                 createCredential.isPending ||
                 savePersonalEnvironment.isPending ||
                 upsertWorkspaceEnvironment.isPending ||
@@ -1176,9 +1381,15 @@ export function CredentialsManager() {
                 ? connectOAuthService.isPending
                   ? 'Connecting...'
                   : 'Connect'
-                : selectedExistingEnvCredential
-                  ? 'Update and use existing'
-                  : 'Create'}
+                : createSecretInputMode === 'bulk'
+                  ? createCredential.isPending ||
+                    savePersonalEnvironment.isPending ||
+                    upsertWorkspaceEnvironment.isPending
+                    ? 'Importing...'
+                    : 'Import all'
+                  : selectedExistingEnvCredential
+                    ? 'Update and use existing'
+                    : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
