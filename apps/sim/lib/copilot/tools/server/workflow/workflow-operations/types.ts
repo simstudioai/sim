@@ -44,6 +44,7 @@ export type SkippedItemType =
   | 'invalid_edge_source'
   | 'invalid_source_handle'
   | 'invalid_target_handle'
+  | 'invalid_subflow_boundary_edge'
   | 'invalid_subblock_field'
   | 'missing_required_params'
   | 'invalid_subflow_parent'

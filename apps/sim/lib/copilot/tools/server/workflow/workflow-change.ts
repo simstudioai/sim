@@ -17,7 +17,11 @@ import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-ch
 import { normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { getBlockSchema } from '@/executor/utils/block-data'
 import { InvalidFieldError, type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
-import { replaceValidReferences } from '@/executor/utils/reference-validation'
+import {
+  createEnvVarPattern,
+  createReferencePattern,
+} from '@/executor/utils/reference-validation'
+import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import {
   getContextPack,
   getProposal,
@@ -340,9 +344,99 @@ type ConnectionTarget = {
 type ConnectionState = Map<string, Map<string, ConnectionTarget[]>>
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const CONTAINER_SOURCE_HANDLE_EXPECTED_TYPE: Record<string, 'loop' | 'parallel'> = {
+  'loop-start-source': 'loop',
+  'loop-end-source': 'loop',
+  'parallel-start-source': 'parallel',
+  'parallel-end-source': 'parallel',
+}
+const REFERENCE_PATH_WRAPPER_SEGMENTS = new Set([
+  'input',
+  'inputs',
+  'output',
+  'outputs',
+  'response',
+  'result',
+  'results',
+  'data',
+  'payload',
+  'body',
+])
 const CONTAINER_INPUT_FIELDS: Record<string, string[]> = {
   loop: ['loopType', 'iterations', 'collection', 'condition'],
   parallel: ['parallelType', 'count', 'collection'],
+}
+const LOOP_INPUT_KEY_ALIASES: Record<string, string> = {
+  looptype: 'loopType',
+  mode: 'loopType',
+  kind: 'loopType',
+  strategy: 'loopType',
+  type: 'loopType',
+  iterations: 'iterations',
+  iteration: 'iterations',
+  count: 'iterations',
+  times: 'iterations',
+  n: 'iterations',
+  collection: 'collection',
+  items: 'collection',
+  list: 'collection',
+  array: 'collection',
+  iterable: 'collection',
+  over: 'collection',
+  source: 'collection',
+  condition: 'condition',
+  predicate: 'condition',
+  expression: 'condition',
+  whilecondition: 'condition',
+  dowhilecondition: 'condition',
+}
+const PARALLEL_INPUT_KEY_ALIASES: Record<string, string> = {
+  paralleltype: 'parallelType',
+  mode: 'parallelType',
+  kind: 'parallelType',
+  strategy: 'parallelType',
+  type: 'parallelType',
+  count: 'count',
+  iterations: 'count',
+  branches: 'count',
+  parallelism: 'count',
+  workers: 'count',
+  collection: 'collection',
+  items: 'collection',
+  list: 'collection',
+  array: 'collection',
+  iterable: 'collection',
+  over: 'collection',
+  source: 'collection',
+}
+const LOOP_MODE_ALIASES: Record<string, 'for' | 'forEach' | 'while' | 'doWhile'> = {
+  for: 'for',
+  fixed: 'for',
+  count: 'for',
+  numeric: 'for',
+  foreach: 'forEach',
+  iterate: 'forEach',
+  iter: 'forEach',
+  collection: 'forEach',
+  while: 'while',
+  dowhile: 'doWhile',
+}
+const PARALLEL_MODE_ALIASES: Record<string, 'count' | 'collection'> = {
+  count: 'count',
+  fixed: 'count',
+  branch: 'count',
+  branches: 'count',
+  collection: 'collection',
+  foreach: 'collection',
+  iterate: 'collection',
+  iter: 'collection',
+}
+const AGENT_LEGACY_PROMPT_FIELDS: Record<string, 'system' | 'user'> = {
+  systemPrompt: 'system',
+  instructions: 'system',
+  context: 'system',
+  prompt: 'user',
+  userPrompt: 'user',
 }
 
 function createDraftBlockId(_seed?: string): string {
@@ -363,8 +457,137 @@ function stableUnique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
 }
 
+function normalizeAliasToken(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .trim()
+}
+
 function isContainerBlockType(blockType: string | null | undefined): boolean {
   return blockType === 'loop' || blockType === 'parallel'
+}
+
+function canonicalizeContainerInputKey(blockType: string, key: string): string {
+  const token = normalizeAliasToken(key)
+  if (blockType === 'loop') {
+    return LOOP_INPUT_KEY_ALIASES[token] || key
+  }
+  if (blockType === 'parallel') {
+    return PARALLEL_INPUT_KEY_ALIASES[token] || key
+  }
+  return key
+}
+
+function canonicalizeLoopMode(value: unknown): 'for' | 'forEach' | 'while' | 'doWhile' | null {
+  if (typeof value !== 'string') return null
+  return LOOP_MODE_ALIASES[normalizeAliasToken(value)] || null
+}
+
+function canonicalizeParallelMode(value: unknown): 'count' | 'collection' | null {
+  if (typeof value !== 'string') return null
+  return PARALLEL_MODE_ALIASES[normalizeAliasToken(value)] || null
+}
+
+type AgentMessage = {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+function normalizeAgentMessages(value: unknown): AgentMessage[] {
+  const toMessageArray = (input: unknown): unknown[] => {
+    if (Array.isArray(input)) return input
+    if (typeof input === 'string') {
+      const trimmed = input.trim()
+      if (!trimmed) return []
+      try {
+        const parsed = JSON.parse(trimmed)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+    return []
+  }
+
+  const rawMessages = toMessageArray(value)
+  return rawMessages
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const role = String((item as Record<string, unknown>).role || '').trim().toLowerCase()
+      const content = String((item as Record<string, unknown>).content || '')
+      if (!['system', 'user', 'assistant'].includes(role)) return null
+      return { role: role as AgentMessage['role'], content }
+    })
+    .filter((item): item is AgentMessage => Boolean(item))
+}
+
+function toMessageContent(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function upsertAgentMessageByRole(
+  messages: AgentMessage[],
+  role: 'system' | 'user',
+  content: string
+): AgentMessage[] {
+  const next = [...messages]
+  const existingIndex = next.findIndex((message) => message.role === role)
+  if (existingIndex >= 0) {
+    next[existingIndex] = { ...next[existingIndex], content }
+    return next
+  }
+  if (role === 'system') {
+    return [{ role, content }, ...next]
+  }
+  return [...next, { role, content }]
+}
+
+function removeAgentMessagesByRole(
+  messages: AgentMessage[],
+  role: 'system' | 'user'
+): AgentMessage[] {
+  return messages.filter((message) => message.role !== role)
+}
+
+function normalizeLegacyAgentInputs(params: {
+  targetId: string
+  inputs: Record<string, any>
+  warnings: string[]
+}): Record<string, any> {
+  const { targetId, inputs, warnings } = params
+  if (!inputs || typeof inputs !== 'object') return inputs
+
+  const nextInputs: Record<string, any> = { ...inputs }
+  let messages = normalizeAgentMessages(nextInputs.messages)
+  let converted = false
+
+  for (const [legacyField, role] of Object.entries(AGENT_LEGACY_PROMPT_FIELDS)) {
+    if (!Object.prototype.hasOwnProperty.call(nextInputs, legacyField)) continue
+    converted = true
+    const rawValue = nextInputs[legacyField]
+    if (rawValue == null) {
+      messages = removeAgentMessagesByRole(messages, role)
+    } else {
+      messages = upsertAgentMessageByRole(messages, role, toMessageContent(rawValue))
+    }
+    delete nextInputs[legacyField]
+    warnings.push(
+      `Converted legacy agent input "${legacyField}" to inputs.messages on ${targetId}`
+    )
+  }
+
+  if (converted) {
+    nextInputs.messages = messages
+  }
+
+  return nextInputs
 }
 
 type ReferenceValidationContext = {
@@ -438,13 +661,103 @@ function buildReferenceValidationContext(workflowState: {
   }
 }
 
-function extractLikelyReferences(value: string): string[] {
-  const references = new Set<string>()
-  replaceValidReferences(value, (match) => {
-    references.add(match.trim())
-    return match
-  })
-  return [...references]
+function extractAngleReferenceCandidates(value: string): Array<{ raw: string; likely: boolean }> {
+  const seen = new Set<string>()
+  const candidates: Array<{ raw: string; likely: boolean }> = []
+  const pattern = createReferencePattern()
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(value)) !== null) {
+    const raw = String(match[0] || '').trim()
+    if (!raw || seen.has(raw)) continue
+    seen.add(raw)
+    candidates.push({
+      raw,
+      likely: isLikelyReferenceSegment(raw),
+    })
+  }
+  return candidates
+}
+
+function extractEnvVarCandidates(value: string): Array<{ raw: string; key: string }> {
+  const seen = new Set<string>()
+  const candidates: Array<{ raw: string; key: string }> = []
+  const pattern = createEnvVarPattern()
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(value)) !== null) {
+    const raw = String(match[0] || '').trim()
+    const key = String(match[1] || '').trim()
+    if (!raw) continue
+    const dedupeKey = `${raw}::${key}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+    candidates.push({ raw, key })
+  }
+  return candidates
+}
+
+function isReferenceIntentSegment(reference: string): boolean {
+  if (!reference.startsWith(REFERENCE.START) || !reference.endsWith(REFERENCE.END)) {
+    return false
+  }
+  const inner = reference.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+  if (!inner) return false
+  if (/\s/.test(inner)) return false
+  if (!/[A-Za-z_]/.test(inner)) return false
+  if (/^[<>=!+\-*/%&|^()0-9.]+$/.test(inner)) return false
+  return true
+}
+
+function validateEnvVarReference(params: {
+  raw: string
+  key: string
+  knownEnvVarNames: Set<string>
+}): string | null {
+  const { raw, key, knownEnvVarNames } = params
+  const trimmedKey = key.trim()
+  if (!trimmedKey) {
+    return `environment reference "${raw}" is empty`
+  }
+
+  const looksLikeWorkflowRef = /^[A-Za-z0-9_-]+\.[^\s{}<>]+$/.test(trimmedKey)
+  if (looksLikeWorkflowRef) {
+    return (
+      `environment reference "${raw}" looks like a workflow variable reference. ` +
+      `Use "<${trimmedKey}>" for workflow outputs and reserve "{{...}}" for environment variables.`
+    )
+  }
+
+  if (knownEnvVarNames.size > 0 && !knownEnvVarNames.has(trimmedKey)) {
+    return (
+      `environment reference "${raw}" does not match a known environment variable. ` +
+      `Known vars are provided by get_credentials.environment.variableNames.`
+    )
+  }
+
+  return null
+}
+
+function validateInvalidAngleReferenceIntent(reference: string): string | null {
+  if (!isReferenceIntentSegment(reference)) return null
+
+  const inner = reference.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+  const [head, ...tail] = inner.split(REFERENCE.PATH_DELIMITER)
+  if (!head) {
+    return `reference "${reference}" has invalid syntax`
+  }
+
+  const suggestedHead = head.replace(/[_-]+/g, '')
+  if (suggestedHead && suggestedHead !== head) {
+    const suggestedPath = [suggestedHead, ...tail].join(REFERENCE.PATH_DELIMITER)
+    return (
+      `reference "${reference}" is not valid. ` +
+      `If this is a workflow variable, prefer normalized form "<${suggestedPath}>".`
+    )
+  }
+
+  return (
+    `reference "${reference}" appears to be a workflow variable reference but is not valid. ` +
+    `Use "<block.field>" (or "<start.input>", "<loop.item>", "<parallel.currentItem>").`
+  )
 }
 
 function validateReference(
@@ -479,6 +792,20 @@ function validateReference(
       blockOutputSchemas: context.blockOutputSchemas,
     })
     if (!result) {
+      const suggestedHead = head.replace(/[_-]+/g, '')
+      const hasSuggestedBlock =
+        suggestedHead &&
+        suggestedHead !== head &&
+        Boolean(context.blockNameMapping[normalizeName(suggestedHead)])
+      if (hasSuggestedBlock) {
+        const suggestedReference = [suggestedHead, ...pathParts]
+          .filter(Boolean)
+          .join(REFERENCE.PATH_DELIMITER)
+        return (
+          `reference "${trimmed}" points to unknown block "${head}". ` +
+          `Try normalized block reference "<${suggestedReference}>".`
+        )
+      }
       return `reference "${trimmed}" points to unknown block "${head}"`
     }
     return null
@@ -494,17 +821,204 @@ function validateReference(
   }
 }
 
+function buildReferenceToken(head: string, pathParts: string[]): string {
+  const joinedPath = [head, ...pathParts].filter(Boolean).join(REFERENCE.PATH_DELIMITER)
+  return `${REFERENCE.START}${joinedPath}${REFERENCE.END}`
+}
+
+function getNormalizedReferenceHeadCandidates(head: string): string[] {
+  const candidates = [head]
+  const collapsed = head.replace(/[_-]+/g, '')
+  if (collapsed && collapsed !== head) {
+    candidates.push(collapsed)
+  }
+  return stableUnique(candidates)
+}
+
+function getNormalizedReferencePathCandidates(pathParts: string[]): string[][] {
+  const candidates: string[][] = [pathParts]
+  let current = [...pathParts]
+  while (current.length > 1) {
+    const first = normalizeAliasToken(current[0] || '')
+    if (!REFERENCE_PATH_WRAPPER_SEGMENTS.has(first)) {
+      break
+    }
+    current = current.slice(1)
+    candidates.push(current)
+  }
+  return candidates
+}
+
+function normalizeSingleWorkflowReferenceToken(params: {
+  reference: string
+  context: ReferenceValidationContext
+}): { normalized: string; warning?: string } {
+  const { reference, context } = params
+  const trimmed = reference.trim()
+  const parsed = parseReferencePath(trimmed)
+  if (parsed.length < 2) {
+    return { normalized: trimmed }
+  }
+
+  const [head, ...pathParts] = parsed
+  if (!head) {
+    return { normalized: trimmed }
+  }
+  if (
+    head === REFERENCE.PREFIX.VARIABLE ||
+    head === REFERENCE.PREFIX.LOOP ||
+    head === REFERENCE.PREFIX.PARALLEL
+  ) {
+    return { normalized: trimmed }
+  }
+
+  const originalValidationError = validateReference(trimmed, context)
+  const originalIsValid = !originalValidationError
+  if (originalIsValid) {
+    return { normalized: trimmed }
+  }
+
+  const candidateHeads = getNormalizedReferenceHeadCandidates(head)
+  const candidatePaths = getNormalizedReferencePathCandidates(pathParts)
+  const validCandidates: string[] = []
+
+  for (const candidateHead of candidateHeads) {
+    for (const candidatePath of candidatePaths) {
+      const candidate = buildReferenceToken(candidateHead, candidatePath)
+      if (!validateReference(candidate, context)) {
+        validCandidates.push(candidate)
+      }
+    }
+  }
+
+  if (validCandidates.length > 0) {
+    const preferred = validCandidates[0]
+    if (preferred !== trimmed) {
+      return {
+        normalized: preferred,
+        warning: `normalized workflow reference "${trimmed}" to "${preferred}"`,
+      }
+    }
+    return { normalized: preferred }
+  }
+
+  return { normalized: trimmed }
+}
+
+function normalizeReferenceSyntaxForString(params: {
+  value: string
+  context: ReferenceValidationContext
+  knownEnvVarNames: Set<string>
+}): { value: string; warnings: string[] } {
+  const { context } = params
+  let nextValue = params.value
+  const warnings: string[] = []
+
+  for (const candidate of extractAngleReferenceCandidates(nextValue)) {
+    if (!candidate.likely) {
+      continue
+    }
+    const normalized = normalizeSingleWorkflowReferenceToken({
+      reference: candidate.raw,
+      context,
+    })
+    if (normalized.normalized !== candidate.raw) {
+      nextValue = nextValue.split(candidate.raw).join(normalized.normalized)
+      warnings.push(
+        normalized.warning ||
+          `normalized workflow reference "${candidate.raw}" to "${normalized.normalized}"`
+      )
+    }
+  }
+
+  return {
+    value: nextValue,
+    warnings,
+  }
+}
+
+function normalizeReferenceSyntaxForValue(params: {
+  value: unknown
+  context: ReferenceValidationContext
+  knownEnvVarNames: Set<string>
+}): { value: unknown; warnings: string[] } {
+  const { value, context } = params
+
+  if (typeof value === 'string') {
+    return normalizeReferenceSyntaxForString({
+      value,
+      context,
+      knownEnvVarNames: params.knownEnvVarNames,
+    })
+  }
+
+  if (Array.isArray(value)) {
+    const warnings: string[] = []
+    const normalizedValues = value.map((item) => {
+      const normalizedItem = normalizeReferenceSyntaxForValue({
+        value: item,
+        context,
+        knownEnvVarNames: params.knownEnvVarNames,
+      })
+      warnings.push(...normalizedItem.warnings)
+      return normalizedItem.value
+    })
+    return {
+      value: normalizedValues,
+      warnings,
+    }
+  }
+
+  if (value && typeof value === 'object') {
+    const warnings: string[] = []
+    const normalizedObject: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const normalizedChild = normalizeReferenceSyntaxForValue({
+        value: child,
+        context,
+        knownEnvVarNames: params.knownEnvVarNames,
+      })
+      normalizedObject[key] = normalizedChild.value
+      warnings.push(...normalizedChild.warnings)
+    }
+    return {
+      value: normalizedObject,
+      warnings,
+    }
+  }
+
+  return {
+    value,
+    warnings: [],
+  }
+}
+
 function collectReferenceWarningsForValue(params: {
   value: unknown
   location: string
   context: ReferenceValidationContext
+  knownEnvVarNames: Set<string>
   sink: Set<string>
 }): void {
-  const { value, location, context, sink } = params
+  const { value, location, context, knownEnvVarNames, sink } = params
   if (typeof value === 'string') {
-    const references = extractLikelyReferences(value)
-    for (const reference of references) {
-      const warning = validateReference(reference, context)
+    const angleCandidates = extractAngleReferenceCandidates(value)
+    for (const candidate of angleCandidates) {
+      const warning = candidate.likely
+        ? validateReference(candidate.raw, context)
+        : validateInvalidAngleReferenceIntent(candidate.raw)
+      if (warning) {
+        sink.add(`${location}: ${warning}`)
+      }
+    }
+
+    const envVarCandidates = extractEnvVarCandidates(value)
+    for (const candidate of envVarCandidates) {
+      const warning = validateEnvVarReference({
+        raw: candidate.raw,
+        key: candidate.key,
+        knownEnvVarNames,
+      })
       if (warning) {
         sink.add(`${location}: ${warning}`)
       }
@@ -518,6 +1032,7 @@ function collectReferenceWarningsForValue(params: {
         value: item,
         location: `${location}[${index}]`,
         context,
+        knownEnvVarNames,
         sink,
       })
     })
@@ -530,6 +1045,7 @@ function collectReferenceWarningsForValue(params: {
         value: child,
         location: `${location}.${key}`,
         context,
+        knownEnvVarNames,
         sink,
       })
     }
@@ -539,9 +1055,15 @@ function collectReferenceWarningsForValue(params: {
 function collectReferenceWarningsForChangeSpec(params: {
   changeSpec: ChangeSpec
   workflowState: { blocks: Record<string, any> }
+  knownEnvVarNames?: string[]
 }): string[] {
   const { changeSpec, workflowState } = params
   const context = buildReferenceValidationContext(workflowState)
+  const knownEnvVarNames = new Set(
+    Array.isArray(params.knownEnvVarNames)
+      ? params.knownEnvVarNames.map((name) => String(name || '').trim()).filter(Boolean)
+      : []
+  )
   const warnings = new Set<string>()
 
   for (const [mutationIndex, mutation] of (changeSpec.mutations || []).entries()) {
@@ -551,6 +1073,7 @@ function collectReferenceWarningsForChangeSpec(params: {
           value: mutation.inputs,
           location: `mutations[${mutationIndex}].inputs`,
           context,
+          knownEnvVarNames,
           sink: warnings,
         })
       }
@@ -563,6 +1086,7 @@ function collectReferenceWarningsForChangeSpec(params: {
           value: change.value,
           location: `mutations[${mutationIndex}].changes[${changeIndex}].value`,
           context,
+          knownEnvVarNames,
           sink: warnings,
         })
       }
@@ -1204,6 +1728,124 @@ function ensureConnectionTarget(
   return [...existing, target]
 }
 
+function expectedContainerTypeForSourceHandle(
+  handle: string | undefined
+): 'loop' | 'parallel' | null {
+  if (!handle) return null
+  return CONTAINER_SOURCE_HANDLE_EXPECTED_TYPE[handle] || null
+}
+
+function normalizeContainerConnectionHandles(params: {
+  fromBlockId: string
+  toBlockId: string
+  sourceHandle: string
+  targetHandle: string
+  sourceBlockType: string
+  targetBlockType: string
+}): { sourceHandle: string; targetHandle: string; warnings: string[] } {
+  const {
+    fromBlockId,
+    toBlockId,
+    sourceHandle,
+    targetHandle,
+    sourceBlockType,
+    targetBlockType,
+  } = params
+
+  let nextSourceHandle = sourceHandle
+  let nextTargetHandle = targetHandle
+  const warnings: string[] = []
+
+  const sourceHandleContainerType = expectedContainerTypeForSourceHandle(sourceHandle)
+  if (sourceHandleContainerType && sourceBlockType !== sourceHandleContainerType) {
+    if (targetBlockType === sourceHandleContainerType) {
+      nextSourceHandle = 'source'
+      warnings.push(
+        `normalized source handle "${sourceHandle}" to "source" for ${fromBlockId}->${toBlockId}. ` +
+          `Container source handles belong on the container block as the "from" endpoint.`
+      )
+    }
+  }
+
+  const targetHandleContainerType = expectedContainerTypeForSourceHandle(targetHandle)
+  if (targetHandleContainerType && targetBlockType !== targetHandleContainerType) {
+    if (sourceBlockType === targetHandleContainerType) {
+      nextTargetHandle = 'target'
+      warnings.push(
+        `normalized target handle "${targetHandle}" to "target" for ${fromBlockId}->${toBlockId}. ` +
+          `Container source handles belong on the container block as the "from" endpoint.`
+      )
+    }
+  }
+
+  return {
+    sourceHandle: nextSourceHandle,
+    targetHandle: nextTargetHandle,
+    warnings,
+  }
+}
+
+function hasIncomingConnection(connectionState: ConnectionState, targetId: string): boolean {
+  for (const sourceMap of connectionState.values()) {
+    for (const targets of sourceMap.values()) {
+      if (targets.some((target) => target.block === targetId)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+function addSubflowWiringWarnings(params: {
+  workflowState: { blocks: Record<string, any> }
+  connectionState: ConnectionState
+  subflowIds: Set<string>
+  warnings: string[]
+}): void {
+  const { workflowState, connectionState, subflowIds, warnings } = params
+  for (const subflowId of stableUnique([...subflowIds])) {
+    const subflowType = String(workflowState.blocks[subflowId]?.type || '')
+    if (!isContainerBlockType(subflowType)) continue
+
+    const childBlockIds = Object.entries(workflowState.blocks || {})
+      .filter(([, block]) => String((block as Record<string, any>)?.data?.parentId || '') === subflowId)
+      .map(([blockId]) => blockId)
+    if (childBlockIds.length === 0) continue
+
+    const startHandle = subflowType === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+    const startTargets = connectionState.get(subflowId)?.get(startHandle) || []
+    if (startTargets.length === 0) {
+      warnings.push(
+        `Subflow "${subflowId}" has children but no "${startHandle}" connection. ` +
+          `insert_into_subflow only sets containment; add connect/link mutations for execution wiring.`
+      )
+      continue
+    }
+
+    if (!startTargets.some((target) => childBlockIds.includes(target.block))) {
+      warnings.push(
+        `Subflow "${subflowId}" "${startHandle}" is not connected to any child block. ` +
+          `Connect it to a child (for example first block in the subflow).`
+      )
+    }
+
+    const orphanChildren = childBlockIds.filter((childBlockId) => {
+      const reachedByStart = startTargets.some((target) => target.block === childBlockId)
+      if (reachedByStart) return false
+      return !hasIncomingConnection(connectionState, childBlockId)
+    })
+
+    if (orphanChildren.length > 0) {
+      const preview = orphanChildren.slice(0, 4).join(', ')
+      const suffix = orphanChildren.length > 4 ? ', ...' : ''
+      warnings.push(
+        `Subflow "${subflowId}" has child block(s) without incoming wiring: ${preview}${suffix}. ` +
+          `Add connect/link mutations between child blocks.`
+      )
+    }
+  }
+}
+
 async function compileChangeSpec(params: {
   changeSpec: ChangeSpec
   workflowState: {
@@ -1230,6 +1872,7 @@ async function compileChangeSpec(params: {
   const diagnostics: string[] = []
   const warnings: string[] = []
   const touchedBlocks = new Set<string>()
+  const touchedSubflowIds = new Set<string>()
   const resolvedIds: Record<string, string> = { ...(changeSpec.resolvedIds || {}) }
 
   const aliasMap = new Map<string, string>()
@@ -1284,16 +1927,225 @@ async function compileChangeSpec(params: {
     return false
   }
 
+  const normalizeContainerInputsForCompile = (params: {
+    targetId: string
+    blockType: string
+    operationName: 'patch_block' | 'ensure_block'
+    inputs: Record<string, any>
+  }): Record<string, any> => {
+    const { targetId, blockType, operationName, inputs } = params
+    if (!isContainerBlockType(blockType)) {
+      return inputs
+    }
+
+    const normalized: Record<string, any> = {}
+    let sawWhileConditionAlias = false
+    let sawDoWhileConditionAlias = false
+
+    for (const [rawKey, rawValue] of Object.entries(inputs || {})) {
+      const rawToken = normalizeAliasToken(rawKey)
+      if (rawToken === 'whilecondition') sawWhileConditionAlias = true
+      if (rawToken === 'dowhilecondition') sawDoWhileConditionAlias = true
+
+      const canonicalKey = canonicalizeContainerInputKey(blockType, rawKey)
+      if (canonicalKey !== rawKey) {
+        warnings.push(
+          `${operationName} on ${targetId} normalized container input key "${rawKey}" to "${canonicalKey}" for ${blockType}`
+        )
+      }
+      normalized[canonicalKey] = rawValue
+    }
+
+    if (blockType === 'loop') {
+      if (
+        Object.prototype.hasOwnProperty.call(normalized, 'count') &&
+        !Object.prototype.hasOwnProperty.call(normalized, 'iterations')
+      ) {
+        normalized.iterations = normalized.count
+        delete normalized.count
+        warnings.push(
+          `${operationName} on ${targetId} normalized loop input "count" to "iterations"`
+        )
+      }
+
+      const existingLoopType = canonicalizeLoopMode(workingState.blocks[targetId]?.data?.loopType)
+      let explicitLoopType: 'for' | 'forEach' | 'while' | 'doWhile' | null = null
+      if (Object.prototype.hasOwnProperty.call(normalized, 'loopType')) {
+        explicitLoopType = canonicalizeLoopMode(normalized.loopType)
+        if (!explicitLoopType) {
+          diagnostics.push(
+            `${operationName} on ${targetId} has invalid loopType "${String(normalized.loopType)}". ` +
+              `Valid values: for, forEach, while, doWhile`
+          )
+          delete normalized.loopType
+        } else if (normalized.loopType !== explicitLoopType) {
+          warnings.push(
+            `${operationName} on ${targetId} normalized loopType "${String(normalized.loopType)}" to "${explicitLoopType}"`
+          )
+          normalized.loopType = explicitLoopType
+        } else {
+          normalized.loopType = explicitLoopType
+        }
+      }
+
+      if (!explicitLoopType) {
+        let inferredLoopType: 'for' | 'forEach' | 'while' | 'doWhile' | null = null
+        if (sawDoWhileConditionAlias) {
+          inferredLoopType = 'doWhile'
+        } else if (sawWhileConditionAlias) {
+          inferredLoopType = 'while'
+        } else if (Object.prototype.hasOwnProperty.call(normalized, 'condition')) {
+          inferredLoopType =
+            existingLoopType === 'while' || existingLoopType === 'doWhile'
+              ? existingLoopType
+              : 'while'
+        } else if (Object.prototype.hasOwnProperty.call(normalized, 'collection')) {
+          inferredLoopType = 'forEach'
+        } else if (Object.prototype.hasOwnProperty.call(normalized, 'iterations')) {
+          inferredLoopType = 'for'
+        }
+
+        if (inferredLoopType) {
+          normalized.loopType = inferredLoopType
+          warnings.push(
+            `${operationName} on ${targetId} inferred loopType "${inferredLoopType}" from provided loop fields`
+          )
+        }
+      }
+
+      const finalLoopType = canonicalizeLoopMode(normalized.loopType) || existingLoopType || 'for'
+      if (
+        Object.prototype.hasOwnProperty.call(normalized, 'condition') &&
+        finalLoopType !== 'while' &&
+        finalLoopType !== 'doWhile'
+      ) {
+        warnings.push(
+          `${operationName} on ${targetId} set "condition" but loopType is "${finalLoopType}". ` +
+            `Condition is only used for while/doWhile loops.`
+        )
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(normalized, 'collection') &&
+        finalLoopType !== 'forEach'
+      ) {
+        warnings.push(
+          `${operationName} on ${targetId} set "collection" but loopType is "${finalLoopType}". ` +
+            `Collection is only used for forEach loops.`
+        )
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(normalized, 'iterations') &&
+        finalLoopType !== 'for'
+      ) {
+        warnings.push(
+          `${operationName} on ${targetId} set "iterations" but loopType is "${finalLoopType}". ` +
+            `Iterations is only used for for loops.`
+        )
+      }
+    }
+
+    if (blockType === 'parallel') {
+      let explicitParallelType: 'count' | 'collection' | null = null
+      if (Object.prototype.hasOwnProperty.call(normalized, 'parallelType')) {
+        explicitParallelType = canonicalizeParallelMode(normalized.parallelType)
+        if (!explicitParallelType) {
+          diagnostics.push(
+            `${operationName} on ${targetId} has invalid parallelType "${String(normalized.parallelType)}". ` +
+              `Valid values: count, collection`
+          )
+          delete normalized.parallelType
+        } else if (normalized.parallelType !== explicitParallelType) {
+          warnings.push(
+            `${operationName} on ${targetId} normalized parallelType "${String(normalized.parallelType)}" to "${explicitParallelType}"`
+          )
+          normalized.parallelType = explicitParallelType
+        } else {
+          normalized.parallelType = explicitParallelType
+        }
+      }
+
+      if (!explicitParallelType) {
+        if (Object.prototype.hasOwnProperty.call(normalized, 'collection')) {
+          normalized.parallelType = 'collection'
+          warnings.push(
+            `${operationName} on ${targetId} inferred parallelType "collection" from provided collection`
+          )
+        } else if (Object.prototype.hasOwnProperty.call(normalized, 'count')) {
+          normalized.parallelType = 'count'
+          warnings.push(
+            `${operationName} on ${targetId} inferred parallelType "count" from provided count`
+          )
+        }
+      }
+    }
+
+    return normalized
+  }
+
+  const normalizeContainerPatchPathSegments = (
+    targetId: string,
+    blockType: string,
+    pathSegments: string[]
+  ): string[] => {
+    if (!isContainerBlockType(blockType) || pathSegments.length === 0) {
+      return pathSegments
+    }
+
+    const normalized = [...pathSegments]
+    if (normalized[0] === 'data' && normalized[1]) {
+      const originalPath = normalized.join('.')
+      normalized[0] = 'inputs'
+      warnings.push(
+        `patch_block on ${targetId} normalized container path "${originalPath}" to "${normalized.join('.')}" for ${blockType}`
+      )
+    }
+
+    if (normalized[0] !== 'inputs' && normalized.length === 1 && normalized[0] !== 'type') {
+      const canonicalTopLevel = canonicalizeContainerInputKey(blockType, normalized[0])
+      if (
+        canonicalTopLevel &&
+        (canonicalTopLevel !== normalized[0] ||
+          (CONTAINER_INPUT_FIELDS[blockType] || []).includes(canonicalTopLevel))
+      ) {
+        const originalPath = normalized.join('.')
+        normalized[0] = 'inputs'
+        normalized[1] = canonicalTopLevel
+        warnings.push(
+          `patch_block on ${targetId} normalized container path "${originalPath}" to "${normalized.join('.')}" for ${blockType}`
+        )
+      }
+    }
+
+    if (normalized[0] === 'inputs' && normalized[1]) {
+      const canonicalInput = canonicalizeContainerInputKey(blockType, normalized[1])
+      if (canonicalInput !== normalized[1]) {
+        const originalPath = normalized.join('.')
+        normalized[1] = canonicalInput
+        warnings.push(
+          `patch_block on ${targetId} normalized container input path "${originalPath}" to "${normalized.join('.')}" for ${blockType}`
+        )
+      }
+    }
+
+    return normalized
+  }
+
   const normalizeInputsWithSchema = (
     targetId: string,
     blockType: string,
     inputs: Record<string, any>,
     operationName: 'patch_block' | 'ensure_block'
   ): Record<string, any> => {
+    const normalizedContainerInputs = normalizeContainerInputsForCompile({
+      targetId,
+      blockType,
+      operationName,
+      inputs,
+    })
     if (!requireSchema(targetId, blockType, operationName)) {
       return {}
     }
-    const validation = validateInputsForBlock(blockType, inputs, targetId)
+    const validation = validateInputsForBlock(blockType, normalizedContainerInputs, targetId)
     for (const validationError of validation.errors) {
       diagnostics.push(
         `${operationName} on ${targetId} failed input validation: ${validationError.error}`
@@ -1325,6 +2177,10 @@ async function compileChangeSpec(params: {
       provider: String(credential.provider || ''),
       isDefault: Boolean(credential.isDefault),
     })) || []
+  const knownEnvVarNames: string[] =
+    credentialsResponse?.environment?.variableNames?.map((name: any) => String(name || '').trim())?.filter(Boolean) ||
+    []
+  const knownEnvVarNamesSet = new Set(knownEnvVarNames)
 
   const resolveTarget = (
     target: TargetRef | undefined,
@@ -1367,6 +2223,65 @@ async function compileChangeSpec(params: {
       return matched
     }
     return null
+  }
+
+  const resolveBlockType = (blockId: string): string =>
+    String(workingState.blocks[blockId]?.type || plannedBlockTypes.get(blockId) || '')
+
+  const normalizeMutationValueWithWorkingState = (
+    value: unknown,
+    location: string
+  ): unknown => {
+    const referenceContext = buildReferenceValidationContext(workingState)
+    const normalized = normalizeReferenceSyntaxForValue({
+      value,
+      context: referenceContext,
+      knownEnvVarNames: knownEnvVarNamesSet,
+    })
+    if (normalized.warnings.length > 0) {
+      warnings.push(...normalized.warnings.map((warning) => `${location}: ${warning}`))
+    }
+    return normalized.value
+  }
+
+  const applyEditParamsToWorkingState = (blockId: string, editParams: Record<string, any>): void => {
+    const currentBlock = workingState.blocks[blockId]
+    if (!currentBlock) return
+    const nextBlock = { ...currentBlock }
+
+    if (Object.prototype.hasOwnProperty.call(editParams, 'type') && editParams.type) {
+      nextBlock.type = editParams.type
+      plannedBlockTypes.set(blockId, String(editParams.type))
+    }
+    if (Object.prototype.hasOwnProperty.call(editParams, 'name') && editParams.name) {
+      nextBlock.name = editParams.name
+      const normalizedAlias = String(editParams.name).replace(/[^a-zA-Z0-9]/g, '')
+      if (normalizedAlias) {
+        aliasMap.set(normalizedAlias, blockId)
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(editParams, 'triggerMode')) {
+      nextBlock.triggerMode = editParams.triggerMode
+    }
+    if (Object.prototype.hasOwnProperty.call(editParams, 'advancedMode')) {
+      nextBlock.advancedMode = editParams.advancedMode
+    }
+    if (Object.prototype.hasOwnProperty.call(editParams, 'enabled')) {
+      nextBlock.enabled = editParams.enabled
+    }
+    if (editParams.inputs && typeof editParams.inputs === 'object') {
+      const nextSubBlocks = { ...(nextBlock.subBlocks || {}) }
+      for (const [key, value] of Object.entries(editParams.inputs)) {
+        nextSubBlocks[key] = {
+          id: key,
+          value,
+          type: nextSubBlocks[key]?.type || 'short-input',
+        }
+      }
+      nextBlock.subBlocks = nextSubBlocks
+    }
+
+    workingState.blocks[blockId] = nextBlock
   }
 
   const applyPatchChange = (
@@ -1525,8 +2440,15 @@ async function compileChangeSpec(params: {
       diagnostics.push(`${change.op} on ${targetId} requires a path`)
       return
     }
+    const normalizedChangeValue = normalizeMutationValueWithWorkingState(
+      change.value,
+      `patch_block.${targetId}.${change.path}`
+    )
 
-    const pathSegments = change.path.split('.').filter(Boolean)
+    let pathSegments = normalizePathSegments(change.path)
+    if (blockType && isContainerBlockType(blockType)) {
+      pathSegments = normalizeContainerPatchPathSegments(targetId, blockType, pathSegments)
+    }
     if (pathSegments.length === 0) {
       diagnostics.push(`${change.op} on ${targetId} has an invalid path "${change.path}"`)
       return
@@ -1536,6 +2458,43 @@ async function compileChangeSpec(params: {
       const inputKey = pathSegments[1]
       if (!inputKey) {
         diagnostics.push(`${change.op} on ${targetId} has invalid input path "${change.path}"`)
+        return
+      }
+      if (blockType === 'agent' && AGENT_LEGACY_PROMPT_FIELDS[inputKey]) {
+        if (pathSegments.length > 2) {
+          diagnostics.push(
+            `Unsupported nested legacy agent prompt path "${change.path}" on ${targetId}. ` +
+              `Use path "inputs.${inputKey}" or "inputs.messages".`
+          )
+          return
+        }
+        if (!['set', 'unset'].includes(change.op)) {
+          diagnostics.push(
+            `Unsupported op "${change.op}" for legacy agent prompt field "${inputKey}" on ${targetId}. ` +
+              `Use set/unset or patch inputs.messages directly.`
+          )
+          return
+        }
+        const role = AGENT_LEGACY_PROMPT_FIELDS[inputKey]
+        const currentMessages =
+          paramsOut.inputs?.messages ??
+          workingState.blocks[targetId]?.subBlocks?.messages?.value ??
+          []
+        let nextMessages = normalizeAgentMessages(currentMessages)
+        if (change.op === 'unset') {
+          nextMessages = removeAgentMessagesByRole(nextMessages, role)
+        } else {
+          nextMessages = upsertAgentMessageByRole(
+            nextMessages,
+            role,
+            toMessageContent(normalizedChangeValue)
+          )
+        }
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs.messages = nextMessages
+        warnings.push(
+          `Converted legacy agent patch path "inputs.${inputKey}" to "inputs.messages" on ${targetId}`
+        )
         return
       }
       if (!blockType) {
@@ -1578,8 +2537,8 @@ async function compileChangeSpec(params: {
       if (change.op === 'set') {
         nextInputValue =
           nestedPath.length > 0
-            ? setNestedValue(currentInputValue ?? {}, nestedPath, change.value)
-            : change.value
+            ? setNestedValue(currentInputValue ?? {}, nestedPath, normalizedChangeValue)
+            : normalizedChangeValue
       } else if (change.op === 'unset') {
         nextInputValue =
           nestedPath.length > 0 ? setNestedValue(currentInputValue ?? {}, nestedPath, null) : null
@@ -1589,12 +2548,12 @@ async function compileChangeSpec(params: {
           if (
             baseObject &&
             typeof baseObject === 'object' &&
-            change.value &&
-            typeof change.value === 'object'
+            normalizedChangeValue &&
+            typeof normalizedChangeValue === 'object'
           ) {
             nextInputValue = setNestedValue(currentInputValue ?? {}, nestedPath, {
               ...baseObject,
-              ...(change.value as Record<string, unknown>),
+              ...(normalizedChangeValue as Record<string, unknown>),
             })
           } else {
             diagnostics.push(`merge on ${targetId} at "${change.path}" requires object values`)
@@ -1604,27 +2563,34 @@ async function compileChangeSpec(params: {
           currentInputValue &&
           typeof currentInputValue === 'object' &&
           !Array.isArray(currentInputValue) &&
-          change.value &&
-          typeof change.value === 'object' &&
-          !Array.isArray(change.value)
+          normalizedChangeValue &&
+          typeof normalizedChangeValue === 'object' &&
+          !Array.isArray(normalizedChangeValue)
         ) {
-          nextInputValue = { ...currentInputValue, ...(change.value as Record<string, unknown>) }
-        } else if (currentInputValue == null && change.value && typeof change.value === 'object') {
-          nextInputValue = change.value
+          nextInputValue = {
+            ...currentInputValue,
+            ...(normalizedChangeValue as Record<string, unknown>),
+          }
+        } else if (
+          currentInputValue == null &&
+          normalizedChangeValue &&
+          typeof normalizedChangeValue === 'object'
+        ) {
+          nextInputValue = normalizedChangeValue
         } else {
           diagnostics.push(`merge on ${targetId} at "${change.path}" requires object values`)
           return
         }
       } else if (change.op === 'append') {
         const arr = Array.isArray(currentInputValue) ? [...currentInputValue] : []
-        arr.push(change.value)
+        arr.push(normalizedChangeValue)
         nextInputValue = arr
       } else if (change.op === 'remove') {
         if (!Array.isArray(currentInputValue)) {
           diagnostics.push(`remove on ${targetId} at "${change.path}" requires an array value`)
           return
         }
-        nextInputValue = removeArrayItem(currentInputValue, change.value)
+        nextInputValue = removeArrayItem(currentInputValue, normalizedChangeValue)
       }
 
       paramsOut.inputs = paramsOut.inputs || {}
@@ -1644,19 +2610,42 @@ async function compileChangeSpec(params: {
         blockType === 'agent' &&
         ['systemPrompt', 'context', 'prompt', 'instructions', 'userPrompt'].includes(topLevelField)
       ) {
-        diagnostics.push(
-          `Unsupported agent field "${change.path}" on ${targetId}. ` +
-            `Agent prompt configuration belongs in inputs.messages (messages-input), not top-level fields.`
+        if (!['set', 'unset'].includes(change.op)) {
+          diagnostics.push(
+            `Unsupported op "${change.op}" for agent field "${change.path}" on ${targetId}. ` +
+              `Use set/unset or patch inputs.messages directly.`
+          )
+          return
+        }
+        const role = AGENT_LEGACY_PROMPT_FIELDS[topLevelField] || 'system'
+        const currentMessages =
+          paramsOut.inputs?.messages ??
+          workingState.blocks[targetId]?.subBlocks?.messages?.value ??
+          []
+        let nextMessages = normalizeAgentMessages(currentMessages)
+        if (change.op === 'unset') {
+          nextMessages = removeAgentMessagesByRole(nextMessages, role)
+        } else {
+          nextMessages = upsertAgentMessageByRole(
+            nextMessages,
+            role,
+            toMessageContent(normalizedChangeValue)
+          )
+        }
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs.messages = nextMessages
+        warnings.push(
+          `Converted legacy agent top-level field "${change.path}" to "inputs.messages" on ${targetId}`
         )
         return
       }
       diagnostics.push(`Unsupported top-level path "${change.path}" on ${targetId}`)
       return
     }
-    paramsOut[topLevelField] = change.op === 'unset' ? null : change.value
+    paramsOut[topLevelField] = change.op === 'unset' ? null : normalizedChangeValue
   }
 
-  for (const mutation of changeSpec.mutations || []) {
+  for (const [mutationIndex, mutation] of (changeSpec.mutations || []).entries()) {
     if (mutation.action === 'ensure_block') {
       const targetId = resolveTarget(mutation.target, true)
       if (!targetId) {
@@ -1670,6 +2659,10 @@ async function compileChangeSpec(params: {
         if (mutation.name) editParams.name = mutation.name
         if (mutation.type) editParams.type = mutation.type
         if (mutation.inputs) {
+          const normalizedMutationInputsValue = normalizeMutationValueWithWorkingState(
+            mutation.inputs,
+            `mutations[${mutationIndex}].inputs`
+          )
           const targetBlockType =
             String(
               mutation.type ||
@@ -1677,10 +2670,18 @@ async function compileChangeSpec(params: {
                 plannedBlockTypes.get(targetId) ||
                 ''
             ) || ''
+          const normalizedMutationInputs =
+            targetBlockType === 'agent'
+              ? normalizeLegacyAgentInputs({
+                  targetId,
+                  inputs: (normalizedMutationInputsValue as Record<string, any>) || {},
+                  warnings,
+                })
+              : ((normalizedMutationInputsValue as Record<string, any>) || {})
           const validatedInputs = normalizeInputsWithSchema(
             targetId,
             targetBlockType,
-            mutation.inputs,
+            normalizedMutationInputs,
             'ensure_block'
           )
           if (Object.keys(validatedInputs).length > 0) {
@@ -1695,6 +2696,7 @@ async function compileChangeSpec(params: {
           block_id: targetId,
           params: editParams,
         })
+        applyEditParamsToWorkingState(targetId, editParams)
         touchedBlocks.add(targetId)
       } else {
         if (!mutation.type || !mutation.name) {
@@ -1712,10 +2714,22 @@ async function compileChangeSpec(params: {
         }
         let normalizedInputs: Record<string, any> | undefined
         if (mutation.inputs) {
+          const normalizedMutationInputsValue = normalizeMutationValueWithWorkingState(
+            mutation.inputs,
+            `mutations[${mutationIndex}].inputs`
+          )
+          const normalizedMutationInputs =
+            mutation.type === 'agent'
+              ? normalizeLegacyAgentInputs({
+                  targetId,
+                  inputs: (normalizedMutationInputsValue as Record<string, any>) || {},
+                  warnings,
+                })
+              : ((normalizedMutationInputsValue as Record<string, any>) || {})
           const validatedInputs = normalizeInputsWithSchema(
             targetId,
             mutation.type,
-            mutation.inputs,
+            normalizedMutationInputs,
             'ensure_block'
           )
           if (Object.keys(validatedInputs).length > 0) {
@@ -1776,6 +2790,19 @@ async function compileChangeSpec(params: {
       for (const change of mutation.changes || []) {
         applyPatchChange(targetId, blockType, change, editParams)
       }
+      if (editParams.inputs && blockType) {
+        const normalizedInputs = normalizeInputsWithSchema(
+          targetId,
+          blockType,
+          editParams.inputs,
+          'patch_block'
+        )
+        if (Object.keys(normalizedInputs).length > 0) {
+          editParams.inputs = normalizedInputs
+        } else {
+          delete editParams.inputs
+        }
+      }
       if (Object.keys(editParams).length === 0) {
         diagnostics.push(`patch_block for ${targetId} had no effective changes`)
         continue
@@ -1785,6 +2812,7 @@ async function compileChangeSpec(params: {
         block_id: targetId,
         params: editParams,
       })
+      applyEditParamsToWorkingState(targetId, editParams)
       touchedBlocks.add(targetId)
       continue
     }
@@ -1804,6 +2832,7 @@ async function compileChangeSpec(params: {
         params: {},
       })
       touchedBlocks.add(targetId)
+      delete workingState.blocks[targetId]
       connectionState.delete(targetId)
       for (const [source, handles] of connectionState.entries()) {
         for (const [handle, targets] of handles.entries()) {
@@ -1866,10 +2895,22 @@ async function compileChangeSpec(params: {
           name: existingName,
         }
         if (mutation.inputs) {
+          const normalizedMutationInputsValue = normalizeMutationValueWithWorkingState(
+            mutation.inputs,
+            `mutations[${mutationIndex}].inputs`
+          )
+          const normalizedMutationInputs =
+            existingType === 'agent'
+              ? normalizeLegacyAgentInputs({
+                  targetId: existingTargetId,
+                  inputs: (normalizedMutationInputsValue as Record<string, any>) || {},
+                  warnings,
+                })
+              : ((normalizedMutationInputsValue as Record<string, any>) || {})
           const validatedInputs = normalizeInputsWithSchema(
             existingTargetId,
             existingType,
-            mutation.inputs,
+            normalizedMutationInputs,
             'patch_block'
           )
           if (Object.keys(validatedInputs).length > 0) {
@@ -1887,10 +2928,25 @@ async function compileChangeSpec(params: {
         })
         workingState.blocks[existingTargetId] = {
           ...existingBlock,
+          type: existingType,
+          name: existingName,
+          subBlocks:
+            insertParams.inputs && typeof insertParams.inputs === 'object'
+              ? {
+                  ...(existingBlock.subBlocks || {}),
+                  ...Object.fromEntries(
+                    Object.entries(insertParams.inputs).map(([key, value]) => [
+                      key,
+                      { id: key, value, type: existingBlock.subBlocks?.[key]?.type || 'short-input' },
+                    ])
+                  ),
+                }
+              : existingBlock.subBlocks,
           data: { ...(existingBlock.data || {}), parentId: subflowId, extent: 'parent' },
         }
         touchedBlocks.add(existingTargetId)
         touchedBlocks.add(subflowId)
+        touchedSubflowIds.add(subflowId)
         continue
       }
 
@@ -1914,10 +2970,22 @@ async function compileChangeSpec(params: {
       }
       let normalizedInputs: Record<string, any> | undefined
       if (mutation.inputs) {
+        const normalizedMutationInputsValue = normalizeMutationValueWithWorkingState(
+          mutation.inputs,
+          `mutations[${mutationIndex}].inputs`
+        )
+        const normalizedMutationInputs =
+          mutation.type === 'agent'
+            ? normalizeLegacyAgentInputs({
+                targetId: targetId || blockId,
+                inputs: (normalizedMutationInputsValue as Record<string, any>) || {},
+                warnings,
+              })
+            : ((normalizedMutationInputsValue as Record<string, any>) || {})
         const validatedInputs = normalizeInputsWithSchema(
           targetId || blockId,
           mutation.type,
-          mutation.inputs,
+          normalizedMutationInputs,
           'ensure_block'
         )
         if (Object.keys(validatedInputs).length > 0) {
@@ -1952,6 +3020,7 @@ async function compileChangeSpec(params: {
       plannedBlockTypes.set(blockId, mutation.type)
       touchedBlocks.add(blockId)
       touchedBlocks.add(subflowId)
+      touchedSubflowIds.add(subflowId)
       if (requestedBlockId) {
         aliasMap.set(requestedBlockId, blockId)
         recordResolved(requestedBlockId, blockId)
@@ -2016,6 +3085,7 @@ async function compileChangeSpec(params: {
 
       touchedBlocks.add(targetId)
       touchedBlocks.add(subflowId)
+      touchedSubflowIds.add(subflowId)
       continue
     }
 
@@ -2029,8 +3099,17 @@ async function compileChangeSpec(params: {
         )
         continue
       }
-      const sourceHandle = normalizeHandle(mutation.handle)
-      const targetHandle = mutation.toHandle || 'target'
+      const normalizedHandles = normalizeContainerConnectionHandles({
+        fromBlockId: from,
+        toBlockId: to,
+        sourceHandle: normalizeHandle(mutation.handle),
+        targetHandle: mutation.toHandle || 'target',
+        sourceBlockType: resolveBlockType(from),
+        targetBlockType: resolveBlockType(to),
+      })
+      warnings.push(...normalizedHandles.warnings)
+      const sourceHandle = normalizedHandles.sourceHandle
+      const targetHandle = normalizedHandles.targetHandle
       let sourceMap = connectionState.get(from)
       if (!sourceMap) {
         sourceMap = new Map()
@@ -2075,8 +3154,17 @@ async function compileChangeSpec(params: {
       continue
     }
 
-    const sourceHandle = normalizeHandle(link.from.handle)
-    const targetHandle = link.to.handle || 'target'
+    const normalizedHandles = normalizeContainerConnectionHandles({
+      fromBlockId: from,
+      toBlockId: to,
+      sourceHandle: normalizeHandle(link.from.handle),
+      targetHandle: link.to.handle || 'target',
+      sourceBlockType: resolveBlockType(from),
+      targetBlockType: resolveBlockType(to),
+    })
+    warnings.push(...normalizedHandles.warnings)
+    const sourceHandle = normalizedHandles.sourceHandle
+    const targetHandle = normalizedHandles.targetHandle
     let sourceMap = connectionState.get(from)
     if (!sourceMap) {
       sourceMap = new Map()
@@ -2108,8 +3196,15 @@ async function compileChangeSpec(params: {
   const referenceWarnings = collectReferenceWarningsForChangeSpec({
     changeSpec,
     workflowState: workingState,
+    knownEnvVarNames,
   })
   warnings.push(...referenceWarnings)
+  addSubflowWiringWarnings({
+    workflowState: workingState,
+    connectionState,
+    subflowIds: touchedSubflowIds,
+    warnings,
+  })
 
   return {
     operations,

@@ -13,6 +13,7 @@ import {
   normalizeArrayWithIds,
   normalizeResponseFormat,
   normalizeTools,
+  pruneInvalidSubflowBoundaryEdgesForBlock,
   shouldNormalizeArrayIds,
   updateCanonicalModesForInputs,
 } from './builders'
@@ -25,6 +26,55 @@ import {
 } from './validation'
 
 const logger = createLogger('EditWorkflowServerTool')
+
+function applyContainerConfigFromInputs(
+  block: { type?: string; data?: Record<string, any> },
+  inputs?: Record<string, any>
+): void {
+  if (!inputs || !block?.type) return
+
+  if (block.type === 'loop') {
+    block.data = block.data || {}
+    const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+    if (inputs.loopType !== undefined && validLoopTypes.includes(inputs.loopType)) {
+      block.data.loopType = inputs.loopType
+    }
+
+    const effectiveLoopType = inputs.loopType ?? block.data.loopType ?? 'for'
+    if (inputs.iterations !== undefined && effectiveLoopType === 'for') {
+      block.data.count = inputs.iterations
+    }
+    if (inputs.collection !== undefined && effectiveLoopType === 'forEach') {
+      block.data.collection = inputs.collection
+    }
+    if (
+      inputs.condition !== undefined &&
+      (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
+    ) {
+      if (effectiveLoopType === 'doWhile') {
+        block.data.doWhileCondition = inputs.condition
+      } else {
+        block.data.whileCondition = inputs.condition
+      }
+    }
+    return
+  }
+
+  if (block.type === 'parallel') {
+    block.data = block.data || {}
+    const validParallelTypes = ['count', 'collection']
+    if (inputs.parallelType !== undefined && validParallelTypes.includes(inputs.parallelType)) {
+      block.data.parallelType = inputs.parallelType
+    }
+    const effectiveParallelType = inputs.parallelType ?? block.data.parallelType ?? 'count'
+    if (inputs.count !== undefined && effectiveParallelType === 'count') {
+      block.data.count = inputs.count
+    }
+    if (inputs.collection !== undefined && effectiveParallelType === 'collection') {
+      block.data.collection = inputs.collection
+    }
+  }
+}
 
 export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
   const { modifiedState, skippedItems } = ctx
@@ -190,55 +240,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
     }
 
-    // Update loop/parallel configuration in block.data (strict validation)
-    if (block.type === 'loop') {
-      block.data = block.data || {}
-      // loopType is always valid
-      if (params.inputs.loopType !== undefined) {
-        const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
-        if (validLoopTypes.includes(params.inputs.loopType)) {
-          block.data.loopType = params.inputs.loopType
-        }
-      }
-      const effectiveLoopType = params.inputs.loopType ?? block.data.loopType ?? 'for'
-      // iterations only valid for 'for' loopType
-      if (params.inputs.iterations !== undefined && effectiveLoopType === 'for') {
-        block.data.count = params.inputs.iterations
-      }
-      // collection only valid for 'forEach' loopType
-      if (params.inputs.collection !== undefined && effectiveLoopType === 'forEach') {
-        block.data.collection = params.inputs.collection
-      }
-      // condition only valid for 'while' or 'doWhile' loopType
-      if (
-        params.inputs.condition !== undefined &&
-        (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
-      ) {
-        if (effectiveLoopType === 'doWhile') {
-          block.data.doWhileCondition = params.inputs.condition
-        } else {
-          block.data.whileCondition = params.inputs.condition
-        }
-      }
-    } else if (block.type === 'parallel') {
-      block.data = block.data || {}
-      // parallelType is always valid
-      if (params.inputs.parallelType !== undefined) {
-        const validParallelTypes = ['count', 'collection']
-        if (validParallelTypes.includes(params.inputs.parallelType)) {
-          block.data.parallelType = params.inputs.parallelType
-        }
-      }
-      const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
-      // count only valid for 'count' parallelType
-      if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
-      }
-      // collection only valid for 'collection' parallelType
-      if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
-        block.data.collection = params.inputs.collection
-      }
-    }
+    applyContainerConfigFromInputs(block, params.inputs)
 
     const editBlockConfig = getBlock(block.type)
     if (editBlockConfig) {
@@ -394,56 +396,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
     })
 
-    // Update loop/parallel configuration based on type (strict validation)
-    if (block.type === 'loop') {
-      block.data = block.data || {}
-      // loopType is always valid
-      if (params.inputs?.loopType) {
-        const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
-        if (validLoopTypes.includes(params.inputs.loopType)) {
-          block.data.loopType = params.inputs.loopType
-        }
-      }
-      const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
-      // iterations only valid for 'for' loopType
-      if (params.inputs?.iterations && effectiveLoopType === 'for') {
-        block.data.count = params.inputs.iterations
-      }
-      // collection only valid for 'forEach' loopType
-      if (params.inputs?.collection && effectiveLoopType === 'forEach') {
-        block.data.collection = params.inputs.collection
-      }
-      // condition only valid for 'while' or 'doWhile' loopType
-      if (
-        params.inputs?.condition &&
-        (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
-      ) {
-        if (effectiveLoopType === 'doWhile') {
-          block.data.doWhileCondition = params.inputs.condition
-        } else {
-          block.data.whileCondition = params.inputs.condition
-        }
-      }
-    } else if (block.type === 'parallel') {
-      block.data = block.data || {}
-      // parallelType is always valid
-      if (params.inputs?.parallelType) {
-        const validParallelTypes = ['count', 'collection']
-        if (validParallelTypes.includes(params.inputs.parallelType)) {
-          block.data.parallelType = params.inputs.parallelType
-        }
-      }
-      const effectiveParallelType =
-        params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-      // count only valid for 'count' parallelType
-      if (params.inputs?.count && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
-      }
-      // collection only valid for 'collection' parallelType
-      if (params.inputs?.collection && effectiveParallelType === 'collection') {
-        block.data.collection = params.inputs.collection
-      }
-    }
+    applyContainerConfigFromInputs(block, params.inputs)
   }
 
   // Handle connections update (convert to edges)
@@ -620,42 +573,9 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     skippedItems
   )
 
-  // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
-  if (params.nestedNodes) {
-    if (params.type === 'loop') {
-      const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
-      const loopType =
-        params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
-          ? params.inputs.loopType
-          : 'for'
-      newBlock.data = {
-        ...newBlock.data,
-        loopType,
-        // Only include type-appropriate fields
-        ...(loopType === 'forEach' &&
-          params.inputs?.collection && { collection: params.inputs.collection }),
-        ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
-        ...(loopType === 'while' &&
-          params.inputs?.condition && { whileCondition: params.inputs.condition }),
-        ...(loopType === 'doWhile' &&
-          params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
-      }
-    } else if (params.type === 'parallel') {
-      const validParallelTypes = ['count', 'collection']
-      const parallelType =
-        params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
-          ? params.inputs.parallelType
-          : 'count'
-      newBlock.data = {
-        ...newBlock.data,
-        parallelType,
-        // Only include type-appropriate fields
-        ...(parallelType === 'collection' &&
-          params.inputs?.collection && { collection: params.inputs.collection }),
-        ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
-      }
-    }
-  }
+  // Set loop/parallel data on parent block BEFORE adding to blocks.
+  // This must happen for both empty containers and containers with nested nodes.
+  applyContainerConfigFromInputs(newBlock, params.inputs)
 
   // Add parent block FIRST before adding children
   // This ensures children can reference valid parentId
@@ -833,6 +753,15 @@ export function handleInsertIntoSubflowOperation(
       parentId: subflowId,
       extent: 'parent' as const,
     }
+
+    // A moved block cannot keep stale edges that now cross a subflow boundary.
+    pruneInvalidSubflowBoundaryEdgesForBlock(
+      modifiedState,
+      block_id,
+      'insert_into_subflow',
+      logger,
+      skippedItems
+    )
 
     // Update inputs if provided (with validation)
     if (params.inputs) {
@@ -1012,6 +941,12 @@ export function handleExtractFromSubflowOperation(
     block.data.extent = undefined
   }
 
-  // Note: We keep the block and its edges, just remove parent relationship
-  // The block becomes a root-level block
+  // Remove edges that became invalid after crossing a subflow boundary.
+  pruneInvalidSubflowBoundaryEdgesForBlock(
+    modifiedState,
+    block_id,
+    'extract_from_subflow',
+    logger,
+    skippedItems
+  )
 }

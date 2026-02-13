@@ -411,6 +411,35 @@ export function createValidatedEdge(
   // Use normalized handle if available (e.g., 'if' -> 'condition-{uuid}')
   const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
 
+  const boundaryValidation = validateSubflowBoundaryEdge(
+    modifiedState,
+    sourceBlockId,
+    targetBlockId,
+    finalSourceHandle
+  )
+  if (!boundaryValidation.valid) {
+    logger.warn('Invalid subflow boundary edge. Edge skipped.', {
+      sourceBlockId,
+      targetBlockId,
+      sourceHandle: finalSourceHandle,
+      reason: boundaryValidation.reason,
+    })
+    skippedItems?.push({
+      type: 'invalid_subflow_boundary_edge',
+      operationType,
+      blockId: sourceBlockId,
+      reason:
+        boundaryValidation.reason ||
+        `Edge from "${sourceBlockId}" to "${targetBlockId}" crosses an invalid subflow boundary`,
+      details: {
+        sourceHandle: finalSourceHandle,
+        targetHandle,
+        targetId: targetBlockId,
+      },
+    })
+    return false
+  }
+
   modifiedState.edges.push({
     id: crypto.randomUUID(),
     source: sourceBlockId,
@@ -420,6 +449,191 @@ export function createValidatedEdge(
     type: 'default',
   })
   return true
+}
+
+function getParentId(block: any): string | null {
+  const parentId = block?.data?.parentId
+  if (typeof parentId !== 'string' || !parentId.trim()) {
+    return null
+  }
+  return parentId
+}
+
+function isLoopStartHandle(sourceHandle: string): boolean {
+  return sourceHandle === 'loop-start-source'
+}
+
+function isParallelStartHandle(sourceHandle: string): boolean {
+  return sourceHandle === 'parallel-start-source'
+}
+
+function isLoopEndHandle(sourceHandle: string): boolean {
+  return sourceHandle === 'loop-end-source'
+}
+
+function isParallelEndHandle(sourceHandle: string): boolean {
+  return sourceHandle === 'parallel-end-source'
+}
+
+/**
+ * Validates whether an edge violates subflow boundary rules.
+ * Rules:
+ * 1. Blocks inside a subflow may only connect to blocks inside the same subflow.
+ * 2. loop/parallel start handles must target a direct child in the same container.
+ * 3. loop/parallel end handles must target outside the same container.
+ */
+export function validateSubflowBoundaryEdge(
+  modifiedState: any,
+  sourceBlockId: string,
+  targetBlockId: string,
+  sourceHandle: string
+): { valid: boolean; reason?: string } {
+  const sourceBlock = modifiedState?.blocks?.[sourceBlockId]
+  const targetBlock = modifiedState?.blocks?.[targetBlockId]
+  if (!sourceBlock || !targetBlock) {
+    // Source/target existence is validated earlier.
+    return { valid: true }
+  }
+
+  const sourceParentId = getParentId(sourceBlock)
+  const targetParentId = getParentId(targetBlock)
+
+  if (isLoopStartHandle(sourceHandle)) {
+    if (sourceBlock.type !== 'loop') {
+      return {
+        valid: false,
+        reason: `Handle "${sourceHandle}" is only valid for loop blocks`,
+      }
+    }
+    if (targetParentId !== sourceBlockId) {
+      return {
+        valid: false,
+        reason: `Loop start edges must target a block inside loop "${sourceBlockId}"`,
+      }
+    }
+    return { valid: true }
+  }
+
+  if (isParallelStartHandle(sourceHandle)) {
+    if (sourceBlock.type !== 'parallel') {
+      return {
+        valid: false,
+        reason: `Handle "${sourceHandle}" is only valid for parallel blocks`,
+      }
+    }
+    if (targetParentId !== sourceBlockId) {
+      return {
+        valid: false,
+        reason: `Parallel start edges must target a block inside parallel "${sourceBlockId}"`,
+      }
+    }
+    return { valid: true }
+  }
+
+  if (isLoopEndHandle(sourceHandle)) {
+    if (sourceBlock.type !== 'loop') {
+      return {
+        valid: false,
+        reason: `Handle "${sourceHandle}" is only valid for loop blocks`,
+      }
+    }
+    if (targetParentId === sourceBlockId) {
+      return {
+        valid: false,
+        reason: `Loop end edges cannot target a block inside loop "${sourceBlockId}"`,
+      }
+    }
+    return { valid: true }
+  }
+
+  if (isParallelEndHandle(sourceHandle)) {
+    if (sourceBlock.type !== 'parallel') {
+      return {
+        valid: false,
+        reason: `Handle "${sourceHandle}" is only valid for parallel blocks`,
+      }
+    }
+    if (targetParentId === sourceBlockId) {
+      return {
+        valid: false,
+        reason: `Parallel end edges cannot target a block inside parallel "${sourceBlockId}"`,
+      }
+    }
+    return { valid: true }
+  }
+
+  if (sourceParentId !== targetParentId) {
+    return {
+      valid: false,
+      reason: `Edge crosses subflow boundary: source parent "${sourceParentId ?? 'root'}", target parent "${targetParentId ?? 'root'}"`,
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Remove existing edges touching the given block that violate subflow boundary rules.
+ * This is used after structural moves (insert/extract) to prevent stale cross-boundary edges.
+ */
+export function pruneInvalidSubflowBoundaryEdgesForBlock(
+  modifiedState: any,
+  blockId: string,
+  operationType: string,
+  logger: ReturnType<typeof createLogger>,
+  skippedItems?: SkippedItem[]
+): void {
+  if (!modifiedState?.edges || !Array.isArray(modifiedState.edges)) {
+    return
+  }
+
+  const prunedEdges: any[] = []
+
+  modifiedState.edges = modifiedState.edges.filter((edge: any) => {
+    const touchesBlock = edge?.source === blockId || edge?.target === blockId
+    if (!touchesBlock) {
+      return true
+    }
+
+    const sourceHandle = typeof edge?.sourceHandle === 'string' ? edge.sourceHandle : 'source'
+    const boundaryValidation = validateSubflowBoundaryEdge(
+      modifiedState,
+      edge.source,
+      edge.target,
+      sourceHandle
+    )
+
+    if (boundaryValidation.valid) {
+      return true
+    }
+
+    prunedEdges.push(edge)
+    skippedItems?.push({
+      type: 'invalid_subflow_boundary_edge',
+      operationType,
+      blockId,
+      reason:
+        boundaryValidation.reason ||
+        `Removed edge "${edge.id || 'unknown'}" due to invalid subflow boundary`,
+      details: {
+        edgeId: edge.id,
+        source: edge.source,
+        sourceHandle: edge.sourceHandle,
+        target: edge.target,
+        targetHandle: edge.targetHandle,
+      },
+    })
+    return false
+  })
+
+  if (prunedEdges.length > 0) {
+    logger.info('Pruned invalid subflow boundary edges after structural move', {
+      blockId,
+      operationType,
+      prunedCount: prunedEdges.length,
+      edgeIds: prunedEdges.map((edge) => edge.id).filter(Boolean),
+    })
+  }
 }
 
 /**
