@@ -3,6 +3,7 @@ import { generateInternalToken } from '@/lib/auth/internal'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { logFixedUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
@@ -61,6 +62,7 @@ async function injectHostedKeyIfNeeded(
   requestId: string
 ): Promise<boolean> {
   if (!tool.hosting) return false
+  if (!isHosted) return false
 
   const { envKeys, apiKeyParam, byokProviderId } = tool.hosting
   const userProvidedKey = params[apiKeyParam]
