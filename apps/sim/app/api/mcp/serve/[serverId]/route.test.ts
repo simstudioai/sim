@@ -72,6 +72,7 @@ describe('MCP Serve Route', () => {
     }))
     vi.doMock('@/lib/core/utils/urls', () => ({
       getBaseUrl: () => 'http://localhost:3000',
+      getInternalApiBaseUrl: () => 'http://localhost:3000',
     }))
     vi.doMock('@/lib/core/execution-limits', () => ({
       getMaxExecutionTimeout: () => 10_000,

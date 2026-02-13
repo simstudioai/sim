@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
@@ -61,7 +61,7 @@ async function queryKnowledgeBase(
     })
 
     // Call the knowledge base search API directly
-    const searchUrl = `${getBaseUrl()}/api/knowledge/search`
+    const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
 
     const response = await fetch(searchUrl, {
       method: 'POST',

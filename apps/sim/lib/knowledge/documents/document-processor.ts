@@ -539,8 +539,8 @@ async function executeMistralOCRRequest(
       const isInternalRoute = url.startsWith('/')
 
       if (isInternalRoute) {
-        const { getBaseUrl } = await import('@/lib/core/utils/urls')
-        url = `${getBaseUrl()}${url}`
+        const { getInternalApiBaseUrl } = await import('@/lib/core/utils/urls')
+        url = `${getInternalApiBaseUrl()}${url}`
       }
 
       let headers =
