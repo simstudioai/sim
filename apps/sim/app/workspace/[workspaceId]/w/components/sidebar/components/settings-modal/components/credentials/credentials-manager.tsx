@@ -183,6 +183,7 @@ export function CredentialsManager() {
   const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
   const [isEditingEnvValue, setIsEditingEnvValue] = useState(false)
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
+  const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -325,26 +326,68 @@ export function CredentialsManager() {
     if (!selectedCredential || selectedCredential.type === 'oauth') return false
     return selectedEnvValueDraft !== selectedEnvCurrentValue
   }, [selectedCredential, selectedEnvValueDraft, selectedEnvCurrentValue])
-  useEffect(() => {
-    if (!selectedCredential || !isSelectedAdmin) return
-    if (selectedDescriptionDraft === (selectedCredential.description || '')) return
 
-    const timer = setTimeout(async () => {
-      try {
+  const isDescriptionDirty = useMemo(() => {
+    if (!selectedCredential) return false
+    return selectedDescriptionDraft !== (selectedCredential.description || '')
+  }, [selectedCredential, selectedDescriptionDraft])
+
+  const isDisplayNameDirty = useMemo(() => {
+    if (!selectedCredential) return false
+    return selectedDisplayNameDraft !== selectedCredential.displayName
+  }, [selectedCredential, selectedDisplayNameDraft])
+
+  const isDetailsDirty = isEnvValueDirty || isDescriptionDirty || isDisplayNameDirty
+  const [isSavingDetails, setIsSavingDetails] = useState(false)
+
+  const handleSaveDetails = async () => {
+    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
+    setDetailsError(null)
+    setIsSavingDetails(true)
+
+    try {
+      if (isDisplayNameDirty || isDescriptionDirty) {
         await updateCredential.mutateAsync({
           credentialId: selectedCredential.id,
-          description: selectedDescriptionDraft.trim() || null,
+          ...(isDisplayNameDirty && selectedCredential.type === 'oauth'
+            ? { displayName: selectedDisplayNameDraft.trim() }
+            : {}),
+          ...(isDescriptionDirty ? { description: selectedDescriptionDraft.trim() || null } : {}),
         })
-        await refetchCredentials()
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to update description'
-        setDetailsError(message)
-        logger.error('Failed to autosave credential description', error)
       }
-    }, 600)
 
-    return () => clearTimeout(timer)
-  }, [selectedDescriptionDraft])
+      if (isEnvValueDirty && canEditSelectedEnvValue) {
+        const envKey = selectedCredential.envKey || ''
+        if (envKey) {
+          if (selectedCredential.type === 'env_workspace') {
+            await upsertWorkspaceEnvironment.mutateAsync({
+              workspaceId,
+              variables: { [envKey]: selectedEnvValueDraft },
+            })
+          } else {
+            const personalVariables = Object.entries(personalEnvironment).reduce(
+              (acc, [key, value]) => ({
+                ...acc,
+                [key]: value.value,
+              }),
+              {} as Record<string, string>
+            )
+            await savePersonalEnvironment.mutateAsync({
+              variables: { ...personalVariables, [envKey]: selectedEnvValueDraft },
+            })
+          }
+        }
+      }
+
+      await refetchCredentials()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save changes'
+      setDetailsError(message)
+      logger.error('Failed to save credential details', error)
+    } finally {
+      setIsSavingDetails(false)
+    }
+  }
 
   useEffect(() => {
     if (createType !== 'oauth') return
@@ -397,11 +440,13 @@ export function CredentialsManager() {
       setSelectedEnvValueDraft('')
       setIsEditingEnvValue(false)
       setSelectedDescriptionDraft('')
+      setSelectedDisplayNameDraft('')
       return
     }
 
     setDetailsError(null)
     setSelectedDescriptionDraft(selectedCredential.description || '')
+    setSelectedDisplayNameDraft(selectedCredential.displayName)
 
     if (selectedCredential.type === 'oauth') {
       setSelectedEnvValueDraft('')
@@ -461,54 +506,6 @@ export function CredentialsManager() {
         selectedCredential.envOwnerUserId === currentUserId
     )
   }, [selectedCredential, isSelectedAdmin, currentUserId])
-
-  useEffect(() => {
-    if (!selectedCredential || selectedCredential.type === 'oauth') return
-    if (!canEditSelectedEnvValue || !isEditingEnvValue) return
-    if (selectedEnvValueDraft === selectedEnvCurrentValue) return
-
-    const envKey = selectedCredential.envKey || ''
-    if (!envKey) return
-
-    const timer = setTimeout(async () => {
-      try {
-        setDetailsError(null)
-        const nextValue = selectedEnvValueDraft
-
-        if (selectedCredential.type === 'env_workspace') {
-          await upsertWorkspaceEnvironment.mutateAsync({
-            workspaceId,
-            variables: {
-              [envKey]: nextValue,
-            },
-          })
-        } else {
-          const personalVariables = Object.entries(personalEnvironment).reduce(
-            (acc, [key, value]) => ({
-              ...acc,
-              [key]: value.value,
-            }),
-            {} as Record<string, string>
-          )
-
-          await savePersonalEnvironment.mutateAsync({
-            variables: {
-              ...personalVariables,
-              [envKey]: nextValue,
-            },
-          })
-        }
-
-        await refetchCredentials()
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to update secret value'
-        setDetailsError(message)
-        logger.error('Failed to autosave environment credential value', error)
-      }
-    }, 600)
-
-    return () => clearTimeout(timer)
-  }, [selectedEnvValueDraft])
 
   const handleCreateCredential = async () => {
     if (!workspaceId) return
@@ -955,6 +952,13 @@ export function CredentialsManager() {
                 </div>
                 {isSelectedAdmin && (
                   <div className='flex items-center gap-[8px]'>
+                    <Button
+                      variant='tertiary'
+                      onClick={handleSaveDetails}
+                      disabled={!isDetailsDirty || isSavingDetails}
+                    >
+                      {isSavingDetails ? 'Saving...' : 'Save'}
+                    </Button>
                     {selectedCredential.type === 'env_personal' && (
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
@@ -966,10 +970,10 @@ export function CredentialsManager() {
                             <Share2 className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content>Promote to workspace secret</Tooltip.Content>
+                        <Tooltip.Content>Promote to Workspace Secret</Tooltip.Content>
                       </Tooltip.Root>
                     )}
-                    {selectedCredential.type !== 'env_workspace' &&
+                    {selectedCredential.type === 'oauth' &&
                       (workspaceUserOptions.length > 0 || isShareingWithWorkspace) && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
@@ -980,34 +984,34 @@ export function CredentialsManager() {
                                 isShareingWithWorkspace || workspaceUserOptions.length === 0
                               }
                             >
-                              Share with workspace
+                              <Share2 className='h-[14px] w-[14px]' />
                             </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content>
-                            {isShareingWithWorkspace
-                              ? 'Sharing...'
-                              : `Add all ${workspaceUserOptions.length} remaining workspace member${workspaceUserOptions.length === 1 ? '' : 's'}`}
+                            {isShareingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
                           </Tooltip.Content>
                         </Tooltip.Root>
                       )}
-                    {selectedCredential.type === 'oauth' && (
-                      <Button
-                        variant='ghost'
-                        onClick={handleDisconnectSelectedCredential}
-                        disabled={disconnectOAuthService.isPending}
-                      >
-                        Disconnect account
-                      </Button>
-                    )}
-                    {selectedCredential.type !== 'oauth' && (
-                      <Button
-                        variant='destructive'
-                        onClick={handleDeleteCredential}
-                        disabled={deleteCredential.isPending || isPromoting}
-                      >
-                        <Trash2 className='h-[14px] w-[14px]' />
-                      </Button>
-                    )}
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='destructive'
+                          onClick={handleDeleteCredential}
+                          disabled={
+                            deleteCredential.isPending ||
+                            isPromoting ||
+                            disconnectOAuthService.isPending
+                          }
+                        >
+                          <Trash2 className='h-[14px] w-[14px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        {selectedCredential.type === 'oauth'
+                          ? 'Disconnect account'
+                          : 'Delete credential'}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
                 )}
               </div>
@@ -1018,9 +1022,10 @@ export function CredentialsManager() {
                     <Label htmlFor='credential-display-name'>Display Name</Label>
                     <Input
                       id='credential-display-name'
-                      value={selectedCredential.displayName}
+                      value={selectedDisplayNameDraft}
+                      onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
                       autoComplete='off'
-                      disabled
+                      disabled={!isSelectedAdmin}
                       className='mt-[6px]'
                     />
                   </div>

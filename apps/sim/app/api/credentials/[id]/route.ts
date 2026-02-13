@@ -113,11 +113,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       updates.description = parseResult.data.description ?? null
     }
 
+    if (parseResult.data.displayName !== undefined && access.credential.type === 'oauth') {
+      updates.displayName = parseResult.data.displayName
+    }
+
     if (Object.keys(updates).length === 0) {
       if (access.credential.type === 'oauth') {
         return NextResponse.json(
           {
-            error: 'OAuth credential editing is limited to description only.',
+            error: 'No updatable fields provided.',
           },
           { status: 400 }
         )
