@@ -722,6 +722,32 @@ export function CredentialsManager() {
   }
 
   const [isPromoting, setIsPromoting] = useState(false)
+  const [isShareingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
+
+  const handleShareWithWorkspace = async () => {
+    if (!selectedCredential || !isSelectedAdmin) return
+    const usersToAdd = workspaceUserOptions
+    if (usersToAdd.length === 0) return
+
+    setDetailsError(null)
+    setIsSharingWithWorkspace(true)
+
+    try {
+      for (const user of usersToAdd) {
+        await upsertMember.mutateAsync({
+          credentialId: selectedCredential.id,
+          userId: user.value,
+          role: 'member',
+        })
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to share with workspace'
+      setDetailsError(message)
+      logger.error('Failed to share credential with workspace', error)
+    } finally {
+      setIsSharingWithWorkspace(false)
+    }
+  }
 
   const handlePromoteToWorkspace = async () => {
     if (!selectedCredential || selectedCredential.type !== 'env_personal' || !workspaceId) return
@@ -929,15 +955,6 @@ export function CredentialsManager() {
                 </div>
                 {isSelectedAdmin && (
                   <div className='flex items-center gap-[8px]'>
-                    {selectedCredential.type === 'oauth' && (
-                      <Button
-                        variant='ghost'
-                        onClick={handleDisconnectSelectedCredential}
-                        disabled={disconnectOAuthService.isPending}
-                      >
-                        Disconnect account
-                      </Button>
-                    )}
                     {selectedCredential.type === 'env_personal' && (
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
@@ -951,6 +968,36 @@ export function CredentialsManager() {
                         </Tooltip.Trigger>
                         <Tooltip.Content>Promote to workspace secret</Tooltip.Content>
                       </Tooltip.Root>
+                    )}
+                    {selectedCredential.type !== 'env_workspace' &&
+                      (workspaceUserOptions.length > 0 || isShareingWithWorkspace) && (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              onClick={handleShareWithWorkspace}
+                              disabled={
+                                isShareingWithWorkspace || workspaceUserOptions.length === 0
+                              }
+                            >
+                              Share with workspace
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            {isShareingWithWorkspace
+                              ? 'Sharing...'
+                              : `Add all ${workspaceUserOptions.length} remaining workspace member${workspaceUserOptions.length === 1 ? '' : 's'}`}
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
+                    {selectedCredential.type === 'oauth' && (
+                      <Button
+                        variant='ghost'
+                        onClick={handleDisconnectSelectedCredential}
+                        disabled={disconnectOAuthService.isPending}
+                      >
+                        Disconnect account
+                      </Button>
                     )}
                     {selectedCredential.type !== 'oauth' && (
                       <Button
@@ -1089,7 +1136,7 @@ export function CredentialsManager() {
                   {activeMembers.map((member) => (
                     <div
                       key={member.id}
-                      className='flex items-center justify-between rounded-[8px] border border-[var(--border-1)] px-[10px] py-[8px]'
+                      className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px] rounded-[8px] border border-[var(--border-1)] px-[10px] py-[8px]'
                     >
                       <div className='min-w-0'>
                         <p className='truncate font-medium text-[12px] text-[var(--text-primary)]'>
@@ -1100,46 +1147,48 @@ export function CredentialsManager() {
                         </p>
                       </div>
 
-                      <div className='ml-[10px] flex items-center gap-[6px]'>
-                        {isSelectedAdmin ? (
-                          <>
-                            <Combobox
-                              options={roleOptions.map((option) => ({
-                                value: option.value,
-                                label: option.label,
-                              }))}
-                              value={
-                                roleOptions.find((option) => option.value === member.role)?.label ||
-                                ''
-                              }
-                              selectedValue={member.role}
-                              onChange={(value) =>
-                                handleChangeMemberRole(
-                                  member.userId,
-                                  value as WorkspaceCredentialRole
-                                )
-                              }
-                              placeholder='Role'
+                      {isSelectedAdmin ? (
+                        <>
+                          <Combobox
+                            options={roleOptions.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                            value={
+                              roleOptions.find((option) => option.value === member.role)?.label ||
+                              ''
+                            }
+                            selectedValue={member.role}
+                            onChange={(value) =>
+                              handleChangeMemberRole(
+                                member.userId,
+                                value as WorkspaceCredentialRole
+                              )
+                            }
+                            placeholder='Role'
+                            disabled={member.role === 'admin' && adminMemberCount <= 1}
+                            size='sm'
+                          />
+                          {selectedCredential.type !== 'env_workspace' ? (
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleRemoveMember(member.userId)}
                               disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              size='sm'
-                              className='min-w-[120px]'
-                            />
-                            {selectedCredential.type !== 'env_workspace' && (
-                              <Button
-                                variant='ghost'
-                                onClick={() => handleRemoveMember(member.userId)}
-                                disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              >
-                                Remove
-                              </Button>
-                            )}
-                          </>
-                        ) : (
+                            >
+                              Remove
+                            </Button>
+                          ) : (
+                            <div />
+                          )}
+                        </>
+                      ) : (
+                        <>
                           <Badge variant={member.role === 'admin' ? 'blue' : 'gray-secondary'}>
                             {member.role}
                           </Badge>
-                        )}
-                      </div>
+                          <div />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
