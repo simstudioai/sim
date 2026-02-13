@@ -1115,8 +1115,8 @@ export function prepareToolExecution(
   if (tool.paramsTransform) {
     try {
       toolParams = tool.paramsTransform(toolParams)
-    } catch {
-      // Expected when LLM fills required fields at runtime
+    } catch (err) {
+      logger.warn('paramsTransform failed, using raw params', { error: err })
     }
   }
 
