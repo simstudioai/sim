@@ -484,3 +484,68 @@ Jira Service Managementで承認リクエストを承認または却下
 
 - カテゴリ: `tools`
 - タイプ: `jira_service_management`
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `issueIdOrKey` | string | はい | 課題IDまたはキー（例：SD-123） |
+| `approvalId` | string | はい | 回答する承認ID |
+| `decision` | string | はい | 決定：「approve」または「decline」 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `issueIdOrKey` | string | 課題IDまたはキー |
+| `approvalId` | string | 承認ID |
+| `decision` | string | 行われた決定（approve/decline） |
+| `id` | string | レスポンスからの承認ID |
+| `name` | string | 承認の説明 |
+| `finalDecision` | string | 最終承認決定：pending、approved、またはdeclined |
+| `canAnswerApproval` | boolean | 現在のユーザーがまだ回答できるかどうか |
+| `approvers` | array | 決定を含む承認者の更新されたリスト |
+|   ↳ `approver` | object | 承認者のユーザー詳細 |
+|     ↳ `accountId` | string | 承認者のアカウントID |
+|     ↳ `displayName` | string | 承認者の表示名 |
+|     ↳ `emailAddress` | string | 承認者のメールアドレス |
+|     ↳ `active` | boolean | アカウントがアクティブかどうか |
+|   ↳ `approverDecision` | string | 個別の承認者の決定 |
+| `createdDate` | json | 承認の作成日 |
+| `completedDate` | json | 承認の完了日 |
+| `approval` | json | 承認オブジェクト |
+| `success` | boolean | 操作が成功したかどうか |
+
+### `jsm_get_request_type_fields`
+
+Jira Service Managementで特定のタイプのリクエストを作成するために必要なフィールドを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | Jiraドメイン（例：yourcompany.atlassian.net） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID |
+| `serviceDeskId` | string | はい | サービスデスクID（例：「1」、「2」） |
+| `requestTypeId` | string | はい | リクエストタイプID（例：「10」、「15」） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のタイムスタンプ |
+| `serviceDeskId` | string | サービスデスクID |
+| `requestTypeId` | string | リクエストタイプID |
+| `canAddRequestParticipants` | boolean | このタイプのリクエストに参加者を追加できるかどうか |
+| `canRaiseOnBehalfOf` | boolean | 他のユーザーの代理でリクエストを作成できるかどうか |
+| `requestTypeFields` | array | このリクエストタイプのフィールドリスト |
+|   ↳ `fieldId` | string | フィールド識別子（例：summary、description、customfield_10010） |
+|   ↳ `name` | string | 人間が読めるフィールド名 |
+|   ↳ `description` | string | フィールドのヘルプテキスト |
+|   ↳ `required` | boolean | フィールドが必須かどうか |
+|   ↳ `visible` | boolean | フィールドが表示されるかどうか |
+|   ↳ `validValues` | json | 選択フィールドの許可された値 |
+|   ↳ `presetValues` | json | 事前入力された値 |
+|   ↳ `defaultValues` | json | フィールドのデフォルト値 |
+|   ↳ `jiraSchema` | json | type、system、custom、customIdを含むJiraフィールドスキーマ |

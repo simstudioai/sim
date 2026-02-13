@@ -1,0 +1,134 @@
+---
+title: Agent-Fähigkeiten
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Agent-Fähigkeiten sind wiederverwendbare Anweisungspakete, die Ihren KI-Agenten spezialisierte Funktionen verleihen. Basierend auf dem offenen [Agent Skills](https://agentskills.io)-Format ermöglichen Fähigkeiten Ihnen, Fachwissen, Arbeitsabläufe und Best Practices zu erfassen, die Agenten bei Bedarf laden können.
+
+## Wie Fähigkeiten funktionieren
+
+Fähigkeiten nutzen **progressive Offenlegung**, um den Kontext des Agenten schlank zu halten:
+
+1. **Entdeckung** — Nur Fähigkeitsnamen und Beschreibungen werden in den System-Prompt des Agenten aufgenommen (~50-100 Token jeweils)
+2. **Aktivierung** — Wenn der Agent entscheidet, dass eine Fähigkeit relevant ist, ruft er das `load_skill`-Tool auf, um die vollständigen Anweisungen in den Kontext zu laden
+3. **Ausführung** — Der Agent folgt den geladenen Anweisungen, um die Aufgabe zu erledigen
+
+Das bedeutet, Sie können viele Fähigkeiten an einen Agenten anhängen, ohne dessen Kontextfenster aufzublähen. Der Agent lädt nur das, was er benötigt.
+
+## Fähigkeiten erstellen
+
+Gehen Sie zu **Einstellungen** und wählen Sie **Fähigkeiten** im Bereich Tools aus.
+
+![Manage Skills](/static/skills/manage-skills.png)
+
+Klicken Sie auf **Hinzufügen**, um eine neue Fähigkeit mit drei Feldern zu erstellen:
+
+| Feld | Beschreibung |
+|-------|-------------|
+| **Name** | Eine Kennung im Kebab-Case-Format (z. B. `sql-expert`, `code-reviewer`). Maximal 64 Zeichen. |
+| **Beschreibung** | Eine kurze Erklärung, was die Fähigkeit tut und wann sie verwendet werden soll. Dies liest der Agent, um zu entscheiden, ob er die Fähigkeit aktiviert. Maximal 1024 Zeichen. |
+| **Inhalt** | Die vollständigen Fähigkeitsanweisungen in Markdown. Diese werden geladen, wenn der Agent die Fähigkeit aktiviert. |
+
+<Callout type="info">
+  Die Beschreibung ist entscheidend — sie ist das Einzige, was der Agent sieht, bevor er entscheidet, eine Fähigkeit zu laden. Seien Sie spezifisch darüber, wann und warum die Fähigkeit verwendet werden sollte.
+</Callout>
+
+### Gute Skill-Inhalte schreiben
+
+Skill-Inhalte folgen denselben Konventionen wie [SKILL.md-Dateien](https://agentskills.io/specification):
+
+```markdown
+# SQL Expert
+
+## When to use this skill
+Use when the user asks you to write, optimize, or debug SQL queries.
+
+## Instructions
+1. Always ask which database engine (PostgreSQL, MySQL, SQLite)
+2. Use CTEs over subqueries for readability
+3. Add index recommendations when relevant
+4. Explain query plans for optimization requests
+
+## Common Patterns
+...
+```
+
+**Empfohlene Struktur:**
+- **Wann verwenden** — Spezifische Auslöser und Szenarien
+- **Anweisungen** — Schritt-für-Schritt-Anleitung mit nummerierten Listen
+- **Beispiele** — Eingabe-/Ausgabe-Beispiele, die das erwartete Verhalten zeigen
+- **Häufige Muster** — Wiederverwendbare Ansätze für häufige Aufgaben
+- **Sonderfälle** — Fallstricke und besondere Überlegungen
+
+Halten Sie Skills fokussiert und unter 500 Zeilen. Wenn ein Skill zu groß wird, teilen Sie ihn in mehrere spezialisierte Skills auf.
+
+## Skills zu einem Agenten hinzufügen
+
+Öffnen Sie einen beliebigen **Agent**-Block und finden Sie das **Skills**-Dropdown unterhalb des Tool-Bereichs. Wählen Sie die Skills aus, auf die der Agent Zugriff haben soll.
+
+![Skill hinzufügen](/static/skills/add-skill.png)
+
+Ausgewählte Skills erscheinen als Karten, die Sie anklicken können, um sie zu bearbeiten oder zu entfernen.
+
+### Was zur Laufzeit passiert
+
+Wenn der Workflow ausgeführt wird:
+
+1. Der System-Prompt des Agenten enthält einen `<available_skills>`-Abschnitt, der Name und Beschreibung jedes Skills auflistet
+2. Ein `load_skill`-Tool wird automatisch zu den verfügbaren Tools des Agenten hinzugefügt
+3. Wenn der Agent feststellt, dass ein Skill für die aktuelle Aufgabe relevant ist, ruft er `load_skill` mit dem Skill-Namen auf
+4. Der vollständige Skill-Inhalt wird als Tool-Antwort zurückgegeben und gibt dem Agenten detaillierte Anweisungen
+
+Dies funktioniert über alle unterstützten LLM-Anbieter hinweg — das `load_skill`-Tool verwendet standardmäßiges Tool-Calling, sodass keine anbieterspezifische Konfiguration erforderlich ist.
+
+## Häufige Anwendungsfälle
+
+Skills sind besonders wertvoll, wenn Agenten spezialisiertes Wissen oder mehrstufige Workflows benötigen:
+
+**Domain-Expertise**
+- `api-integration-expert` — Best Practices für den Aufruf spezifischer APIs (Authentifizierung, Rate Limiting, Fehlerbehandlung)
+- `data-transformation` — ETL-Muster, Datenbereinigung und Validierungsregeln
+- `code-reviewer` — Code-Review-Richtlinien spezifisch für die Standards Ihres Teams
+
+**Workflow-Vorlagen**
+- `bug-investigation` — Schritt-für-Schritt-Debugging-Methodik (reproduzieren → isolieren → testen → beheben)
+- `feature-implementation` — Entwicklungs-Workflow von Anforderungen bis zur Bereitstellung
+- `document-generator` — Vorlagen und Formatierungsregeln für technische Dokumentation
+
+**Unternehmensspezifisches Wissen**
+- `our-architecture` — Systemarchitekturdiagramme, Service-Abhängigkeiten und Bereitstellungsprozesse
+- `style-guide` — Markenrichtlinien, Schreibstil, UI/UX-Muster
+- `customer-onboarding` — Standardverfahren und häufige Kundenfragen
+
+**Wann Skills vs. Agentenanweisungen verwendet werden sollten:**
+- Verwenden Sie **Skills** für Wissen, das über mehrere Workflows hinweg gilt oder sich häufig ändert
+- Verwenden Sie **Agentenanweisungen** für aufgabenspezifischen Kontext, der für einen einzelnen Agenten einzigartig ist
+
+## Best Practices
+
+**Effektive Beschreibungen schreiben**
+- **Seien Sie spezifisch und keyword-reich** — Statt "Hilft bei SQL", schreiben Sie "Optimierte SQL-Abfragen für PostgreSQL, MySQL und SQLite schreiben, einschließlich Index-Empfehlungen und Abfrageplan-Analyse"
+- **Aktivierungstrigger einbeziehen** — Erwähnen Sie spezifische Wörter oder Phrasen, die den Skill auslösen sollten (z. B. "Verwenden, wenn der Benutzer PDFs, Formulare oder Dokumentenextraktion erwähnt")
+- **Unter 200 Wörtern halten** — Agenten scannen Beschreibungen schnell; jedes Wort zählt
+
+**Skill-Umfang und Organisation**
+- **Ein Skill pro Domäne** — Ein fokussierter `sql-expert`-Skill funktioniert besser als ein breiter `database-everything`-Skill
+- **Auf 5-10 Skills pro Agent begrenzen** — Mehr Skills = mehr Entscheidungsaufwand; klein anfangen und bei Bedarf erweitern
+- **Große Skills aufteilen** — Wenn ein Skill 500 Zeilen überschreitet, in fokussierte Sub-Skills aufteilen
+
+**Inhaltsstruktur**
+- **Markdown-Formatierung verwenden** — Überschriften, Listen und Code-Blöcke helfen Agenten beim Parsen und Befolgen von Anweisungen
+- **Beispiele bereitstellen** — Input/Output-Paare zeigen, damit Agenten das erwartete Verhalten verstehen
+- **Explizit über Sonderfälle sein** — Gehen Sie nicht davon aus, dass Agenten spezielle Behandlung ableiten werden
+
+**Testen und Iteration**
+- **Aktivierung testen** — Führen Sie Ihren Workflow aus und überprüfen Sie, ob der Agent die Skill lädt, wenn erwartet
+- **Auf Fehlalarme prüfen** — Stellen Sie sicher, dass Skills nicht aktiviert werden, wenn sie es nicht sollten
+- **Beschreibungen verfeinern** — Wenn eine Skill nicht geladen wird, wenn sie benötigt wird, fügen Sie der Beschreibung weitere Schlüsselwörter hinzu
+
+## Mehr erfahren
+
+- [Agent Skills Spezifikation](https://agentskills.io) — Das offene Format für portable Agent-Skills
+- [Beispiel-Skills](https://github.com/anthropics/skills) — Community-Skill-Beispiele durchsuchen
+- [Best Practices](https://agentskills.io/what-are-skills) — Effektive Skills schreiben

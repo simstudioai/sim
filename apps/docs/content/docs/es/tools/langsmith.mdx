@@ -1,0 +1,89 @@
+---
+title: LangSmith
+description: Reenvía ejecuciones de flujos de trabajo a LangSmith para observabilidad
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Desbloquea visibilidad profunda y comprensión de tus flujos de trabajo de IA con [LangSmith](https://www.langchain.com/langsmith): una plataforma potente para rastrear, depurar y monitorizar aplicaciones y automatizaciones impulsadas por LLM. Integra LangSmith en tus procesos para capturar trazas de ejecución detalladas, registrar datos de entrada/salida, adjuntar metadatos y optimizar tus flujos de trabajo mediante observabilidad basada en datos.
+
+Con la integración de LangSmith, puedes:
+
+- **Rastrear y depurar ejecuciones**: reenvía ejecuciones de flujos de trabajo, herramientas o modelos a LangSmith, registra detalles de ejecución jerárquicos e identifica cuellos de botella o fallos rápidamente.
+- **Adjuntar metadatos enriquecidos**: enriquece tus trazas registrando entradas, salidas, etiquetas, metadatos personalizados, razones de fallo y más para obtener información y análisis en profundidad.
+- **Monitorizar el rendimiento del flujo de trabajo**: visualiza ejecuciones, monitoriza tasas de error, duraciones y métricas de éxito a lo largo del tiempo para mejorar la fiabilidad y eficiencia.
+- **Colaborar y auditar**: habilita la depuración basada en equipo y rastrea cambios, permitiendo auditorías transparentes e iteración rápida en flujos de trabajo de LLM encadenados.
+- **Automatizar la observabilidad**: conecta sin problemas las trazas de LangSmith a tus automatizaciones de flujos de trabajo para una monitorización continua y sin esfuerzo, sin instrumentación manual.
+
+LangSmith empodera a ingenieros, científicos de datos y equipos de producto para iterar más rápido, detectar problemas antes y construir aplicaciones basadas en LLM más robustas, ya sea que estés orquestando agentes, cadenas o flujos de trabajo de extremo a extremo.
+
+Impulsa mejor observabilidad, información procesable y mayor calidad de producto integrando LangSmith en tus procesos automatizados hoy.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Envía datos de ejecución a LangSmith para rastrear ejecuciones, adjuntar metadatos y monitorizar el rendimiento del flujo de trabajo.
+
+## Herramientas
+
+### `langsmith_create_run`
+
+Reenvía una única ejecución a LangSmith para su ingesta.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de LangSmith |
+| `id` | string | No | Identificador único de ejecución |
+| `name` | string | Sí | Nombre de ejecución |
+| `run_type` | string | Sí | Tipo de ejecución \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `start_time` | string | No | Hora de inicio de ejecución en formato ISO-8601 |
+| `end_time` | string | No | Hora de finalización de ejecución en formato ISO-8601 |
+| `inputs` | json | No | Carga útil de entradas |
+| `run_outputs` | json | No | Carga útil de salidas |
+| `extra` | json | No | Metadatos adicionales \(extra\) |
+| `tags` | json | No | Array de cadenas de etiquetas |
+| `parent_run_id` | string | No | ID de ejecución padre |
+| `trace_id` | string | No | ID de traza |
+| `session_id` | string | No | ID de sesión |
+| `session_name` | string | No | Nombre de sesión |
+| `status` | string | No | Estado de ejecución |
+| `error` | string | No | Detalles del error |
+| `dotted_order` | string | No | Cadena de orden con puntos |
+| `events` | json | No | Array de eventos estructurados |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Si la ejecución fue aceptada para ingesta |
+| `runId` | string | Identificador de ejecución proporcionado en la solicitud |
+| `message` | string | Mensaje de respuesta de LangSmith |
+
+### `langsmith_create_runs_batch`
+
+Reenvía múltiples ejecuciones a LangSmith en un único lote.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de LangSmith |
+| `post` | json | No | Array de nuevas ejecuciones para ingerir |
+| `patch` | json | No | Array de ejecuciones para actualizar/parchear |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Si el lote fue aceptado para ingesta |
+| `runIds` | array | Identificadores de ejecución proporcionados en la solicitud |
+| `message` | string | Mensaje de respuesta de LangSmith |
+| `messages` | array | Mensajes de respuesta por ejecución, cuando se proporcionan |

@@ -353,3 +353,512 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`confluence`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `blogPostId` | string | 是 | 要检索的博客文章 ID |
+| `bodyFormat` | string | 否 | 博客正文内容格式：storage、atlas_doc_format 或 view |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `id` | string | 博客文章 ID |
+| `title` | string | 博客文章标题 |
+| `status` | string | 博客文章状态 |
+| `spaceId` | string | 空间 ID |
+| `authorId` | string | 作者账号 ID |
+| `createdAt` | string | 创建时间戳 |
+| `version` | object | 版本信息 |
+|   ↳ `number` | number | 版本号 |
+|   ↳ `message` | string | 版本说明 |
+|   ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|   ↳ `authorId` | string | 版本作者账号 ID |
+|   ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+| `body` | object | 博客正文内容（按请求格式） |
+|   ↳ `storage` | object | 存储格式正文（Confluence 标记） |
+|     ↳ `value` | string | 指定格式下的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+|   ↳ `view` | object | 视图格式正文（渲染 HTML） |
+|     ↳ `value` | string | 指定格式下的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+|   ↳ `atlas_doc_format` | object | Atlassian 文档格式（ADF）正文 |
+|     ↳ `value` | string | 指定格式下的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+| `webUrl` | string | 博客文章查看链接 |
+
+### `confluence_create_blogpost`
+
+在 Confluence 空间中创建新的博客文章。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `spaceId` | string | 是 | 要创建博客文章的空间 ID |
+| `title` | string | 是 | 博客文章标题 |
+| `content` | string | 是 | 博客文章内容（Confluence 存储格式 HTML） |
+| `status` | string | 否 | 博客文章状态：current（默认）或 draft |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `id` | string | 创建的博客文章 ID |
+| `title` | string | 博客文章标题 |
+| `status` | string | 博客文章状态 |
+| `spaceId` | string | 空间 ID |
+| `authorId` | string | 作者账号 ID |
+| `body` | object | 博客文章正文内容 |
+|   ↳ `storage` | object | 存储格式正文（Confluence 标记） |
+|     ↳ `value` | string | 指定格式的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+|   ↳ `view` | object | 查看格式正文（渲染 HTML） |
+|     ↳ `value` | string | 指定格式的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+|   ↳ `atlas_doc_format` | object | Atlassian 文档格式（ADF）正文 |
+|     ↳ `value` | string | 指定格式的内容值 |
+|     ↳ `representation` | string | 内容表示类型 |
+| `version` | object | 博客文章版本信息 |
+|   ↳ `number` | number | 版本号 |
+|   ↳ `message` | string | 版本说明 |
+|   ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|   ↳ `authorId` | string | 版本作者账号 ID |
+|   ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+| `webUrl` | string | 博客文章查看链接 |
+
+### `confluence_list_blogposts_in_space`
+
+列出指定 Confluence 空间内的所有博客文章。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `spaceId` | string | 是 | 要列出博客文章的 Confluence 空间 ID |
+| `limit` | number | 否 | 返回的最大博客文章数（默认值：25，最大值：250） |
+| `status` | string | 否 | 按状态筛选：current、archived、trashed 或 draft |
+| `bodyFormat` | string | 否 | 博客正文格式：storage、atlas_doc_format 或 view |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将根据域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `blogPosts` | array | 空间内的博客文章数组 |
+|   ↳ `id` | string | 博客文章 ID |
+|   ↳ `title` | string | 博客文章标题 |
+|   ↳ `status` | string | 博客文章状态 |
+|   ↳ `spaceId` | string | 空间 ID |
+|   ↳ `authorId` | string | 作者账号 ID |
+|   ↳ `createdAt` | string | 创建时间戳 |
+|   ↳ `version` | object | 版本信息 |
+|     ↳ `number` | number | 版本号 |
+|     ↳ `message` | string | 版本说明 |
+|     ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|     ↳ `authorId` | string | 版本作者账号 ID |
+|     ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+|   ↳ `body` | object | 博客正文内容 |
+|     ↳ `storage` | object | 存储格式正文（Confluence 标记） |
+|       ↳ `value` | string | 指定格式下的内容值 |
+|       ↳ `representation` | string | 内容表示类型 |
+|     ↳ `view` | object | view 格式正文（渲染后的 HTML） |
+|       ↳ `value` | string | 指定格式下的内容值 |
+|       ↳ `representation` | string | 内容表示类型 |
+|     ↳ `atlas_doc_format` | object | Atlassian 文档格式（ADF）正文 |
+|       ↳ `value` | string | 指定格式下的内容值 |
+|       ↳ `representation` | string | 内容表示类型 |
+|   ↳ `webUrl` | string | 博客文章的查看 URL |
+| `nextCursor` | string | 用于获取下一页结果的游标 |
+
+### `confluence_create_comment`
+
+为 Confluence 页面添加评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要评论的 Confluence 页面 ID |
+| `comment` | string | 是 | 以 Confluence 存储格式编写的评论内容 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 创建时间戳 |
+| `commentId` | string | 创建的评论 ID |
+| `pageId` | string | 页面 ID |
+
+### `confluence_list_comments`
+
+列出 Confluence 页面上的所有评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要列出评论的 Confluence 页面 ID |
+| `limit` | number | 否 | 返回的最大评论数（默认值：25） |
+| `bodyFormat` | string | 否 | 评论正文的格式：storage、atlas_doc_format、view 或 export_view（默认：storage） |
+| `cursor` | string | 否 | 上一页响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `comments` | array | Confluence 评论数组 |
+|   ↳ `id` | string | 评论唯一标识符 |
+|   ↳ `status` | string | 评论状态（如 current） |
+|   ↳ `title` | string | 评论标题 |
+|   ↳ `pageId` | string | 评论所属页面的 ID |
+|   ↳ `blogPostId` | string | 评论所属博客文章的 ID |
+|   ↳ `parentCommentId` | string | 父评论的 ID |
+|   ↳ `body` | object | 评论正文内容 |
+|     ↳ `value` | string | 评论正文内容 |
+|     ↳ `representation` | string | 内容表示格式（如 storage、view） |
+|   ↳ `createdAt` | string | 评论创建时的 ISO 8601 时间戳 |
+|   ↳ `authorId` | string | 评论作者的账号 ID |
+|   ↳ `version` | object | 评论版本信息 |
+|     ↳ `number` | number | 版本号 |
+|     ↳ `message` | string | 版本说明 |
+|     ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|     ↳ `authorId` | string | 版本作者的账号 ID |
+|     ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+| `nextCursor` | string | 用于获取下一页结果的游标 |
+
+### `confluence_update_comment`
+
+更新 Confluence 页面上的现有评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `commentId` | string | 是 | 要更新的 Confluence 评论 ID |
+| `comment` | string | 是 | 更新后的评论文本（以 Confluence 存储格式） |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 更新的时间戳 |
+| `commentId` | string | 更新的评论 ID |
+| `updated` | boolean | 更新状态 |
+
+### `confluence_delete_comment`
+
+从 Confluence 页面删除评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `commentId` | string | 是 | 要删除的 Confluence 评论 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 删除的时间戳 |
+| `commentId` | string | 删除的评论 ID |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_upload_attachment`
+
+将文件作为附件上传到 Confluence 页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要附加文件的 Confluence 页面 ID |
+| `file` | file | 是 | 要作为附件上传的文件 |
+| `fileName` | string | 否 | 附件的可选自定义文件名 |
+| `comment` | string | 否 | 附件的可选评论 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 上传时间戳 |
+| `attachmentId` | string | 上传的附件 ID |
+| `title` | string | 附件文件名 |
+| `fileSize` | number | 文件大小（字节） |
+| `mediaType` | string | 附件的 MIME 类型 |
+| `downloadUrl` | string | 附件下载 URL |
+| `pageId` | string | 添加附件的页面 ID |
+
+### `confluence_list_attachments`
+
+列出 Confluence 页面上的所有附件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要列出附件的 Confluence 页面 ID |
+| `limit` | number | 否 | 返回的最大附件数量（默认值：50，最大值：250） |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `attachments` | array | Confluence 附件数组 |
+|   ↳ `id` | string | 附件唯一标识符（以 "att" 为前缀） |
+|   ↳ `title` | string | 附件文件名 |
+|   ↳ `status` | string | 附件状态（如 current、archived、trashed） |
+|   ↳ `mediaType` | string | 附件的 MIME 类型 |
+|   ↳ `fileSize` | number | 文件大小（字节） |
+|   ↳ `downloadUrl` | string | 附件下载 URL |
+|   ↳ `webuiUrl` | string | 在 Confluence UI 中查看附件的 URL |
+|   ↳ `pageId` | string | 附件所属页面的 ID |
+|   ↳ `blogPostId` | string | 附件所属博客文章的 ID |
+|   ↳ `comment` | string | 附件的评论/描述 |
+|   ↳ `version` | object | 附件版本信息 |
+|     ↳ `number` | number | 版本号 |
+|     ↳ `message` | string | 版本说明 |
+|     ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|     ↳ `authorId` | string | 版本作者的账号 ID |
+|     ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+| `nextCursor` | string | 用于获取下一页结果的游标 |
+
+### `confluence_delete_attachment`
+
+从 Confluence 页面删除附件（将其移至回收站）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `attachmentId` | string | 是 | 要删除的 Confluence 附件 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 删除的时间戳 |
+| `attachmentId` | string | 已删除的附件 ID |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_list_labels`
+
+列出 Confluence 页面上的所有标签。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名 \(例如：yourcompany.atlassian.net\) |
+| `pageId` | string | 是 | 要列出标签的 Confluence 页面 ID |
+| `limit` | number | 否 | 返回的最大标签数量 \(默认值：25，最大值：250\) |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 检索的时间戳 |
+| `labels` | array | 页面上的标签数组 |
+|   ↳ `id` | string | 标签唯一标识符 |
+|   ↳ `name` | string | 标签名称 |
+|   ↳ `prefix` | string | 标签前缀/类型 \(例如：global、my、team\) |
+| `nextCursor` | string | 用于获取下一页结果的游标 |
+
+### `confluence_add_label`
+
+为 Confluence 页面添加标签，以便进行组织和分类。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要添加标签的 Confluence 页面 ID |
+| `labelName` | string | 是 | 要添加的标签名称 |
+| `prefix` | string | 否 | 标签前缀：global（默认）、my、team 或 system |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `pageId` | string | 添加标签的页面 ID |
+| `labelName` | string | 添加的标签名称 |
+| `labelId` | string | 添加的标签 ID |
+
+### `confluence_delete_label`
+
+从 Confluence 页面移除标签。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `pageId` | string | 是 | 要移除标签的 Confluence 页面 ID |
+| `labelName` | string | 是 | 要移除的标签名称 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `pageId` | string | 标签被移除的页面 ID |
+| `labelName` | string | 被移除标签的名称 |
+| `deleted` | boolean | 删除状态 |
+
+### `confluence_get_pages_by_label`
+
+检索所有已应用特定标签的页面。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `labelId` | string | 是 | 要获取页面的标签 ID |
+| `limit` | number | 否 | 返回的最大页面数（默认：50，最大：250） |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将通过域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `labelId` | string | 标签 ID |
+| `pages` | array | 具有该标签的页面数组 |
+|   ↳ `id` | string | 唯一页面标识符 |
+|   ↳ `title` | string | 页面标题 |
+|   ↳ `status` | string | 页面状态（如 current、archived、trashed、draft） |
+|   ↳ `spaceId` | string | 包含该页面的空间 ID |
+|   ↳ `parentId` | string | 父页面 ID（顶级页面为 null） |
+|   ↳ `authorId` | string | 页面作者的账号 ID |
+|   ↳ `createdAt` | string | 页面创建时的 ISO 8601 时间戳 |
+|   ↳ `version` | object | 页面版本信息 |
+|     ↳ `number` | number | 版本号 |
+|     ↳ `message` | string | 版本说明 |
+|     ↳ `minorEdit` | boolean | 是否为小幅编辑 |
+|     ↳ `authorId` | string | 版本作者账号 ID |
+|     ↳ `createdAt` | string | 版本创建的 ISO 8601 时间戳 |
+| `nextCursor` | string | 获取下一页结果的游标 |
+
+### `confluence_list_space_labels`
+
+列出与某个 Confluence 空间关联的所有标签。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `spaceId` | string | 是 | 要列出标签的 Confluence 空间 ID |
+| `limit` | number | 否 | 返回的最大标签数（默认值：25，最大值：250） |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `spaceId` | string | 空间 ID |
+| `labels` | array | 空间上的标签数组 |
+|   ↳ `id` | string | 唯一标签标识符 |
+|   ↳ `name` | string | 标签名称 |
+|   ↳ `prefix` | string | 标签前缀/类型（例如：global、my、team） |
+| `nextCursor` | string | 获取下一页结果的游标 |
+
+### `confluence_get_space`
+
+获取指定 Confluence 空间的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `spaceId` | string | 是 | 要检索的 Confluence 空间 ID |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `spaceId` | string | 空间 ID |
+| `name` | string | 空间名称 |
+| `key` | string | 空间键 |
+| `type` | string | 空间类型（global，personal） |
+| `status` | string | 空间状态（current，archived） |
+| `url` | string | 在 Confluence 中查看空间的 URL |
+| `authorId` | string | 空间创建者的账号 ID |
+| `createdAt` | string | 空间创建时的 ISO 8601 时间戳 |
+| `homepageId` | string | 空间首页的 ID |
+| `description` | object | 空间描述内容 |
+|   ↳ `value` | string | 描述文本内容 |
+|   ↳ `representation` | string | 内容表示格式（如 plain，view，storage） |
+
+### `confluence_list_spaces`
+
+列出用户可访问的所有 Confluence 空间。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 您的 Confluence 域名（例如：yourcompany.atlassian.net） |
+| `limit` | number | 否 | 返回的最大空间数量（默认：25，最大：250） |
+| `cursor` | string | 否 | 上一次响应的分页游标 |
+| `cloudId` | string | 否 | 实例的 Confluence Cloud ID。如果未提供，将使用域名进行获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `spaces` | array | Confluence 空间数组 |
+|   ↳ `id` | string | 唯一空间标识符 |
+|   ↳ `key` | string | 空间键（用于 URL 的简短标识符） |
+|   ↳ `name` | string | 空间名称 |
+|   ↳ `type` | string | 空间类型（如 global、personal） |
+|   ↳ `status` | string | 空间状态（如 current、archived） |
+|   ↳ `authorId` | string | 空间创建者的账号 ID |
+|   ↳ `createdAt` | string | 空间创建时的 ISO 8601 时间戳 |
+|   ↳ `homepageId` | string | 空间首页的 ID |
+|   ↳ `description` | object | 空间描述 |
+|     ↳ `value` | string | 描述文本内容 |
+|     ↳ `representation` | string | 内容表示格式（如 plain、view、storage） |
+| `nextCursor` | string | 用于获取下一页结果的游标 |

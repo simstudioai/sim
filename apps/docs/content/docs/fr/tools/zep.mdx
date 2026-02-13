@@ -212,3 +212,23 @@ Lister tous les fils de conversation pour un utilisateur spécifique
 
 - Catégorie : `tools`
 - Type : `zep`
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `userId` | string | Oui | ID utilisateur pour lequel récupérer les fils (par ex., "user_123") |
+| `limit` | number | Non | Nombre maximum de fils à retourner (par ex., 10, 25, 50) |
+| `apiKey` | string | Oui | Votre clé API Zep |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Tableau d'objets fil |
+|   ↳ `threadId` | string | Identifiant du fil |
+|   ↳ `userId` | string | ID utilisateur associé |
+|   ↳ `uuid` | string | UUID interne |
+|   ↳ `createdAt` | string | Horodatage de création (ISO 8601) |
+|   ↳ `updatedAt` | string | Horodatage de dernière mise à jour (ISO 8601) |
+|   ↳ `projectUuid` | string | UUID du projet |
+|   ↳ `metadata` | object | Métadonnées personnalisées (paires clé-valeur dynamiques) |
+| `totalCount` | number | Nombre total d'éléments disponibles |

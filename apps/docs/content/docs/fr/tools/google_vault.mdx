@@ -159,3 +159,17 @@ Lister les affaires, ou obtenir une affaire spécifique si matterId est fourni
 
 - Catégorie : `tools`
 - Type : `google_vault`
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Non | Nombre d'affaires à retourner par page |
+| `pageToken` | string | Non | Jeton pour la pagination |
+| `matterId` | string | Non | ID d'affaire optionnel pour récupérer une affaire spécifique (par ex., "12345678901234567890") |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `matters` | json | Tableau d'objets affaire |
+| `matter` | json | Objet affaire unique (lorsque matterId est fourni) |
+| `nextPageToken` | string | Jeton pour récupérer la page suivante de résultats |

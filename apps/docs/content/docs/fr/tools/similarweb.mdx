@@ -1,0 +1,178 @@
+---
+title: Similarweb
+description: Données de trafic et d'analyse de sites web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="similarweb"
+  color="#000922"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Similarweb](https://www.similarweb.com/) est une plateforme leader en analyse web qui fournit des données approfondies sur le trafic et l'engagement pour des millions de sites web. Similarweb vous offre des informations sur les visites de sites web, les sources de trafic, le comportement de l'audience et les références concurrentielles.
+
+Avec Similarweb dans Sim, vos agents peuvent :
+
+- **Analyser le trafic de sites web** : récupérer des métriques clés telles que les visites mensuelles, la durée moyenne, les taux de rebond et les principaux pays.
+- **Comprendre l'engagement de l'audience** : obtenir des informations sur la façon dont les utilisateurs interagissent avec les sites web, y compris les pages par visite et la durée d'engagement.
+- **Suivre les classements et les performances** : accéder aux classements mondiaux, par pays et par catégorie pour comparer les sites avec les concurrents.
+- **Découvrir les sources de trafic** : décomposer le trafic par canaux comme le direct, la recherche, les réseaux sociaux, les références et plus encore.
+
+Utilisez l'intégration Similarweb de Sim pour automatiser la surveillance des concurrents, suivre les performances de votre site ou faire ressortir des études de marché exploitables, le tout intégré directement dans vos flux de travail et automatisations. Donnez à vos agents les moyens d'accéder et d'utiliser facilement et de manière programmatique des données d'analyse web fiables.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Accédez à des analyses complètes de sites web incluant les estimations de trafic, les métriques d'engagement, les classements et les sources de trafic en utilisant l'API Similarweb.
+
+## Outils
+
+### `similarweb_website_overview`
+
+Obtenez des analyses complètes de sites web incluant le trafic, les classements, l'engagement et les sources de trafic
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API SimilarWeb |
+| `domain` | string | Oui | Domaine du site web à analyser \(par exemple, "example.com" sans www ni protocole\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `siteName` | string | Nom du site web |
+| `description` | string | Description du site web |
+| `globalRank` | number | Classement du trafic mondial |
+| `countryRank` | number | Classement du trafic par pays |
+| `categoryRank` | number | Classement du trafic par catégorie |
+| `category` | string | Catégorie du site web |
+| `monthlyVisits` | number | Visites mensuelles estimées |
+| `engagementVisitDuration` | number | Durée moyenne de visite en secondes |
+| `engagementPagesPerVisit` | number | Nombre moyen de pages par visite |
+| `engagementBounceRate` | number | Taux de rebond \(0-1\) |
+| `topCountries` | array | Principaux pays par part de trafic |
+|   ↳ `country` | string | Code pays |
+|   ↳ `share` | number | Part de trafic \(0-1\) |
+| `trafficSources` | json | Répartition des sources de trafic |
+|   ↳ `direct` | number | Part de trafic direct |
+|   ↳ `referrals` | number | Part de trafic par référence |
+|   ↳ `search` | number | Part de trafic de recherche |
+|   ↳ `social` | number | Part de trafic social |
+|   ↳ `mail` | number | Part de trafic par e-mail |
+|   ↳ `paidReferrals` | number | Part de trafic par référence payante |
+
+### `similarweb_traffic_visits`
+
+Obtenir le nombre total de visites du site web au fil du temps (ordinateur et mobile combinés)
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API SimilarWeb |
+| `domain` | string | Oui | Domaine du site web à analyser \(par exemple, "example.com" sans www ni protocole\) |
+| `country` | string | Oui | Code pays ISO à 2 lettres \(par exemple, "us", "gb", "de"\) ou "world" pour les données mondiales |
+| `granularity` | string | Oui | Granularité des données : daily, weekly ou monthly |
+| `startDate` | string | Non | Date de début au format YYYY-MM \(par exemple, "2024-01"\) |
+| `endDate` | string | Non | Date de fin au format YYYY-MM \(par exemple, "2024-12"\) |
+| `mainDomainOnly` | boolean | Non | Exclure les sous-domaines des résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Domaine analysé |
+| `country` | string | Filtre de pays appliqué |
+| `granularity` | string | Granularité des données |
+| `lastUpdated` | string | Horodatage de la dernière mise à jour des données |
+| `visits` | array | Données de visites dans le temps |
+|   ↳ `date` | string | Date \(AAAA-MM-JJ\) |
+|   ↳ `visits` | number | Nombre de visites |
+
+### `similarweb_bounce_rate`
+
+Obtenir le taux de rebond du site web dans le temps (ordinateur et mobile combinés)
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API SimilarWeb |
+| `domain` | string | Oui | Domaine du site web à analyser \(par ex., "example.com" sans www ni protocole\) |
+| `country` | string | Oui | Code pays ISO à 2 lettres \(par ex., "us", "gb", "de"\) ou "world" pour les données mondiales |
+| `granularity` | string | Oui | Granularité des données : daily, weekly ou monthly |
+| `startDate` | string | Non | Date de début au format AAAA-MM \(par ex., "2024-01"\) |
+| `endDate` | string | Non | Date de fin au format AAAA-MM \(par ex., "2024-12"\) |
+| `mainDomainOnly` | boolean | Non | Exclure les sous-domaines des résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Domaine analysé |
+| `country` | string | Filtre de pays appliqué |
+| `granularity` | string | Granularité des données |
+| `lastUpdated` | string | Horodatage de la dernière mise à jour des données |
+| `bounceRate` | array | Données de taux de rebond dans le temps |
+|   ↳ `date` | string | Date \(AAAA-MM-JJ\) |
+|   ↳ `bounceRate` | number | Taux de rebond \(0-1\) |
+
+### `similarweb_pages_per_visit`
+
+Obtenir le nombre moyen de pages par visite au fil du temps (ordinateur et mobile combinés)
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API SimilarWeb |
+| `domain` | string | Oui | Domaine du site web à analyser (par ex., "example.com" sans www ni protocole) |
+| `country` | string | Oui | Code pays ISO à 2 lettres (par ex., "us", "gb", "de") ou "world" pour les données mondiales |
+| `granularity` | string | Oui | Granularité des données : daily, weekly ou monthly |
+| `startDate` | string | Non | Date de début au format YYYY-MM (par ex., "2024-01") |
+| `endDate` | string | Non | Date de fin au format YYYY-MM (par ex., "2024-12") |
+| `mainDomainOnly` | boolean | Non | Exclure les sous-domaines des résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Domaine analysé |
+| `country` | string | Filtre pays appliqué |
+| `granularity` | string | Granularité des données |
+| `lastUpdated` | string | Horodatage de la dernière mise à jour des données |
+| `pagesPerVisit` | array | Données de pages par visite au fil du temps |
+|   ↳ `date` | string | Date (YYYY-MM-DD) |
+|   ↳ `pagesPerVisit` | number | Nombre moyen de pages par visite |
+
+### `similarweb_visit_duration`
+
+Obtenir la durée moyenne des visites sur ordinateur au fil du temps (en secondes)
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API SimilarWeb |
+| `domain` | string | Oui | Domaine du site web à analyser (par ex., "example.com" sans www ni protocole) |
+| `country` | string | Oui | Code pays ISO à 2 lettres (par ex., "us", "gb", "de") ou "world" pour les données mondiales |
+| `granularity` | string | Oui | Granularité des données : daily, weekly ou monthly |
+| `startDate` | string | Non | Date de début au format YYYY-MM (par ex., "2024-01") |
+| `endDate` | string | Non | Date de fin au format YYYY-MM (par ex., "2024-12") |
+| `mainDomainOnly` | boolean | Non | Exclure les sous-domaines des résultats |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | Domaine analysé |
+| `country` | string | Filtre de pays appliqué |
+| `granularity` | string | Granularité des données |
+| `lastUpdated` | string | Horodatage de la dernière mise à jour des données |
+| `averageVisitDuration` | array | Données de durée de visite sur ordinateur au fil du temps |
+|   ↳ `date` | string | Date \(AAAA-MM-JJ\) |
+|   ↳ `durationSeconds` | number | Durée moyenne de visite en secondes |

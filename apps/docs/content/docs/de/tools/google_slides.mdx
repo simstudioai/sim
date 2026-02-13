@@ -178,3 +178,171 @@ Ein Vorschaubild einer bestimmten Folie in einer Google Slides-Präsentation gen
 
 - Kategorie: `tools`
 - Typ: `google_slides`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `pageObjectId` | string | Ja | Die Objekt-ID der Folie/Seite, die abgerufen werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `objectId` | string | Die Objekt-ID der Seite |
+| `pageType` | string | Der Typ der Seite \(SLIDE, MASTER, LAYOUT, NOTES, NOTES_MASTER\) |
+| `pageElements` | array | Array von Seitenelementen \(Formen, Bilder, Tabellen usw.\) auf dieser Seite |
+| `slideProperties` | object | Eigenschaften, die spezifisch für Folien sind \(Layout, Master, Notizen\) |
+|   ↳ `layoutObjectId` | string | Objekt-ID des Layouts, auf dem diese Folie basiert |
+|   ↳ `masterObjectId` | string | Objekt-ID des Masters, auf dem diese Folie basiert |
+|   ↳ `notesPage` | json | Die Notizenseite, die mit der Folie verknüpft ist |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und URL |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_delete_object`
+
+Löschen Sie ein Seitenelement (Form, Bild, Tabelle usw.) oder eine gesamte Folie aus einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Präsentation |
+| `objectId` | string | Ja | Die Objekt-ID des Elements oder der Folie, das/die gelöscht werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob das Objekt erfolgreich gelöscht wurde |
+| `objectId` | string | Die Objekt-ID, die gelöscht wurde |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und URL |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_duplicate_object`
+
+Dupliziert ein Objekt (Folie, Form, Bild, Tabelle usw.) in einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Google Slides-Präsentations-ID |
+| `objectId` | string | Ja | Die Objekt-ID des zu duplizierenden Elements oder der Folie |
+| `objectIds` | string | Nein | Optionales JSON-Objekt, das Quellobjekt-IDs (innerhalb der zu duplizierenden Folie) neuen Objekt-IDs für die Duplikate zuordnet. Format: \{"sourceId1":"newId1","sourceId2":"newId2"\} |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `duplicatedObjectId` | string | Die Objekt-ID des neu erstellten Duplikats |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und Quellobjekt-ID |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `sourceObjectId` | string | Die ursprüngliche Objekt-ID, die dupliziert wurde |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_update_slides_position`
+
+Verschiebt eine oder mehrere Folien an eine neue Position in einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Google Slides-Präsentation |
+| `slideObjectIds` | string | Ja | Kommagetrennte Liste von Folienobjekt-IDs, die verschoben werden sollen. Die Folien behalten ihre relative Reihenfolge bei. |
+| `insertionIndex` | number | Ja | Der nullbasierte Index, an den die Folien verschoben werden sollen. Alle Folien mit Indizes größer oder gleich diesem werden nach rechts verschoben. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Ob die Folien erfolgreich verschoben wurden |
+| `slideObjectIds` | array | Die Folienobjekt-IDs, die verschoben wurden |
+| `insertionIndex` | number | Der Index, an den die Folien verschoben wurden |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und URL |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_create_table`
+
+Erstellt eine neue Tabelle auf einer Folie in einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Google Slides-Präsentation |
+| `pageObjectId` | string | Ja | Die Objekt-ID der Folie/Seite, zu der die Tabelle hinzugefügt werden soll |
+| `rows` | number | Ja | Anzahl der Zeilen in der Tabelle \(mindestens 1\) |
+| `columns` | number | Ja | Anzahl der Spalten in der Tabelle \(mindestens 1\) |
+| `width` | number | Nein | Breite der Tabelle in Punkten \(Standard: 400\) |
+| `height` | number | Nein | Höhe der Tabelle in Punkten \(Standard: 200\) |
+| `positionX` | number | Nein | X-Position vom linken Rand in Punkten \(Standard: 100\) |
+| `positionY` | number | Nein | Y-Position vom oberen Rand in Punkten \(Standard: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `tableId` | string | Die Objekt-ID der neu erstellten Tabelle |
+| `rows` | number | Anzahl der Zeilen in der Tabelle |
+| `columns` | number | Anzahl der Spalten in der Tabelle |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und Seitenobjekt-ID |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `pageObjectId` | string | Die Seitenobjekt-ID, auf der die Tabelle erstellt wurde |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_create_shape`
+
+Erstellt eine Form (Rechteck, Ellipse, Textfeld, Pfeil usw.) auf einer Folie in einer Google Slides-Präsentation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Die ID der Google Slides-Präsentation |
+| `pageObjectId` | string | Ja | Die Objekt-ID der Folie/Seite, zu der die Form hinzugefügt werden soll |
+| `shapeType` | string | Ja | Der Typ der zu erstellenden Form. Gängige Typen: TEXT_BOX, RECTANGLE, ROUND_RECTANGLE, ELLIPSE, TRIANGLE, DIAMOND, STAR_5, ARROW_EAST, HEART, CLOUD |
+| `width` | number | Nein | Breite der Form in Punkten \(Standard: 200\) |
+| `height` | number | Nein | Höhe der Form in Punkten \(Standard: 100\) |
+| `positionX` | number | Nein | X-Position vom linken Rand in Punkten \(Standard: 100\) |
+| `positionY` | number | Nein | Y-Position vom oberen Rand in Punkten \(Standard: 100\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `shapeId` | string | Die Objekt-ID der neu erstellten Form |
+| `shapeType` | string | Der Typ der Form, die erstellt wurde |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und Seitenobjekt-ID |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `pageObjectId` | string | Die Seitenobjekt-ID, auf der die Form erstellt wurde |
+|   ↳ `url` | string | URL zur Präsentation |
+
+### `google_slides_insert_text`
+
+Fügt Text in eine Form oder Tabellenzelle in einer Google Slides-Präsentation ein. Verwenden Sie dies, um Text zu Textfeldern, Formen oder Tabellenzellen hinzuzufügen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Ja | Google Slides-Präsentations-ID |
+| `objectId` | string | Ja | Die Objekt-ID der Form oder Tabellenzelle, in die Text eingefügt werden soll. Verwenden Sie für Tabellenzellen die Zellobjekt-ID. |
+| `text` | string | Ja | Der einzufügende Text |
+| `insertionIndex` | number | Nein | Der nullbasierte Index, an dem der Text eingefügt werden soll. Wenn nicht angegeben, wird der Text am Anfang eingefügt \(Index 0\). |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | Ob der Text erfolgreich eingefügt wurde |
+| `objectId` | string | Die Objekt-ID, in die der Text eingefügt wurde |
+| `text` | string | Der Text, der eingefügt wurde |
+| `metadata` | object | Operationsmetadaten einschließlich Präsentations-ID und URL |
+|   ↳ `presentationId` | string | Die Präsentations-ID |
+|   ↳ `url` | string | URL zur Präsentation |

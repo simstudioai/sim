@@ -1,0 +1,107 @@
+---
+title: DSPy
+description: セルフホスト型DSPyプログラムを使用して予測を実行
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dspy"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DSPy](https://github.com/stanford-oval/dspy)は、言語モデルをプロンプトではなくプログラミングするためのオープンソースフレームワークです。DSPyを使用すると、Python関数、構造化モジュール、宣言的シグネチャを使用して、解釈可能でモジュール式のLLM駆動エージェントを構築でき、言語モデルアプリケーションの構成、デバッグ、信頼性の高いデプロイが容易になります。
+
+SimでDSPyを使用すると、次のことができます:
+
+- **カスタム予測の実行**: セルフホスト型DSPyサーバーに接続し、さまざまな自然言語タスクの予測エンドポイントを呼び出します。
+- **Chain of ThoughtとReAct推論**: 段階的推論、マルチターン対話、アクション-観察ループのための高度なDSPyモジュールを活用します。
+- **ワークフローとの統合**: LLM予測と推論を、Simの自動化やエージェントルーチンの一部として自動化します。
+- **カスタムエンドポイントとコンテキストの提供**: カスタム認証、エンドポイント、入力フィールド、コンテキストを使用して、独自のDSPy駆動APIを柔軟に呼び出します。
+
+これらの機能により、Simエージェントは、質問応答、文書分析、意思決定支援などのタスクに対して、モジュール式で解釈可能なLLMベースのプログラムにアクセスできます。モデル、データ、ロジックの制御は常にあなたが保持します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+セルフホスト型DSPyプログラムと統合して、LLM駆動の予測を実行します。Predict、Chain of Thought、ReActエージェントをサポートします。DSPyは、言語モデルをプロンプトではなくプログラミングするためのフレームワークです。
+
+## ツール
+
+### `dspy_predict`
+
+セルフホスト型DSPyプログラムエンドポイントを使用して予測を実行
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | はい | DSPyサーバーのベースURL \(例: https://your-dspy-server.com\) |
+| `apiKey` | string | いいえ | 認証用のAPIキー \(サーバーで必要な場合\) |
+| `endpoint` | string | いいえ | APIエンドポイントパス \(デフォルトは /predict\) |
+| `input` | string | はい | DSPyプログラムに送信する入力テキスト |
+| `inputField` | string | いいえ | DSPyプログラムが期待する入力フィールドの名前 \(デフォルトは "text"\) |
+| `context` | string | いいえ | DSPyプログラムに提供する追加のコンテキスト |
+| `additionalInputs` | json | いいえ | リクエストボディに含める追加のキーと値のペア |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `answer` | string | DSPyプログラムからのメイン出力/回答 |
+| `reasoning` | string | 回答の背後にある推論または根拠（利用可能な場合） |
+| `status` | string | DSPyサーバーからのレスポンスステータス（成功またはエラー） |
+| `rawOutput` | json | DSPyプログラムからの完全な生出力（result.toDict()） |
+
+### `dspy_chain_of_thought`
+
+セルフホスト型DSPy ChainOfThoughtプログラムエンドポイントを使用してChain of Thought予測を実行
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | はい | DSPyサーバーのベースURL（例：https://your-dspy-server.com） |
+| `apiKey` | string | いいえ | 認証用のAPIキー（サーバーで必要な場合） |
+| `endpoint` | string | いいえ | APIエンドポイントパス（デフォルトは/predict） |
+| `question` | string | はい | Chain of Thought推論を使用して回答する質問 |
+| `context` | string | いいえ | 質問に回答するために提供する追加のコンテキスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `answer` | string | Chain of Thought推論を通じて生成された回答 |
+| `reasoning` | string | 回答に至った段階的な推論 |
+| `status` | string | DSPyサーバーからのレスポンスステータス（成功またはエラー） |
+| `rawOutput` | json | DSPyプログラムからの完全な生出力（result.toDict()） |
+
+### `dspy_react`
+
+マルチステップ推論とアクションのために、セルフホスト型DSPy ReActプログラムエンドポイントを使用してReActエージェントを実行
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | はい | DSPyサーバーのベースURL（例：https://your-dspy-server.com） |
+| `apiKey` | string | いいえ | 認証用のAPIキー（サーバーで必要な場合） |
+| `endpoint` | string | いいえ | APIエンドポイントパス（デフォルトは/predict） |
+| `task` | string | はい | ReActエージェントが取り組むタスクまたは質問 |
+| `context` | string | いいえ | タスクに提供する追加のコンテキスト |
+| `maxIterations` | number | いいえ | 推論の最大反復回数（デフォルトはサーバー設定） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `answer` | string | ReActエージェントからの最終的な回答または結果 |
+| `reasoning` | string | エージェントからの全体的な推論の要約 |
+| `trajectory` | array | 思考、アクション、観察のステップバイステップの軌跡 |
+|   ↳ `thought` | string | このステップでの推論の思考 |
+|   ↳ `toolName` | string | 呼び出されたツール/アクションの名前 |
+|   ↳ `toolArgs` | json | ツールに渡された引数 |
+|   ↳ `observation` | string | ツール実行からの観察/結果 |
+| `status` | string | DSPyサーバーからのレスポンスステータス（successまたはerror） |
+| `rawOutput` | json | DSPyプログラムからの完全な生の出力（result.toDict()） |

@@ -1,0 +1,207 @@
+---
+title: A2A
+description: 外部のA2A互換エージェントと連携
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="a2a"
+  color="#4151B5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+A2A（Agent-to-Agent）プロトコルにより、SimはA2A互換APIを実装した外部AIエージェントやシステムと連携できます。A2Aを使用すると、Simの自動化やワークフローを、LLM駆動のボット、マイクロサービス、その他のAIベースのツールなどのリモートエージェントに、標準化されたメッセージ形式で接続できます。
+
+SimのA2Aツールを使用すると、次のことができます。
+
+- **外部エージェントへのメッセージ送信**: リモートエージェントと直接通信し、プロンプト、コマンド、データを提供します。
+- **レスポンスの受信とストリーミング**: タスクの進行に応じて、エージェントから構造化されたレスポンス、アーティファクト、リアルタイム更新を取得します。
+- **会話やタスクの継続**: タスクIDとコンテキストIDを参照して、複数ターンの会話やワークフローを継続します。
+- **サードパーティAIと自動化の統合**: 外部のA2A互換サービスをSimワークフローの一部として活用します。
+
+これらの機能により、Simのネイティブ機能と外部AIやカスタムエージェントのインテリジェンスと自動化を組み合わせた高度なワークフローを構築できます。A2A統合を使用するには、外部エージェントのエンドポイントURLと、必要に応じてAPIキーまたは認証情報が必要です。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+A2A（Agent-to-Agent）プロトコルを使用して、外部AIエージェントと連携します。
+
+## ツール
+
+### `a2a_send_message`
+
+外部のA2A互換エージェントにメッセージを送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2Aエージェントのエンドポイント URL |
+| `message` | string | はい | エージェントに送信するメッセージ |
+| `taskId` | string | いいえ | 既存のタスクを継続するためのタスクID |
+| `contextId` | string | いいえ | 会話の継続性のためのコンテキストID |
+| `data` | string | いいえ | メッセージに含める構造化データ（JSON文字列） |
+| `files` | array | いいえ | メッセージに含めるファイル |
+| `apiKey` | string | いいえ | 認証用のAPIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | エージェントからのテキストレスポンスコンテンツ |
+| `taskId` | string | 一意のタスク識別子 |
+| `contextId` | string | 関連するタスク/メッセージをグループ化 |
+| `state` | string | 現在のライフサイクル状態\(working、completed、failed、canceled、rejected、input_required、auth_required\) |
+| `artifacts` | array | タスク出力アーティファクト |
+| `history` | array | 会話履歴\(メッセージ配列\) |
+
+### `a2a_get_task`
+
+既存のA2Aタスクのステータスを照会します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | 照会するタスクID |
+| `apiKey` | string | いいえ | 認証用のAPIキー |
+| `historyLength` | number | いいえ | 含める履歴メッセージの数 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `taskId` | string | 一意のタスク識別子 |
+| `contextId` | string | 関連するタスク/メッセージをグループ化 |
+| `state` | string | 現在のライフサイクル状態\(working、completed、failed、canceled、rejected、input_required、auth_required\) |
+| `artifacts` | array | タスク出力アーティファクト |
+| `history` | array | 会話履歴\(メッセージ配列\) |
+
+### `a2a_cancel_task`
+
+実行中のA2Aタスクをキャンセルします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | キャンセルするタスクID |
+| `apiKey` | string | いいえ | 認証用のAPIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `cancelled` | boolean | キャンセルが成功したかどうか |
+| `state` | string | 現在のライフサイクル状態（working、completed、failed、canceled、rejected、input_required、auth_required） |
+
+### `a2a_get_agent_card`
+
+A2Aエージェントのエージェントカード（ディスカバリードキュメント）を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `apiKey` | string | いいえ | 認証用のAPIキー（必要な場合） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `name` | string | エージェントの表示名 |
+| `description` | string | エージェントの目的/機能 |
+| `url` | string | サービスエンドポイントURL |
+| `provider` | object | 作成者組織の詳細 |
+| `capabilities` | object | 機能サポートマトリックス |
+| `skills` | array | 利用可能な操作 |
+| `version` | string | エージェントがサポートするA2Aプロトコルバージョン |
+| `defaultInputModes` | array | エージェントが受け入れるデフォルトの入力コンテンツタイプ |
+| `defaultOutputModes` | array | エージェントが生成するデフォルトの出力コンテンツタイプ |
+
+### `a2a_resubscribe`
+
+接続中断後、進行中のA2Aタスクストリームに再接続します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | 再サブスクライブするタスクID |
+| `apiKey` | string | いいえ | 認証用のAPIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `taskId` | string | 一意のタスク識別子 |
+| `contextId` | string | 関連するタスク/メッセージをグループ化 |
+| `state` | string | 現在のライフサイクル状態 \(working、completed、failed、canceled、rejected、input_required、auth_required\) |
+| `isRunning` | boolean | タスクが実行中かどうか |
+| `artifacts` | array | タスク出力アーティファクト |
+| `history` | array | 会話履歴 \(メッセージ配列\) |
+
+### `a2a_set_push_notification`
+
+タスク更新通知を受信するためのWebhookを設定します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | 通知を設定するタスクID |
+| `webhookUrl` | string | はい | 通知を受信するHTTPS Webhook URL |
+| `token` | string | いいえ | Webhook検証用トークン |
+| `apiKey` | string | いいえ | 認証用APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `url` | string | 通知用HTTPS Webhook URL |
+| `token` | string | Webhook検証用認証トークン |
+| `success` | boolean | 操作が成功したかどうか |
+
+### `a2a_get_push_notification`
+
+タスクのプッシュ通知Webhook設定を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | 通知設定を取得するタスクID |
+| `apiKey` | string | いいえ | 認証用APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `token` | string | Webhook検証用の認証トークン |
+| `exists` | boolean | リソースが存在するかどうか |
+
+### `a2a_delete_push_notification`
+
+タスクのプッシュ通知Webhook設定を削除します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | はい | A2AエージェントのエンドポイントURL |
+| `taskId` | string | はい | 通知設定を削除するタスクID |
+| `pushNotificationConfigId` | string | いいえ | 削除するプッシュ通知設定ID（オプション - サーバーはtaskIdから導出可能） |
+| `apiKey` | string | いいえ | 認証用のAPIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作が成功したかどうか |

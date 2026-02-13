@@ -178,3 +178,171 @@ Generar una imagen en miniatura de una diapositiva específica en una presentaci
 
 - Categoría: `tools`
 - Tipo: `google_slides`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `pageObjectId` | string | Sí | El ID del objeto de la diapositiva/página a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `objectId` | string | El ID del objeto de la página |
+| `pageType` | string | El tipo de página \(SLIDE, MASTER, LAYOUT, NOTES, NOTES_MASTER\) |
+| `pageElements` | array | Array de elementos de página \(formas, imágenes, tablas, etc.\) en esta página |
+| `slideProperties` | object | Propiedades específicas de las diapositivas \(diseño, maestro, notas\) |
+|   ↳ `layoutObjectId` | string | ID del objeto del diseño en el que se basa esta diapositiva |
+|   ↳ `masterObjectId` | string | ID del objeto del maestro en el que se basa esta diapositiva |
+|   ↳ `notesPage` | json | La página de notas asociada con la diapositiva |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación y URL |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_delete_object`
+
+Eliminar un elemento de página (forma, imagen, tabla, etc.) o una diapositiva completa de una presentación de Google Slides
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `objectId` | string | Sí | El ID del objeto del elemento o diapositiva a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si el objeto se eliminó correctamente |
+| `objectId` | string | El ID del objeto que se eliminó |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación y URL |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_duplicate_object`
+
+Duplicar un objeto (diapositiva, forma, imagen, tabla, etc.) en una presentación de Google Slides
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `objectId` | string | Sí | El ID del objeto del elemento o diapositiva a duplicar |
+| `objectIds` | string | No | Objeto JSON opcional que mapea IDs de objetos de origen \(dentro de la diapositiva que se está duplicando\) a nuevos IDs de objeto para los duplicados. Formato: \{"sourceId1":"newId1","sourceId2":"newId2"\} |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `duplicatedObjectId` | string | El ID del objeto del duplicado recién creado |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación e ID del objeto de origen |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `sourceObjectId` | string | El ID del objeto original que se duplicó |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_update_slides_position`
+
+Mover una o más diapositivas a una nueva posición en una presentación de Google Slides
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `slideObjectIds` | string | Sí | Lista separada por comas de IDs de objetos de diapositivas a mover. Las diapositivas mantendrán su orden relativo. |
+| `insertionIndex` | number | Sí | El índice basado en cero donde se deben mover las diapositivas. Todas las diapositivas con índices mayores o iguales a este se desplazarán a la derecha. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Si las diapositivas se movieron correctamente |
+| `slideObjectIds` | array | Los IDs de objetos de diapositivas que fueron movidos |
+| `insertionIndex` | number | El índice al que se movieron las diapositivas |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación y URL |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_create_table`
+
+Crear una nueva tabla en una diapositiva de una presentación de Google Slides
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `pageObjectId` | string | Sí | El ID del objeto de la diapositiva/página donde se añadirá la tabla |
+| `rows` | number | Sí | Número de filas en la tabla \(mínimo 1\) |
+| `columns` | number | Sí | Número de columnas en la tabla \(mínimo 1\) |
+| `width` | number | No | Ancho de la tabla en puntos \(predeterminado: 400\) |
+| `height` | number | No | Altura de la tabla en puntos \(predeterminado: 200\) |
+| `positionX` | number | No | Posición X desde el borde izquierdo en puntos \(predeterminado: 100\) |
+| `positionY` | number | No | Posición Y desde el borde superior en puntos \(predeterminado: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `tableId` | string | El ID del objeto de la tabla recién creada |
+| `rows` | number | Número de filas en la tabla |
+| `columns` | number | Número de columnas en la tabla |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación e ID del objeto de página |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `pageObjectId` | string | El ID del objeto de página donde se creó la tabla |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_create_shape`
+
+Crea una forma (rectángulo, elipse, cuadro de texto, flecha, etc.) en una diapositiva de una presentación de Google Slides
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `pageObjectId` | string | Sí | El ID del objeto de la diapositiva/página donde se añadirá la forma |
+| `shapeType` | string | Sí | El tipo de forma a crear. Tipos comunes: TEXT_BOX, RECTANGLE, ROUND_RECTANGLE, ELLIPSE, TRIANGLE, DIAMOND, STAR_5, ARROW_EAST, HEART, CLOUD |
+| `width` | number | No | Ancho de la forma en puntos \(predeterminado: 200\) |
+| `height` | number | No | Altura de la forma en puntos \(predeterminado: 100\) |
+| `positionX` | number | No | Posición X desde el borde izquierdo en puntos \(predeterminado: 100\) |
+| `positionY` | number | No | Posición Y desde el borde superior en puntos \(predeterminado: 100\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `shapeId` | string | El ID del objeto de la forma recién creada |
+| `shapeType` | string | El tipo de forma que se creó |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación e ID del objeto de página |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `pageObjectId` | string | El ID del objeto de página donde se creó la forma |
+|   ↳ `url` | string | URL de la presentación |
+
+### `google_slides_insert_text`
+
+Inserta texto en una forma o celda de tabla en una presentación de Google Slides. Usa esto para añadir texto a cuadros de texto, formas o celdas de tabla.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | Sí | ID de la presentación de Google Slides |
+| `objectId` | string | Sí | El ID del objeto de la forma o celda de tabla en la que insertar texto. Para celdas de tabla, usa el ID del objeto de celda. |
+| `text` | string | Sí | El texto a insertar |
+| `insertionIndex` | number | No | El índice basado en cero en el que insertar el texto. Si no se especifica, el texto se inserta al principio \(índice 0\). |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | Si el texto se insertó correctamente |
+| `objectId` | string | El ID del objeto donde se insertó el texto |
+| `text` | string | El texto que se insertó |
+| `metadata` | object | Metadatos de la operación incluyendo ID de la presentación y URL |
+|   ↳ `presentationId` | string | El ID de la presentación |
+|   ↳ `url` | string | URL de la presentación |

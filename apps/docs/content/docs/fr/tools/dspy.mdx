@@ -1,0 +1,107 @@
+---
+title: DSPy
+description: Exécutez des prédictions en utilisant des programmes DSPy auto-hébergés
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dspy"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DSPy](https://github.com/stanford-oval/dspy) est un framework open-source pour programmer — plutôt que de prompter — des modèles de langage. DSPy vous permet de créer des agents modulaires et interprétables alimentés par des LLM en utilisant des fonctions Python, des modules structurés et des signatures déclaratives, facilitant ainsi la composition, le débogage et le déploiement fiable d'applications de modèles de langage.
+
+Avec DSPy dans Sim, vous pouvez :
+
+- **Exécuter des prédictions personnalisées** : connectez votre serveur DSPy auto-hébergé et invoquez des points de terminaison de prédiction pour une variété de tâches de traitement du langage naturel.
+- **Raisonnement Chain of Thought et ReAct** : exploitez des modules DSPy avancés pour un raisonnement étape par étape, des dialogues multi-tours et des boucles action-observation.
+- **Intégrer à vos workflows** : automatisez les prédictions et le raisonnement LLM dans le cadre de toute automatisation ou routine d'agent Sim.
+- **Fournir des points de terminaison et du contexte personnalisés** : appelez de manière flexible vos propres API alimentées par DSPy avec une authentification, des points de terminaison, des champs d'entrée et un contexte personnalisés.
+
+Ces fonctionnalités permettent à vos agents Sim d'accéder à des programmes modulaires et interprétables basés sur des LLM pour des tâches telles que la réponse aux questions, l'analyse de documents, l'aide à la décision, et plus encore — où vous gardez le contrôle du modèle, des données et de la logique.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez-vous avec vos programmes DSPy auto-hébergés pour des prédictions alimentées par LLM. Prend en charge les agents Predict, Chain of Thought et ReAct. DSPy est le framework pour programmer — et non prompter — des modèles de langage.
+
+## Outils
+
+### `dspy_predict`
+
+Exécutez une prédiction en utilisant un point de terminaison de programme DSPy auto-hébergé
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Oui | URL de base du serveur DSPy \(par exemple, https://your-dspy-server.com\) |
+| `apiKey` | string | Non | Clé API pour l'authentification \(si requise par votre serveur\) |
+| `endpoint` | string | Non | Chemin du point de terminaison API \(par défaut /predict\) |
+| `input` | string | Oui | Le texte d'entrée à envoyer au programme DSPy |
+| `inputField` | string | Non | Nom du champ d'entrée attendu par le programme DSPy \(par défaut "text"\) |
+| `context` | string | Non | Contexte supplémentaire à fournir au programme DSPy |
+| `additionalInputs` | json | Non | Paires clé-valeur supplémentaires à inclure dans le corps de la requête |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | La sortie/réponse principale du programme DSPy |
+| `reasoning` | string | Le raisonnement ou la justification derrière la réponse \(si disponible\) |
+| `status` | string | Statut de la réponse du serveur DSPy \(succès ou erreur\) |
+| `rawOutput` | json | La sortie brute complète du programme DSPy \(result.toDict\(\)\) |
+
+### `dspy_chain_of_thought`
+
+Exécuter une prédiction Chain of Thought en utilisant un point de terminaison de programme DSPy ChainOfThought auto-hébergé
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Oui | URL de base du serveur DSPy \(par exemple, https://your-dspy-server.com\) |
+| `apiKey` | string | Non | Clé API pour l'authentification \(si requise par votre serveur\) |
+| `endpoint` | string | Non | Chemin du point de terminaison API \(par défaut /predict\) |
+| `question` | string | Oui | La question à répondre en utilisant le raisonnement en chaîne de pensée |
+| `context` | string | Non | Contexte supplémentaire à fournir pour répondre à la question |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | La réponse générée par le raisonnement en chaîne de pensée |
+| `reasoning` | string | Le raisonnement étape par étape qui a conduit à la réponse |
+| `status` | string | Statut de la réponse du serveur DSPy \(succès ou erreur\) |
+| `rawOutput` | json | La sortie brute complète du programme DSPy \(result.toDict\(\)\) |
+
+### `dspy_react`
+
+Exécuter un agent ReAct en utilisant un endpoint de programme DSPy ReAct auto-hébergé pour le raisonnement et l'action en plusieurs étapes
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Oui | URL de base du serveur DSPy \(par exemple, https://your-dspy-server.com\) |
+| `apiKey` | string | Non | Clé API pour l'authentification \(si requise par votre serveur\) |
+| `endpoint` | string | Non | Chemin de l'endpoint API \(par défaut /predict\) |
+| `task` | string | Oui | La tâche ou question sur laquelle l'agent ReAct doit travailler |
+| `context` | string | Non | Contexte supplémentaire à fournir pour la tâche |
+| `maxIterations` | number | Non | Nombre maximum d'itérations de raisonnement \(par défaut selon le paramétrage du serveur\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | La réponse finale ou le résultat de l'agent ReAct |
+| `reasoning` | string | Le résumé global du raisonnement de l'agent |
+| `trajectory` | array | La trajectoire étape par étape des pensées, actions et observations |
+|   ↳ `thought` | string | La pensée de raisonnement à cette étape |
+|   ↳ `toolName` | string | Le nom de l'outil/action appelé |
+|   ↳ `toolArgs` | json | Arguments passés à l'outil |
+|   ↳ `observation` | string | L'observation/résultat de l'exécution de l'outil |
+| `status` | string | Statut de la réponse du serveur DSPy \(succès ou erreur\) |
+| `rawOutput` | json | La sortie brute complète du programme DSPy \(result.toDict\(\)\) |

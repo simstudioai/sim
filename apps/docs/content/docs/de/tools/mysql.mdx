@@ -158,3 +158,22 @@ Führt eine rohe SQL-Abfrage auf einer MySQL-Datenbank aus
 
 - Kategorie: `tools`
 - Typ: `mysql`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MySQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MySQL-Server-Port \(Standard: 3306\) |
+| `database` | string | Ja | Datenbankname für die Verbindung |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `tables` | array | Array der Tabellenschemata mit Spalten, Schlüsseln und Indizes |
+| `databases` | array | Liste der verfügbaren Datenbanken auf dem Server |

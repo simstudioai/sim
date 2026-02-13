@@ -1,0 +1,56 @@
+---
+title: AWS Textract
+description: Extraire du texte, des tableaux et des formulaires à partir de documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="textract_v2"
+  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Textract](https://aws.amazon.com/textract/) est un puissant service d'IA d'Amazon Web Services conçu pour extraire automatiquement du texte imprimé, de l'écriture manuscrite, des tableaux, des formulaires, des paires clé-valeur et d'autres données structurées à partir de documents numérisés et d'images. Textract exploite la reconnaissance optique de caractères (OCR) avancée et l'analyse de documents pour transformer les documents en données exploitables, permettant l'automatisation, l'analyse, la conformité et bien plus encore.
+
+Avec AWS Textract, vous pouvez :
+
+- **Extraire du texte à partir d'images et de documents** : reconnaître le texte imprimé et l'écriture manuscrite dans des formats tels que PDF, JPEG, PNG ou TIFF
+- **Détecter et extraire des tableaux** : trouver automatiquement des tableaux et extraire leur contenu structuré
+- **Analyser des formulaires et des paires clé-valeur** : extraire des données structurées à partir de formulaires, y compris les champs et leurs valeurs correspondantes
+- **Identifier les signatures et les caractéristiques de mise en page** : détecter les signatures, la disposition géométrique et les relations entre les éléments du document
+- **Personnaliser l'extraction avec des requêtes** : extraire des champs et des réponses spécifiques à l'aide de l'extraction basée sur des requêtes (par exemple, « Quel est le numéro de facture ? »)
+
+Dans Sim, l'intégration AWS Textract permet à vos agents de traiter intelligemment des documents dans le cadre de leurs flux de travail. Cela débloque des scénarios d'automatisation tels que la saisie de données à partir de factures, de documents d'intégration, de contrats, de reçus et bien plus encore. Vos agents peuvent extraire des données pertinentes, analyser des formulaires structurés et générer des résumés ou des rapports directement à partir de téléchargements de documents ou d'URL. En connectant Sim avec AWS Textract, vous pouvez réduire les efforts manuels, améliorer la précision des données et rationaliser vos processus métier grâce à une compréhension robuste des documents.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez AWS Textract dans votre flux de travail pour extraire du texte, des tableaux, des formulaires et des paires clé-valeur à partir de documents. Le mode page unique prend en charge JPEG, PNG et PDF d'une seule page. Le mode multi-pages prend en charge les PDF multi-pages et TIFF.
+
+## Outils
+
+### `textract_parser`
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `region` | string | Oui | Région AWS pour le service Textract \(par exemple, us-east-1\) |
+| `processingMode` | string | Non | Type de document : page unique ou multi-pages. Par défaut, page unique. |
+| `filePath` | string | Non | URL vers un document à traiter \(JPEG, PNG ou PDF d'une seule page\). |
+| `file` | file | Non | Fichier de document à traiter \(JPEG, PNG ou PDF d'une seule page\). |
+| `s3Uri` | string | Non | URI S3 pour le traitement multi-pages \(s3://bucket/key\). |
+| `featureTypes` | array | Non | Types de fonctionnalités à détecter : TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. Si non spécifié, seule la détection de texte est effectuée. |
+| `items` | string | Non | Type de fonctionnalité |
+| `queries` | array | Non | Requêtes personnalisées pour extraire des informations spécifiques. Utilisé uniquement lorsque featureTypes inclut QUERIES. |
+| `items` | object | Non | Configuration de requête |
+| `properties` | string | Non | Le texte de la requête |
+| `Text` | string | Non | Aucune description |
+| `Alias` | string | Non | Aucune description |
+
+#### Sortie
+
+Cet outil ne produit aucune sortie.

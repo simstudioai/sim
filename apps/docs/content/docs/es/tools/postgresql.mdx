@@ -158,3 +158,44 @@ Ejecutar consulta SQL en bruto en la base de datos PostgreSQL
 
 - Categoría: `tools`
 - Tipo: `postgresql`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor PostgreSQL |
+| `port` | number | Sí | Puerto del servidor PostgreSQL \(predeterminado: 5432\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+| `schema` | string | No | Esquema a introspeccionar \(predeterminado: public\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `tables` | array | Array de esquemas de tablas con columnas, claves e índices |
+|   ↳ `name` | string | Nombre de la tabla |
+|   ↳ `schema` | string | Nombre del esquema \(p. ej., public\) |
+|   ↳ `columns` | array | Columnas de la tabla |
+|     ↳ `name` | string | Nombre de la columna |
+|     ↳ `type` | string | Tipo de dato \(p. ej., integer, varchar, timestamp\) |
+|     ↳ `nullable` | boolean | Si la columna permite valores NULL |
+|     ↳ `default` | string | Expresión de valor predeterminado |
+|     ↳ `isPrimaryKey` | boolean | Si la columna es parte de la clave primaria |
+|     ↳ `isForeignKey` | boolean | Si la columna es una clave foránea |
+|     ↳ `references` | object | Información de referencia de clave foránea |
+|       ↳ `table` | string | Nombre de la tabla referenciada |
+|       ↳ `column` | string | Nombre de la columna referenciada |
+|   ↳ `primaryKey` | array | Nombres de columnas de clave primaria |
+|   ↳ `foreignKeys` | array | Restricciones de clave foránea |
+|     ↳ `column` | string | Nombre de la columna local |
+|     ↳ `referencesTable` | string | Nombre de la tabla referenciada |
+|     ↳ `referencesColumn` | string | Nombre de la columna referenciada |
+|   ↳ `indexes` | array | Índices de la tabla |
+|     ↳ `name` | string | Nombre del índice |
+|     ↳ `columns` | array | Columnas incluidas en el índice |
+|     ↳ `unique` | boolean | Si el índice impone unicidad |
+| `schemas` | array | Lista de esquemas disponibles en la base de datos |

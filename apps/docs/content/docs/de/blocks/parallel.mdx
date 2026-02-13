@@ -214,3 +214,51 @@ Wann Sie welche Methode verwenden sollten:
 - **Nur unabhängige Operationen**: Stellen Sie sicher, dass Operationen nicht voneinander abhängen
 - **Ratenbegrenzungen berücksichtigen**: Fügen Sie Verzögerungen oder Drosselungen für API-intensive Workflows hinzu
 - **Fehlerbehandlung**: Jede Instanz sollte ihre eigenen Fehler angemessen behandeln
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Parallel-Typ</strong>: Wählen Sie zwischen „count" oder „collection"
+      </li>
+      <li>
+        <strong>Anzahl</strong>: Anzahl der auszuführenden Instanzen (anzahlbasiert)
+      </li>
+      <li>
+        <strong>Collection</strong>: Array oder Objekt zur Verteilung (sammlungsbasiert)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Verfügbar **innerhalb** der Parallelverarbeitung:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<parallel.index>"}</strong>: Instanznummer (0-basiert)
+      </li>
+      <li>
+        <strong>{"<parallel.currentItem>"}</strong>: Element für diese Instanz (nur sammlungsbasiert)
+      </li>
+      <li>
+        <strong>{"<parallel.items>"}</strong>: Vollständige Sammlung (nur sammlungsbasiert)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: Array aller Instanzergebnisse (Zugriff über Blockname)
+      </li>
+      <li>
+        <strong>Zugriff</strong>: Verfügbar in Blöcken nach Abschluss der Parallelverarbeitung
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Nur unabhängige Operationen**: Stellen Sie sicher, dass Operationen nicht voneinander abhängen
+- **Rate Limits beachten**: Fügen Sie Verzögerungen oder Drosselung für API-intensive Workflows hinzu
+- **Fehlerbehandlung**: Jede Instanz sollte ihre eigenen Fehler ordnungsgemäß behandeln

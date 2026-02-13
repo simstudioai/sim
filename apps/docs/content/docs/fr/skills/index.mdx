@@ -1,0 +1,134 @@
+---
+title: Compétences d'agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Les compétences d'agent sont des packages d'instructions réutilisables qui confèrent à vos agents IA des capacités spécialisées. Basées sur le format ouvert [Agent Skills](https://agentskills.io), les compétences vous permettent de capturer l'expertise métier, les flux de travail et les meilleures pratiques que les agents peuvent charger à la demande.
+
+## Fonctionnement des compétences
+
+Les compétences utilisent la **divulgation progressive** pour maintenir le contexte de l'agent léger :
+
+1. **Découverte** — Seuls les noms et descriptions des compétences sont inclus dans le prompt système de l'agent (~50-100 tokens chacun)
+2. **Activation** — Lorsque l'agent décide qu'une compétence est pertinente, il appelle l'outil `load_skill` pour charger les instructions complètes dans le contexte
+3. **Exécution** — L'agent suit les instructions chargées pour accomplir la tâche
+
+Cela signifie que vous pouvez attacher de nombreuses compétences à un agent sans surcharger sa fenêtre de contexte. L'agent ne charge que ce dont il a besoin.
+
+## Création de compétences
+
+Accédez à **Paramètres** et sélectionnez **Compétences** dans la section Outils.
+
+![Gérer les compétences](/static/skills/manage-skills.png)
+
+Cliquez sur **Ajouter** pour créer une nouvelle compétence avec trois champs :
+
+| Champ | Description |
+|-------|-------------|
+| **Nom** | Un identifiant en kebab-case (par ex. `sql-expert`, `code-reviewer`). Maximum 64 caractères. |
+| **Description** | Une brève explication de ce que fait la compétence et quand l'utiliser. C'est ce que l'agent lit pour décider d'activer ou non la compétence. Maximum 1024 caractères. |
+| **Contenu** | Les instructions complètes de la compétence en markdown. Ceci est chargé lorsque l'agent active la compétence. |
+
+<Callout type="info">
+  La description est essentielle — c'est la seule chose que l'agent voit avant de décider de charger une compétence. Soyez précis sur quand et pourquoi la compétence doit être utilisée.
+</Callout>
+
+### Rédiger un bon contenu de compétence
+
+Le contenu des compétences suit les mêmes conventions que les [fichiers SKILL.md](https://agentskills.io/specification) :
+
+```markdown
+# SQL Expert
+
+## When to use this skill
+Use when the user asks you to write, optimize, or debug SQL queries.
+
+## Instructions
+1. Always ask which database engine (PostgreSQL, MySQL, SQLite)
+2. Use CTEs over subqueries for readability
+3. Add index recommendations when relevant
+4. Explain query plans for optimization requests
+
+## Common Patterns
+...
+```
+
+**Structure recommandée :**
+- **Quand l'utiliser** — Déclencheurs et scénarios spécifiques
+- **Instructions** — Guidance étape par étape avec listes numérotées
+- **Exemples** — Échantillons d'entrée/sortie montrant le comportement attendu
+- **Modèles courants** — Approches réutilisables pour les tâches fréquentes
+- **Cas limites** — Pièges et considérations spéciales
+
+Gardez les compétences ciblées et sous 500 lignes. Si une compétence devient trop volumineuse, divisez-la en plusieurs compétences spécialisées.
+
+## Ajouter des compétences à un agent
+
+Ouvrez n'importe quel bloc **Agent** et trouvez le menu déroulant **Compétences** sous la section des outils. Sélectionnez les compétences auxquelles vous souhaitez que l'agent ait accès.
+
+![Ajouter une compétence](/static/skills/add-skill.png)
+
+Les compétences sélectionnées apparaissent sous forme de cartes sur lesquelles vous pouvez cliquer pour les modifier ou les supprimer.
+
+### Ce qui se passe à l'exécution
+
+Lorsque le workflow s'exécute :
+
+1. Le prompt système de l'agent inclut une section `<available_skills>` listant le nom et la description de chaque compétence
+2. Un outil `load_skill` est automatiquement ajouté aux outils disponibles de l'agent
+3. Lorsque l'agent détermine qu'une compétence est pertinente pour la tâche en cours, il appelle `load_skill` avec le nom de la compétence
+4. Le contenu complet de la compétence est retourné comme réponse d'outil, donnant à l'agent des instructions détaillées
+
+Cela fonctionne avec tous les fournisseurs LLM pris en charge — l'outil `load_skill` utilise l'appel d'outil standard, donc aucune configuration spécifique au fournisseur n'est nécessaire.
+
+## Cas d'usage courants
+
+Les compétences sont particulièrement utiles lorsque les agents ont besoin de connaissances spécialisées ou de workflows en plusieurs étapes :
+
+**Expertise de domaine**
+- `api-integration-expert` — Bonnes pratiques pour appeler des API spécifiques (authentification, limitation de débit, gestion des erreurs)
+- `data-transformation` — Modèles ETL, nettoyage de données et règles de validation
+- `code-reviewer` — Directives de revue de code spécifiques aux standards de votre équipe
+
+**Modèles de flux de travail**
+- `bug-investigation` — Méthodologie de débogage étape par étape (reproduire → isoler → tester → corriger)
+- `feature-implementation` — Flux de travail de développement des exigences au déploiement
+- `document-generator` — Modèles et règles de formatage pour la documentation technique
+
+**Connaissances spécifiques à l'entreprise**
+- `our-architecture` — Diagrammes d'architecture système, dépendances de services et processus de déploiement
+- `style-guide` — Directives de marque, ton rédactionnel, modèles UI/UX
+- `customer-onboarding` — Procédures standard et questions courantes des clients
+
+**Quand utiliser les compétences plutôt que les instructions d'agent :**
+- Utilisez les **compétences** pour les connaissances qui s'appliquent à plusieurs flux de travail ou qui changent fréquemment
+- Utilisez les **instructions d'agent** pour le contexte spécifique à une tâche qui est propre à un seul agent
+
+## Bonnes pratiques
+
+**Rédiger des descriptions efficaces**
+- **Soyez précis et riche en mots-clés** — Au lieu de « Aide avec SQL », écrivez « Rédiger des requêtes SQL optimisées pour PostgreSQL, MySQL et SQLite, incluant des recommandations d'index et une analyse de plan de requête »
+- **Incluez des déclencheurs d'activation** — Mentionnez des mots ou expressions spécifiques qui devraient déclencher la compétence (par exemple, « Utiliser lorsque l'utilisateur mentionne des PDF, des formulaires ou l'extraction de documents »)
+- **Limitez à moins de 200 mots** — Les agents parcourent rapidement les descriptions ; chaque mot compte
+
+**Portée et organisation des compétences**
+- **Une compétence par domaine** — Une compétence `sql-expert` ciblée fonctionne mieux qu'une compétence `database-everything` générale
+- **Limitez à 5-10 compétences par agent** — Plus de compétences = plus de charge décisionnelle ; commencez petit et ajoutez au besoin
+- **Divisez les grandes compétences** — Si une compétence dépasse 500 lignes, divisez-la en sous-compétences ciblées
+
+**Structure du contenu**
+- **Utilisez le formatage markdown** — Les en-têtes, listes et blocs de code aident les agents à analyser et suivre les instructions
+- **Fournissez des exemples** — Montrez des paires entrée/sortie pour que les agents comprennent le comportement attendu
+- **Soyez explicite sur les cas limites** — Ne supposez pas que les agents déduiront une gestion spéciale
+
+**Tests et itération**
+- **Tester l'activation** — Exécutez votre workflow et vérifiez que l'agent charge la compétence au moment attendu
+- **Vérifier les faux positifs** — Assurez-vous que les compétences ne s'activent pas quand elles ne le devraient pas
+- **Affiner les descriptions** — Si une compétence ne se charge pas quand nécessaire, ajoutez plus de mots-clés à la description
+
+## En savoir plus
+
+- [Spécification Agent Skills](https://agentskills.io) — Le format ouvert pour les compétences d'agent portables
+- [Exemples de compétences](https://github.com/anthropics/skills) — Parcourir les exemples de compétences de la communauté
+- [Bonnes pratiques](https://agentskills.io/what-are-skills) — Rédiger des compétences efficaces

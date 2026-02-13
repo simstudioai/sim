@@ -1,0 +1,56 @@
+---
+title: AWS Textract
+description: 从文档中提取文本、表格和表单
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="textract_v2"
+  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Textract](https://aws.amazon.com/textract/) 是 Amazon Web Services 推出的强大 AI 服务，旨在自动从扫描文档和图片中提取印刷文本、手写内容、表格、表单、键值对及其他结构化数据。Textract 利用先进的光学字符识别（OCR）和文档分析技术，将文档转化为可操作的数据，助力自动化、分析、合规等多种场景。
+
+使用 AWS Textract，您可以：
+
+- **从图片和文档中提取文本**：识别 PDF、JPEG、PNG 或 TIFF 等格式中的印刷文本和手写内容
+- **检测并提取表格**：自动识别表格并输出其结构化内容
+- **解析表单和键值对**：从表单中提取结构化数据，包括字段及其对应的值
+- **识别签名和版面特征**：检测签名、几何布局及文档元素之间的关系
+- **通过查询自定义提取**：使用基于查询的提取方式获取特定字段和答案（如“发票号码是多少？”）
+
+在 Sim 中，AWS Textract 集成让您的代理能够智能处理文档，作为工作流程的一部分。这将解锁如发票数据录入、入职文件、合同、收据等自动化场景。您的代理可以提取相关数据，分析结构化表单，并直接从文档上传或 URL 生成摘要或报告。通过将 Sim 与 AWS Textract 连接，您可以减少人工操作，提高数据准确性，并以强大的文档理解能力优化业务流程。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 AWS Textract 集成到您的工作流程中，从文档中提取文本、表格、表单和键值对。单页模式支持 JPEG、PNG 和单页 PDF。多页模式支持多页 PDF 和 TIFF。
+
+## 工具
+
+### `textract_parser`
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | 是 | AWS Access Key ID |
+| `secretAccessKey` | string | 是 | AWS Secret Access Key |
+| `region` | string | 是 | Textract 服务的 AWS 区域（例如 us-east-1） |
+| `processingMode` | string | 否 | 文档类型：单页或多页。默认为单页。 |
+| `filePath` | string | 否 | 要处理的文档 URL（JPEG、PNG 或单页 PDF）。 |
+| `file` | file | 否 | 要处理的文档文件（JPEG、PNG 或单页 PDF）。 |
+| `s3Uri` | string | 否 | 用于多页处理的 S3 URI（s3://bucket/key）。 |
+| `featureTypes` | array | 否 | 要检测的特征类型：TABLES、FORMS、QUERIES、SIGNATURES、LAYOUT。如果未指定，仅执行文本检测。 |
+| `items` | string | 否 | 特征类型 |
+| `queries` | array | 否 | 用于提取特定信息的自定义查询。仅在 featureTypes 包含 QUERIES 时使用。 |
+| `items` | object | 否 | 查询配置 |
+| `properties` | string | 否 | 查询文本 |
+| `Text` | string | 否 | 无描述 |
+| `Alias` | string | 否 | 无描述 |
+
+#### 输出
+
+此工具不会生成任何输出。

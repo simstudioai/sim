@@ -165,33 +165,3 @@ Transcribir audio a texto usando AssemblyAI con funciones avanzadas de PLN
 | `summary` | string | Resumen generado automáticamente |
 
 ### `stt_gemini`
-
-Transcribe audio a texto usando Google Gemini con capacidades multimodales
-
-#### Entrada
-
-| Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `provider` | string | Sí | Proveedor STT \(gemini\) |
-| `apiKey` | string | Sí | Clave API de Google |
-| `model` | string | No | Modelo de Gemini a utilizar \(predeterminado: gemini-2.5-flash\) |
-| `audioFile` | file | No | Archivo de audio o video para transcribir |
-| `audioFileReference` | file | No | Referencia al archivo de audio/video de bloques anteriores |
-| `audioUrl` | string | No | URL al archivo de audio o video |
-| `language` | string | No | Código de idioma \(p.ej., "en", "es", "fr"\) o "auto" para detección automática |
-| `timestamps` | string | No | Granularidad de marcas de tiempo: none, sentence, o word |
-
-#### Salida
-
-| Parámetro | Tipo | Descripción |
-| --------- | ---- | ----------- |
-| `transcript` | string | Texto transcrito completo |
-| `segments` | array | Segmentos con marcas de tiempo |
-| `language` | string | Idioma detectado o especificado |
-| `duration` | number | Duración del audio en segundos |
-| `confidence` | number | Puntuación de confianza general |
-
-## Notas
-
-- Categoría: `tools`
-- Tipo: `stt`

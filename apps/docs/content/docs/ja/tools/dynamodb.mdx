@@ -186,3 +186,20 @@ DynamoDBテーブルからアイテムを削除する
 
 - カテゴリー: `tools`
 - タイプ: `dynamodb`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `tableName` | string | いいえ | 詳細なスキーマを取得するためのオプションのテーブル名（例："Users"、"Orders"）。指定しない場合は、すべてのテーブルを一覧表示します。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `tables` | array | リージョン内のテーブル名のリスト |
+| `tableDetails` | object | 特定のテーブルの詳細なスキーマ情報 |

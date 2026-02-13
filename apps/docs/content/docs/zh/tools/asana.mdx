@@ -163,3 +163,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`asana`
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `ts` | string | 响应的时间戳 |
+| `gid` | string | 评论全局唯一标识符 |
+| `text` | string | 评论文本内容 |
+| `created_at` | string | 评论创建时间戳 |
+| `created_by` | object | 评论作者详情 |
+|   ↳ `gid` | string | 作者 GID |
+|   ↳ `name` | string | 作者姓名 |

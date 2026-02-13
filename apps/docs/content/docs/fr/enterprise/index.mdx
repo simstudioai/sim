@@ -75,3 +75,40 @@ Pour les déploiements auto-hébergés, les fonctionnalités entreprise peuvent 
 <Callout type="warn">
   BYOK est uniquement disponible sur Sim hébergé. Les déploiements auto-hébergés configurent les clés de fournisseur d'IA directement via les variables d'environnement.
 </Callout>
+
+Lorsque la facturation est désactivée, utilisez l'API Admin pour gérer les organisations :
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### Membres de l'espace de travail
+
+Lorsque les invitations sont désactivées, utilisez l'API Admin pour gérer directement les appartenances aux espaces de travail :
+
+```bash
+# Add a user to a workspace
+curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "permissions": "write"}'
+
+# Remove a user from a workspace
+curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY"
+```
+
+### Remarques
+
+- L'activation de `ACCESS_CONTROL_ENABLED` active automatiquement les organisations, car le contrôle d'accès nécessite l'appartenance à une organisation.
+- Lorsque `DISABLE_INVITATIONS` est défini, les utilisateurs ne peuvent pas envoyer d'invitations. Utilisez l'API Admin pour gérer les appartenances aux espaces de travail et aux organisations à la place.

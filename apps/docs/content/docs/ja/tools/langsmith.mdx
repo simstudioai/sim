@@ -1,0 +1,89 @@
+---
+title: LangSmith
+description: ワークフロー実行をLangSmithに転送して可観測性を実現
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LangSmith](https://www.langchain.com/langsmith)でAIワークフローの深い可視性と理解を実現しましょう。LangSmithは、LLMを活用したアプリケーションと自動化のトレース、デバッグ、監視のための強力なプラットフォームです。LangSmithをプロセスに統合することで、詳細な実行トレースの取得、入出力データのログ記録、メタデータの添付、データ駆動型の可観測性によるワークフローの最適化が可能になります。
+
+LangSmith統合により、以下が可能になります。
+
+- **実行のトレースとデバッグ**: ワークフロー、ツール、またはモデルの実行をLangSmithに転送し、階層的な実行詳細を記録して、ボトルネックや障害を迅速に特定します。
+- **豊富なメタデータの添付**: 入力、出力、タグ、カスタムメタデータ、障害理由などをログに記録してトレースを充実させ、詳細な洞察と分析を実現します。
+- **ワークフローパフォーマンスの監視**: 実行を可視化し、エラー率、実行時間、成功指標を経時的に監視して、信頼性と効率性を向上させます。
+- **コラボレーションと監査**: チームベースのデバッグを可能にし、変更を追跡することで、透明性のある監査と連鎖したLLMワークフローの迅速な反復を実現します。
+- **可観測性の自動化**: LangSmithトレースをワークフロー自動化にシームレスに接続し、手動での計装なしで常時稼働の簡単な監視を実現します。
+
+LangSmithは、エンジニア、データサイエンティスト、プロダクトチームがより迅速に反復し、問題を早期に発見し、より堅牢なLLMベースのアプリケーションを構築することを可能にします。エージェント、チェーン、エンドツーエンドのワークフローを編成する場合でも対応します。
+
+LangSmithを自動化プロセスに統合することで、より優れた可観測性、実用的な洞察、より高い製品品質を実現しましょう。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+実行データをLangSmithに送信して、実行をトレースし、メタデータを添付し、ワークフローパフォーマンスを監視します。
+
+## ツール
+
+### `langsmith_create_run`
+
+単一の実行をLangSmithに転送して取り込みます。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | LangSmith APIキー |
+| `id` | string | いいえ | 一意の実行識別子 |
+| `name` | string | はい | 実行名 |
+| `run_type` | string | はい | 実行タイプ \(tool、chain、llm、retriever、embedding、prompt、parser\) |
+| `start_time` | string | いいえ | ISO-8601形式の実行開始時刻 |
+| `end_time` | string | いいえ | ISO-8601形式の実行終了時刻 |
+| `inputs` | json | いいえ | 入力ペイロード |
+| `run_outputs` | json | いいえ | 出力ペイロード |
+| `extra` | json | いいえ | 追加メタデータ \(extra\) |
+| `tags` | json | いいえ | タグ文字列の配列 |
+| `parent_run_id` | string | いいえ | 親実行ID |
+| `trace_id` | string | いいえ | トレースID |
+| `session_id` | string | いいえ | セッションID |
+| `session_name` | string | いいえ | セッション名 |
+| `status` | string | いいえ | 実行ステータス |
+| `error` | string | いいえ | エラー詳細 |
+| `dotted_order` | string | いいえ | ドット区切りの順序文字列 |
+| `events` | json | いいえ | 構造化イベント配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | 実行が取り込み用に受け入れられたかどうか |
+| `runId` | string | リクエストで提供された実行識別子 |
+| `message` | string | LangSmithからのレスポンスメッセージ |
+
+### `langsmith_create_runs_batch`
+
+複数の実行を単一のバッチでLangSmithに転送します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | LangSmith APIキー |
+| `post` | json | いいえ | 取り込む新しい実行の配列 |
+| `patch` | json | いいえ | 更新/パッチする実行の配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | バッチが取り込みのために受け入れられたかどうか |
+| `runIds` | array | リクエストで提供された実行識別子 |
+| `message` | string | LangSmithからのレスポンスメッセージ |
+| `messages` | array | 提供された場合の実行ごとのレスポンスメッセージ |

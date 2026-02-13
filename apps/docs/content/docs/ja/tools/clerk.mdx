@@ -1,0 +1,437 @@
+---
+title: Clerk
+description: Clerkでユーザー、組織、セッションを管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clerk"
+  color="#131316"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Clerk](https://clerk.com/)は、アプリケーションのユーザー、認証、セッションを管理するための包括的なアイデンティティインフラストラクチャプラットフォームです。
+
+Simでは、Clerk連携により、エージェントが使いやすいAPIベースのツールを通じてユーザーとセッション管理を自動化できます。エージェントは、ワークフロー内で直接、ユーザーの一覧表示、ユーザープロファイルの更新、組織の管理、セッションの監視、アクセスの取り消しを安全に実行できます。
+
+Clerkを使用すると、次のことができます。
+
+- **ユーザー認証とセッション管理**: ユーザーのサインイン、サインアップ、セッションライフサイクルをシームレスに制御します。
+- **ユーザーの一覧表示と更新**: エージェントタスクの一部として、ユーザーリストの自動取得、ユーザー属性の更新、プロファイル詳細の表示を行います。
+- **組織とメンバーシップの管理**: 組織の追加や更新、ユーザーメンバーシップを明確に管理します。
+- **セッションの監視と取り消し**: アクティブまたは過去のユーザーセッションを確認し、セキュリティのために必要に応じて即座にアクセスを取り消します。
+
+この連携により、Sim内からユーザーベースのリアルタイムで監査可能な管理が可能になります。接続されたエージェントは、オンボーディングの自動化、ポリシーの適用、ディレクトリの最新状態の維持、認証イベントや組織変更への対応を行い、Clerkをアイデンティティエンジンとして使用した安全で柔軟なプロセスの運用を支援します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Clerk認証とユーザー管理をワークフローに統合します。ユーザーの作成、更新、削除、一覧表示を行います。組織とそのメンバーシップを管理します。ユーザーセッションを監視および制御します。
+
+## ツール
+
+### `clerk_list_users`
+
+オプションのフィルタリングとページネーションを使用して、Clerkアプリケーションのすべてのユーザーをリストアップ
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `limit` | number | いいえ | ページあたりの結果数（例: 10、50、100; 範囲: 1-500、デフォルト: 10） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果数（例: 0、10、20） |
+| `orderBy` | string | いいえ | 方向を示すオプションの+/-プレフィックス付きソートフィールド（デフォルト: -created_at） |
+| `emailAddress` | string | いいえ | メールアドレスでフィルタリング（例: user@example.comまたはuser1@example.com,user2@example.com） |
+| `phoneNumber` | string | いいえ | 電話番号でフィルタリング（複数の場合はカンマ区切り） |
+| `externalId` | string | いいえ | 外部IDでフィルタリング（複数の場合はカンマ区切り） |
+| `username` | string | いいえ | ユーザー名でフィルタリング（複数の場合はカンマ区切り） |
+| `userId` | string | いいえ | ユーザーIDでフィルタリング（例: user_2NNEqL2nrIRdJ194ndJqAHwEfxCまたは複数の場合はカンマ区切り） |
+| `query` | string | いいえ | メール、電話、ユーザー名、名前全体で一致する検索クエリ（例: johnまたはjohn@example.com） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `users` | array | Clerkユーザーオブジェクトの配列 |
+|   ↳ `id` | string | ユーザーID |
+|   ↳ `username` | string | ユーザー名 |
+|   ↳ `firstName` | string | 名 |
+|   ↳ `lastName` | string | 姓 |
+|   ↳ `imageUrl` | string | プロフィール画像URL |
+|   ↳ `hasImage` | boolean | ユーザーがプロフィール画像を持っているかどうか |
+|   ↳ `primaryEmailAddressId` | string | プライマリメールアドレスID |
+|   ↳ `primaryPhoneNumberId` | string | プライマリ電話番号ID |
+|   ↳ `emailAddresses` | array | ユーザーのメールアドレス |
+|     ↳ `id` | string | メールアドレスID |
+|     ↳ `emailAddress` | string | メールアドレス |
+|   ↳ `phoneNumbers` | array | ユーザーの電話番号 |
+|     ↳ `id` | string | 電話番号ID |
+|     ↳ `phoneNumber` | string | 電話番号 |
+|   ↳ `externalId` | string | 外部システムID |
+|   ↳ `passwordEnabled` | boolean | パスワードが有効かどうか |
+|   ↳ `twoFactorEnabled` | boolean | 2FAが有効かどうか |
+|   ↳ `banned` | boolean | ユーザーが禁止されているかどうか |
+|   ↳ `locked` | boolean | ユーザーがロックされているかどうか |
+|   ↳ `lastSignInAt` | number | 最終サインインのタイムスタンプ |
+|   ↳ `lastActiveAt` | number | 最終アクティビティのタイムスタンプ |
+|   ↳ `createdAt` | number | 作成のタイムスタンプ |
+|   ↳ `updatedAt` | number | 最終更新のタイムスタンプ |
+|   ↳ `publicMetadata` | json | パブリックメタデータ |
+| `totalCount` | number | クエリに一致するユーザーの総数 |
+| `success` | boolean | 操作の成功ステータス |
+
+### `clerk_get_user`
+
+ClerkからIDによって単一のユーザーを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `userId` | string | はい | 取得するユーザーのID（例：user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ユーザーID |
+| `username` | string | ユーザー名 |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `imageUrl` | string | プロフィール画像URL |
+| `hasImage` | boolean | ユーザーがプロフィール画像を持っているか |
+| `primaryEmailAddressId` | string | プライマリメールアドレスID |
+| `primaryPhoneNumberId` | string | プライマリ電話番号ID |
+| `primaryWeb3WalletId` | string | プライマリWeb3ウォレットID |
+| `emailAddresses` | array | ユーザーのメールアドレス |
+|   ↳ `id` | string | メールアドレスID |
+|   ↳ `emailAddress` | string | メールアドレス |
+|   ↳ `verified` | boolean | メールが確認済みか |
+| `phoneNumbers` | array | ユーザーの電話番号 |
+|   ↳ `id` | string | 電話番号ID |
+|   ↳ `phoneNumber` | string | 電話番号 |
+|   ↳ `verified` | boolean | 電話番号が確認済みか |
+| `externalId` | string | 外部システムID |
+| `passwordEnabled` | boolean | パスワードが有効か |
+| `twoFactorEnabled` | boolean | 2FAが有効か |
+| `totpEnabled` | boolean | TOTPが有効か |
+| `backupCodeEnabled` | boolean | バックアップコードが有効か |
+| `banned` | boolean | ユーザーが禁止されているか |
+| `locked` | boolean | ユーザーがロックされているか |
+| `deleteSelfEnabled` | boolean | ユーザーが自分自身を削除できるか |
+| `createOrganizationEnabled` | boolean | ユーザーが組織を作成できるか |
+| `lastSignInAt` | number | 最終サインインのタイムスタンプ |
+| `lastActiveAt` | number | 最終アクティビティのタイムスタンプ |
+| `createdAt` | number | 作成のタイムスタンプ |
+| `updatedAt` | number | 最終更新のタイムスタンプ |
+| `publicMetadata` | json | パブリックメタデータ(フロントエンドから読み取り可能) |
+| `privateMetadata` | json | プライベートメタデータ(バックエンドのみ) |
+| `unsafeMetadata` | json | アンセーフメタデータ(フロントエンドから変更可能) |
+| `success` | boolean | 操作の成功ステータス |
+
+### `clerk_create_user`
+
+Clerkアプリケーションで新しいユーザーを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `emailAddress` | string | いいえ | ユーザーのメールアドレス（複数の場合はカンマ区切り） |
+| `phoneNumber` | string | いいえ | ユーザーの電話番号（複数の場合はカンマ区切り） |
+| `username` | string | いいえ | ユーザーのユーザー名（一意である必要があります） |
+| `password` | string | いいえ | ユーザーのパスワード（最低8文字） |
+| `firstName` | string | いいえ | ユーザーの名 |
+| `lastName` | string | いいえ | ユーザーの姓 |
+| `externalId` | string | いいえ | 外部システム識別子（一意である必要があります） |
+| `publicMetadata` | json | いいえ | パブリックメタデータ（JSONオブジェクト、フロントエンドから読み取り可能） |
+| `privateMetadata` | json | いいえ | プライベートメタデータ（JSONオブジェクト、バックエンドのみ） |
+| `unsafeMetadata` | json | いいえ | アンセーフメタデータ（JSONオブジェクト、フロントエンドから変更可能） |
+| `skipPasswordChecks` | boolean | いいえ | パスワード検証チェックをスキップ |
+| `skipPasswordRequirement` | boolean | いいえ | パスワードをオプションにする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 作成されたユーザーID |
+| `username` | string | ユーザー名 |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `imageUrl` | string | プロフィール画像URL |
+| `primaryEmailAddressId` | string | プライマリメールアドレスID |
+| `primaryPhoneNumberId` | string | プライマリ電話番号ID |
+| `emailAddresses` | array | ユーザーのメールアドレス |
+|   ↳ `id` | string | メールアドレスID |
+|   ↳ `emailAddress` | string | メールアドレス |
+|   ↳ `verified` | boolean | メールが確認済みかどうか |
+| `phoneNumbers` | array | ユーザーの電話番号 |
+|   ↳ `id` | string | 電話番号ID |
+|   ↳ `phoneNumber` | string | 電話番号 |
+|   ↳ `verified` | boolean | 電話番号が確認済みかどうか |
+| `externalId` | string | 外部システムID |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `publicMetadata` | json | パブリックメタデータ |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_update_user`
+
+Clerkアプリケーションで既存のユーザーを更新
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `userId` | string | はい | 更新するユーザーのID（例：user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+| `firstName` | string | いいえ | ユーザーの名 |
+| `lastName` | string | いいえ | ユーザーの姓 |
+| `username` | string | いいえ | ユーザー名（一意である必要があります） |
+| `password` | string | いいえ | 新しいパスワード（最低8文字） |
+| `externalId` | string | いいえ | 外部システム識別子 |
+| `primaryEmailAddressId` | string | いいえ | プライマリに設定する検証済みメールのID |
+| `primaryPhoneNumberId` | string | いいえ | プライマリに設定する検証済み電話番号のID |
+| `publicMetadata` | json | いいえ | パブリックメタデータ（JSONオブジェクト） |
+| `privateMetadata` | json | いいえ | プライベートメタデータ（JSONオブジェクト） |
+| `unsafeMetadata` | json | いいえ | アンセーフメタデータ（JSONオブジェクト） |
+| `skipPasswordChecks` | boolean | いいえ | パスワード検証チェックをスキップ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 更新されたユーザーID |
+| `username` | string | ユーザー名 |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `imageUrl` | string | プロフィール画像URL |
+| `primaryEmailAddressId` | string | プライマリメールアドレスID |
+| `primaryPhoneNumberId` | string | プライマリ電話番号ID |
+| `emailAddresses` | array | ユーザーのメールアドレス |
+|   ↳ `id` | string | メールアドレスID |
+|   ↳ `emailAddress` | string | メールアドレス |
+|   ↳ `verified` | boolean | メールが検証済みかどうか |
+| `phoneNumbers` | array | ユーザーの電話番号 |
+|   ↳ `id` | string | 電話番号ID |
+|   ↳ `phoneNumber` | string | 電話番号 |
+|   ↳ `verified` | boolean | 電話番号が検証済みかどうか |
+| `externalId` | string | 外部システムID |
+| `banned` | boolean | ユーザーが禁止されているかどうか |
+| `locked` | boolean | ユーザーがロックされているかどうか |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `publicMetadata` | json | パブリックメタデータ |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_delete_user`
+
+Clerkアプリケーションからユーザーを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `userId` | string | はい | 削除するユーザーのID（例：user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 削除されたユーザーID |
+| `object` | string | オブジェクトタイプ（user） |
+| `deleted` | boolean | ユーザーが削除されたかどうか |
+| `success` | boolean | 操作の成功ステータス |
+
+### `clerk_list_organizations`
+
+Clerkアプリケーション内のすべての組織をオプションのフィルタリング付きで一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `limit` | number | いいえ | ページあたりの結果数（例：10、50、100、範囲：1-500、デフォルト：10） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果数（例：0、10、20） |
+| `includeMembersCount` | boolean | いいえ | 各組織のメンバー数を含める |
+| `query` | string | いいえ | 組織ID、名前、またはスラッグで検索（例：Acme Corpまたはacme-corp） |
+| `orderBy` | string | いいえ | ソートフィールド（name、created_at、members_count）と+/-プレフィックス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `organizations` | array | Clerk組織オブジェクトの配列 |
+|   ↳ `id` | string | 組織ID |
+|   ↳ `name` | string | 組織名 |
+|   ↳ `slug` | string | 組織スラッグ |
+|   ↳ `imageUrl` | string | 組織画像URL |
+|   ↳ `hasImage` | boolean | 組織が画像を持っているかどうか |
+|   ↳ `membersCount` | number | メンバー数 |
+|   ↳ `pendingInvitationsCount` | number | 保留中の招待数 |
+|   ↳ `maxAllowedMemberships` | number | 最大許可メンバーシップ数 |
+|   ↳ `adminDeleteEnabled` | boolean | 管理者削除が有効かどうか |
+|   ↳ `createdBy` | string | 作成者ユーザーID |
+|   ↳ `createdAt` | number | 作成タイムスタンプ |
+|   ↳ `updatedAt` | number | 最終更新タイムスタンプ |
+|   ↳ `publicMetadata` | json | パブリックメタデータ |
+| `totalCount` | number | 組織の総数 |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_get_organization`
+
+ClerkからIDまたはスラッグで単一の組織を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `organizationId` | string | はい | 取得する組織のIDまたはスラッグ(例:org_2NNEqL2nrIRdJ194ndJqAHwEfxCまたはmy-org-slug) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 組織ID |
+| `name` | string | 組織名 |
+| `slug` | string | 組織スラッグ |
+| `imageUrl` | string | 組織画像URL |
+| `hasImage` | boolean | 組織が画像を持っているかどうか |
+| `membersCount` | number | メンバー数 |
+| `pendingInvitationsCount` | number | 保留中の招待数 |
+| `maxAllowedMemberships` | number | 最大許可メンバーシップ数 |
+| `adminDeleteEnabled` | boolean | 管理者削除が有効かどうか |
+| `createdBy` | string | 作成者ユーザーID |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `publicMetadata` | json | パブリックメタデータ |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_create_organization`
+
+Clerkアプリケーションで新しい組織を作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `name` | string | はい | 組織名 |
+| `createdBy` | string | はい | 管理者となる作成者のユーザーID（例：user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+| `slug` | string | いいえ | 組織のスラグ識別子 |
+| `maxAllowedMemberships` | number | いいえ | 最大メンバー数（0は無制限） |
+| `publicMetadata` | json | いいえ | パブリックメタデータ（JSONオブジェクト） |
+| `privateMetadata` | json | いいえ | プライベートメタデータ（JSONオブジェクト） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 作成された組織ID |
+| `name` | string | 組織名 |
+| `slug` | string | 組織スラグ |
+| `imageUrl` | string | 組織画像URL |
+| `hasImage` | boolean | 組織が画像を持っているかどうか |
+| `membersCount` | number | メンバー数 |
+| `pendingInvitationsCount` | number | 保留中の招待数 |
+| `maxAllowedMemberships` | number | 最大許可メンバーシップ数 |
+| `adminDeleteEnabled` | boolean | 管理者削除が有効かどうか |
+| `createdBy` | string | 作成者のユーザーID |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `publicMetadata` | json | パブリックメタデータ |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_list_sessions`
+
+Clerkアプリケーション内のユーザーまたはクライアントのセッション一覧を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `userId` | string | いいえ | セッション一覧を取得するユーザーID（例：user_2NNEqL2nrIRdJ194ndJqAHwEfxC、clientIdが指定されていない場合は必須） |
+| `clientId` | string | いいえ | セッション一覧を取得するクライアントID（userIdが指定されていない場合は必須） |
+| `status` | string | いいえ | セッションステータスでフィルタ（abandoned、active、ended、expired、pending、removed、replaced、revoked） |
+| `limit` | number | いいえ | ページあたりの結果数（例：10、50、100、範囲：1-500、デフォルト：10） |
+| `offset` | number | いいえ | ページネーションのためにスキップする結果数（例：0、10、20） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `sessions` | array | Clerkセッションオブジェクトの配列 |
+|   ↳ `id` | string | セッションID |
+|   ↳ `userId` | string | ユーザーID |
+|   ↳ `clientId` | string | クライアントID |
+|   ↳ `status` | string | セッションステータス |
+|   ↳ `lastActiveAt` | number | 最終アクティビティタイムスタンプ |
+|   ↳ `lastActiveOrganizationId` | string | 最終アクティブ組織ID |
+|   ↳ `expireAt` | number | 有効期限タイムスタンプ |
+|   ↳ `abandonAt` | number | 放棄タイムスタンプ |
+|   ↳ `createdAt` | number | 作成タイムスタンプ |
+|   ↳ `updatedAt` | number | 最終更新タイムスタンプ |
+| `totalCount` | number | セッションの総数 |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_get_session`
+
+ClerkからIDでセッションを1件取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `sessionId` | string | はい | 取得するセッションのID（例：sess_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | セッションID |
+| `userId` | string | ユーザーID |
+| `clientId` | string | クライアントID |
+| `status` | string | セッションステータス |
+| `lastActiveAt` | number | 最終アクティビティタイムスタンプ |
+| `lastActiveOrganizationId` | string | 最終アクティブ組織ID |
+| `expireAt` | number | 有効期限タイムスタンプ |
+| `abandonAt` | number | 放棄タイムスタンプ |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `success` | boolean | 操作成功ステータス |
+
+### `clerk_revoke_session`
+
+セッションを取り消して即座に無効化
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | はい | API認証用のClerkシークレットキー |
+| `sessionId` | string | はい | 取り消すセッションのID（例：sess_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | セッションID |
+| `userId` | string | ユーザーID |
+| `clientId` | string | クライアントID |
+| `status` | string | セッションステータス（取り消し済みであるべき） |
+| `lastActiveAt` | number | 最終アクティビティタイムスタンプ |
+| `lastActiveOrganizationId` | string | 最終アクティブ組織ID |
+| `expireAt` | number | 有効期限タイムスタンプ |
+| `abandonAt` | number | 放棄タイムスタンプ |
+| `createdAt` | number | 作成タイムスタンプ |
+| `updatedAt` | number | 最終更新タイムスタンプ |
+| `success` | boolean | 操作成功ステータス |

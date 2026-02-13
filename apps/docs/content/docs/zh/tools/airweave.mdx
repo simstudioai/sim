@@ -1,0 +1,63 @@
+---
+title: Airweave
+description: 搜索你已同步的数据集合
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airweave](https://airweave.ai/) 是一款由 AI 驱动的语义搜索平台，帮助你在所有已同步的数据源中发现和获取知识。Airweave 专为现代团队打造，能够根据你的需求，利用神经网络、混合或关键词等多种策略，实现快速且相关性高的搜索结果。
+
+使用 Airweave，你可以：
+
+- **更智能地搜索**：使用自然语言查询，挖掘分布在各类已连接工具和数据库中的信息
+- **数据一体化**：无缝访问代码、文档、聊天、邮件、云端文件等多种来源的内容
+- **检索方式自定义**：可选择混合（语义 + 关键词）、神经网络或关键词搜索策略，获得最佳结果
+- **提升召回率**：通过 AI 扩展搜索查询，获取更全面的答案
+- **用 AI 重新排序结果**：借助强大的语言模型，优先展示最相关的答案
+- **即时获取答案**：基于你的数据，生成清晰、AI 驱动的综合回复
+
+在 Sim 中，Airweave 集成让你的智能体能够通过单一工具，搜索、总结并提取组织内所有数据的洞见。无论是解答问题、生成摘要，还是支持动态决策，都可借助 Airweave 在工作流中实现丰富、具备上下文的知识检索。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 Airweave 跨已同步的数据源进行搜索。支持混合、神经网络或关键词等语义检索策略。还可根据搜索结果生成 AI 驱动的答案。
+
+## 工具
+
+### `airweave_search`
+
+使用 Airweave 搜索你已同步的数据集合。支持混合、神经网络或关键词等语义检索策略。还可根据搜索结果生成 AI 驱动的答案。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | 用于认证的 Airweave API Key |
+| `collectionId` | string | 是 | 要搜索的集合的可读 ID |
+| `query` | string | 是 | 搜索查询文本 |
+| `limit` | number | 否 | 返回结果的最大数量（默认：100） |
+| `retrievalStrategy` | string | 否 | 检索策略：hybrid（默认）、neural 或 keyword |
+| `expandQuery` | boolean | 否 | 生成查询变体以提升召回率 |
+| `rerank` | boolean | 否 | 使用 LLM 对结果重新排序以提升相关性 |
+| `generateAnswer` | boolean | 否 | 生成查询的自然语言答案 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `results` | array | 来自已同步数据的搜索结果，包括内容、分数和元数据 |
+|   ↳ `entity_id` | string | 搜索结果实体的唯一标识符 |
+|   ↳ `source_name` | string | 数据源名称（如 "GitHub"、"Slack"） |
+|   ↳ `md_content` | string | 结果的 Markdown 格式内容 |
+|   ↳ `score` | number | 搜索的相关性分数 |
+|   ↳ `metadata` | object | 与结果关联的其他元数据 |
+|   ↳ `breadcrumbs` | array | 结果在其来源中的导航路径 |
+|   ↳ `url` | string | 指向原始内容的 URL |
+| `completion` | string | 针对查询生成的 AI 答案（启用 generateAnswer 时） |

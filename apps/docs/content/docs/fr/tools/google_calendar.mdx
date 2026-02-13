@@ -139,3 +139,145 @@ Inviter des participants à un événement Google Calendar existant
 
 - Catégorie : `tools`
 - Type : `google_calendar`
+
+Déplacer un événement vers un autre calendrier. Renvoie uniquement les champs alignés sur l'API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | chaîne | Non | ID du calendrier Google source (ex. : primary ou calendar@group.calendar.google.com) |
+| `eventId` | chaîne | Oui | ID de l'événement Google Calendar à déplacer |
+| `destinationCalendarId` | chaîne | Oui | ID du calendrier Google de destination |
+| `sendUpdates` | chaîne | Non | Comment envoyer les mises à jour aux participants : all, externalOnly, ou none |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | ID de l'événement |
+| `htmlLink` | chaîne | Lien de l'événement |
+| `status` | chaîne | Statut de l'événement |
+| `summary` | chaîne | Titre de l'événement |
+| `description` | chaîne | Description de l'événement |
+| `location` | chaîne | Lieu de l'événement |
+| `start` | json | Début de l'événement |
+| `end` | json | Fin de l'événement |
+| `attendees` | json | Participants de l'événement |
+| `creator` | json | Créateur de l'événement |
+| `organizer` | json | Organisateur de l'événement |
+
+### `google_calendar_instances`
+
+Obtenir les occurrences d'un événement récurrent de Google Calendar. Renvoie uniquement les champs alignés sur l'API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | chaîne | Non | ID du calendrier Google (ex. : primary ou calendar@group.calendar.google.com) |
+| `eventId` | chaîne | Oui | ID de l'événement récurrent dont obtenir les occurrences |
+| `timeMin` | chaîne | Non | Limite inférieure pour les occurrences (horodatage RFC3339, ex. : 2025-06-03T00:00:00Z) |
+| `timeMax` | chaîne | Non | Limite supérieure pour les occurrences (horodatage RFC3339, ex. : 2025-06-04T00:00:00Z) |
+| `maxResults` | nombre | Non | Nombre maximum d'occurrences à renvoyer (par défaut 250, max 2500) |
+| `pageToken` | chaîne | Non | Jeton pour récupérer les pages de résultats suivantes |
+| `showDeleted` | booléen | Non | Inclure les occurrences supprimées |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | chaîne | Jeton de page suivante |
+| `timeZone` | chaîne | Fuseau horaire du calendrier |
+| `instances` | json | Liste des instances d'événements récurrents |
+
+### `google_calendar_list_calendars`
+
+Lister tous les calendriers de l'utilisateur
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `minAccessRole` | chaîne | Non | Rôle d'accès minimum pour les calendriers retournés : freeBusyReader, reader, writer ou owner |
+| `maxResults` | nombre | Non | Nombre maximum de calendriers à retourner (par défaut 100, max 250) |
+| `pageToken` | chaîne | Non | Jeton pour récupérer les pages suivantes de résultats |
+| `showDeleted` | booléen | Non | Inclure les calendriers supprimés |
+| `showHidden` | booléen | Non | Inclure les calendriers masqués |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `nextPageToken` | chaîne | Jeton de page suivante |
+| `calendars` | tableau | Liste des calendriers |
+|   ↳ `id` | chaîne | ID du calendrier |
+|   ↳ `summary` | chaîne | Titre du calendrier |
+|   ↳ `description` | chaîne | Description du calendrier |
+|   ↳ `location` | chaîne | Lieu du calendrier |
+|   ↳ `timeZone` | chaîne | Fuseau horaire du calendrier |
+|   ↳ `accessRole` | chaîne | Rôle d'accès pour le calendrier |
+|   ↳ `backgroundColor` | chaîne | Couleur d'arrière-plan du calendrier |
+|   ↳ `foregroundColor` | chaîne | Couleur de premier plan du calendrier |
+|   ↳ `primary` | booléen | Si c'est le calendrier principal |
+|   ↳ `hidden` | booléen | Si le calendrier est masqué |
+|   ↳ `selected` | booléen | Si le calendrier est sélectionné |
+
+### `google_calendar_quick_add`
+
+Créer des événements à partir de texte en langage naturel. Renvoie uniquement les champs alignés sur l'API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | chaîne | Non | ID du calendrier Google (ex. : primary ou calendar@group.calendar.google.com) |
+| `text` | chaîne | Oui | Texte en langage naturel décrivant l'événement (ex. : "Réunion avec John demain à 15h") |
+| `attendees` | tableau | Non | Tableau d'adresses e-mail des participants (chaîne séparée par des virgules également acceptée) |
+| `sendUpdates` | chaîne | Non | Comment envoyer les mises à jour aux participants : all, externalOnly, ou none |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | ID de l'événement |
+| `htmlLink` | chaîne | Lien de l'événement |
+| `status` | chaîne | Statut de l'événement |
+| `summary` | chaîne | Titre de l'événement |
+| `description` | chaîne | Description de l'événement |
+| `location` | chaîne | Lieu de l'événement |
+| `start` | json | Début de l'événement |
+| `end` | json | Fin de l'événement |
+| `attendees` | json | Participants de l'événement |
+| `creator` | json | Créateur de l'événement |
+| `organizer` | json | Organisateur de l'événement |
+
+### `google_calendar_invite`
+
+Inviter des participants à un événement Google Calendar existant. Renvoie uniquement les champs alignés sur l'API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | chaîne | Non | ID du calendrier Google (ex. : primary ou calendar@group.calendar.google.com) |
+| `eventId` | chaîne | Oui | ID de l'événement Google Calendar auquel inviter des participants |
+| `attendees` | tableau | Oui | Tableau d'adresses e-mail des participants à inviter |
+| `sendUpdates` | chaîne | Non | Comment envoyer les mises à jour aux participants : all, externalOnly, ou none |
+| `replaceExisting` | booléen | Non | Remplacer les participants existants ou les ajouter (par défaut : false) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID de l'événement |
+| `htmlLink` | string | Lien de l'événement |
+| `status` | string | Statut de l'événement |
+| `summary` | string | Titre de l'événement |
+| `description` | string | Description de l'événement |
+| `location` | string | Lieu de l'événement |
+| `start` | json | Début de l'événement |
+| `end` | json | Fin de l'événement |
+| `attendees` | json | Participants de l'événement |
+| `creator` | json | Créateur de l'événement |
+| `organizer` | json | Organisateur de l'événement |

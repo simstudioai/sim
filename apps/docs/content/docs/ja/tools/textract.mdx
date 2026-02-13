@@ -1,0 +1,56 @@
+---
+title: AWS Textract
+description: ドキュメントからテキスト、表、フォームを抽出
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="textract_v2"
+  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Textract](https://aws.amazon.com/textract/)は、スキャンされたドキュメントや画像から印刷されたテキスト、手書き文字、表、フォーム、キーと値のペア、その他の構造化データを自動的に抽出するために設計された、Amazon Web Servicesの強力なAIサービスです。Textractは、高度な光学式文字認識(OCR)とドキュメント分析を活用して、ドキュメントを実用的なデータに変換し、自動化、分析、コンプライアンスなどを可能にします。
+
+AWS Textractを使用すると、次のことができます。
+
+- **画像やドキュメントからテキストを抽出**: PDF、JPEG、PNG、TIFFなどの形式で印刷されたテキストや手書き文字を認識
+- **表を検出して抽出**: 自動的に表を見つけて、その構造化されたコンテンツを出力
+- **フォームとキーと値のペアを解析**: フィールドとそれに対応する値を含む、フォームから構造化データを抽出
+- **署名とレイアウト機能を識別**: 署名、幾何学的レイアウト、ドキュメント要素間の関係を検出
+- **クエリを使用して抽出をカスタマイズ**: クエリベースの抽出を使用して特定のフィールドと回答を抽出(例:「請求書番号は何ですか?」)
+
+Simでは、AWS Textract統合により、エージェントがワークフローの一部としてドキュメントをインテリジェントに処理できるようになります。これにより、請求書、オンボーディングドキュメント、契約書、領収書などからのデータ入力などの自動化シナリオが可能になります。エージェントは、関連データを抽出し、構造化されたフォームを分析し、ドキュメントのアップロードやURLから直接サマリーやレポートを生成できます。SimとAWS Textractを接続することで、手作業を削減し、データの精度を向上させ、堅牢なドキュメント理解によってビジネスプロセスを合理化できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+AWS Textractをワークフローに統合して、ドキュメントからテキスト、表、フォーム、キーと値のペアを抽出します。シングルページモードはJPEG、PNG、シングルページPDFに対応しています。マルチページモードはマルチページPDFとTIFFに対応しています。
+
+## ツール
+
+### `textract_parser`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `region` | string | はい | Textractサービスのリージョン（例：us-east-1） |
+| `processingMode` | string | いいえ | ドキュメントタイプ：single-pageまたはmulti-page。デフォルトはsingle-page。 |
+| `filePath` | string | いいえ | 処理するドキュメントのURL（JPEG、PNG、またはシングルページPDF）。 |
+| `file` | file | いいえ | 処理するドキュメントファイル（JPEG、PNG、またはシングルページPDF）。 |
+| `s3Uri` | string | いいえ | マルチページ処理用のS3 URI（s3://bucket/key）。 |
+| `featureTypes` | array | いいえ | 検出する機能タイプ：TABLES、FORMS、QUERIES、SIGNATURES、LAYOUT。指定しない場合、テキスト検出のみが実行されます。 |
+| `items` | string | いいえ | 機能タイプ |
+| `queries` | array | いいえ | 特定の情報を抽出するためのカスタムクエリ。featureTypesにQUERIESが含まれている場合のみ使用されます。 |
+| `items` | object | いいえ | クエリ設定 |
+| `properties` | string | いいえ | クエリテキスト |
+| `Text` | string | いいえ | 説明なし |
+| `Alias` | string | いいえ | 説明なし |
+
+#### 出力
+
+このツールは出力を生成しません。

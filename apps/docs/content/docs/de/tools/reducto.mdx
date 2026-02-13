@@ -1,0 +1,50 @@
+---
+title: Reducto
+description: Text aus PDF-Dokumenten extrahieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="reducto_v2"
+  color="#5c0c5c"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das [Reducto](https://reducto.ai/)-Tool ermöglicht eine schnelle und präzise Extraktion von Text und Daten aus PDF-Dokumenten mittels OCR (Optical Character Recognition). Reducto ist für Agenten-Workflows konzipiert und erleichtert die Verarbeitung hochgeladener oder verlinkter PDFs sowie die Umwandlung ihrer Inhalte in sofort nutzbare Informationen.
+
+Mit dem Reducto-Tool können Sie:
+
+- **Text und Tabellen aus PDFs extrahieren**: Konvertieren Sie gescannte oder digitale PDFs schnell in Text, Markdown oder strukturiertes JSON.
+- **PDFs aus Uploads oder URLs verarbeiten**: Verarbeiten Sie Dokumente entweder durch Hochladen einer PDF oder durch Angabe einer direkten URL.
+- **Ausgabeformatierung anpassen**: Wählen Sie Ihr bevorzugtes Ausgabeformat – Markdown, Klartext oder JSON – und legen Sie Tabellenformate als Markdown oder HTML fest.
+- **Bestimmte Seiten auswählen**: Extrahieren Sie optional Inhalte von bestimmten Seiten, um die Verarbeitung zu optimieren und sich auf das Wesentliche zu konzentrieren.
+- **Detaillierte Verarbeitungsmetadaten erhalten**: Erhalten Sie neben den extrahierten Inhalten auch Auftragsdetails, Verarbeitungszeiten, Quelldatei-Informationen, Seitenzahlen und OCR-Nutzungsstatistiken für Audit und Automatisierung.
+
+Ob Sie Workflow-Schritte automatisieren, geschäftskritische Informationen extrahieren oder Archivdokumente für Suche und Analyse erschließen – Reductos OCR-Parser liefert Ihnen strukturierte, verwertbare Daten selbst aus den komplexesten PDFs.
+
+Suchen Sie nach zuverlässigem und skalierbarem PDF-Parsing? Reducto ist für Entwickler und Agenten optimiert – und bietet Genauigkeit, Geschwindigkeit und Flexibilität für modernes Dokumentenverständnis.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Reducto Parse in den Workflow. Kann Text aus hochgeladenen PDF-Dokumenten oder Dateireferenzen extrahieren.
+
+## Tools
+
+### `reducto_parser`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Nein | URL zu einem zu verarbeitenden PDF-Dokument |
+| `file` | file | Nein | Zu verarbeitende Dokumentdatei |
+| `fileUpload` | object | Nein | Datei-Upload-Daten aus der Datei-Upload-Komponente |
+| `pages` | array | Nein | Bestimmte zu verarbeitende Seiten \(1-indizierte Seitenzahlen\) |
+| `tableOutputFormat` | string | Nein | Tabellen-Ausgabeformat \(html oder markdown\). Standard ist markdown. |
+| `apiKey` | string | Ja | Reducto-API-Schlüssel \(REDUCTO_API_KEY\) |
+
+#### Ausgabe
+
+Dieses Tool erzeugt keine Ausgaben.

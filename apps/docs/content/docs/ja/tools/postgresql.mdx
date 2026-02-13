@@ -158,3 +158,44 @@ PostgreSQLデータベースで生のSQLクエリを実行する
 
 - カテゴリー: `tools`
 - タイプ: `postgresql`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | PostgreSQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | PostgreSQLサーバーのポート（デフォルト：5432） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+| `schema` | string | いいえ | イントロスペクトするスキーマ（デフォルト：public） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `tables` | array | カラム、キー、インデックスを含むテーブルスキーマの配列 |
+|   ↳ `name` | string | テーブル名 |
+|   ↳ `schema` | string | スキーマ名（例：public） |
+|   ↳ `columns` | array | テーブルのカラム |
+|     ↳ `name` | string | カラム名 |
+|     ↳ `type` | string | データ型（例：integer、varchar、timestamp） |
+|     ↳ `nullable` | boolean | カラムがNULL値を許可するかどうか |
+|     ↳ `default` | string | デフォルト値の式 |
+|     ↳ `isPrimaryKey` | boolean | カラムが主キーの一部かどうか |
+|     ↳ `isForeignKey` | boolean | カラムが外部キーかどうか |
+|     ↳ `references` | object | 外部キー参照情報 |
+|       ↳ `table` | string | 参照先のテーブル名 |
+|       ↳ `column` | string | 参照先のカラム名 |
+|   ↳ `primaryKey` | array | 主キーのカラム名 |
+|   ↳ `foreignKeys` | array | 外部キー制約 |
+|     ↳ `column` | string | ローカルカラム名 |
+|     ↳ `referencesTable` | string | 参照先のテーブル名 |
+|     ↳ `referencesColumn` | string | 参照先のカラム名 |
+|   ↳ `indexes` | array | テーブルのインデックス |
+|     ↳ `name` | string | インデックス名 |
+|     ↳ `columns` | array | インデックスに含まれるカラム |
+|     ↳ `unique` | boolean | インデックスが一意性を強制するかどうか |
+| `schemas` | array | データベース内の利用可能なスキーマのリスト |

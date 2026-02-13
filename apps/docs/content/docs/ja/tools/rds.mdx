@@ -166,3 +166,25 @@ Data APIを使用してAmazon RDSで生のSQLを実行する
 
 - カテゴリー: `tools`
 - タイプ: `rds`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `resourceArn` | string | はい | Aurora DBクラスターのARN（例：arn:aws:rds:us-east-1:123456789012:cluster:my-cluster） |
+| `secretArn` | string | はい | DB認証情報を含むSecrets ManagerシークレットのARN |
+| `database` | string | いいえ | 接続先のデータベース名（例：mydb、production_db） |
+| `schema` | string | いいえ | イントロスペクトするスキーマ（デフォルト：PostgreSQLの場合はpublic、MySQLの場合はデータベース名） |
+| `engine` | string | いいえ | データベースエンジン（aurora-postgresqlまたはaurora-mysql）。指定しない場合は自動検出されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `engine` | string | 検出されたデータベースエンジンタイプ |
+| `tables` | array | カラム、キー、インデックスを含むテーブルスキーマの配列 |
+| `schemas` | array | データベース内の利用可能なスキーマのリスト |

@@ -1,0 +1,178 @@
+---
+title: Similarweb
+description: Website-Traffic- und Analysedaten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="similarweb"
+  color="#000922"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Similarweb](https://www.similarweb.com/) ist eine führende Plattform für Webanalyse, die detaillierte Traffic- und Engagement-Daten für Millionen von Websites bereitstellt. Similarweb liefert Ihnen Einblicke in Website-Besuche, Traffic-Quellen, Nutzerverhalten und Wettbewerbs-Benchmarks.
+
+Mit Similarweb in Sim können Ihre Agenten:
+
+- **Website-Traffic analysieren**: Rufen Sie wichtige Kennzahlen wie monatliche Besuche, durchschnittliche Verweildauer, Absprungraten und Top-Länder ab.
+- **Nutzer-Engagement verstehen**: Gewinnen Sie Einblicke, wie Nutzer mit Websites interagieren, einschließlich Seiten pro Besuch und Engagement-Dauer.
+- **Rankings und Performance verfolgen**: Greifen Sie auf globale, Länder- und Kategorie-Rankings zu, um Websites mit Wettbewerbern zu vergleichen.
+- **Traffic-Quellen entdecken**: Schlüsseln Sie Traffic nach Kanälen wie direkt, Suche, Social Media, Verweise und mehr auf.
+
+Nutzen Sie die Similarweb-Integration von Sim, um die Überwachung von Wettbewerbern zu automatisieren, die Performance Ihrer Website zu verfolgen oder umsetzbare Marktforschung zu liefern – alles direkt in Ihre Workflows und Automatisierungen integriert. Befähigen Sie Ihre Agenten, zuverlässige Webanalyse-Daten einfach und programmatisch zu nutzen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Greifen Sie auf umfassende Website-Analysen zu, einschließlich Traffic-Schätzungen, Engagement-Metriken, Rankings und Traffic-Quellen über die Similarweb-API.
+
+## Tools
+
+### `similarweb_website_overview`
+
+Erhalten Sie umfassende Website-Analysen einschließlich Traffic, Rankings, Engagement und Traffic-Quellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SimilarWeb-API-Schlüssel |
+| `domain` | string | Ja | Zu analysierende Website-Domain \(z. B. "example.com" ohne www oder Protokoll\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `siteName` | string | Website-Name |
+| `description` | string | Website-Beschreibung |
+| `globalRank` | number | Globales Traffic-Ranking |
+| `countryRank` | number | Länder-Traffic-Ranking |
+| `categoryRank` | number | Kategorie-Traffic-Ranking |
+| `category` | string | Website-Kategorie |
+| `monthlyVisits` | number | Geschätzte monatliche Besuche |
+| `engagementVisitDuration` | number | Durchschnittliche Besuchsdauer in Sekunden |
+| `engagementPagesPerVisit` | number | Durchschnittliche Seiten pro Besuch |
+| `engagementBounceRate` | number | Absprungrate \(0-1\) |
+| `topCountries` | array | Top-Länder nach Traffic-Anteil |
+|   ↳ `country` | string | Ländercode |
+|   ↳ `share` | number | Traffic-Anteil \(0-1\) |
+| `trafficSources` | json | Aufschlüsselung der Traffic-Quellen |
+|   ↳ `direct` | number | Direkter Traffic-Anteil |
+|   ↳ `referrals` | number | Referral-Traffic-Anteil |
+|   ↳ `search` | number | Such-Traffic-Anteil |
+|   ↳ `social` | number | Social-Traffic-Anteil |
+|   ↳ `mail` | number | E-Mail-Traffic-Anteil |
+|   ↳ `paidReferrals` | number | Bezahlter Referral-Traffic-Anteil |
+
+### `similarweb_traffic_visits`
+
+Gesamte Website-Besuche im Zeitverlauf abrufen (Desktop und Mobil kombiniert)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SimilarWeb-API-Schlüssel |
+| `domain` | string | Ja | Zu analysierende Website-Domain \(z. B. "example.com" ohne www oder Protokoll\) |
+| `country` | string | Ja | 2-stelliger ISO-Ländercode \(z. B. "us", "gb", "de"\) oder "world" für weltweite Daten |
+| `granularity` | string | Ja | Datengranularität: daily, weekly oder monthly |
+| `startDate` | string | Nein | Startdatum im Format YYYY-MM \(z. B. "2024-01"\) |
+| `endDate` | string | Nein | Enddatum im Format YYYY-MM \(z. B. "2024-12"\) |
+| `mainDomainOnly` | boolean | Nein | Subdomains von den Ergebnissen ausschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `domain` | string | Analysierte Domain |
+| `country` | string | Angewendeter Länderfilter |
+| `granularity` | string | Datengranularität |
+| `lastUpdated` | string | Zeitstempel der letzten Datenaktualisierung |
+| `visits` | array | Besuchsdaten im Zeitverlauf |
+|   ↳ `date` | string | Datum \(JJJJ-MM-TT\) |
+|   ↳ `visits` | number | Anzahl der Besuche |
+
+### `similarweb_bounce_rate`
+
+Website-Absprungrate im Zeitverlauf abrufen (Desktop und Mobil kombiniert)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | SimilarWeb-API-Schlüssel |
+| `domain` | string | Ja | Zu analysierende Website-Domain \(z. B. "example.com" ohne www oder Protokoll\) |
+| `country` | string | Ja | Zweistelliger ISO-Ländercode \(z. B. "us", "gb", "de"\) oder "world" für weltweite Daten |
+| `granularity` | string | Ja | Datengranularität: daily, weekly oder monthly |
+| `startDate` | string | Nein | Startdatum im Format JJJJ-MM \(z. B. "2024-01"\) |
+| `endDate` | string | Nein | Enddatum im Format JJJJ-MM \(z. B. "2024-12"\) |
+| `mainDomainOnly` | boolean | Nein | Subdomains von den Ergebnissen ausschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `domain` | string | Analysierte Domain |
+| `country` | string | Angewendeter Länderfilter |
+| `granularity` | string | Datengranularität |
+| `lastUpdated` | string | Zeitstempel der letzten Datenaktualisierung |
+| `bounceRate` | array | Absprungratendaten im Zeitverlauf |
+|   ↳ `date` | string | Datum \(JJJJ-MM-TT\) |
+|   ↳ `bounceRate` | number | Absprungrate \(0-1\) |
+
+### `similarweb_pages_per_visit`
+
+Erhalten Sie die durchschnittlichen Seitenaufrufe pro Besuch im Zeitverlauf (Desktop und Mobile kombiniert)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | ----------- | ------------ |
+| `apiKey` | string | Ja | SimilarWeb API-Schlüssel |
+| `domain` | string | Ja | Zu analysierende Website-Domain (z. B. "example.com" ohne www oder Protokoll) |
+| `country` | string | Ja | 2-stelliger ISO-Ländercode (z. B. "us", "gb", "de") oder "world" für weltweite Daten |
+| `granularity` | string | Ja | Daten-Granularität: täglich, wöchentlich oder monatlich |
+| `startDate` | string | Nein | Startdatum im Format JJJJ-MM (z. B. "2024-01") |
+| `endDate` | string | Nein | Enddatum im Format JJJJ-MM (z. B. "2024-12") |
+| `mainDomainOnly` | boolean | Nein | Subdomains aus den Ergebnissen ausschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ------------ |
+| `domain` | string | Analysierte Domain |
+| `country` | string | Angewendeter Länderfilter |
+| `granularity` | string | Daten-Granularität |
+| `lastUpdated` | string | Zeitstempel der letzten Datenaktualisierung |
+| `pagesPerVisit` | array | Seitenaufrufe pro Besuch im Zeitverlauf |
+|   ↳ `date` | string | Datum (JJJJ-MM-TT) |
+|   ↳ `pagesPerVisit` | number | Durchschnittliche Seitenaufrufe pro Besuch |
+
+### `similarweb_visit_duration`
+
+Erhalten Sie die durchschnittliche Besuchsdauer auf dem Desktop im Zeitverlauf (in Sekunden)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | ----------- | ------------ |
+| `apiKey` | string | Ja | SimilarWeb API-Schlüssel |
+| `domain` | string | Ja | Zu analysierende Website-Domain (z. B. "example.com" ohne www oder Protokoll) |
+| `country` | string | Ja | 2-stelliger ISO-Ländercode (z. B. "us", "gb", "de") oder "world" für weltweite Daten |
+| `granularity` | string | Ja | Daten-Granularität: täglich, wöchentlich oder monatlich |
+| `startDate` | string | Nein | Startdatum im Format JJJJ-MM (z. B. "2024-01") |
+| `endDate` | string | Nein | Enddatum im Format JJJJ-MM (z. B. "2024-12") |
+| `mainDomainOnly` | boolean | Nein | Subdomains aus den Ergebnissen ausschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ------------ |
+| `domain` | string | Analysierte Domain |
+| `country` | string | Angewendeter Länderfilter |
+| `granularity` | string | Datengranularität |
+| `lastUpdated` | string | Zeitstempel der letzten Datenaktualisierung |
+| `averageVisitDuration` | array | Desktop-Besuchsdauerdaten im Zeitverlauf |
+|   ↳ `date` | string | Datum \(JJJJ-MM-TT\) |
+|   ↳ `durationSeconds` | number | Durchschnittliche Besuchsdauer in Sekunden |

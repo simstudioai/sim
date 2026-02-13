@@ -165,33 +165,3 @@ Audio mit AssemblyAI und erweiterten NLP-Funktionen in Text transkribieren
 | `summary` | string | Automatisch generierte Zusammenfassung |
 
 ### `stt_gemini`
-
-Audio mit Google Gemini und multimodalen Fähigkeiten in Text transkribieren
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `provider` | string | Ja | STT-Anbieter \(gemini\) |
-| `apiKey` | string | Ja | Google API-Schlüssel |
-| `model` | string | Nein | Zu verwendendes Gemini-Modell \(Standard: gemini-2.5-flash\) |
-| `audioFile` | file | Nein | Zu transkribierendes Audio- oder Videodatei |
-| `audioFileReference` | file | Nein | Referenz auf Audio-/Videodatei aus vorherigen Blöcken |
-| `audioUrl` | string | Nein | URL zu Audio- oder Videodatei |
-| `language` | string | Nein | Sprachcode \(z.B. "en", "es", "fr"\) oder "auto" für automatische Erkennung |
-| `timestamps` | string | Nein | Zeitstempel-Granularität: none, sentence oder word |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `transcript` | string | Vollständig transkribierter Text |
-| `segments` | array | Segmente mit Zeitstempeln |
-| `language` | string | Erkannte oder angegebene Sprache |
-| `duration` | number | Audiodauer in Sekunden |
-| `confidence` | number | Gesamter Konfidenzwert |
-
-## Hinweise
-
-- Kategorie: `tools`
-- Typ: `stt`

@@ -139,3 +139,145 @@ Google カレンダーから特定のイベントを取得する
 
 - カテゴリ: `tools`
 - タイプ: `google_calendar`
+
+イベントを別のカレンダーに移動します。API準拠のフィールドのみを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | いいえ | 移動元のGoogleカレンダーID（例：primaryまたはcalendar@group.calendar.google.com） |
+| `eventId` | string | はい | 移動するGoogleカレンダーイベントID |
+| `destinationCalendarId` | string | はい | 移動先のGoogleカレンダーID |
+| `sendUpdates` | string | いいえ | 参加者への更新通知方法：all（全員）、externalOnly（外部のみ）、またはnone（なし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | イベントID |
+| `htmlLink` | string | イベントリンク |
+| `status` | string | イベントステータス |
+| `summary` | string | イベントタイトル |
+| `description` | string | イベント説明 |
+| `location` | string | イベント場所 |
+| `start` | json | イベント開始 |
+| `end` | json | イベント終了 |
+| `attendees` | json | イベント参加者 |
+| `creator` | json | イベント作成者 |
+| `organizer` | json | イベント主催者 |
+
+### `google_calendar_instances`
+
+Googleカレンダーから繰り返しイベントのインスタンスを取得します。API準拠のフィールドのみを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | いいえ | GoogleカレンダーID（例：primaryまたはcalendar@group.calendar.google.com） |
+| `eventId` | string | はい | インスタンスを取得する繰り返しイベントID |
+| `timeMin` | string | いいえ | インスタンスの下限（RFC3339タイムスタンプ、例：2025-06-03T00:00:00Z） |
+| `timeMax` | string | いいえ | インスタンスの上限（RFC3339タイムスタンプ、例：2025-06-04T00:00:00Z） |
+| `maxResults` | number | いいえ | 返すインスタンスの最大数（デフォルト250、最大2500） |
+| `pageToken` | string | いいえ | 結果の次のページを取得するためのトークン |
+| `showDeleted` | boolean | いいえ | 削除されたインスタンスを含める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | 次のページトークン |
+| `timeZone` | string | カレンダーのタイムゾーン |
+| `instances` | json | 繰り返しイベントのインスタンスのリスト |
+
+### `google_calendar_list_calendars`
+
+ユーザーのすべてのカレンダーを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `minAccessRole` | string | いいえ | 返されるカレンダーの最小アクセスロール：freeBusyReader、reader、writer、またはowner |
+| `maxResults` | number | いいえ | 返すカレンダーの最大数（デフォルト100、最大250） |
+| `pageToken` | string | いいえ | 結果の次のページを取得するためのトークン |
+| `showDeleted` | boolean | いいえ | 削除されたカレンダーを含める |
+| `showHidden` | boolean | いいえ | 非表示のカレンダーを含める |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | 次のページトークン |
+| `calendars` | array | カレンダーのリスト |
+|   ↳ `id` | string | カレンダーID |
+|   ↳ `summary` | string | カレンダーのタイトル |
+|   ↳ `description` | string | カレンダーの説明 |
+|   ↳ `location` | string | カレンダーの場所 |
+|   ↳ `timeZone` | string | カレンダーのタイムゾーン |
+|   ↳ `accessRole` | string | カレンダーのアクセスロール |
+|   ↳ `backgroundColor` | string | カレンダーの背景色 |
+|   ↳ `foregroundColor` | string | カレンダーの前景色 |
+|   ↳ `primary` | boolean | これがプライマリカレンダーかどうか |
+|   ↳ `hidden` | boolean | カレンダーが非表示かどうか |
+|   ↳ `selected` | boolean | カレンダーが選択されているかどうか |
+
+### `google_calendar_quick_add`
+
+自然言語テキストからイベントを作成します。API準拠のフィールドのみを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | いいえ | GoogleカレンダーID（例：primaryまたはcalendar@group.calendar.google.com） |
+| `text` | string | はい | イベントを説明する自然言語テキスト（例：「明日午後3時にJohnとミーティング」） |
+| `attendees` | array | いいえ | 参加者のメールアドレスの配列（カンマ区切りの文字列も可） |
+| `sendUpdates` | string | いいえ | 参加者への更新通知方法：all（全員）、externalOnly（外部のみ）、またはnone（なし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | イベントID |
+| `htmlLink` | string | イベントリンク |
+| `status` | string | イベントステータス |
+| `summary` | string | イベントタイトル |
+| `description` | string | イベント説明 |
+| `location` | string | イベント場所 |
+| `start` | json | イベント開始 |
+| `end` | json | イベント終了 |
+| `attendees` | json | イベント参加者 |
+| `creator` | json | イベント作成者 |
+| `organizer` | json | イベント主催者 |
+
+### `google_calendar_invite`
+
+既存のGoogleカレンダーイベントに参加者を招待します。API準拠のフィールドのみを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | いいえ | GoogleカレンダーID（例：primaryまたはcalendar@group.calendar.google.com） |
+| `eventId` | string | はい | 参加者を招待するGoogleカレンダーイベントID |
+| `attendees` | array | はい | 招待する参加者のメールアドレスの配列 |
+| `sendUpdates` | string | いいえ | 参加者への更新通知方法：all（全員）、externalOnly（外部のみ）、またはnone（なし） |
+| `replaceExisting` | boolean | いいえ | 既存の参加者を置き換えるか追加するか（デフォルトはfalse） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | イベントID |
+| `htmlLink` | string | イベントリンク |
+| `status` | string | イベントステータス |
+| `summary` | string | イベントタイトル |
+| `description` | string | イベント説明 |
+| `location` | string | イベント場所 |
+| `start` | json | イベント開始 |
+| `end` | json | イベント終了 |
+| `attendees` | json | イベント参加者 |
+| `creator` | json | イベント作成者 |
+| `organizer` | json | イベント主催者 |

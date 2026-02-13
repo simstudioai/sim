@@ -186,3 +186,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别: `tools`
 - 类型: `dynamodb`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `tableName` | string | 否 | 可选表名，用于获取详细的 schema \(例如，"Users"，"Orders"\)。如果未提供，则列出所有表。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `tables` | array | 区域内的表名列表 |
+| `tableDetails` | object | 指定表的详细 schema 信息 |

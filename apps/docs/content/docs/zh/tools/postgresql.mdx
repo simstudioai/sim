@@ -158,3 +158,44 @@ PostgreSQL 工具非常适合需要与结构化数据交互的场景，例如自
 
 - 类别：`tools`
 - 类型：`postgresql`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | PostgreSQL 服务器主机名或 IP 地址 |
+| `port` | number | 是 | PostgreSQL 服务器端口（默认：5432） |
+| `database` | string | 是 | 要连接的数据库名称 |
+| `username` | string | 是 | 数据库用户名 |
+| `password` | string | 是 | 数据库密码 |
+| `ssl` | string | 否 | SSL 连接模式（禁用、必需、首选） |
+| `schema` | string | 否 | 要内省的 schema（默认：public） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态信息 |
+| `tables` | array | 包含列、键和索引的表 schema 数组 |
+|   ↳ `name` | string | 表名 |
+|   ↳ `schema` | string | schema 名称（如 public） |
+|   ↳ `columns` | array | 表的列 |
+|     ↳ `name` | string | 列名 |
+|     ↳ `type` | string | 数据类型（如 integer、varchar、timestamp） |
+|     ↳ `nullable` | boolean | 该列是否允许 NULL 值 |
+|     ↳ `default` | string | 默认值表达式 |
+|     ↳ `isPrimaryKey` | boolean | 该列是否为主键的一部分 |
+|     ↳ `isForeignKey` | boolean | 该列是否为外键 |
+|     ↳ `references` | object | 外键引用信息 |
+|       ↳ `table` | string | 被引用的表名 |
+|       ↳ `column` | string | 被引用的列名 |
+|   ↳ `primaryKey` | array | 主键列名列表 |
+|   ↳ `foreignKeys` | array | 外键约束 |
+|     ↳ `column` | string | 本地列名 |
+|     ↳ `referencesTable` | string | 被引用的表名 |
+|     ↳ `referencesColumn` | string | 被引用的列名 |
+|   ↳ `indexes` | array | 表索引 |
+|     ↳ `name` | string | 索引名 |
+|     ↳ `columns` | array | 索引包含的列 |
+|     ↳ `unique` | boolean | 该索引是否唯一 |
+| `schemas` | array | 数据库中可用 schema 列表 |

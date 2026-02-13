@@ -1,0 +1,63 @@
+---
+title: Airweave
+description: Busca en tus colecciones de datos sincronizados
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airweave](https://airweave.ai/) es una plataforma de búsqueda semántica impulsada por IA que te ayuda a descubrir y recuperar conocimiento a través de todas tus fuentes de datos sincronizadas. Diseñada para equipos modernos, Airweave permite obtener resultados de búsqueda rápidos y relevantes utilizando estrategias neurales, híbridas o basadas en palabras clave adaptadas a tus necesidades.
+
+Con Airweave, puedes:
+
+- **Buscar de forma más inteligente**: usa consultas en lenguaje natural para descubrir información almacenada en tus herramientas y bases de datos conectadas
+- **Unificar tus datos**: accede sin problemas a contenido de fuentes como código, documentos, chat, correos electrónicos, archivos en la nube y más
+- **Personalizar la recuperación**: selecciona entre estrategias de búsqueda híbrida (semántica + palabras clave), neural o por palabras clave para obtener resultados óptimos
+- **Aumentar la recuperación**: expande las consultas de búsqueda con IA para encontrar respuestas más completas
+- **Reordenar resultados usando IA**: prioriza las respuestas más relevantes con potentes modelos de lenguaje
+- **Obtener respuestas instantáneas**: genera respuestas claras impulsadas por IA sintetizadas a partir de tus datos
+
+En Sim, la integración de Airweave permite a tus agentes buscar, resumir y extraer información de todos los datos de tu organización a través de una única herramienta. Usa Airweave para impulsar una recuperación de conocimiento rica y contextual dentro de tus flujos de trabajo, ya sea respondiendo preguntas, generando resúmenes o apoyando la toma de decisiones dinámica.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Busca en tus fuentes de datos sincronizadas usando Airweave. Admite búsqueda semántica con estrategias de recuperación híbrida, neural o por palabras clave. Opcionalmente, genera respuestas impulsadas por IA a partir de los resultados de búsqueda.
+
+## Herramientas
+
+### `airweave_search`
+
+Busca en tus colecciones de datos sincronizados usando Airweave. Admite búsqueda semántica con estrategias de recuperación híbrida, neural o por palabras clave. Opcionalmente, genera respuestas impulsadas por IA a partir de los resultados de búsqueda.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Airweave para autenticación |
+| `collectionId` | string | Sí | El ID legible de la colección a buscar |
+| `query` | string | Sí | El texto de la consulta de búsqueda |
+| `limit` | number | No | Número máximo de resultados a devolver \(predeterminado: 100\) |
+| `retrievalStrategy` | string | No | Estrategia de recuperación: hybrid \(predeterminado\), neural o keyword |
+| `expandQuery` | boolean | No | Generar variaciones de consulta para mejorar la recuperación |
+| `rerank` | boolean | No | Reordenar resultados para mejorar la relevancia usando LLM |
+| `generateAnswer` | boolean | No | Generar una respuesta en lenguaje natural a la consulta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Resultados de búsqueda con contenido, puntuaciones y metadatos de tus datos sincronizados |
+|   ↳ `entity_id` | string | Identificador único para la entidad del resultado de búsqueda |
+|   ↳ `source_name` | string | Nombre de la fuente de datos \(p. ej., "GitHub", "Slack"\) |
+|   ↳ `md_content` | string | Contenido del resultado formateado en Markdown |
+|   ↳ `score` | number | Puntuación de relevancia de la búsqueda |
+|   ↳ `metadata` | object | Metadatos adicionales asociados con el resultado |
+|   ↳ `breadcrumbs` | array | Ruta de navegación al resultado dentro de su fuente |
+|   ↳ `url` | string | URL al contenido original |
+| `completion` | string | Respuesta generada por IA a la consulta \(cuando generateAnswer está habilitado\) |

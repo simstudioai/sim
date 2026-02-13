@@ -170,3 +170,39 @@ Führt beliebige Cypher-Abfragen auf der Neo4j-Graphdatenbank für komplexe Oper
 
 - Kategorie: `tools`
 - Typ: `neo4j`
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `records` | array | Array der von der Abfrage zurückgegebenen Datensätze |
+| `recordCount` | number | Anzahl der zurückgegebenen Datensätze |
+| `summary` | json | Ausführungszusammenfassung mit Zeitangaben und Zählern |
+
+### `neo4j_introspect`
+
+Untersucht eine Neo4j-Datenbank, um ihr Schema zu ermitteln, einschließlich Knotenlabels, Beziehungstypen, Eigenschaften, Constraints und Indizes.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | Neo4j-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | Neo4j-Server-Port \(Standard: 7687 für Bolt-Protokoll\) |
+| `database` | string | Ja | Datenbankname, zu dem verbunden werden soll \(z. B. "neo4j", "movies", "social"\) |
+| `username` | string | Ja | Neo4j-Benutzername |
+| `password` | string | Ja | Neo4j-Passwort |
+| `encryption` | string | Nein | Verbindungsverschlüsselungsmodus \(enabled, disabled\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `labels` | array | Array der Knotenlabels in der Datenbank |
+| `relationshipTypes` | array | Array der Beziehungstypen in der Datenbank |
+| `nodeSchemas` | array | Array der Knotenschemata mit ihren Eigenschaften |
+| `relationshipSchemas` | array | Array der Beziehungsschemata mit ihren Eigenschaften |
+| `constraints` | array | Array der Datenbank-Constraints |
+| `indexes` | array | Array der Datenbankindizes |

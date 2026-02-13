@@ -284,3 +284,126 @@ Añadir una reacción emoji a un mensaje de Slack
 
 - Categoría: `tools`
 - Tipo: `slack`
+
+Actualizar un mensaje enviado previamente por el bot en Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje (p. ej., C1234567890) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje a actualizar (p. ej., 1405894322.002768) |
+| `text` | string | Sí | Nuevo texto del mensaje (admite formato mrkdwn de Slack) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | object | Objeto completo del mensaje actualizado con todas las propiedades devueltas por Slack |
+|   ↳ `type` | string | Tipo de mensaje (normalmente "message") |
+|   ↳ `ts` | string | Marca de tiempo del mensaje (identificador único) |
+|   ↳ `text` | string | Contenido de texto del mensaje |
+|   ↳ `user` | string | ID del usuario que envió el mensaje |
+|   ↳ `bot_id` | string | ID del bot si fue enviado por un bot |
+|   ↳ `username` | string | Nombre de usuario mostrado |
+|   ↳ `channel` | string | ID del canal |
+|   ↳ `team` | string | ID del equipo/espacio de trabajo |
+|   ↳ `thread_ts` | string | Marca de tiempo del mensaje padre (para respuestas en hilo) |
+|   ↳ `parent_user_id` | string | ID del usuario autor del mensaje padre del hilo |
+|   ↳ `reply_count` | number | Número total de respuestas en el hilo |
+|   ↳ `reply_users_count` | number | Número de usuarios únicos que respondieron |
+|   ↳ `latest_reply` | string | Marca de tiempo de la respuesta más reciente |
+|   ↳ `subscribed` | boolean | Si el usuario está suscrito al hilo |
+|   ↳ `last_read` | string | Marca de tiempo del último mensaje leído |
+|   ↳ `unread_count` | number | Número de mensajes no leídos en el hilo |
+|   ↳ `subtype` | string | Subtipo de mensaje (bot_message, file_share, etc.) |
+|   ↳ `is_starred` | boolean | Si el mensaje está marcado con estrella por el usuario |
+|   ↳ `pinned_to` | array | IDs de canales donde el mensaje está fijado |
+|   ↳ `permalink` | string | URL permanente al mensaje |
+|   ↳ `reactions` | array | Reacciones en este mensaje |
+|     ↳ `name` | string | Nombre del emoji (sin dos puntos) |
+|     ↳ `count` | number | Número de veces que se añadió esta reacción |
+|     ↳ `users` | array | Array de IDs de usuarios que reaccionaron |
+|   ↳ `files` | array | Archivos adjuntos al mensaje |
+|     ↳ `id` | string | Identificador único del archivo |
+|     ↳ `name` | string | Nombre del archivo |
+|     ↳ `mimetype` | string | Tipo MIME del archivo |
+|     ↳ `size` | number | Tamaño del archivo en bytes |
+|     ↳ `url_private` | string | URL de descarga privada (requiere autenticación) |
+|     ↳ `permalink` | string | Enlace permanente al archivo |
+|     ↳ `mode` | string | Modo del archivo (hosted, external, etc.) |
+|   ↳ `attachments` | array | Adjuntos heredados en el mensaje |
+|     ↳ `id` | number | ID del adjunto |
+|     ↳ `fallback` | string | Resumen en texto plano |
+|     ↳ `text` | string | Texto principal del adjunto |
+|     ↳ `pretext` | string | Texto mostrado antes del adjunto |
+|     ↳ `color` | string | Código hexadecimal de la barra de color o preestablecido |
+|     ↳ `author_name` | string | Nombre mostrado del autor |
+|     ↳ `author_link` | string | URL del enlace del autor |
+|     ↳ `author_icon` | string | URL del icono del autor |
+|     ↳ `title` | string | Título del adjunto |
+|     ↳ `title_link` | string | URL del enlace del título |
+|     ↳ `image_url` | string | URL de la imagen |
+|     ↳ `thumb_url` | string | URL de la miniatura |
+|     ↳ `footer` | string | Texto del pie de página |
+|     ↳ `footer_icon` | string | URL del icono del pie de página |
+|     ↳ `ts` | string | Marca de tiempo mostrada en el pie de página |
+|   ↳ `blocks` | array | Bloques de Block Kit en el mensaje |
+|     ↳ `type` | string | Tipo de bloque (section, divider, image, actions, etc.) |
+|     ↳ `block_id` | string | Identificador único del bloque |
+|   ↳ `edited` | object | Información de edición si el mensaje fue editado |
+|     ↳ `user` | string | ID del usuario que editó el mensaje |
+|     ↳ `ts` | string | Marca de tiempo de la edición |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del mensaje actualizado |
+|   ↳ `channel` | string | ID del canal |
+|   ↳ `timestamp` | string | Marca de tiempo del mensaje |
+|   ↳ `text` | string | Texto del mensaje actualizado |
+
+### `slack_delete_message`
+
+Eliminar un mensaje enviado previamente por el bot en Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje \(p. ej., C1234567890\) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje a eliminar \(p. ej., 1405894322.002768\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del mensaje eliminado |
+|   ↳ `channel` | string | ID del canal |
+|   ↳ `timestamp` | string | Marca de tiempo del mensaje |
+
+### `slack_add_reaction`
+
+Añadir una reacción emoji a un mensaje de Slack
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `authMethod` | string | No | Método de autenticación: oauth o bot_token |
+| `botToken` | string | No | Token del bot para bot personalizado |
+| `channel` | string | Sí | ID del canal donde se publicó el mensaje \(p. ej., C1234567890\) |
+| `timestamp` | string | Sí | Marca de tiempo del mensaje al que reaccionar \(p. ej., 1405894322.002768\) |
+| `name` | string | Sí | Nombre de la reacción emoji \(sin dos puntos, p. ej., thumbsup, heart, eyes\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos de la reacción |
+|   ↳ `channel` | string | ID del canal |
+|   ↳ `timestamp` | string | Marca de tiempo del mensaje |
+|   ↳ `reaction` | string | Nombre del emoji de reacción |

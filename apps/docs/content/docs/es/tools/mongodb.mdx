@@ -173,3 +173,23 @@ Ejecutar pipeline de agregación de MongoDB
 
 - Categoría: `tools`
 - Tipo: `mongodb`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MongoDB |
+| `port` | number | Sí | Puerto del servidor MongoDB \(predeterminado: 27017\) |
+| `database` | string | No | Nombre de la base de datos a inspeccionar. Si no se proporciona, lista todas las bases de datos |
+| `username` | string | No | Nombre de usuario de MongoDB |
+| `password` | string | No | Contraseña de MongoDB |
+| `authSource` | string | No | Base de datos de autenticación |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `databases` | array | Array de nombres de bases de datos |
+| `collections` | array | Array de información de colecciones con nombre, tipo, cantidad de documentos e índices |

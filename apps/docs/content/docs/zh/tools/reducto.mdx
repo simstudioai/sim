@@ -1,0 +1,50 @@
+---
+title: Reducto
+description: 从 PDF 文档中提取文本
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="reducto_v2"
+  color="#5c0c5c"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Reducto](https://reducto.ai/) 工具通过 OCR（光学字符识别）技术，实现对 PDF 文档中文本和数据的快速、精准提取。Reducto 专为 agent 工作流设计，便于处理上传或链接的 PDF，将其内容转化为可直接使用的信息。
+
+使用 Reducto 工具，您可以：
+
+- **从 PDF 中提取文本和表格**：快速将扫描版或数字版 PDF 转换为文本、markdown 或结构化 JSON。
+- **解析上传或链接的 PDF**：可通过上传 PDF 文件或指定直链 URL 处理文档。
+- **自定义输出格式**：可选择 markdown、纯文本或 JSON 作为输出格式，并指定表格为 markdown 或 HTML。
+- **选择特定页面**：可选定特定页面提取内容，优化处理效率，聚焦所需信息。
+- **获取详细处理元数据**：除提取内容外，还可获得作业详情、处理时长、源文件信息、页数及 OCR 使用统计，便于审计和自动化。
+
+无论是自动化工作流程、提取关键业务信息，还是解锁归档文档以便检索和分析，Reducto 的 OCR 解析器都能为您从最复杂的 PDF 中提供结构化、可用的数据。
+
+在寻找可靠且可扩展的 PDF 解析方案？Reducto 针对开发者和 agent 优化，兼具高准确率、速度与灵活性，助力现代文档理解。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Reducto Parse 集成到工作流中。可从上传的 PDF 文档或文件引用中提取文本。
+
+## 工具
+
+### `reducto_parser`
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `filePath` | string | 否 | 待处理 PDF 文档的 URL |
+| `file` | file | 否 | 待处理的文档文件 |
+| `fileUpload` | object | 否 | 来自文件上传组件的文件上传数据 |
+| `pages` | array | 否 | 需处理的特定页面（以 1 为起始页码） |
+| `tableOutputFormat` | string | 否 | 表格输出格式（html 或 markdown），默认为 markdown |
+| `apiKey` | string | 是 | Reducto API 密钥（REDUCTO_API_KEY） |
+
+#### 输出
+
+此工具不会生成任何输出。

@@ -1,0 +1,116 @@
+---
+title: Lemlist
+description: Gestiona actividades de prospección, leads y envía correos
+  electrónicos a través de Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Potencia tu prospección de ventas y engagement con [Lemlist](https://lemlist.com): la plataforma de automatización de prospección personalizada en la que confían miles de equipos de ventas. Con Lemlist, puedes automatizar campañas multicanal, nutrir leads y aumentar las tasas de respuesta, todo mientras mantienes tu comunicación altamente personalizada y auténtica.
+
+Con la integración de Lemlist, puedes:
+
+- **Automatizar secuencias de prospección:** lanza campañas personalizadas de email, LinkedIn y llamadas a escala, adaptadas a cada destinatario.
+- **Hacer seguimiento de la actividad de campañas:** monitorea instantáneamente aperturas, clics, respuestas, rebotes y cada interacción de leads para obtener información granular de las campañas.
+- **Centralizar datos de engagement:** obtén actividad y respuestas en tiempo real para cada campaña o lead, y sincronízalas directamente en tu automatización de flujos de trabajo.
+- **Obtener detalles de leads automáticamente:** recupera información enriquecida de leads por email o ID para mantener tu CRM y procesos actualizados sin entrada manual de datos.
+- **Enviar emails dirigidos desde tu bandeja de entrada:** activa emails personalizados a leads directamente desde el flujo de trabajo, usando plantillas y datos actualizados.
+- **Impulsar la colaboración del equipo y el seguimiento:** asigna leads, rastrea resultados y asegúrate de que ningún prospecto se pierda gracias a las herramientas integradas de Lemlist, todas accesibles mediante automatización.
+
+Lemlist empodera a equipos de ventas, marketing y outbound para ahorrar tiempo, personalizar a escala y convertir más prospectos. Automatiza y optimiza tus campañas, intégralas con tu stack y nunca pierdas una oportunidad valiosa.
+
+¡Genera más respuestas, agenda más reuniones y haz crecer tu pipeline conectando Lemlist a tus flujos de trabajo automatizados hoy mismo!
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Lemlist en tu flujo de trabajo. Recupera actividades de campañas y respuestas, obtén información de leads y envía correos electrónicos a través de la bandeja de entrada de Lemlist.
+
+## Herramientas
+
+### `lemlist_get_activities`
+
+Recupera actividades de campañas y pasos realizados, incluyendo aperturas de correos, clics, respuestas y otros eventos.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Lemlist |
+| `type` | string | No | Filtrar por tipo de actividad \(ej., emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | No | Filtrar por ID de campaña \(ej., "cam_abc123def456"\) |
+| `leadId` | string | No | Filtrar por ID de lead \(ej., "lea_abc123def456"\) |
+| `isFirst` | boolean | No | Filtrar solo la primera actividad |
+| `limit` | number | No | Número de resultados por solicitud \(ej., 50\). Máximo 100, predeterminado 100 |
+| `offset` | number | No | Número de registros a omitir para paginación \(ej., 0, 100, 200\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `activities` | array | Lista de actividades |
+|   ↳ `_id` | string | ID de actividad |
+|   ↳ `type` | string | Tipo de actividad |
+|   ↳ `leadId` | string | ID de lead asociado |
+|   ↳ `campaignId` | string | ID de campaña |
+|   ↳ `sequenceId` | string | ID de secuencia |
+|   ↳ `stepId` | string | ID de paso |
+|   ↳ `createdAt` | string | Cuándo ocurrió la actividad |
+| `count` | number | Número de actividades devueltas |
+
+### `lemlist_get_lead`
+
+Recupera información del lead por dirección de correo electrónico o ID del lead.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Lemlist |
+| `leadIdentifier` | string | Sí | Dirección de correo electrónico del lead \(ej., "john@example.com"\) o ID del lead \(ej., "lea_abc123def456"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `_id` | string | ID del lead |
+| `email` | string | Dirección de correo electrónico del lead |
+| `firstName` | string | Nombre del lead |
+| `lastName` | string | Apellido del lead |
+| `companyName` | string | Nombre de la empresa |
+| `jobTitle` | string | Cargo |
+| `companyDomain` | string | Dominio de la empresa |
+| `isPaused` | boolean | Si el lead está pausado |
+| `campaignId` | string | ID de la campaña a la que pertenece el lead |
+| `contactId` | string | ID del contacto |
+| `emailStatus` | string | Estado de entregabilidad del correo electrónico |
+
+### `lemlist_send_email`
+
+Envía un correo electrónico a un contacto a través de la bandeja de entrada de Lemlist.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave API de Lemlist |
+| `sendUserId` | string | Sí | Identificador del usuario que envía el mensaje \(ej., "usr_abc123def456"\) |
+| `sendUserEmail` | string | Sí | Dirección de correo electrónico del remitente \(ej., "sales@company.com"\) |
+| `sendUserMailboxId` | string | Sí | Identificador del buzón del remitente \(ej., "mbx_abc123def456"\) |
+| `contactId` | string | Sí | Identificador del contacto destinatario \(ej., "con_abc123def456"\) |
+| `leadId` | string | Sí | Identificador del lead asociado \(ej., "lea_abc123def456"\) |
+| `subject` | string | Sí | Línea de asunto del correo electrónico |
+| `message` | string | Sí | Cuerpo del mensaje de correo electrónico en formato HTML |
+| `cc` | json | No | Array de direcciones de correo electrónico en copia |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Si el correo electrónico se envió correctamente |

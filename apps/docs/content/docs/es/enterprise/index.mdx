@@ -75,3 +75,40 @@ Para implementaciones self-hosted, las funciones enterprise se pueden activar me
 <Callout type="warn">
   BYOK solo está disponible en Sim alojado. Las implementaciones autoalojadas configuran las claves de proveedor de IA directamente a través de variables de entorno.
 </Callout>
+
+Cuando la facturación está deshabilitada, usa la API de administración para gestionar organizaciones:
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### Miembros del espacio de trabajo
+
+Cuando las invitaciones están deshabilitadas, usa la API de administración para gestionar las membresías de espacios de trabajo directamente:
+
+```bash
+# Add a user to a workspace
+curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "permissions": "write"}'
+
+# Remove a user from a workspace
+curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY"
+```
+
+### Notas
+
+- Habilitar `ACCESS_CONTROL_ENABLED` habilita automáticamente las organizaciones, ya que el control de acceso requiere membresía en la organización.
+- Cuando `DISABLE_INVITATIONS` está configurado, los usuarios no pueden enviar invitaciones. Usa la API de administración para gestionar las membresías de espacios de trabajo y organizaciones en su lugar.

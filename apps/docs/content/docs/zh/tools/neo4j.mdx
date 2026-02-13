@@ -170,3 +170,39 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 分类：`tools`
 - 类型：`neo4j`
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `records` | array | 查询返回的记录数组 |
+| `recordCount` | number | 返回的记录数 |
+| `summary` | json | 执行摘要，包括计时和计数器 |
+
+### `neo4j_introspect`
+
+分析 Neo4j 数据库，发现其架构，包括节点标签、关系类型、属性、约束和索引。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | Neo4j 服务器主机名或 IP 地址 |
+| `port` | number | 是 | Neo4j 服务器端口（默认：Bolt 协议为 7687） |
+| `database` | string | 是 | 要连接的数据库名称（例如："neo4j"、"movies"、"social"） |
+| `username` | string | 是 | Neo4j 用户名 |
+| `password` | string | 是 | Neo4j 密码 |
+| `encryption` | string | 否 | 连接加密模式（启用，禁用） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `labels` | array | 数据库中的节点标签数组 |
+| `relationshipTypes` | array | 数据库中的关系类型数组 |
+| `nodeSchemas` | array | 节点模式及其属性数组 |
+| `relationshipSchemas` | array | 关系模式及其属性数组 |
+| `constraints` | array | 数据库约束数组 |
+| `indexes` | array | 数据库索引数组 |

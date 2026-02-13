@@ -56,3 +56,10 @@ docker compose -f docker-compose.prod.yml up -d
 | realtime | 3002 | WebSocket 服务器 |
 | db | 5432 | 带有 pgvector 的 PostgreSQL |
 | migrations | - | 数据库迁移（运行一次） |
+
+| 组件 | 端口 | 描述 |
+|-----------|------|-------------|
+| simstudio | 3000 | 主应用程序 |
+| realtime | 3002 | WebSocket 服务器 |
+| db | 5432 | PostgreSQL（带 pgvector） |
+| migrations | - | 数据库迁移（仅运行一次） |

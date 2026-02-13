@@ -349,3 +349,106 @@ Polymarketから取引履歴を取得する
 
 - カテゴリー: `tools`
 - タイプ: `polymarket`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | はい | ユーザーウォレットアドレス（0xプレフィックス付き） |
+| `limit` | string | いいえ | 返す最大結果数（例："50"）。デフォルト：100、最大：500。 |
+| `offset` | string | いいえ | ページネーションのためにスキップする結果数（例："100"）。デフォルト：0、最大：10000。 |
+| `market` | string | いいえ | カンマ区切りのコンディションID（例："0x1234...abcd,0x5678...efgh"）。eventIdとは排他的。 |
+| `eventId` | string | いいえ | カンマ区切りのイベントID（例："12345,67890"）。marketとは排他的。 |
+| `type` | string | いいえ | アクティビティタイプフィルター：TRADE、SPLIT、MERGE、REDEEM、REWARD、CONVERSION、MAKER_REBATE |
+| `start` | number | いいえ | 開始タイムスタンプ（Unix秒） |
+| `end` | number | いいえ | 終了タイムスタンプ（Unix秒） |
+| `sortBy` | string | いいえ | ソートフィールド：TIMESTAMP、TOKENS、またはCASH（デフォルト：TIMESTAMP） |
+| `sortDirection` | string | いいえ | ソート方向：ASCまたはDESC（デフォルト：DESC） |
+| `side` | string | いいえ | 取引サイドフィルター：BUYまたはSELL（取引のみに適用） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `activity` | array | アクティビティエントリの配列 |
+|   ↳ `proxyWallet` | string | ユーザープロキシウォレットアドレス |
+|   ↳ `timestamp` | number | アクティビティのUnixタイムスタンプ |
+|   ↳ `conditionId` | string | マーケットコンディションID |
+|   ↳ `type` | string | アクティビティタイプ（TRADE、SPLIT、MERGE、REDEEM、REWARD、CONVERSION） |
+|   ↳ `size` | number | トークン単位のサイズ |
+|   ↳ `usdcSize` | number | USDC単位のサイズ |
+|   ↳ `transactionHash` | string | ブロックチェーントランザクションハッシュ |
+|   ↳ `price` | number | 価格（取引の場合） |
+|   ↳ `asset` | string | アセット/トークンID |
+|   ↳ `side` | string | 取引サイド（BUY/SELL） |
+|   ↳ `outcomeIndex` | number | アウトカムインデックス |
+|   ↳ `title` | string | マーケットタイトル |
+|   ↳ `slug` | string | マーケットスラッグ |
+|   ↳ `icon` | string | マーケットアイコンURL |
+|   ↳ `eventSlug` | string | イベントスラッグ |
+|   ↳ `outcome` | string | アウトカム名 |
+|   ↳ `name` | string | ユーザー表示名 |
+|   ↳ `pseudonym` | string | ユーザー仮名 |
+|   ↳ `bio` | string | ユーザー自己紹介 |
+|   ↳ `profileImage` | string | ユーザープロフィール画像URL |
+|   ↳ `profileImageOptimized` | string | 最適化されたプロフィール画像URL |
+
+### `polymarket_get_leaderboard`
+
+利益/損失または取引量によるトレーダーリーダーボードランキングを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | いいえ | カテゴリフィルター：OVERALL、POLITICS、SPORTS、CRYPTO、CULTURE、MENTIONS、WEATHER、ECONOMICS、TECH、FINANCE（デフォルト：OVERALL） |
+| `timePeriod` | string | いいえ | 期間：DAY、WEEK、MONTH、ALL（デフォルト：DAY） |
+| `orderBy` | string | いいえ | 並び順：PNLまたはVOL（デフォルト：PNL） |
+| `limit` | string | いいえ | 返す結果数（例："10"）。範囲：1-50、デフォルト：25。 |
+| `offset` | string | いいえ | ページネーションのためにスキップする結果数（例："25"）。範囲：0-1000、デフォルト：0。 |
+| `user` | string | いいえ | 特定のユーザーウォレットアドレスでフィルタリング |
+| `userName` | string | いいえ | ユーザー名でフィルタリング |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `leaderboard` | array | リーダーボードエントリの配列 |
+|   ↳ `rank` | string | リーダーボードランク順位 |
+|   ↳ `proxyWallet` | string | ユーザープロキシウォレットアドレス |
+|   ↳ `userName` | string | ユーザー表示名 |
+|   ↳ `vol` | number | 取引量 |
+|   ↳ `pnl` | number | 損益 |
+|   ↳ `profileImage` | string | ユーザープロフィール画像URL |
+|   ↳ `xUsername` | string | Twitter/Xユーザー名 |
+|   ↳ `verifiedBadge` | boolean | ユーザーが認証バッジを持っているかどうか |
+
+### `polymarket_get_holders`
+
+特定のマーケットトークンの上位保有者を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | はい | コンディションIDのカンマ区切りリスト（例:「0x1234...abcd」または「0x1234...abcd,0x5678...efgh」） |
+| `limit` | string | いいえ | 返す保有者の数（例:「10」）。範囲:0-20、デフォルト:20 |
+| `minBalance` | string | いいえ | 最小残高しきい値（デフォルト:1） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `holders` | array | トークン別のマーケット保有者グループの配列 |
+|   ↳ `token` | string | トークン/アセットID |
+|   ↳ `holders` | array | このトークンの保有者の配列 |
+|     ↳ `proxyWallet` | string | 保有者ウォレットアドレス |
+|     ↳ `bio` | string | 保有者自己紹介 |
+|     ↳ `asset` | string | アセットID |
+|     ↳ `pseudonym` | string | 保有者仮名 |
+|     ↳ `amount` | number | 保有量 |
+|     ↳ `displayUsernamePublic` | boolean | ユーザー名が公開表示されているかどうか |
+|     ↳ `outcomeIndex` | number | アウトカムインデックス |
+|     ↳ `name` | string | 保有者表示名 |
+|     ↳ `profileImage` | string | プロフィール画像URL |
+|     ↳ `profileImageOptimized` | string | 最適化されたプロフィール画像URL |

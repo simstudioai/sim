@@ -102,27 +102,3 @@ Inhalte in einem Google Docs-Dokument schreiben oder aktualisieren
 | --------- | ---- | ----------- |
 | `updatedContent` | boolean | Gibt an, ob der Dokumentinhalt erfolgreich aktualisiert wurde |
 | `metadata` | json | Aktualisierte Dokument-Metadaten einschließlich ID, Titel und URL |
-
-### `google_docs_create`
-
-Ein neues Google Docs-Dokument erstellen
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `title` | string | Ja | Der Titel des zu erstellenden Dokuments |
-| `content` | string | Nein | Der Inhalt des zu erstellenden Dokuments |
-| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, in dem das Dokument erstellt werden soll |
-| `folderId` | string | Nein | Die ID des Ordners, in dem das Dokument erstellt werden soll \(interne Verwendung\) |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `metadata` | json | Metadaten des erstellten Dokuments einschließlich ID, Titel und URL |
-
-## Hinweise
-
-- Kategorie: `tools`
-- Typ: `google_docs`

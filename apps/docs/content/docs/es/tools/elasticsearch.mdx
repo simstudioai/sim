@@ -363,3 +363,22 @@ Obtén estadísticas completas sobre el clúster de Elasticsearch.
 
 - Categoría: `tools`
 - Tipo: `elasticsearch`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | Sí | Tipo de despliegue: self_hosted o cloud |
+| `host` | string | No | URL del host de Elasticsearch \(para self-hosted\) |
+| `cloudId` | string | No | ID de Elastic Cloud \(para despliegues en la nube\) |
+| `authMethod` | string | Sí | Método de autenticación: api_key o basic_auth |
+| `apiKey` | string | No | Clave API de Elasticsearch |
+| `username` | string | No | Nombre de usuario para autenticación básica |
+| `password` | string | No | Contraseña para autenticación básica |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje resumen sobre los índices |
+| `indices` | json | Array de objetos con información de índices |

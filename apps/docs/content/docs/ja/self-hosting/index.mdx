@@ -56,3 +56,10 @@ docker compose -f docker-compose.prod.yml up -d
 | realtime | 3002 | WebSocketサーバー |
 | db | 5432 | pgvector搭載のPostgreSQL |
 | migrations | - | データベースマイグレーション（一度だけ実行） |
+
+| コンポーネント | ポート | 説明 |
+|-----------|------|-------------|
+| simstudio | 3000 | メインアプリケーション |
+| realtime | 3002 | WebSocketサーバー |
+| db | 5432 | pgvector付きPostgreSQL |
+| migrations | - | データベースマイグレーション（1回実行） |

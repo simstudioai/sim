@@ -74,3 +74,40 @@ Sim 企业版为需要更高安全性、合规性和管理能力的组织提供�
 <Callout type="warn">
   BYOK 仅适用于托管版 Sim。自托管部署需通过环境变量直接配置 AI 提供商密钥。
 </Callout>
+
+当计费被禁用时，请使用 Admin API 管理组织：
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### 工作区成员
+
+当邀请被禁用时，请直接使用 Admin API 管理工作区成员资格：
+
+```bash
+# Add a user to a workspace
+curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "permissions": "write"}'
+
+# Remove a user from a workspace
+curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY"
+```
+
+### 注意事项
+
+- 启用 `ACCESS_CONTROL_ENABLED` 会自动启用组织，因为访问控制需要组织成员身份。
+- 设置 `DISABLE_INVITATIONS` 后，用户无法发送邀请。请改用 Admin API 管理工作区和组织成员资格。

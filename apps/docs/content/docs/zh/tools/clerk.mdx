@@ -1,0 +1,436 @@
+---
+title: Clerk
+description: 在 Clerk 中管理用户、组织和会话
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clerk"
+  color="#131316"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Clerk](https://clerk.com/) 是一个全面的身份基础设施平台，帮助你管理应用程序的用户、身份验证和会话。
+
+在 Sim 中，Clerk 集成让你的代理可以通过易用的 API 工具自动化用户和会话管理。代理可以安全地列出用户、更新用户资料、管理组织、监控会话，并直接在你的工作流中撤销访问权限。
+
+使用 Clerk，你可以：
+
+- **认证用户并管理会话**：无缝控制用户的登录、注册和会话生命周期。
+- **列出和更新用户**：自动获取用户列表、更新用户属性，或在代理任务中查看用户资料详情。
+- **管理组织和成员关系**：添加或更新组织，清晰地管理用户成员关系。
+- **监控和撤销会话**：查看活跃或历史用户会话，如有安全需要可立即撤销访问权限。
+
+该集成支持在 Sim 内对用户群进行实时、可审计的管理。已连接的代理可自动化入职流程、执行策略、保持目录最新，并对身份验证事件或组织变更做出响应，助你以 Clerk 作为身份引擎，运行安全灵活的流程。{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Clerk 的身份验证和用户管理集成到你的工作流中。创建、更新、删除和列出用户。管理组织及其成员关系。监控和控制用户会话。
+
+## 工具
+
+### `clerk_list_users`
+
+在你的 Clerk 应用中列出所有用户，支持可选筛选和分页
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 身份验证的 Clerk Secret Key |
+| `limit` | number | 否 | 每页结果数量（如 10、50、100；范围：1-500，默认：10） |
+| `offset` | number | 否 | 分页时跳过的结果数量（如 0、10、20） |
+| `orderBy` | string | 否 | 排序字段，可选 +/- 前缀表示方向（默认：-created_at） |
+| `emailAddress` | string | 否 | 按邮箱地址筛选（如 user@example.com 或 user1@example.com,user2@example.com） |
+| `phoneNumber` | string | 否 | 按手机号筛选（多个用逗号分隔） |
+| `externalId` | string | 否 | 按外部 ID 筛选（多个用逗号分隔） |
+| `username` | string | 否 | 按用户名筛选（多个用逗号分隔） |
+| `userId` | string | 否 | 按用户 ID 筛选（如 user_2NNEqL2nrIRdJ194ndJqAHwEfxC 或多个用逗号分隔） |
+| `query` | string | 否 | 按邮箱、手机号、用户名和姓名进行模糊搜索（如 john 或 john@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `users` | array | Clerk 用户对象数组 |
+|   ↳ `id` | string | 用户 ID |
+|   ↳ `username` | string | 用户名 |
+|   ↳ `firstName` | string | 名字 |
+|   ↳ `lastName` | string | 姓氏 |
+|   ↳ `imageUrl` | string | 头像图片 URL |
+|   ↳ `hasImage` | boolean | 用户是否有头像图片 |
+|   ↳ `primaryEmailAddressId` | string | 主邮箱地址 ID |
+|   ↳ `primaryPhoneNumberId` | string | 主手机号 ID |
+|   ↳ `emailAddresses` | array | 用户邮箱地址 |
+|     ↳ `id` | string | 邮箱地址 ID |
+|     ↳ `emailAddress` | string | 邮箱地址 |
+|   ↳ `phoneNumbers` | array | 用户手机号 |
+|     ↳ `id` | string | 手机号 ID |
+|     ↳ `phoneNumber` | string | 手机号 |
+|   ↳ `externalId` | string | 外部系统 ID |
+|   ↳ `passwordEnabled` | boolean | 是否启用密码 |
+|   ↳ `twoFactorEnabled` | boolean | 是否启用 2FA |
+|   ↳ `banned` | boolean | 用户是否被封禁 |
+|   ↳ `locked` | boolean | 用户是否被锁定 |
+|   ↳ `lastSignInAt` | number | 上次登录时间戳 |
+|   ↳ `lastActiveAt` | number | 上次活动时间戳 |
+|   ↳ `createdAt` | number | 创建时间戳 |
+|   ↳ `updatedAt` | number | 最后更新时间戳 |
+|   ↳ `publicMetadata` | json | 公开元数据 |
+| `totalCount` | number | 匹配查询的用户总数 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_get_user`
+
+根据用户 ID 从 Clerk 检索单个用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `userId` | string | 是 | 要检索的用户 ID（例如，user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 用户 ID |
+| `username` | string | 用户名 |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `imageUrl` | string | 头像图片 URL |
+| `hasImage` | boolean | 用户是否有头像图片 |
+| `primaryEmailAddressId` | string | 主邮箱地址 ID |
+| `primaryPhoneNumberId` | string | 主手机号 ID |
+| `primaryWeb3WalletId` | string | 主 Web3 钱包 ID |
+| `emailAddresses` | array | 用户邮箱地址 |
+|   ↳ `id` | string | 邮箱地址 ID |
+|   ↳ `emailAddress` | string | 邮箱地址 |
+|   ↳ `verified` | boolean | 邮箱是否已验证 |
+| `phoneNumbers` | array | 用户手机号 |
+|   ↳ `id` | string | 手机号 ID |
+|   ↳ `phoneNumber` | string | 手机号 |
+|   ↳ `verified` | boolean | 手机号是否已验证 |
+| `externalId` | string | 外部系统 ID |
+| `passwordEnabled` | boolean | 是否启用密码 |
+| `twoFactorEnabled` | boolean | 是否启用 2FA |
+| `totpEnabled` | boolean | 是否启用 TOTP |
+| `backupCodeEnabled` | boolean | 是否启用备份码 |
+| `banned` | boolean | 用户是否被封禁 |
+| `locked` | boolean | 用户是否被锁定 |
+| `deleteSelfEnabled` | boolean | 用户是否可以自助删除 |
+| `createOrganizationEnabled` | boolean | 用户是否可以创建组织 |
+| `lastSignInAt` | number | 上次登录时间戳 |
+| `lastActiveAt` | number | 上次活动时间戳 |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `publicMetadata` | json | 公共元数据（前端可读） |
+| `privateMetadata` | json | 私有元数据（仅后端） |
+| `unsafeMetadata` | json | 不安全元数据（前端可修改） |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_create_user`
+
+在您的 Clerk 应用中创建新用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `emailAddress` | string | 否 | 用户的邮箱地址（多个用逗号分隔） |
+| `phoneNumber` | string | 否 | 用户的手机号（多个用逗号分隔） |
+| `username` | string | 否 | 用户名（必须唯一） |
+| `password` | string | 否 | 用户密码（至少 8 个字符） |
+| `firstName` | string | 否 | 用户名（名） |
+| `lastName` | string | 否 | 用户姓氏 |
+| `externalId` | string | 否 | 外部系统标识符（必须唯一） |
+| `publicMetadata` | json | 否 | 公共元数据（JSON 对象，可从前端读取） |
+| `privateMetadata` | json | 否 | 私有元数据（JSON 对象，仅后端可见） |
+| `unsafeMetadata` | json | 否 | 不安全元数据（JSON 对象，可由前端修改） |
+| `skipPasswordChecks` | boolean | 否 | 跳过密码校验 |
+| `skipPasswordRequirement` | boolean | 否 | 密码可选 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 创建的用户 ID |
+| `username` | string | 用户名 |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓氏 |
+| `imageUrl` | string | 头像图片 URL |
+| `primaryEmailAddressId` | string | 主邮箱地址 ID |
+| `primaryPhoneNumberId` | string | 主手机号 ID |
+| `emailAddresses` | array | 用户邮箱地址 |
+|   ↳ `id` | string | 邮箱地址 ID |
+|   ↳ `emailAddress` | string | 邮箱地址 |
+|   ↳ `verified` | boolean | 邮箱是否已验证 |
+| `phoneNumbers` | array | 用户手机号 |
+|   ↳ `id` | string | 手机号 ID |
+|   ↳ `phoneNumber` | string | 手机号 |
+|   ↳ `verified` | boolean | 手机号是否已验证 |
+| `externalId` | string | 外部系统 ID |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `publicMetadata` | json | 公共元数据 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_update_user`
+
+在您的 Clerk 应用中更新现有用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `userId` | string | 是 | 要更新的用户 ID（例如，user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+| `firstName` | string | 否 | 用户的名字 |
+| `lastName` | string | 否 | 用户的姓氏 |
+| `username` | string | 否 | 用户名（必须唯一） |
+| `password` | string | 否 | 新密码（至少 8 个字符） |
+| `externalId` | string | 否 | 外部系统标识符 |
+| `primaryEmailAddressId` | string | 否 | 要设置为主邮箱的已验证邮箱 ID |
+| `primaryPhoneNumberId` | string | 否 | 要设置为主手机号的已验证手机号 ID |
+| `publicMetadata` | json | 否 | 公共元数据（JSON 对象） |
+| `privateMetadata` | json | 否 | 私有元数据（JSON 对象） |
+| `unsafeMetadata` | json | 否 | 不安全元数据（JSON 对象） |
+| `skipPasswordChecks` | boolean | 否 | 跳过密码校验检查 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 已更新的用户 ID |
+| `username` | string | 用户名 |
+| `firstName` | string | 名字 |
+| `lastName` | string | 姓氏 |
+| `imageUrl` | string | 头像图片 URL |
+| `primaryEmailAddressId` | string | 主邮箱地址 ID |
+| `primaryPhoneNumberId` | string | 主手机号 ID |
+| `emailAddresses` | array | 用户邮箱地址 |
+|   ↳ `id` | string | 邮箱地址 ID |
+|   ↳ `emailAddress` | string | 邮箱地址 |
+|   ↳ `verified` | boolean | 邮箱是否已验证 |
+| `phoneNumbers` | array | 用户手机号 |
+|   ↳ `id` | string | 手机号 ID |
+|   ↳ `phoneNumber` | string | 手机号 |
+|   ↳ `verified` | boolean | 手机号是否已验证 |
+| `externalId` | string | 外部系统 ID |
+| `banned` | boolean | 用户是否被封禁 |
+| `locked` | boolean | 用户是否被锁定 |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `publicMetadata` | json | 公共元数据 |
+| `success` | boolean | 操作是否成功 |
+
+### `clerk_delete_user`
+
+从您的 Clerk 应用中删除用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `userId` | string | 是 | 要删除的用户 ID（例如，user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 已删除的用户 ID |
+| `object` | string | 对象类型（user） |
+| `deleted` | boolean | 用户是否已被删除 |
+| `success` | boolean | 操作是否成功 |
+
+### `clerk_list_organizations`
+
+在您的 Clerk 应用中列出所有组织，可选过滤条件
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `limit` | number | 否 | 每页返回的结果数量（例如，10、50、100；范围：1-500，默认：10） |
+| `offset` | number | 否 | 分页时跳过的结果数量（例如，0、10、20） |
+| `includeMembersCount` | boolean | 否 | 是否包含每个组织的成员数量 |
+| `query` | string | 否 | 按组织 ID、名称或 slug 搜索（例如，Acme Corp 或 acme-corp） |
+| `orderBy` | string | 否 | 排序字段（name、created_at、members_count），可加 +/- 前缀 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `organizations` | array | Clerk 组织对象数组 |
+|   ↳ `id` | string | 组织 ID |
+|   ↳ `name` | string | 组织名称 |
+|   ↳ `slug` | string | 组织 slug |
+|   ↳ `imageUrl` | string | 组织图片 URL |
+|   ↳ `hasImage` | boolean | 组织是否有图片 |
+|   ↳ `membersCount` | number | 成员数量 |
+|   ↳ `pendingInvitationsCount` | number | 待处理邀请数量 |
+|   ↳ `maxAllowedMemberships` | number | 最大允许成员数 |
+|   ↳ `adminDeleteEnabled` | boolean | 是否启用管理员删除 |
+|   ↳ `createdBy` | string | 创建者用户 ID |
+|   ↳ `createdAt` | number | 创建时间戳 |
+|   ↳ `updatedAt` | number | 最后更新时间戳 |
+|   ↳ `publicMetadata` | json | 公共元数据 |
+| `totalCount` | number | 组织总数 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_get_organization`
+
+通过 ID 或 slug 从 Clerk 检索单个组织
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `organizationId` | string | 是 | 要检索的组织 ID 或 slug（例如 org_2NNEqL2nrIRdJ194ndJqAHwEfxC 或 my-org-slug） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 组织 ID |
+| `name` | string | 组织名称 |
+| `slug` | string | 组织 slug |
+| `imageUrl` | string | 组织图片 URL |
+| `hasImage` | boolean | 组织是否有图片 |
+| `membersCount` | number | 成员数量 |
+| `pendingInvitationsCount` | number | 待处理邀请数量 |
+| `maxAllowedMemberships` | number | 最大允许成员数 |
+| `adminDeleteEnabled` | boolean | 是否启用管理员删除 |
+| `createdBy` | string | 创建者用户 ID |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `publicMetadata` | json | 公共元数据 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_create_organization`
+
+在你的 Clerk 应用中创建一个新组织
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `name` | string | 是 | 组织名称 |
+| `createdBy` | string | 是 | 创建者的用户 ID（将成为管理员，例如 user_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+| `slug` | string | 否 | 组织的 slug 标识符 |
+| `maxAllowedMemberships` | number | 否 | 最大成员容量（0 表示无限制） |
+| `publicMetadata` | json | 否 | 公共元数据（JSON 对象） |
+| `privateMetadata` | json | 否 | 私有元数据（JSON 对象） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 创建的组织 ID |
+| `name` | string | 组织名称 |
+| `slug` | string | 组织 slug |
+| `imageUrl` | string | 组织图片 URL |
+| `hasImage` | boolean | 组织是否有图片 |
+| `membersCount` | number | 成员数量 |
+| `pendingInvitationsCount` | number | 待处理邀请数量 |
+| `maxAllowedMemberships` | number | 最大允许成员数 |
+| `adminDeleteEnabled` | boolean | 是否启用管理员删除 |
+| `createdBy` | string | 创建者用户 ID |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `publicMetadata` | json | 公共元数据 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_list_sessions`
+
+列出用户或客户端在您的 Clerk 应用中的会话
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk Secret Key |
+| `userId` | string | 否 | 要列出会话的用户 ID（例如 user_2NNEqL2nrIRdJ194ndJqAHwEfxC；如果未提供 clientId，则必填） |
+| `clientId` | string | 否 | 要列出会话的客户端 ID（如果未提供 userId，则必填） |
+| `status` | string | 否 | 按会话状态筛选（abandoned、active、ended、expired、pending、removed、replaced、revoked） |
+| `limit` | number | 否 | 每页结果数量（例如 10、50、100；范围：1-500，默认：10） |
+| `offset` | number | 否 | 分页时跳过的结果数量（例如 0、10、20） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `sessions` | array | Clerk 会话对象数组 |
+|   ↳ `id` | string | 会话 ID |
+|   ↳ `userId` | string | 用户 ID |
+|   ↳ `clientId` | string | 客户端 ID |
+|   ↳ `status` | string | 会话状态 |
+|   ↳ `lastActiveAt` | number | 最后活动时间戳 |
+|   ↳ `lastActiveOrganizationId` | string | 最后活跃的组织 ID |
+|   ↳ `expireAt` | number | 过期时间戳 |
+|   ↳ `abandonAt` | number | 放弃时间戳 |
+|   ↳ `createdAt` | number | 创建时间戳 |
+|   ↳ `updatedAt` | number | 最后更新时间戳 |
+| `totalCount` | number | 会话总数 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_get_session`
+
+通过 ID 从 Clerk 检索单个会话
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk 密钥 |
+| `sessionId` | string | 是 | 要检索的会话 ID（例如，sess_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 会话 ID |
+| `userId` | string | 用户 ID |
+| `clientId` | string | 客户端 ID |
+| `status` | string | 会话状态 |
+| `lastActiveAt` | number | 最后活动时间戳 |
+| `lastActiveOrganizationId` | string | 最后活跃的组织 ID |
+| `expireAt` | number | 过期时间戳 |
+| `abandonAt` | number | 放弃时间戳 |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `success` | boolean | 操作成功状态 |
+
+### `clerk_revoke_session`
+
+撤销会话以立即使其失效
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | 是 | 用于 API 认证的 Clerk 密钥 |
+| `sessionId` | string | 是 | 要撤销的会话 ID（例如，sess_2NNEqL2nrIRdJ194ndJqAHwEfxC） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `id` | string | 会话 ID |
+| `userId` | string | 用户 ID |
+| `clientId` | string | 客户端 ID |
+| `status` | string | 会话状态（应为已撤销） |
+| `lastActiveAt` | number | 最后活动时间戳 |
+| `lastActiveOrganizationId` | string | 最后活跃的组织 ID |
+| `expireAt` | number | 过期时间戳 |
+| `abandonAt` | number | 放弃时间戳 |
+| `createdAt` | number | 创建时间戳 |
+| `updatedAt` | number | 最后更新时间戳 |
+| `success` | boolean | 操作成功状态 |

@@ -158,3 +158,44 @@ Exécuter une requête SQL brute sur une base de données PostgreSQL
 
 - Catégorie : `tools`
 - Type : `postgresql`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur PostgreSQL |
+| `port` | number | Oui | Port du serveur PostgreSQL \(par défaut : 5432\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+| `schema` | string | Non | Schéma à introspecter \(par défaut : public\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message de statut de l'opération |
+| `tables` | array | Tableau des schémas de tables avec colonnes, clés et index |
+|   ↳ `name` | string | Nom de la table |
+|   ↳ `schema` | string | Nom du schéma \(par exemple, public\) |
+|   ↳ `columns` | array | Colonnes de la table |
+|     ↳ `name` | string | Nom de la colonne |
+|     ↳ `type` | string | Type de données \(par exemple, integer, varchar, timestamp\) |
+|     ↳ `nullable` | boolean | Indique si la colonne autorise les valeurs NULL |
+|     ↳ `default` | string | Expression de la valeur par défaut |
+|     ↳ `isPrimaryKey` | boolean | Indique si la colonne fait partie de la clé primaire |
+|     ↳ `isForeignKey` | boolean | Indique si la colonne est une clé étrangère |
+|     ↳ `references` | object | Informations de référence de la clé étrangère |
+|       ↳ `table` | string | Nom de la table référencée |
+|       ↳ `column` | string | Nom de la colonne référencée |
+|   ↳ `primaryKey` | array | Noms des colonnes de la clé primaire |
+|   ↳ `foreignKeys` | array | Contraintes de clés étrangères |
+|     ↳ `column` | string | Nom de la colonne locale |
+|     ↳ `referencesTable` | string | Nom de la table référencée |
+|     ↳ `referencesColumn` | string | Nom de la colonne référencée |
+|   ↳ `indexes` | array | Index de la table |
+|     ↳ `name` | string | Nom de l'index |
+|     ↳ `columns` | array | Colonnes incluses dans l'index |
+|     ↳ `unique` | boolean | Indique si l'index impose l'unicité |
+| `schemas` | array | Liste des schémas disponibles dans la base de données |

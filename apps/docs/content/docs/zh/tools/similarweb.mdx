@@ -1,0 +1,178 @@
+---
+title: Similarweb
+description: 网站流量与分析数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="similarweb"
+  color="#000922"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Similarweb](https://www.similarweb.com/) 是领先的网络分析平台，为数百万个网站提供深入的流量和用户参与度数据。Similarweb 可帮助你洞察网站访问量、流量来源、受众行为以及竞争基准。
+
+在 Sim 中使用 Similarweb，你的代理可以：
+
+- **分析网站流量**：获取月访问量、平均访问时长、跳出率和主要国家等关键指标。
+- **了解受众参与度**：深入了解用户如何与网站互动，包括每次访问的页面数和参与时长。
+- **追踪排名与表现**：访问全球、国家和类别排名，将网站与竞争对手进行基准对比。
+- **发现流量来源**：按渠道细分流量，如直接访问、搜索、社交、推荐等。
+
+使用 Sim 的 Similarweb 集成，可自动监控竞争对手、追踪你的网站表现，或获取可操作的市场调研数据——所有功能都可直接集成到你的工作流和自动化中。让你的代理能够轻松、自动化地访问和利用可靠的网络分析数据。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 Similarweb API 获取全面的网站分析数据，包括流量估算、参与度指标、排名和流量来源。
+
+## 工具
+
+### `similarweb_website_overview`
+
+获取全面的网站分析数据，包括流量、排名、参与度和流量来源
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `apiKey` | string | 是 | SimilarWeb API 密钥 |
+| `domain` | string | 是 | 要分析的网站域名（例如："example.com"，不含 www 或协议） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `siteName` | string | 网站名称 |
+| `description` | string | 网站描述 |
+| `globalRank` | number | 全球流量排名 |
+| `countryRank` | number | 国家流量排名 |
+| `categoryRank` | number | 分类流量排名 |
+| `category` | string | 网站类别 |
+| `monthlyVisits` | number | 预计月访问量 |
+| `engagementVisitDuration` | number | 平均访问时长（秒） |
+| `engagementPagesPerVisit` | number | 平均每次访问页数 |
+| `engagementBounceRate` | number | 跳出率（0-1） |
+| `topCountries` | array | 按流量份额排名的主要国家 |
+|   ↳ `country` | string | 国家代码 |
+|   ↳ `share` | number | 流量份额（0-1） |
+| `trafficSources` | json | 流量来源细分 |
+|   ↳ `direct` | number | 直接流量份额 |
+|   ↳ `referrals` | number | 引荐流量份额 |
+|   ↳ `search` | number | 搜索流量份额 |
+|   ↳ `social` | number | 社交流量份额 |
+|   ↳ `mail` | number | 邮件流量份额 |
+|   ↳ `paidReferrals` | number | 付费引荐流量份额 |
+
+### `similarweb_traffic_visits`
+
+获取网站总访问量随时间的变化（桌面端和移动端合并）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | SimilarWeb API key |
+| `domain` | string | 是 | 要分析的网站域名（例如："example.com"，不含 www 或协议） |
+| `country` | string | 是 | 2 位 ISO 国家代码（如 "us"、"gb"、"de"），或 "world" 表示全球数据 |
+| `granularity` | string | 是 | 数据粒度：daily、weekly 或 monthly |
+| `startDate` | string | 否 | 起始日期，格式为 YYYY-MM（如 "2024-01"） |
+| `endDate` | string | 否 | 结束日期，格式为 YYYY-MM（如 "2024-12"） |
+| `mainDomainOnly` | boolean | 否 | 是否从结果中排除子域名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `domain` | string | 已分析域名 |
+| `country` | string | 应用的国家筛选 |
+| `granularity` | string | 数据粒度 |
+| `lastUpdated` | string | 数据最后更新时间戳 |
+| `visits` | array | 一段时间内的访问数据 |
+|   ↳ `date` | string | 日期（YYYY-MM-DD） |
+|   ↳ `visits` | number | 访问次数 |
+
+### `similarweb_bounce_rate`
+
+获取网站跳出率随时间的变化（桌面端和移动端合并）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `apiKey` | string | 是 | SimilarWeb API 密钥 |
+| `domain` | string | 是 | 要分析的网站域名（例如："example.com"，不含 www 或协议） |
+| `country` | string | 是 | 2 位 ISO 国家代码（如 "us"、"gb"、"de"），或 "world" 表示全球数据 |
+| `granularity` | string | 是 | 数据粒度：daily、weekly 或 monthly |
+| `startDate` | string | 否 | 起始日期，格式为 YYYY-MM（如 "2024-01"） |
+| `endDate` | string | 否 | 结束日期，格式为 YYYY-MM（如 "2024-12"） |
+| `mainDomainOnly` | boolean | 否 | 是否从结果中排除子域名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `domain` | string | 已分析域名 |
+| `country` | string | 应用的国家筛选 |
+| `granularity` | string | 数据粒度 |
+| `lastUpdated` | string | 数据最后更新时间戳 |
+| `bounceRate` | array | 一段时间内的跳出率数据 |
+|   ↳ `date` | string | 日期（YYYY-MM-DD） |
+|   ↳ `bounceRate` | number | 跳出率（0-1） |
+
+### `similarweb_pages_per_visit`
+
+获取一段时间内的平均每次访问页面数（桌面端和移动端合计）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SimilarWeb API key |
+| `domain` | string | 是 | 要分析的网站域名（例如，"example.com"，不含 www 或协议） |
+| `country` | string | 是 | 2 位 ISO 国家代码（如 "us"、"gb"、"de"），或 "world" 表示全球数据 |
+| `granularity` | string | 是 | 数据粒度：daily、weekly 或 monthly |
+| `startDate` | string | 否 | 起始日期，格式为 YYYY-MM（如 "2024-01"） |
+| `endDate` | string | 否 | 结束日期，格式为 YYYY-MM（如 "2024-12"） |
+| `mainDomainOnly` | boolean | 否 | 是否从结果中排除子域名 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 被分析的域名 |
+| `country` | string | 应用的国家筛选 |
+| `granularity` | string | 数据粒度 |
+| `lastUpdated` | string | 数据最后更新时间戳 |
+| `pagesPerVisit` | array | 一段时间内每次访问页面数的数据 |
+|   ↳ `date` | string | 日期（YYYY-MM-DD） |
+|   ↳ `pagesPerVisit` | number | 平均每次访问页面数 |
+
+### `similarweb_visit_duration`
+
+获取一段时间内桌面端平均访问时长（单位：秒）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | SimilarWeb API key |
+| `domain` | string | 是 | 要分析的网站域名（例如，"example.com"，不含 www 或协议） |
+| `country` | string | 是 | 2 位 ISO 国家代码（如 "us"、"gb"、"de"），或 "world" 表示全球数据 |
+| `granularity` | string | 是 | 数据粒度：daily、weekly 或 monthly |
+| `startDate` | string | 否 | 起始日期，格式为 YYYY-MM（如 "2024-01"） |
+| `endDate` | string | 否 | 结束日期，格式为 YYYY-MM（如 "2024-12"） |
+| `mainDomainOnly` | boolean | 否 | 是否从结果中排除子域名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `domain` | string | 已分析域名 |
+| `country` | string | 已应用国家筛选 |
+| `granularity` | string | 数据粒度 |
+| `lastUpdated` | string | 数据最后更新时间戳 |
+| `averageVisitDuration` | array | 桌面端访问时长数据（按时间） |
+|   ↳ `date` | string | 日期（YYYY-MM-DD） |
+|   ↳ `durationSeconds` | number | 平均访问时长（秒） |

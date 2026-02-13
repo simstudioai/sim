@@ -1,0 +1,56 @@
+---
+title: AWS Textract
+description: Extrae texto, tablas y formularios de documentos
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="textract_v2"
+  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Textract](https://aws.amazon.com/textract/) es un potente servicio de IA de Amazon Web Services diseñado para extraer automáticamente texto impreso, escritura a mano, tablas, formularios, pares clave-valor y otros datos estructurados de documentos escaneados e imágenes. Textract aprovecha el reconocimiento óptico de caracteres (OCR) avanzado y el análisis de documentos para transformar documentos en datos procesables, permitiendo la automatización, análisis, cumplimiento normativo y más.
+
+Con AWS Textract, puedes:
+
+- **Extraer texto de imágenes y documentos**: Reconocer texto impreso y escritura a mano en formatos como PDF, JPEG, PNG o TIFF
+- **Detectar y extraer tablas**: Encontrar automáticamente tablas y obtener su contenido estructurado
+- **Analizar formularios y pares clave-valor**: Extraer datos estructurados de formularios, incluyendo campos y sus valores correspondientes
+- **Identificar firmas y características de diseño**: Detectar firmas, diseño geométrico y relaciones entre elementos del documento
+- **Personalizar la extracción con consultas**: Extraer campos y respuestas específicos mediante extracción basada en consultas (por ejemplo, "¿Cuál es el número de factura?")
+
+En Sim, la integración de AWS Textract permite a tus agentes procesar documentos de forma inteligente como parte de sus flujos de trabajo. Esto desbloquea escenarios de automatización como la entrada de datos de facturas, documentos de incorporación, contratos, recibos y más. Tus agentes pueden extraer datos relevantes, analizar formularios estructurados y generar resúmenes o informes directamente desde cargas de documentos o URLs. Al conectar Sim con AWS Textract, puedes reducir el esfuerzo manual, mejorar la precisión de los datos y optimizar tus procesos empresariales con una comprensión robusta de documentos.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra AWS Textract en tu flujo de trabajo para extraer texto, tablas, formularios y pares clave-valor de documentos. El modo de página única admite JPEG, PNG y PDF de una sola página. El modo de varias páginas admite PDF y TIFF de varias páginas.
+
+## Herramientas
+
+### `textract_parser`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Sí | ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Clave de acceso secreta de AWS |
+| `region` | string | Sí | Región de AWS para el servicio Textract \(por ejemplo, us-east-1\) |
+| `processingMode` | string | No | Tipo de documento: página única o varias páginas. Por defecto es página única. |
+| `filePath` | string | No | URL de un documento a procesar \(JPEG, PNG o PDF de una sola página\). |
+| `file` | file | No | Archivo de documento a procesar \(JPEG, PNG o PDF de una sola página\). |
+| `s3Uri` | string | No | URI de S3 para procesamiento de varias páginas \(s3://bucket/key\). |
+| `featureTypes` | array | No | Tipos de características a detectar: TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. Si no se especifica, solo se realiza la detección de texto. |
+| `items` | string | No | Tipo de característica |
+| `queries` | array | No | Consultas personalizadas para extraer información específica. Solo se usa cuando featureTypes incluye QUERIES. |
+| `items` | object | No | Configuración de consulta |
+| `properties` | string | No | El texto de la consulta |
+| `Text` | string | No | Sin descripción |
+| `Alias` | string | No | Sin descripción |
+
+#### Salida
+
+Esta herramienta no produce ninguna salida.

@@ -1087,26 +1087,3 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `organizations` | 数组 | 包含其设置和功能的组织列表 |
-
-### `posthog_get_organization`
-
-通过 ID 获取特定组织的详细信息。返回全面的组织设置、功能、使用情况和团队信息。
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `organizationId` | 字符串 | 是 | 组织 ID \(UUID\) |
-| `apiKey` | 字符串 | 是 | PostHog 个人 API 密钥 |
-| `region` | 字符串 | 否 | 云区域：us 或 eu \(默认：us\) |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `organization` | 对象 | 包含设置和功能的详细组织信息 |
-
-## 注意
-
-- 类别：`tools`
-- 类型：`posthog`

@@ -1087,26 +1087,3 @@ Listet alle Organisationen auf, auf die der Benutzer Zugriff hat. Gibt Organisat
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `organizations` | array | Liste der Organisationen mit ihren Einstellungen und Funktionen |
-
-### `posthog_get_organization`
-
-Erhalte detaillierte Informationen über eine bestimmte Organisation anhand ihrer ID. Liefert umfassende Organisationseinstellungen, Funktionen, Nutzung und Team-Informationen.
-
-#### Eingabe
-
-| Parameter | Typ | Erforderlich | Beschreibung |
-| --------- | ---- | -------- | ----------- |
-| `organizationId` | string | Ja | Organisations-ID \(UUID\) |
-| `apiKey` | string | Ja | PostHog persönlicher API-Schlüssel |
-| `region` | string | Nein | Cloud-Region: us oder eu \(Standard: us\) |
-
-#### Ausgabe
-
-| Parameter | Typ | Beschreibung |
-| --------- | ---- | ----------- |
-| `organization` | object | Detaillierte Organisationsinformationen mit Einstellungen und Funktionen |
-
-## Hinweise
-
-- Kategorie: `tools`
-- Typ: `posthog`

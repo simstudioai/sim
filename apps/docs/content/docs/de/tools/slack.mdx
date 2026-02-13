@@ -284,3 +284,126 @@ Eine Emoji-Reaktion zu einer Slack-Nachricht hinzufügen
 
 - Kategorie: `tools`
 - Typ: `slack`
+
+Eine zuvor vom Bot gesendete Nachricht in Slack aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in der die Nachricht gepostet wurde \(z. B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der zu aktualisierenden Nachricht \(z. B. 1405894322.002768\) |
+| `text` | string | Ja | Neuer Nachrichtentext \(unterstützt Slack-mrkdwn-Formatierung\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | object | Vollständiges aktualisiertes Nachrichtenobjekt mit allen von Slack zurückgegebenen Eigenschaften |
+|   ↳ `type` | string | Nachrichtentyp \(normalerweise "message"\) |
+|   ↳ `ts` | string | Nachrichtenzeitstempel \(eindeutige Kennung\) |
+|   ↳ `text` | string | Nachrichtentextinhalt |
+|   ↳ `user` | string | Benutzer-ID des Absenders |
+|   ↳ `bot_id` | string | Bot-ID, falls von einem Bot gesendet |
+|   ↳ `username` | string | Angezeigter Benutzername |
+|   ↳ `channel` | string | Kanal-ID |
+|   ↳ `team` | string | Team-/Workspace-ID |
+|   ↳ `thread_ts` | string | Zeitstempel der übergeordneten Nachricht \(für Thread-Antworten\) |
+|   ↳ `parent_user_id` | string | Benutzer-ID des Autors der übergeordneten Thread-Nachricht |
+|   ↳ `reply_count` | number | Gesamtanzahl der Antworten im Thread |
+|   ↳ `reply_users_count` | number | Anzahl der eindeutigen Benutzer, die geantwortet haben |
+|   ↳ `latest_reply` | string | Zeitstempel der neuesten Antwort |
+|   ↳ `subscribed` | boolean | Ob der Benutzer den Thread abonniert hat |
+|   ↳ `last_read` | string | Zeitstempel der zuletzt gelesenen Nachricht |
+|   ↳ `unread_count` | number | Anzahl ungelesener Nachrichten im Thread |
+|   ↳ `subtype` | string | Nachrichtensubtyp \(bot_message, file_share usw.\) |
+|   ↳ `is_starred` | boolean | Ob die Nachricht vom Benutzer mit Stern markiert wurde |
+|   ↳ `pinned_to` | array | Kanal-IDs, in denen die Nachricht angeheftet ist |
+|   ↳ `permalink` | string | Permanente URL zur Nachricht |
+|   ↳ `reactions` | array | Reaktionen auf diese Nachricht |
+|     ↳ `name` | string | Emoji-Name \(ohne Doppelpunkte\) |
+|     ↳ `count` | number | Anzahl, wie oft diese Reaktion hinzugefügt wurde |
+|     ↳ `users` | array | Array von Benutzer-IDs, die reagiert haben |
+|   ↳ `files` | array | An die Nachricht angehängte Dateien |
+|     ↳ `id` | string | Eindeutige Dateikennung |
+|     ↳ `name` | string | Dateiname |
+|     ↳ `mimetype` | string | MIME-Typ der Datei |
+|     ↳ `size` | number | Dateigröße in Bytes |
+|     ↳ `url_private` | string | Private Download-URL \(erfordert Authentifizierung\) |
+|     ↳ `permalink` | string | Permanenter Link zur Datei |
+|     ↳ `mode` | string | Dateimodus \(hosted, external usw.\) |
+|   ↳ `attachments` | array | Legacy-Anhänge an der Nachricht |
+|     ↳ `id` | number | Anhang-ID |
+|     ↳ `fallback` | string | Klartextzusammenfassung |
+|     ↳ `text` | string | Hauptanhangtext |
+|     ↳ `pretext` | string | Text, der vor dem Anhang angezeigt wird |
+|     ↳ `color` | string | Farbbalken-Hex-Code oder Voreinstellung |
+|     ↳ `author_name` | string | Angezeigter Autorenname |
+|     ↳ `author_link` | string | Autoren-Link-URL |
+|     ↳ `author_icon` | string | Autoren-Icon-URL |
+|     ↳ `title` | string | Anhangtitel |
+|     ↳ `title_link` | string | Titel-Link-URL |
+|     ↳ `image_url` | string | Bild-URL |
+|     ↳ `thumb_url` | string | Vorschaubild-URL |
+|     ↳ `footer` | string | Fußzeilentext |
+|     ↳ `footer_icon` | string | Fußzeilen-Icon-URL |
+|     ↳ `ts` | string | In der Fußzeile angezeigter Zeitstempel |
+|   ↳ `blocks` | array | Block-Kit-Blöcke in der Nachricht |
+|     ↳ `type` | string | Blocktyp \(section, divider, image, actions usw.\) |
+|     ↳ `block_id` | string | Eindeutige Blockkennung |
+|   ↳ `edited` | object | Bearbeitungsinformationen, falls die Nachricht bearbeitet wurde |
+|     ↳ `user` | string | Benutzer-ID des Bearbeiters |
+|     ↳ `ts` | string | Zeitstempel der Bearbeitung |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Aktualisierte Nachrichtenmetadaten |
+|   ↳ `channel` | string | Kanal-ID |
+|   ↳ `timestamp` | string | Nachrichtenzeitstempel |
+|   ↳ `text` | string | Aktualisierter Nachrichtentext |
+
+### `slack_delete_message`
+
+Eine zuvor vom Bot in Slack gesendete Nachricht löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in der die Nachricht gepostet wurde \(z.B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der zu löschenden Nachricht \(z.B. 1405894322.002768\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Metadaten der gelöschten Nachricht |
+|   ↳ `channel` | string | Kanal-ID |
+|   ↳ `timestamp` | string | Nachrichten-Zeitstempel |
+
+### `slack_add_reaction`
+
+Eine Emoji-Reaktion zu einer Slack-Nachricht hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
+| `botToken` | string | Nein | Bot-Token für Custom Bot |
+| `channel` | string | Ja | Kanal-ID, in der die Nachricht gepostet wurde \(z.B. C1234567890\) |
+| `timestamp` | string | Ja | Zeitstempel der Nachricht, auf die reagiert werden soll \(z.B. 1405894322.002768\) |
+| `name` | string | Ja | Name der Emoji-Reaktion \(ohne Doppelpunkte, z.B. thumbsup, heart, eyes\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Reaktions-Metadaten |
+|   ↳ `channel` | string | Kanal-ID |
+|   ↳ `timestamp` | string | Nachrichten-Zeitstempel |
+|   ↳ `reaction` | string | Emoji-Reaktionsname |

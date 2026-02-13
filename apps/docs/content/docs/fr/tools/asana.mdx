@@ -163,3 +163,16 @@ Ajouter un commentaire (story) à une tâche Asana
 
 - Catégorie : `tools`
 - Type : `asana`
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `ts` | chaîne | Horodatage de la réponse |
+| `gid` | chaîne | Identifiant unique global du commentaire |
+| `text` | chaîne | Contenu textuel du commentaire |
+| `created_at` | chaîne | Horodatage de création du commentaire |
+| `created_by` | objet | Détails de l'auteur du commentaire |
+|   ↳ `gid` | chaîne | GID de l'auteur |
+|   ↳ `name` | chaîne | Nom de l'auteur |

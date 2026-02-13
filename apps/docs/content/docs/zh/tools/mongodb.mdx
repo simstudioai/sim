@@ -173,3 +173,23 @@ MongoDB 工具非常适合需要管理或分析结构化、基于文档的数据
 
 - 类别：`tools`
 - 类型：`mongodb`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | 是 | MongoDB 服务器主机名或 IP 地址 |
+| `port` | number | 是 | MongoDB 服务器端口（默认：27017） |
+| `database` | string | 否 | 要自省的数据库名称（例如："mydb"）。如果未提供，则列出所有数据库 |
+| `username` | string | 否 | MongoDB 用户名 |
+| `password` | string | 否 | MongoDB 密码 |
+| `authSource` | string | 否 | 认证数据库 |
+| `ssl` | string | 否 | SSL 连接模式（禁用、必需、首选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `databases` | array | 数据库名称数组 |
+| `collections` | array | 包含名称、类型、文档数量和索引的集合信息数组 |

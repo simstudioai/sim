@@ -1,0 +1,207 @@
+---
+title: A2A
+description: 与外部 A2A 兼容代理进行交互
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="a2a"
+  color="#4151B5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+A2A（Agent-to-Agent，代理对代理）协议使 Sim 能够与实现了 A2A 兼容 API 的外部 AI 代理和系统进行交互。通过 A2A，您可以将 Sim 的自动化和工作流连接到远程代理——如 LLM 驱动的机器人、微服务和其他基于 AI 的工具——并使用标准化的消息格式进行通信。
+
+在 Sim 中使用 A2A 工具，您可以：
+
+- **向外部代理发送消息**：直接与远程代理通信，提供提示、指令或数据。
+- **接收和流式响应**：在任务进行过程中，从代理获取结构化响应、产物或实时更新。
+- **继续对话或任务**：通过引用任务和上下文 ID，持续多轮对话或工作流。
+- **集成第三方 AI 与自动化**：将外部 A2A 兼容服务作为 Sim 工作流的一部分进行集成。
+
+这些功能让您能够构建高级工作流，将 Sim 的原生能力与外部 AI 或自定义代理的智能和自动化相结合。要使用 A2A 集成，您需要外部代理的 endpoint URL，如果需要，还需提供 API key 或凭证。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 A2A（Agent-to-Agent，代理对代理）协议与外部 AI 代理进行交互。 
+
+## 工具
+
+### `a2a_send_message`
+
+向外部 A2A 兼容代理发送消息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `agentUrl` | string | 是 | A2A 代理 endpoint URL |
+| `message` | string | 是 | 发送给代理的消息 |
+| `taskId` | string | 否 | 用于继续现有任务的 Task ID |
+| `contextId` | string | 否 | 用于对话连续性的 Context ID |
+| `data` | string | 否 | 随消息附带的结构化数据（JSON 字符串） |
+| `files` | array | 否 | 随消息附带的文件 |
+| `apiKey` | string | 否 | 用于身份验证的 API key |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 来自 agent 的文本响应内容 |
+| `taskId` | string | 任务唯一标识符 |
+| `contextId` | string | 相关任务/消息的分组 |
+| `state` | string | 当前生命周期状态（working、completed、failed、canceled、rejected、input_required、auth_required） |
+| `artifacts` | array | 任务输出产物 |
+| `history` | array | 会话历史（消息数组） |
+
+### `a2a_get_task`
+
+查询现有 A2A 任务的状态。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `taskId` | string | 是 | 要查询的任务 ID |
+| `apiKey` | string | 否 | 用于身份验证的 API key |
+| `historyLength` | number | 否 | 要包含的历史消息数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `taskId` | string | 任务唯一标识符 |
+| `contextId` | string | 相关任务/消息的分组 |
+| `state` | string | 当前生命周期状态（working、completed、failed、canceled、rejected、input_required、auth_required） |
+| `artifacts` | array | 任务输出产物 |
+| `history` | array | 会话历史（消息数组） |
+
+### `a2a_cancel_task`
+
+取消正在运行的 A2A 任务。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `taskId` | string | 是 | 要取消的任务 ID |
+| `apiKey` | string | 否 | 用于身份验证的 API key |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `cancelled` | boolean | 是否取消成功 |
+| `state` | string | 当前生命周期状态（working、completed、failed、canceled、rejected、input_required、auth_required） |
+
+### `a2a_get_agent_card`
+
+获取 A2A agent 的 Agent Card（发现文档）。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `apiKey` | string | 否 | 用于认证的 API key（如需） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `name` | string | Agent 显示名称 |
+| `description` | string | Agent 目的/能力 |
+| `url` | string | 服务端点 URL |
+| `provider` | object | 创建组织详情 |
+| `capabilities` | object | 功能支持矩阵 |
+| `skills` | array | 可用操作 |
+| `version` | string | Agent 支持的 A2A 协议版本 |
+| `defaultInputModes` | array | Agent 默认接受的输入内容类型 |
+| `defaultOutputModes` | array | Agent 默认输出的内容类型 |
+
+### `a2a_resubscribe`
+
+在连接中断后，重新连接到正在进行的 A2A 任务流。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `taskId` | string | 是 | 要重新订阅的任务 ID |
+| `apiKey` | string | 否 | 用于认证的 API key |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `taskId` | string | 任务唯一标识符 |
+| `contextId` | string | 相关任务/消息的分组 |
+| `state` | string | 当前生命周期状态（working、completed、failed、canceled、rejected、input_required、auth_required） |
+| `isRunning` | boolean | 任务是否仍在运行 |
+| `artifacts` | array | 任务输出产物 |
+| `history` | array | 会话历史（消息数组） |
+
+### `a2a_set_push_notification`
+
+配置 webhook 以接收任务更新通知。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `taskId` | string | 是 | 要配置通知的任务 ID |
+| `webhookUrl` | string | 是 | 用于接收通知的 HTTPS webhook URL |
+| `token` | string | 否 | webhook 验证用的令牌 |
+| `apiKey` | string | 否 | 身份验证用 API key |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `url` | string | 用于通知的 HTTPS webhook URL |
+| `token` | string | webhook 验证用的身份令牌 |
+| `success` | boolean | 操作是否成功 |
+
+### `a2a_get_push_notification`
+
+获取任务的推送通知 webhook 配置。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `agentUrl` | string | 是 | A2A agent 端点 URL |
+| `taskId` | string | 是 | 要获取通知配置的任务 ID |
+| `apiKey` | string | 否 | 身份验证用 API key |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `token` | string | 用于 webhook 验证的认证令牌 |
+| `exists` | boolean | 资源是否存在 |
+
+### `a2a_delete_push_notification`
+
+删除任务的推送通知 webhook 配置。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ------ | ----------- |
+| `agentUrl` | string | 是 | A2A 代理端点 URL |
+| `taskId` | string | 是 | 要删除通知配置的任务 ID |
+| `pushNotificationConfigId` | string | 否 | 要删除的推送通知配置 ID（可选 - 服务器可根据 taskId 推断）|
+| `apiKey` | string | 否 | 用于认证的 API key |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作是否成功 |

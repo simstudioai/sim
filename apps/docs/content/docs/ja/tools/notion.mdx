@@ -173,3 +173,34 @@ Notionワークスペース内のすべてのページとデータベースを�
 
 - カテゴリー: `tools`
 - タイプ: `notion`
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | データベースUUID |
+| `url` | string | NotionデータベースURL |
+| `created_time` | string | ISO 8601形式の作成タイムスタンプ |
+| `properties` | object | データベースプロパティスキーマ |
+| `title` | string | データベースタイトル |
+
+### `notion_add_database_row`
+
+指定されたプロパティでNotionデータベースに新しい行を追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | はい | 行を追加するデータベースのID |
+| `properties` | json | はい | データベーススキーマに一致するJSONオブジェクトとしての行プロパティ（例：\{"Name": \{"title": \[\{"text": \{"content": "タスク1"\}\}\]\}, "Status": \{"select": \{"name": "完了"\}\}\}） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ページUUID |
+| `url` | string | NotionページURL |
+| `created_time` | string | ISO 8601形式の作成タイムスタンプ |
+| `last_edited_time` | string | ISO 8601形式の最終編集タイムスタンプ |
+| `title` | string | 行タイトル |

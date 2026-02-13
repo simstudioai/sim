@@ -52,3 +52,193 @@ Integrieren Sie Google Forms in Ihren Workflow. Geben Sie eine Formular-ID an, u
 
 - Kategorie: `tools`
 - Typ: `google_forms`
+
+Ruft eine Formularstruktur einschließlich ihrer Elemente, Einstellungen und Metadaten ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Die ID des abzurufenden Google-Formulars |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die Formular-ID |
+| `title` | string | Der für Befragte sichtbare Formulartitel |
+| `description` | string | Die Formularbeschreibung |
+| `documentTitle` | string | Der in Drive sichtbare Dokumenttitel |
+| `responderUri` | string | Die URI zum Teilen mit Befragten |
+| `linkedSheetId` | string | Die ID der verknüpften Google-Tabelle |
+| `revisionId` | string | Die Revisions-ID des Formulars |
+| `items` | array | Die Formularelemente (Fragen, Abschnitte usw.) |
+|   ↳ `itemId` | string | Element-ID |
+|   ↳ `title` | string | Elementtitel |
+|   ↳ `description` | string | Elementbeschreibung |
+| `settings` | json | Formulareinstellungen |
+| `publishSettings` | json | Formularveröffentlichungseinstellungen |
+
+### `google_forms_create_form`
+
+Erstellt ein neues Google-Formular mit einem Titel
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der für Befragte sichtbare Titel des Formulars |
+| `documentTitle` | string | Nein | Der in Drive sichtbare Dokumenttitel (standardmäßig der Formulartitel) |
+| `unpublished` | boolean | Nein | Falls true, wird ein unveröffentlichtes Formular erstellt, das keine Antworten akzeptiert |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die ID des erstellten Formulars |
+| `title` | string | Der Formulartitel |
+| `documentTitle` | string | Der Dokumenttitel in Drive |
+| `responderUri` | string | Die URI zum Teilen mit Befragten |
+| `revisionId` | string | Die Revisions-ID des Formulars |
+
+### `google_forms_batch_update`
+
+Mehrere Aktualisierungen auf ein Formular anwenden (Elemente hinzufügen, Informationen aktualisieren, Einstellungen ändern usw.)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `requests` | json | Ja | Array von Aktualisierungsanfragen (updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem) |
+| `includeFormInResponse` | boolean | Nein | Ob das aktualisierte Formular in der Antwort zurückgegeben werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `replies` | array | Die Antworten von jeder Aktualisierungsanfrage |
+| `writeControl` | object | Schreibsteuerungsinformationen mit Revisions-IDs |
+|   ↳ `requiredRevisionId` | string | Erforderliche Revisions-ID zur Konflikterkennung |
+|   ↳ `targetRevisionId` | string | Ziel-Revisions-ID |
+| `form` | object | Das aktualisierte Formular (falls includeFormInResponse true war) |
+|   ↳ `formId` | string | Die Formular-ID |
+|   ↳ `info` | object | Formularinformationen mit Titel und Beschreibung |
+|     ↳ `title` | string | Der für Befragte sichtbare Formulartitel |
+|     ↳ `description` | string | Die Formularbeschreibung |
+|     ↳ `documentTitle` | string | Der in Drive sichtbare Dokumenttitel |
+|   ↳ `settings` | object | Formulareinstellungen |
+|     ↳ `quizSettings` | object | Quiz-Einstellungen |
+|       ↳ `isQuiz` | boolean | Ob das Formular ein Quiz ist |
+|     ↳ `emailCollectionType` | string | E-Mail-Erfassungstyp |
+|   ↳ `revisionId` | string | Die Revisions-ID des Formulars |
+|   ↳ `responderUri` | string | Die URI zum Teilen mit Befragten |
+|   ↳ `linkedSheetId` | string | Die ID des verknüpften Google Sheets |
+|   ↳ `publishSettings` | object | Formularveröffentlichungseinstellungen |
+|     ↳ `publishState` | object | Aktueller Veröffentlichungsstatus |
+|       ↳ `isPublished` | boolean | Ob das Formular veröffentlicht ist |
+|       ↳ `isAcceptingResponses` | boolean | Ob das Formular Antworten akzeptiert |
+
+### `google_forms_set_publish_settings`
+
+Aktualisiert die Veröffentlichungseinstellungen eines Formulars (veröffentlichen/zurückziehen, Antworten akzeptieren)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `isPublished` | boolean | Ja | Ob das Formular veröffentlicht und für andere sichtbar ist |
+| `isAcceptingResponses` | boolean | Nein | Ob das Formular Antworten akzeptiert \(wird auf false gesetzt, wenn isPublished false ist\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `formId` | string | Die Formular-ID |
+| `publishSettings` | json | Die aktualisierten Veröffentlichungseinstellungen |
+|   ↳ `publishState` | object | Der Veröffentlichungsstatus |
+|     ↳ `isPublished` | boolean | Ob das Formular veröffentlicht ist |
+|     ↳ `isAcceptingResponses` | boolean | Ob das Formular Antworten akzeptiert |
+
+### `google_forms_create_watch`
+
+Erstellt eine Benachrichtigungsüberwachung für Formularänderungen (Schemaänderungen oder neue Antworten)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID zur Überwachung |
+| `eventType` | string | Ja | Zu überwachender Ereignistyp: SCHEMA \(Formularänderungen\) oder RESPONSES \(neue Einreichungen\) |
+| `topicName` | string | Ja | Der Cloud Pub/Sub Topic-Name \(Format: projects/\{project\}/topics/\{topic\}\) |
+| `watchId` | string | Nein | Benutzerdefinierte Watch-ID \(4-63 Zeichen, Kleinbuchstaben, Zahlen, Bindestriche\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Die Watch-ID |
+| `eventType` | string | Der überwachte Ereignistyp |
+| `topicName` | string | Das Cloud Pub/Sub-Thema |
+| `createTime` | string | Zeitpunkt der Erstellung der Watch |
+| `expireTime` | string | Ablaufzeitpunkt der Watch \(7 Tage nach Erstellung\) |
+| `state` | string | Der Watch-Status \(ACTIVE, SUSPENDED\) |
+
+### `google_forms_list_watches`
+
+Alle Benachrichtigungs-Watches für ein Formular auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `watches` | array | Liste der Watches für das Formular |
+|   ↳ `id` | string | Watch-ID |
+|   ↳ `eventType` | string | Ereignistyp \(SCHEMA oder RESPONSES\) |
+|   ↳ `createTime` | string | Zeitpunkt der Erstellung der Watch |
+|   ↳ `expireTime` | string | Ablaufzeitpunkt der Watch |
+|   ↳ `state` | string | Watch-Status |
+
+### `google_forms_delete_watch`
+
+Eine Benachrichtigungs-Watch von einem Formular löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `watchId` | string | Ja | Zu löschende Watch-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob die Überwachung erfolgreich gelöscht wurde |
+
+### `google_forms_renew_watch`
+
+Verlängert eine Benachrichtigungsüberwachung um weitere 7 Tage
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Google Forms Formular-ID |
+| `watchId` | string | Ja | Zu verlängernde Überwachungs-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Die Überwachungs-ID |
+| `eventType` | string | Der überwachte Ereignistyp |
+| `expireTime` | string | Die neue Ablaufzeit |
+| `state` | string | Der Überwachungsstatus |

@@ -75,3 +75,40 @@ Für selbst gehostete Bereitstellungen können Enterprise-Funktionen über Umgeb
 <Callout type="warn">
   BYOK ist nur im gehosteten Sim verfügbar. Selbst gehostete Deployments konfigurieren AI-Provider-Schlüssel direkt über Umgebungsvariablen.
 </Callout>
+
+Wenn die Abrechnung deaktiviert ist, verwenden Sie die Admin-API zur Verwaltung von Organisationen:
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### Workspace-Mitglieder
+
+Wenn Einladungen deaktiviert sind, verwenden Sie die Admin-API zur direkten Verwaltung von Workspace-Mitgliedschaften:
+
+```bash
+# Add a user to a workspace
+curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "permissions": "write"}'
+
+# Remove a user from a workspace
+curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY"
+```
+
+### Hinweise
+
+- Die Aktivierung von `ACCESS_CONTROL_ENABLED` aktiviert automatisch Organisationen, da die Zugriffskontrolle eine Organisationsmitgliedschaft erfordert.
+- Wenn `DISABLE_INVITATIONS` gesetzt ist, können Benutzer keine Einladungen versenden. Verwenden Sie stattdessen die Admin-API zur Verwaltung von Workspace- und Organisationsmitgliedschaften.

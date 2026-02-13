@@ -1,0 +1,172 @@
+---
+title: ファイルの受け渡し
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Simを使用すると、ワークフロー全体でファイルを簡単に扱うことができます。ブロックはファイルを受け取り、処理し、他のブロックにシームレスに渡すことができます。
+
+## ファイルオブジェクト
+
+ブロックがファイル（Gmailの添付ファイル、生成された画像、解析されたドキュメントなど）を出力する場合、標準化されたファイルオブジェクトを返します。
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+前のブロックからファイルを参照する際に、これらのプロパティにアクセスできます。
+
+## ファイルブロック
+
+**ファイルブロック**は、ワークフロー内のファイルの汎用エントリーポイントです。あらゆるソースからファイルを受け入れ、すべての統合で機能する標準化されたファイルオブジェクトを出力します。
+
+**入力:**
+- **アップロードされたファイル** - ドラッグ&ドロップまたは直接ファイルを選択
+- **外部URL** - 公開アクセス可能な任意のファイルURL
+- **他のブロックからのファイル** - Gmailの添付ファイル、Slackのダウンロードなどからファイルを渡す
+
+**出力:**
+- 一貫した構造を持つ`UserFile`オブジェクトのリスト（`name`、`url`、`base64`、`type`、`size`）
+- `combinedContent` - すべてのファイルから抽出されたテキストコンテンツ（ドキュメント用）
+
+**使用例:**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+ファイルブロックは自動的に以下を実行します:
+- URLと拡張子からファイルタイプを検出
+- PDF、CSV、ドキュメントからテキストを抽出
+- バイナリファイルのbase64エンコーディングを生成
+- 安全なアクセスのための署名付きURLを作成
+
+Vision、STT、メール統合などの他のブロックに渡す前に、異なるソースからのファイルを正規化する必要がある場合は、ファイルブロックを使用してください。
+
+## ブロック間でのファイルの受け渡し
+
+タグドロップダウンを使用して、前のブロックからファイルを参照します。任意のファイル入力フィールドをクリックし、`<`と入力すると、利用可能な出力が表示されます。
+
+**一般的なパターン:**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+ほとんどのブロックは完全なファイルオブジェクトを受け取り、必要な情報を自動的に抽出します。ほとんどの場合、`base64`や`url`を手動で抽出する必要はありません。
+
+## ファイルを使用したワークフローのトリガー
+
+ファイル入力を期待するワークフローをAPI経由で呼び出す場合、リクエストにファイルを含めます:
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+  <Tab value="URL">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+</Tabs>
+
+ワークフローのStartブロックには、ファイルパラメータを受け取るための入力フィールドを設定する必要があります。
+
+## APIレスポンスでのファイル受信
+
+ワークフローがファイルを出力する場合、それらはレスポンスに含まれます:
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+直接ダウンロードには`url`を、インライン処理には`base64`を使用します。
+
+## ファイルを扱うブロック
+
+**ファイル入力:**
+- **File** - ドキュメント、画像、テキストファイルを解析
+- **Vision** - AIモデルで画像を分析
+- **Mistral Parser** - PDFからテキストを抽出
+
+**ファイル出力:**
+- **Gmail** - メール添付ファイル
+- **Slack** - ダウンロードされたファイル
+- **TTS** - 生成された音声ファイル
+- **Video Generator** - 生成された動画
+- **Image Generator** - 生成された画像
+
+**ファイルストレージ:**
+- **Supabase** - ストレージへのアップロード/ダウンロード
+- **S3** - AWS S3操作
+- **Google Drive** - Driveファイル操作
+- **Dropbox** - Dropboxファイル操作
+
+<Callout type="info">
+  ファイルは下流のブロックで自動的に利用可能になります。実行エンジンがすべてのファイル転送とフォーマット変換を処理します。
+</Callout>
+
+## ベストプラクティス
+
+1. **ファイルオブジェクトを直接使用する** - 個別のプロパティを抽出するのではなく、完全なファイルオブジェクトを渡します。ブロックが自動的に変換を処理します。
+
+2. **ファイルタイプを確認する** - ファイルタイプが受信ブロックの期待するものと一致することを確認します。VisionブロックにはイメージがFile、ブロックにはドキュメントが必要です。
+
+3. **ファイルサイズを考慮する** - 大きなファイルは実行時間を増加させます。非常に大きなファイルの場合は、中間ストレージとしてストレージブロック（S3、Supabase）の使用を検討してください。

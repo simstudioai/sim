@@ -173,3 +173,23 @@ Exécuter un pipeline d'agrégation MongoDB
 
 - Catégorie : `tools`
 - Type : `mongodb`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | chaîne | Oui | Nom d'hôte ou adresse IP du serveur MongoDB |
+| `port` | nombre | Oui | Port du serveur MongoDB \(par défaut : 27017\) |
+| `database` | chaîne | Non | Nom de la base de données à inspecter. Si non fourni, liste toutes les bases de données |
+| `username` | chaîne | Non | Nom d'utilisateur MongoDB |
+| `password` | chaîne | Non | Mot de passe MongoDB |
+| `authSource` | chaîne | Non | Base de données d'authentification |
+| `ssl` | chaîne | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `databases` | tableau | Tableau des noms de bases de données |
+| `collections` | tableau | Tableau d'informations sur les collections avec nom, type, nombre de documents et index |

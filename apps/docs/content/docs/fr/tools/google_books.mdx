@@ -1,0 +1,92 @@
+---
+title: Google Books
+description: Rechercher et récupérer des informations sur les livres
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_books"
+  color="#FFFFFF"
+/>
+
+## Instructions d'utilisation
+
+Recherchez des livres en utilisant l'API Google Books. Trouvez des volumes par titre, auteur, ISBN ou mots-clés, et récupérez des informations détaillées sur des livres spécifiques, y compris les descriptions, les notes et les détails de publication.
+
+## Outils
+
+### `google_books_volume_search`
+
+Rechercher des livres en utilisant l'API Google Books
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Google Books |
+| `query` | string | Oui | Requête de recherche. Prend en charge les mots-clés spéciaux : intitle:, inauthor:, inpublisher:, subject:, isbn: |
+| `filter` | string | Non | Filtrer les résultats par disponibilité \(partial, full, free-ebooks, paid-ebooks, ebooks\) |
+| `printType` | string | Non | Restreindre au type d'impression \(all, books, magazines\) |
+| `orderBy` | string | Non | Ordre de tri \(relevance, newest\) |
+| `startIndex` | number | Non | Index du premier résultat à retourner \(pour la pagination\) |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(1-40\) |
+| `langRestrict` | string | Non | Restreindre les résultats à une langue spécifique \(code ISO 639-1\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `totalItems` | number | Nombre total de résultats correspondants |
+| `volumes` | array | Liste des volumes correspondants |
+|   ↳ `id` | string | Identifiant du volume |
+|   ↳ `title` | string | Titre du livre |
+|   ↳ `subtitle` | string | Sous-titre du livre |
+|   ↳ `authors` | array | Liste des auteurs |
+|   ↳ `publisher` | string | Nom de l'éditeur |
+|   ↳ `publishedDate` | string | Date de publication |
+|   ↳ `description` | string | Description du livre |
+|   ↳ `pageCount` | number | Nombre de pages |
+|   ↳ `categories` | array | Catégories du livre |
+|   ↳ `averageRating` | number | Note moyenne \(1-5\) |
+|   ↳ `ratingsCount` | number | Nombre de notes |
+|   ↳ `language` | string | Code de langue |
+|   ↳ `previewLink` | string | Lien vers l'aperçu sur Google Books |
+|   ↳ `infoLink` | string | Lien vers la page d'informations |
+|   ↳ `thumbnailUrl` | string | URL de la miniature de couverture du livre |
+|   ↳ `isbn10` | string | Identifiant ISBN-10 |
+|   ↳ `isbn13` | string | Identifiant ISBN-13 |
+
+### `google_books_volume_details`
+
+Obtenir des informations détaillées sur un volume de livre spécifique
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Google Books |
+| `volumeId` | string | Oui | L'ID du volume à récupérer |
+| `projection` | string | Non | Niveau de projection \(full, lite\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID du volume |
+| `title` | string | Titre du livre |
+| `subtitle` | string | Sous-titre du livre |
+| `authors` | array | Liste des auteurs |
+| `publisher` | string | Nom de l'éditeur |
+| `publishedDate` | string | Date de publication |
+| `description` | string | Description du livre |
+| `pageCount` | number | Nombre de pages |
+| `categories` | array | Catégories du livre |
+| `averageRating` | number | Note moyenne \(1-5\) |
+| `ratingsCount` | number | Nombre de notes |
+| `language` | string | Code de langue |
+| `previewLink` | string | Lien vers l'aperçu sur Google Books |
+| `infoLink` | string | Lien vers la page d'informations |
+| `thumbnailUrl` | string | URL de la miniature de couverture |
+| `isbn10` | string | Identifiant ISBN-10 |
+| `isbn13` | string | Identifiant ISBN-13 |

@@ -1,0 +1,445 @@
+---
+title: Google Maps
+description: ジオコーディング、経路案内、場所検索、距離計算
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_maps"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Maps](https://maps.google.com)は、マッピング、ジオコーディング、ルーティング、場所検索、環境データなど、幅広いAPIを提供する総合プラットフォームです。Simを通じて、エージェントは主要なGoogle Maps Platform APIを活用し、さまざまな位置情報ベースのワークフローを自動化できます。
+
+**この統合には以下のGoogle Maps APIが含まれています:**
+
+- **Geocoding API:** 住所を緯度・経度座標に変換し、逆ジオコーディングを実行します。
+- **Directions API:** 地点間の運転、徒歩、自転車、公共交通機関による経路案内とルートを計算します。
+- **Distance Matrix API:** 複数の出発地と目的地の組み合わせに対して移動距離と時間を計算します。
+- **Places API:** 名前、種類、近接性により場所(店舗、ランドマーク、施設)を検索します。
+- **Place Details API:** 特定の場所の詳細情報(住所、評価、営業時間、連絡先など)を取得します。
+- **Elevation API:** 世界中の任意の地点の標高データ(海抜高度)を取得します。
+- **Time Zone API:** 任意の地理的位置のタイムゾーン情報を検索します。
+- **Air Quality API:** 特定の座標のリアルタイム大気質データを取得します。
+
+これらのAPIにより、Simエージェントは、位置情報の検索と拡充、最適なルートと配送の計画、時間と距離の推定、場所データの分析、地理的コンテキストによるレコードの拡充、環境条件の取得など、手作業や外部ツールを使わずに自動化できます。
+
+ここに記載されている以上の機能が必要な場合、または追加のGoogle Maps APIのサポートをリクエストしたい場合は、お知らせください。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Google Maps Platform APIをワークフローに統合します。住所から座標へのジオコーディング、逆ジオコーディング、地点間の経路取得、距離行列の計算、場所の検索、場所の詳細情報の取得、標高データ、タイムゾーン情報の取得をサポートしています。
+
+## ツール
+
+### `google_maps_air_quality`
+
+指定した地点の現在の大気質データを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Air Quality APIが有効化されたGoogle Maps APIキー |
+| `lat` | number | はい | 緯度座標 |
+| `lng` | number | はい | 経度座標 |
+| `languageCode` | string | いいえ | レスポンスの言語コード（例:「en」、「es」） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `dateTime` | string | 大気質データのタイムスタンプ |
+| `regionCode` | string | 地点の地域コード |
+| `indexes` | array | 大気質指数の配列 |
+|   ↳ `code` | string | 指数コード（例:「uaqi」、「usa_epa」） |
+|   ↳ `displayName` | string | 指数の表示名 |
+|   ↳ `aqi` | number | 大気質指数の値 |
+|   ↳ `aqiDisplay` | string | フォーマットされたAQI表示文字列 |
+|   ↳ `color` | object | AQIレベルのRGBカラー |
+|   ↳ `category` | string | カテゴリの説明（例:「良好」、「普通」） |
+|   ↳ `dominantPollutant` | string | 主要汚染物質 |
+| `pollutants` | array | 汚染物質濃度の配列 |
+|   ↳ `code` | string | 汚染物質コード（例:「pm25」、「o3」） |
+|   ↳ `displayName` | string | 表示名 |
+|   ↳ `fullName` | string | 汚染物質の正式名称 |
+|   ↳ `concentration` | object | 濃度情報 |
+|     ↳ `value` | number | 濃度値 |
+|     ↳ `units` | string | 単位（例:「PARTS_PER_BILLION」） |
+|   ↳ `additionalInfo` | object | 発生源と影響に関する追加情報 |
+| `healthRecommendations` | object | 各集団に対する健康上の推奨事項 |
+
+### `google_maps_directions`
+
+2つの地点間の経路情報と道順を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `origin` | string | はい | 出発地点（住所またはlat,lng） |
+| `destination` | string | はい | 目的地（住所またはlat,lng） |
+| `mode` | string | いいえ | 移動手段：driving、walking、bicycling、またはtransit |
+| `avoid` | string | いいえ | 回避する要素：tolls、highways、またはferries |
+| `waypoints` | json | いいえ | 経由地点の配列 |
+| `units` | string | いいえ | 単位系：metricまたはimperial |
+| `language` | string | いいえ | 結果の言語コード（例：en、es、fr） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `routes` | array | 利用可能なすべての経路 |
+|   ↳ `summary` | string | 経路の概要（主要道路名） |
+|   ↳ `legs` | array | 経路区間（経由地点間のセグメント） |
+|   ↳ `overviewPolyline` | string | 経路全体のエンコードされたポリライン |
+|   ↳ `warnings` | array | 経路の警告 |
+|   ↳ `waypointOrder` | array | 最適化された経由地点の順序（リクエストされた場合） |
+| `distanceText` | string | 人間が読める形式の総距離（例：「5.2 km」） |
+| `distanceMeters` | number | メートル単位の総距離 |
+| `durationText` | string | 人間が読める形式の総所要時間（例：「15分」） |
+| `durationSeconds` | number | 秒単位の総所要時間 |
+| `startAddress` | string | 解決された出発地の住所 |
+| `endAddress` | string | 解決された到着地の住所 |
+| `steps` | array | ターンバイターンのナビゲーション指示 |
+|   ↳ `instruction` | string | ナビゲーション指示（HTMLを除去） |
+|   ↳ `distanceText` | string | テキスト形式のステップ距離 |
+|   ↳ `distanceMeters` | number | メートル単位のステップ距離 |
+|   ↳ `durationText` | string | テキスト形式のステップ所要時間 |
+|   ↳ `durationSeconds` | number | 秒単位のステップ所要時間 |
+|   ↳ `startLocation` | object | ステップ開始地点の座標 |
+|   ↳ `endLocation` | object | ステップ終了地点の座標 |
+|   ↳ `travelMode` | string | このステップの移動手段 |
+|   ↳ `maneuver` | string | 操作タイプ（turn-leftなど） |
+| `polyline` | string | 主要経路のエンコードされたポリライン |
+
+### `google_maps_distance_matrix`
+
+複数の出発地と目的地間の移動距離と時間を計算
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `origin` | string | はい | 出発地（住所またはlat,lng） |
+| `destinations` | json | はい | 目的地の配列 |
+| `mode` | string | いいえ | 移動手段：driving、walking、bicycling、またはtransit |
+| `avoid` | string | いいえ | 回避する要素：tolls、highways、またはferries |
+| `units` | string | いいえ | 単位系：metricまたはimperial |
+| `language` | string | いいえ | 結果の言語コード（例：en、es、fr） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `originAddresses` | array | 解決された出発地の住所 |
+| `destinationAddresses` | array | 解決された目的地の住所 |
+| `rows` | array | 距離行列の行（出発地ごとに1つ） |
+|   ↳ `elements` | array | 要素（目的地ごとに1つ） |
+|     ↳ `distanceText` | string | テキスト形式の距離（例：「5.2 km」） |
+|     ↳ `distanceMeters` | number | メートル単位の距離 |
+|     ↳ `durationText` | string | テキスト形式の所要時間（例：「15分」） |
+|     ↳ `durationSeconds` | number | 秒単位の所要時間 |
+|     ↳ `durationInTrafficText` | string | テキスト形式の交通状況を考慮した所要時間 |
+|     ↳ `durationInTrafficSeconds` | number | 秒単位の交通状況を考慮した所要時間 |
+|     ↳ `status` | string | 要素のステータス（OK、NOT_FOUND、ZERO_RESULTS） |
+
+### `google_maps_elevation`
+
+位置の標高データを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `lat` | number | はい | 緯度座標 |
+| `lng` | number | はい | 経度座標 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `elevation` | number | 海抜メートル単位の標高(海面下の場合は負の値) |
+| `lat` | number | 標高サンプルの緯度 |
+| `lng` | number | 標高サンプルの経度 |
+| `resolution` | number | 標高が補間されたデータポイント間の最大距離(メートル) |
+
+### `google_maps_geocode`
+
+住所を地理座標(緯度と経度)に変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `address` | string | はい | ジオコーディングする住所 |
+| `language` | string | いいえ | 結果の言語コード(例: en、es、fr) |
+| `region` | string | いいえ | ccTLDコードとしての地域バイアス(例: us、uk) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | フォーマットされた住所文字列 |
+| `lat` | number | 緯度座標 |
+| `lng` | number | 経度座標 |
+| `location` | json | latとlngを含む位置オブジェクト |
+| `placeId` | string | この位置のGoogle Place ID |
+| `addressComponents` | array | 詳細な住所コンポーネント |
+|   ↳ `longName` | string | コンポーネントの完全名 |
+|   ↳ `shortName` | string | 省略名 |
+|   ↳ `types` | array | コンポーネントタイプ |
+| `locationType` | string | 位置精度タイプ(ROOFTOP、RANGE_INTERPOLATEDなど) |
+
+### `google_maps_geolocate`
+
+WiFiアクセスポイント、基地局、またはIPアドレスを使用してデバイスの位置情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Geolocation APIが有効なGoogle Maps APIキー |
+| `homeMobileCountryCode` | number | いいえ | ホーム移動体国コード（MCC） |
+| `homeMobileNetworkCode` | number | いいえ | ホーム移動体ネットワークコード（MNC） |
+| `radioType` | string | いいえ | 無線タイプ：lte、gsm、cdma、wcdma、またはnr |
+| `carrier` | string | いいえ | キャリア名 |
+| `considerIp` | boolean | いいえ | 位置情報取得にIPアドレスを使用するかどうか（デフォルト：true） |
+| `cellTowers` | array | いいえ | cellId、locationAreaCode、mobileCountryCode、mobileNetworkCodeを含む基地局オブジェクトの配列 |
+| `wifiAccessPoints` | array | いいえ | macAddress（必須）、signalStrengthなどを含むWiFiアクセスポイントオブジェクトの配列 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `lat` | number | 緯度座標 |
+| `lng` | number | 経度座標 |
+| `accuracy` | number | 精度半径（メートル） |
+
+### `google_maps_place_details`
+
+特定の場所に関する詳細情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `placeId` | string | はい | Google Place ID |
+| `fields` | string | いいえ | 返すフィールドのカンマ区切りリスト |
+| `language` | string | いいえ | 結果の言語コード（例：en、es、fr） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `placeId` | string | Google Place ID |
+| `name` | string | 場所名 |
+| `formattedAddress` | string | フォーマット済み住所 |
+| `lat` | number | 緯度座標 |
+| `lng` | number | 経度座標 |
+| `types` | array | 場所のタイプ（例：レストラン、カフェ） |
+| `rating` | number | 平均評価（1.0〜5.0） |
+| `userRatingsTotal` | number | ユーザー評価の総数 |
+| `priceLevel` | number | 価格レベル（0=無料、1=安価、2=普通、3=高価、4=非常に高価） |
+| `website` | string | 場所のウェブサイトURL |
+| `phoneNumber` | string | 国内フォーマット電話番号 |
+| `internationalPhoneNumber` | string | 国際フォーマット電話番号 |
+| `openNow` | boolean | 現在営業中かどうか |
+| `weekdayText` | array | 曜日別にフォーマットされた営業時間 |
+| `reviews` | array | ユーザーレビュー（最も関連性の高い最大5件） |
+|   ↳ `authorName` | string | レビュアー名 |
+|   ↳ `authorUrl` | string | レビュアープロフィールURL |
+|   ↳ `profilePhotoUrl` | string | レビュアー写真URL |
+|   ↳ `rating` | number | 付与された評価（1〜5） |
+|   ↳ `text` | string | レビューテキスト |
+|   ↳ `time` | number | レビュータイムスタンプ（Unixエポック） |
+|   ↳ `relativeTimeDescription` | string | 相対時間（例：「1か月前」） |
+| `photos` | array | 場所の写真 |
+|   ↳ `photoReference` | string | Place Photos API用の写真リファレンス |
+|   ↳ `height` | number | 写真の高さ（ピクセル） |
+|   ↳ `width` | number | 写真の幅（ピクセル） |
+|   ↳ `htmlAttributions` | array | 必須の帰属表示 |
+| `url` | string | 場所のGoogle Maps URL |
+| `utcOffset` | number | UTCオフセット（分） |
+| `vicinity` | string | 簡略化された住所（地区/通り） |
+| `businessStatus` | string | 営業ステータス（OPERATIONAL、CLOSED_TEMPORARILY、CLOSED_PERMANENTLY） |
+
+### `google_maps_places_search`
+
+テキストクエリを使用して場所を検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `query` | string | はい | 検索クエリ（例：「タイムズスクエアのレストラン」） |
+| `location` | json | いいえ | 結果を優先する位置（{lat, lng}） |
+| `radius` | number | いいえ | 検索半径（メートル） |
+| `type` | string | いいえ | 場所タイプフィルタ（例：restaurant、cafe、hotel） |
+| `language` | string | いいえ | 結果の言語コード（例：en、es、fr） |
+| `region` | string | いいえ | ccTLDコードとしての地域バイアス（例：us、uk） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `places` | array | 見つかった場所のリスト |
+|   ↳ `placeId` | string | Google Place ID |
+|   ↳ `name` | string | 場所名 |
+|   ↳ `formattedAddress` | string | フォーマット済み住所 |
+|   ↳ `lat` | number | 緯度 |
+|   ↳ `lng` | number | 経度 |
+|   ↳ `types` | array | 場所タイプ |
+|   ↳ `rating` | number | 平均評価（1-5） |
+|   ↳ `userRatingsTotal` | number | 評価数 |
+|   ↳ `priceLevel` | number | 価格レベル（0-4） |
+|   ↳ `openNow` | boolean | 現在営業中かどうか |
+|   ↳ `photoReference` | string | Photos API用の写真参照 |
+|   ↳ `businessStatus` | string | ビジネスステータス |
+| `nextPageToken` | string | 次のページの結果を取得するためのトークン |
+
+### `google_maps_reverse_geocode`
+
+地理座標（緯度と経度）を人間が読める住所に変換します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `lat` | number | はい | 緯度座標 |
+| `lng` | number | はい | 経度座標 |
+| `language` | string | いいえ | 結果の言語コード（例：en、es、fr） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | フォーマットされた住所文字列 |
+| `placeId` | string | この場所のGoogle Place ID |
+| `addressComponents` | array | 詳細な住所コンポーネント |
+|   ↳ `longName` | string | コンポーネントのフルネーム |
+|   ↳ `shortName` | string | 省略名 |
+|   ↳ `types` | array | コンポーネントタイプ |
+| `types` | array | 住所タイプ（例：street_address、route） |
+
+### `google_maps_snap_to_roads`
+
+GPS座標を最も近い道路セグメントにスナップします
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Roads APIが有効なGoogle Maps APIキー |
+| `path` | string | はい | パイプ区切りの緯度、経度座標リスト（例："60.170880,24.942795\|60.170879,24.942796"） |
+| `interpolate` | boolean | いいえ | 道路に沿って追加のポイントを補間するかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `snappedPoints` | array | 道路上のスナップされたポイントの配列 |
+|   ↳ `location` | object | スナップされた位置座標 |
+|     ↳ `lat` | number | 緯度 |
+|     ↳ `lng` | number | 経度 |
+|   ↳ `originalIndex` | number | 元のパス内のインデックス（補間されていない場合） |
+|   ↳ `placeId` | string | この道路セグメントのPlace ID |
+| `warningMessage` | string | 警告メッセージ（ある場合）（例：ポイントをスナップできなかった場合） |
+
+### `google_maps_speed_limits`
+
+道路セグメントの制限速度を取得します。パス座標またはplaceIdのいずれかが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Roads APIが有効化されたGoogle Maps APIキー |
+| `path` | string | いいえ | パイプ区切りの緯度、経度座標のリスト（placeIdsが提供されない場合は必須） |
+| `placeIds` | array | いいえ | 道路セグメントのPlace IDの配列（pathが提供されない場合は必須） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `speedLimits` | array | 道路セグメントの制限速度の配列 |
+|   ↳ `placeId` | string | 道路セグメントのPlace ID |
+|   ↳ `speedLimit` | number | 制限速度の値 |
+|   ↳ `units` | string | 制限速度の単位（KPHまたはMPH） |
+| `snappedPoints` | array | 制限速度に対応するスナップされた地点の配列 |
+|   ↳ `location` | object | スナップされた位置座標 |
+|     ↳ `lat` | number | 緯度 |
+|     ↳ `lng` | number | 経度 |
+|   ↳ `originalIndex` | number | 元のパス内のインデックス |
+|   ↳ `placeId` | string | この道路セグメントのPlace ID |
+
+### `google_maps_timezone`
+
+位置のタイムゾーン情報を取得します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Maps APIキー |
+| `lat` | number | はい | 緯度座標 |
+| `lng` | number | はい | 経度座標 |
+| `timestamp` | number | いいえ | DSTオフセットを決定するためのUnixタイムスタンプ（デフォルトは現在時刻） |
+| `language` | string | いいえ | タイムゾーン名の言語コード（例: en、es、fr） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `timeZoneId` | string | IANAタイムゾーンID（例："America/New_York"、"Europe/London"） |
+| `timeZoneName` | string | ローカライズされたタイムゾーン名（例："東部夏時間"） |
+| `rawOffset` | number | UTCオフセット（秒単位、夏時間を除く） |
+| `dstOffset` | number | 夏時間オフセット（秒単位、夏時間でない場合は0） |
+| `totalOffsetSeconds` | number | 合計UTCオフセット（秒単位、rawOffset + dstOffset） |
+| `totalOffsetHours` | number | 合計UTCオフセット（時間単位、例：ESTの場合-5、EDTの場合-4） |
+
+### `google_maps_validate_address`
+
+郵便住所を検証し標準化する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Address Validation APIが有効なGoogle Maps APIキー |
+| `address` | string | はい | 検証する住所（単一の文字列として） |
+| `regionCode` | string | いいえ | ISO 3166-1 alpha-2国コード（例："US"、"CA"） |
+| `locality` | string | いいえ | 市区町村名 |
+| `enableUspsCass` | boolean | いいえ | 米国住所のUSPS CASS検証を有効にする |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | 標準化されたフォーマット済み住所 |
+| `lat` | number | 緯度座標 |
+| `lng` | number | 経度座標 |
+| `placeId` | string | この住所のGoogle Place ID |
+| `addressComplete` | boolean | 住所が完全で配達可能かどうか |
+| `hasUnconfirmedComponents` | boolean | 一部の住所コンポーネントが確認できなかったかどうか |
+| `hasInferredComponents` | boolean | 一部のコンポーネントが推測されたかどうか（入力にない） |
+| `hasReplacedComponents` | boolean | 一部のコンポーネントが正規値に置き換えられたかどうか |
+| `validationGranularity` | string | 検証の粒度（PREMISE、SUB_PREMISE、ROUTEなど） |
+| `geocodeGranularity` | string | ジオコード結果の粒度 |
+| `addressComponents` | array | 詳細な住所コンポーネント |
+|   ↳ `longName` | string | コンポーネントの完全名 |
+|   ↳ `shortName` | string | 省略名 |
+|   ↳ `types` | array | コンポーネントタイプ |
+| `missingComponentTypes` | array | 欠落している住所コンポーネントのタイプ |
+| `unconfirmedComponentTypes` | array | 確認できなかったコンポーネントのタイプ |
+| `unresolvedTokens` | array | 解決できなかった入力トークン |

@@ -173,3 +173,23 @@ MongoDB-Aggregationspipeline ausführen
 
 - Kategorie: `tools`
 - Typ: `mongodb`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | MongoDB-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | MongoDB-Server-Port \(Standard: 27017\) |
+| `database` | string | Nein | Name der zu untersuchenden Datenbank. Falls nicht angegeben, werden alle Datenbanken aufgelistet |
+| `username` | string | Nein | MongoDB-Benutzername |
+| `password` | string | Nein | MongoDB-Passwort |
+| `authSource` | string | Nein | Authentifizierungsdatenbank |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `databases` | array | Array der Datenbanknamen |
+| `collections` | array | Array von Sammlungsinformationen mit Name, Typ, Dokumentenanzahl und Indizes |

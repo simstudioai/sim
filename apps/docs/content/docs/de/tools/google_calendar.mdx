@@ -139,3 +139,145 @@ Teilnehmer zu einem bestehenden Google Kalender-Ereignis einladen
 
 - Kategorie: `tools`
 - Typ: `google_calendar`
+
+Ein Ereignis in einen anderen Kalender verschieben. Gibt nur API-konforme Felder zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Quell-Google-Kalender-ID (z. B. primary oder calendar@group.calendar.google.com) |
+| `eventId` | string | Ja | Google-Kalender-Ereignis-ID, die verschoben werden soll |
+| `destinationCalendarId` | string | Ja | Ziel-Google-Kalender-ID |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Ereignis-ID |
+| `htmlLink` | string | Ereignis-Link |
+| `status` | string | Ereignisstatus |
+| `summary` | string | Ereignistitel |
+| `description` | string | Ereignisbeschreibung |
+| `location` | string | Ereignisort |
+| `start` | json | Ereignisstart |
+| `end` | json | Ereignisende |
+| `attendees` | json | Ereignisteilnehmer |
+| `creator` | json | Ereignisersteller |
+| `organizer` | json | Ereignisorganisator |
+
+### `google_calendar_instances`
+
+Instanzen eines wiederkehrenden Ereignisses aus Google Kalender abrufen. Gibt nur API-konforme Felder zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Google-Kalender-ID (z. B. primary oder calendar@group.calendar.google.com) |
+| `eventId` | string | Ja | ID des wiederkehrenden Ereignisses, dessen Instanzen abgerufen werden sollen |
+| `timeMin` | string | Nein | Untere Grenze für Instanzen (RFC3339-Zeitstempel, z. B. 2025-06-03T00:00:00Z) |
+| `timeMax` | string | Nein | Obere Grenze für Instanzen (RFC3339-Zeitstempel, z. B. 2025-06-04T00:00:00Z) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Instanzen (Standard 250, max. 2500) |
+| `pageToken` | string | Nein | Token zum Abrufen nachfolgender Ergebnisseiten |
+| `showDeleted` | boolean | Nein | Gelöschte Instanzen einschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Nächstes Seiten-Token |
+| `timeZone` | string | Kalender-Zeitzone |
+| `instances` | json | Liste der wiederkehrenden Ereignisinstanzen |
+
+### `google_calendar_list_calendars`
+
+Alle Kalender des Benutzers auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `minAccessRole` | string | Nein | Minimale Zugriffsrolle für zurückgegebene Kalender: freeBusyReader, reader, writer oder owner |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Kalender (Standard 100, max. 250) |
+| `pageToken` | string | Nein | Token zum Abrufen nachfolgender Ergebnisseiten |
+| `showDeleted` | boolean | Nein | Gelöschte Kalender einschließen |
+| `showHidden` | boolean | Nein | Ausgeblendete Kalender einschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Nächstes Seiten-Token |
+| `calendars` | array | Liste der Kalender |
+|   ↳ `id` | string | Kalender-ID |
+|   ↳ `summary` | string | Kalendertitel |
+|   ↳ `description` | string | Kalenderbeschreibung |
+|   ↳ `location` | string | Kalenderort |
+|   ↳ `timeZone` | string | Kalender-Zeitzone |
+|   ↳ `accessRole` | string | Zugriffsrolle für den Kalender |
+|   ↳ `backgroundColor` | string | Kalender-Hintergrundfarbe |
+|   ↳ `foregroundColor` | string | Kalender-Vordergrundfarbe |
+|   ↳ `primary` | boolean | Ob dies der Hauptkalender ist |
+|   ↳ `hidden` | boolean | Ob der Kalender ausgeblendet ist |
+|   ↳ `selected` | boolean | Ob der Kalender ausgewählt ist |
+
+### `google_calendar_quick_add`
+
+Ereignisse aus natürlichsprachlichem Text erstellen. Gibt nur API-konforme Felder zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Google Kalender-ID (z. B. primary oder calendar@group.calendar.google.com) |
+| `text` | string | Ja | Natürlichsprachlicher Text, der das Ereignis beschreibt (z. B. "Meeting mit John morgen um 15 Uhr") |
+| `attendees` | array | Nein | Array von E-Mail-Adressen der Teilnehmer (kommagetrennte Zeichenkette wird ebenfalls akzeptiert) |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Ereignis-ID |
+| `htmlLink` | string | Ereignis-Link |
+| `status` | string | Ereignisstatus |
+| `summary` | string | Ereignistitel |
+| `description` | string | Ereignisbeschreibung |
+| `location` | string | Ereignisort |
+| `start` | json | Ereignisstart |
+| `end` | json | Ereignisende |
+| `attendees` | json | Ereignisteilnehmer |
+| `creator` | json | Ereignisersteller |
+| `organizer` | json | Ereignisorganisator |
+
+### `google_calendar_invite`
+
+Teilnehmer zu einem bestehenden Google Kalender-Ereignis einladen. Gibt nur API-konforme Felder zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | Nein | Google Kalender-ID (z. B. primary oder calendar@group.calendar.google.com) |
+| `eventId` | string | Ja | Google Kalender-Ereignis-ID, zu der Teilnehmer eingeladen werden sollen |
+| `attendees` | array | Ja | Array von E-Mail-Adressen der einzuladenden Teilnehmer |
+| `sendUpdates` | string | Nein | Wie Updates an Teilnehmer gesendet werden: all, externalOnly oder none |
+| `replaceExisting` | boolean | Nein | Ob bestehende Teilnehmer ersetzt oder hinzugefügt werden sollen (Standard ist false) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Ereignis-ID |
+| `htmlLink` | string | Ereignis-Link |
+| `status` | string | Ereignisstatus |
+| `summary` | string | Ereignistitel |
+| `description` | string | Ereignisbeschreibung |
+| `location` | string | Ereignisort |
+| `start` | json | Ereignisbeginn |
+| `end` | json | Ereignisende |
+| `attendees` | json | Ereignisteilnehmer |
+| `creator` | json | Ereignisersteller |
+| `organizer` | json | Ereignisorganisator |

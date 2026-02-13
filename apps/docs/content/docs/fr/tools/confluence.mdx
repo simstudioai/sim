@@ -354,3 +354,512 @@ Lister tous les espaces Confluence accessibles à l'utilisateur.
 
 - Catégorie : `tools`
 - Type : `confluence`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `blogPostId` | chaîne | Oui | ID de l'article de blog à récupérer |
+| `bodyFormat` | chaîne | Non | Format du corps de l'article de blog : storage, atlas_doc_format ou view |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `id` | chaîne | ID de l'article de blog |
+| `title` | chaîne | Titre de l'article de blog |
+| `status` | chaîne | Statut de l'article de blog |
+| `spaceId` | chaîne | ID de l'espace |
+| `authorId` | chaîne | ID du compte de l'auteur |
+| `createdAt` | chaîne | Horodatage de création |
+| `version` | objet | Informations de version |
+|   ↳ `number` | nombre | Numéro de version |
+|   ↳ `message` | chaîne | Message de version |
+|   ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|   ↳ `authorId` | chaîne | ID du compte de l'auteur de la version |
+|   ↳ `createdAt` | chaîne | Horodatage ISO 8601 de création de la version |
+| `body` | objet | Contenu du corps de l'article de blog dans le ou les formats demandés |
+|   ↳ `storage` | objet | Corps au format de stockage \(balisage Confluence\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+|   ↳ `view` | objet | Corps au format d'affichage \(HTML rendu\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+|   ↳ `atlas_doc_format` | objet | Corps au format de document Atlassian \(ADF\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+| `webUrl` | chaîne | URL pour afficher l'article de blog |
+
+### `confluence_create_blogpost`
+
+Créer un nouvel article de blog dans un espace Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace dans lequel créer l'article de blog |
+| `title` | chaîne | Oui | Titre de l'article de blog |
+| `content` | chaîne | Oui | Contenu de l'article de blog au format de stockage Confluence \(HTML\) |
+| `status` | chaîne | Non | Statut de l'article de blog : current \(par défaut\) ou draft |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `id` | chaîne | ID de l'article de blog créé |
+| `title` | chaîne | Titre de l'article de blog |
+| `status` | chaîne | Statut de l'article de blog |
+| `spaceId` | chaîne | ID de l'espace |
+| `authorId` | chaîne | ID du compte de l'auteur |
+| `body` | objet | Contenu du corps de l'article de blog |
+|   ↳ `storage` | objet | Corps au format de stockage \(balisage Confluence\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+|   ↳ `view` | objet | Corps au format d'affichage \(HTML rendu\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+|   ↳ `atlas_doc_format` | objet | Corps au format de document Atlassian \(ADF\) |
+|     ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|     ↳ `representation` | chaîne | Type de représentation du contenu |
+| `version` | objet | Informations de version de l'article de blog |
+|   ↳ `number` | nombre | Numéro de version |
+|   ↳ `message` | chaîne | Message de version |
+|   ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|   ↳ `authorId` | chaîne | ID du compte de l'auteur de la version |
+|   ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création de la version |
+| `webUrl` | chaîne | URL pour consulter l'article de blog |
+
+### `confluence_list_blogposts_in_space`
+
+Lister tous les articles de blog dans un espace Confluence spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace Confluence dont il faut lister les articles de blog |
+| `limit` | nombre | Non | Nombre maximum d'articles de blog à renvoyer \(par défaut : 25, max : 250\) |
+| `status` | chaîne | Non | Filtrer par statut : current, archived, trashed ou draft |
+| `bodyFormat` | chaîne | Non | Format pour le corps de l'article de blog : storage, atlas_doc_format ou view |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `blogPosts` | tableau | Tableau des articles de blog dans l'espace |
+|   ↳ `id` | chaîne | ID de l'article de blog |
+|   ↳ `title` | chaîne | Titre de l'article de blog |
+|   ↳ `status` | chaîne | Statut de l'article de blog |
+|   ↳ `spaceId` | chaîne | ID de l'espace |
+|   ↳ `authorId` | chaîne | ID du compte de l'auteur |
+|   ↳ `createdAt` | chaîne | Horodatage de création |
+|   ↳ `version` | objet | Informations de version |
+|     ↳ `number` | nombre | Numéro de version |
+|     ↳ `message` | chaîne | Message de version |
+|     ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|     ↳ `authorId` | chaîne | ID du compte de l'auteur de la version |
+|     ↳ `createdAt` | chaîne | Horodatage ISO 8601 de création de la version |
+|   ↳ `body` | objet | Contenu du corps de l'article de blog |
+|     ↳ `storage` | objet | Corps au format de stockage \(balisage Confluence\) |
+|       ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|       ↳ `representation` | chaîne | Type de représentation du contenu |
+|     ↳ `view` | objet | Corps au format d'affichage \(HTML rendu\) |
+|       ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|       ↳ `representation` | chaîne | Type de représentation du contenu |
+|     ↳ `atlas_doc_format` | objet | Corps au format de document Atlassian \(ADF\) |
+|       ↳ `value` | chaîne | Valeur du contenu dans le format spécifié |
+|       ↳ `representation` | chaîne | Type de représentation du contenu |
+|   ↳ `webUrl` | chaîne | URL pour afficher l'article de blog |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_create_comment`
+
+Ajouter un commentaire à une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence sur laquelle commenter |
+| `comment` | chaîne | Oui | Texte du commentaire au format de stockage Confluence |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de création |
+| `commentId` | chaîne | ID du commentaire créé |
+| `pageId` | chaîne | ID de la page |
+
+### `confluence_list_comments`
+
+Lister tous les commentaires d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les commentaires |
+| `limit` | nombre | Non | Nombre maximum de commentaires à renvoyer \(par défaut : 25\) |
+| `bodyFormat` | chaîne | Non | Format du corps du commentaire : storage, atlas_doc_format, view ou export_view \(par défaut : storage\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `comments` | tableau | Tableau des commentaires Confluence |
+|   ↳ `id` | chaîne | Identifiant unique du commentaire |
+|   ↳ `status` | chaîne | Statut du commentaire (par ex., actuel) |
+|   ↳ `title` | chaîne | Titre du commentaire |
+|   ↳ `pageId` | chaîne | ID de la page à laquelle appartient le commentaire |
+|   ↳ `blogPostId` | chaîne | ID de l'article de blog auquel appartient le commentaire |
+|   ↳ `parentCommentId` | chaîne | ID du commentaire parent |
+|   ↳ `body` | objet | Contenu du corps du commentaire |
+|     ↳ `value` | chaîne | Contenu du corps du commentaire |
+|     ↳ `representation` | chaîne | Format de représentation du contenu (par ex., storage, view) |
+|   ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création du commentaire |
+|   ↳ `authorId` | chaîne | ID de compte de l'auteur du commentaire |
+|   ↳ `version` | objet | Informations de version du commentaire |
+|     ↳ `number` | nombre | Numéro de version |
+|     ↳ `message` | chaîne | Message de version |
+|     ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|     ↳ `authorId` | chaîne | ID de compte de l'auteur de la version |
+|     ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création de la version |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_update_comment`
+
+Mettez à jour un commentaire existant sur une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `commentId` | chaîne | Oui | ID du commentaire Confluence à mettre à jour |
+| `comment` | chaîne | Oui | Texte du commentaire mis à jour au format de stockage Confluence |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la mise à jour |
+| `commentId` | chaîne | ID du commentaire mis à jour |
+| `updated` | booléen | Statut de la mise à jour |
+
+### `confluence_delete_comment`
+
+Supprimez un commentaire d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `commentId` | chaîne | Oui | ID du commentaire Confluence à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la suppression |
+| `commentId` | chaîne | ID du commentaire supprimé |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_upload_attachment`
+
+Téléverser un fichier en tant que pièce jointe sur une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence à laquelle joindre le fichier |
+| `file` | fichier | Oui | Le fichier à téléverser en tant que pièce jointe |
+| `fileName` | chaîne | Non | Nom de fichier personnalisé optionnel pour la pièce jointe |
+| `comment` | chaîne | Non | Commentaire optionnel à ajouter à la pièce jointe |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage du téléversement |
+| `attachmentId` | chaîne | ID de la pièce jointe téléversée |
+| `title` | chaîne | Nom du fichier de la pièce jointe |
+| `fileSize` | nombre | Taille du fichier en octets |
+| `mediaType` | chaîne | Type MIME de la pièce jointe |
+| `downloadUrl` | chaîne | URL de téléchargement de la pièce jointe |
+| `pageId` | chaîne | ID de la page à laquelle la pièce jointe a été ajoutée |
+
+### `confluence_list_attachments`
+
+Lister toutes les pièces jointes d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les pièces jointes |
+| `limit` | nombre | Non | Nombre maximum de pièces jointes à renvoyer \(par défaut : 50, max. : 250\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `attachments` | tableau | Tableau des pièces jointes Confluence |
+|   ↳ `id` | chaîne | Identifiant unique de la pièce jointe \(préfixé par "att"\) |
+|   ↳ `title` | chaîne | Nom du fichier de la pièce jointe |
+|   ↳ `status` | chaîne | Statut de la pièce jointe \(ex. : current, archived, trashed\) |
+|   ↳ `mediaType` | chaîne | Type MIME de la pièce jointe |
+|   ↳ `fileSize` | nombre | Taille du fichier en octets |
+|   ↳ `downloadUrl` | chaîne | URL de téléchargement de la pièce jointe |
+|   ↳ `webuiUrl` | chaîne | URL pour afficher la pièce jointe dans l'interface Confluence |
+|   ↳ `pageId` | chaîne | ID de la page à laquelle appartient la pièce jointe |
+|   ↳ `blogPostId` | chaîne | ID de l'article de blog auquel appartient la pièce jointe |
+|   ↳ `comment` | chaîne | Commentaire/description de la pièce jointe |
+|   ↳ `version` | objet | Informations de version de la pièce jointe |
+|     ↳ `number` | nombre | Numéro de version |
+|     ↳ `message` | chaîne | Message de version |
+|     ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|     ↳ `authorId` | chaîne | ID de compte de l'auteur de la version |
+|     ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création de la version |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_delete_attachment`
+
+Supprimer une pièce jointe d'une page Confluence (la déplace dans la corbeille).
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `attachmentId` | chaîne | Oui | ID de la pièce jointe Confluence à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la suppression |
+| `attachmentId` | chaîne | ID de la pièce jointe supprimée |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_list_labels`
+
+Lister tous les libellés d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut lister les libellés |
+| `limit` | nombre | Non | Nombre maximum de libellés à renvoyer \(par défaut : 25, max. : 250\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage de la récupération |
+| `labels` | tableau | Tableau des libellés de la page |
+|   ↳ `id` | chaîne | Identifiant unique du libellé |
+|   ↳ `name` | chaîne | Nom du libellé |
+|   ↳ `prefix` | chaîne | Préfixe/type du libellé \(ex. : global, my, team\) |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_add_label`
+
+Ajouter un libellé à une page Confluence pour l'organisation et la catégorisation.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence à laquelle ajouter le libellé |
+| `labelName` | chaîne | Oui | Nom du libellé à ajouter |
+| `prefix` | chaîne | Non | Préfixe du libellé : global \(par défaut\), my, team ou system |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `pageId` | chaîne | ID de la page à laquelle le libellé a été ajouté |
+| `labelName` | chaîne | Nom du libellé ajouté |
+| `labelId` | chaîne | ID du libellé ajouté |
+
+### `confluence_delete_label`
+
+Supprimer un libellé d'une page Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `pageId` | chaîne | Oui | ID de la page Confluence dont il faut supprimer le libellé |
+| `labelName` | chaîne | Oui | Nom du libellé à supprimer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `pageId` | chaîne | ID de la page dont le libellé a été supprimé |
+| `labelName` | chaîne | Nom du libellé supprimé |
+| `deleted` | booléen | Statut de la suppression |
+
+### `confluence_get_pages_by_label`
+
+Récupère toutes les pages auxquelles un libellé spécifique a été appliqué.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `labelId` | chaîne | Oui | ID du libellé pour lequel récupérer les pages |
+| `limit` | nombre | Non | Nombre maximum de pages à renvoyer \(par défaut : 50, max : 250\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `labelId` | chaîne | ID du libellé |
+| `pages` | tableau | Tableau des pages avec ce libellé |
+|   ↳ `id` | chaîne | Identifiant unique de la page |
+|   ↳ `title` | chaîne | Titre de la page |
+|   ↳ `status` | chaîne | Statut de la page \(ex. : current, archived, trashed, draft\) |
+|   ↳ `spaceId` | chaîne | ID de l'espace contenant la page |
+|   ↳ `parentId` | chaîne | ID de la page parente \(null si niveau supérieur\) |
+|   ↳ `authorId` | chaîne | ID de compte de l'auteur de la page |
+|   ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création de la page |
+|   ↳ `version` | objet | Informations de version de la page |
+|     ↳ `number` | nombre | Numéro de version |
+|     ↳ `message` | chaîne | Message de version |
+|     ↳ `minorEdit` | booléen | Indique s'il s'agit d'une modification mineure |
+|     ↳ `authorId` | chaîne | ID de compte de l'auteur de la version |
+|     ↳ `createdAt` | chaîne | Horodatage ISO 8601 de la création de la version |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_list_space_labels`
+
+Lister tous les libellés associés à un espace Confluence.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace Confluence dont il faut lister les libellés |
+| `limit` | nombre | Non | Nombre maximum de libellés à renvoyer \(par défaut : 25, max : 250\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `spaceId` | chaîne | ID de l'espace |
+| `labels` | tableau | Tableau des libellés de l'espace |
+|   ↳ `id` | chaîne | Identifiant unique du libellé |
+|   ↳ `name` | chaîne | Nom du libellé |
+|   ↳ `prefix` | chaîne | Préfixe/type du libellé \(ex. : global, my, team\) |
+| `nextCursor` | chaîne | Curseur pour récupérer la page de résultats suivante |
+
+### `confluence_get_space`
+
+Obtenir les détails d'un espace Confluence spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `spaceId` | chaîne | Oui | ID de l'espace Confluence à récupérer |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `spaceId` | chaîne | ID de l'espace |
+| `name` | chaîne | Nom de l'espace |
+| `key` | chaîne | Clé de l'espace |
+| `type` | chaîne | Type d'espace \(global, personnel\) |
+| `status` | chaîne | Statut de l'espace \(actuel, archivé\) |
+| `url` | chaîne | URL pour afficher l'espace dans Confluence |
+| `authorId` | chaîne | ID de compte du créateur de l'espace |
+| `createdAt` | chaîne | Horodatage ISO 8601 de la création de l'espace |
+| `homepageId` | chaîne | ID de la page d'accueil de l'espace |
+| `description` | objet | Contenu de la description de l'espace |
+|   ↳ `value` | chaîne | Texte de la description |
+|   ↳ `representation` | chaîne | Format de représentation du contenu \(ex. : plain, view, storage\) |
+
+### `confluence_list_spaces`
+
+Lister tous les espaces Confluence accessibles à l'utilisateur.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Confluence \(ex. : votreentreprise.atlassian.net\) |
+| `limit` | nombre | Non | Nombre maximum d'espaces à renvoyer \(par défaut : 25, max. : 250\) |
+| `cursor` | chaîne | Non | Curseur de pagination de la réponse précédente |
+| `cloudId` | chaîne | Non | ID Cloud Confluence pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage ISO 8601 de l'opération |
+| `spaces` | array | Tableau des espaces Confluence |
+|   ↳ `id` | string | Identifiant unique de l'espace |
+|   ↳ `key` | string | Clé de l'espace \(identifiant court utilisé dans les URL\) |
+|   ↳ `name` | string | Nom de l'espace |
+|   ↳ `type` | string | Type d'espace \(par ex., global, personnel\) |
+|   ↳ `status` | string | Statut de l'espace \(par ex., actuel, archivé\) |
+|   ↳ `authorId` | string | ID de compte du créateur de l'espace |
+|   ↳ `createdAt` | string | Horodatage ISO 8601 de la création de l'espace |
+|   ↳ `homepageId` | string | ID de la page d'accueil de l'espace |
+|   ↳ `description` | object | Description de l'espace |
+|     ↳ `value` | string | Contenu textuel de la description |
+|     ↳ `representation` | string | Format de représentation du contenu \(par ex., plain, view, storage\) |
+| `nextCursor` | string | Curseur pour récupérer la page de résultats suivante |
