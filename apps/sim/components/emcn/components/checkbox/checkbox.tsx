@@ -28,7 +28,7 @@ const checkboxVariants = cva(
     'border-[var(--border-1)] bg-transparent',
     'focus-visible:outline-none',
     'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
-    'data-[state=checked]:border-[var(--text-primary)] data-[state=checked]:bg-[var(--text-primary)]',
+    'data-[state=checked]:border-[var(--brand-tertiary-2)] data-[state=checked]:bg-[var(--brand-tertiary-2)]',
   ].join(' '),
   {
     variants: {

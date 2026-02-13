@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -22,7 +22,12 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useCreateTagDefinition, useDeleteTagDefinition } from '@/hooks/queries/knowledge'
+import {
+  type TagUsageData,
+  useCreateTagDefinition,
+  useDeleteTagDefinition,
+  useTagUsageQuery,
+} from '@/hooks/queries/knowledge'
 
 const logger = createLogger('BaseTagsModal')
 
@@ -31,13 +36,6 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   number: 'Number',
   date: 'Date',
   boolean: 'Boolean',
-}
-
-interface TagUsageData {
-  tagName: string
-  tagSlot: string
-  documentCount: number
-  documents: Array<{ id: string; name: string; tagValue: string }>
 }
 
 interface DocumentListProps {
@@ -91,44 +89,22 @@ interface BaseTagsModalProps {
 }
 
 export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsModalProps) {
-  const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } =
-    useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+  const { tagDefinitions: kbTagDefinitions } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const createTagMutation = useCreateTagDefinition()
   const deleteTagMutation = useDeleteTagDefinition()
+  const { data: tagUsageData = [], refetch: refetchTagUsage } = useTagUsageQuery(
+    open ? knowledgeBaseId : null
+  )
 
   const [deleteTagDialogOpen, setDeleteTagDialogOpen] = useState(false)
   const [selectedTag, setSelectedTag] = useState<TagDefinition | null>(null)
   const [viewDocumentsDialogOpen, setViewDocumentsDialogOpen] = useState(false)
-  const [tagUsageData, setTagUsageData] = useState<TagUsageData[]>([])
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const [createTagForm, setCreateTagForm] = useState({
     displayName: '',
     fieldType: 'text',
   })
-
-  const fetchTagUsage = useCallback(async () => {
-    if (!knowledgeBaseId) return
-
-    try {
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-usage`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch tag usage')
-      }
-      const result = await response.json()
-      if (result.success) {
-        setTagUsageData(result.data)
-      }
-    } catch (error) {
-      logger.error('Error fetching tag usage:', error)
-    }
-  }, [knowledgeBaseId])
-
-  useEffect(() => {
-    if (open) {
-      fetchTagUsage()
-    }
-  }, [open, fetchTagUsage])
 
   const getTagUsage = (tagSlot: string): TagUsageData => {
     return (
@@ -143,13 +119,29 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   const handleDeleteTagClick = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
-    setDeleteTagDialogOpen(true)
+
+    const { data: freshTagUsage } = await refetchTagUsage()
+    const tagUsage = freshTagUsage?.find((usage) => usage.tagSlot === tag.tagSlot)
+    const documentCount = tagUsage?.documentCount ?? 0
+
+    if (documentCount === 0) {
+      try {
+        await deleteTagMutation.mutateAsync({
+          knowledgeBaseId,
+          tagDefinitionId: tag.id,
+        })
+        setSelectedTag(null)
+      } catch (error) {
+        logger.error('Error deleting tag definition:', error)
+      }
+    } else {
+      setDeleteTagDialogOpen(true)
+    }
   }
 
   const handleViewDocuments = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
+    await refetchTagUsage()
     setViewDocumentsDialogOpen(true)
   }
 
@@ -219,8 +211,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         fieldType: createTagForm.fieldType,
       })
 
-      await Promise.all([refreshTagDefinitions(), fetchTagUsage()])
-
       setCreateTagForm({
         displayName: '',
         fieldType: 'text',
@@ -239,8 +229,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         knowledgeBaseId,
         tagDefinitionId: selectedTag.id,
       })
-
-      await Promise.all([refreshTagDefinitions(), fetchTagUsage()])
 
       setDeleteTagDialogOpen(false)
       setSelectedTag(null)
@@ -265,7 +253,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='sm'>
+        <ModalContent size='md'>
           <ModalHeader>
             <div className='flex items-center justify-between'>
               <span>Tags</span>
@@ -315,9 +303,10 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                             e.stopPropagation()
                             handleDeleteTagClick(tag)
                           }}
-                          className='h-4 w-4 p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                         >
-                          <Trash className='h-3 w-3' />
+                          <Trash className='h-[14px] w-[14px]' />
+                          <span className='sr-only'>Delete Tag</span>
                         </Button>
                       </div>
                     </div>
@@ -331,7 +320,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     disabled={!SUPPORTED_FIELD_TYPES.some((type) => hasAvailableSlots(type))}
                     className='w-full'
                   >
-                    Add Tag
+                    Add tag definition
                   </Button>
                 )}
 
@@ -415,7 +404,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
       {/* Delete Tag Confirmation Dialog */}
       <Modal open={deleteTagDialogOpen} onOpenChange={setDeleteTagDialogOpen}>
-        <ModalContent size='sm'>
+        <ModalContent size='md'>
           <ModalHeader>Delete Tag</ModalHeader>
           <ModalBody>
             <div className='space-y-[8px]'>
@@ -458,7 +447,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
       {/* View Documents Dialog */}
       <Modal open={viewDocumentsDialogOpen} onOpenChange={setViewDocumentsDialogOpen}>
-        <ModalContent size='sm'>
+        <ModalContent size='md'>
           <ModalHeader>Documents using "{selectedTag?.displayName}"</ModalHeader>
           <ModalBody>
             <div className='space-y-[8px]'>

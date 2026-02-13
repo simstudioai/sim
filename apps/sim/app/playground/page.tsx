@@ -146,6 +146,8 @@ export default function PlaygroundPage() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [buttonGroupValue, setButtonGroupValue] = useState('curl')
   const [dateValue, setDateValue] = useState('')
+  const [dateTimeValue, setDateTimeValue] = useState('')
+  const [dateTimePreset, setDateTimePreset] = useState('2025-01-30T14:30:00')
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
   const [tagItems, setTagItems] = useState<TagItem[]>([
@@ -707,6 +709,30 @@ export default function PlaygroundPage() {
                 <DatePicker value={dateValue} onChange={setDateValue} placeholder='Select date' />
               </div>
               <span className='text-[var(--text-secondary)] text-sm'>{dateValue || 'No date'}</span>
+            </VariantRow>
+            <VariantRow label='with time (empty)'>
+              <div className='w-72'>
+                <DatePicker
+                  value={dateTimeValue}
+                  onChange={setDateTimeValue}
+                  placeholder='Select date and time'
+                  showTime
+                />
+              </div>
+              <span className='text-[var(--text-secondary)] text-sm'>
+                {dateTimeValue || 'No value'}
+              </span>
+            </VariantRow>
+            <VariantRow label='with time (preset)'>
+              <div className='w-72'>
+                <DatePicker
+                  value={dateTimePreset}
+                  onChange={setDateTimePreset}
+                  placeholder='Select date and time'
+                  showTime
+                />
+              </div>
+              <span className='text-[var(--text-secondary)] text-sm'>{dateTimePreset}</span>
             </VariantRow>
             <VariantRow label='size sm'>
               <div className='w-56'>

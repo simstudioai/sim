@@ -17,6 +17,8 @@ export const knowledgeKeys = {
     [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
+  tagUsage: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'tagUsage'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'documents', paramsKey] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
@@ -910,6 +912,38 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
   })
 }
 
+export interface TagUsageData {
+  tagName: string
+  tagSlot: string
+  documentCount: number
+  documents: Array<{ id: string; name: string; tagValue: string }>
+}
+
+export async function fetchTagUsage(knowledgeBaseId: string): Promise<TagUsageData[]> {
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-usage`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tag usage: ${response.status} ${response.statusText}`)
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to fetch tag usage')
+  }
+
+  return Array.isArray(result.data) ? result.data : []
+}
+
+export function useTagUsageQuery(knowledgeBaseId?: string | null) {
+  return useQuery({
+    queryKey: knowledgeKeys.tagUsage(knowledgeBaseId ?? ''),
+    queryFn: () => fetchTagUsage(knowledgeBaseId as string),
+    enabled: Boolean(knowledgeBaseId),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export interface CreateTagDefinitionParams {
   knowledgeBaseId: string
   displayName: string
@@ -968,6 +1002,9 @@ export function useCreateTagDefinition() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.tagUsage(knowledgeBaseId),
+      })
     },
   })
 }
@@ -1005,6 +1042,9 @@ export function useDeleteTagDefinition() {
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.tagUsage(knowledgeBaseId),
       })
     },
   })

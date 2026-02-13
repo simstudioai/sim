@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
@@ -15,6 +15,7 @@ import {
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -55,43 +56,23 @@ interface Workspace {
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
   const [isWorkspacePopoverOpen, setIsWorkspacePopoverOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
 
   const updateKnowledgeBase = useUpdateKnowledgeBase()
+  const { data: allWorkspaces = [], isLoading: isLoadingWorkspaces } = useWorkspacesQuery(
+    !!options?.knowledgeBaseId
+  )
 
-  useEffect(() => {
-    if (!options?.knowledgeBaseId) return
-
-    const fetchWorkspaces = async () => {
-      try {
-        setIsLoadingWorkspaces(true)
-
-        const response = await fetch('/api/workspaces')
-        if (!response.ok) {
-          throw new Error('Failed to fetch workspaces')
-        }
-
-        const data = await response.json()
-
-        const availableWorkspaces = data.workspaces
-          .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
-          .map((ws: any) => ({
-            id: ws.id,
-            name: ws.name,
-            permissions: ws.permissions,
-          }))
-
-        setWorkspaces(availableWorkspaces)
-      } catch (err) {
-        logger.error('Error fetching workspaces:', err)
-      } finally {
-        setIsLoadingWorkspaces(false)
-      }
-    }
-
-    fetchWorkspaces()
-  }, [options?.knowledgeBaseId])
+  const workspaces = useMemo<Workspace[]>(
+    () =>
+      allWorkspaces
+        .filter((ws) => ws.permissions === 'write' || ws.permissions === 'admin')
+        .map((ws) => ({
+          id: ws.id,
+          name: ws.name,
+          permissions: ws.permissions as 'admin' | 'write' | 'read',
+        })),
+    [allWorkspaces]
+  )
 
   const handleWorkspaceChange = async (workspaceId: string | null) => {
     if (updateKnowledgeBase.isPending || !options?.knowledgeBaseId) return

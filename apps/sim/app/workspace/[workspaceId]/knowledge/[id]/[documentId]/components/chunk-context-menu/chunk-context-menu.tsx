@@ -26,6 +26,10 @@ interface ChunkContextMenuProps {
    */
   onAddChunk?: () => void
   /**
+   * View document tags (shown when right-clicking on empty space)
+   */
+  onViewTags?: () => void
+  /**
    * Whether the chunk is currently enabled
    */
   isChunkEnabled?: boolean
@@ -75,6 +79,7 @@ export function ChunkContextMenu({
   onToggleEnabled,
   onDelete,
   onAddChunk,
+  onViewTags,
   isChunkEnabled = true,
   hasChunk,
   disableToggleEnabled = false,
@@ -181,17 +186,29 @@ export function ChunkContextMenu({
             )}
           </>
         ) : (
-          onAddChunk && (
-            <PopoverItem
-              disabled={disableAddChunk}
-              onClick={() => {
-                onAddChunk()
-                onClose()
-              }}
-            >
-              Create chunk
-            </PopoverItem>
-          )
+          <>
+            {onAddChunk && (
+              <PopoverItem
+                disabled={disableAddChunk}
+                onClick={() => {
+                  onAddChunk()
+                  onClose()
+                }}
+              >
+                Create chunk
+              </PopoverItem>
+            )}
+            {onViewTags && (
+              <PopoverItem
+                onClick={() => {
+                  onViewTags()
+                  onClose()
+                }}
+              >
+                View tags
+              </PopoverItem>
+            )}
+          </>
         )}
       </PopoverContent>
     </Popover>
