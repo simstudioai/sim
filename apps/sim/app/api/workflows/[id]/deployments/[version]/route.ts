@@ -29,7 +29,7 @@ const patchBodySchema = z
     description: z
       .string()
       .trim()
-      .max(500, 'Description must be 500 characters or less')
+      .max(2000, 'Description must be 2000 characters or less')
       .nullable()
       .optional(),
     isActive: z.literal(true).optional(), // Set to true to activate this version

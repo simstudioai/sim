@@ -4,6 +4,12 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  getCanonicalValues,
+  isCanonicalPair,
+} from '@/lib/workflows/subblocks/visibility'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -437,9 +443,10 @@ export async function transformBlockTool(
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes } = options
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -516,12 +523,66 @@ export async function transformBlockTool(
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
+  const blockParamsFn = blockDef?.tools?.config?.params as
+    | ((p: Record<string, any>) => Record<string, any>)
+    | undefined
+  const blockInputDefs = blockDef?.inputs as Record<string, any> | undefined
+
+  const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
+    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    : []
+
+  const needsTransform = blockParamsFn || blockInputDefs || canonicalGroups.length > 0
+  const paramsTransform = needsTransform
+    ? (params: Record<string, any>): Record<string, any> => {
+        let result = { ...params }
+
+        for (const group of canonicalGroups) {
+          const { basicValue, advancedValue } = getCanonicalValues(group, result)
+          const scopedKey = `${block.type}:${group.canonicalId}`
+          const pairMode = canonicalModes?.[scopedKey] ?? 'basic'
+          const chosen = pairMode === 'advanced' ? advancedValue : basicValue
+
+          const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
+          sourceIds.forEach((id) => delete result[id])
+
+          if (chosen !== undefined) {
+            result[group.canonicalId] = chosen
+          }
+        }
+
+        if (blockParamsFn) {
+          const transformed = blockParamsFn(result)
+          result = { ...result, ...transformed }
+        }
+
+        if (blockInputDefs) {
+          for (const [key, schema] of Object.entries(blockInputDefs)) {
+            const value = result[key]
+            if (typeof value === 'string' && value.trim().length > 0) {
+              const inputType = typeof schema === 'object' ? schema.type : schema
+              if (inputType === 'json' || inputType === 'array') {
+                try {
+                  result[key] = JSON.parse(value.trim())
+                } catch {
+                  // Not valid JSON — keep as string
+                }
+              }
+            }
+          }
+        }
+
+        return result
+      }
+    : undefined
+
   return {
     id: uniqueToolId,
     name: toolName,
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
+    paramsTransform,
   }
 }
 
@@ -1028,7 +1089,11 @@ export function getMaxOutputTokensForModel(model: string): number {
  * Prepare tool execution parameters, separating tool parameters from system parameters
  */
 export function prepareToolExecution(
-  tool: { params?: Record<string, any>; parameters?: Record<string, any> },
+  tool: {
+    params?: Record<string, any>
+    parameters?: Record<string, any>
+    paramsTransform?: (params: Record<string, any>) => Record<string, any>
+  },
   llmArgs: Record<string, any>,
   request: {
     workflowId?: string
@@ -1045,8 +1110,15 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  // Use centralized merge logic from tools/params
-  const toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
+  let toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
+
+  if (tool.paramsTransform) {
+    try {
+      toolParams = tool.paramsTransform(toolParams)
+    } catch (err) {
+      logger.warn('paramsTransform failed, using raw params', { error: err })
+    }
+  }
 
   const executionParams = {
     ...toolParams,

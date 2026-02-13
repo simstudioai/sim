@@ -18,9 +18,9 @@ describe('Copilot Checkpoints Revert API Route', () => {
     setupCommonApiMocks()
     mockCryptoUuid()
 
-    // Mock getBaseUrl to return localhost for tests
     vi.doMock('@/lib/core/utils/urls', () => ({
       getBaseUrl: vi.fn(() => 'http://localhost:3000'),
+      getInternalApiBaseUrl: vi.fn(() => 'http://localhost:3000'),
       getBaseDomain: vi.fn(() => 'localhost:3000'),
       getEmailDomain: vi.fn(() => 'localhost:3000'),
     }))

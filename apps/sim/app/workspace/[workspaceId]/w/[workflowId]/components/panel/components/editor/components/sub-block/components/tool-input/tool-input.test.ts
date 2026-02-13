@@ -2,37 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-
-interface StoredTool {
-  type: string
-  title?: string
-  toolId?: string
-  params?: Record<string, string>
-  customToolId?: string
-  schema?: any
-  code?: string
-  operation?: string
-  usageControl?: 'auto' | 'force' | 'none'
-}
-
-const isMcpToolAlreadySelected = (selectedTools: StoredTool[], mcpToolId: string): boolean => {
-  return selectedTools.some((tool) => tool.type === 'mcp' && tool.toolId === mcpToolId)
-}
-
-const isCustomToolAlreadySelected = (
-  selectedTools: StoredTool[],
-  customToolId: string
-): boolean => {
-  return selectedTools.some(
-    (tool) => tool.type === 'custom-tool' && tool.customToolId === customToolId
-  )
-}
-
-const isWorkflowAlreadySelected = (selectedTools: StoredTool[], workflowId: string): boolean => {
-  return selectedTools.some(
-    (tool) => tool.type === 'workflow_input' && tool.params?.workflowId === workflowId
-  )
-}
+import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
+import {
+  isCustomToolAlreadySelected,
+  isMcpToolAlreadySelected,
+  isWorkflowAlreadySelected,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 
 describe('isMcpToolAlreadySelected', () => {
   describe('basic functionality', () => {

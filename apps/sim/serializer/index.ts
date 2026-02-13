@@ -280,7 +280,7 @@ export class Serializer {
       })
     }
 
-    return {
+    const serialized: SerializedBlock = {
       id: block.id,
       position: block.position,
       config: {
@@ -300,6 +300,12 @@ export class Serializer {
       },
       enabled: block.enabled,
     }
+
+    if (block.data?.canonicalModes) {
+      serialized.canonicalModes = block.data.canonicalModes as Record<string, 'basic' | 'advanced'>
+    }
+
+    return serialized
   }
 
   private extractParams(block: BlockState): Record<string, any> {

@@ -8,7 +8,7 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('CopilotHeadlessAPI')
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
 
 const RequestSchema = z.object({
   message: z.string().min(1, 'message is required'),

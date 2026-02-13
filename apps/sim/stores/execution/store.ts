@@ -129,6 +129,18 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
     })
   },
 
+  setCurrentExecutionId: (workflowId, executionId) => {
+    set({
+      workflowExecutions: updatedMap(get().workflowExecutions, workflowId, {
+        currentExecutionId: executionId,
+      }),
+    })
+  },
+
+  getCurrentExecutionId: (workflowId) => {
+    return getOrCreate(get().workflowExecutions, workflowId).currentExecutionId
+  },
+
   clearRunPath: (workflowId) => {
     set({
       workflowExecutions: updatedMap(get().workflowExecutions, workflowId, {

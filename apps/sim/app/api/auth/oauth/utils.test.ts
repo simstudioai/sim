@@ -4,20 +4,10 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnValue([]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-  },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
@@ -34,13 +24,36 @@ import {
   refreshTokenIfNeeded,
 } from '@/app/api/auth/oauth/utils'
 
-const mockDbTyped = db as any
+const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
+
+/**
+ * Creates a chainable mock for db.select() calls.
+ * Returns a nested chain: select() -> from() -> where() -> limit() / orderBy()
+ */
+function mockSelectChain(limitResult: unknown[]) {
+  const mockLimit = vi.fn().mockReturnValue(limitResult)
+  const mockOrderBy = vi.fn().mockReturnValue(limitResult)
+  const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit, orderBy: mockOrderBy })
+  const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
+  mockDb.select.mockReturnValueOnce({ from: mockFrom })
+  return { mockFrom, mockWhere, mockLimit }
+}
+
+/**
+ * Creates a chainable mock for db.update() calls.
+ * Returns a nested chain: update() -> set() -> where()
+ */
+function mockUpdateChain() {
+  const mockWhere = vi.fn().mockResolvedValue({})
+  const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
+  mockDb.update.mockReturnValueOnce({ set: mockSet })
+  return { mockSet, mockWhere }
+}
 
 describe('OAuth Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbTyped.limit.mockReturnValue([])
   })
 
   afterEach(() => {
@@ -50,20 +63,20 @@ describe('OAuth Utils', () => {
   describe('getCredential', () => {
     it('should return credential when found', async () => {
       const mockCredential = { id: 'credential-id', userId: 'test-user-id' }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      const { mockFrom, mockWhere, mockLimit } = mockSelectChain([mockCredential])
 
       const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
 
-      expect(mockDbTyped.select).toHaveBeenCalled()
-      expect(mockDbTyped.from).toHaveBeenCalled()
-      expect(mockDbTyped.where).toHaveBeenCalled()
-      expect(mockDbTyped.limit).toHaveBeenCalledWith(1)
+      expect(mockDb.select).toHaveBeenCalled()
+      expect(mockFrom).toHaveBeenCalled()
+      expect(mockWhere).toHaveBeenCalled()
+      expect(mockLimit).toHaveBeenCalledWith(1)
 
       expect(credential).toEqual(mockCredential)
     })
 
     it('should return undefined when credential is not found', async () => {
-      mockDbTyped.limit.mockReturnValueOnce([])
+      mockSelectChain([])
 
       const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
 
@@ -102,11 +115,12 @@ describe('OAuth Utils', () => {
         refreshToken: 'new-refresh-token',
       })
 
+      mockUpdateChain()
+
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
-      expect(mockDbTyped.update).toHaveBeenCalled()
-      expect(mockDbTyped.set).toHaveBeenCalled()
+      expect(mockDb.update).toHaveBeenCalled()
       expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
     })
 
@@ -152,7 +166,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockSelectChain([mockCredential])
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
@@ -169,7 +183,8 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockSelectChain([mockCredential])
+      mockUpdateChain()
 
       mockRefreshOAuthToken.mockResolvedValueOnce({
         accessToken: 'new-token',
@@ -180,13 +195,12 @@ describe('OAuth Utils', () => {
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
-      expect(mockDbTyped.update).toHaveBeenCalled()
-      expect(mockDbTyped.set).toHaveBeenCalled()
+      expect(mockDb.update).toHaveBeenCalled()
       expect(token).toBe('new-token')
     })
 
     it('should return null if credential not found', async () => {
-      mockDbTyped.limit.mockReturnValueOnce([])
+      mockSelectChain([])
 
       const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
 
@@ -202,7 +216,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockDbTyped.limit.mockReturnValueOnce([mockCredential])
+      mockSelectChain([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
 

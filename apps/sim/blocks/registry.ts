@@ -39,6 +39,7 @@ import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
@@ -214,6 +215,7 @@ export const registry: Record<string, BlockConfig> = {
   gmail_v2: GmailV2Block,
   google_calendar: GoogleCalendarBlock,
   google_calendar_v2: GoogleCalendarV2Block,
+  google_books: GoogleBooksBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,

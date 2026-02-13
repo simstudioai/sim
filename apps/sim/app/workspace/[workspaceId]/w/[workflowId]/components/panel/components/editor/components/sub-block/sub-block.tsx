@@ -3,7 +3,6 @@ import { isEqual } from 'lodash'
 import { AlertTriangle, ArrowLeftRight, ArrowUp, Check, Clipboard } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
-import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   CheckboxList,
   Code,
@@ -69,13 +68,15 @@ interface SubBlockProps {
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
-  fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
   canonicalToggle?: {
     mode: 'basic' | 'advanced'
     disabled?: boolean
     onToggle?: () => void
   }
+  labelSuffix?: React.ReactNode
+  /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
+  dependencyContext?: Record<string, unknown>
 }
 
 /**
@@ -162,16 +163,14 @@ const getPreviewValue = (
 /**
  * Renders the label with optional validation and description tooltips.
  *
- * @remarks
- * Handles JSON validation indicators for code blocks and required field markers.
- * Includes inline AI generate button when wand is enabled.
- *
  * @param config - The sub-block configuration defining the label content
  * @param isValidJson - Whether the JSON content is valid (for code blocks)
  * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
- * @param wandState - Optional state and handlers for the AI wand feature
- * @param canonicalToggle - Optional canonical toggle metadata and handlers
- * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled
+ * @param wandState - State and handlers for the inline AI generate feature
+ * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
+ * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled (includes dependsOn gating)
+ * @param copyState - State and handler for the copy-to-clipboard button
+ * @param labelSuffix - Additional content rendered after the label text
  * @returns The label JSX element, or `null` for switch types or when no title is defined
  */
 const renderLabel = (
@@ -202,7 +201,8 @@ const renderLabel = (
     showCopyButton: boolean
     copied: boolean
     onCopy: () => void
-  }
+  },
+  labelSuffix?: React.ReactNode
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -215,9 +215,10 @@ const renderLabel = (
 
   return (
     <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-      <Label className='flex items-center gap-[6px] whitespace-nowrap'>
+      <Label className='flex items-baseline gap-[6px] whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
+        {labelSuffix}
         {config.type === 'code' &&
           config.language === 'json' &&
           !isValidJson &&
@@ -383,28 +384,25 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.isPreview === nextProps.isPreview &&
     valueEqual &&
     prevProps.disabled === nextProps.disabled &&
-    prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
-    canonicalToggleEqual
+    canonicalToggleEqual &&
+    prevProps.labelSuffix === nextProps.labelSuffix &&
+    prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
 
 /**
  * Renders a single workflow sub-block input based on config.type.
  *
- * @remarks
- * Supports multiple input types including short-input, long-input, dropdown,
- * combobox, slider, table, code, switch, tool-input, and many more.
- * Handles preview mode, disabled states, and AI wand generation.
- *
  * @param blockId - The parent block identifier
  * @param config - Configuration defining the input type and properties
  * @param isPreview - Whether to render in preview mode
  * @param subBlockValues - Current values of all subblocks
  * @param disabled - Whether the input is disabled
- * @param fieldDiffStatus - Optional diff status for visual indicators
  * @param allowExpandInPreview - Whether to allow expanding in preview mode
- * @returns The rendered sub-block input component
+ * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
+ * @param labelSuffix - Additional content rendered after the label text
+ * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
  */
 function SubBlockComponent({
   blockId,
@@ -412,9 +410,10 @@ function SubBlockComponent({
   isPreview = false,
   subBlockValues,
   disabled = false,
-  fieldDiffStatus,
   allowExpandInPreview,
   canonicalToggle,
+  labelSuffix,
+  dependencyContext,
 }: SubBlockProps): JSX.Element {
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -423,7 +422,6 @@ function SubBlockComponent({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const wandControlRef = useRef<WandControlHandlers | null>(null)
 
-  // Use webhook management hook when config has useWebhookUrl enabled
   const webhookManagement = useWebhookManagement({
     blockId,
     triggerId: undefined,
@@ -510,10 +508,12 @@ function SubBlockComponent({
     | null
     | undefined
 
+  const contextValues = dependencyContext ?? (isPreview ? subBlockValues : undefined)
+
   const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
     disabled,
     isPreview,
-    previewContextValues: isPreview ? subBlockValues : undefined,
+    previewContextValues: contextValues,
   })
 
   const isDisabled = gatedDisabled
@@ -797,7 +797,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -809,7 +809,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -821,7 +821,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -833,7 +833,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -845,7 +845,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -868,7 +868,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -880,7 +880,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -892,7 +892,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -917,7 +917,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -953,7 +953,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -987,7 +987,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -999,7 +999,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-            previewContextValues={isPreview ? subBlockValues : undefined}
+            previewContextValues={contextValues}
           />
         )
 
@@ -1059,7 +1059,8 @@ function SubBlockComponent({
           showCopyButton: Boolean(config.showCopyButton && config.useWebhookUrl),
           copied,
           onCopy: handleCopy,
-        }
+        },
+        labelSuffix
       )}
       {renderInput()}
     </div>

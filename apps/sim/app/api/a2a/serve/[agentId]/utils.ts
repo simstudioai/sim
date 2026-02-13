@@ -1,7 +1,7 @@
 import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 
 /** A2A v0.3 JSON-RPC method names */
 export const A2A_METHODS = {
@@ -118,7 +118,7 @@ export interface ExecuteRequestResult {
 export async function buildExecuteRequest(
   config: ExecuteRequestConfig
 ): Promise<ExecuteRequestResult> {
-  const url = `${getBaseUrl()}/api/workflows/${config.workflowId}/execute`
+  const url = `${getInternalApiBaseUrl()}/api/workflows/${config.workflowId}/execute`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   let useInternalAuth = false
 

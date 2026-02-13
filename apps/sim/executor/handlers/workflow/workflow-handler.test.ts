@@ -1,3 +1,4 @@
+import { setupGlobalFetchMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
@@ -9,7 +10,7 @@ vi.mock('@/lib/auth/internal', () => ({
 }))
 
 // Mock fetch globally
-global.fetch = vi.fn()
+setupGlobalFetchMock()
 
 describe('WorkflowBlockHandler', () => {
   let handler: WorkflowBlockHandler
