@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaGetContentsParams, ExaGetContentsResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaGetContentsTool')
 
 export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsResponse> = {
   id: 'exa_get_contents',
@@ -73,6 +76,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
           return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
         }
         // Fallback: $1/1000 pages
+        logger.warn('Exa get_contents response missing costDollars, using fallback pricing')
         return (response.results?.length || 0) * 0.001
       },
     },

@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaSearchParams, ExaSearchResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaSearchTool')
 
 export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   id: 'exa_search',
@@ -99,6 +102,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
         }
 
         // Fallback: estimate based on search type and result count
+        logger.warn('Exa search response missing costDollars, using fallback pricing')
         const isDeepSearch = params.type === 'neural'
         if (isDeepSearch) {
           return 0.015

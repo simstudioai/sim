@@ -47,6 +47,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
         }
 
         // Fallback to estimate if cost not available
+        logger.warn('Exa research response missing costDollars, using fallback pricing')
         const model = params.model || 'exa-research'
         return model === 'exa-research-pro' ? 0.055 : 0.03
       },

@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaAnswerParams, ExaAnswerResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaAnswerTool')
 
 export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   id: 'exa_answer',
@@ -39,6 +42,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
           return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
         }
         // Fallback: $5/1000 requests
+        logger.warn('Exa answer response missing costDollars, using fallback pricing')
         return 0.005
       },
     },

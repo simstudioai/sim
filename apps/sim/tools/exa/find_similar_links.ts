@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaFindSimilarLinksTool')
 
 export const findSimilarLinksTool: ToolConfig<
   ExaFindSimilarLinksParams,
@@ -88,6 +91,7 @@ export const findSimilarLinksTool: ToolConfig<
           return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
         }
         // Fallback: $5/1000 (1-25 results) or $25/1000 (26-100 results)
+        logger.warn('Exa find_similar_links response missing costDollars, using fallback pricing')
         const resultCount = response.similarLinks?.length || 0
         return resultCount <= 25 ? 0.005 : 0.025
       },
