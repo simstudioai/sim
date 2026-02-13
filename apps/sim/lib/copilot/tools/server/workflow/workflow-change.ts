@@ -12,6 +12,7 @@ import {
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getBlock } from '@/blocks/registry'
+import { getTool } from '@/tools/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import {
   getContextPack,
@@ -51,6 +52,26 @@ const CredentialSelectionSchema = z
   })
   .strict()
 
+const ToolCredentialTargetSchema = z
+  .object({
+    index: z.number().int().min(0).optional(),
+    toolId: z.string().optional(),
+    type: z.string().optional(),
+    title: z.string().optional(),
+    operation: z.string().optional(),
+  })
+  .strict()
+  .refine(
+    (toolTarget) =>
+      toolTarget.index !== undefined ||
+      Boolean(
+        toolTarget.toolId || toolTarget.type || toolTarget.title || toolTarget.operation
+      ),
+    {
+      message: 'tool selector must include at least one of index/toolId/type/title/operation',
+    }
+  )
+
 const ChangeOperationSchema = z
   .object({
     op: z.enum(['set', 'unset', 'merge', 'append', 'remove', 'attach_credential']),
@@ -58,6 +79,8 @@ const ChangeOperationSchema = z
     value: z.any().optional(),
     provider: z.string().optional(),
     selection: CredentialSelectionSchema.optional(),
+    tool: ToolCredentialTargetSchema.optional(),
+    credentialPath: z.string().optional(),
     required: z.boolean().optional(),
   })
   .strict()
@@ -90,6 +113,28 @@ const RemoveBlockMutationSchema = z
   })
   .strict()
 
+const InsertIntoSubflowMutationSchema = z
+  .object({
+    action: z.literal('insert_into_subflow'),
+    target: TargetSchema,
+    subflow: TargetSchema,
+    type: z.string().optional(),
+    name: z.string().optional(),
+    inputs: z.record(z.any()).optional(),
+    triggerMode: z.boolean().optional(),
+    advancedMode: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .strict()
+
+const ExtractFromSubflowMutationSchema = z
+  .object({
+    action: z.literal('extract_from_subflow'),
+    target: TargetSchema,
+    subflow: TargetSchema.optional(),
+  })
+  .strict()
+
 const ConnectMutationSchema = z
   .object({
     action: z.literal('connect'),
@@ -115,6 +160,8 @@ const MutationSchema = z.discriminatedUnion('action', [
   EnsureBlockMutationSchema,
   PatchBlockMutationSchema,
   RemoveBlockMutationSchema,
+  InsertIntoSubflowMutationSchema,
+  ExtractFromSubflowMutationSchema,
   ConnectMutationSchema,
   DisconnectMutationSchema,
 ])
@@ -321,6 +368,7 @@ function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): 
     const normalizeKnown = (value: string): string => {
       if (
         value.startsWith('block_exists:') ||
+        value.startsWith('block_type_exists:') ||
         value.startsWith('path_exists:') ||
         value.startsWith('trigger_exists:')
       ) {
@@ -333,6 +381,7 @@ function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): 
     if (known) return known
 
     if (kind === 'block_exists') return `block_exists:${assert}`
+    if (kind === 'block_type_exists') return `block_type_exists:${assert}`
     if (kind === 'path_exists') return `path_exists:${assert}`
     if (kind === 'trigger_exists') return `trigger_exists:${assert}`
 
@@ -699,6 +748,193 @@ function selectCredentialFieldId(blockType: string, provider: string): string | 
   return oauthFields[0].id
 }
 
+function normalizePathSegments(path: string): string[] {
+  return path
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+}
+
+function providerMatches(providerCandidate: string, requestedProvider: string): boolean {
+  const candidate = providerCandidate.toLowerCase()
+  const requested = requestedProvider.toLowerCase()
+  return candidate === requested || candidate.startsWith(`${requested}-`)
+}
+
+function parseToolInputPath(path: string | undefined): {
+  fieldId: string
+  explicitIndex: number | null
+  credentialPathFromPath: string[]
+} | null {
+  if (!path) return null
+  const segments = normalizePathSegments(path)
+  if (segments[0] !== 'inputs' || !segments[1]) return null
+  const hasExplicitIndex = segments[2] && /^\d+$/.test(segments[2])
+  const explicitIndex = hasExplicitIndex ? Number.parseInt(segments[2], 10) : null
+  const credentialPathFromPath = hasExplicitIndex ? segments.slice(3) : segments.slice(2)
+  return { fieldId: segments[1], explicitIndex, credentialPathFromPath }
+}
+
+function selectToolInputField(blockType: string, path: string | undefined): {
+  fieldId: string
+  explicitIndex: number | null
+  credentialPathFromPath: string[]
+} | null {
+  const blockConfig = getBlock(blockType)
+  if (!blockConfig) return null
+
+  const toolInputFields = (blockConfig.subBlocks || [])
+    .filter((subBlock) => subBlock.type === 'tool-input')
+    .map((subBlock) => subBlock.id)
+
+  if (toolInputFields.length === 0) return null
+
+  if (path) {
+    const parsedPath = parseToolInputPath(path)
+    if (!parsedPath) return null
+    if (!toolInputFields.includes(parsedPath.fieldId)) return null
+    return parsedPath
+  }
+
+  if (toolInputFields.length === 1) {
+    return { fieldId: toolInputFields[0], explicitIndex: null, credentialPathFromPath: [] }
+  }
+
+  return null
+}
+
+function coerceToolInputArray(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  try {
+    const parsed = JSON.parse(trimmed)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function toolMatchesSelector(
+  tool: Record<string, any>,
+  selector: z.infer<typeof ToolCredentialTargetSchema>
+): boolean {
+  if (selector.toolId && String(tool.toolId || '') !== selector.toolId) return false
+  if (selector.type && String(tool.type || '') !== selector.type) return false
+  if (
+    selector.operation &&
+    String(tool.operation || '').toLowerCase() !== selector.operation.toLowerCase()
+  ) {
+    return false
+  }
+  if (selector.title) {
+    const title = String(tool.title || '').toLowerCase()
+    const query = selector.title.toLowerCase()
+    if (!title.includes(query)) return false
+  }
+  return true
+}
+
+function toolOAuthProvider(tool: Record<string, any>): string | null {
+  const toolId = typeof tool.toolId === 'string' ? tool.toolId : ''
+  if (!toolId) return null
+  const toolConfig = getTool(toolId)
+  return toolConfig?.oauth?.provider || null
+}
+
+function selectToolIndexForCredentialAttach(params: {
+  tools: Record<string, any>[]
+  selector: z.infer<typeof ToolCredentialTargetSchema> | undefined
+  explicitIndex: number | null
+  provider: string
+}): { index: number | null; warning?: string; error?: string } {
+  const { tools, selector, explicitIndex, provider } = params
+  if (tools.length === 0) {
+    return { index: null, error: 'tool-input array is empty' }
+  }
+
+  const providerMatchedIndexes = tools
+    .map((tool, index) => ({ index, provider: toolOAuthProvider(tool) }))
+    .filter((entry) => Boolean(entry.provider && providerMatches(entry.provider!, provider)))
+    .map((entry) => entry.index)
+
+  if (explicitIndex !== null) {
+    if (explicitIndex < 0 || explicitIndex >= tools.length) {
+      return {
+        index: null,
+        error: `tool index ${explicitIndex} is out of range (tool count: ${tools.length})`,
+      }
+    }
+    if (selector && !toolMatchesSelector(tools[explicitIndex], selector)) {
+      return {
+        index: null,
+        error: `tool index ${explicitIndex} does not match the provided tool selector`,
+      }
+    }
+    return { index: explicitIndex }
+  }
+
+  if (selector?.index !== undefined) {
+    const index = selector.index
+    if (index < 0 || index >= tools.length) {
+      return {
+        index: null,
+        error: `tool selector index ${index} is out of range (tool count: ${tools.length})`,
+      }
+    }
+    const candidate = tools[index]
+    if (!toolMatchesSelector(candidate, selector)) {
+      return {
+        index: null,
+        error: `tool selector index ${index} does not match the provided selector fields`,
+      }
+    }
+    return { index }
+  }
+
+  const baseCandidates = tools
+    .map((tool, index) => ({ index, tool }))
+    .filter((candidate) => (selector ? toolMatchesSelector(candidate.tool, selector) : true))
+    .map((candidate) => candidate.index)
+
+  if (baseCandidates.length === 0) {
+    return { index: null, error: 'tool selector did not match any tool in tool-input array' }
+  }
+
+  const providerCandidates = baseCandidates.filter((index) => providerMatchedIndexes.includes(index))
+  if (providerCandidates.length === 1) {
+    return { index: providerCandidates[0] }
+  }
+  if (providerCandidates.length > 1) {
+    return {
+      index: null,
+      error: `tool selector + provider "${provider}" matched multiple tools (${providerCandidates.join(', ')})`,
+    }
+  }
+
+  if (baseCandidates.length === 1) {
+    return {
+      index: baseCandidates[0],
+      warning:
+        `selected tool at index ${baseCandidates[0]} does not advertise oauth provider "${provider}"` +
+        '; credential was attached to the selected tool anyway',
+    }
+  }
+
+  if (!selector && providerMatchedIndexes.length === 1) {
+    return { index: providerMatchedIndexes[0] }
+  }
+
+  return {
+    index: null,
+    error:
+      `ambiguous tool target for provider "${provider}" (${baseCandidates.length} candidates). ` +
+      'Specify changes[].tool (index/toolId/type/title/operation) or path with an explicit index.',
+  }
+}
+
 function ensureConnectionTarget(
   existing: ConnectionTarget[],
   target: ConnectionTarget,
@@ -904,17 +1140,129 @@ async function compileChangeSpec(params: {
       if (!requireSchema(targetId, blockType, 'patch_block')) {
         return
       }
-      const credentialFieldId = selectCredentialFieldId(blockType, provider)
-      if (!credentialFieldId) {
-        const msg = `No oauth input field found for block type "${blockType}" on ${targetId}`
+
+      const credentialId = selectCredentialId(availableCredentials, provider, change.selection)
+      if (!credentialId) {
+        const msg = `No credential found for provider "${provider}" on ${targetId}`
         if (change.required) diagnostics.push(msg)
         else warnings.push(msg)
         return
       }
 
-      const credentialId = selectCredentialId(availableCredentials, provider, change.selection)
-      if (!credentialId) {
-        const msg = `No credential found for provider "${provider}" on ${targetId}`
+      const blockConfig = getBlock(blockType)
+      const attachPathSegments = change.path ? normalizePathSegments(change.path) : []
+      const attachInputFieldId =
+        attachPathSegments[0] === 'inputs' && attachPathSegments[1] ? attachPathSegments[1] : null
+      const attachInputFieldType =
+        attachInputFieldId && blockConfig
+          ? (blockConfig.subBlocks || []).find((subBlock) => subBlock.id === attachInputFieldId)
+              ?.type
+          : null
+
+      const nestedAttachRequested = Boolean(
+        change.tool || change.credentialPath || attachInputFieldType === 'tool-input'
+      )
+      if (nestedAttachRequested) {
+        const toolInputTarget = selectToolInputField(blockType, change.path)
+        if (!toolInputTarget) {
+          const guidance = change.path
+            ? `Path "${change.path}" must reference a tool-input field (for example inputs.tools or inputs.notification).`
+            : 'Block has no unique tool-input field. Provide path like "inputs.tools" and optional tool selector.'
+          const msg = `attach_credential on ${targetId} failed for nested tool target: ${guidance}`
+          if (change.required) diagnostics.push(msg)
+          else warnings.push(msg)
+          return
+        }
+
+        const currentToolsValue =
+          paramsOut.inputs?.[toolInputTarget.fieldId] ??
+          workingState.blocks[targetId]?.subBlocks?.[toolInputTarget.fieldId]?.value ??
+          []
+        const currentTools = coerceToolInputArray(currentToolsValue)
+        if (!currentTools) {
+          diagnostics.push(
+            `attach_credential on ${targetId} failed: inputs.${toolInputTarget.fieldId} is not a valid tool-input array`
+          )
+          return
+        }
+
+        const normalizedTools = currentTools.map((tool) =>
+          tool && typeof tool === 'object' && !Array.isArray(tool) ? { ...(tool as Record<string, any>) } : tool
+        )
+        if (
+          normalizedTools.some(
+            (tool) => !tool || typeof tool !== 'object' || Array.isArray(tool)
+          )
+        ) {
+          diagnostics.push(
+            `attach_credential on ${targetId} failed: inputs.${toolInputTarget.fieldId} contains invalid tool entries`
+          )
+          return
+        }
+
+        const selectionResult = selectToolIndexForCredentialAttach({
+          tools: normalizedTools as Record<string, any>[],
+          selector: change.tool,
+          explicitIndex: toolInputTarget.explicitIndex,
+          provider,
+        })
+        if (selectionResult.error || selectionResult.index === null) {
+          const msg =
+            `attach_credential on ${targetId} failed for inputs.${toolInputTarget.fieldId}: ` +
+            (selectionResult.error || 'unable to resolve tool target')
+          if (change.required) diagnostics.push(msg)
+          else warnings.push(msg)
+          return
+        }
+        if (selectionResult.warning) {
+          warnings.push(
+            `attach_credential on ${targetId} warning for inputs.${toolInputTarget.fieldId}: ${selectionResult.warning}`
+          )
+        }
+
+        const credentialPathSegments = change.credentialPath
+          ? normalizePathSegments(change.credentialPath)
+          : toolInputTarget.credentialPathFromPath.length > 0
+            ? toolInputTarget.credentialPathFromPath
+            : ['params', 'credential']
+        if (credentialPathSegments.length === 0) {
+          diagnostics.push(
+            `attach_credential on ${targetId} failed: credentialPath resolved to an empty path`
+          )
+          return
+        }
+
+        normalizedTools[selectionResult.index] = setNestedValue(
+          normalizedTools[selectionResult.index],
+          credentialPathSegments,
+          credentialId
+        )
+
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs[toolInputTarget.fieldId] = normalizedTools
+        return
+      }
+
+      if (
+        change.path &&
+        attachPathSegments.length > 0 &&
+        attachInputFieldId &&
+        attachInputFieldType !== 'oauth-input'
+      ) {
+        warnings.push(
+          `attach_credential on ${targetId} ignored path "${change.path}" because it is not an oauth-input/tool-input field`
+        )
+      }
+
+      if (attachInputFieldId && attachInputFieldType === 'oauth-input') {
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs[attachInputFieldId] = credentialId
+        return
+      }
+
+      const credentialFieldId = selectCredentialFieldId(blockType, provider)
+      if (!credentialFieldId) {
+        const msg = `No oauth input field found for block type "${blockType}" on ${targetId}`
         if (change.required) diagnostics.push(msg)
         else warnings.push(msg)
         return
@@ -1212,6 +1560,200 @@ async function compileChangeSpec(params: {
         }
         connectionTouchedSources.add(source)
       }
+      continue
+    }
+
+    if (mutation.action === 'insert_into_subflow') {
+      const subflowId = resolveTarget(mutation.subflow)
+      if (!subflowId) {
+        diagnostics.push(
+          'insert_into_subflow requires a resolvable subflow target (loop/parallel block).'
+        )
+        continue
+      }
+
+      const subflowType =
+        String(workingState.blocks[subflowId]?.type || '') || plannedBlockTypes.get(subflowId) || ''
+      if (subflowType !== 'loop' && subflowType !== 'parallel') {
+        diagnostics.push(
+          `insert_into_subflow target "${subflowId}" is type "${subflowType || 'unknown'}"; expected loop or parallel`
+        )
+        continue
+      }
+
+      const targetId = resolveTarget(mutation.target, true)
+      if (!targetId) {
+        diagnostics.push('insert_into_subflow requires a resolvable target block')
+        continue
+      }
+
+      const existingBlock = workingState.blocks[targetId]
+      if (existingBlock) {
+        const existingType =
+          String(existingBlock.type || '') || plannedBlockTypes.get(targetId) || mutation.type || ''
+        if (!existingType) {
+          diagnostics.push(`insert_into_subflow on ${targetId} failed: unknown block type`)
+          continue
+        }
+        const existingName = String(mutation.name || existingBlock.name || '').trim()
+        if (!existingName) {
+          diagnostics.push(`insert_into_subflow on ${targetId} failed: missing block name`)
+          continue
+        }
+
+        const insertParams: Record<string, any> = {
+          subflowId,
+          type: existingType,
+          name: existingName,
+        }
+        if (mutation.inputs) {
+          const validatedInputs = normalizeInputsWithSchema(
+            targetId,
+            existingType,
+            mutation.inputs,
+            'patch_block'
+          )
+          if (Object.keys(validatedInputs).length > 0) {
+            insertParams.inputs = validatedInputs
+          }
+        }
+        if (mutation.triggerMode !== undefined) insertParams.triggerMode = mutation.triggerMode
+        if (mutation.advancedMode !== undefined) insertParams.advancedMode = mutation.advancedMode
+        if (mutation.enabled !== undefined) insertParams.enabled = mutation.enabled
+
+        operations.push({
+          operation_type: 'insert_into_subflow',
+          block_id: targetId,
+          params: insertParams,
+        })
+        workingState.blocks[targetId] = {
+          ...existingBlock,
+          data: { ...(existingBlock.data || {}), parentId: subflowId, extent: 'parent' },
+        }
+        touchedBlocks.add(targetId)
+        touchedBlocks.add(subflowId)
+        continue
+      }
+
+      if (!mutation.type || !mutation.name) {
+        diagnostics.push(
+          `insert_into_subflow for "${targetId}" requires type and name when creating a new child block`
+        )
+        continue
+      }
+
+      const requestedBlockId = mutation.target?.blockId
+      const blockId =
+        requestedBlockId && UUID_REGEX.test(requestedBlockId)
+          ? requestedBlockId
+          : createDraftBlockId(mutation.name)
+      const insertParams: Record<string, any> = {
+        subflowId,
+        type: mutation.type,
+        name: mutation.name,
+      }
+      let normalizedInputs: Record<string, any> | undefined
+      if (mutation.inputs) {
+        const validatedInputs = normalizeInputsWithSchema(
+          targetId,
+          mutation.type,
+          mutation.inputs,
+          'ensure_block'
+        )
+        if (Object.keys(validatedInputs).length > 0) {
+          normalizedInputs = validatedInputs
+          insertParams.inputs = validatedInputs
+        }
+      }
+      if (mutation.triggerMode !== undefined) insertParams.triggerMode = mutation.triggerMode
+      if (mutation.advancedMode !== undefined) insertParams.advancedMode = mutation.advancedMode
+      if (mutation.enabled !== undefined) insertParams.enabled = mutation.enabled
+
+      operations.push({
+        operation_type: 'insert_into_subflow',
+        block_id: blockId,
+        params: insertParams,
+      })
+      workingState.blocks[blockId] = {
+        id: blockId,
+        type: mutation.type,
+        name: mutation.name,
+        subBlocks: Object.fromEntries(
+          Object.entries(normalizedInputs || {}).map(([key, value]) => [
+            key,
+            { id: key, value, type: 'short-input' },
+          ])
+        ),
+        triggerMode: mutation.triggerMode || false,
+        advancedMode: mutation.advancedMode || false,
+        enabled: mutation.enabled !== undefined ? mutation.enabled : true,
+        data: { parentId: subflowId, extent: 'parent' },
+      }
+      plannedBlockTypes.set(blockId, mutation.type)
+      touchedBlocks.add(blockId)
+      touchedBlocks.add(subflowId)
+      if (requestedBlockId) {
+        aliasMap.set(requestedBlockId, blockId)
+        recordResolved(requestedBlockId, blockId)
+      }
+      if (mutation.target?.alias) {
+        aliasMap.set(mutation.target.alias, blockId)
+        recordResolved(mutation.target.alias, blockId)
+      }
+      recordResolved(targetId, blockId)
+      continue
+    }
+
+    if (mutation.action === 'extract_from_subflow') {
+      const targetId = resolveTarget(mutation.target)
+      if (!targetId) {
+        diagnostics.push(
+          'extract_from_subflow target could not be resolved. Use target.alias or target.match, ' +
+            'or refresh workflow_context_get after prior apply before retrying.'
+        )
+        continue
+      }
+
+      const targetBlock = workingState.blocks[targetId]
+      const inferredSubflowId = String(targetBlock?.data?.parentId || '')
+      const explicitSubflowId = mutation.subflow ? resolveTarget(mutation.subflow) : null
+      const subflowId = explicitSubflowId || inferredSubflowId || null
+      if (!subflowId) {
+        diagnostics.push(
+          `extract_from_subflow on ${targetId} requires subflow selector or a target currently inside a loop/parallel`
+        )
+        continue
+      }
+
+      const subflowType =
+        String(workingState.blocks[subflowId]?.type || '') || plannedBlockTypes.get(subflowId) || ''
+      if (subflowType !== 'loop' && subflowType !== 'parallel') {
+        diagnostics.push(
+          `extract_from_subflow subflow "${subflowId}" is type "${subflowType || 'unknown'}"; expected loop or parallel`
+        )
+        continue
+      }
+
+      operations.push({
+        operation_type: 'extract_from_subflow',
+        block_id: targetId,
+        params: {
+          subflowId,
+        },
+      })
+
+      if (targetBlock) {
+        const nextData = { ...(targetBlock.data || {}) }
+        delete nextData.parentId
+        delete nextData.extent
+        workingState.blocks[targetId] = {
+          ...targetBlock,
+          data: nextData,
+        }
+      }
+
+      touchedBlocks.add(targetId)
+      touchedBlocks.add(subflowId)
       continue
     }
 

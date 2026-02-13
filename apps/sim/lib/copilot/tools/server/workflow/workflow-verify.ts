@@ -49,6 +49,23 @@ function resolveBlockToken(
   return null
 }
 
+function resolveBlocksByType(
+  workflowState: { blocks: Record<string, any> },
+  token: string
+): string[] {
+  const normalized = normalizeName(token)
+  const canonical = canonicalizeToken(token)
+  const matches: string[] = []
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const blockType = normalizeName(String((block as Record<string, unknown>).type || ''))
+    if (!blockType) continue
+    if (blockType === normalized || canonicalizeToken(blockType) === canonical) {
+      matches.push(blockId)
+    }
+  }
+  return matches
+}
+
 function hasPath(
   workflowState: { edges: Array<Record<string, any>> },
   blockPath: string[]
@@ -90,6 +107,15 @@ function evaluateAssertions(params: {
       const blockId = resolveBlockToken(params.workflowState, token)
       const passed = Boolean(blockId)
       checks.push({ assert: assertion, passed, resolvedBlockId: blockId || null })
+      if (!passed) failures.push(`Assertion failed: ${assertion}`)
+      continue
+    }
+
+    if (assertion.startsWith('block_type_exists:')) {
+      const token = assertion.slice('block_type_exists:'.length).trim()
+      const matchedBlockIds = resolveBlocksByType(params.workflowState, token)
+      const passed = matchedBlockIds.length > 0
+      checks.push({ assert: assertion, passed, matchedBlockIds })
       if (!passed) failures.push(`Assertion failed: ${assertion}`)
       continue
     }
