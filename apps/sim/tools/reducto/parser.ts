@@ -22,7 +22,7 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
     file: {
       type: 'file',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Document file to be processed',
     },
     fileUpload: {
@@ -196,7 +196,7 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
     file: {
       type: 'file',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'PDF document to be processed',
     },
     pages: reductoParserTool.params.pages,

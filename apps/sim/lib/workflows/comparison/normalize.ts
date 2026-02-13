@@ -411,7 +411,14 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
 }
 
 /**
- * Filters subBlock IDs to exclude system and trigger runtime subBlocks.
+ * Pattern matching synthetic subBlock IDs created by ToolSubBlockRenderer.
+ * These IDs follow the format `{subBlockId}-tool-{index}-{paramId}` and are
+ * mirrors of values already stored in toolConfig.value.tools[N].params.
+ */
+const SYNTHETIC_TOOL_SUBBLOCK_RE = /-tool-\d+-/
+
+/**
+ * Filters subBlock IDs to exclude system, trigger runtime, and synthetic tool subBlocks.
  *
  * @param subBlockIds - Array of subBlock IDs to filter
  * @returns Filtered and sorted array of subBlock IDs
@@ -422,6 +429,7 @@ export function filterSubBlockIds(subBlockIds: string[]): string[] {
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id)) return false
       if (SYSTEM_SUBBLOCK_IDS.some((sysId) => id === sysId || id.startsWith(`${sysId}_`)))
         return false
+      if (SYNTHETIC_TOOL_SUBBLOCK_RE.test(id)) return false
       return true
     })
     .sort()

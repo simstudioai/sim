@@ -645,6 +645,18 @@ describe('Workflow Normalization Utilities', () => {
       const result = filterSubBlockIds(ids)
       expect(result).toEqual(['signingSecret'])
     })
+
+    it.concurrent('should exclude synthetic tool-input subBlock IDs', () => {
+      const ids = [
+        'toolConfig',
+        'toolConfig-tool-0-query',
+        'toolConfig-tool-0-url',
+        'toolConfig-tool-1-status',
+        'systemPrompt',
+      ]
+      const result = filterSubBlockIds(ids)
+      expect(result).toEqual(['systemPrompt', 'toolConfig'])
+    })
   })
 
   describe('normalizeTriggerConfigValues', () => {

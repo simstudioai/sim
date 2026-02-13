@@ -95,7 +95,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     filePath: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Path to the file(s). Can be a single path, URL, or an array of paths.',
     },
     file: {

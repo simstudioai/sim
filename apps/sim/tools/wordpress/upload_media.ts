@@ -27,7 +27,7 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
       file: {
         type: 'file',
         required: false,
-        visibility: 'hidden',
+        visibility: 'user-only',
         description: 'File to upload (UserFile object)',
       },
       filename: {
