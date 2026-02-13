@@ -1,3 +1,4 @@
+import { DELETED_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteCommentParams {
@@ -90,8 +91,8 @@ export const confluenceDeleteCommentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of deletion' },
+    ts: TIMESTAMP_OUTPUT,
     commentId: { type: 'string', description: 'Deleted comment ID' },
-    deleted: { type: 'boolean', description: 'Deletion status' },
+    deleted: DELETED_OUTPUT,
   },
 }

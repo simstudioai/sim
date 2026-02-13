@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +16,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { domain, accessToken, cloudId: cloudIdParam, expand, start, limit } = body
+    const {
+      domain,
+      accessToken,
+      cloudId: cloudIdParam,
+      expand,
+      start,
+      limit,
+      serviceDeskId,
+      action,
+    } = body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -36,6 +45,52 @@ export async function POST(request: NextRequest) {
     }
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
+
+    if (action === 'get' && serviceDeskId) {
+      const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
+      if (!serviceDeskIdValidation.isValid) {
+        return NextResponse.json({ error: serviceDeskIdValidation.error }, { status: 400 })
+      }
+
+      const url = `${baseUrl}/servicedesk/${serviceDeskId}`
+
+      logger.info('Fetching service desk:', url)
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getJsmHeaders(accessToken),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('JSM API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        })
+
+        return NextResponse.json(
+          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+
+      return NextResponse.json({
+        success: true,
+        output: {
+          ts: new Date().toISOString(),
+          id: data.id ?? '',
+          projectId: data.projectId ?? '',
+          projectName: data.projectName ?? '',
+          projectKey: data.projectKey ?? '',
+          name: data.projectName ?? '',
+          description: data.description ?? null,
+          leadDisplayName: data.leadDisplayName ?? null,
+        },
+      })
+    }
 
     const params = new URLSearchParams()
     if (expand) params.append('expand', expand)

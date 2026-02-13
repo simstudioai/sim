@@ -1,8 +1,4 @@
-import {
-  CONTENT_BODY_OUTPUT_PROPERTIES,
-  TIMESTAMP_OUTPUT,
-  VERSION_OUTPUT_PROPERTIES,
-} from '@/tools/confluence/types'
+import { BLOGPOST_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateBlogPostParams {
@@ -129,23 +125,6 @@ export const confluenceCreateBlogPostTool: ToolConfig<
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
-    id: { type: 'string', description: 'Created blog post ID' },
-    title: { type: 'string', description: 'Blog post title' },
-    status: { type: 'string', description: 'Blog post status', optional: true },
-    spaceId: { type: 'string', description: 'Space ID' },
-    authorId: { type: 'string', description: 'Author account ID', optional: true },
-    body: {
-      type: 'object',
-      description: 'Blog post body content',
-      properties: CONTENT_BODY_OUTPUT_PROPERTIES,
-      optional: true,
-    },
-    version: {
-      type: 'object',
-      description: 'Blog post version information',
-      properties: VERSION_OUTPUT_PROPERTIES,
-      optional: true,
-    },
-    webUrl: { type: 'string', description: 'URL to view the blog post', optional: true },
+    ...BLOGPOST_ITEM_PROPERTIES,
   },
 }

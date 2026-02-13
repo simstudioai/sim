@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
+import { getTrigger } from '@/triggers'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
@@ -394,6 +395,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         // Page Property Operations
         { label: 'List Page Properties', id: 'list_page_properties' },
         { label: 'Create Page Property', id: 'create_page_property' },
+        { label: 'Update Page Property', id: 'update_page_property' },
         { label: 'Delete Page Property', id: 'delete_page_property' },
         // Search Operations
         { label: 'Search Content', id: 'search' },
@@ -402,6 +404,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         { label: 'List Blog Posts', id: 'list_blogposts' },
         { label: 'Get Blog Post', id: 'get_blogpost' },
         { label: 'Create Blog Post', id: 'create_blogpost' },
+        { label: 'Update Blog Post', id: 'update_blogpost' },
+        { label: 'Delete Blog Post', id: 'delete_blogpost' },
         { label: 'List Blog Posts in Space', id: 'list_blogposts_in_space' },
         // Comment Operations
         { label: 'Create Comment', id: 'create_comment' },
@@ -484,6 +488,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_pages_in_space',
           'list_blogposts',
           'get_blogpost',
+          'create_blogpost',
+          'update_blogpost',
+          'delete_blogpost',
           'list_blogposts_in_space',
           'search',
           'search_in_space',
@@ -508,6 +515,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'add_label',
           'delete_label',
           'delete_page_property',
+          'update_page_property',
           'get_page_children',
           'get_page_ancestors',
           'list_page_versions',
@@ -530,6 +538,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_pages_in_space',
           'list_blogposts',
           'get_blogpost',
+          'create_blogpost',
+          'update_blogpost',
+          'delete_blogpost',
           'list_blogposts_in_space',
           'search',
           'search_in_space',
@@ -554,6 +565,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'add_label',
           'delete_label',
           'delete_page_property',
+          'update_page_property',
           'get_page_children',
           'get_page_ancestors',
           'list_page_versions',
@@ -588,7 +600,10 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       placeholder: 'Enter blog post ID',
       required: true,
-      condition: { field: 'operation', value: 'get_blogpost' },
+      condition: {
+        field: 'operation',
+        value: ['get_blogpost', 'update_blogpost', 'delete_blogpost'],
+      },
     },
     {
       id: 'versionNumber',
@@ -604,7 +619,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       placeholder: 'Enter property key/name',
       required: true,
-      condition: { field: 'operation', value: 'create_page_property' },
+      condition: { field: 'operation', value: ['create_page_property', 'update_page_property'] },
     },
     {
       id: 'propertyValue',
@@ -612,29 +627,46 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'long-input',
       placeholder: 'Enter property value (JSON supported)',
       required: true,
-      condition: { field: 'operation', value: 'create_page_property' },
+      condition: { field: 'operation', value: ['create_page_property', 'update_page_property'] },
     },
     {
       id: 'propertyId',
       title: 'Property ID',
       type: 'short-input',
-      placeholder: 'Enter property ID to delete',
+      placeholder: 'Enter property ID',
       required: true,
-      condition: { field: 'operation', value: 'delete_page_property' },
+      condition: {
+        field: 'operation',
+        value: ['delete_page_property', 'update_page_property'],
+      },
+    },
+    {
+      id: 'propertyVersionNumber',
+      title: 'Property Version Number',
+      type: 'short-input',
+      placeholder: 'Enter current version number of the property',
+      required: true,
+      condition: { field: 'operation', value: 'update_page_property' },
     },
     {
       id: 'title',
       title: 'Title',
       type: 'short-input',
       placeholder: 'Enter title',
-      condition: { field: 'operation', value: ['create', 'update', 'create_blogpost'] },
+      condition: {
+        field: 'operation',
+        value: ['create', 'update', 'create_blogpost', 'update_blogpost'],
+      },
     },
     {
       id: 'content',
       title: 'Content',
       type: 'long-input',
       placeholder: 'Enter content',
-      condition: { field: 'operation', value: ['create', 'update', 'create_blogpost'] },
+      condition: {
+        field: 'operation',
+        value: ['create', 'update', 'create_blogpost', 'update_blogpost'],
+      },
     },
     {
       id: 'parentId',
@@ -747,7 +779,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         { label: 'Draft', id: 'draft' },
       ],
       value: () => 'current',
-      condition: { field: 'operation', value: 'create_blogpost' },
+      condition: { field: 'operation', value: ['create_blogpost', 'update_blogpost'] },
     },
     {
       id: 'purge',
@@ -816,7 +848,46 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         ],
       },
     },
+
+    // Trigger subBlocks
+    ...getTrigger('confluence_page_created').subBlocks,
+    ...getTrigger('confluence_page_updated').subBlocks,
+    ...getTrigger('confluence_page_removed').subBlocks,
+    ...getTrigger('confluence_page_moved').subBlocks,
+    ...getTrigger('confluence_comment_created').subBlocks,
+    ...getTrigger('confluence_comment_removed').subBlocks,
+    ...getTrigger('confluence_blog_created').subBlocks,
+    ...getTrigger('confluence_blog_updated').subBlocks,
+    ...getTrigger('confluence_blog_removed').subBlocks,
+    ...getTrigger('confluence_attachment_created').subBlocks,
+    ...getTrigger('confluence_attachment_removed').subBlocks,
+    ...getTrigger('confluence_space_created').subBlocks,
+    ...getTrigger('confluence_space_updated').subBlocks,
+    ...getTrigger('confluence_label_added').subBlocks,
+    ...getTrigger('confluence_label_removed').subBlocks,
+    ...getTrigger('confluence_webhook').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'confluence_page_created',
+      'confluence_page_updated',
+      'confluence_page_removed',
+      'confluence_page_moved',
+      'confluence_comment_created',
+      'confluence_comment_removed',
+      'confluence_blog_created',
+      'confluence_blog_updated',
+      'confluence_blog_removed',
+      'confluence_attachment_created',
+      'confluence_attachment_removed',
+      'confluence_space_created',
+      'confluence_space_updated',
+      'confluence_label_added',
+      'confluence_label_removed',
+      'confluence_webhook',
+    ],
+  },
   tools: {
     access: [
       // Page Tools
@@ -833,6 +904,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       // Property Tools
       'confluence_list_page_properties',
       'confluence_create_page_property',
+      'confluence_update_page_property',
       'confluence_delete_page_property',
       // Search Tools
       'confluence_search',
@@ -841,6 +913,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       'confluence_list_blogposts',
       'confluence_get_blogpost',
       'confluence_create_blogpost',
+      'confluence_update_blogpost',
+      'confluence_delete_blogpost',
       'confluence_list_blogposts_in_space',
       // Comment Tools
       'confluence_create_comment',
@@ -889,6 +963,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_list_page_properties'
           case 'create_page_property':
             return 'confluence_create_page_property'
+          case 'update_page_property':
+            return 'confluence_update_page_property'
           case 'delete_page_property':
             return 'confluence_delete_page_property'
           // Search Operations
@@ -903,6 +979,10 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_get_blogpost'
           case 'create_blogpost':
             return 'confluence_create_blogpost'
+          case 'update_blogpost':
+            return 'confluence_update_blogpost'
+          case 'delete_blogpost':
+            return 'confluence_delete_blogpost'
           case 'list_blogposts_in_space':
             return 'confluence_list_blogposts_in_space'
           // Comment Operations
@@ -954,6 +1034,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           propertyKey,
           propertyValue,
           propertyId,
+          propertyVersionNumber,
           labelPrefix,
           labelId,
           blogPostStatus,
@@ -981,6 +1062,25 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             credential,
             operation,
             status: blogPostStatus || 'current',
+            ...rest,
+          }
+        }
+
+        if (operation === 'update_blogpost') {
+          return {
+            credential,
+            operation,
+            blogPostId,
+            status: blogPostStatus || undefined,
+            ...rest,
+          }
+        }
+
+        if (operation === 'delete_blogpost') {
+          return {
+            credential,
+            operation,
+            blogPostId,
             ...rest,
           }
         }
@@ -1041,6 +1141,24 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             operation,
             key: propertyKey,
             value: propertyValue,
+            ...rest,
+          }
+        }
+
+        if (operation === 'update_page_property') {
+          if (!propertyKey) {
+            throw new Error('Property key is required for this operation.')
+          }
+          return {
+            credential,
+            pageId: effectivePageId,
+            operation,
+            propertyId,
+            key: propertyKey,
+            value: propertyValue,
+            versionNumber: propertyVersionNumber
+              ? Number.parseInt(String(propertyVersionNumber), 10)
+              : undefined,
             ...rest,
           }
         }
@@ -1125,6 +1243,10 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     labelId: { type: 'string', description: 'Label identifier' },
     labelPrefix: { type: 'string', description: 'Label prefix (global, my, team, system)' },
     propertyId: { type: 'string', description: 'Property identifier' },
+    propertyVersionNumber: {
+      type: 'number',
+      description: 'Current version number of the property',
+    },
     blogPostStatus: { type: 'string', description: 'Blog post status (current or draft)' },
     purge: { type: 'boolean', description: 'Permanently delete instead of moving to trash' },
     bodyFormat: { type: 'string', description: 'Body format for comments' },

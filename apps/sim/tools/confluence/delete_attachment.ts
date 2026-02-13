@@ -1,3 +1,4 @@
+import { DELETED_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteAttachmentParams {
@@ -90,8 +91,8 @@ export const confluenceDeleteAttachmentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of deletion' },
+    ts: TIMESTAMP_OUTPUT,
     attachmentId: { type: 'string', description: 'Deleted attachment ID' },
-    deleted: { type: 'boolean', description: 'Deletion status' },
+    deleted: DELETED_OUTPUT,
   },
 }

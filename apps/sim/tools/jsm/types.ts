@@ -222,6 +222,33 @@ export const REQUEST_TYPE_FIELD_PROPERTIES = {
   },
 } as const
 
+/** Output properties for a knowledge base article */
+export const KNOWLEDGE_BASE_ARTICLE_PROPERTIES = {
+  title: { type: 'string', description: 'Article title' },
+  excerpt: { type: 'string', description: 'Article excerpt/summary' },
+  sourceType: { type: 'string', description: 'Source type (e.g., confluence)' },
+  sourcePageId: { type: 'string', description: 'Source page ID', optional: true },
+  sourceSpaceKey: { type: 'string', description: 'Source space key', optional: true },
+  contentUrl: { type: 'string', description: 'URL to rendered content', optional: true },
+} as const
+
+/** Output properties for a request status history entry */
+export const REQUEST_STATUS_HISTORY_PROPERTIES = {
+  status: { type: 'string', description: 'Status name' },
+  statusCategory: { type: 'string', description: 'Status category (NEW, INDETERMINATE, DONE)' },
+  statusDate: {
+    type: 'json',
+    description: 'Status change date with iso8601, friendly, epochMillis',
+  },
+} as const
+
+/** Output properties for CSAT feedback */
+export const FEEDBACK_PROPERTIES = {
+  rating: { type: 'number', description: 'CSAT rating (1-5)' },
+  comment: { type: 'string', description: 'Feedback comment', optional: true },
+  type: { type: 'string', description: 'Feedback type (e.g., csat)' },
+} as const
+
 // ---------------------------------------------------------------------------
 // Data model interfaces
 // ---------------------------------------------------------------------------
@@ -389,6 +416,30 @@ export interface JsmRequestTypeField {
   jiraSchema: { type: string; system?: string; custom?: string; customId?: number }
 }
 
+/** Knowledge base article representation */
+export interface JsmKnowledgeBaseArticle {
+  title: string
+  excerpt: string
+  sourceType: string
+  sourcePageId?: string
+  sourceSpaceKey?: string
+  contentUrl?: string
+}
+
+/** Request status history entry */
+export interface JsmRequestStatusHistory {
+  status: string
+  statusCategory: string
+  statusDate: { iso8601: string; friendly: string; epochMillis: number }
+}
+
+/** CSAT feedback representation */
+export interface JsmFeedback {
+  rating: number
+  comment?: string
+  type: string
+}
+
 // ---------------------------------------------------------------------------
 // Params interfaces
 // ---------------------------------------------------------------------------
@@ -529,6 +580,82 @@ export interface JsmAnswerApprovalParams extends JsmBaseParams {
 export interface JsmGetRequestTypeFieldsParams extends JsmBaseParams {
   serviceDeskId: string
   requestTypeId: string
+}
+
+export interface JsmRemoveCustomerParams extends JsmBaseParams {
+  serviceDeskId: string
+  accountIds?: string
+  emails?: string
+}
+
+export interface JsmRemoveOrganizationParams extends JsmBaseParams {
+  serviceDeskId: string
+  organizationId: string
+}
+
+export interface JsmRemoveParticipantsParams extends JsmBaseParams {
+  issueIdOrKey: string
+  accountIds: string
+}
+
+export interface JsmGetQueueIssuesParams extends JsmBaseParams {
+  serviceDeskId: string
+  queueId: string
+  start?: number
+  limit?: number
+}
+
+export interface JsmCreateCustomerParams extends JsmBaseParams {
+  email: string
+  displayName: string
+}
+
+export interface JsmDeleteOrganizationParams extends JsmBaseParams {
+  organizationId: string
+}
+
+export interface JsmGetOrganizationParams extends JsmBaseParams {
+  organizationId: string
+}
+
+export interface JsmGetOrganizationUsersParams extends JsmBaseParams {
+  organizationId: string
+  start?: number
+  limit?: number
+}
+
+export interface JsmAddOrganizationUsersParams extends JsmBaseParams {
+  organizationId: string
+  accountIds: string
+}
+
+export interface JsmRemoveOrganizationUsersParams extends JsmBaseParams {
+  organizationId: string
+  accountIds: string
+}
+
+export interface JsmSearchKnowledgeBaseParams extends JsmBaseParams {
+  serviceDeskId?: string
+  query: string
+  highlight?: boolean
+  start?: number
+  limit?: number
+}
+
+export interface JsmGetRequestStatusParams extends JsmBaseParams {
+  issueIdOrKey: string
+  start?: number
+  limit?: number
+}
+
+export interface JsmGetFeedbackParams extends JsmBaseParams {
+  issueIdOrKey: string
+}
+
+export interface JsmAddFeedbackParams extends JsmBaseParams {
+  issueIdOrKey: string
+  rating: number
+  comment?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -777,6 +904,137 @@ export interface JsmGetRequestTypeFieldsResponse extends ToolResponse {
   }
 }
 
+export interface JsmRemoveCustomerResponse extends ToolResponse {
+  output: {
+    ts: string
+    serviceDeskId: string
+    success: boolean
+  }
+}
+
+export interface JsmRemoveOrganizationResponse extends ToolResponse {
+  output: {
+    ts: string
+    serviceDeskId: string
+    organizationId: string
+    success: boolean
+  }
+}
+
+export interface JsmRemoveParticipantsResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    participants: JsmParticipant[]
+    success: boolean
+  }
+}
+
+export interface JsmGetQueueIssuesResponse extends ToolResponse {
+  output: {
+    ts: string
+    serviceDeskId: string
+    queueId: string
+    issues: JsmRequest[]
+    total: number
+    isLastPage: boolean
+  }
+}
+
+export interface JsmCreateCustomerResponse extends ToolResponse {
+  output: {
+    ts: string
+    accountId: string
+    displayName: string
+    emailAddress: string
+    active: boolean
+    timeZone: string | null
+    success: boolean
+  }
+}
+
+export interface JsmDeleteOrganizationResponse extends ToolResponse {
+  output: {
+    ts: string
+    organizationId: string
+    success: boolean
+  }
+}
+
+export interface JsmGetOrganizationResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    name: string
+  }
+}
+
+export interface JsmGetOrganizationUsersResponse extends ToolResponse {
+  output: {
+    ts: string
+    organizationId: string
+    users: JsmCustomer[]
+    total: number
+    isLastPage: boolean
+  }
+}
+
+export interface JsmAddOrganizationUsersResponse extends ToolResponse {
+  output: {
+    ts: string
+    organizationId: string
+    success: boolean
+  }
+}
+
+export interface JsmRemoveOrganizationUsersResponse extends ToolResponse {
+  output: {
+    ts: string
+    organizationId: string
+    success: boolean
+  }
+}
+
+export interface JsmSearchKnowledgeBaseResponse extends ToolResponse {
+  output: {
+    ts: string
+    articles: JsmKnowledgeBaseArticle[]
+    total: number
+    isLastPage: boolean
+  }
+}
+
+export interface JsmGetRequestStatusResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    statuses: JsmRequestStatusHistory[]
+    total: number
+    isLastPage: boolean
+  }
+}
+
+export interface JsmGetFeedbackResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    rating: number | null
+    comment: string | null
+    type: string | null
+  }
+}
+
+export interface JsmAddFeedbackResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    rating: number
+    comment: string | null
+    type: string
+    success: boolean
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Union type for all JSM responses
 // ---------------------------------------------------------------------------
@@ -792,15 +1050,29 @@ export type JsmResponse =
   | JsmGetCommentsResponse
   | JsmGetCustomersResponse
   | JsmAddCustomerResponse
+  | JsmRemoveCustomerResponse
   | JsmGetOrganizationsResponse
+  | JsmCreateOrganizationResponse
+  | JsmAddOrganizationResponse
+  | JsmRemoveOrganizationResponse
+  | JsmDeleteOrganizationResponse
+  | JsmGetOrganizationResponse
+  | JsmGetOrganizationUsersResponse
+  | JsmAddOrganizationUsersResponse
+  | JsmRemoveOrganizationUsersResponse
   | JsmGetQueuesResponse
+  | JsmGetQueueIssuesResponse
   | JsmGetSlaResponse
   | JsmTransitionRequestResponse
   | JsmGetTransitionsResponse
-  | JsmCreateOrganizationResponse
-  | JsmAddOrganizationResponse
   | JsmGetParticipantsResponse
   | JsmAddParticipantsResponse
+  | JsmRemoveParticipantsResponse
   | JsmGetApprovalsResponse
   | JsmAnswerApprovalResponse
   | JsmGetRequestTypeFieldsResponse
+  | JsmCreateCustomerResponse
+  | JsmSearchKnowledgeBaseResponse
+  | JsmGetRequestStatusResponse
+  | JsmGetFeedbackResponse
+  | JsmAddFeedbackResponse

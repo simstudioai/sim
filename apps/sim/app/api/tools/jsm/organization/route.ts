@@ -12,7 +12,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmOrganizationAPI')
 
-const VALID_ACTIONS = ['create', 'add_to_service_desk'] as const
+const VALID_ACTIONS = [
+  'create',
+  'add_to_service_desk',
+  'remove_from_service_desk',
+  'delete',
+  'get',
+] as const
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
@@ -157,6 +163,152 @@ export async function POST(request: NextRequest) {
         { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
         { status: response.status }
       )
+    }
+
+    if (action === 'remove_from_service_desk') {
+      if (!serviceDeskId) {
+        logger.error('Missing serviceDeskId in request')
+        return NextResponse.json({ error: 'Service Desk ID is required' }, { status: 400 })
+      }
+
+      if (!organizationId) {
+        logger.error('Missing organizationId in request')
+        return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
+      }
+
+      const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
+      if (!serviceDeskIdValidation.isValid) {
+        return NextResponse.json({ error: serviceDeskIdValidation.error }, { status: 400 })
+      }
+
+      const organizationIdValidation = validateAlphanumericId(organizationId, 'organizationId')
+      if (!organizationIdValidation.isValid) {
+        return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
+      }
+
+      const url = `${baseUrl}/servicedesk/${serviceDeskId}/organization`
+
+      logger.info('Removing organization from service desk:', { serviceDeskId, organizationId })
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: getJsmHeaders(accessToken),
+        body: JSON.stringify({ organizationId: Number.parseInt(organizationId, 10) }),
+      })
+
+      if (response.status === 204 || response.ok) {
+        return NextResponse.json({
+          success: true,
+          output: {
+            ts: new Date().toISOString(),
+            serviceDeskId,
+            organizationId,
+            success: true,
+          },
+        })
+      }
+
+      const errorText = await response.text()
+      logger.error('JSM API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      })
+
+      return NextResponse.json(
+        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        { status: response.status }
+      )
+    }
+
+    if (action === 'delete') {
+      if (!organizationId) {
+        logger.error('Missing organizationId in request')
+        return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
+      }
+
+      const organizationIdValidation = validateAlphanumericId(organizationId, 'organizationId')
+      if (!organizationIdValidation.isValid) {
+        return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
+      }
+
+      const url = `${baseUrl}/organization/${organizationId}`
+
+      logger.info('Deleting organization:', { organizationId })
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: getJsmHeaders(accessToken),
+      })
+
+      if (response.status === 204 || response.ok) {
+        return NextResponse.json({
+          success: true,
+          output: {
+            ts: new Date().toISOString(),
+            organizationId,
+            success: true,
+          },
+        })
+      }
+
+      const errorText = await response.text()
+      logger.error('JSM API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      })
+
+      return NextResponse.json(
+        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        { status: response.status }
+      )
+    }
+
+    if (action === 'get') {
+      if (!organizationId) {
+        logger.error('Missing organizationId in request')
+        return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
+      }
+
+      const organizationIdValidation = validateAlphanumericId(organizationId, 'organizationId')
+      if (!organizationIdValidation.isValid) {
+        return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
+      }
+
+      const url = `${baseUrl}/organization/${organizationId}`
+
+      logger.info('Fetching organization:', { organizationId })
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getJsmHeaders(accessToken),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('JSM API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        })
+
+        return NextResponse.json(
+          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+
+      return NextResponse.json({
+        success: true,
+        output: {
+          ts: new Date().toISOString(),
+          id: data.id ?? '',
+          name: data.name ?? '',
+        },
+      })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

@@ -1,3 +1,4 @@
+import { TIMESTAMP_OUTPUT, UPDATED_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceUpdateCommentParams {
@@ -99,8 +100,8 @@ export const confluenceUpdateCommentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of update' },
+    ts: TIMESTAMP_OUTPUT,
     commentId: { type: 'string', description: 'Updated comment ID' },
-    updated: { type: 'boolean', description: 'Update status' },
+    updated: UPDATED_OUTPUT,
   },
 }

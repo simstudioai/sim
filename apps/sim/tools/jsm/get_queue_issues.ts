@@ -1,0 +1,132 @@
+import type { JsmGetQueueIssuesParams, JsmGetQueueIssuesResponse } from '@/tools/jsm/types'
+import { REQUEST_ITEM_PROPERTIES } from '@/tools/jsm/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const jsmGetQueueIssuesTool: ToolConfig<JsmGetQueueIssuesParams, JsmGetQueueIssuesResponse> =
+  {
+    id: 'jsm_get_queue_issues',
+    name: 'JSM Get Queue Issues',
+    description: 'Get issues in a specific queue for a service desk in Jira Service Management',
+    version: '1.0.0',
+
+    oauth: {
+      required: true,
+      provider: 'jira',
+    },
+
+    params: {
+      accessToken: {
+        type: 'string',
+        required: true,
+        visibility: 'hidden',
+        description: 'OAuth access token for Jira Service Management',
+      },
+      domain: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
+      },
+      cloudId: {
+        type: 'string',
+        required: false,
+        visibility: 'hidden',
+        description: 'Jira Cloud ID for the instance',
+      },
+      serviceDeskId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Service Desk ID (e.g., "1", "2")',
+      },
+      queueId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Queue ID to get issues from',
+      },
+      start: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Start index for pagination (e.g., 0, 50, 100)',
+      },
+      limit: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Maximum results to return (e.g., 10, 25, 50)',
+      },
+    },
+
+    request: {
+      url: '/api/tools/jsm/queueissues',
+      method: 'POST',
+      headers: () => ({
+        'Content-Type': 'application/json',
+      }),
+      body: (params) => ({
+        domain: params.domain,
+        accessToken: params.accessToken,
+        cloudId: params.cloudId,
+        serviceDeskId: params.serviceDeskId,
+        queueId: params.queueId,
+        start: params.start,
+        limit: params.limit,
+      }),
+    },
+
+    transformResponse: async (response: Response) => {
+      const responseText = await response.text()
+
+      if (!responseText) {
+        return {
+          success: false,
+          output: {
+            ts: new Date().toISOString(),
+            serviceDeskId: '',
+            queueId: '',
+            issues: [],
+            total: 0,
+            isLastPage: true,
+          },
+          error: 'Empty response from API',
+        }
+      }
+
+      const data = JSON.parse(responseText)
+
+      if (data.success && data.output) {
+        return data
+      }
+
+      return {
+        success: data.success || false,
+        output: data.output || {
+          ts: new Date().toISOString(),
+          serviceDeskId: '',
+          queueId: '',
+          issues: [],
+          total: 0,
+          isLastPage: true,
+        },
+        error: data.error,
+      }
+    },
+
+    outputs: {
+      ts: { type: 'string', description: 'Timestamp of the operation' },
+      serviceDeskId: { type: 'string', description: 'Service desk ID' },
+      queueId: { type: 'string', description: 'Queue ID' },
+      issues: {
+        type: 'array',
+        description: 'List of issues in the queue',
+        items: {
+          type: 'object',
+          properties: REQUEST_ITEM_PROPERTIES,
+        },
+      },
+      total: { type: 'number', description: 'Total number of issues in the queue' },
+      isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
+    },
+  }

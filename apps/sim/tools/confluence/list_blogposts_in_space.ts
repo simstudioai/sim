@@ -1,8 +1,4 @@
-import {
-  CONTENT_BODY_OUTPUT_PROPERTIES,
-  TIMESTAMP_OUTPUT,
-  VERSION_OUTPUT_PROPERTIES,
-} from '@/tools/confluence/types'
+import { BLOGPOST_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListBlogPostsInSpaceParams {
@@ -146,27 +142,7 @@ export const confluenceListBlogPostsInSpaceTool: ToolConfig<
       description: 'Array of blog posts in the space',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Blog post ID' },
-          title: { type: 'string', description: 'Blog post title' },
-          status: { type: 'string', description: 'Blog post status', optional: true },
-          spaceId: { type: 'string', description: 'Space ID', optional: true },
-          authorId: { type: 'string', description: 'Author account ID', optional: true },
-          createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
-          version: {
-            type: 'object',
-            description: 'Version information',
-            properties: VERSION_OUTPUT_PROPERTIES,
-            optional: true,
-          },
-          body: {
-            type: 'object',
-            description: 'Blog post body content',
-            properties: CONTENT_BODY_OUTPUT_PROPERTIES,
-            optional: true,
-          },
-          webUrl: { type: 'string', description: 'URL to view the blog post', optional: true },
-        },
+        properties: BLOGPOST_ITEM_PROPERTIES,
       },
     },
     nextCursor: {

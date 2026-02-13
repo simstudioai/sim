@@ -9,7 +9,32 @@ export const jiraTriggerOptions = [
   { label: 'Issue Updated', id: 'jira_issue_updated' },
   { label: 'Issue Deleted', id: 'jira_issue_deleted' },
   { label: 'Issue Commented', id: 'jira_issue_commented' },
+  { label: 'Comment Updated', id: 'jira_comment_updated' },
+  { label: 'Comment Deleted', id: 'jira_comment_deleted' },
   { label: 'Worklog Created', id: 'jira_worklog_created' },
+  { label: 'Worklog Updated', id: 'jira_worklog_updated' },
+  { label: 'Worklog Deleted', id: 'jira_worklog_deleted' },
+  { label: 'Sprint Created', id: 'jira_sprint_created' },
+  { label: 'Sprint Started', id: 'jira_sprint_started' },
+  { label: 'Sprint Closed', id: 'jira_sprint_closed' },
+  { label: 'Sprint Updated', id: 'jira_sprint_updated' },
+  { label: 'Sprint Deleted', id: 'jira_sprint_deleted' },
+  { label: 'Project Created', id: 'jira_project_created' },
+  { label: 'Project Updated', id: 'jira_project_updated' },
+  { label: 'Project Deleted', id: 'jira_project_deleted' },
+  { label: 'Version Created', id: 'jira_version_created' },
+  { label: 'Version Released', id: 'jira_version_released' },
+  { label: 'Version Unreleased', id: 'jira_version_unreleased' },
+  { label: 'Version Updated', id: 'jira_version_updated' },
+  { label: 'Version Deleted', id: 'jira_version_deleted' },
+  { label: 'Board Created', id: 'jira_board_created' },
+  { label: 'Board Updated', id: 'jira_board_updated' },
+  { label: 'Board Deleted', id: 'jira_board_deleted' },
+  { label: 'Board Config Changed', id: 'jira_board_config_changed' },
+  { label: 'Attachment Created', id: 'jira_attachment_created' },
+  { label: 'Attachment Deleted', id: 'jira_attachment_deleted' },
+  { label: 'Issue Link Created', id: 'jira_issuelink_created' },
+  { label: 'Issue Link Deleted', id: 'jira_issuelink_deleted' },
   { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
 ]
 
@@ -381,6 +406,253 @@ export function buildWorklogOutputs(): Record<string, TriggerOutput> {
   }
 }
 
+export function buildSprintOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., sprint_created, sprint_started)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    sprint: {
+      id: {
+        type: 'number',
+        description: 'Sprint ID',
+      },
+      name: {
+        type: 'string',
+        description: 'Sprint name',
+      },
+      state: {
+        type: 'string',
+        description: 'Sprint state (future, active, closed)',
+      },
+      startDate: {
+        type: 'string',
+        description: 'Sprint start date (ISO format)',
+      },
+      endDate: {
+        type: 'string',
+        description: 'Sprint end date (ISO format)',
+      },
+      completeDate: {
+        type: 'string',
+        description: 'Sprint completion date (ISO format)',
+      },
+      goal: {
+        type: 'string',
+        description: 'Sprint goal',
+      },
+      originBoardId: {
+        type: 'number',
+        description: 'ID of the board the sprint belongs to',
+      },
+    },
+  }
+}
+
+export function buildProjectOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., project_created, project_updated)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    project: {
+      id: {
+        type: 'string',
+        description: 'Project ID',
+      },
+      key: {
+        type: 'string',
+        description: 'Project key (e.g., PROJ)',
+      },
+      name: {
+        type: 'string',
+        description: 'Project name',
+      },
+      projectTypeKey: {
+        type: 'string',
+        description: 'Project type (software, business, service_desk)',
+      },
+      lead: {
+        displayName: {
+          type: 'string',
+          description: 'Project lead display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Project lead account ID',
+        },
+      },
+    },
+  }
+}
+
+export function buildVersionOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., jira:version_created, jira:version_released)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    version: {
+      id: {
+        type: 'string',
+        description: 'Version ID',
+      },
+      name: {
+        type: 'string',
+        description: 'Version name',
+      },
+      released: {
+        type: 'boolean',
+        description: 'Whether the version is released',
+      },
+      archived: {
+        type: 'boolean',
+        description: 'Whether the version is archived',
+      },
+      releaseDate: {
+        type: 'string',
+        description: 'Release date (ISO format)',
+      },
+      projectId: {
+        type: 'number',
+        description: 'ID of the project this version belongs to',
+      },
+    },
+  }
+}
+
+export function buildBoardOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description:
+        'The webhook event type (e.g., board_created, board_updated, board_configuration_changed)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    board: {
+      id: {
+        type: 'number',
+        description: 'Board ID',
+      },
+      name: {
+        type: 'string',
+        description: 'Board name',
+      },
+      boardType: {
+        type: 'string',
+        description: 'Board type (scrum, kanban)',
+      },
+    },
+  }
+}
+
+export function buildAttachmentOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    attachment: {
+      id: {
+        type: 'string',
+        description: 'Attachment ID',
+      },
+      filename: {
+        type: 'string',
+        description: 'Attachment file name',
+      },
+      mimeType: {
+        type: 'string',
+        description: 'Attachment MIME type',
+      },
+      size: {
+        type: 'number',
+        description: 'Attachment file size in bytes',
+      },
+      content: {
+        type: 'string',
+        description: 'URL to download the attachment',
+      },
+      author: {
+        displayName: {
+          type: 'string',
+          description: 'Attachment author display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Attachment author account ID',
+        },
+      },
+      created: {
+        type: 'string',
+        description: 'Attachment creation date (ISO format)',
+      },
+    },
+    hasAttachments: {
+      type: 'boolean',
+      description: 'Whether this event includes a downloadable attachment',
+    },
+    attachments: {
+      type: 'file[]',
+      description:
+        'Downloaded attachment files as UserFile objects (if includeAttachments is enabled and API credentials are provided)',
+    },
+  }
+}
+
+export function buildIssueLinkOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., issuelink_created, issuelink_deleted)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    issueLink: {
+      id: {
+        type: 'string',
+        description: 'Issue link ID',
+      },
+      linkType: {
+        name: {
+          type: 'string',
+          description: 'Link type name (e.g., Blocks, Duplicate)',
+        },
+        inward: {
+          type: 'string',
+          description: 'Inward link description (e.g., "is blocked by")',
+        },
+        outward: {
+          type: 'string',
+          description: 'Outward link description (e.g., "blocks")',
+        },
+      },
+      sourceIssueId: {
+        type: 'string',
+        description: 'Source issue ID',
+      },
+      destinationIssueId: {
+        type: 'string',
+        description: 'Destination issue ID',
+      },
+    },
+  }
+}
+
 export function isJiraEventMatch(
   triggerId: string,
   webhookEvent: string,
@@ -391,9 +663,32 @@ export function isJiraEventMatch(
     jira_issue_updated: ['jira:issue_updated', 'issue_updated', 'issue_generic'],
     jira_issue_deleted: ['jira:issue_deleted', 'issue_deleted'],
     jira_issue_commented: ['comment_created'],
+    jira_comment_updated: ['comment_updated'],
+    jira_comment_deleted: ['comment_deleted'],
     jira_worklog_created: ['worklog_created'],
     jira_worklog_updated: ['worklog_updated'],
     jira_worklog_deleted: ['worklog_deleted'],
+    jira_sprint_created: ['sprint_created'],
+    jira_sprint_started: ['sprint_started'],
+    jira_sprint_closed: ['sprint_closed'],
+    jira_sprint_updated: ['sprint_updated'],
+    jira_sprint_deleted: ['sprint_deleted'],
+    jira_project_created: ['project_created'],
+    jira_project_updated: ['project_updated'],
+    jira_project_deleted: ['project_deleted'],
+    jira_version_created: ['jira:version_created'],
+    jira_version_released: ['jira:version_released'],
+    jira_version_unreleased: ['jira:version_unreleased'],
+    jira_version_updated: ['jira:version_updated'],
+    jira_version_deleted: ['jira:version_deleted'],
+    jira_board_created: ['board_created'],
+    jira_board_updated: ['board_updated'],
+    jira_board_deleted: ['board_deleted'],
+    jira_board_config_changed: ['board_configuration_changed'],
+    jira_attachment_created: ['attachment_created'],
+    jira_attachment_deleted: ['attachment_deleted'],
+    jira_issuelink_created: ['issuelink_created'],
+    jira_issuelink_deleted: ['issuelink_deleted'],
     // Generic webhook accepts all events
     jira_webhook: ['*'],
   }
@@ -434,11 +729,63 @@ export function extractCommentData(body: any) {
   }
 }
 
+export function extractAttachmentData(body: any) {
+  const attachment = body.attachment || {}
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    issue: body.issue || {},
+    attachment,
+    hasAttachments: Boolean(attachment.content),
+    attachments: [] as Array<{ name: string; data: string; mimeType: string; size: number }>,
+  }
+}
+
 export function extractWorklogData(body: any) {
   return {
     webhookEvent: body.webhookEvent,
     timestamp: body.timestamp,
     issue: body.issue || {},
     worklog: body.worklog || {},
+  }
+}
+
+export function extractSprintData(body: any) {
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    sprint: body.sprint || {},
+  }
+}
+
+export function extractProjectData(body: any) {
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    project: body.project || {},
+  }
+}
+
+export function extractVersionData(body: any) {
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    version: body.version || {},
+  }
+}
+
+export function extractBoardData(body: any) {
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    board: body.board || {},
+  }
+}
+
+export function extractIssueLinkData(body: any) {
+  return {
+    webhookEvent: body.webhookEvent,
+    timestamp: body.timestamp,
+    issueLink: body.issueLink || {},
   }
 }

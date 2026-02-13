@@ -27,9 +27,11 @@ import {
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { isConfluenceEventMatch } from '@/triggers/confluence/utils'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
 import { isJiraEventMatch } from '@/triggers/jira/utils'
+import { isJsmEventMatch } from '@/triggers/jsm/utils'
 
 const logger = createLogger('WebhookProcessor')
 
@@ -681,7 +683,7 @@ export async function verifyProviderAuth(
     }
   }
 
-  if (foundWebhook.provider === 'jira') {
+  if (foundWebhook.provider === 'jira' || foundWebhook.provider === 'jira_service_management') {
     const secret = providerConfig.secret as string | undefined
 
     if (secret) {
@@ -703,6 +705,31 @@ export async function verifyProviderAuth(
       }
 
       logger.debug(`[${requestId}] Jira signature verified successfully`)
+    }
+  }
+
+  if (foundWebhook.provider === 'confluence') {
+    const secret = providerConfig.secret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('X-Hub-Signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Confluence webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Confluence signature', { status: 401 })
+      }
+
+      const isValidSignature = validateJiraSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Confluence signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Confluence signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Confluence signature verified successfully`)
     }
   }
 
@@ -922,6 +949,60 @@ export async function queueWebhookExecution(
           )
 
           // Return 200 OK to prevent Jira from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+      }
+    }
+
+    // JSM event filtering for event-specific triggers
+    if (foundWebhook.provider === 'jira_service_management') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'jsm_webhook') {
+        const webhookEvent = body.webhookEvent as string | undefined
+
+        if (!isJsmEventMatch(triggerId, webhookEvent || '', body)) {
+          logger.debug(
+            `[${options.requestId}] JSM event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: webhookEvent,
+            }
+          )
+
+          // Return 200 OK to prevent Jira from retrying
+          return NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          })
+        }
+      }
+    }
+
+    // Confluence event filtering for event-specific triggers
+    if (foundWebhook.provider === 'confluence') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'confluence_webhook') {
+        const event = body.event as string | undefined
+
+        if (!isConfluenceEventMatch(triggerId, event || '')) {
+          logger.debug(
+            `[${options.requestId}] Confluence event mismatch for trigger ${triggerId}. Event: ${event}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: event,
+            }
+          )
+
+          // Return 200 OK to prevent Confluence from retrying
           return NextResponse.json({
             message: 'Event type does not match trigger configuration. Ignoring.',
           })

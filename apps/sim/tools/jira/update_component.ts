@@ -1,0 +1,170 @@
+import type { JiraUpdateComponentParams, JiraUpdateComponentResponse } from '@/tools/jira/types'
+import {
+  COMPONENT_DETAIL_ITEM_PROPERTIES,
+  SUCCESS_OUTPUT,
+  TIMESTAMP_OUTPUT,
+} from '@/tools/jira/types'
+import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const jiraUpdateComponentTool: ToolConfig<
+  JiraUpdateComponentParams,
+  JiraUpdateComponentResponse
+> = {
+  id: 'jira_update_component',
+  name: 'Jira Update Component',
+  description: 'Update an existing component in a Jira project',
+  version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'jira',
+  },
+
+  params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token for Jira',
+    },
+    domain: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
+    },
+    componentId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Component ID to update',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'New component name',
+    },
+    description: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'New component description',
+    },
+    leadAccountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Account ID of the new component lead',
+    },
+    assigneeType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Default assignee type: PROJECT_DEFAULT, COMPONENT_LEAD, PROJECT_LEAD, or UNASSIGNED',
+    },
+    cloudId: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+    },
+  },
+
+  request: {
+    url: (params: JiraUpdateComponentParams) => {
+      if (params.cloudId) {
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/component/${params.componentId.trim()}`
+      }
+      return 'https://api.atlassian.com/oauth/token/accessible-resources'
+    },
+    method: (params: JiraUpdateComponentParams) => (params.cloudId ? 'PUT' : 'GET'),
+    headers: (params: JiraUpdateComponentParams) => ({
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
+    body: (params: JiraUpdateComponentParams) => {
+      if (!params.cloudId) return undefined as any
+      const body: Record<string, unknown> = {}
+      if (params.name !== undefined) body.name = params.name
+      if (params.description !== undefined) body.description = params.description
+      if (params.leadAccountId !== undefined) body.leadAccountId = params.leadAccountId.trim()
+      if (params.assigneeType !== undefined) body.assigneeType = params.assigneeType
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response, params?: JiraUpdateComponentParams) => {
+    const updateComponent = async (cloudId: string) => {
+      const body: Record<string, unknown> = {}
+      if (params?.name !== undefined) body.name = params.name
+      if (params?.description !== undefined) body.description = params.description
+      if (params?.leadAccountId !== undefined) body.leadAccountId = params.leadAccountId.trim()
+      if (params?.assigneeType !== undefined) body.assigneeType = params.assigneeType
+
+      const res = await fetch(
+        `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/component/${params!.componentId.trim()}`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${params!.accessToken}`,
+          },
+          body: JSON.stringify(body),
+        }
+      )
+      if (!res.ok) {
+        let message = `Failed to update component (${res.status})`
+        try {
+          const err = await res.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
+      }
+      return res.json()
+    }
+
+    let data: any
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await updateComponent(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to update component (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
+      }
+      data = await response.json()
+    }
+
+    return {
+      success: true,
+      output: {
+        ts: new Date().toISOString(),
+        id: data.id ?? '',
+        name: data.name ?? '',
+        description: data.description ?? null,
+        lead: transformUser(data.lead),
+        assigneeType: data.assigneeType ?? null,
+        project: data.project ?? null,
+        projectId: data.projectId ?? null,
+        self: data.self ?? '',
+        success: true,
+      },
+    }
+  },
+
+  outputs: {
+    ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
+    ...COMPONENT_DETAIL_ITEM_PROPERTIES,
+  },
+}

@@ -455,6 +455,144 @@ export const TRANSITION_ITEM_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Board object properties from Jira Agile REST API.
+ * Based on GET /rest/agile/1.0/board response.
+ */
+export const BOARD_ITEM_PROPERTIES = {
+  id: { type: 'number', description: 'Board ID' },
+  name: { type: 'string', description: 'Board name' },
+  type: { type: 'string', description: 'Board type (scrum, kanban, simple)' },
+  self: { type: 'string', description: 'REST API URL for this board' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Sprint object properties from Jira Agile REST API.
+ * Based on GET /rest/agile/1.0/sprint response.
+ */
+export const SPRINT_ITEM_PROPERTIES = {
+  id: { type: 'number', description: 'Sprint ID' },
+  name: { type: 'string', description: 'Sprint name' },
+  state: { type: 'string', description: 'Sprint state (active, closed, future)' },
+  startDate: { type: 'string', description: 'Sprint start date (ISO 8601)', optional: true },
+  endDate: { type: 'string', description: 'Sprint end date (ISO 8601)', optional: true },
+  completeDate: {
+    type: 'string',
+    description: 'Sprint completion date (ISO 8601)',
+    optional: true,
+  },
+  goal: { type: 'string', description: 'Sprint goal', optional: true },
+  boardId: { type: 'number', description: 'Board ID the sprint belongs to', optional: true },
+  self: { type: 'string', description: 'REST API URL for this sprint' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Detailed project properties for project list/get endpoints.
+ * Based on GET /rest/api/3/project/search and GET /rest/api/3/project/{id} response.
+ */
+export const PROJECT_DETAIL_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Project ID' },
+  key: { type: 'string', description: 'Project key (e.g., PROJ)' },
+  name: { type: 'string', description: 'Project name' },
+  description: { type: 'string', description: 'Project description', optional: true },
+  projectTypeKey: {
+    type: 'string',
+    description: 'Project type key (e.g., software, business)',
+    optional: true,
+  },
+  style: { type: 'string', description: 'Project style (classic, next-gen)', optional: true },
+  simplified: {
+    type: 'boolean',
+    description: 'Whether the project is simplified (team-managed)',
+    optional: true,
+  },
+  self: { type: 'string', description: 'REST API URL for this project' },
+  url: { type: 'string', description: 'URL to the project in Jira', optional: true },
+  lead: {
+    type: 'object',
+    description: 'Project lead',
+    properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  avatarUrl: { type: 'string', description: 'Project avatar URL', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Detailed component properties for component CRUD endpoints.
+ * Based on GET /rest/api/3/component/{id} response.
+ */
+export const COMPONENT_DETAIL_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Component ID' },
+  name: { type: 'string', description: 'Component name' },
+  description: { type: 'string', description: 'Component description', optional: true },
+  lead: {
+    type: 'object',
+    description: 'Component lead',
+    properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  assigneeType: {
+    type: 'string',
+    description:
+      'Default assignee type (PROJECT_DEFAULT, COMPONENT_LEAD, PROJECT_LEAD, UNASSIGNED)',
+    optional: true,
+  },
+  project: { type: 'string', description: 'Project key', optional: true },
+  projectId: { type: 'number', description: 'Project ID', optional: true },
+  self: { type: 'string', description: 'REST API URL for this component' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Detailed version properties for version CRUD endpoints.
+ * Based on GET /rest/api/3/version/{id} response.
+ */
+export const VERSION_DETAIL_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Version ID' },
+  name: { type: 'string', description: 'Version name' },
+  description: { type: 'string', description: 'Version description', optional: true },
+  released: { type: 'boolean', description: 'Whether the version is released' },
+  archived: { type: 'boolean', description: 'Whether the version is archived' },
+  startDate: { type: 'string', description: 'Start date (YYYY-MM-DD)', optional: true },
+  releaseDate: { type: 'string', description: 'Release date (YYYY-MM-DD)', optional: true },
+  overdue: { type: 'boolean', description: 'Whether the version is overdue', optional: true },
+  projectId: { type: 'number', description: 'Project ID' },
+  self: { type: 'string', description: 'REST API URL for this version' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Changelog item properties from Jira API v3.
+ * Based on GET /rest/api/3/issue/{issueIdOrKey}/changelog response.
+ */
+export const CHANGELOG_ITEM_PROPERTIES = {
+  id: { type: 'string', description: 'Changelog entry ID' },
+  author: {
+    type: 'object',
+    description: 'Author of the change',
+    properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  created: { type: 'string', description: 'ISO 8601 timestamp of the change' },
+  items: {
+    type: 'array',
+    description: 'Changed fields',
+    items: {
+      type: 'object',
+      properties: {
+        field: { type: 'string', description: 'Field name that changed' },
+        fieldtype: { type: 'string', description: 'Field type' },
+        from: { type: 'string', description: 'Previous value ID', optional: true },
+        fromString: {
+          type: 'string',
+          description: 'Previous value display string',
+          optional: true,
+        },
+        to: { type: 'string', description: 'New value ID', optional: true },
+        toString: { type: 'string', description: 'New value display string', optional: true },
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Full issue item properties for retrieve/search outputs.
  * Based on IssueBean structure from Jira API v3.
  */
@@ -1569,6 +1707,838 @@ export interface JiraGetUsersResponse extends ToolResponse {
   }
 }
 
+export interface JiraListProjectsParams {
+  accessToken: string
+  domain: string
+  query?: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraListProjectsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    startAt: number
+    maxResults: number
+    isLast: boolean
+    projects: Array<{
+      id: string
+      key: string
+      name: string
+      description: string | null
+      projectTypeKey: string | null
+      style: string | null
+      simplified: boolean | null
+      self: string
+      url: string | null
+      lead: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      avatarUrl: string | null
+    }>
+  }
+}
+
+export interface JiraGetProjectParams {
+  accessToken: string
+  domain: string
+  projectKeyOrId: string
+  cloudId?: string
+}
+
+export interface JiraGetProjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    key: string
+    name: string
+    description: string | null
+    projectTypeKey: string | null
+    style: string | null
+    simplified: boolean | null
+    self: string
+    url: string | null
+    lead: {
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    } | null
+    avatarUrl: string | null
+  }
+}
+
+export interface JiraListBoardsParams {
+  accessToken: string
+  domain: string
+  projectKeyOrId?: string
+  type?: string
+  name?: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraListBoardsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    startAt: number
+    maxResults: number
+    isLast: boolean
+    boards: Array<{
+      id: number
+      name: string
+      type: string
+      self: string
+    }>
+  }
+}
+
+export interface JiraGetBoardSprintsParams {
+  accessToken: string
+  domain: string
+  boardId: number
+  state?: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraGetBoardSprintsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    startAt: number
+    maxResults: number
+    isLast: boolean
+    sprints: Array<{
+      id: number
+      name: string
+      state: string
+      startDate: string | null
+      endDate: string | null
+      completeDate: string | null
+      goal: string | null
+      boardId: number | null
+      self: string
+    }>
+  }
+}
+
+export interface JiraGetSprintParams {
+  accessToken: string
+  domain: string
+  sprintId: number
+  cloudId?: string
+}
+
+export interface JiraGetSprintResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: number
+    name: string
+    state: string
+    startDate: string | null
+    endDate: string | null
+    completeDate: string | null
+    goal: string | null
+    boardId: number | null
+    self: string
+  }
+}
+
+export interface JiraCreateSprintParams {
+  accessToken: string
+  domain: string
+  name: string
+  boardId: number
+  goal?: string
+  startDate?: string
+  endDate?: string
+  cloudId?: string
+}
+
+export interface JiraCreateSprintResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: number
+    name: string
+    state: string
+    startDate: string | null
+    endDate: string | null
+    completeDate: string | null
+    goal: string | null
+    boardId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraUpdateSprintParams {
+  accessToken: string
+  domain: string
+  sprintId: number
+  name?: string
+  goal?: string
+  state?: string
+  startDate?: string
+  endDate?: string
+  completeDate?: string
+  cloudId?: string
+}
+
+export interface JiraUpdateSprintResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: number
+    name: string
+    state: string
+    startDate: string | null
+    endDate: string | null
+    completeDate: string | null
+    goal: string | null
+    boardId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraDeleteSprintParams {
+  accessToken: string
+  domain: string
+  sprintId: number
+  cloudId?: string
+}
+
+export interface JiraDeleteSprintResponse extends ToolResponse {
+  output: {
+    ts: string
+    sprintId: number
+    success: boolean
+  }
+}
+
+export interface JiraGetSprintIssuesParams {
+  accessToken: string
+  domain: string
+  sprintId: number
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraGetSprintIssuesResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    startAt: number
+    maxResults: number
+    issues: Array<{
+      id: string
+      key: string
+      self: string
+      summary: string
+      description: string | null
+      status: {
+        id: string
+        name: string
+        description?: string
+        statusCategory?: { id: number; key: string; name: string; colorName: string }
+      }
+      statusName: string
+      issuetype: {
+        id: string
+        name: string
+        description?: string
+        subtask: boolean
+        iconUrl?: string
+      }
+      project: { id: string; key: string; name: string; projectTypeKey?: string }
+      priority: { id: string; name: string; iconUrl?: string } | null
+      assignee: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      assigneeName: string | null
+      reporter: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      labels: string[]
+      components: Array<{ id: string; name: string; description?: string }>
+      resolution: { id: string; name: string; description?: string } | null
+      duedate: string | null
+      created: string
+      updated: string
+    }>
+  }
+}
+
+export interface JiraMoveIssuesToSprintParams {
+  accessToken: string
+  domain: string
+  sprintId: number
+  issueKeys: string[]
+  cloudId?: string
+}
+
+export interface JiraMoveIssuesToSprintResponse extends ToolResponse {
+  output: {
+    ts: string
+    sprintId: number
+    issueKeys: string[]
+    issueCount: number
+    success: boolean
+  }
+}
+
+export interface JiraMoveToBacklogParams {
+  accessToken: string
+  domain: string
+  issueKeys: string[]
+  cloudId?: string
+}
+
+export interface JiraMoveToBacklogResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKeys: string[]
+    issueCount: number
+    success: boolean
+  }
+}
+
+export interface JiraGetIssueTypesParams {
+  accessToken: string
+  domain: string
+  projectId?: string
+  cloudId?: string
+}
+
+export interface JiraGetIssueTypesResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    issueTypes: Array<{
+      id: string
+      name: string
+      description: string | null
+      subtask: boolean
+      iconUrl: string | null
+    }>
+  }
+}
+
+export interface JiraGetPrioritiesParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetPrioritiesResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    priorities: Array<{
+      id: string
+      name: string
+      iconUrl: string | null
+    }>
+  }
+}
+
+export interface JiraGetStatusesParams {
+  accessToken: string
+  domain: string
+  projectId?: string
+  cloudId?: string
+}
+
+export interface JiraGetStatusesResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    statuses: Array<{
+      id: string
+      name: string
+      description: string | null
+      statusCategory: {
+        id: number
+        key: string
+        name: string
+        colorName: string
+      } | null
+    }>
+  }
+}
+
+export interface JiraGetLabelsParams {
+  accessToken: string
+  domain: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraGetLabelsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    maxResults: number
+    isLast: boolean
+    labels: string[]
+  }
+}
+
+export interface JiraGetWatchersParams {
+  accessToken: string
+  domain: string
+  issueKey: string
+  cloudId?: string
+}
+
+export interface JiraGetWatchersResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKey: string
+    watchCount: number
+    isWatching: boolean
+    watchers: Array<{
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    }>
+  }
+}
+
+export interface JiraSearchUsersParams {
+  accessToken: string
+  domain: string
+  query?: string
+  projectKey?: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraSearchUsersResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    users: Array<{
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    }>
+  }
+}
+
+export interface JiraGetTransitionsParams {
+  accessToken: string
+  domain: string
+  issueKey: string
+  cloudId?: string
+}
+
+export interface JiraGetTransitionsResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKey: string
+    total: number
+    transitions: Array<{
+      id: string
+      name: string
+      hasScreen: boolean | null
+      isGlobal: boolean | null
+      isConditional: boolean | null
+      to: {
+        id: string
+        name: string
+        description?: string
+        statusCategory?: { id: number; key: string; name: string; colorName: string }
+      } | null
+    }>
+  }
+}
+
+export interface JiraGetChangelogParams {
+  accessToken: string
+  domain: string
+  issueKey: string
+  startAt?: number
+  maxResults?: number
+  cloudId?: string
+}
+
+export interface JiraGetChangelogResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKey: string
+    total: number
+    startAt: number
+    maxResults: number
+    changelog: Array<{
+      id: string
+      author: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      created: string
+      items: Array<{
+        field: string
+        fieldtype: string
+        from: string | null
+        fromString: string | null
+        to: string | null
+        toString: string | null
+      }>
+    }>
+  }
+}
+
+export interface JiraCreateComponentParams {
+  accessToken: string
+  domain: string
+  name: string
+  project: string
+  description?: string
+  leadAccountId?: string
+  assigneeType?: string
+  cloudId?: string
+}
+
+export interface JiraCreateComponentResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    name: string
+    description: string | null
+    lead: {
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    } | null
+    assigneeType: string | null
+    project: string | null
+    projectId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraUpdateComponentParams {
+  accessToken: string
+  domain: string
+  componentId: string
+  name?: string
+  description?: string
+  leadAccountId?: string
+  assigneeType?: string
+  cloudId?: string
+}
+
+export interface JiraUpdateComponentResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    name: string
+    description: string | null
+    lead: {
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    } | null
+    assigneeType: string | null
+    project: string | null
+    projectId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraDeleteComponentParams {
+  accessToken: string
+  domain: string
+  componentId: string
+  moveIssuesTo?: string
+  cloudId?: string
+}
+
+export interface JiraDeleteComponentResponse extends ToolResponse {
+  output: {
+    ts: string
+    componentId: string
+    success: boolean
+  }
+}
+
+export interface JiraCreateVersionParams {
+  accessToken: string
+  domain: string
+  name: string
+  projectId: string
+  description?: string
+  startDate?: string
+  releaseDate?: string
+  released?: boolean
+  archived?: boolean
+  cloudId?: string
+}
+
+export interface JiraCreateVersionResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    name: string
+    description: string | null
+    released: boolean
+    archived: boolean
+    startDate: string | null
+    releaseDate: string | null
+    overdue: boolean | null
+    projectId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraUpdateVersionParams {
+  accessToken: string
+  domain: string
+  versionId: string
+  name?: string
+  description?: string
+  startDate?: string
+  releaseDate?: string
+  released?: boolean
+  archived?: boolean
+  cloudId?: string
+}
+
+export interface JiraUpdateVersionResponse extends ToolResponse {
+  output: {
+    ts: string
+    id: string
+    name: string
+    description: string | null
+    released: boolean
+    archived: boolean
+    startDate: string | null
+    releaseDate: string | null
+    overdue: boolean | null
+    projectId: number | null
+    self: string
+    success: boolean
+  }
+}
+
+export interface JiraDeleteVersionParams {
+  accessToken: string
+  domain: string
+  versionId: string
+  moveFixIssuesTo?: string
+  moveAffectedIssuesTo?: string
+  cloudId?: string
+}
+
+export interface JiraDeleteVersionResponse extends ToolResponse {
+  output: {
+    ts: string
+    versionId: string
+    success: boolean
+  }
+}
+
+export interface JiraGetMyselfParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetMyselfResponse extends ToolResponse {
+  output: {
+    ts: string
+    accountId: string
+    displayName: string
+    active?: boolean
+    emailAddress?: string
+    avatarUrl?: string
+    accountType?: string
+    timeZone?: string
+    locale: string | null
+  }
+}
+
+export interface JiraGetFieldsParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetFieldsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    fields: Array<{
+      id: string
+      key: string
+      name: string
+      custom: boolean
+      orderable: boolean
+      navigable: boolean
+      searchable: boolean
+      clauseNames: string[]
+      schema: {
+        type: string
+        system: string | null
+        custom: string | null
+        customId: number | null
+      } | null
+    }>
+  }
+}
+
+export interface JiraGetLinkTypesParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetLinkTypesResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    linkTypes: Array<{
+      id: string
+      name: string
+      inward: string
+      outward: string
+      self: string
+    }>
+  }
+}
+
+export interface JiraGetResolutionsParams {
+  accessToken: string
+  domain: string
+  cloudId?: string
+}
+
+export interface JiraGetResolutionsResponse extends ToolResponse {
+  output: {
+    ts: string
+    total: number
+    resolutions: Array<{
+      id: string
+      name: string
+      description: string | null
+    }>
+  }
+}
+
+export interface JiraGetProjectComponentsParams {
+  accessToken: string
+  domain: string
+  projectKeyOrId: string
+  cloudId?: string
+}
+
+export interface JiraGetProjectComponentsResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectKeyOrId: string
+    total: number
+    components: Array<{
+      id: string
+      name: string
+      description: string | null
+      lead: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      assigneeType: string | null
+      project: string | null
+      projectId: number | null
+      self: string
+    }>
+  }
+}
+
+export interface JiraGetProjectVersionsParams {
+  accessToken: string
+  domain: string
+  projectKeyOrId: string
+  cloudId?: string
+}
+
+export interface JiraGetProjectVersionsResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectKeyOrId: string
+    total: number
+    versions: Array<{
+      id: string
+      name: string
+      description: string | null
+      released: boolean
+      archived: boolean
+      startDate: string | null
+      releaseDate: string | null
+      overdue: boolean | null
+      projectId: number | null
+      self: string
+    }>
+  }
+}
+
 export type JiraResponse =
   | JiraRetrieveResponse
   | JiraUpdateResponse
@@ -1594,3 +2564,34 @@ export type JiraResponse =
   | JiraAddWatcherResponse
   | JiraRemoveWatcherResponse
   | JiraGetUsersResponse
+  | JiraListProjectsResponse
+  | JiraGetProjectResponse
+  | JiraListBoardsResponse
+  | JiraGetBoardSprintsResponse
+  | JiraGetSprintResponse
+  | JiraCreateSprintResponse
+  | JiraUpdateSprintResponse
+  | JiraDeleteSprintResponse
+  | JiraGetSprintIssuesResponse
+  | JiraMoveIssuesToSprintResponse
+  | JiraMoveToBacklogResponse
+  | JiraGetIssueTypesResponse
+  | JiraGetPrioritiesResponse
+  | JiraGetStatusesResponse
+  | JiraGetLabelsResponse
+  | JiraGetWatchersResponse
+  | JiraSearchUsersResponse
+  | JiraGetTransitionsResponse
+  | JiraGetChangelogResponse
+  | JiraCreateComponentResponse
+  | JiraUpdateComponentResponse
+  | JiraDeleteComponentResponse
+  | JiraCreateVersionResponse
+  | JiraUpdateVersionResponse
+  | JiraDeleteVersionResponse
+  | JiraGetMyselfResponse
+  | JiraGetFieldsResponse
+  | JiraGetLinkTypesResponse
+  | JiraGetResolutionsResponse
+  | JiraGetProjectComponentsResponse
+  | JiraGetProjectVersionsResponse

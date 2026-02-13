@@ -1,3 +1,4 @@
+import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceUploadAttachmentParams {
@@ -123,7 +124,7 @@ export const confluenceUploadAttachmentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of upload' },
+    ts: TIMESTAMP_OUTPUT,
     attachmentId: { type: 'string', description: 'Uploaded attachment ID' },
     title: { type: 'string', description: 'Attachment file name' },
     fileSize: { type: 'number', description: 'File size in bytes' },
