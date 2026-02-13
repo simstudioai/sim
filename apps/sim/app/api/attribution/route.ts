@@ -207,6 +207,7 @@ export async function POST() {
     return NextResponse.json({
       attributed,
       bonusAmount: attributed ? bonusAmount : undefined,
+      reason: attributed ? undefined : 'already_attributed',
     })
   } catch (error) {
     logger.error('Attribution error', { error })

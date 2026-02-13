@@ -12,6 +12,7 @@ const TERMINAL_REASONS = new Set([
   'invalid_cookie',
   'no_utm_cookie',
   'no_matching_campaign',
+  'already_attributed',
 ])
 
 /**
