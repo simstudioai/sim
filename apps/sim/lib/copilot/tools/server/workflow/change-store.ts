@@ -46,6 +46,14 @@ class TTLStore<T> {
     return entry.value
   }
 
+  upsert(id: string, value: T): void {
+    this.gc()
+    this.data.set(id, {
+      value,
+      expiresAt: Date.now() + this.ttlMs,
+    })
+  }
+
   private gc(): void {
     const now = Date.now()
     for (const [key, entry] of this.data.entries()) {
@@ -154,6 +162,37 @@ export async function getContextPack(id: string): Promise<WorkflowContextPack | 
     logger.warn('Redis read failed for workflow context pack, using memory fallback', { error })
   }
   return contextPackStore.get(id)
+}
+
+export async function updateContextPack(
+  id: string,
+  patch: Partial<WorkflowContextPack>
+): Promise<WorkflowContextPack | null> {
+  const existing = await getContextPack(id)
+  if (!existing) return null
+  const merged: WorkflowContextPack = {
+    ...existing,
+    ...patch,
+    workflowState: patch.workflowState || existing.workflowState,
+    schemasByType: patch.schemasByType || existing.schemasByType,
+    schemaRefsByType: patch.schemaRefsByType || existing.schemaRefsByType,
+    summary: patch.summary || existing.summary,
+  }
+
+  if (!getRedisClient()) {
+    contextPackStore.upsert(id, merged)
+    return merged
+  }
+
+  try {
+    await writeRedisJson(getContextRedisKey(id), merged)
+    contextPackStore.upsert(id, merged)
+    return merged
+  } catch (error) {
+    logger.warn('Redis update failed for workflow context pack, using memory fallback', { error })
+    contextPackStore.upsert(id, merged)
+    return merged
+  }
 }
 
 export async function saveProposal(proposal: WorkflowChangeProposal): Promise<string> {

@@ -14,6 +14,10 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getBlock } from '@/blocks/registry'
 import { getTool } from '@/tools/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import { normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
+import { getBlockSchema } from '@/executor/utils/block-data'
+import { InvalidFieldError, type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
+import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   getContextPack,
   getProposal,
@@ -25,6 +29,7 @@ import { applyOperationsToWorkflowState } from './workflow-operations/engine'
 import { preValidateCredentialInputs, validateInputsForBlock } from './workflow-operations/validation'
 import { workflowVerifyServerTool } from './workflow-verify'
 import { hashWorkflowState, loadWorkflowStateFromDb } from './workflow-state'
+import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('WorkflowChangeServerTool')
 
@@ -116,7 +121,7 @@ const RemoveBlockMutationSchema = z
 const InsertIntoSubflowMutationSchema = z
   .object({
     action: z.literal('insert_into_subflow'),
-    target: TargetSchema,
+    target: TargetSchema.optional(),
     subflow: TargetSchema,
     type: z.string().optional(),
     name: z.string().optional(),
@@ -335,6 +340,10 @@ type ConnectionTarget = {
 type ConnectionState = Map<string, Map<string, ConnectionTarget[]>>
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const CONTAINER_INPUT_FIELDS: Record<string, string[]> = {
+  loop: ['loopType', 'iterations', 'collection', 'condition'],
+  parallel: ['parallelType', 'count', 'collection'],
+}
 
 function createDraftBlockId(_seed?: string): string {
   return crypto.randomUUID()
@@ -352,6 +361,215 @@ function deepClone<T>(value: T): T {
 
 function stableUnique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
+}
+
+function isContainerBlockType(blockType: string | null | undefined): boolean {
+  return blockType === 'loop' || blockType === 'parallel'
+}
+
+type ReferenceValidationContext = {
+  blockNameMapping: Record<string, string>
+  blockOutputSchemas: Record<string, OutputSchema>
+}
+
+function createSerializedBlockForReferenceValidation(
+  blockId: string,
+  block: Record<string, any>
+): SerializedBlock | null {
+  const blockType = typeof block.type === 'string' ? block.type : ''
+  if (!blockType) {
+    return null
+  }
+
+  const params = Object.fromEntries(
+    Object.entries(block.subBlocks || {}).map(([subBlockId, subBlock]) => [
+      subBlockId,
+      (subBlock as { value?: unknown })?.value,
+    ])
+  )
+
+  return {
+    id: blockId,
+    position: { x: 0, y: 0 },
+    config: {
+      tool: blockType,
+      params,
+    },
+    inputs: {},
+    outputs: {},
+    metadata: {
+      id: blockType,
+      name: typeof block.name === 'string' ? block.name : blockId,
+    },
+    enabled: typeof block.enabled === 'boolean' ? block.enabled : true,
+  }
+}
+
+function buildReferenceValidationContext(workflowState: {
+  blocks: Record<string, any>
+}): ReferenceValidationContext {
+  const blockNameMapping: Record<string, string> = {}
+  const blockOutputSchemas: Record<string, OutputSchema> = {}
+
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const serializedBlock = createSerializedBlockForReferenceValidation(
+      blockId,
+      block as Record<string, any>
+    )
+    if (!serializedBlock) {
+      continue
+    }
+
+    blockNameMapping[normalizeName(blockId)] = blockId
+    const blockName = String((block as Record<string, unknown>).name || '').trim()
+    if (blockName) {
+      blockNameMapping[normalizeName(blockName)] = blockId
+    }
+
+    const schema = getBlockSchema(serializedBlock)
+    if (schema && Object.keys(schema).length > 0) {
+      blockOutputSchemas[blockId] = schema
+    }
+  }
+
+  return {
+    blockNameMapping,
+    blockOutputSchemas,
+  }
+}
+
+function extractLikelyReferences(value: string): string[] {
+  const references = new Set<string>()
+  replaceValidReferences(value, (match) => {
+    references.add(match.trim())
+    return match
+  })
+  return [...references]
+}
+
+function validateReference(
+  reference: string,
+  context: ReferenceValidationContext
+): string | null {
+  const trimmed = reference.trim()
+  const parts = parseReferencePath(trimmed)
+  if (parts.length === 0) {
+    return null
+  }
+
+  const [head, ...pathParts] = parts
+  if (!head) {
+    return null
+  }
+
+  // Keep variable/loop/parallel references warning-free at compile time because
+  // they can be context-dependent and <...> may also be used for non-variable text.
+  if (
+    head === REFERENCE.PREFIX.VARIABLE ||
+    head === REFERENCE.PREFIX.LOOP ||
+    head === REFERENCE.PREFIX.PARALLEL
+  ) {
+    return null
+  }
+
+  try {
+    const result = resolveBlockReference(head, pathParts, {
+      blockNameMapping: context.blockNameMapping,
+      blockData: {},
+      blockOutputSchemas: context.blockOutputSchemas,
+    })
+    if (!result) {
+      return `reference "${trimmed}" points to unknown block "${head}"`
+    }
+    return null
+  } catch (error) {
+    if (error instanceof InvalidFieldError) {
+      return (
+        `reference "${trimmed}" has invalid field path "${error.fieldPath}" ` +
+        `for block "${error.blockName}". ` +
+        `Available fields: ${error.availableFields.length > 0 ? error.availableFields.join(', ') : 'none'}`
+      )
+    }
+    return `reference "${trimmed}" could not be validated`
+  }
+}
+
+function collectReferenceWarningsForValue(params: {
+  value: unknown
+  location: string
+  context: ReferenceValidationContext
+  sink: Set<string>
+}): void {
+  const { value, location, context, sink } = params
+  if (typeof value === 'string') {
+    const references = extractLikelyReferences(value)
+    for (const reference of references) {
+      const warning = validateReference(reference, context)
+      if (warning) {
+        sink.add(`${location}: ${warning}`)
+      }
+    }
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      collectReferenceWarningsForValue({
+        value: item,
+        location: `${location}[${index}]`,
+        context,
+        sink,
+      })
+    })
+    return
+  }
+
+  if (value && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      collectReferenceWarningsForValue({
+        value: child,
+        location: `${location}.${key}`,
+        context,
+        sink,
+      })
+    }
+  }
+}
+
+function collectReferenceWarningsForChangeSpec(params: {
+  changeSpec: ChangeSpec
+  workflowState: { blocks: Record<string, any> }
+}): string[] {
+  const { changeSpec, workflowState } = params
+  const context = buildReferenceValidationContext(workflowState)
+  const warnings = new Set<string>()
+
+  for (const [mutationIndex, mutation] of (changeSpec.mutations || []).entries()) {
+    if (mutation.action === 'ensure_block' || mutation.action === 'insert_into_subflow') {
+      if (mutation.inputs) {
+        collectReferenceWarningsForValue({
+          value: mutation.inputs,
+          location: `mutations[${mutationIndex}].inputs`,
+          context,
+          sink: warnings,
+        })
+      }
+      continue
+    }
+
+    if (mutation.action === 'patch_block') {
+      for (const [changeIndex, change] of mutation.changes.entries()) {
+        collectReferenceWarningsForValue({
+          value: change.value,
+          location: `mutations[${mutationIndex}].changes[${changeIndex}].value`,
+          context,
+          sink: warnings,
+        })
+      }
+    }
+  }
+
+  return [...warnings]
 }
 
 function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): string[] {
@@ -633,8 +851,35 @@ function findMatchingBlockId(
   workflowState: { blocks: Record<string, any> },
   target: TargetRef
 ): string | null {
+  const normalizeToken = (value: string): string =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .trim()
+
   if (target.blockId && workflowState.blocks[target.blockId]) {
     return target.blockId
+  }
+
+  if (target.alias) {
+    const aliasNorm = normalizeToken(target.alias)
+    if (aliasNorm) {
+      const aliasMatches = Object.entries(workflowState.blocks || {}).filter(([blockId, block]) => {
+        const blockName = String((block as Record<string, unknown>).name || '')
+        const blockIdNorm = normalizeToken(blockId)
+        const blockNameNorm = normalizeToken(blockName)
+        return blockIdNorm === aliasNorm || blockNameNorm === aliasNorm
+      })
+      if (aliasMatches.length === 1) {
+        return aliasMatches[0][0]
+      }
+      if (aliasMatches.length > 1) {
+        throw new Error(
+          `ambiguous_target: alias "${target.alias}" resolved to ${aliasMatches.length} blocks ` +
+            `(${aliasMatches.map(([id]) => id).join(', ')})`
+        )
+      }
+    }
   }
 
   if (target.match) {
@@ -1009,6 +1254,9 @@ async function compileChangeSpec(params: {
     if (isSchemaLoaded(blockType)) {
       return true
     }
+    if (isContainerBlockType(blockType)) {
+      return true
+    }
     // Intelligence-first fallback: compiler can still validate against registry schema
     // even when context pack did not include that type.
     if (getBlock(blockType)) {
@@ -1298,12 +1546,16 @@ async function compileChangeSpec(params: {
         return
       }
       const blockConfig = getBlock(blockType)
-      if (!blockConfig) {
+      const knownInputIds = new Set(
+        blockConfig
+          ? (blockConfig.subBlocks || []).map((subBlock) => subBlock.id)
+          : CONTAINER_INPUT_FIELDS[blockType] || []
+      )
+      const allowsDynamicInputs = isContainerBlockType(blockType)
+      if (!blockConfig && !allowsDynamicInputs) {
         diagnostics.push(`patch_block on ${targetId} failed: unknown block type "${blockType}"`)
         return
       }
-      const knownInputIds = new Set((blockConfig.subBlocks || []).map((subBlock) => subBlock.id))
-      const allowsDynamicInputs = blockType === 'loop' || blockType === 'parallel'
       if (!allowsDynamicInputs && !knownInputIds.has(inputKey)) {
         const knownFields = [...knownInputIds].sort()
         const preview = knownFields.slice(0, 12).join(', ')
@@ -1581,23 +1833,30 @@ async function compileChangeSpec(params: {
         continue
       }
 
-      const targetId = resolveTarget(mutation.target, true)
-      if (!targetId) {
-        diagnostics.push('insert_into_subflow requires a resolvable target block')
+      const targetId = mutation.target ? resolveTarget(mutation.target, true) : null
+      if (mutation.target && !targetId) {
+        diagnostics.push(
+          'insert_into_subflow target could not be resolved. Use target.alias/target.match, ' +
+            'or omit target and provide type+name to create directly inside the subflow.'
+        )
         continue
       }
 
-      const existingBlock = workingState.blocks[targetId]
-      if (existingBlock) {
+      const existingBlock = targetId ? workingState.blocks[targetId] : undefined
+      if (targetId && existingBlock) {
+        const existingTargetId = targetId
         const existingType =
-          String(existingBlock.type || '') || plannedBlockTypes.get(targetId) || mutation.type || ''
+          String(existingBlock.type || '') ||
+          plannedBlockTypes.get(existingTargetId) ||
+          mutation.type ||
+          ''
         if (!existingType) {
-          diagnostics.push(`insert_into_subflow on ${targetId} failed: unknown block type`)
+          diagnostics.push(`insert_into_subflow on ${existingTargetId} failed: unknown block type`)
           continue
         }
         const existingName = String(mutation.name || existingBlock.name || '').trim()
         if (!existingName) {
-          diagnostics.push(`insert_into_subflow on ${targetId} failed: missing block name`)
+          diagnostics.push(`insert_into_subflow on ${existingTargetId} failed: missing block name`)
           continue
         }
 
@@ -1608,7 +1867,7 @@ async function compileChangeSpec(params: {
         }
         if (mutation.inputs) {
           const validatedInputs = normalizeInputsWithSchema(
-            targetId,
+            existingTargetId,
             existingType,
             mutation.inputs,
             'patch_block'
@@ -1623,21 +1882,22 @@ async function compileChangeSpec(params: {
 
         operations.push({
           operation_type: 'insert_into_subflow',
-          block_id: targetId,
+          block_id: existingTargetId,
           params: insertParams,
         })
-        workingState.blocks[targetId] = {
+        workingState.blocks[existingTargetId] = {
           ...existingBlock,
           data: { ...(existingBlock.data || {}), parentId: subflowId, extent: 'parent' },
         }
-        touchedBlocks.add(targetId)
+        touchedBlocks.add(existingTargetId)
         touchedBlocks.add(subflowId)
         continue
       }
 
       if (!mutation.type || !mutation.name) {
         diagnostics.push(
-          `insert_into_subflow for "${targetId}" requires type and name when creating a new child block`
+          `insert_into_subflow requires type and name when creating a new child block` +
+            (targetId ? ` (target: "${targetId}")` : '')
         )
         continue
       }
@@ -1655,7 +1915,7 @@ async function compileChangeSpec(params: {
       let normalizedInputs: Record<string, any> | undefined
       if (mutation.inputs) {
         const validatedInputs = normalizeInputsWithSchema(
-          targetId,
+          targetId || blockId,
           mutation.type,
           mutation.inputs,
           'ensure_block'
@@ -1700,7 +1960,9 @@ async function compileChangeSpec(params: {
         aliasMap.set(mutation.target.alias, blockId)
         recordResolved(mutation.target.alias, blockId)
       }
-      recordResolved(targetId, blockId)
+      if (targetId) {
+        recordResolved(targetId, blockId)
+      }
       continue
     }
 
@@ -1842,6 +2104,12 @@ async function compileChangeSpec(params: {
       },
     })
   }
+
+  const referenceWarnings = collectReferenceWarningsForChangeSpec({
+    changeSpec,
+    workflowState: workingState,
+  })
+  warnings.push(...referenceWarnings)
 
   return {
     operations,

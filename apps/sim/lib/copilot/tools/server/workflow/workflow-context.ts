@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
-import { getContextPack, saveContextPack } from './change-store'
+import { getBlock } from '@/blocks/registry'
+import { getContextPack, saveContextPack, updateContextPack } from './change-store'
 import {
   buildSchemasByType,
   getAllKnownBlockTypes,
@@ -30,6 +31,80 @@ const WorkflowContextExpandInputSchema = z.object({
 })
 
 type WorkflowContextExpandParams = z.infer<typeof WorkflowContextExpandInputSchema>
+
+const BLOCK_TYPE_ALIAS_MAP: Record<string, string> = {
+  start: 'start_trigger',
+  starttrigger: 'start_trigger',
+  starter: 'start_trigger',
+  trigger: 'start_trigger',
+  loop: 'loop',
+  parallel: 'parallel',
+  parallelai: 'parallel',
+  hitl: 'human_in_the_loop',
+  humanintheloop: 'human_in_the_loop',
+  routerv2: 'router_v2',
+}
+
+function normalizeToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function buildBlockTypeIndex(knownTypes: string[]): Map<string, string> {
+  const index = new Map<string, string>()
+  for (const blockType of knownTypes) {
+    const canonicalType = String(blockType || '').trim()
+    if (!canonicalType) continue
+
+    const normalizedType = normalizeToken(canonicalType)
+    if (normalizedType && !index.has(normalizedType)) {
+      index.set(normalizedType, canonicalType)
+    }
+
+    const blockConfig = getBlock(canonicalType)
+    const displayName = String(blockConfig?.name || '').trim()
+    const normalizedDisplayName = normalizeToken(displayName)
+    if (normalizedDisplayName && !index.has(normalizedDisplayName)) {
+      index.set(normalizedDisplayName, canonicalType)
+    }
+  }
+  return index
+}
+
+function resolveBlockTypes(
+  requestedBlockTypes: string[],
+  knownTypes: string[]
+): { resolved: string[]; unresolved: string[] } {
+  const index = buildBlockTypeIndex(knownTypes)
+  const resolved = new Set<string>()
+  const unresolved = new Set<string>()
+
+  for (const rawType of requestedBlockTypes) {
+    const normalized = normalizeToken(String(rawType || ''))
+    if (!normalized) continue
+
+    const aliasResolved = BLOCK_TYPE_ALIAS_MAP[normalized]
+    if (aliasResolved) {
+      resolved.add(aliasResolved)
+      continue
+    }
+
+    const direct = index.get(normalized)
+    if (direct) {
+      resolved.add(direct)
+      continue
+    }
+
+    unresolved.add(String(rawType))
+  }
+
+  return {
+    resolved: [...resolved],
+    unresolved: [...unresolved],
+  }
+}
 
 function parseSchemaRefToBlockType(schemaRef: string): string | null {
   if (!schemaRef) return null
@@ -68,20 +143,23 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
     const { workflowState } = await loadWorkflowStateFromDb(params.workflowId)
     const snapshotHash = hashWorkflowState(workflowState as unknown as Record<string, unknown>)
 
-    const blockTypesInWorkflow = Object.values(workflowState.blocks || {}).map((block: any) =>
+    const knownTypes = getAllKnownBlockTypes()
+    const blockTypesInWorkflowRaw = Object.values(workflowState.blocks || {}).map((block: any) =>
       String(block?.type || '')
     )
-    const requestedTypes = params.includeBlockTypes || []
+    const requestedTypesRaw = params.includeBlockTypes || []
+    const resolvedWorkflowTypes = resolveBlockTypes(blockTypesInWorkflowRaw, knownTypes).resolved
+    const resolvedRequestedTypes = resolveBlockTypes(requestedTypesRaw, knownTypes)
     const schemaMode =
       params.includeAllSchemas === true ? 'all' : (params.schemaMode || 'minimal')
     const candidateTypes =
       schemaMode === 'all'
-        ? getAllKnownBlockTypes()
+        ? knownTypes
         : schemaMode === 'workflow'
-          ? [...blockTypesInWorkflow, ...requestedTypes]
-          : [...requestedTypes]
+          ? [...resolvedWorkflowTypes, ...resolvedRequestedTypes.resolved]
+          : [...resolvedRequestedTypes.resolved]
     const { schemasByType, schemaRefsByType } = buildSchemasByType(candidateTypes)
-    const suggestedSchemaTypes = [...new Set(blockTypesInWorkflow.filter(Boolean))]
+    const suggestedSchemaTypes = [...new Set(resolvedWorkflowTypes.filter(Boolean))]
 
     const summary = summarizeWorkflowState(workflowState)
     const packId = await saveContextPack({
@@ -115,6 +193,8 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
       schemaRefsByType,
       availableBlockCatalog: buildAvailableBlockCatalog(schemaRefsByType),
       suggestedSchemaTypes,
+      unresolvedRequestedBlockTypes: resolvedRequestedTypes.unresolved,
+      knownBlockTypes: knownTypes,
       inScopeSchemas: schemasByType,
     }
   },
@@ -142,17 +222,38 @@ export const workflowContextExpandServerTool: BaseServerTool<WorkflowContextExpa
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
-    const requestedBlockTypes = new Set<string>()
+    const knownTypes = getAllKnownBlockTypes()
+    const requestedBlockTypesRaw = new Set<string>()
     for (const blockType of params.blockTypes || []) {
-      if (blockType) requestedBlockTypes.add(blockType)
+      if (blockType) requestedBlockTypesRaw.add(String(blockType))
     }
     for (const schemaRef of params.schemaRefs || []) {
       const blockType = parseSchemaRefToBlockType(schemaRef)
-      if (blockType) requestedBlockTypes.add(blockType)
+      if (blockType) requestedBlockTypesRaw.add(blockType)
     }
 
-    const typesToExpand = [...requestedBlockTypes]
+    const resolvedTypes = resolveBlockTypes([...requestedBlockTypesRaw], knownTypes)
+    const typesToExpand = resolvedTypes.resolved
     const { schemasByType, schemaRefsByType } = buildSchemasByType(typesToExpand)
+    const mergedSchemasByType = {
+      ...(contextPack.schemasByType || {}),
+      ...schemasByType,
+    }
+    const mergedSchemaRefsByType = {
+      ...(contextPack.schemaRefsByType || {}),
+      ...schemaRefsByType,
+    }
+    const updatedContextPack = await updateContextPack(params.contextPackId, {
+      schemasByType: mergedSchemasByType,
+      schemaRefsByType: mergedSchemaRefsByType,
+    })
+    const warnings =
+      resolvedTypes.unresolved.length > 0
+        ? [
+            `Unknown block type(s): ${resolvedTypes.unresolved.join(', ')}. ` +
+              'Use known block type IDs from knownBlockTypes.',
+          ]
+        : []
 
     return {
       success: true,
@@ -161,6 +262,11 @@ export const workflowContextExpandServerTool: BaseServerTool<WorkflowContextExpa
       snapshotHash: contextPack.snapshotHash,
       schemasByType,
       schemaRefsByType,
+      loadedSchemaTypes: Object.keys(updatedContextPack?.schemasByType || mergedSchemasByType).sort(),
+      resolvedBlockTypes: resolvedTypes.resolved,
+      unresolvedBlockTypes: resolvedTypes.unresolved,
+      knownBlockTypes: knownTypes,
+      warnings,
     }
   },
 }
