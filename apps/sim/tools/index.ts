@@ -103,6 +103,50 @@ async function injectHostedKeyIfNeeded(
 }
 
 /**
+ * Check if an error is a rate limit (throttling) error
+ */
+function isRateLimitError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const status = (error as { status?: number }).status
+    // 429 = Too Many Requests, 503 = Service Unavailable (sometimes used for rate limiting)
+    if (status === 429 || status === 503) return true
+  }
+  return false
+}
+
+/**
+ * Execute a function with exponential backoff retry for rate limiting errors.
+ * Only used for hosted key requests.
+ */
+async function executeWithRetry<T>(
+  fn: () => Promise<T>,
+  requestId: string,
+  toolId: string,
+  maxRetries = 3,
+  baseDelayMs = 1000
+): Promise<T> {
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (!isRateLimitError(error) || attempt === maxRetries) {
+        throw error
+      }
+
+      const delayMs = baseDelayMs * Math.pow(2, attempt)
+      logger.warn(`[${requestId}] Rate limited for ${toolId}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  throw lastError
+}
+
+/**
  * Calculate cost based on pricing model
  */
 function calculateToolCost(
@@ -569,7 +613,14 @@ export async function executeTool(
     }
 
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
-    const result = await executeToolRequest(toolId, tool, contextParams)
+    // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
+    const result = isUsingHostedKey
+      ? await executeWithRetry(
+          () => executeToolRequest(toolId, tool, contextParams),
+          requestId,
+          toolId
+        )
+      : await executeToolRequest(toolId, tool, contextParams)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
