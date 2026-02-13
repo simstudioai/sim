@@ -29,47 +29,61 @@ import {
   getToolAsync,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
+import { PlatformEvents } from '@/lib/core/telemetry'
 
 const logger = createLogger('Tools')
+
+/** Result from hosted key lookup */
+interface HostedKeyResult {
+  key: string
+  envVarName: string
+}
 
 /**
  * Get a hosted API key from environment variables
  * Supports rotation when multiple keys are configured
+ * Returns both the key and which env var it came from
  */
-function getHostedKeyFromEnv(envKeys: string[]): string | null {
-  const keys = envKeys
-    .map((key) => env[key as keyof typeof env])
-    .filter((value): value is string => Boolean(value))
+function getHostedKeyFromEnv(envKeys: string[]): HostedKeyResult | null {
+  const keysWithNames = envKeys
+    .map((envVarName) => ({ envVarName, key: env[envVarName as keyof typeof env] }))
+    .filter((item): item is { envVarName: string; key: string } => Boolean(item.key))
 
-  if (keys.length === 0) return null
+  if (keysWithNames.length === 0) return null
 
   // Round-robin rotation based on current minute
   const currentMinute = Math.floor(Date.now() / 60000)
-  const keyIndex = currentMinute % keys.length
+  const keyIndex = currentMinute % keysWithNames.length
 
-  return keys[keyIndex]
+  return keysWithNames[keyIndex]
+}
+
+/** Result from hosted key injection */
+interface HostedKeyInjectionResult {
+  isUsingHostedKey: boolean
+  envVarName?: string
 }
 
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
  * Checks BYOK workspace keys first, then falls back to hosted env keys.
- * Returns whether a hosted (billable) key was injected.
+ * Returns whether a hosted (billable) key was injected and which env var it came from.
  */
 async function injectHostedKeyIfNeeded(
   tool: ToolConfig,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string
-): Promise<boolean> {
-  if (!tool.hosting) return false
-  if (!isHosted) return false
+): Promise<HostedKeyInjectionResult> {
+  if (!tool.hosting) return { isUsingHostedKey: false }
+  if (!isHosted) return { isUsingHostedKey: false }
 
   const { envKeys, apiKeyParam, byokProviderId } = tool.hosting
   const userProvidedKey = params[apiKeyParam]
 
   if (userProvidedKey) {
     logger.debug(`[${requestId}] User provided API key for ${tool.id}, skipping hosted key`)
-    return false
+    return { isUsingHostedKey: false }
   }
 
   // Check BYOK workspace key first
@@ -82,7 +96,7 @@ async function injectHostedKeyIfNeeded(
       if (byokResult) {
         params[apiKeyParam] = byokResult.apiKey
         logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
-        return false // Don't bill - user's own key
+        return { isUsingHostedKey: false } // Don't bill - user's own key
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
@@ -91,15 +105,15 @@ async function injectHostedKeyIfNeeded(
   }
 
   // Fall back to hosted env key
-  const hostedKey = getHostedKeyFromEnv(envKeys)
-  if (!hostedKey) {
+  const hostedKeyResult = getHostedKeyFromEnv(envKeys)
+  if (!hostedKeyResult) {
     logger.debug(`[${requestId}] No hosted key available for ${tool.id}`)
-    return false
+    return { isUsingHostedKey: false }
   }
 
-  params[apiKeyParam] = hostedKey
-  logger.info(`[${requestId}] Using hosted key for ${tool.id}`)
-  return true // Bill the user
+  params[apiKeyParam] = hostedKeyResult.key
+  logger.info(`[${requestId}] Using hosted key for ${tool.id} (${hostedKeyResult.envVarName})`)
+  return { isUsingHostedKey: true, envVarName: hostedKeyResult.envVarName }
 }
 
 /**
@@ -114,17 +128,25 @@ function isRateLimitError(error: unknown): boolean {
   return false
 }
 
+/** Context for retry with throttle tracking */
+interface RetryContext {
+  requestId: string
+  toolId: string
+  envVarName: string
+  executionContext?: ExecutionContext
+}
+
 /**
  * Execute a function with exponential backoff retry for rate limiting errors.
- * Only used for hosted key requests.
+ * Only used for hosted key requests. Tracks throttling events via telemetry.
  */
 async function executeWithRetry<T>(
   fn: () => Promise<T>,
-  requestId: string,
-  toolId: string,
+  context: RetryContext,
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
+  const { requestId, toolId, envVarName, executionContext } = context
   let lastError: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -138,7 +160,20 @@ async function executeWithRetry<T>(
       }
 
       const delayMs = baseDelayMs * Math.pow(2, attempt)
-      logger.warn(`[${requestId}] Rate limited for ${toolId}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+
+      // Track throttling event via telemetry
+      PlatformEvents.hostedKeyThrottled({
+        toolId,
+        envVarName,
+        attempt: attempt + 1,
+        maxRetries,
+        delayMs,
+        userId: executionContext?.userId,
+        workspaceId: executionContext?.workspaceId,
+        workflowId: executionContext?.workflowId,
+      })
+
+      logger.warn(`[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
@@ -480,7 +515,7 @@ export async function executeTool(
     }
 
     // Inject hosted API key if tool supports it and user didn't provide one
-    const isUsingHostedKey = await injectHostedKeyIfNeeded(
+    const hostedKeyInfo = await injectHostedKeyIfNeeded(
       tool,
       contextParams,
       executionContext,
@@ -596,7 +631,7 @@ export async function executeTool(
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
       // Log usage for hosted key if execution was successful
-      if (isUsingHostedKey && finalResult.success) {
+      if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
         await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
       }
 
@@ -616,11 +651,15 @@ export async function executeTool(
 
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
-    const result = isUsingHostedKey
+    const result = hostedKeyInfo.isUsingHostedKey
       ? await executeWithRetry(
           () => executeToolRequest(toolId, tool, contextParams),
-          requestId,
-          toolId
+          {
+            requestId,
+            toolId,
+            envVarName: hostedKeyInfo.envVarName!,
+            executionContext,
+          }
         )
       : await executeToolRequest(toolId, tool, contextParams)
 
@@ -641,7 +680,7 @@ export async function executeTool(
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
     // Log usage for hosted key if execution was successful
-    if (isUsingHostedKey && finalResult.success) {
+    if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
       await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
     }
 
