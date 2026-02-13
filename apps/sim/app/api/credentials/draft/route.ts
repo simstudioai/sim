@@ -15,6 +15,7 @@ const createDraftSchema = z.object({
   providerId: z.string().min(1),
   displayName: z.string().min(1),
   description: z.string().trim().max(500).optional(),
+  credentialId: z.string().min(1).optional(),
 })
 
 export async function POST(request: Request) {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { workspaceId, providerId, displayName, description } = parsed.data
+    const { workspaceId, providerId, displayName, description, credentialId } = parsed.data
     const userId = session.user.id
     const now = new Date()
 
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
         providerId,
         displayName,
         description: description || null,
+        credentialId: credentialId || null,
         expiresAt: new Date(now.getTime() + DRAFT_TTL_MS),
         createdAt: now,
       })
@@ -61,12 +63,19 @@ export async function POST(request: Request) {
         set: {
           displayName,
           description: description || null,
+          credentialId: credentialId || null,
           expiresAt: new Date(now.getTime() + DRAFT_TTL_MS),
           createdAt: now,
         },
       })
 
-    logger.info('Credential draft saved', { userId, workspaceId, providerId, displayName })
+    logger.info('Credential draft saved', {
+      userId,
+      workspaceId,
+      providerId,
+      displayName,
+      credentialId: credentialId || null,
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

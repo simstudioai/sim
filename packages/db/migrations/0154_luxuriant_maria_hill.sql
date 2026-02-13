@@ -274,3 +274,5 @@ FROM "credential" c
 WHERE c.type = 'env_personal'::"credential_type"
 	AND c.env_owner_user_id IS NOT NULL
 ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+ALTER TABLE "pending_credential_draft" ADD COLUMN IF NOT EXISTS "credential_id" text REFERENCES "credential"("id") ON DELETE CASCADE;

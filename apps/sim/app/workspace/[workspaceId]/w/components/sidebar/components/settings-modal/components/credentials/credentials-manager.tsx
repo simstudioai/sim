@@ -2,7 +2,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Plus, Search, Share2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Plus, RefreshCw, Search, Share2, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -845,6 +845,52 @@ export function CredentialsManager() {
     }
   }
 
+  const handleReconnectOAuth = async () => {
+    if (
+      !selectedCredential ||
+      selectedCredential.type !== 'oauth' ||
+      !selectedCredential.providerId ||
+      !workspaceId
+    )
+      return
+
+    setDetailsError(null)
+
+    try {
+      await fetch('/api/credentials/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          providerId: selectedCredential.providerId,
+          displayName: selectedCredential.displayName,
+          description: selectedCredential.description || undefined,
+          credentialId: selectedCredential.id,
+        }),
+      })
+
+      window.sessionStorage.setItem(
+        'sim.oauth-connect-pending',
+        JSON.stringify({
+          displayName: selectedCredential.displayName,
+          providerId: selectedCredential.providerId,
+          preCount: credentials.filter((c) => c.type === 'oauth').length,
+          workspaceId,
+          reconnect: true,
+        })
+      )
+
+      await connectOAuthService.mutateAsync({
+        providerId: selectedCredential.providerId,
+        callbackURL: window.location.href,
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to start reconnect'
+      setDetailsError(message)
+      logger.error('Failed to reconnect OAuth credential', error)
+    }
+  }
+
   const handleAddMember = async () => {
     if (!selectedCredential || !memberUserId) return
     try {
@@ -983,6 +1029,20 @@ export function CredentialsManager() {
                     >
                       {isSavingDetails ? 'Saving...' : 'Save'}
                     </Button>
+                    {selectedCredential.type === 'oauth' && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handleReconnectOAuth}
+                            disabled={connectOAuthService.isPending}
+                          >
+                            <RefreshCw className='h-[14px] w-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>Reconnect account</Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
                     {selectedCredential.type === 'env_personal' && (
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>

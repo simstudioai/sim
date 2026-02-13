@@ -2109,6 +2109,7 @@ export const pendingCredentialDraft = pgTable(
     providerId: text('provider_id').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
+    credentialId: text('credential_id').references(() => credential.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

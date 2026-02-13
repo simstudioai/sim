@@ -55,6 +55,10 @@ import {
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  handleCreateCredentialFromDraft,
+  handleReconnectCredential,
+} from '@/lib/credentials/draft-hooks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -244,8 +248,10 @@ export const auth = betterAuth({
 
           /**
            * If a pending credential draft exists for this (userId, providerId),
-           * create the credential now with the user's chosen display name.
-           * This is deterministic — the account row is guaranteed to exist.
+           * either create a new credential or reconnect an existing one.
+           *
+           * - draft.credentialId is null: create a new credential (normal connect flow)
+           * - draft.credentialId is set: update existing credential's accountId (reconnect flow)
            */
           try {
             const [draft] = await db
@@ -261,52 +267,22 @@ export const auth = betterAuth({
               .limit(1)
 
             if (draft) {
-              const credentialId = crypto.randomUUID()
               const now = new Date()
 
-              try {
-                await db.insert(schema.credential).values({
-                  id: credentialId,
+              if (draft.credentialId) {
+                await handleReconnectCredential({
+                  draft,
+                  newAccountId: account.id,
                   workspaceId: draft.workspaceId,
-                  type: 'oauth',
-                  displayName: draft.displayName,
-                  description: draft.description ?? null,
-                  providerId: account.providerId,
-                  accountId: account.id,
-                  createdBy: account.userId,
-                  createdAt: now,
-                  updatedAt: now,
+                  now,
                 })
-
-                await db.insert(schema.credentialMember).values({
-                  id: crypto.randomUUID(),
-                  credentialId,
+              } else {
+                await handleCreateCredentialFromDraft({
+                  draft,
+                  accountId: account.id,
+                  providerId: account.providerId,
                   userId: account.userId,
-                  role: 'admin',
-                  status: 'active',
-                  joinedAt: now,
-                  invitedBy: account.userId,
-                  createdAt: now,
-                  updatedAt: now,
-                })
-
-                logger.info('[account.create.after] Created credential from draft', {
-                  credentialId,
-                  displayName: draft.displayName,
-                  providerId: account.providerId,
-                  accountId: account.id,
-                })
-              } catch (insertError: unknown) {
-                const code =
-                  insertError && typeof insertError === 'object' && 'code' in insertError
-                    ? (insertError as { code: string }).code
-                    : undefined
-                if (code !== '23505') {
-                  throw insertError
-                }
-                logger.info('[account.create.after] Credential already exists, skipping draft', {
-                  providerId: account.providerId,
-                  accountId: account.id,
+                  now,
                 })
               }
 
@@ -315,7 +291,7 @@ export const auth = betterAuth({
                 .where(eq(schema.pendingCredentialDraft.id, draft.id))
             }
           } catch (error) {
-            logger.error('[account.create.after] Failed to create credential from draft', {
+            logger.error('[account.create.after] Failed to process credential draft', {
               userId: account.userId,
               providerId: account.providerId,
               error,

@@ -268,11 +268,26 @@ const WorkflowContent = React.memo(() => {
           providerId,
           preCount,
           workspaceId: wsId,
+          reconnect,
         } = JSON.parse(pending) as {
           displayName: string
           providerId: string
           preCount: number
           workspaceId: string
+          reconnect?: boolean
+        }
+
+        if (reconnect) {
+          addNotification({
+            level: 'info',
+            message: `"${displayName}" reconnected successfully.`,
+          })
+          window.dispatchEvent(
+            new CustomEvent('oauth-credentials-updated', {
+              detail: { providerId, workspaceId: wsId },
+            })
+          )
+          return
         }
 
         const response = await fetch(
