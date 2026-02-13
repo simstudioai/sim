@@ -1,8 +1,12 @@
 import { getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 
+function hasHttpProtocol(url: string): boolean {
+  return /^https?:\/\//i.test(url)
+}
+
 function normalizeBaseUrl(url: string): string {
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (hasHttpProtocol(url)) {
     return url
   }
 
@@ -17,7 +21,7 @@ function normalizeBaseUrl(url: string): string {
  * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */
 export function getBaseUrl(): string {
-  const baseUrl = getEnv('NEXT_PUBLIC_APP_URL')
+  const baseUrl = getEnv('NEXT_PUBLIC_APP_URL')?.trim()
 
   if (!baseUrl) {
     throw new Error(
@@ -38,7 +42,13 @@ export function getInternalApiBaseUrl(): string {
     return getBaseUrl()
   }
 
-  return normalizeBaseUrl(internalBaseUrl)
+  if (!hasHttpProtocol(internalBaseUrl)) {
+    throw new Error(
+      'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:3000'
+    )
+  }
+
+  return internalBaseUrl
 }
 
 /**

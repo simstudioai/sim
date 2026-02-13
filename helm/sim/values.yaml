@@ -70,7 +70,7 @@ app:
     # Application URLs
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    INTERNAL_API_BASE_URL: ""  # Optional server-side internal base URL for /api self-calls; falls back to NEXT_PUBLIC_APP_URL when empty
+    INTERNAL_API_BASE_URL: ""  # Optional server-side internal base URL for /api self-calls (include http:// or https://); falls back to NEXT_PUBLIC_APP_URL when empty
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # Only set this if using an external WebSocket service with realtime.enabled=false
     NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"  # Public WebSocket URL for browsers

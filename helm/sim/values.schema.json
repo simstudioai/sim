@@ -130,7 +130,7 @@
                   "const": ""
                 }
               ],
-              "description": "Optional server-side internal base URL for internal /api self-calls; defaults to NEXT_PUBLIC_APP_URL when unset"
+              "description": "Optional server-side internal base URL for internal /api self-calls (must include http:// or https://); defaults to NEXT_PUBLIC_APP_URL when unset"
             },
             "BETTER_AUTH_URL": {
               "type": "string",
