@@ -1662,6 +1662,14 @@ import {
 } from '@/tools/telegram'
 import { textractParserTool, textractParserV2Tool } from '@/tools/textract'
 import { thinkingTool } from '@/tools/thinking'
+import {
+  tiktokDirectPostVideoTool,
+  tiktokGetPostStatusTool,
+  tiktokGetUserTool,
+  tiktokListVideosTool,
+  tiktokQueryCreatorInfoTool,
+  tiktokQueryVideosTool,
+} from '@/tools/tiktok'
 import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
   trelloAddCommentTool,
@@ -2810,6 +2818,12 @@ export const tools: Record<string, ToolConfig> = {
   telegram_send_photo: telegramSendPhotoTool,
   telegram_send_video: telegramSendVideoTool,
   telegram_send_document: telegramSendDocumentTool,
+  tiktok_get_user: tiktokGetUserTool,
+  tiktok_list_videos: tiktokListVideosTool,
+  tiktok_query_videos: tiktokQueryVideosTool,
+  tiktok_query_creator_info: tiktokQueryCreatorInfoTool,
+  tiktok_direct_post_video: tiktokDirectPostVideoTool,
+  tiktok_get_post_status: tiktokGetPostStatusTool,
   clay_populate: clayPopulateTool,
   clerk_list_users: clerkListUsersTool,
   clerk_get_user: clerkGetUserTool,
