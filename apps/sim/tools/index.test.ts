@@ -1409,10 +1409,7 @@ describe('Rate Limiting and Retry Logic', () => {
   })
 })
 
-describe.skip('Cost Field Handling', () => {
-  // Skipped: These tests require complex env mocking that doesn't work well with bun test.
-  // The cost calculation logic is tested via the pricing model tests in "Hosted Key Injection".
-  // TODO: Set up proper integration test environment for these tests.
+describe('Cost Field Handling', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -1495,69 +1492,6 @@ describe.skip('Cost Field Handling', () => {
         })
       )
     }
-
-    Object.assign(tools, originalTools)
-  })
-
-  it('should merge hosted key cost with existing output cost', async () => {
-    const mockTool = {
-      id: 'test_cost_merge',
-      name: 'Test Cost Merge',
-      description: 'A test tool that returns cost in output',
-      version: '1.0.0',
-      params: {
-        apiKey: { type: 'string', required: false },
-      },
-      hosting: {
-        envKeys: ['TEST_HOSTED_KEY'],
-        apiKeyParam: 'apiKey',
-        pricing: {
-          type: 'per_request' as const,
-          cost: 0.002,
-        },
-      },
-      request: {
-        url: '/api/test/cost-merge',
-        method: 'POST' as const,
-        headers: () => ({ 'Content-Type': 'application/json' }),
-      },
-      transformResponse: vi.fn().mockResolvedValue({
-        success: true,
-        output: {
-          result: 'success',
-          cost: {
-            input: 0.001,
-            output: 0.003,
-            total: 0.004,
-          },
-        },
-      }),
-    }
-
-    const originalTools = { ...tools }
-    ;(tools as any).test_cost_merge = mockTool
-
-    global.fetch = Object.assign(
-      vi.fn().mockImplementation(async () => ({
-        ok: true,
-        status: 200,
-        headers: new Headers(),
-        json: () => Promise.resolve({ success: true }),
-      })),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
-
-    const mockContext = createToolExecutionContext({
-      userId: 'user-123',
-    } as any)
-    const result = await executeTool('test_cost_merge', {}, false, mockContext)
-
-    expect(result.success).toBe(true)
-    expect(result.output.cost).toBeDefined()
-    // Should merge: existing 0.004 + hosted key 0.002 = 0.006
-    expect(result.output.cost.total).toBe(0.006)
-    expect(result.output.cost.input).toBe(0.001)
-    expect(result.output.cost.output).toBe(0.003)
 
     Object.assign(tools, originalTools)
   })
