@@ -21,7 +21,7 @@ import {
 } from './change-store'
 import { applyWorkflowOperations } from './workflow-operations/apply'
 import { applyOperationsToWorkflowState } from './workflow-operations/engine'
-import { preValidateCredentialInputs } from './workflow-operations/validation'
+import { preValidateCredentialInputs, validateInputsForBlock } from './workflow-operations/validation'
 import { workflowVerifyServerTool } from './workflow-verify'
 import { hashWorkflowState, loadWorkflowStateFromDb } from './workflow-state'
 
@@ -351,7 +351,8 @@ function normalizePostApply(postApply?: PostApply): NormalizedPostApply {
   const evaluator = postApply?.evaluator
 
   return {
-    verify: postApply?.verify !== false,
+    // Verification is mandatory for apply mode to keep mutation semantics deterministic.
+    verify: true,
     run: {
       enabled: run?.enabled === true,
       mode: run?.mode || 'full',
@@ -697,6 +698,10 @@ async function compileChangeSpec(params: {
   }
   userId: string
   workflowId: string
+  schemaContext: {
+    contextPackProvided: boolean
+    loadedSchemaTypes: Set<string>
+  }
 }): Promise<{
   operations: Array<Record<string, any>>
   warnings: string[]
@@ -704,7 +709,7 @@ async function compileChangeSpec(params: {
   touchedBlocks: string[]
   resolvedIds: Record<string, string>
 }> {
-  const { changeSpec, workflowState, userId, workflowId } = params
+  const { changeSpec, workflowState, userId, workflowId, schemaContext } = params
   const operations: Array<Record<string, any>> = []
   const diagnostics: string[] = []
   const warnings: string[] = []
@@ -716,6 +721,54 @@ async function compileChangeSpec(params: {
   const connectionState = buildConnectionState(workingState)
   const connectionTouchedSources = new Set<string>()
   const plannedBlockTypes = new Map<string, string>()
+
+  const isSchemaLoaded = (blockType: string | null): boolean =>
+    Boolean(blockType && schemaContext.loadedSchemaTypes.has(blockType))
+
+  const requireSchema = (
+    targetId: string,
+    blockType: string | null,
+    operationName: 'patch_block' | 'ensure_block'
+  ): boolean => {
+    if (!blockType) {
+      diagnostics.push(`${operationName} on ${targetId} failed: unknown block type`)
+      return false
+    }
+    if (isSchemaLoaded(blockType)) {
+      return true
+    }
+    if (schemaContext.contextPackProvided) {
+      diagnostics.push(
+        `${operationName} on ${targetId} requires schema for block type "${blockType}". ` +
+          `Call workflow_context_expand with blockTypes:["${blockType}"] and retry dry_run.`
+      )
+      return false
+    }
+    diagnostics.push(
+      `${operationName} on ${targetId} requires schema-loaded context. ` +
+        `Call workflow_context_get, then workflow_context_expand for "${blockType}", ` +
+        `then retry dry_run with contextPackId.`
+    )
+    return false
+  }
+
+  const normalizeInputsWithSchema = (
+    targetId: string,
+    blockType: string,
+    inputs: Record<string, any>,
+    operationName: 'patch_block' | 'ensure_block'
+  ): Record<string, any> => {
+    if (!requireSchema(targetId, blockType, operationName)) {
+      return {}
+    }
+    const validation = validateInputsForBlock(blockType, inputs, targetId)
+    for (const validationError of validation.errors) {
+      diagnostics.push(
+        `${operationName} on ${targetId} failed input validation: ${validationError.error}`
+      )
+    }
+    return validation.validInputs
+  }
 
   const recordResolved = (token: string | undefined, blockId: string | null | undefined): void => {
     if (!token || !blockId) return
@@ -800,6 +853,9 @@ async function compileChangeSpec(params: {
         diagnostics.push(`attach_credential on ${targetId} failed: unknown block type`)
         return
       }
+      if (!requireSchema(targetId, blockType, 'patch_block')) {
+        return
+      }
       const credentialFieldId = selectCredentialFieldId(blockType, provider)
       if (!credentialFieldId) {
         const msg = `No oauth input field found for block type "${blockType}" on ${targetId}`
@@ -836,6 +892,30 @@ async function compileChangeSpec(params: {
       const inputKey = pathSegments[1]
       if (!inputKey) {
         diagnostics.push(`${change.op} on ${targetId} has invalid input path "${change.path}"`)
+        return
+      }
+      if (!blockType) {
+        diagnostics.push(`patch_block on ${targetId} failed: unknown block type`)
+        return
+      }
+      if (!requireSchema(targetId, blockType, 'patch_block')) {
+        return
+      }
+      const blockConfig = getBlock(blockType)
+      if (!blockConfig) {
+        diagnostics.push(`patch_block on ${targetId} failed: unknown block type "${blockType}"`)
+        return
+      }
+      const knownInputIds = new Set((blockConfig.subBlocks || []).map((subBlock) => subBlock.id))
+      const allowsDynamicInputs = blockType === 'loop' || blockType === 'parallel'
+      if (!allowsDynamicInputs && !knownInputIds.has(inputKey)) {
+        const knownFields = [...knownInputIds].sort()
+        const preview = knownFields.slice(0, 12).join(', ')
+        const suffix = knownFields.length > 12 ? ', ...' : ''
+        diagnostics.push(
+          `Unknown input field "${inputKey}" for block type "${blockType}" on ${targetId} ` +
+            `at path "${change.path}".${preview ? ` Known fields: ${preview}${suffix}` : ''}`
+        )
         return
       }
 
@@ -931,7 +1011,24 @@ async function compileChangeSpec(params: {
         const editParams: Record<string, any> = {}
         if (mutation.name) editParams.name = mutation.name
         if (mutation.type) editParams.type = mutation.type
-        if (mutation.inputs) editParams.inputs = mutation.inputs
+        if (mutation.inputs) {
+          const targetBlockType =
+            String(
+              mutation.type ||
+                workingState.blocks[targetId]?.type ||
+                plannedBlockTypes.get(targetId) ||
+                ''
+            ) || ''
+          const validatedInputs = normalizeInputsWithSchema(
+            targetId,
+            targetBlockType,
+            mutation.inputs,
+            'ensure_block'
+          )
+          if (Object.keys(validatedInputs).length > 0) {
+            editParams.inputs = validatedInputs
+          }
+        }
         if (mutation.triggerMode !== undefined) editParams.triggerMode = mutation.triggerMode
         if (mutation.advancedMode !== undefined) editParams.advancedMode = mutation.advancedMode
         if (mutation.enabled !== undefined) editParams.enabled = mutation.enabled
@@ -955,7 +1052,19 @@ async function compileChangeSpec(params: {
           type: mutation.type,
           name: mutation.name,
         }
-        if (mutation.inputs) addParams.inputs = mutation.inputs
+        let normalizedInputs: Record<string, any> | undefined
+        if (mutation.inputs) {
+          const validatedInputs = normalizeInputsWithSchema(
+            targetId,
+            mutation.type,
+            mutation.inputs,
+            'ensure_block'
+          )
+          if (Object.keys(validatedInputs).length > 0) {
+            normalizedInputs = validatedInputs
+            addParams.inputs = validatedInputs
+          }
+        }
         if (mutation.triggerMode !== undefined) addParams.triggerMode = mutation.triggerMode
         if (mutation.advancedMode !== undefined) addParams.advancedMode = mutation.advancedMode
         if (mutation.enabled !== undefined) addParams.enabled = mutation.enabled
@@ -969,7 +1078,7 @@ async function compileChangeSpec(params: {
           type: mutation.type,
           name: mutation.name,
           subBlocks: Object.fromEntries(
-            Object.entries(mutation.inputs || {}).map(([key, value]) => [
+            Object.entries(normalizedInputs || {}).map(([key, value]) => [
               key,
               { id: key, value, type: 'short-input' },
             ])
@@ -996,7 +1105,10 @@ async function compileChangeSpec(params: {
     if (mutation.action === 'patch_block') {
       const targetId = resolveTarget(mutation.target)
       if (!targetId) {
-        diagnostics.push('patch_block target could not be resolved')
+        diagnostics.push(
+          'patch_block target could not be resolved. Use target.alias or target.match, ' +
+            'or refresh workflow_context_get after prior apply before retrying.'
+        )
         continue
       }
       const blockType =
@@ -1007,7 +1119,7 @@ async function compileChangeSpec(params: {
         applyPatchChange(targetId, blockType, change, editParams)
       }
       if (Object.keys(editParams).length === 0) {
-        warnings.push(`patch_block for ${targetId} had no effective changes`)
+        diagnostics.push(`patch_block for ${targetId} had no effective changes`)
         continue
       }
       operations.push({
@@ -1022,7 +1134,10 @@ async function compileChangeSpec(params: {
     if (mutation.action === 'remove_block') {
       const targetId = resolveTarget(mutation.target)
       if (!targetId) {
-        diagnostics.push('remove_block target could not be resolved')
+        diagnostics.push(
+          'remove_block target could not be resolved. Use target.alias or target.match, ' +
+            'or refresh workflow_context_get after prior apply before retrying.'
+        )
         continue
       }
       operations.push({
@@ -1046,7 +1161,10 @@ async function compileChangeSpec(params: {
       const from = resolveTarget(mutation.from)
       const to = resolveTarget(mutation.to)
       if (!from || !to) {
-        diagnostics.push(`${mutation.action} requires resolvable from/to targets`)
+        diagnostics.push(
+          `${mutation.action} requires resolvable from/to targets. Prefer alias/match selectors, ` +
+            'or refresh workflow_context_get after prior apply before retrying.'
+        )
         continue
       }
       const sourceHandle = normalizeHandle(mutation.handle)
@@ -1088,7 +1206,10 @@ async function compileChangeSpec(params: {
       true
     )
     if (!from || !to) {
-      diagnostics.push('link contains unresolved from/to target')
+      diagnostics.push(
+        'link contains unresolved from/to target. Prefer alias/match selectors, ' +
+          'or refresh workflow_context_get after prior apply before retrying.'
+      )
       continue
     }
 
@@ -1192,7 +1313,7 @@ async function validateAndSimulateOperations(params: {
     params.workflowState
   )
   for (const error of preValidationErrors) {
-    warnings.push(error.error)
+    diagnostics.push(error.error)
   }
 
   const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
@@ -1202,14 +1323,19 @@ async function validateAndSimulateOperations(params: {
   )
 
   for (const validationError of validationErrors) {
-    warnings.push(validationError.error)
+    diagnostics.push(validationError.error)
   }
   for (const skippedItem of skippedItems) {
-    warnings.push(skippedItem.reason)
+    diagnostics.push(skippedItem.reason)
   }
 
   if (Object.keys(state.blocks || {}).length === 0) {
     diagnostics.push('Simulation produced an empty workflow state')
+  }
+  const beforeHash = hashWorkflowState(params.workflowState as unknown as Record<string, unknown>)
+  const afterHash = hashWorkflowState(state as unknown as Record<string, unknown>)
+  if (beforeHash === afterHash) {
+    diagnostics.push('Simulation produced no effective workflow changes')
   }
 
   return {
@@ -1263,6 +1389,10 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         workflowState,
         userId: context.userId,
         workflowId,
+        schemaContext: {
+          contextPackProvided: Boolean(contextPack),
+          loadedSchemaTypes: new Set(Object.keys(contextPack?.schemasByType || {})),
+        },
       })
 
       const simulation = await validateAndSimulateOperations({
@@ -1344,6 +1474,15 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
     const proposal = await getProposal(proposalId)
     if (!proposal) {
       throw new Error(`Proposal not found or expired: ${proposalId}`)
+    }
+    if (Array.isArray(proposal.diagnostics) && proposal.diagnostics.length > 0) {
+      throw new Error(
+        `proposal_invalid: proposal contains diagnostics (${proposal.diagnostics.length}). ` +
+          `Fix dry_run diagnostics before apply.`
+      )
+    }
+    if (!Array.isArray(proposal.compiledOperations) || proposal.compiledOperations.length === 0) {
+      throw new Error('proposal_invalid: proposal contains no operations to apply')
     }
 
     const authorization = await authorizeWorkflowByWorkspacePermission({

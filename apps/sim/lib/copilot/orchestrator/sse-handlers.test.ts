@@ -54,14 +54,14 @@ describe('sse-handlers tool lifecycle', () => {
     }
   })
 
-  it('executes tool_call and emits tool_result + mark-complete', async () => {
+  it('executes copilot.tool.call and emits copilot.tool.result + mark-complete', async () => {
     executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
     markToolComplete.mockResolvedValueOnce(true)
     const onEvent = vi.fn()
 
-    await sseHandlers.tool_call(
+    await sseHandlers['copilot.tool.call'](
       {
-        type: 'tool_call',
+        type: 'copilot.tool.call',
         data: { id: 'tool-1', name: 'get_user_workflow', arguments: { workflowId: 'workflow-1' } },
       } as any,
       context,
@@ -73,7 +73,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(markToolComplete).toHaveBeenCalledTimes(1)
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'tool_result',
+        type: 'copilot.tool.result',
         toolCallId: 'tool-1',
         success: true,
       })
@@ -84,17 +84,17 @@ describe('sse-handlers tool lifecycle', () => {
     expect(updated?.result?.output).toEqual({ ok: true })
   })
 
-  it('skips duplicate tool_call after result', async () => {
+  it('skips duplicate copilot.tool.call after result', async () => {
     executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
     markToolComplete.mockResolvedValueOnce(true)
 
     const event = {
-      type: 'tool_call',
+      type: 'copilot.tool.call',
       data: { id: 'tool-dup', name: 'get_user_workflow', arguments: { workflowId: 'workflow-1' } },
     }
 
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await sseHandlers['copilot.tool.call'](event as any, context, execContext, { interactive: false })
+    await sseHandlers['copilot.tool.call'](event as any, context, execContext, { interactive: false })
 
     expect(executeToolServerSide).toHaveBeenCalledTimes(1)
     expect(markToolComplete).toHaveBeenCalledTimes(1)

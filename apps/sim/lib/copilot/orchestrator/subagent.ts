@@ -74,7 +74,7 @@ export async function orchestrateSubagentStream(
           }
 
           // For direct subagent calls, events may have the subagent field set
-          // but no subagent_start because this IS the top-level agent.
+          // but no copilot.subagent.started because this IS the top-level agent.
           // Skip subagent routing for events where the subagent field matches
           // the current agentId - these are top-level events.
           if (event.subagent === agentId && !ctx.subAgentParentToolCallId) {

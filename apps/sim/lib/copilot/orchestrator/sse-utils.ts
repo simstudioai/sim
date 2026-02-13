@@ -101,8 +101,21 @@ export function wasToolResultSeen(toolCallId: string): boolean {
   return seenToolResults.has(toolCallId)
 }
 
+function isToolCallEventType(type: string): boolean {
+  return type === 'copilot.tool.call' || type === 'copilot.tool.interrupt_required'
+}
+
+function isToolResultEventType(type: string): boolean {
+  return (
+    type === 'copilot.tool.result' ||
+    type === 'copilot.workflow.patch' ||
+    type === 'copilot.workflow.verify' ||
+    type === 'copilot.tool.interrupt_resolved'
+  )
+}
+
 export function shouldSkipToolCallEvent(event: SSEEvent): boolean {
-  if (event.type !== 'tool_call') return false
+  if (!isToolCallEventType(String(event.type || ''))) return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
   const eventData = getEventData(event)
@@ -115,7 +128,7 @@ export function shouldSkipToolCallEvent(event: SSEEvent): boolean {
 }
 
 export function shouldSkipToolResultEvent(event: SSEEvent): boolean {
-  if (event.type !== 'tool_result') return false
+  if (!isToolResultEventType(String(event.type || ''))) return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
   if (wasToolResultSeen(toolCallId)) return true

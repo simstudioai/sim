@@ -1962,7 +1962,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         if (!context.wasAborted && sseHandlers.stream_end) {
-          sseHandlers.stream_end({ type: 'done' }, context, get, set)
+          sseHandlers.stream_end({ type: 'copilot.phase.completed' }, context, get, set)
         }
 
         stopStreamingUpdates()

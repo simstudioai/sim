@@ -127,7 +127,7 @@ export async function runStreamLoop(
       }
 
       // Standard subagent start/end handling.
-      if (normalizedEvent.type === 'subagent_start') {
+      if (normalizedEvent.type === 'copilot.subagent.started') {
         const eventData = normalizedEvent.data as Record<string, unknown> | undefined
         const toolCallId = eventData?.tool_call_id as string | undefined
         if (toolCallId) {
@@ -138,7 +138,7 @@ export async function runStreamLoop(
         continue
       }
 
-      if (normalizedEvent.type === 'subagent_end') {
+      if (normalizedEvent.type === 'copilot.subagent.completed') {
         context.subAgentParentToolCallId = undefined
         continue
       }

@@ -80,7 +80,7 @@ export async function executeToolAndReport(
     })
 
     const resultEvent: SSEEvent = {
-      type: 'tool_result',
+      type: 'copilot.tool.result',
       toolCallId: toolCall.id,
       toolName: toolCall.name,
       success: result.success,
@@ -88,6 +88,8 @@ export async function executeToolAndReport(
       data: {
         id: toolCall.id,
         name: toolCall.name,
+        phase: 'completed',
+        state: result.success ? 'success' : 'error',
         success: result.success,
         result: result.output,
       },
@@ -110,11 +112,16 @@ export async function executeToolAndReport(
     })
 
     const errorEvent: SSEEvent = {
-      type: 'tool_error',
+      type: 'copilot.tool.result',
       toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      success: false,
       data: {
         id: toolCall.id,
         name: toolCall.name,
+        phase: 'completed',
+        state: 'error',
+        success: false,
         error: toolCall.error,
       },
     }

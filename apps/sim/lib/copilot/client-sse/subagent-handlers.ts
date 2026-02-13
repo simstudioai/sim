@@ -124,11 +124,11 @@ export function updateToolCallWithSubAgentData(
 }
 
 export const subAgentSSEHandlers: Record<string, SSEHandler> = {
-  start: () => {
-    // Subagent start event - no action needed, parent is already tracked from subagent_start
+  'copilot.phase.started': () => {
+    // No-op: parent subagent association is handled by copilot.subagent.started.
   },
 
-  content: (data, context, get, set) => {
+  'copilot.content': (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     const contentStr = typeof data.data === 'string' ? data.data : data.content || ''
     logger.info('[SubAgent] content event', {
@@ -149,7 +149,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
 
-  reasoning: (data, context, get, set) => {
+  'copilot.phase.progress': (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     const dataObj = asRecord(data?.data)
     const phase = data?.phase || (dataObj.phase as string | undefined)
@@ -165,11 +165,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
 
-  tool_generating: () => {
-    // Tool generating event - no action needed, we'll handle the actual tool_call
-  },
-
-  tool_call: async (data, context, get, set) => {
+  'copilot.tool.call': async (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
@@ -269,7 +265,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     }
   },
 
-  tool_result: (data, context, get, set) => {
+  'copilot.tool.result': (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
@@ -368,13 +364,18 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
 
-  done: (_data, context, get, set) => {
+  'copilot.phase.completed': (_data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
 }
+
+subAgentSSEHandlers['copilot.tool.interrupt_required'] = subAgentSSEHandlers['copilot.tool.call']
+subAgentSSEHandlers['copilot.workflow.patch'] = subAgentSSEHandlers['copilot.tool.result']
+subAgentSSEHandlers['copilot.workflow.verify'] = subAgentSSEHandlers['copilot.tool.result']
+subAgentSSEHandlers['copilot.tool.interrupt_resolved'] = subAgentSSEHandlers['copilot.tool.result']
 
 export async function applySseEvent(
   rawData: SSEEvent,
@@ -388,7 +389,7 @@ export async function applySseEvent(
   }
   const data = normalizedEvent
 
-  if (data.type === 'subagent_start') {
+  if (data.type === 'copilot.subagent.started') {
     const startData = asRecord(data.data)
     const toolCallId = startData.tool_call_id as string | undefined
     if (toolCallId) {
@@ -411,7 +412,7 @@ export async function applySseEvent(
     return true
   }
 
-  if (data.type === 'subagent_end') {
+  if (data.type === 'copilot.subagent.completed') {
     const parentToolCallId = context.subAgentParentToolCallId
     if (parentToolCallId) {
       const { toolCallsById } = get()

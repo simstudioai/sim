@@ -266,7 +266,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     context.chatId = asRecord(event.data).chatId as string | undefined
   },
   title_updated: () => {},
-  tool_result: (event, context) => {
+  'copilot.tool.result': (event, context) => {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
@@ -292,35 +292,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       current.error = (data?.error || resultObj.error) as string | undefined
     }
   },
-  tool_error: (event, context) => {
-    const data = getEventData(event)
-    const toolCallId = event.toolCallId || (data?.id as string | undefined)
-    if (!toolCallId) return
-    const current = context.toolCalls.get(toolCallId)
-    if (!current) return
-    current.status = data?.state ? mapServerStateToToolStatus(data.state) : 'error'
-    current.error = (data?.error as string | undefined) || 'Tool execution failed'
-    current.endTime = Date.now()
-  },
-  tool_generating: (event, context) => {
-    const data = getEventData(event)
-    const toolCallId =
-      event.toolCallId ||
-      (data?.toolCallId as string | undefined) ||
-      (data?.id as string | undefined)
-    const toolName =
-      event.toolName || (data?.toolName as string | undefined) || (data?.name as string | undefined)
-    if (!toolCallId || !toolName) return
-    if (!context.toolCalls.has(toolCallId)) {
-      context.toolCalls.set(toolCallId, {
-        id: toolCallId,
-        name: toolName,
-        status: data?.state ? mapServerStateToToolStatus(data.state) : 'pending',
-        startTime: Date.now(),
-      })
-    }
-  },
-  tool_call: async (event, context, execContext, options) => {
+  'copilot.tool.call': async (event, context, execContext, options) => {
     const toolData = getEventData(event) || ({} as Record<string, unknown>)
     const toolCallId = (toolData.id as string | undefined) || event.toolCallId
     const toolName = (toolData.name as string | undefined) || event.toolName
@@ -374,7 +346,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       'run tool'
     )
   },
-  reasoning: (event, context) => {
+  'copilot.phase.progress': (event, context) => {
     const d = asRecord(event.data)
     const phase = d.phase || asRecord(d.data).phase
     if (phase === 'start') {
@@ -398,7 +370,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     if (!chunk || !context.currentThinkingBlock) return
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
-  content: (event, context) => {
+  'copilot.content': (event, context) => {
     // Go backend sends content as a plain string in event.data, not wrapped in an object.
     let chunk: string | undefined
     if (typeof event.data === 'string') {
@@ -411,20 +383,20 @@ export const sseHandlers: Record<string, SSEHandler> = {
     context.accumulatedContent += chunk
     addContentBlock(context, { type: 'text', content: chunk })
   },
-  done: (event, context) => {
+  'copilot.phase.completed': (event, context) => {
     const d = asRecord(event.data)
     if (d.responseId) {
       context.conversationId = d.responseId as string
     }
     context.streamComplete = true
   },
-  start: (event, context) => {
+  'copilot.phase.started': (event, context) => {
     const d = asRecord(event.data)
     if (d.responseId) {
       context.conversationId = d.responseId as string
     }
   },
-  error: (event, context) => {
+  'copilot.error': (event, context) => {
     const d = asRecord(event.data)
     const message = (d.message || d.error || event.error) as string | undefined
     if (message) {
@@ -435,7 +407,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
 }
 
 export const subAgentHandlers: Record<string, SSEHandler> = {
-  content: (event, context) => {
+  'copilot.content': (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId || !event.data) return
     // Go backend sends content as a plain string in event.data
@@ -451,7 +423,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       (context.subAgentContent[parentToolCallId] || '') + chunk
     addContentBlock(context, { type: 'subagent_text', content: chunk })
   },
-  tool_call: async (event, context, execContext, options) => {
+  'copilot.tool.call': async (event, context, execContext, options) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
     const toolData = getEventData(event) || ({} as Record<string, unknown>)
@@ -500,7 +472,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       'subagent run tool'
     )
   },
-  tool_result: (event, context) => {
+  'copilot.tool.result': (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
     const data = getEventData(event)
@@ -540,7 +512,21 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       }
     }
   },
+  'copilot.phase.progress': () => {
+    // Subagent reasoning chunks are surfaced via copilot.content.
+  },
+  'copilot.phase.completed': () => {},
 }
+
+sseHandlers['copilot.tool.interrupt_required'] = sseHandlers['copilot.tool.call']
+sseHandlers['copilot.workflow.patch'] = sseHandlers['copilot.tool.result']
+sseHandlers['copilot.workflow.verify'] = sseHandlers['copilot.tool.result']
+sseHandlers['copilot.tool.interrupt_resolved'] = sseHandlers['copilot.tool.result']
+
+subAgentHandlers['copilot.tool.interrupt_required'] = subAgentHandlers['copilot.tool.call']
+subAgentHandlers['copilot.workflow.patch'] = subAgentHandlers['copilot.tool.result']
+subAgentHandlers['copilot.workflow.verify'] = subAgentHandlers['copilot.tool.result']
+subAgentHandlers['copilot.tool.interrupt_resolved'] = subAgentHandlers['copilot.tool.result']
 
 export function handleSubagentRouting(event: SSEEvent, context: StreamingContext): boolean {
   if (!event.subagent) return false

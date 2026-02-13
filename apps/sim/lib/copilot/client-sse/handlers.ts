@@ -273,7 +273,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       chatListTitle: updatedState.chats.find((c) => c.id === targetChatId)?.title || null,
     })
   },
-  tool_result: (data, context, get, set) => {
+  'copilot.tool.result': (data, context, get, set) => {
     try {
       const eventData = asRecord(data?.data)
       const toolCallId: string | undefined =
@@ -428,123 +428,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
   },
-  tool_error: (data, context, get, set) => {
-    try {
-      const errorData = asRecord(data?.data)
-      const toolCallId: string | undefined =
-        data?.toolCallId ||
-        (errorData.id as string | undefined) ||
-        (errorData.callId as string | undefined)
-      const failedDependency: boolean = data?.failedDependency === true
-      if (!toolCallId) return
-      const { toolCallsById } = get()
-      const current = toolCallsById[toolCallId]
-      if (current) {
-        if (
-          isRejectedState(current.state) ||
-          isReviewState(current.state) ||
-          isBackgroundState(current.state)
-        ) {
-          return
-        }
-        const targetState = errorData.state
-          ? mapServerStateToClientState(errorData.state)
-          : failedDependency
-            ? ClientToolCallState.rejected
-            : ClientToolCallState.error
-        const uiMetadata = extractToolUiMetadata(errorData)
-        const executionMetadata = extractToolExecutionMetadata(errorData)
-        const updatedMap = { ...toolCallsById }
-        updatedMap[toolCallId] = {
-          ...current,
-          ui: uiMetadata || current.ui,
-          execution: executionMetadata || current.execution,
-          state: targetState,
-          display: resolveDisplayFromServerUi(
-            current.name,
-            targetState,
-            current.id,
-            current.params,
-            uiMetadata || current.ui
-          ),
-        }
-        set({ toolCallsById: updatedMap })
-      }
-      for (let i = 0; i < context.contentBlocks.length; i++) {
-        const b = context.contentBlocks[i]
-        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (
-            isRejectedState(b.toolCall?.state) ||
-            isReviewState(b.toolCall?.state) ||
-            isBackgroundState(b.toolCall?.state)
-          )
-            break
-          const targetState = errorData.state
-            ? mapServerStateToClientState(errorData.state)
-            : failedDependency
-              ? ClientToolCallState.rejected
-              : ClientToolCallState.error
-          const uiMetadata = extractToolUiMetadata(errorData)
-          const executionMetadata = extractToolExecutionMetadata(errorData)
-          context.contentBlocks[i] = {
-            ...b,
-            toolCall: {
-              ...b.toolCall,
-              ui: uiMetadata || b.toolCall?.ui,
-              execution: executionMetadata || b.toolCall?.execution,
-              state: targetState,
-              display: resolveDisplayFromServerUi(
-                b.toolCall?.name,
-                targetState,
-                toolCallId,
-                b.toolCall?.params,
-                uiMetadata || b.toolCall?.ui
-              ),
-            },
-          }
-          break
-        }
-      }
-      updateStreamingMessage(set, context)
-    } catch (error) {
-      logger.warn('Failed to process tool_error SSE event', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  },
-  tool_generating: (data, context, get, set) => {
-    const eventData = asRecord(data?.data)
-    const toolCallId =
-      data?.toolCallId ||
-      (eventData.id as string | undefined) ||
-      (eventData.callId as string | undefined)
-    const toolName =
-      data?.toolName ||
-      (eventData.name as string | undefined) ||
-      (eventData.toolName as string | undefined)
-    if (!toolCallId || !toolName) return
-    const { toolCallsById } = get()
-
-    if (!toolCallsById[toolCallId]) {
-      const initialState = ClientToolCallState.generating
-      const uiMetadata = extractToolUiMetadata(eventData)
-      const tc: CopilotToolCall = {
-        id: toolCallId,
-        name: toolName,
-        state: initialState,
-        ui: uiMetadata,
-        execution: extractToolExecutionMetadata(eventData),
-        display: resolveDisplayFromServerUi(toolName, initialState, toolCallId, undefined, uiMetadata),
-      }
-      const updated = { ...toolCallsById, [toolCallId]: tc }
-      set({ toolCallsById: updated })
-      logger.info('[toolCallsById] map updated', updated)
-
-      upsertToolCallBlock(context, tc)
-      updateStreamingMessage(set, context)
-    }
-  },
-  tool_call: (data, context, get, set) => {
+  'copilot.tool.call': (data, context, get, set) => {
     const toolData = asRecord(data?.data)
     const id: string | undefined =
       (toolData.id as string | undefined) ||
@@ -647,7 +531,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     return
   },
-  reasoning: (data, context, _get, set) => {
+  'copilot.phase.progress': (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
     if (phase === 'start') {
       beginThinkingBlock(context)
@@ -664,7 +548,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     appendThinkingContent(context, chunk)
     updateStreamingMessage(set, context)
   },
-  content: (data, context, get, set) => {
+  'copilot.content': (data, context, get, set) => {
     if (!data.data) return
     context.pendingContent += data.data
 
@@ -879,7 +763,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       updateStreamingMessage(set, context)
     }
   },
-  done: (_data, context) => {
+  'copilot.phase.completed': (_data, context) => {
     logger.info('[SSE] DONE EVENT RECEIVED', {
       doneEventCount: context.doneEventCount,
       data: _data,
@@ -890,7 +774,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.streamComplete = true
     }
   },
-  error: (data, context, _get, set) => {
+  'copilot.error': (data, context, _get, set) => {
     logger.error('Stream error:', data.error)
     set((state: CopilotStore) => ({
       messages: state.messages.map((msg) =>
@@ -905,6 +789,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }))
     context.streamComplete = true
   },
+  'copilot.phase.started': () => {},
   stream_end: (_data, context, _get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
@@ -919,3 +804,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   default: () => {},
 }
+
+sseHandlers['copilot.tool.interrupt_required'] = sseHandlers['copilot.tool.call']
+sseHandlers['copilot.workflow.patch'] = sseHandlers['copilot.tool.result']
+sseHandlers['copilot.workflow.verify'] = sseHandlers['copilot.tool.result']
+sseHandlers['copilot.tool.interrupt_resolved'] = sseHandlers['copilot.tool.result']

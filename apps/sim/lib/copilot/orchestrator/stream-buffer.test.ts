@@ -97,8 +97,8 @@ describe('stream-buffer', () => {
   })
 
   it.concurrent('replays events after a given event id', async () => {
-    await appendStreamEvent('stream-1', { type: 'content', data: 'hello' })
-    await appendStreamEvent('stream-1', { type: 'content', data: 'world' })
+    await appendStreamEvent('stream-1', { type: 'copilot.content', data: 'hello' })
+    await appendStreamEvent('stream-1', { type: 'copilot.content', data: 'world' })
 
     const allEvents = await readStreamEvents('stream-1', 0)
     expect(allEvents.map((entry) => entry.event.data)).toEqual(['hello', 'world'])
@@ -109,8 +109,8 @@ describe('stream-buffer', () => {
 
   it.concurrent('flushes buffered events for resume', async () => {
     const writer = createStreamEventWriter('stream-2')
-    await writer.write({ type: 'content', data: 'a' })
-    await writer.write({ type: 'content', data: 'b' })
+    await writer.write({ type: 'copilot.content', data: 'a' })
+    await writer.write({ type: 'copilot.content', data: 'b' })
     await writer.flush()
 
     const events = await readStreamEvents('stream-2', 0)
