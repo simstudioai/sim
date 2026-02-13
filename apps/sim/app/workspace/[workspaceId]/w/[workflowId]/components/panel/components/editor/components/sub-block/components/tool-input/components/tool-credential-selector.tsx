@@ -117,7 +117,6 @@ export function ToolCredentialSelector({
   const resolvedLabel = useMemo(() => {
     if (selectedCredential) return selectedCredential.name
     if (inaccessibleCredentialName) return inaccessibleCredentialName
-    if (selectedId && !credentialsLoading) return 'Credential (no access)'
     return ''
   }, [selectedCredential, inaccessibleCredentialName, selectedId, credentialsLoading])
 

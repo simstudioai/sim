@@ -149,7 +149,6 @@ export function CredentialSelector({
     if (selectedCredentialSet) return selectedCredentialSet.name
     if (selectedCredential) return selectedCredential.name
     if (inaccessibleCredentialName) return inaccessibleCredentialName
-    if (selectedId && !credentialsLoading) return 'Credential (no access)'
     return ''
   }, [
     selectedCredentialSet,
