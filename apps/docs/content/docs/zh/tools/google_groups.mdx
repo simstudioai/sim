@@ -217,3 +217,201 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`google_groups`
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组标识符。可以是群组电子邮件地址（例如 team@example.com）或唯一群组 ID |
+| `memberKey` | string | 是 | 要检查的成员标识符。可以是成员电子邮件地址（例如 user@example.com）或唯一成员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `isMember` | boolean | 用户是否为该群组成员 |
+
+### `google_groups_list_aliases`
+
+列出 Google 群组的所有电子邮件别名
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组标识符。可以是群组电子邮件地址（例如 team@example.com）或唯一群组 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `aliases` | array | 群组的电子邮件别名列表 |
+|   ↳ `id` | string | 唯一群组标识符 |
+|   ↳ `primaryEmail` | string | 群组主电子邮件地址 |
+|   ↳ `alias` | string | 别名电子邮件地址 |
+|   ↳ `kind` | string | API 资源类型 |
+|   ↳ `etag` | string | 资源版本标识符 |
+
+### `google_groups_add_alias`
+
+为 Google 群组添加电子邮件别名
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组标识符。可以是群组电子邮件地址（例如 team@example.com）或唯一群组 ID |
+| `alias` | string | 是 | 要添加到群组的电子邮件别名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 唯一群组标识符 |
+| `primaryEmail` | string | 群组主电子邮件地址 |
+| `alias` | string | 新增的别名 |
+| `kind` | string | API 资源类型 |
+| `etag` | string | 资源版本标识符 |
+
+### `google_groups_remove_alias`
+
+从 Google 群组中移除电子邮件别名
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | 是 | 群组标识符。可以是群组电子邮件地址（例如 team@example.com）或唯一群组 ID |
+| `alias` | string | 是 | 要从群组中移除的电子邮件别名 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 是否成功删除了别名 |
+
+### `google_groups_get_settings`
+
+获取 Google 群组的设置，包括访问权限、审核和发帖选项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | 是 | 群组的电子邮件地址（例如 team@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email` | string | 群组电子邮件地址 |
+| `name` | string | 群组名称（最多 75 个字符） |
+| `description` | string | 群组描述（最多 4096 个字符） |
+| `whoCanJoin` | string | 谁可以加入群组（ANYONE_CAN_JOIN、ALL_IN_DOMAIN_CAN_JOIN、INVITED_CAN_JOIN、CAN_REQUEST_TO_JOIN） |
+| `whoCanViewMembership` | string | 谁可以查看群组成员 |
+| `whoCanViewGroup` | string | 谁可以查看群组消息 |
+| `whoCanPostMessage` | string | 谁可以向群组发送消息 |
+| `allowExternalMembers` | string | 是否允许外部用户成为成员 |
+| `allowWebPosting` | string | 是否允许网页发帖 |
+| `primaryLanguage` | string | 群组的主要语言 |
+| `isArchived` | string | 是否存档消息 |
+| `archiveOnly` | string | 群组是否仅限归档（非活跃） |
+| `messageModerationLevel` | string | 消息审核级别 |
+| `spamModerationLevel` | string | 垃圾邮件处理级别（ALLOW、MODERATE、SILENTLY_MODERATE、REJECT） |
+| `replyTo` | string | 默认回复目标 |
+| `customReplyTo` | string | 自定义回复邮箱 |
+| `includeCustomFooter` | string | 是否包含自定义页脚 |
+| `customFooterText` | string | 自定义页脚文本（最多 1000 个字符） |
+| `sendMessageDenyNotification` | string | 是否发送拒绝通知 |
+| `defaultMessageDenyNotificationText` | string | 默认拒绝消息文本 |
+| `membersCanPostAsTheGroup` | string | 成员是否可以以群组身份发帖 |
+| `includeInGlobalAddressList` | string | 是否包含在全局地址列表中 |
+| `whoCanLeaveGroup` | string | 谁可以退出群组 |
+| `whoCanContactOwner` | string | 谁可以联系群组所有者 |
+| `favoriteRepliesOnTop` | string | 收藏回复是否置顶 |
+| `whoCanApproveMembers` | string | 谁可以批准新成员 |
+| `whoCanBanUsers` | string | 谁可以封禁用户 |
+| `whoCanModerateMembers` | string | 谁可以管理成员 |
+| `whoCanModerateContent` | string | 谁可以审核内容 |
+| `whoCanAssistContent` | string | 谁可以协助内容元数据 |
+| `enableCollaborativeInbox` | string | 是否启用协作收件箱 |
+| `whoCanDiscoverGroup` | string | 谁可以发现该群组 |
+| `defaultSender` | string | 默认发件人身份（DEFAULT_SELF 或 GROUP） |
+
+### `google_groups_update_settings`
+
+更新 Google 群组的设置，包括访问权限、审核和发帖选项
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | 是 | 群组的电子邮件地址（例如 team@example.com） |
+| `name` | string | 否 | 群组名称（最多 75 个字符） |
+| `description` | string | 否 | 群组描述（最多 4096 个字符） |
+| `whoCanJoin` | string | 否 | 谁可以加入：ANYONE_CAN_JOIN、ALL_IN_DOMAIN_CAN_JOIN、INVITED_CAN_JOIN、CAN_REQUEST_TO_JOIN |
+| `whoCanViewMembership` | string | 否 | 谁可以查看成员：ALL_IN_DOMAIN_CAN_VIEW、ALL_MEMBERS_CAN_VIEW、ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | 否 | 谁可以查看群组消息：ANYONE_CAN_VIEW、ALL_IN_DOMAIN_CAN_VIEW、ALL_MEMBERS_CAN_VIEW、ALL_MANAGERS_CAN_VIEW |
+| `whoCanPostMessage` | string | 否 | 谁可以发帖：NONE_CAN_POST、ALL_MANAGERS_CAN_POST、ALL_MEMBERS_CAN_POST、ALL_OWNERS_CAN_POST、ALL_IN_DOMAIN_CAN_POST、ANYONE_CAN_POST |
+| `allowExternalMembers` | string | 否 | 是否允许外部用户成为成员：true 或 false |
+| `allowWebPosting` | string | 否 | 是否允许网页发帖：true 或 false |
+| `primaryLanguage` | string | 否 | 群组的主要语言（例如 en） |
+| `isArchived` | string | 否 | 是否归档消息：true 或 false |
+| `archiveOnly` | string | 否 | 群组是否仅归档（非活跃）：true 或 false |
+| `messageModerationLevel` | string | 否 | 消息审核：MODERATE_ALL_MESSAGES、MODERATE_NON_MEMBERS、MODERATE_NEW_MEMBERS、MODERATE_NONE |
+| `spamModerationLevel` | string | 否 | 垃圾邮件处理：ALLOW、MODERATE、SILENTLY_MODERATE、REJECT |
+| `replyTo` | string | 否 | 默认回复：REPLY_TO_CUSTOM、REPLY_TO_SENDER、REPLY_TO_LIST、REPLY_TO_OWNER、REPLY_TO_IGNORE、REPLY_TO_MANAGERS |
+| `customReplyTo` | string | 否 | 自定义回复邮箱（当 replyTo 为 REPLY_TO_CUSTOM 时） |
+| `includeCustomFooter` | string | 否 | 是否包含自定义页脚：true 或 false |
+| `customFooterText` | string | 否 | 自定义页脚文本（最多 1000 个字符） |
+| `sendMessageDenyNotification` | string | 否 | 是否发送拒绝通知：true 或 false |
+| `defaultMessageDenyNotificationText` | string | 否 | 默认拒绝消息文本 |
+| `membersCanPostAsTheGroup` | string | 否 | 成员是否可以以群组身份发帖：true 或 false |
+| `includeInGlobalAddressList` | string | 否 | 是否包含在全局地址列表中：true 或 false |
+| `whoCanLeaveGroup` | string | 否 | 谁可以退出：ALL_MANAGERS_CAN_LEAVE、ALL_MEMBERS_CAN_LEAVE、NONE_CAN_LEAVE |
+| `whoCanContactOwner` | string | 否 | 谁可以联系所有者：ALL_IN_DOMAIN_CAN_CONTACT、ALL_MANAGERS_CAN_CONTACT、ALL_MEMBERS_CAN_CONTACT、ANYONE_CAN_CONTACT |
+| `favoriteRepliesOnTop` | string | 否 | 收藏回复是否置顶：true 或 false |
+| `whoCanApproveMembers` | string | 否 | 谁可以批准成员：ALL_OWNERS_CAN_APPROVE、ALL_MANAGERS_CAN_APPROVE、ALL_MEMBERS_CAN_APPROVE、NONE_CAN_APPROVE |
+| `whoCanBanUsers` | string | 否 | 谁可以封禁用户：OWNERS_ONLY、OWNERS_AND_MANAGERS、NONE |
+| `whoCanModerateMembers` | string | 否 | 谁可以管理成员：OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `whoCanModerateContent` | string | 否 | 谁可以审核内容：OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `whoCanAssistContent` | string | 否 | 谁可以协助内容元数据：OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `enableCollaborativeInbox` | string | 否 | 是否启用协作收件箱：true 或 false |
+| `whoCanDiscoverGroup` | string | 否 | 谁可以发现：ANYONE_CAN_DISCOVER、ALL_IN_DOMAIN_CAN_DISCOVER、ALL_MEMBERS_CAN_DISCOVER |
+| `defaultSender` | string | 否 | 默认发件人：DEFAULT_SELF 或 GROUP |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email` | string | 群组的电子邮件地址 |
+| `name` | string | 群组名称 |
+| `description` | string | 群组描述 |
+| `whoCanJoin` | string | 谁可以加入该群组 |
+| `whoCanViewMembership` | string | 谁可以查看群组成员 |
+| `whoCanViewGroup` | string | 谁可以查看群组消息 |
+| `whoCanPostMessage` | string | 谁可以向群组发送消息 |
+| `allowExternalMembers` | string | 外部用户是否可以成为成员 |
+| `allowWebPosting` | string | 是否允许网页发帖 |
+| `primaryLanguage` | string | 群组的主要语言 |
+| `isArchived` | string | 是否存档消息 |
+| `archiveOnly` | string | 群组是否仅限存档 |
+| `messageModerationLevel` | string | 消息审核级别 |
+| `spamModerationLevel` | string | 垃圾邮件处理级别 |
+| `replyTo` | string | 默认回复目标 |
+| `customReplyTo` | string | 自定义回复邮箱 |
+| `includeCustomFooter` | string | 是否包含自定义页脚 |
+| `customFooterText` | string | 自定义页脚文本 |
+| `sendMessageDenyNotification` | string | 是否发送拒绝通知 |
+| `defaultMessageDenyNotificationText` | string | 默认拒绝消息文本 |
+| `membersCanPostAsTheGroup` | string | 成员是否可以以群组身份发帖 |
+| `includeInGlobalAddressList` | string | 是否包含在全局地址列表中 |
+| `whoCanLeaveGroup` | string | 谁可以退出群组 |
+| `whoCanContactOwner` | string | 谁可以联系群组所有者 |
+| `favoriteRepliesOnTop` | string | 收藏回复是否置顶 |
+| `whoCanApproveMembers` | string | 谁可以批准新成员 |
+| `whoCanBanUsers` | string | 谁可以封禁用户 |
+| `whoCanModerateMembers` | string | 谁可以管理成员 |
+| `whoCanModerateContent` | string | 谁可以审核内容 |
+| `whoCanAssistContent` | string | 谁可以协助内容元数据 |
+| `enableCollaborativeInbox` | string | 是否启用协作收件箱 |
+| `whoCanDiscoverGroup` | string | 谁可以发现该群组 |
+| `defaultSender` | string | 默认发件人身份 |

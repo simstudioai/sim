@@ -217,3 +217,201 @@ Google Groupからメンバーを削除する
 
 - カテゴリー: `tools`
 - タイプ: `google_groups`
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループ識別子。グループのメールアドレス（例：team@example.com）または一意のグループID |
+| `memberKey` | string | はい | 確認するメンバー識別子。メンバーのメールアドレス（例：user@example.com）または一意のメンバーID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `isMember` | boolean | ユーザーがグループのメンバーであるかどうか |
+
+### `google_groups_list_aliases`
+
+Googleグループのすべてのメールエイリアスを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループ識別子。グループのメールアドレス（例：team@example.com）または一意のグループID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `aliases` | array | グループのメールエイリアスのリスト |
+|   ↳ `id` | string | 一意のグループ識別子 |
+|   ↳ `primaryEmail` | string | グループのプライマリメールアドレス |
+|   ↳ `alias` | string | エイリアスメールアドレス |
+|   ↳ `kind` | string | APIリソースタイプ |
+|   ↳ `etag` | string | リソースバージョン識別子 |
+
+### `google_groups_add_alias`
+
+Googleグループにメールエイリアスを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループ識別子。グループのメールアドレス（例：team@example.com）または一意のグループID |
+| `alias` | string | はい | グループに追加するメールエイリアス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 一意のグループ識別子 |
+| `primaryEmail` | string | グループのプライマリメールアドレス |
+| `alias` | string | 追加されたエイリアス |
+| `kind` | string | APIリソースタイプ |
+| `etag` | string | リソースバージョン識別子 |
+
+### `google_groups_remove_alias`
+
+Google グループからメールエイリアスを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | はい | グループ識別子。グループのメールアドレス(例: team@example.com)または一意のグループID |
+| `alias` | string | はい | グループから削除するメールエイリアス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | エイリアスが正常に削除されたかどうか |
+
+### `google_groups_get_settings`
+
+アクセス権限、モデレーション、投稿オプションを含むGoogle グループの設定を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | はい | グループのメールアドレス(例: team@example.com) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `email` | string | グループのメールアドレス |
+| `name` | string | グループ名(最大75文字) |
+| `description` | string | グループの説明(最大4096文字) |
+| `whoCanJoin` | string | グループに参加できるユーザー(ANYONE_CAN_JOIN、ALL_IN_DOMAIN_CAN_JOIN、INVITED_CAN_JOIN、CAN_REQUEST_TO_JOIN) |
+| `whoCanViewMembership` | string | グループメンバーシップを表示できるユーザー |
+| `whoCanViewGroup` | string | グループメッセージを表示できるユーザー |
+| `whoCanPostMessage` | string | グループにメッセージを投稿できるユーザー |
+| `allowExternalMembers` | string | 外部ユーザーをメンバーにできるかどうか |
+| `allowWebPosting` | string | ウェブ投稿が許可されているかどうか |
+| `primaryLanguage` | string | グループの主要言語 |
+| `isArchived` | string | メッセージがアーカイブされるかどうか |
+| `archiveOnly` | string | グループがアーカイブ専用(非アクティブ)かどうか |
+| `messageModerationLevel` | string | メッセージモデレーションレベル |
+| `spamModerationLevel` | string | スパム処理レベル(ALLOW、MODERATE、SILENTLY_MODERATE、REJECT) |
+| `replyTo` | string | デフォルトの返信先 |
+| `customReplyTo` | string | 返信用のカスタムメールアドレス |
+| `includeCustomFooter` | string | カスタムフッターを含めるかどうか |
+| `customFooterText` | string | カスタムフッターテキスト(最大1000文字) |
+| `sendMessageDenyNotification` | string | 拒否通知を送信するかどうか |
+| `defaultMessageDenyNotificationText` | string | デフォルトの拒否メッセージテキスト |
+| `membersCanPostAsTheGroup` | string | メンバーがグループとして投稿できるかどうか |
+| `includeInGlobalAddressList` | string | グローバルアドレス帳に含まれるかどうか |
+| `whoCanLeaveGroup` | string | グループから退会できるユーザー |
+| `whoCanContactOwner` | string | グループオーナーに連絡できるユーザー |
+| `favoriteRepliesOnTop` | string | お気に入りの返信が上部に表示されるかどうか |
+| `whoCanApproveMembers` | string | 新しいメンバーを承認できるユーザー |
+| `whoCanBanUsers` | string | ユーザーを禁止できるユーザー |
+| `whoCanModerateMembers` | string | メンバーを管理できるユーザー |
+| `whoCanModerateContent` | string | コンテンツをモデレートできるユーザー |
+| `whoCanAssistContent` | string | コンテンツメタデータをサポートできるユーザー |
+| `enableCollaborativeInbox` | string | コラボレーション受信トレイが有効かどうか |
+| `whoCanDiscoverGroup` | string | グループを検索できるユーザー |
+| `defaultSender` | string | デフォルトの送信者ID(DEFAULT_SELFまたはGROUP) |
+
+### `google_groups_update_settings`
+
+アクセス権限、モデレーション、投稿オプションを含むGoogle グループの設定を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | はい | グループのメールアドレス（例: team@example.com） |
+| `name` | string | いいえ | グループ名（最大75文字） |
+| `description` | string | いいえ | グループの説明（最大4096文字） |
+| `whoCanJoin` | string | いいえ | 参加可能なユーザー: ANYONE_CAN_JOIN、ALL_IN_DOMAIN_CAN_JOIN、INVITED_CAN_JOIN、CAN_REQUEST_TO_JOIN |
+| `whoCanViewMembership` | string | いいえ | メンバーシップを表示できるユーザー: ALL_IN_DOMAIN_CAN_VIEW、ALL_MEMBERS_CAN_VIEW、ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | いいえ | グループメッセージを表示できるユーザー: ANYONE_CAN_VIEW、ALL_IN_DOMAIN_CAN_VIEW、ALL_MEMBERS_CAN_VIEW、ALL_MANAGERS_CAN_VIEW |
+| `whoCanPostMessage` | string | いいえ | 投稿可能なユーザー: NONE_CAN_POST、ALL_MANAGERS_CAN_POST、ALL_MEMBERS_CAN_POST、ALL_OWNERS_CAN_POST、ALL_IN_DOMAIN_CAN_POST、ANYONE_CAN_POST |
+| `allowExternalMembers` | string | いいえ | 外部ユーザーをメンバーにできるかどうか: trueまたはfalse |
+| `allowWebPosting` | string | いいえ | ウェブ投稿を許可するかどうか: trueまたはfalse |
+| `primaryLanguage` | string | いいえ | グループの主要言語（例: en） |
+| `isArchived` | string | いいえ | メッセージをアーカイブするかどうか: trueまたはfalse |
+| `archiveOnly` | string | いいえ | グループがアーカイブ専用（非アクティブ）かどうか: trueまたはfalse |
+| `messageModerationLevel` | string | いいえ | メッセージのモデレーション: MODERATE_ALL_MESSAGES、MODERATE_NON_MEMBERS、MODERATE_NEW_MEMBERS、MODERATE_NONE |
+| `spamModerationLevel` | string | いいえ | スパム処理: ALLOW、MODERATE、SILENTLY_MODERATE、REJECT |
+| `replyTo` | string | いいえ | デフォルトの返信先: REPLY_TO_CUSTOM、REPLY_TO_SENDER、REPLY_TO_LIST、REPLY_TO_OWNER、REPLY_TO_IGNORE、REPLY_TO_MANAGERS |
+| `customReplyTo` | string | いいえ | 返信用のカスタムメールアドレス（replyToがREPLY_TO_CUSTOMの場合） |
+| `includeCustomFooter` | string | いいえ | カスタムフッターを含めるかどうか: trueまたはfalse |
+| `customFooterText` | string | いいえ | カスタムフッターのテキスト（最大1000文字） |
+| `sendMessageDenyNotification` | string | いいえ | 拒否通知を送信するかどうか: trueまたはfalse |
+| `defaultMessageDenyNotificationText` | string | いいえ | デフォルトの拒否メッセージテキスト |
+| `membersCanPostAsTheGroup` | string | いいえ | メンバーがグループとして投稿できるかどうか: trueまたはfalse |
+| `includeInGlobalAddressList` | string | いいえ | グローバルアドレス帳に含めるかどうか: trueまたはfalse |
+| `whoCanLeaveGroup` | string | いいえ | 退会可能なユーザー: ALL_MANAGERS_CAN_LEAVE、ALL_MEMBERS_CAN_LEAVE、NONE_CAN_LEAVE |
+| `whoCanContactOwner` | string | いいえ | オーナーに連絡できるユーザー: ALL_IN_DOMAIN_CAN_CONTACT、ALL_MANAGERS_CAN_CONTACT、ALL_MEMBERS_CAN_CONTACT、ANYONE_CAN_CONTACT |
+| `favoriteRepliesOnTop` | string | いいえ | お気に入りの返信を上部に表示するかどうか: trueまたはfalse |
+| `whoCanApproveMembers` | string | いいえ | メンバーを承認できるユーザー: ALL_OWNERS_CAN_APPROVE、ALL_MANAGERS_CAN_APPROVE、ALL_MEMBERS_CAN_APPROVE、NONE_CAN_APPROVE |
+| `whoCanBanUsers` | string | いいえ | ユーザーを禁止できるユーザー: OWNERS_ONLY、OWNERS_AND_MANAGERS、NONE |
+| `whoCanModerateMembers` | string | いいえ | メンバーを管理できるユーザー: OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `whoCanModerateContent` | string | いいえ | コンテンツをモデレートできるユーザー: OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `whoCanAssistContent` | string | いいえ | コンテンツメタデータをサポートできるユーザー: OWNERS_ONLY、OWNERS_AND_MANAGERS、ALL_MEMBERS、NONE |
+| `enableCollaborativeInbox` | string | いいえ | 共同受信トレイを有効にするかどうか: trueまたはfalse |
+| `whoCanDiscoverGroup` | string | いいえ | 検索可能なユーザー: ANYONE_CAN_DISCOVER、ALL_IN_DOMAIN_CAN_DISCOVER、ALL_MEMBERS_CAN_DISCOVER |
+| `defaultSender` | string | いいえ | デフォルトの送信者: DEFAULT_SELFまたはGROUP |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `email` | string | グループのメールアドレス |
+| `name` | string | グループ名 |
+| `description` | string | グループの説明 |
+| `whoCanJoin` | string | グループに参加できるユーザー |
+| `whoCanViewMembership` | string | グループメンバーシップを表示できるユーザー |
+| `whoCanViewGroup` | string | グループメッセージを表示できるユーザー |
+| `whoCanPostMessage` | string | グループにメッセージを投稿できるユーザー |
+| `allowExternalMembers` | string | 外部ユーザーをメンバーにできるかどうか |
+| `allowWebPosting` | string | ウェブ投稿が許可されているかどうか |
+| `primaryLanguage` | string | グループの主要言語 |
+| `isArchived` | string | メッセージがアーカイブされるかどうか |
+| `archiveOnly` | string | グループがアーカイブ専用かどうか |
+| `messageModerationLevel` | string | メッセージのモデレーションレベル |
+| `spamModerationLevel` | string | スパム処理レベル |
+| `replyTo` | string | デフォルトの返信先 |
+| `customReplyTo` | string | 返信用のカスタムメールアドレス |
+| `includeCustomFooter` | string | カスタムフッターを含めるかどうか |
+| `customFooterText` | string | カスタムフッターのテキスト |
+| `sendMessageDenyNotification` | string | 拒否通知を送信するかどうか |
+| `defaultMessageDenyNotificationText` | string | デフォルトの拒否メッセージテキスト |
+| `membersCanPostAsTheGroup` | string | メンバーがグループとして投稿できるかどうか |
+| `includeInGlobalAddressList` | string | グローバルアドレス一覧に含まれるかどうか |
+| `whoCanLeaveGroup` | string | グループから退会できるユーザー |
+| `whoCanContactOwner` | string | グループオーナーに連絡できるユーザー |
+| `favoriteRepliesOnTop` | string | お気に入りの返信が上部に表示されるかどうか |
+| `whoCanApproveMembers` | string | 新しいメンバーを承認できるユーザー |
+| `whoCanBanUsers` | string | ユーザーを禁止できるユーザー |
+| `whoCanModerateMembers` | string | メンバーを管理できるユーザー |
+| `whoCanModerateContent` | string | コンテンツをモデレートできるユーザー |
+| `whoCanAssistContent` | string | コンテンツメタデータをサポートできるユーザー |
+| `enableCollaborativeInbox` | string | コラボレーション受信トレイが有効かどうか |
+| `whoCanDiscoverGroup` | string | グループを検索できるユーザー |
+| `defaultSender` | string | デフォルトの送信者ID |

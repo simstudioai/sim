@@ -124,3 +124,270 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`google_drive`
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | file | 下载的文件，存储于执行文件中 |
+| `metadata` | object | 来自 Google Drive 的完整文件元数据 |
+|   ↳ `id` | string | Google Drive 文件 ID |
+|   ↳ `kind` | string | 资源类型标识符 |
+|   ↳ `name` | string | 文件名 |
+|   ↳ `mimeType` | string | MIME 类型 |
+|   ↳ `description` | string | 文件描述 |
+|   ↳ `originalFilename` | string | 原始上传文件名 |
+|   ↳ `fullFileExtension` | string | 完整文件扩展名 |
+|   ↳ `fileExtension` | string | 文件扩展名 |
+|   ↳ `owners` | json | 文件所有者列表 |
+|   ↳ `permissions` | json | 文件权限 |
+|   ↳ `permissionIds` | json | 权限 ID |
+|   ↳ `shared` | boolean | 文件是否已共享 |
+|   ↳ `ownedByMe` | boolean | 是否为当前用户所有 |
+|   ↳ `writersCanShare` | boolean | 作者是否可分享 |
+|   ↳ `viewersCanCopyContent` | boolean | 查看者是否可复制 |
+|   ↳ `copyRequiresWriterPermission` | boolean | 复制是否需要作者权限 |
+|   ↳ `sharingUser` | json | 共享该文件的用户 |
+|   ↳ `starred` | boolean | 文件是否加星标 |
+|   ↳ `trashed` | boolean | 文件是否在回收站中 |
+|   ↳ `explicitlyTrashed` | boolean | 是否被明确移至回收站 |
+|   ↳ `appProperties` | json | 应用专属属性 |
+|   ↳ `createdTime` | string | 文件创建时间 |
+|   ↳ `modifiedTime` | string | 最后修改时间 |
+|   ↳ `modifiedByMeTime` | string | 当前用户修改时间 |
+|   ↳ `viewedByMeTime` | string | 当前用户最后查看时间 |
+|   ↳ `sharedWithMeTime` | string | 与当前用户共享时间 |
+|   ↳ `lastModifyingUser` | json | 最后修改该文件的用户 |
+|   ↳ `viewedByMe` | boolean | 当前用户是否已查看 |
+|   ↳ `modifiedByMe` | boolean | 当前用户是否已修改 |
+|   ↳ `webViewLink` | string | 浏览器查看链接 |
+|   ↳ `webContentLink` | string | 直接下载链接 |
+|   ↳ `iconLink` | string | 文件图标链接 |
+|   ↳ `thumbnailLink` | string | 缩略图链接 |
+|   ↳ `exportLinks` | json | 导出格式链接 |
+|   ↳ `size` | string | 文件字节大小 |
+|   ↳ `quotaBytesUsed` | string | 已用存储配额 |
+|   ↳ `md5Checksum` | string | MD5 哈希值 |
+|   ↳ `sha1Checksum` | string | SHA-1 哈希值 |
+|   ↳ `sha256Checksum` | string | SHA-256 哈希值 |
+|   ↳ `parents` | json | 父文件夹 ID |
+|   ↳ `spaces` | json | 文件所在空间 |
+|   ↳ `driveId` | string | 共享云端硬盘 ID |
+|   ↳ `capabilities` | json | 文件的用户权限 |
+|   ↳ `version` | string | 版本号 |
+|   ↳ `headRevisionId` | string | 主修订版 ID |
+|   ↳ `hasThumbnail` | boolean | 是否有缩略图 |
+|   ↳ `thumbnailVersion` | string | 缩略图版本 |
+|   ↳ `imageMediaMetadata` | json | 图片专属元数据 |
+|   ↳ `videoMediaMetadata` | json | 视频专属元数据 |
+|   ↳ `isAppAuthorized` | boolean | 是否由请求的应用创建 |
+|   ↳ `contentRestrictions` | json | 内容限制 |
+|   ↳ `linkShareMetadata` | json | 链接分享元数据 |
+|   ↳ `revisions` | json | 文件修订历史（仅前 100 个修订） |
+
+### `google_drive_copy`
+
+在 Google Drive 中创建文件副本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `fileId` | string | 是 | 要复制的文件 ID |
+| `newName` | string | 否 | 副本的文件名（默认为“Copy of [原文件名]”） |
+| `destinationFolderId` | string | 否 | 放置副本的文件夹 ID（默认为与原文件相同的位置） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | json | 副本文件的元数据 |
+|   ↳ `id` | string | 副本的 Google Drive 文件 ID |
+|   ↳ `kind` | string | 资源类型标识符 |
+|   ↳ `name` | string | 文件名 |
+|   ↳ `mimeType` | string | MIME 类型 |
+|   ↳ `webViewLink` | string | 浏览器查看链接 |
+|   ↳ `parents` | json | 父文件夹 ID |
+|   ↳ `createdTime` | string | 文件创建时间 |
+|   ↳ `modifiedTime` | string | 最后修改时间 |
+|   ↳ `owners` | json | 文件所有者列表 |
+|   ↳ `size` | string | 文件大小（字节） |
+
+### `google_drive_update`
+
+在 Google Drive 中更新文件元数据（重命名、移动、加星、添加描述）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `fileId` | string | 是 | 要更新的文件 ID |
+| `name` | string | 否 | 新文件名 |
+| `description` | string | 否 | 新的文件描述 |
+| `addParents` | string | 否 | 要添加的父文件夹 ID（用逗号分隔，移动文件到这些文件夹） |
+| `removeParents` | string | 否 | 要移除的父文件夹 ID（用逗号分隔） |
+| `starred` | boolean | 否 | 是否加星或取消加星 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | json | 已更新的文件元数据 |
+|   ↳ `id` | string | Google Drive 文件 ID |
+|   ↳ `kind` | string | 资源类型标识符 |
+|   ↳ `name` | string | 文件名 |
+|   ↳ `mimeType` | string | MIME 类型 |
+|   ↳ `description` | string | 文件描述 |
+|   ↳ `starred` | boolean | 文件是否加星标 |
+|   ↳ `webViewLink` | string | 浏览器查看链接 |
+|   ↳ `parents` | json | 父文件夹 ID |
+|   ↳ `modifiedTime` | string | 最后修改时间 |
+
+### `google_drive_trash`
+
+将文件移至 Google Drive 回收站（可恢复）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要移至回收站的文件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `file` | json | 已移至回收站的文件元数据 |
+|   ↳ `id` | string | Google Drive 文件 ID |
+|   ↳ `kind` | string | 资源类型标识符 |
+|   ↳ `name` | string | 文件名 |
+|   ↳ `mimeType` | string | MIME 类型 |
+|   ↳ `trashed` | boolean | 文件是否在回收站（应为 true） |
+|   ↳ `trashedTime` | string | 文件被移至回收站的时间 |
+|   ↳ `webViewLink` | string | 浏览器查看链接 |
+
+### `google_drive_delete`
+
+从 Google Drive 永久删除文件（跳过回收站）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要永久删除的文件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 文件是否已成功删除 |
+| `fileId` | string | 已删除文件的 ID |
+
+### `google_drive_share`
+
+与用户、群组、域共享文件，或将其公开
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | 是 | 要共享的文件 ID |
+| `type` | string | 是 | 授权对象类型：user、group、domain 或 anyone |
+| `role` | string | 是 | 权限角色：owner（转移所有权）、organizer（仅限共享云端硬盘）、fileOrganizer（仅限共享云端硬盘）、writer（可编辑）、commenter（可查看和评论）、reader（仅查看） |
+| `email` | string | 否 | 用户或群组的邮箱地址（type=user 或 type=group 时必填） |
+| `domain` | string | 否 | 要共享的域（type=domain 时必填） |
+| `transferOwnership` | boolean | 否 | 当角色为 owner 时必填。将所有权转移给指定用户。 |
+| `moveToNewOwnersRoot` | boolean | 否 | 转移所有权时，将文件移动到新所有者的“我的云端硬盘”根目录。 |
+| `sendNotification` | boolean | 否 | 是否发送邮件通知（默认：true） |
+| `emailMessage` | string | 否 | 通知邮件中包含的自定义消息 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `permission` | json | 创建的权限详情 |
+|   ↳ `id` | string | 权限 ID |
+|   ↳ `type` | string | 授权对象类型（user、group、domain、anyone） |
+|   ↳ `role` | string | 权限角色 |
+|   ↳ `emailAddress` | string | 授权对象邮箱 |
+|   ↳ `displayName` | string | 授权对象显示名称 |
+|   ↳ `domain` | string | 授权对象域名 |
+|   ↳ `expirationTime` | string | 过期时间 |
+|   ↳ `deleted` | boolean | 授权对象是否已被删除 |
+
+### `google_drive_unshare`
+
+移除文件的权限（撤销访问权限）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ----------- |
+| `fileId` | string | 是 | 要修改权限的文件 ID |
+| `permissionId` | string | 是 | 要移除的权限 ID（可通过 list_permissions 获取） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `removed` | boolean | 权限是否成功移除 |
+| `fileId` | string | 文件 ID |
+| `permissionId` | string | 被移除的权限 ID |
+
+### `google_drive_list_permissions`
+
+列出 Google Drive 文件的所有权限（谁有访问权限）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ----------- |
+| `fileId` | string | 是 | 要列出权限的文件 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `permissions` | array | 文件的权限列表 |
+|   ↳ `id` | string | 权限 ID（用于移除权限） |
+|   ↳ `type` | string | 授权对象类型（user、group、domain、anyone） |
+|   ↳ `role` | string | 权限角色（owner、organizer、fileOrganizer、writer、commenter、reader） |
+|   ↳ `emailAddress` | string | 授权对象的邮箱 |
+|   ↳ `displayName` | string | 授权对象的显示名称 |
+|   ↳ `photoLink` | string | 授权对象的头像 URL |
+|   ↳ `domain` | string | 授权对象的域名 |
+|   ↳ `expirationTime` | string | 权限过期时间 |
+|   ↳ `deleted` | boolean | 授权账户是否已被删除 |
+|   ↳ `allowFileDiscovery` | boolean | 文件是否对授权对象可发现 |
+|   ↳ `pendingOwner` | boolean | 所有权转移是否待处理 |
+|   ↳ `permissionDetails` | json | 继承权限的详细信息 |
+| `nextPageToken` | string | 获取下一页权限的令牌 |
+
+### `google_drive_get_about`
+
+获取用户及其 Google Drive 信息（存储配额、功能等）
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `user` | json | 已认证用户的信息 |
+|   ↳ `displayName` | string | 用户显示名称 |
+|   ↳ `emailAddress` | string | 用户邮箱地址 |
+|   ↳ `photoLink` | string | 用户头像 URL |
+|   ↳ `permissionId` | string | 用户权限 ID |
+|   ↳ `me` | boolean | 是否为已认证用户 |
+| `storageQuota` | json | 存储配额信息（字节） |
+|   ↳ `limit` | string | 总存储上限（字节，null 表示无限制） |
+|   ↳ `usage` | string | 已用总存储（字节） |
+|   ↳ `usageInDrive` | string | Drive 文件已用存储（字节） |
+|   ↳ `usageInDriveTrash` | string | 回收站文件已用存储（字节） |
+| `canCreateDrives` | boolean | 用户是否可以创建共享云端硬盘 |
+| `importFormats` | json | 可导入的 MIME 类型及其目标格式的映射 |
+| `exportFormats` | json | Google Workspace MIME 类型及其可导出格式的映射 |
+| `maxUploadSize` | string | 最大上传文件大小（字节） |

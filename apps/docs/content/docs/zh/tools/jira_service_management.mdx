@@ -484,3 +484,68 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 分类：`tools`
 - 类型：`jira_service_management`
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `issueIdOrKey` | string | 是 | 问题 ID 或键（例如：SD-123） |
+| `approvalId` | string | 是 | 要答复的审批 ID |
+| `decision` | string | 是 | 决策："approve" 或 "decline" |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `issueIdOrKey` | string | 问题 ID 或键 |
+| `approvalId` | string | 审批 ID |
+| `decision` | string | 做出的决策（approve/decline） |
+| `id` | string | 响应中的审批 ID |
+| `name` | string | 审批描述 |
+| `finalDecision` | string | 最终审批决策：pending、approved 或 declined |
+| `canAnswerApproval` | boolean | 当前用户是否还能答复 |
+| `approvers` | array | 更新后的审批人及其决策列表 |
+|   ↳ `approver` | object | 审批人用户详情 |
+|     ↳ `accountId` | string | 审批人账号 ID |
+|     ↳ `displayName` | string | 审批人显示名 |
+|     ↳ `emailAddress` | string | 审批人邮箱 |
+|     ↳ `active` | boolean | 账号是否激活 |
+|   ↳ `approverDecision` | string | 单个审批人的决策 |
+| `createdDate` | json | 审批创建日期 |
+| `completedDate` | json | 审批完成日期 |
+| `approval` | json | 审批对象 |
+| `success` | boolean | 操作是否成功 |
+
+### `jsm_get_request_type_fields`
+
+获取在 Jira Service Management 中创建特定类型请求所需的字段
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ----------- |
+| `domain` | string | 是 | 你的 Jira 域名（例如：yourcompany.atlassian.net） |
+| `cloudId` | string | 否 | 实例的 Jira Cloud ID |
+| `serviceDeskId` | string | 是 | 服务台 ID（例如：“1”、“2”） |
+| `requestTypeId` | string | 是 | 请求类型 ID（例如：“10”、“15”） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的时间戳 |
+| `serviceDeskId` | string | 服务台 ID |
+| `requestTypeId` | string | 请求类型 ID |
+| `canAddRequestParticipants` | boolean | 是否可以为此类型的请求添加参与者 |
+| `canRaiseOnBehalfOf` | boolean | 是否可以代表其他用户提交请求 |
+| `requestTypeFields` | array | 此请求类型的字段列表 |
+|   ↳ `fieldId` | string | 字段标识符（如 summary、description、customfield_10010） |
+|   ↳ `name` | string | 字段可读名称 |
+|   ↳ `description` | string | 字段帮助文本 |
+|   ↳ `required` | boolean | 字段是否为必填项 |
+|   ↳ `visible` | boolean | 字段是否可见 |
+|   ↳ `validValues` | json | 下拉选择字段的允许值 |
+|   ↳ `presetValues` | json | 预填充值 |
+|   ↳ `defaultValues` | json | 字段默认值 |
+|   ↳ `jiraSchema` | json | Jira 字段 schema，包括类型、系统、自定义、自定义 ID |

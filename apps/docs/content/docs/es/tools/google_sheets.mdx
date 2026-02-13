@@ -176,3 +176,151 @@ Añadir datos al final de una hoja de cálculo de Google Sheets
 
 - Categoría: `tools`
 - Tipo: `google_sheets`
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `spreadsheetId` | string | Sí | ID de la hoja de cálculo de Google Sheets |
+| `includeGridData` | boolean | No | Si se deben incluir datos de cuadrícula \(valores de celdas\). Por defecto es false. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | El ID de la hoja de cálculo |
+| `title` | string | El título de la hoja de cálculo |
+| `locale` | string | La configuración regional de la hoja de cálculo |
+| `timeZone` | string | La zona horaria de la hoja de cálculo |
+| `spreadsheetUrl` | string | URL de la hoja de cálculo |
+| `sheets` | array | Lista de hojas en la hoja de cálculo |
+|   ↳ `sheetId` | number | El ID de la hoja |
+|   ↳ `title` | string | El título/nombre de la hoja |
+|   ↳ `index` | number | El índice de la hoja \(posición\) |
+|   ↳ `rowCount` | number | Número de filas en la hoja |
+|   ↳ `columnCount` | number | Número de columnas en la hoja |
+|   ↳ `hidden` | boolean | Si la hoja está oculta |
+
+### `google_sheets_create_spreadsheet`
+
+Crear una nueva hoja de cálculo de Google Sheets
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `title` | string | Sí | El título de la nueva hoja de cálculo |
+| `sheetTitles` | json | No | Array de nombres de hojas a crear \(ej., \["Hoja1", "Datos", "Resumen"\]\). Por defecto es una sola "Hoja1". |
+| `locale` | string | No | La configuración regional de la hoja de cálculo \(ej., "es_ES"\) |
+| `timeZone` | string | No | La zona horaria de la hoja de cálculo \(ej., "Europe/Madrid"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | El ID de la hoja de cálculo creada |
+| `title` | string | El título de la hoja de cálculo creada |
+| `spreadsheetUrl` | string | URL de la hoja de cálculo creada |
+| `sheets` | array | Lista de hojas creadas en la hoja de cálculo |
+|   ↳ `sheetId` | number | El ID de la hoja |
+|   ↳ `title` | string | El título/nombre de la hoja |
+|   ↳ `index` | number | El índice de la hoja \(posición\) |
+
+### `google_sheets_batch_get`
+
+Lee múltiples rangos de una hoja de cálculo de Google Sheets en una sola solicitud
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | ID de la hoja de cálculo de Google Sheets |
+| `ranges` | json | Sí | Array de rangos a leer \(ej., \["Hoja1!A1:D10", "Hoja2!A1:B5"\]\). Cada rango debe incluir el nombre de la hoja. |
+| `majorDimension` | string | No | La dimensión principal de los valores: "ROWS" \(predeterminado\) o "COLUMNS" |
+| `valueRenderOption` | string | No | Cómo deben renderizarse los valores: "FORMATTED_VALUE" \(predeterminado\), "UNFORMATTED_VALUE" o "FORMULA" |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | El ID de la hoja de cálculo |
+| `valueRanges` | array | Array de rangos de valores leídos de la hoja de cálculo |
+|   ↳ `range` | string | El rango que fue leído |
+|   ↳ `majorDimension` | string | Dimensión principal \(ROWS o COLUMNS\) |
+|   ↳ `values` | array | Los valores de las celdas como un array 2D |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+|   ↳ `spreadsheetId` | string | ID de la hoja de cálculo de Google Sheets |
+|   ↳ `spreadsheetUrl` | string | URL de la hoja de cálculo |
+
+### `google_sheets_batch_update`
+
+Actualiza múltiples rangos en una hoja de cálculo de Google Sheets en una sola solicitud
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | ID de la hoja de cálculo de Google Sheets |
+| `data` | json | Sí | Array de rangos de valores a actualizar. Cada elemento debe tener "range" \(ej., "Sheet1!A1:D10"\) y "values" \(array 2D\). |
+| `valueInputOption` | string | No | Cómo deben interpretarse los datos de entrada: "RAW" o "USER_ENTERED" \(predeterminado\). USER_ENTERED analiza fórmulas. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | El ID de la hoja de cálculo |
+| `totalUpdatedRows` | number | Número total de filas actualizadas |
+| `totalUpdatedColumns` | number | Número total de columnas actualizadas |
+| `totalUpdatedCells` | number | Número total de celdas actualizadas |
+| `totalUpdatedSheets` | number | Número total de hojas actualizadas |
+| `responses` | array | Array de respuestas de actualización para cada rango |
+|   ↳ `spreadsheetId` | string | El ID de la hoja de cálculo |
+|   ↳ `updatedRange` | string | El rango que fue actualizado |
+|   ↳ `updatedRows` | number | Número de filas actualizadas en este rango |
+|   ↳ `updatedColumns` | number | Número de columnas actualizadas en este rango |
+|   ↳ `updatedCells` | number | Número de celdas actualizadas en este rango |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+|   ↳ `spreadsheetId` | string | ID de la hoja de cálculo de Google Sheets |
+|   ↳ `spreadsheetUrl` | string | URL de la hoja de cálculo |
+
+### `google_sheets_batch_clear`
+
+Borrar múltiples rangos en una hoja de cálculo de Google Sheets en una sola solicitud
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `spreadsheetId` | string | Sí | ID de la hoja de cálculo de Google Sheets |
+| `ranges` | json | Sí | Array de rangos a borrar \(ej., \["Hoja1!A1:D10", "Hoja2!A1:B5"\]\). Cada rango debe incluir el nombre de la hoja. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | El ID de la hoja de cálculo |
+| `clearedRanges` | array | Array de rangos que fueron borrados |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+|   ↳ `spreadsheetId` | string | ID de la hoja de cálculo de Google Sheets |
+|   ↳ `spreadsheetUrl` | string | URL de la hoja de cálculo |
+
+### `google_sheets_copy_sheet`
+
+Copiar una hoja de una hoja de cálculo a otra
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | --------- | ----------- |
+| `sourceSpreadsheetId` | string | Sí | ID de la hoja de cálculo de Google Sheets de origen |
+| `sheetId` | number | Sí | El ID de la hoja a copiar \(ID numérico, no el nombre de la hoja\). Usa Obtener hoja de cálculo para encontrar los ID de las hojas. |
+| `destinationSpreadsheetId` | string | Sí | El ID de la hoja de cálculo de destino donde se copiará la hoja |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `sheetId` | number | El ID de la hoja recién creada en el destino |
+| `title` | string | El título de la hoja copiada |
+| `index` | number | El índice \(posición\) de la hoja copiada |
+| `sheetType` | string | El tipo de la hoja \(GRID, CHART, etc.\) |
+| `destinationSpreadsheetId` | string | El ID de la hoja de cálculo de destino |
+| `destinationSpreadsheetUrl` | string | URL a la hoja de cálculo de destino |

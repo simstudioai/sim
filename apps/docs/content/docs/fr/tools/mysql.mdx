@@ -158,3 +158,22 @@ Exécuter une requête SQL brute sur une base de données MySQL
 
 - Catégorie : `tools`
 - Type : `mysql`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur MySQL |
+| `port` | number | Oui | Port du serveur MySQL \(par défaut : 3306\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter |
+| `username` | string | Oui | Nom d'utilisateur de la base de données |
+| `password` | string | Oui | Mot de passe de la base de données |
+| `ssl` | string | Non | Mode de connexion SSL \(disabled, required, preferred\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `tables` | array | Tableau des schémas de tables avec colonnes, clés et index |
+| `databases` | array | Liste des bases de données disponibles sur le serveur |

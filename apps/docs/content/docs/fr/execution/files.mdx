@@ -1,0 +1,172 @@
+---
+title: Transmission de fichiers
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Sim facilite le travail avec les fichiers tout au long de vos workflows. Les blocs peuvent recevoir des fichiers, les traiter et les transmettre à d'autres blocs de manière transparente.
+
+## Objets fichier
+
+Lorsque les blocs génèrent des fichiers (comme des pièces jointes Gmail, des images générées ou des documents analysés), ils renvoient un objet fichier standardisé :
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+Vous pouvez accéder à n'importe laquelle de ces propriétés lors du référencement de fichiers provenant de blocs précédents.
+
+## Le bloc fichier
+
+Le **bloc fichier** est le point d'entrée universel pour les fichiers dans vos workflows. Il accepte les fichiers de n'importe quelle source et génère des objets fichier standardisés qui fonctionnent avec toutes les intégrations.
+
+**Entrées :**
+- **Fichiers téléversés** - Glissez-déposez ou sélectionnez directement des fichiers
+- **URL externes** - N'importe quelle URL de fichier accessible publiquement
+- **Fichiers d'autres blocs** - Transmettez des fichiers provenant de pièces jointes Gmail, de téléchargements Slack, etc.
+
+**Sorties :**
+- Une liste d'objets `UserFile` avec une structure cohérente (`name`, `url`, `base64`, `type`, `size`)
+- `combinedContent` - Contenu textuel extrait de tous les fichiers (pour les documents)
+
+**Exemple d'utilisation :**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+Le bloc fichier effectue automatiquement :
+- La détection des types de fichiers à partir des URL et des extensions
+- L'extraction de texte des PDF, CSV et documents
+- La génération d'encodage base64 pour les fichiers binaires
+- La création d'URL présignées pour un accès sécurisé
+
+Utilisez le bloc fichier lorsque vous devez normaliser des fichiers provenant de différentes sources avant de les transmettre à d'autres blocs comme Vision, STT ou les intégrations email.
+
+## Transmission de fichiers entre blocs
+
+Référencez les fichiers des blocs précédents en utilisant le menu déroulant des balises. Cliquez dans n'importe quel champ de saisie de fichier et tapez `<` pour voir les sorties disponibles.
+
+**Modèles courants :**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+La plupart des blocs acceptent l'objet fichier complet et extraient automatiquement ce dont ils ont besoin. Vous n'avez pas besoin d'extraire manuellement `base64` ou `url` dans la plupart des cas.
+
+## Déclencher des workflows avec des fichiers
+
+Lors de l'appel d'un workflow via API qui attend une entrée de fichier, incluez les fichiers dans votre requête :
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+  <Tab value="URL">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+</Tabs>
+
+Le bloc de démarrage du workflow doit avoir un champ d'entrée configuré pour recevoir le paramètre de fichier.
+
+## Recevoir des fichiers dans les réponses API
+
+Lorsqu'un workflow génère des fichiers, ils sont inclus dans la réponse :
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+Utilisez `url` pour les téléchargements directs ou `base64` pour le traitement en ligne.
+
+## Blocs qui fonctionnent avec des fichiers
+
+**Entrées de fichiers :**
+- **File** - Analyser des documents, images et fichiers texte
+- **Vision** - Analyser des images avec des modèles IA
+- **Mistral Parser** - Extraire du texte depuis des PDF
+
+**Sorties de fichiers :**
+- **Gmail** - Pièces jointes d'e-mails
+- **Slack** - Fichiers téléchargés
+- **TTS** - Fichiers audio générés
+- **Video Generator** - Vidéos générées
+- **Image Generator** - Images générées
+
+**Stockage de fichiers :**
+- **Supabase** - Téléverser/télécharger depuis le stockage
+- **S3** - Opérations AWS S3
+- **Google Drive** - Opérations de fichiers Drive
+- **Dropbox** - Opérations de fichiers Dropbox
+
+<Callout type="info">
+  Les fichiers sont automatiquement disponibles pour les blocs en aval. Le moteur d'exécution gère tous les transferts de fichiers et conversions de format.
+</Callout>
+
+## Bonnes pratiques
+
+1. **Utilisez directement les objets fichiers** - Transmettez l'objet fichier complet plutôt que d'extraire des propriétés individuelles. Les blocs gèrent automatiquement la conversion.
+
+2. **Vérifiez les types de fichiers** - Assurez-vous que le type de fichier correspond à ce que le bloc récepteur attend. Le bloc Vision nécessite des images, le bloc File gère les documents.
+
+3. **Tenir compte de la taille du fichier** - Les fichiers volumineux augmentent le temps d'exécution. Pour les très gros fichiers, envisagez d'utiliser des blocs de stockage (S3, Supabase) pour le stockage intermédiaire.

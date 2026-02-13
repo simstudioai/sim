@@ -176,3 +176,151 @@ Ajouter des données à la fin d'une feuille de calcul Google Sheets
 
 - Catégorie : `tools`
 - Type : `google_sheets`
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Oui | ID de la feuille de calcul Google Sheets |
+| `includeGridData` | boolean | Non | Indique s'il faut inclure les données de grille \(valeurs des cellules\). Par défaut false. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | L'ID de la feuille de calcul |
+| `title` | string | Le titre de la feuille de calcul |
+| `locale` | string | La locale de la feuille de calcul |
+| `timeZone` | string | Le fuseau horaire de la feuille de calcul |
+| `spreadsheetUrl` | string | URL vers la feuille de calcul |
+| `sheets` | array | Liste des feuilles dans la feuille de calcul |
+|   ↳ `sheetId` | number | L'ID de la feuille |
+|   ↳ `title` | string | Le titre/nom de la feuille |
+|   ↳ `index` | number | L'index de la feuille \(position\) |
+|   ↳ `rowCount` | number | Nombre de lignes dans la feuille |
+|   ↳ `columnCount` | number | Nombre de colonnes dans la feuille |
+|   ↳ `hidden` | boolean | Indique si la feuille est masquée |
+
+### `google_sheets_create_spreadsheet`
+
+Créer une nouvelle feuille de calcul Google Sheets
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Oui | Le titre de la nouvelle feuille de calcul |
+| `sheetTitles` | json | Non | Tableau de noms de feuilles à créer \(par exemple, \["Feuille1", "Données", "Résumé"\]\). Par défaut une seule "Feuille1". |
+| `locale` | string | Non | La locale de la feuille de calcul \(par exemple, "fr_FR"\) |
+| `timeZone` | string | Non | Le fuseau horaire de la feuille de calcul \(par exemple, "Europe/Paris"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | L'ID de la feuille de calcul créée |
+| `title` | string | Le titre de la feuille de calcul créée |
+| `spreadsheetUrl` | string | URL vers la feuille de calcul créée |
+| `sheets` | array | Liste des feuilles créées dans la feuille de calcul |
+|   ↳ `sheetId` | number | L'ID de la feuille |
+|   ↳ `title` | string | Le titre/nom de la feuille |
+|   ↳ `index` | number | L'index de la feuille (position) |
+
+### `google_sheets_batch_get`
+
+Lire plusieurs plages d'une feuille de calcul Google Sheets en une seule requête
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Oui | ID de la feuille de calcul Google Sheets |
+| `ranges` | json | Oui | Tableau de plages à lire (par ex., ["Feuille1!A1:D10", "Feuille2!A1:B5"]). Chaque plage doit inclure le nom de la feuille. |
+| `majorDimension` | string | Non | La dimension principale des valeurs : "ROWS" (par défaut) ou "COLUMNS" |
+| `valueRenderOption` | string | Non | Comment les valeurs doivent être rendues : "FORMATTED_VALUE" (par défaut), "UNFORMATTED_VALUE" ou "FORMULA" |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | L'ID de la feuille de calcul |
+| `valueRanges` | array | Tableau de plages de valeurs lues depuis la feuille de calcul |
+|   ↳ `range` | string | La plage qui a été lue |
+|   ↳ `majorDimension` | string | Dimension principale (ROWS ou COLUMNS) |
+|   ↳ `values` | array | Les valeurs des cellules sous forme de tableau 2D |
+| `metadata` | json | Métadonnées de la feuille de calcul, y compris l'ID et l'URL |
+|   ↳ `spreadsheetId` | string | ID de la feuille de calcul Google Sheets |
+|   ↳ `spreadsheetUrl` | string | URL de la feuille de calcul |
+
+### `google_sheets_batch_update`
+
+Mettre à jour plusieurs plages dans une feuille de calcul Google Sheets en une seule requête
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Oui | ID de la feuille de calcul Google Sheets |
+| `data` | json | Oui | Tableau de plages de valeurs à mettre à jour. Chaque élément doit avoir "range" (par ex., "Sheet1!A1:D10") et "values" (tableau 2D). |
+| `valueInputOption` | string | Non | Comment les données d'entrée doivent être interprétées : "RAW" ou "USER_ENTERED" (par défaut). USER_ENTERED analyse les formules. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | L'ID de la feuille de calcul |
+| `totalUpdatedRows` | number | Nombre total de lignes mises à jour |
+| `totalUpdatedColumns` | number | Nombre total de colonnes mises à jour |
+| `totalUpdatedCells` | number | Nombre total de cellules mises à jour |
+| `totalUpdatedSheets` | number | Nombre total de feuilles mises à jour |
+| `responses` | array | Tableau de réponses de mise à jour pour chaque plage |
+|   ↳ `spreadsheetId` | string | L'ID de la feuille de calcul |
+|   ↳ `updatedRange` | string | La plage qui a été mise à jour |
+|   ↳ `updatedRows` | number | Nombre de lignes mises à jour dans cette plage |
+|   ↳ `updatedColumns` | number | Nombre de colonnes mises à jour dans cette plage |
+|   ↳ `updatedCells` | number | Nombre de cellules mises à jour dans cette plage |
+| `metadata` | json | Métadonnées de la feuille de calcul, y compris l'ID et l'URL |
+|   ↳ `spreadsheetId` | string | ID de la feuille de calcul Google Sheets |
+|   ↳ `spreadsheetUrl` | string | URL de la feuille de calcul |
+
+### `google_sheets_batch_clear`
+
+Effacer plusieurs plages dans une feuille de calcul Google Sheets en une seule requête
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | chaîne | Oui | ID de la feuille de calcul Google Sheets |
+| `ranges` | json | Oui | Tableau de plages à effacer \(par exemple, \["Feuille1!A1:D10", "Feuille2!A1:B5"\]\). Chaque plage doit inclure le nom de la feuille. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | chaîne | L'ID de la feuille de calcul |
+| `clearedRanges` | tableau | Tableau des plages qui ont été effacées |
+| `metadata` | json | Métadonnées de la feuille de calcul, y compris l'ID et l'URL |
+|   ↳ `spreadsheetId` | chaîne | ID de la feuille de calcul Google Sheets |
+|   ↳ `spreadsheetUrl` | chaîne | URL de la feuille de calcul |
+
+### `google_sheets_copy_sheet`
+
+Copier une feuille d'une feuille de calcul vers une autre
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceSpreadsheetId` | chaîne | Oui | ID de la feuille de calcul Google Sheets source |
+| `sheetId` | nombre | Oui | L'ID de la feuille à copier \(ID numérique, pas le nom de la feuille\). Utilisez Obtenir la feuille de calcul pour trouver les ID de feuille. |
+| `destinationSpreadsheetId` | chaîne | Oui | L'ID de la feuille de calcul de destination où la feuille sera copiée |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `sheetId` | nombre | L'ID de la feuille nouvellement créée dans la destination |
+| `title` | chaîne | Le titre de la feuille copiée |
+| `index` | nombre | L'index \(position\) de la feuille copiée |
+| `sheetType` | chaîne | Le type de la feuille \(GRID, CHART, etc.\) |
+| `destinationSpreadsheetId` | chaîne | L'ID de la feuille de calcul de destination |
+| `destinationSpreadsheetUrl` | chaîne | URL vers la feuille de calcul de destination |

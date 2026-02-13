@@ -194,3 +194,64 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`youtube`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | 字符串 | 否 | 获取类别的 ISO 3166-1 alpha-2 国家代码（如 "US"、"GB"、"JP"），默认为 US。|
+| `hl` | 字符串 | 否 | 类别标题的语言（ISO 639-1 代码，如 "en"、"es"、"fr"），默认为英语。|
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 指定地区可用的视频类别数组 |
+|   ↳ `categoryId` | 字符串 | 用于搜索/热门筛选的类别 ID（如 "10" 表示音乐）|
+|   ↳ `title` | 字符串 | 可读类别名称 |
+|   ↳ `assignable` | 布尔值 | 视频是否可以标记为此类别 |
+| `totalResults` | 数字 | 可用类别的总数 |
+
+### `youtube_video_details`
+
+获取指定 YouTube 视频的详细信息，包括统计数据、内容详情、直播信息和元数据。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | YouTube 视频 ID（11 位字符串，例如 "dQw4w9WgXcQ"）|
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoId` | 字符串 | YouTube 视频 ID |
+| `title` | 字符串 | 视频标题 |
+| `description` | 字符串 | 视频描述 |
+| `channelId` | 字符串 | 频道 ID |
+| `channelTitle` | 字符串 | 频道名称 |
+| `publishedAt` | 字符串 | 发布时间和时间 |
+| `duration` | 字符串 | 视频时长（ISO 8601 格式，如 "PT4M13S" 表示 4 分 13 秒）|
+| `viewCount` | 数字 | 播放次数 |
+| `likeCount` | 数字 | 点赞数 |
+| `commentCount` | 数字 | 评论数 |
+| `favoriteCount` | 数字 | 被添加为收藏的次数 |
+| `thumbnail` | 字符串 | 视频缩略图 URL |
+| `tags` | 数组 | 视频标签 |
+| `categoryId` | 字符串 | YouTube 视频类别 ID |
+| `definition` | 字符串 | 视频清晰度："hd" 或 "sd" |
+| `caption` | 字符串 | 是否有字幕："true" 或 "false" |
+| `licensedContent` | 布尔值 | 视频是否为授权内容 |
+| `privacyStatus` | 字符串 | 视频隐私状态："public"、"private" 或 "unlisted" |
+| `liveBroadcastContent` | 字符串 | 直播状态："live"、"upcoming" 或 "none" |
+| `defaultLanguage` | 字符串 | 视频元数据的默认语言 |
+| `defaultAudioLanguage` | 字符串 | 视频默认音频语言 |
+| `isLiveContent` | 布尔值 | 此视频是否为直播或曾为直播 |
+| `scheduledStartTime` | 字符串 | 预定直播的开始时间（ISO 8601）|
+| `actualStartTime` | 字符串 | 实际直播开始时间（ISO 8601）|
+| `actualEndTime` | 字符串 | 直播结束时间（ISO 8601）|
+| `concurrentViewers` | 数字 | 当前观看人数（仅限正在直播时）|
+| `activeLiveChatId` | 字符串 | 直播聊天室 ID（仅限正在直播时）|

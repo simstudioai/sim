@@ -1,0 +1,89 @@
+---
+title: LangSmith
+description: Workflow-Ausführungen zur Beobachtbarkeit an LangSmith weiterleiten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Erschließen Sie tiefe Einblicke und Verständnis Ihrer KI-Workflows mit [LangSmith](https://www.langchain.com/langsmith) – einer leistungsstarken Plattform für Tracing, Debugging und Monitoring von LLM-basierten Anwendungen und Automatisierungen. Integrieren Sie LangSmith in Ihre Prozesse, um detaillierte Ausführungs-Traces zu erfassen, Ein-/Ausgabedaten zu protokollieren, Metadaten anzuhängen und Ihre Workflows durch datengesteuerte Beobachtbarkeit zu optimieren.
+
+Mit der LangSmith-Integration können Sie:
+
+- **Ausführungen tracen und debuggen**: Leiten Sie Workflow-, Tool- oder Modell-Ausführungen an LangSmith weiter, zeichnen Sie hierarchische Ausführungsdetails auf und identifizieren Sie Engpässe oder Fehler schnell.
+- **Umfangreiche Metadaten anhängen**: Reichern Sie Ihre Traces an, indem Sie Eingaben, Ausgaben, Tags, benutzerdefinierte Metadaten, Fehlerursachen und mehr für tiefgehende Einblicke und Analysen protokollieren.
+- **Workflow-Performance überwachen**: Visualisieren Sie Ausführungen, überwachen Sie Fehlerraten, Laufzeiten und Erfolgsmetriken im Zeitverlauf, um Zuverlässigkeit und Effizienz zu verbessern.
+- **Zusammenarbeiten und auditieren**: Ermöglichen Sie teambasiertes Debugging und verfolgen Sie Änderungen für transparente Audits und schnelle Iteration bei verketteten LLM-Workflows.
+- **Beobachtbarkeit automatisieren**: Verbinden Sie LangSmith-Traces nahtlos mit Ihren Workflow-Automatisierungen für permanentes, müheloses Monitoring ohne manuelle Instrumentierung.
+
+LangSmith befähigt Ingenieure, Data Scientists und Produktteams, schneller zu iterieren, Probleme früher zu erkennen und robustere LLM-basierte Anwendungen zu entwickeln – egal ob Sie Agenten, Chains oder End-to-End-Workflows orchestrieren.
+
+Verbessern Sie Beobachtbarkeit, gewinnen Sie umsetzbare Erkenntnisse und steigern Sie die Produktqualität, indem Sie LangSmith noch heute in Ihre automatisierten Prozesse integrieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Senden Sie Ausführungsdaten an LangSmith, um Ausführungen zu tracen, Metadaten anzuhängen und die Workflow-Performance zu überwachen.
+
+## Tools
+
+### `langsmith_create_run`
+
+Leiten Sie eine einzelne Ausführung zur Erfassung an LangSmith weiter.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | LangSmith API-Schlüssel |
+| `id` | string | Nein | Eindeutige Run-Kennung |
+| `name` | string | Ja | Run-Name |
+| `run_type` | string | Ja | Run-Typ \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `start_time` | string | Nein | Run-Startzeit im ISO-8601-Format |
+| `end_time` | string | Nein | Run-Endzeit im ISO-8601-Format |
+| `inputs` | json | Nein | Eingabe-Payload |
+| `run_outputs` | json | Nein | Ausgabe-Payload |
+| `extra` | json | Nein | Zusätzliche Metadaten \(extra\) |
+| `tags` | json | Nein | Array von Tag-Strings |
+| `parent_run_id` | string | Nein | Übergeordnete Run-ID |
+| `trace_id` | string | Nein | Trace-ID |
+| `session_id` | string | Nein | Session-ID |
+| `session_name` | string | Nein | Session-Name |
+| `status` | string | Nein | Run-Status |
+| `error` | string | Nein | Fehlerdetails |
+| `dotted_order` | string | Nein | Punktierte Reihenfolge-Zeichenkette |
+| `events` | json | Nein | Strukturiertes Events-Array |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Ob der Run zur Verarbeitung akzeptiert wurde |
+| `runId` | string | Run-Kennung aus der Anfrage |
+| `message` | string | Antwortnachricht von LangSmith |
+
+### `langsmith_create_runs_batch`
+
+Mehrere Durchläufe in einem einzigen Batch an LangSmith weiterleiten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | LangSmith API-Schlüssel |
+| `post` | json | Nein | Array neuer Durchläufe zur Aufnahme |
+| `patch` | json | Nein | Array von Durchläufen zum Aktualisieren/Patchen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Ob der Batch zur Aufnahme akzeptiert wurde |
+| `runIds` | array | In der Anfrage angegebene Durchlauf-Identifikatoren |
+| `message` | string | Antwortnachricht von LangSmith |
+| `messages` | array | Antwortnachrichten pro Durchlauf, falls vorhanden |

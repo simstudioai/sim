@@ -1,0 +1,784 @@
+---
+title: Cal Com
+description: 管理 Cal.com 预订、事件类型、日程安排和可用性
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cal.com](https://cal.com/) 是一个灵活且开源的日程安排平台，可帮助您轻松管理预约、预订、事件类型和团队可用时间。
+
+使用 Cal.com，您可以：
+
+- **自动化日程安排**：让用户查看您的可用时间段并自动预订会议，无需来回邮件沟通。
+- **管理事件**：创建并自定义事件类型、时长和规则，支持一对一或群组会议。
+- **集成日历**：无缝连接 Google、Outlook、Apple 或其他日历服务，避免重复预订。
+- **管理参与者和嘉宾**：收集参与者信息，管理嘉宾，并发送邀请或提醒。
+- **控制可用性**：自定义工作时间、缓冲时间以及取消/重新预订规则。
+- **驱动工作流**：通过 webhook 在预订创建、取消或重新安排时触发自定义操作。
+
+在 Sim 中，Cal.com 集成让您的代理可以预订会议、检查可用时间、管理事件类型，并以编程方式自动化日程安排任务。这有助于代理协调会议、代表用户发送预订、检查日程或响应预订事件——无需人工干预。将 Sim 与 Cal.com 连接后，您可以实现高度自动化和智能化的日程安排工作流，并可无缝集成到更广泛的自动化需求中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Cal.com 集成到您的工作流中。创建和管理预订、事件类型、日程安排，并检查可用时间段。支持创建、列出、重新安排和取消预订，以及管理事件类型和日程安排。还可基于 Cal.com webhook 事件（预订创建、取消、重新安排）触发工作流。通过 OAuth 连接您的 Cal.com 账户。
+
+## 工具
+
+### `calcom_create_booking`
+
+在 Cal.com 上创建新的预订
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | 是 | 要预订的事件类型 ID |
+| `start` | string | 是 | UTC ISO 8601 格式的开始时间（例如，2024-01-15T09:00:00Z） |
+| `attendee` | object | 是 | 参会者信息对象，包含姓名、邮箱、时区和可选的手机号（由单独的参会者字段构建） |
+| `guests` | array | 否 | 嘉宾邮箱地址数组 |
+| `items` | string | 否 | 嘉宾邮箱地址 |
+| `lengthInMinutes` | number | 否 | 预订时长（分钟），会覆盖事件类型默认值 |
+| `metadata` | object | 否 | 附加到预订的自定义元数据 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已创建的预订详情 |
+|   ↳ `eventType` | object | 事件类型详情 |
+|     ↳ `id` | number | 事件类型 ID |
+|     ↳ `slug` | string | 事件类型 slug |
+|   ↳ `attendees` | array | 参会者列表 |
+|     ↳ `name` | string | 参会者姓名 |
+|     ↳ `email` | string | 参会者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参会者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参会者手机号 |
+|     ↳ `language` | string | 参会者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参会者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订的数字 ID |
+|   ↳ `uid` | string | 预订唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `status` | string | 预订状态（如 accepted、pending、cancelled） |
+|   ↳ `start` | string | ISO 8601 格式的开始时间 |
+|   ↳ `end` | string | 结束时间 |
+|   ↳ `duration` | number | 时长（分钟） |
+|   ↳ `eventTypeId` | number | 事件类型 ID |
+|   ↳ `meetingUrl` | string | 会议加入链接 |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `absentHost` | boolean | 主持人是否缺席 |
+|   ↳ `guests` | array | 嘉宾邮箱地址 |
+|   ↳ `bookingFieldsResponses` | json | 自定义预订字段响应（根据事件类型配置动态生成的键） |
+|   ↳ `metadata` | json | 附加到预订的自定义元数据（动态键值对） |
+|   ↳ `icsUid` | string | ICS 日历 UID |
+|   ↳ `createdAt` | string | 预订创建时间 |
+
+### `calcom_get_booking`
+
+通过其 UID 获取特定预订的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | 是 | 预订的唯一标识符（UID） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 预订详情 |
+|   ↳ `eventType` | object | 活动类型详情 |
+|     ↳ `id` | number | 活动类型 ID |
+|     ↳ `slug` | string | 活动类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订数字 ID |
+|   ↳ `uid` | string | 预订唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `description` | string | 预订描述 |
+|   ↳ `status` | string | 预订状态（如已接受、待定、已取消） |
+|   ↳ `start` | string | 开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 结束时间（ISO 8601 格式） |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 活动类型 ID |
+|   ↳ `meetingUrl` | string | 会议加入 URL |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `absentHost` | boolean | 主持人是否缺席 |
+|   ↳ `guests` | array | 嘉宾邮箱地址 |
+|   ↳ `bookingFieldsResponses` | json | 自定义预订字段响应（根据活动类型配置动态生成的键） |
+|   ↳ `metadata` | json | 预订附加的自定义元数据（动态键值对） |
+|   ↳ `rating` | number | 预订评分 |
+|   ↳ `icsUid` | string | ICS 日历 UID |
+|   ↳ `cancellationReason` | string | 取消原因（如已取消） |
+|   ↳ `reschedulingReason` | string | 改期原因（如已改期） |
+|   ↳ `rescheduledFromUid` | string | 如果本次预订为改期，则为原预订 UID |
+|   ↳ `rescheduledToUid` | string | 改期后的新预订 UID |
+|   ↳ `cancelledByEmail` | string | 取消预订者邮箱 |
+|   ↳ `rescheduledByEmail` | string | 改期预订者邮箱 |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `updatedAt` | string | 预订最后更新时间 |
+
+### `calcom_list_bookings`
+
+列出所有预订，可选状态筛选
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | 否 | 按状态筛选预订：upcoming、recurring、past、cancelled 或 unconfirmed |
+| `take` | number | 否 | 返回的预订数量（分页限制） |
+| `skip` | number | 否 | 跳过的预订数量（分页偏移量） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | array | 预订数组 |
+|   ↳ `eventType` | object | 活动类型详情 |
+|     ↳ `id` | number | 活动类型 ID |
+|     ↳ `slug` | string | 活动类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订的数字 ID |
+|   ↳ `uid` | string | 预订的唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `description` | string | 预订描述 |
+|   ↳ `status` | string | 预订状态（如 accepted、pending、cancelled） |
+|   ↳ `start` | string | 开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 结束时间（ISO 8601 格式） |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 活动类型 ID |
+|   ↳ `meetingUrl` | string | 会议加入链接 |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `absentHost` | boolean | 主持人是否缺席 |
+|   ↳ `guests` | array | 嘉宾邮箱地址 |
+|   ↳ `bookingFieldsResponses` | json | 预订自定义字段响应（根据活动类型配置动态生成的键） |
+|   ↳ `metadata` | json | 预订附加的自定义元数据（动态键值对） |
+|   ↳ `rating` | number | 预订评分 |
+|   ↳ `icsUid` | string | ICS 日历 UID |
+|   ↳ `cancellationReason` | string | 取消原因（如已取消） |
+|   ↳ `cancelledByEmail` | string | 取消预订者邮箱 |
+|   ↳ `reschedulingReason` | string | 改期原因（如已改期） |
+|   ↳ `rescheduledByEmail` | string | 改期者邮箱 |
+|   ↳ `rescheduledFromUid` | string | 如果本次预订为改期，原预订 UID |
+|   ↳ `rescheduledToUid` | string | 改期后新预订 UID |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `updatedAt` | string | 预订最后更新时间 |
+| `pagination` | object | 分页元数据 |
+|   ↳ `totalItems` | number | 条目总数 |
+|   ↳ `remainingItems` | number | 当前页后剩余条目数 |
+|   ↳ `returnedItems` | number | 本次响应返回的条目数 |
+|   ↳ `itemsPerPage` | number | 每页条目数 |
+|   ↳ `currentPage` | number | 当前页码 |
+|   ↳ `totalPages` | number | 总页数 |
+|   ↳ `hasNextPage` | boolean | 是否有下一页 |
+|   ↳ `hasPreviousPage` | boolean | 是否有上一页 |
+
+### `calcom_cancel_booking`
+
+取消已有预订
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | 是 | 要取消的预订唯一标识符（UID） |
+| `cancellationReason` | string | 否 | 取消预订的原因 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已取消预订的详细信息 |
+|   ↳ `eventType` | object | 事件类型详情 |
+|     ↳ `id` | number | 事件类型 ID |
+|     ↳ `slug` | string | 事件类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订数字 ID |
+|   ↳ `uid` | string | 预订唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `cancellationReason` | string | 如果已取消，取消原因 |
+|   ↳ `cancelledByEmail` | string | 取消预订者的邮箱 |
+|   ↳ `start` | string | 开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 结束时间（ISO 8601 格式） |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 事件类型 ID |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `metadata` | json | 附加在预订上的自定义元数据（动态键值对） |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `status` | string | 预订状态（应为已取消） |
+
+### `calcom_reschedule_booking`
+
+将现有预订重新安排到新的时间
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | 是 | 要重新安排的预订唯一标识符（UID） |
+| `start` | string | 是 | 新的开始时间，采用 UTC ISO 8601 格式（例如，2024-01-15T09:00:00Z） |
+| `reschedulingReason` | string | 否 | 重新安排预订的原因 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已重新安排的预订详情 |
+|   ↳ `eventType` | object | 事件类型详情 |
+|     ↳ `id` | number | 事件类型 ID |
+|     ↳ `slug` | string | 事件类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订的数字 ID |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `status` | string | 预订状态（如已接受、待定、已取消） |
+|   ↳ `reschedulingReason` | string | 如果已重新安排，重新安排的原因 |
+|   ↳ `rescheduledFromUid` | string | 如果此预订已重新安排，则为原始预订 UID |
+|   ↳ `rescheduledByEmail` | string | 重新安排预订的人员邮箱 |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 事件类型 ID |
+|   ↳ `meetingUrl` | string | 会议加入链接 |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `guests` | array | 嘉宾邮箱地址 |
+|   ↳ `metadata` | json | 附加在预订上的自定义元数据（动态键值对） |
+|   ↳ `icsUid` | string | ICS 日历 UID |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `uid` | string | 新预订的唯一标识符 |
+|   ↳ `start` | string | 新的开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 新的结束时间（ISO 8601 格式） |
+
+### `calcom_confirm_booking`
+
+确认需要确认的待处理预订
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | 是 | 要确认的预订唯一标识符（UID） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已确认预订详情 |
+|   ↳ `eventType` | object | 活动类型详情 |
+|     ↳ `id` | number | 活动类型 ID |
+|     ↳ `slug` | string | 活动类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订数字 ID |
+|   ↳ `uid` | string | 预订唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `start` | string | 开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 结束时间（ISO 8601 格式） |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 活动类型 ID |
+|   ↳ `meetingUrl` | string | 会议加入链接 |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `guests` | array | 嘉宾邮箱地址 |
+|   ↳ `metadata` | json | 附加在预订上的自定义元数据（动态键值对） |
+|   ↳ `icsUid` | string | ICS 日历 UID |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `status` | string | 预订状态（应为 accepted/confirmed） |
+
+### `calcom_decline_booking`
+
+拒绝待处理的预订请求
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | 是 | 要拒绝的预订唯一标识符（UID） |
+| `reason` | string | 否 | 拒绝预订的原因 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 被拒绝的预订详情 |
+|   ↳ `eventType` | object | 事件类型详情 |
+|     ↳ `id` | number | 事件类型 ID |
+|     ↳ `slug` | string | 事件类型 slug |
+|   ↳ `attendees` | array | 参与者列表 |
+|     ↳ `name` | string | 参与者姓名 |
+|     ↳ `email` | string | 参与者实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `timeZone` | string | 参与者时区（IANA 格式） |
+|     ↳ `phoneNumber` | string | 参与者电话号码 |
+|     ↳ `language` | string | 参与者语言偏好（ISO 代码） |
+|     ↳ `absent` | boolean | 参与者是否缺席 |
+|   ↳ `hosts` | array | 主持人列表 |
+|     ↳ `id` | number | 主持人用户 ID |
+|     ↳ `name` | string | 主持人显示名称 |
+|     ↳ `email` | string | 主持人实际邮箱地址 |
+|     ↳ `displayEmail` | string | 公开显示的邮箱（可能与实际邮箱不同） |
+|     ↳ `username` | string | 主持人 Cal.com 用户名 |
+|     ↳ `timeZone` | string | 主持人时区（IANA 格式） |
+|   ↳ `id` | number | 预订的数字 ID |
+|   ↳ `uid` | string | 预订的唯一标识符 |
+|   ↳ `title` | string | 预订标题 |
+|   ↳ `cancellationReason` | string | 如已取消，取消原因 |
+|   ↳ `start` | string | 开始时间（ISO 8601 格式） |
+|   ↳ `end` | string | 结束时间（ISO 8601 格式） |
+|   ↳ `duration` | number | 持续时间（分钟） |
+|   ↳ `eventTypeId` | number | 事件类型 ID |
+|   ↳ `location` | string | 预订地点 |
+|   ↳ `metadata` | json | 附加在预订上的自定义元数据（动态键值对） |
+|   ↳ `createdAt` | string | 预订创建时间 |
+|   ↳ `status` | string | 预订状态（应为已取消/已拒绝） |
+
+### `calcom_create_event_type`
+
+在 Cal.com 中创建一个新的事件类型
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 事件类型的标题 |
+| `slug` | string | 是 | 事件类型 URL 的唯一 slug |
+| `lengthInMinutes` | number | 是 | 事件时长（分钟） |
+| `description` | string | 否 | 事件类型描述 |
+| `slotInterval` | number | 否 | 可预订时段之间的间隔（分钟） |
+| `minimumBookingNotice` | number | 否 | 预订前所需的最短通知时间（分钟） |
+| `beforeEventBuffer` | number | 否 | 事件开始前的缓冲时间（分钟） |
+| `afterEventBuffer` | number | 否 | 事件结束后的缓冲时间（分钟） |
+| `scheduleId` | number | 否 | 用于可用性的日程 ID |
+| `disableGuests` | boolean | 否 | 是否禁止向预订中添加嘉宾 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已创建的事件类型详情 |
+|   ↳ `id` | number | 事件类型 ID |
+|   ↳ `title` | string | 事件类型标题 |
+|   ↳ `slug` | string | 事件类型 slug |
+|   ↳ `description` | string | 事件类型描述 |
+|   ↳ `lengthInMinutes` | number | 时长（分钟） |
+|   ↳ `slotInterval` | number | 时段间隔（分钟） |
+|   ↳ `minimumBookingNotice` | number | 最短预订通知时间（分钟） |
+|   ↳ `beforeEventBuffer` | number | 事件前缓冲时间（分钟） |
+|   ↳ `afterEventBuffer` | number | 事件后缓冲时间（分钟） |
+|   ↳ `scheduleId` | number | 日程 ID |
+|   ↳ `disableGuests` | boolean | 是否禁用嘉宾 |
+|   ↳ `createdAt` | string | 创建时的 ISO 时间戳 |
+|   ↳ `updatedAt` | string | 最后更新时间的 ISO 时间戳 |
+
+### `calcom_get_event_type`
+
+获取特定事件类型的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | 是 | 要检索的事件类型 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 事件类型详情 |
+|   ↳ `id` | number | 事件类型 ID |
+|   ↳ `title` | string | 事件类型标题 |
+|   ↳ `slug` | string | 事件类型 slug |
+|   ↳ `description` | string | 事件类型描述 |
+|   ↳ `lengthInMinutes` | number | 持续时间（分钟） |
+|   ↳ `slotInterval` | number | 时间间隔（分钟） |
+|   ↳ `minimumBookingNotice` | number | 最短预约提前通知（分钟） |
+|   ↳ `beforeEventBuffer` | number | 事件前缓冲时间（分钟） |
+|   ↳ `afterEventBuffer` | number | 事件后缓冲时间（分钟） |
+|   ↳ `scheduleId` | number | 日程 ID |
+|   ↳ `disableGuests` | boolean | 是否禁用嘉宾 |
+|   ↳ `createdAt` | string | 创建时的 ISO 时间戳 |
+|   ↳ `updatedAt` | string | 最后更新时间的 ISO 时间戳 |
+
+### `calcom_list_event_types`
+
+获取所有事件类型的列表
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `sortCreatedAt` | string | 否 | 按创建日期排序："asc" 或 "desc" |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | array | 事件类型数组 |
+|   ↳ `id` | number | 事件类型 ID |
+|   ↳ `title` | string | 事件类型标题 |
+|   ↳ `slug` | string | 事件类型 slug |
+|   ↳ `description` | string | 事件类型描述 |
+|   ↳ `lengthInMinutes` | number | 持续时间（分钟） |
+|   ↳ `slotInterval` | number | 时间段间隔（分钟） |
+|   ↳ `minimumBookingNotice` | number | 最短预约提前通知时间（分钟） |
+|   ↳ `beforeEventBuffer` | number | 活动前缓冲时间（分钟） |
+|   ↳ `afterEventBuffer` | number | 活动后缓冲时间（分钟） |
+|   ↳ `scheduleId` | number | 日程 ID |
+|   ↳ `disableGuests` | boolean | 是否禁用访客 |
+|   ↳ `createdAt` | string | 创建时的 ISO 时间戳 |
+|   ↳ `updatedAt` | string | 最后更新时间的 ISO 时间戳 |
+
+### `calcom_update_event_type`
+
+在 Cal.com 中更新现有事件类型
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | 是 | 要更新的事件类型 ID（例如 12345） |
+| `title` | string | 否 | 事件类型标题 |
+| `slug` | string | 否 | 事件类型 URL 的唯一 slug |
+| `lengthInMinutes` | number | 否 | 事件持续时间（分钟） |
+| `description` | string | 否 | 事件类型描述 |
+| `slotInterval` | number | 否 | 可预约时间段间隔（分钟） |
+| `minimumBookingNotice` | number | 否 | 预约前最短通知时间（分钟） |
+| `beforeEventBuffer` | number | 否 | 活动前缓冲时间（分钟） |
+| `afterEventBuffer` | number | 否 | 活动后缓冲时间（分钟） |
+| `scheduleId` | number | 否 | 可用日程 ID |
+| `disableGuests` | boolean | 否 | 是否禁止添加访客到预约中 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已更新的事件类型详情 |
+|   ↳ `id` | number | 事件类型 ID |
+|   ↳ `title` | string | 事件类型标题 |
+|   ↳ `slug` | string | 事件类型 slug |
+|   ↳ `description` | string | 事件类型描述 |
+|   ↳ `lengthInMinutes` | number | 持续时间（分钟） |
+|   ↳ `slotInterval` | number | 时间段间隔（分钟） |
+|   ↳ `minimumBookingNotice` | number | 最短预订通知时间（分钟） |
+|   ↳ `beforeEventBuffer` | number | 事件前缓冲时间（分钟） |
+|   ↳ `afterEventBuffer` | number | 事件后缓冲时间（分钟） |
+|   ↳ `scheduleId` | number | 日程 ID |
+|   ↳ `disableGuests` | boolean | 是否禁用嘉宾 |
+|   ↳ `createdAt` | string | 创建时的 ISO 时间戳 |
+|   ↳ `updatedAt` | string | 最后更新时间的 ISO 时间戳 |
+
+### `calcom_delete_event_type`
+
+从 Cal.com 删除事件类型
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ----------- |
+| `eventTypeId` | number | 是 | 要删除的事件类型 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已删除的事件类型详情 |
+|   ↳ `id` | number | 事件类型 ID |
+|   ↳ `lengthInMinutes` | number | 持续时间（分钟） |
+|   ↳ `title` | string | 事件类型标题 |
+|   ↳ `slug` | string | 事件类型 slug |
+
+### `calcom_create_schedule`
+
+在 Cal.com 中创建一个新的可用性日程表
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 日程表名称 |
+| `timeZone` | string | 是 | 日程表的时区（例如 America/New_York） |
+| `isDefault` | boolean | 是 | 此日程表是否为默认日程表 |
+| `availability` | array | 否 | 日程表的可用时间区间 |
+| `items` | object | 否 | 可用时间区间 |
+| `properties` | array | 否 | 一周中的天数（星期一、星期二、星期三、星期四、星期五、星期六、星期日） |
+| `days` | array | 否 | 一周中的天数（星期一、星期二、星期三、星期四、星期五、星期六、星期日） |
+| `startTime` | string | 否 | 开始时间，格式为 HH:MM |
+| `endTime` | string | 否 | 结束时间，格式为 HH:MM |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已创建的日程表数据 |
+|   ↳ `id` | number | 日程表 ID |
+|   ↳ `ownerId` | number | 所有者用户 ID |
+|   ↳ `name` | string | 日程表名称 |
+|   ↳ `timeZone` | string | 时区（例如 America/New_York） |
+|   ↳ `isDefault` | boolean | 是否为默认日程表 |
+|   ↳ `availability` | array | 可用时间段 |
+|     ↳ `days` | array | 一周中的天数（如星期一等） |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+|   ↳ `overrides` | array | 特定日期的可用性覆盖 |
+|     ↳ `date` | string | 日期，格式为 YYYY-MM-DD |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+
+### `calcom_get_schedule`
+
+根据 ID 从 Cal.com 获取指定的日程安排
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | 是 | 要检索的日程 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 日程数据 |
+|   ↳ `id` | number | 日程 ID |
+|   ↳ `ownerId` | number | 所有者用户 ID |
+|   ↳ `name` | string | 日程名称 |
+|   ↳ `timeZone` | string | 时区（例如 America/New_York ） |
+|   ↳ `isDefault` | boolean | 是否为默认日程 |
+|   ↳ `availability` | array | 可用时间段 |
+|     ↳ `days` | array | 一周中的天数（星期一、星期二等） |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+|   ↳ `overrides` | array | 特定日期的可用性覆盖 |
+|     ↳ `date` | string | 日期，格式为 YYYY-MM-DD |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+
+### `calcom_list_schedules`
+
+列出 Cal.com 上的所有可用日程安排
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | array | 日程对象数组 |
+|   ↳ `id` | number | 日程 ID |
+|   ↳ `ownerId` | number | 所有者用户 ID |
+|   ↳ `name` | string | 日程名称 |
+|   ↳ `timeZone` | string | 时区（例如 America/New_York ） |
+|   ↳ `isDefault` | boolean | 是否为默认日程 |
+|   ↳ `availability` | array | 可用时间段 |
+|     ↳ `days` | array | 一周中的天数（星期一、星期二等） |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+|   ↳ `overrides` | array | 特定日期的可用性覆盖 |
+|     ↳ `date` | string | 日期，格式为 YYYY-MM-DD |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+
+### `calcom_update_schedule`
+
+在 Cal.com 中更新现有日程
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | 是 | 要更新的日程 ID |
+| `name` | string | 否 | 日程的新名称 |
+| `timeZone` | string | 否 | 日程的新时区（例如，America/New_York） |
+| `isDefault` | boolean | 否 | 此日程是否为默认日程 |
+| `availability` | array | 否 | 日程的新可用时段 |
+| `items` | object | 否 | 可用时段 |
+| `properties` | array | 否 | 一周中的天数（星期一、星期二、星期三、星期四、星期五、星期六、星期日） |
+| `days` | array | 否 | 一周中的天数（星期一、星期二、星期三、星期四、星期五、星期六、星期日） |
+| `startTime` | string | 否 | 开始时间，格式为 HH:MM |
+| `endTime` | string | 否 | 结束时间，格式为 HH:MM |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 已更新的日程数据 |
+|   ↳ `id` | number | 日程 ID |
+|   ↳ `ownerId` | number | 所有者用户 ID |
+|   ↳ `name` | string | 日程名称 |
+|   ↳ `timeZone` | string | 时区（例如，America/New_York） |
+|   ↳ `isDefault` | boolean | 是否为默认日程 |
+|   ↳ `availability` | array | 可用时间段 |
+|     ↳ `days` | array | 一周中的天数（如星期一、星期二等） |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+|   ↳ `overrides` | array | 特定日期的可用性覆盖 |
+|     ↳ `date` | string | 日期，格式为 YYYY-MM-DD |
+|     ↳ `startTime` | string | 开始时间，格式为 HH:MM |
+|     ↳ `endTime` | string | 结束时间，格式为 HH:MM |
+
+### `calcom_delete_schedule`
+
+从 Cal.com 删除一个日程
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | 是 | 要删除的日程 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态（成功或错误） |
+
+### `calcom_get_default_schedule`
+
+从 Cal.com 获取默认可用性日程
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | object | 默认日程数据 |
+|   ↳ `id` | number | 日程 ID |
+|   ↳ `ownerId` | number | 所有者用户 ID |
+|   ↳ `name` | string | 日程名称 |
+|   ↳ `timeZone` | string | 时区（例如，America/New_York） |
+|   ↳ `isDefault` | boolean | 是否为默认日程 |
+|   ↳ `availability` | array | 可用时间段 |
+|     ↳ `days` | array | 一周中的天数（星期一、星期二等） |
+|     ↳ `startTime` | string | 开始时间，HH:MM 格式 |
+|     ↳ `endTime` | string | 结束时间，HH:MM 格式 |
+|   ↳ `overrides` | array | 特定日期的可用性覆盖 |
+|     ↳ `date` | string | 日期，YYYY-MM-DD 格式 |
+|     ↳ `startTime` | string | 开始时间，HH:MM 格式 |
+|     ↳ `endTime` | string | 结束时间，HH:MM 格式 |
+
+### `calcom_get_slots`
+
+在指定时间范围内获取 Cal.com 活动类型的可用预订时段
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `start` | string | 是 | 时间范围起始，UTC ISO 8601 格式（例如 2024-01-15T00:00:00Z） |
+| `end` | string | 是 | 时间范围结束，UTC ISO 8601 格式（例如 2024-01-22T00:00:00Z） |
+| `eventTypeId` | number | 否 | 活动类型 ID，直接查找用 |
+| `eventTypeSlug` | string | 否 | 活动类型 slug（需要设置用户名） |
+| `username` | string | 否 | 个人活动类型的用户名（使用 eventTypeSlug 时必填） |
+| `timeZone` | string | 否 | 返回时段的时区（默认为 UTC） |
+| `duration` | number | 否 | 时段长度（分钟） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `status` | string | 响应状态 |
+| `data` | json | 按日期分组的可用时段（YYYY-MM-DD 作为键）。每个日期对应一个包含开始时间、可选结束时间和座位活动信息的时段对象数组。 |

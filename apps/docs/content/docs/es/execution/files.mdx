@@ -1,0 +1,172 @@
+---
+title: Pasar archivos
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Sim facilita el trabajo con archivos a lo largo de tus flujos de trabajo. Los bloques pueden recibir archivos, procesarlos y pasarlos a otros bloques sin problemas.
+
+## Objetos de archivo
+
+Cuando los bloques generan archivos (como adjuntos de Gmail, imágenes generadas o documentos analizados), devuelven un objeto de archivo estandarizado:
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+Puedes acceder a cualquiera de estas propiedades al hacer referencia a archivos de bloques anteriores.
+
+## El bloque de archivo
+
+El **bloque de archivo** es el punto de entrada universal para archivos en tus flujos de trabajo. Acepta archivos de cualquier fuente y genera objetos de archivo estandarizados que funcionan con todas las integraciones.
+
+**Entradas:**
+- **Archivos cargados** - Arrastra y suelta o selecciona archivos directamente
+- **URLs externas** - Cualquier URL de archivo públicamente accesible
+- **Archivos de otros bloques** - Pasa archivos de adjuntos de Gmail, descargas de Slack, etc.
+
+**Salidas:**
+- Una lista de objetos `UserFile` con estructura consistente (`name`, `url`, `base64`, `type`, `size`)
+- `combinedContent` - Contenido de texto extraído de todos los archivos (para documentos)
+
+**Ejemplo de uso:**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+El bloque de archivo automáticamente:
+- Detecta tipos de archivo desde URLs y extensiones
+- Extrae texto de PDFs, CSVs y documentos
+- Genera codificación base64 para archivos binarios
+- Crea URLs prefirmadas para acceso seguro
+
+Usa el bloque de archivo cuando necesites normalizar archivos de diferentes fuentes antes de pasarlos a otros bloques como Vision, STT o integraciones de correo electrónico.
+
+## Pasar archivos entre bloques
+
+Haz referencia a archivos de bloques anteriores usando el menú desplegable de etiquetas. Haz clic en cualquier campo de entrada de archivo y escribe `<` para ver las salidas disponibles.
+
+**Patrones comunes:**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+La mayoría de los bloques aceptan el objeto de archivo completo y extraen lo que necesitan automáticamente. No necesitas extraer manualmente `base64` o `url` en la mayoría de los casos.
+
+## Activar flujos de trabajo con archivos
+
+Al llamar a un flujo de trabajo a través de la API que espera entrada de archivos, incluye los archivos en tu solicitud:
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+  <Tab value="URL">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+</Tabs>
+
+El bloque de inicio del flujo de trabajo debe tener un campo de entrada configurado para recibir el parámetro de archivo.
+
+## Recibir archivos en respuestas de API
+
+Cuando un flujo de trabajo genera archivos, se incluyen en la respuesta:
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+Usa `url` para descargas directas o `base64` para procesamiento en línea.
+
+## Bloques que funcionan con archivos
+
+**Entradas de archivos:**
+- **File** - Analiza documentos, imágenes y archivos de texto
+- **Vision** - Analiza imágenes con modelos de IA
+- **Mistral Parser** - Extrae texto de PDFs
+
+**Salidas de archivos:**
+- **Gmail** - Archivos adjuntos de correo electrónico
+- **Slack** - Archivos descargados
+- **TTS** - Archivos de audio generados
+- **Video Generator** - Videos generados
+- **Image Generator** - Imágenes generadas
+
+**Almacenamiento de archivos:**
+- **Supabase** - Subir/descargar desde almacenamiento
+- **S3** - Operaciones de AWS S3
+- **Google Drive** - Operaciones de archivos de Drive
+- **Dropbox** - Operaciones de archivos de Dropbox
+
+<Callout type="info">
+  Los archivos están disponibles automáticamente para los bloques posteriores. El motor de ejecución maneja toda la transferencia de archivos y conversión de formato.
+</Callout>
+
+## Mejores prácticas
+
+1. **Usa objetos de archivo directamente** - Pasa el objeto de archivo completo en lugar de extraer propiedades individuales. Los bloques manejan la conversión automáticamente.
+
+2. **Verifica los tipos de archivo** - Asegúrate de que el tipo de archivo coincida con lo que espera el bloque receptor. El bloque Vision necesita imágenes, el bloque File maneja documentos.
+
+3. **Considera el tamaño del archivo** - Los archivos grandes aumentan el tiempo de ejecución. Para archivos muy grandes, considera usar bloques de almacenamiento (S3, Supabase) para almacenamiento intermedio.

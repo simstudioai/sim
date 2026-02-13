@@ -139,3 +139,145 @@ Invitar asistentes a un evento existente de Google Calendar
 
 - Categoría: `tools`
 - Tipo: `google_calendar`
+
+Mover un evento a un calendario diferente. Devuelve solo campos alineados con la API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `calendarId` | string | No | ID del calendario de Google de origen \(p. ej., primary o calendar@group.calendar.google.com\) |
+| `eventId` | string | Sí | ID del evento de Google Calendar a mover |
+| `destinationCalendarId` | string | Sí | ID del calendario de Google de destino |
+| `sendUpdates` | string | No | Cómo enviar actualizaciones a los asistentes: all, externalOnly o none |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del evento |
+| `htmlLink` | string | Enlace del evento |
+| `status` | string | Estado del evento |
+| `summary` | string | Título del evento |
+| `description` | string | Descripción del evento |
+| `location` | string | Ubicación del evento |
+| `start` | json | Inicio del evento |
+| `end` | json | Fin del evento |
+| `attendees` | json | Asistentes del evento |
+| `creator` | json | Creador del evento |
+| `organizer` | json | Organizador del evento |
+
+### `google_calendar_instances`
+
+Obtener instancias de un evento recurrente de Google Calendar. Devuelve solo campos alineados con la API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `calendarId` | string | No | ID del calendario de Google \(p. ej., primary o calendar@group.calendar.google.com\) |
+| `eventId` | string | Sí | ID del evento recurrente del que obtener instancias |
+| `timeMin` | string | No | Límite inferior para las instancias \(marca de tiempo RFC3339, p. ej., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Límite superior para las instancias \(marca de tiempo RFC3339, p. ej., 2025-06-04T00:00:00Z\) |
+| `maxResults` | number | No | Número máximo de instancias a devolver \(por defecto 250, máximo 2500\) |
+| `pageToken` | string | No | Token para recuperar páginas posteriores de resultados |
+| `showDeleted` | boolean | No | Incluir instancias eliminadas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Token de página siguiente |
+| `timeZone` | string | Zona horaria del calendario |
+| `instances` | json | Lista de instancias de eventos recurrentes |
+
+### `google_calendar_list_calendars`
+
+Listar todos los calendarios del usuario
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `minAccessRole` | string | No | Rol de acceso mínimo para los calendarios devueltos: freeBusyReader, reader, writer u owner |
+| `maxResults` | number | No | Número máximo de calendarios a devolver \(predeterminado 100, máximo 250\) |
+| `pageToken` | string | No | Token para recuperar páginas posteriores de resultados |
+| `showDeleted` | boolean | No | Incluir calendarios eliminados |
+| `showHidden` | boolean | No | Incluir calendarios ocultos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | Token de página siguiente |
+| `calendars` | array | Lista de calendarios |
+|   ↳ `id` | string | ID del calendario |
+|   ↳ `summary` | string | Título del calendario |
+|   ↳ `description` | string | Descripción del calendario |
+|   ↳ `location` | string | Ubicación del calendario |
+|   ↳ `timeZone` | string | Zona horaria del calendario |
+|   ↳ `accessRole` | string | Rol de acceso para el calendario |
+|   ↳ `backgroundColor` | string | Color de fondo del calendario |
+|   ↳ `foregroundColor` | string | Color de primer plano del calendario |
+|   ↳ `primary` | boolean | Si este es el calendario principal |
+|   ↳ `hidden` | boolean | Si el calendario está oculto |
+|   ↳ `selected` | boolean | Si el calendario está seleccionado |
+
+### `google_calendar_quick_add`
+
+Crear eventos a partir de texto en lenguaje natural. Devuelve solo campos alineados con la API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | string | No | ID del calendario de Google \(p. ej., primary o calendar@group.calendar.google.com\) |
+| `text` | string | Sí | Texto en lenguaje natural que describe el evento \(p. ej., "Reunión con John mañana a las 3pm"\) |
+| `attendees` | array | No | Array de direcciones de correo electrónico de los asistentes \(también se acepta cadena separada por comas\) |
+| `sendUpdates` | string | No | Cómo enviar actualizaciones a los asistentes: all, externalOnly o none |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del evento |
+| `htmlLink` | string | Enlace del evento |
+| `status` | string | Estado del evento |
+| `summary` | string | Título del evento |
+| `description` | string | Descripción del evento |
+| `location` | string | Ubicación del evento |
+| `start` | json | Inicio del evento |
+| `end` | json | Fin del evento |
+| `attendees` | json | Asistentes del evento |
+| `creator` | json | Creador del evento |
+| `organizer` | json | Organizador del evento |
+
+### `google_calendar_invite`
+
+Invitar asistentes a un evento existente de Google Calendar. Devuelve solo campos alineados con la API.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `calendarId` | string | No | ID del calendario de Google \(p. ej., primary o calendar@group.calendar.google.com\) |
+| `eventId` | string | Sí | ID del evento de Google Calendar al que invitar asistentes |
+| `attendees` | array | Sí | Array de direcciones de correo electrónico de los asistentes a invitar |
+| `sendUpdates` | string | No | Cómo enviar actualizaciones a los asistentes: all, externalOnly o none |
+| `replaceExisting` | boolean | No | Si reemplazar los asistentes existentes o agregarlos \(por defecto es false\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del evento |
+| `htmlLink` | string | Enlace del evento |
+| `status` | string | Estado del evento |
+| `summary` | string | Título del evento |
+| `description` | string | Descripción del evento |
+| `location` | string | Ubicación del evento |
+| `start` | json | Inicio del evento |
+| `end` | json | Fin del evento |
+| `attendees` | json | Asistentes del evento |
+| `creator` | json | Creador del evento |
+| `organizer` | json | Organizador del evento |

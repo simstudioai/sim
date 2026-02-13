@@ -1170,3 +1170,1373 @@ GitHub Project V2を削除します。このアクションは永続的であり
 
 - カテゴリ: `tools`
 - タイプ: `github`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | オプションの修飾子を含む検索クエリ（repo:、language:、path:、extension:、user:、org:） |
+| `sort` | string | いいえ | インデックス日付で並べ替え（デフォルト：最適一致） |
+| `order` | string | いいえ | 並べ替え順序：ascまたはdesc（デフォルト：desc） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 一致する結果の総数 |
+| `incomplete_results` | boolean | 結果が不完全かどうか |
+| `items` | array | GitHub APIからのコード一致の配列 |
+|   ↳ `name` | string | ファイル名 |
+|   ↳ `path` | string | ファイルパス |
+|   ↳ `sha` | string | Blob SHA |
+|   ↳ `url` | string | API URL |
+|   ↳ `git_url` | string | Git blob URL |
+|   ↳ `html_url` | string | GitHub Web URL |
+|   ↳ `score` | number | 検索関連性スコア |
+|   ↳ `repository` | object | コードを含むリポジトリ |
+|     ↳ `id` | number | リポジトリID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `name` | string | リポジトリ名 |
+|     ↳ `full_name` | string | フルネーム（owner/repo） |
+|     ↳ `private` | boolean | リポジトリがプライベートかどうか |
+|     ↳ `html_url` | string | GitHub Web URL |
+|     ↳ `description` | string | リポジトリの説明 |
+|     ↳ `fork` | boolean | フォークかどうか |
+|     ↳ `url` | string | API URL |
+|     ↳ `owner` | object | リポジトリのオーナー |
+|       ↳ `login` | string | ユーザー名 |
+|       ↳ `id` | number | ユーザーID |
+|       ↳ `node_id` | string | GraphQLノードID |
+|       ↳ `avatar_url` | string | アバター画像URL |
+|       ↳ `url` | string | API URL |
+|       ↳ `html_url` | string | プロフィールページURL |
+|       ↳ `type` | string | ユーザーまたは組織 |
+|       ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `text_matches` | array | コンテキストを示すテキスト一致 |
+|     ↳ `object_url` | string | オブジェクトURL |
+|     ↳ `object_type` | string | オブジェクトタイプ |
+|     ↳ `property` | string | 一致したプロパティ |
+|     ↳ `fragment` | string | 一致を含むテキストフラグメント |
+|     ↳ `matches` | array | 一致インデックス |
+|       ↳ `text` | string | 一致したテキスト |
+|       ↳ `indices` | array | 開始および終了インデックス |
+
+### `github_search_commits`
+
+GitHub全体でコミットを検索します。repo:owner/name、author:user、committer:user、author-date:>2023-01-01などの修飾子を使用します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | オプションの修飾子を含む検索クエリ（repo:、author:、committer:、author-date:、committer-date:、merge:true/false） |
+| `sort` | string | いいえ | 並べ替え：author-dateまたはcommitter-date（デフォルト：最適一致） |
+| `order` | string | いいえ | 並べ替え順序：ascまたはdesc（デフォルト：desc） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 一致する結果の総数 |
+| `incomplete_results` | boolean | 結果が不完全かどうか |
+| `items` | array | GitHub APIからのコミットオブジェクトの配列 |
+|   ↳ `sha` | string | コミットSHA |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `html_url` | string | WebURL |
+|   ↳ `url` | string | API URL |
+|   ↳ `comments_url` | string | コメントAPI URL |
+|   ↳ `score` | number | 検索関連性スコア |
+|   ↳ `commit` | object | コアコミットデータ |
+|     ↳ `url` | string | コミットAPI URL |
+|     ↳ `message` | string | コミットメッセージ |
+|     ↳ `comment_count` | number | コメント数 |
+|     ↳ `author` | object | Git作成者 |
+|       ↳ `name` | string | 作成者名 |
+|       ↳ `email` | string | 作成者メールアドレス |
+|       ↳ `date` | string | 作成日（ISO 8601） |
+|     ↳ `committer` | object | Gitコミッター |
+|       ↳ `name` | string | コミッター名 |
+|       ↳ `email` | string | コミッターメールアドレス |
+|       ↳ `date` | string | コミット日（ISO 8601） |
+|     ↳ `tree` | object | ツリーオブジェクト |
+|       ↳ `sha` | string | ツリーSHA |
+|       ↳ `url` | string | ツリーAPI URL |
+|   ↳ `author` | object | GitHubユーザー（作成者） |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバターURL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `committer` | object | GitHubユーザー（コミッター） |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバターURL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `repository` | object | コミットを含むリポジトリ |
+|     ↳ `id` | number | リポジトリID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `name` | string | リポジトリ名 |
+|     ↳ `full_name` | string | フルネーム（owner/repo） |
+|     ↳ `private` | boolean | リポジトリがプライベートかどうか |
+|     ↳ `html_url` | string | GitHub Web URL |
+|     ↳ `description` | string | リポジトリの説明 |
+|     ↳ `owner` | object | リポジトリのオーナー |
+|       ↳ `login` | string | ユーザー名 |
+|       ↳ `id` | number | ユーザーID |
+|       ↳ `node_id` | string | GraphQLノードID |
+|       ↳ `avatar_url` | string | アバター画像URL |
+|       ↳ `url` | string | API URL |
+|       ↳ `html_url` | string | プロフィールページURL |
+|       ↳ `type` | string | ユーザーまたは組織 |
+|       ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `parents` | array | 親コミット |
+|     ↳ `sha` | string | 親SHA |
+|     ↳ `url` | string | 親API URL |
+|     ↳ `html_url` | string | 親Web URL |
+
+### `github_search_issues`
+
+GitHub全体でイシューとプルリクエストを検索します。repo:owner/name、is:issue、is:pr、state:open、label:bug、author:userなどの修飾子を使用できます
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | オプションの修飾子を含む検索クエリ（repo:、is:issue、is:pr、state:、label:、author:、assignee:） |
+| `sort` | string | いいえ | 並べ替え：comments、reactions、created、updated、interactions（デフォルト：最適一致） |
+| `order` | string | いいえ | 並べ替え順序：ascまたはdesc（デフォルト：desc） |
+| `per_page` | number | いいえ | 1ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 一致する結果の総数 |
+| `incomplete_results` | boolean | 結果が不完全かどうか |
+| `items` | array | GitHub APIからのイシュー/PRオブジェクトの配列 |
+|   ↳ `id` | number | イシューID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `number` | number | イシュー番号 |
+|   ↳ `title` | string | タイトル |
+|   ↳ `state` | string | 状態（openまたはclosed） |
+|   ↳ `locked` | boolean | イシューがロックされているかどうか |
+|   ↳ `html_url` | string | WebのURL |
+|   ↳ `url` | string | API URL |
+|   ↳ `repository_url` | string | リポジトリAPI URL |
+|   ↳ `comments_url` | string | コメントAPI URL |
+|   ↳ `body` | string | 本文テキスト |
+|   ↳ `comments` | number | コメント数 |
+|   ↳ `score` | number | 検索関連性スコア |
+|   ↳ `created_at` | string | 作成タイムスタンプ |
+|   ↳ `updated_at` | string | 最終更新タイムスタンプ |
+|   ↳ `closed_at` | string | クローズタイムスタンプ |
+|   ↳ `user` | object | イシュー作成者 |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `labels` | array | イシューラベル |
+|     ↳ `id` | number | ラベルID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `url` | string | API URL |
+|     ↳ `name` | string | ラベル名 |
+|     ↳ `description` | string | ラベルの説明 |
+|     ↳ `color` | string | 16進数カラーコード |
+|     ↳ `default` | boolean | これがデフォルトラベルかどうか |
+|   ↳ `assignee` | object | 主担当者 |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `assignees` | array | すべての担当者 |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `milestone` | object | 関連するマイルストーン |
+|     ↳ `id` | number | マイルストーンID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `number` | number | マイルストーン番号 |
+|     ↳ `title` | string | マイルストーンタイトル |
+|     ↳ `description` | string | マイルストーンの説明 |
+|     ↳ `state` | string | 状態（openまたはclosed） |
+|     ↳ `html_url` | string | WebのURL |
+|     ↳ `due_on` | string | 期限 |
+|   ↳ `pull_request` | object | プルリクエストの詳細（これがPRの場合） |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | WebのURL |
+|     ↳ `diff_url` | string | 差分URL |
+|     ↳ `patch_url` | string | パッチURL |
+
+### `github_search_repos`
+
+GitHub全体でリポジトリを検索します。language:python、stars:>1000、topic:react、user:owner、org:nameなどの修飾子を使用できます
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | オプションの修飾子を含む検索クエリ（language:、stars:、forks:、topic:、user:、org:、in:name,description,readme） |
+| `sort` | string | いいえ | 並べ替え：stars、forks、help-wanted-issues、updated（デフォルト：最適一致） |
+| `order` | string | いいえ | 並べ替え順序：ascまたはdesc（デフォルト：desc） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 一致する結果の総数 |
+| `incomplete_results` | boolean | 結果が不完全かどうか |
+| `items` | array | GitHub APIからのリポジトリオブジェクトの配列 |
+|   ↳ `id` | number | リポジトリID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `name` | string | リポジトリ名 |
+|   ↳ `full_name` | string | フルネーム（owner/repo） |
+|   ↳ `private` | boolean | リポジトリがプライベートかどうか |
+|   ↳ `description` | string | リポジトリの説明 |
+|   ↳ `html_url` | string | GitHubウェブURL |
+|   ↳ `url` | string | API URL |
+|   ↳ `fork` | boolean | これがフォークかどうか |
+|   ↳ `created_at` | string | 作成タイムスタンプ |
+|   ↳ `updated_at` | string | 最終更新タイムスタンプ |
+|   ↳ `pushed_at` | string | 最終プッシュタイムスタンプ |
+|   ↳ `size` | number | リポジトリサイズ（KB） |
+|   ↳ `stargazers_count` | number | スター数 |
+|   ↳ `watchers_count` | number | ウォッチャー数 |
+|   ↳ `forks_count` | number | フォーク数 |
+|   ↳ `open_issues_count` | number | オープンイシュー数 |
+|   ↳ `language` | string | 主要なプログラミング言語 |
+|   ↳ `default_branch` | string | デフォルトブランチ名 |
+|   ↳ `visibility` | string | リポジトリの可視性 |
+|   ↳ `archived` | boolean | リポジトリがアーカイブされているかどうか |
+|   ↳ `disabled` | boolean | リポジトリが無効化されているかどうか |
+|   ↳ `score` | number | 検索関連性スコア |
+|   ↳ `topics` | array | リポジトリのトピック |
+|   ↳ `license` | object | ライセンス情報 |
+|     ↳ `key` | string | ライセンスキー（例：mit） |
+|     ↳ `name` | string | ライセンス名 |
+|     ↳ `spdx_id` | string | SPDX識別子 |
+|   ↳ `owner` | object | リポジトリのオーナー |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+
+### `github_search_users`
+
+GitHub上のユーザーと組織を検索します。type:user、type:org、followers:>1000、repos:>10、location:cityなどの修飾子を使用できます
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | はい | オプションの修飾子を含む検索クエリ（type:user/org、followers:、repos:、location:、language:、created:） |
+| `sort` | string | いいえ | 並べ替え：followers、repositories、joined（デフォルト：最適一致） |
+| `order` | string | いいえ | 並べ替え順序：ascまたはdesc（デフォルト：desc） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 一致する結果の総数 |
+| `incomplete_results` | boolean | 結果が不完全かどうか |
+| `items` | array | GitHub APIからのユーザーオブジェクトの配列 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `gravatar_id` | string | Gravatar ID |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `followers_url` | string | フォロワーAPI URL |
+|   ↳ `following_url` | string | フォロー中API URL |
+|   ↳ `gists_url` | string | Gists API URL |
+|   ↳ `starred_url` | string | スター付きAPI URL |
+|   ↳ `repos_url` | string | リポジトリAPI URL |
+|   ↳ `organizations_url` | string | 組織API URL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `score` | number | 検索関連性スコア |
+
+### `github_list_commits`
+
+SHA、パス、作成者、コミッター、または日付範囲による任意のフィルタリングを使用して、リポジトリ内のコミットを一覧表示します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `sha` | string | いいえ | コミットの一覧表示を開始するSHAまたはブランチ |
+| `path` | string | いいえ | このファイルパスを含むコミットのみ |
+| `author` | string | いいえ | 作成者でフィルタリングするGitHubログインまたはメールアドレス |
+| `committer` | string | いいえ | コミッターでフィルタリングするGitHubログインまたはメールアドレス |
+| `since` | string | いいえ | この日付以降のコミットのみ（ISO 8601形式） |
+| `until` | string | いいえ | この日付以前のコミットのみ（ISO 8601形式） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub APIからのコミットオブジェクトの配列 |
+|   ↳ `commit` | object | コアコミットデータ |
+|     ↳ `url` | string | コミットAPI URL |
+|     ↳ `message` | string | コミットメッセージ |
+|     ↳ `comment_count` | number | コメント数 |
+|     ↳ `author` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `committer` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `tree` | object | ツリーオブジェクト |
+|       ↳ `sha` | string | ツリーSHA |
+|       ↳ `url` | string | ツリーAPI URL |
+|     ↳ `verification` | object | 署名検証 |
+|       ↳ `verified` | boolean | 署名が検証されているかどうか |
+|       ↳ `reason` | string | 検証理由 |
+|       ↳ `signature` | string | GPG署名 |
+|       ↳ `payload` | string | 署名されたペイロード |
+|   ↳ `author` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `committer` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `sha` | string | コミットSHA |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `html_url` | string | GitHub Web URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `comments_url` | string | コメントAPI URL |
+|   ↳ `parents` | array | 親コミット |
+|     ↳ `sha` | string | 親SHA |
+|     ↳ `url` | string | 親API URL |
+|     ↳ `html_url` | string | 親Web URL |
+| `count` | number | 返されたコミット数 |
+
+### `github_get_commit`
+
+変更されたファイルと統計情報を含む特定のコミットの詳細情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `ref` | string | はい | コミットSHA、ブランチ名、またはタグ名 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `commit` | object | コアコミットデータ |
+|   ↳ `url` | string | コミットAPI URL |
+|   ↳ `message` | string | コミットメッセージ |
+|   ↳ `comment_count` | number | コメント数 |
+|   ↳ `author` | object | Gitアクター（作成者/コミッター） |
+|     ↳ `name` | string | 名前 |
+|     ↳ `email` | string | メールアドレス |
+|     ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|   ↳ `committer` | object | Gitアクター（作成者/コミッター） |
+|     ↳ `name` | string | 名前 |
+|     ↳ `email` | string | メールアドレス |
+|     ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|   ↳ `tree` | object | ツリーオブジェクト |
+|     ↳ `sha` | string | ツリーSHA |
+|     ↳ `url` | string | ツリーAPI URL |
+|   ↳ `verification` | object | 署名検証 |
+|     ↳ `verified` | boolean | 署名が検証されているかどうか |
+|     ↳ `reason` | string | 検証理由 |
+|     ↳ `signature` | string | GPG署名 |
+|     ↳ `payload` | string | 署名されたペイロード |
+| `author` | object | GitHubユーザーオブジェクト |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `committer` | object | GitHubユーザーオブジェクト |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `stats` | object | 変更統計 |
+|   ↳ `additions` | number | 追加された行数 |
+|   ↳ `deletions` | number | 削除された行数 |
+|   ↳ `total` | number | 合計変更数 |
+| `sha` | string | コミットSHA |
+| `node_id` | string | GraphQLノードID |
+| `html_url` | string | GitHub Web URL |
+| `url` | string | API URL |
+| `comments_url` | string | コメントAPI URL |
+| `files` | array | 変更されたファイル（差分エントリ） |
+|   ↳ `sha` | string | BlobのSHA |
+|   ↳ `filename` | string | ファイルパス |
+|   ↳ `status` | string | 変更ステータス（added、removed、modified、renamed、copied、changed、unchanged） |
+|   ↳ `additions` | number | 追加された行数 |
+|   ↳ `deletions` | number | 削除された行数 |
+|   ↳ `changes` | number | 合計変更数 |
+|   ↳ `blob_url` | string | Blob URL |
+|   ↳ `raw_url` | string | 生ファイルURL |
+|   ↳ `contents_url` | string | コンテンツAPI URL |
+|   ↳ `patch` | string | 差分パッチ |
+|   ↳ `previous_filename` | string | 以前のファイル名（リネームの場合） |
+| `parents` | array | 親コミット |
+|   ↳ `sha` | string | 親のSHA |
+|   ↳ `url` | string | 親のAPI URL |
+|   ↳ `html_url` | string | 親のWeb URL |
+
+### `github_compare_commits`
+
+2つのコミットまたはブランチを比較して、差分、それらの間のコミット、および変更されたファイルを確認します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `base` | string | はい | 比較のベースとなるブランチ/タグ/SHA |
+| `head` | string | はい | 比較のヘッドとなるブランチ/タグ/SHA |
+| `per_page` | number | いいえ | ファイルの1ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ファイルのページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `url` | string | API URL |
+| `html_url` | string | GitHub Web URL |
+| `permalink_url` | string | パーマネントリンクURL |
+| `diff_url` | string | 差分ダウンロードURL |
+| `patch_url` | string | パッチダウンロードURL |
+| `status` | string | 比較ステータス（ahead、behind、identical、diverged） |
+| `ahead_by` | number | ヘッドがベースより進んでいるコミット数 |
+| `behind_by` | number | ヘッドがベースより遅れているコミット数 |
+| `total_commits` | number | 比較における総コミット数 |
+| `base_commit` | object | ベースコミットオブジェクト |
+|   ↳ `commit` | object | コアコミットデータ |
+|     ↳ `url` | string | コミットAPI URL |
+|     ↳ `message` | string | コミットメッセージ |
+|     ↳ `comment_count` | number | コメント数 |
+|     ↳ `author` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `committer` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `tree` | object | ツリーオブジェクト |
+|       ↳ `sha` | string | ツリーSHA |
+|       ↳ `url` | string | ツリーAPI URL |
+|     ↳ `verification` | object | 署名検証 |
+|       ↳ `verified` | boolean | 署名が検証されているかどうか |
+|       ↳ `reason` | string | 検証理由 |
+|       ↳ `signature` | string | GPG署名 |
+|       ↳ `payload` | string | 署名されたペイロード |
+|   ↳ `author` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `committer` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `sha` | string | コミットSHA |
+|   ↳ `html_url` | string | Web URL |
+| `merge_base_commit` | object | マージベースコミットオブジェクト |
+|   ↳ `sha` | string | コミットSHA |
+|   ↳ `html_url` | string | Web URL |
+| `commits` | array | ベースとヘッドの間のコミット |
+|   ↳ `commit` | object | コアコミットデータ |
+|     ↳ `url` | string | コミットAPI URL |
+|     ↳ `message` | string | コミットメッセージ |
+|     ↳ `comment_count` | number | コメント数 |
+|     ↳ `author` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `committer` | object | Gitアクター（作成者/コミッター） |
+|       ↳ `name` | string | 名前 |
+|       ↳ `email` | string | メールアドレス |
+|       ↳ `date` | string | タイムスタンプ（ISO 8601） |
+|     ↳ `tree` | object | ツリーオブジェクト |
+|       ↳ `sha` | string | ツリーSHA |
+|       ↳ `url` | string | ツリーAPI URL |
+|     ↳ `verification` | object | 署名検証 |
+|       ↳ `verified` | boolean | 署名が検証されているかどうか |
+|       ↳ `reason` | string | 検証理由 |
+|       ↳ `signature` | string | GPG署名 |
+|       ↳ `payload` | string | 署名されたペイロード |
+|   ↳ `author` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `committer` | object | GitHubユーザーオブジェクト |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `sha` | string | コミットSHA |
+|   ↳ `html_url` | string | Web URL |
+| `files` | array | 変更されたファイル（差分エントリ） |
+|   ↳ `sha` | string | BlobのSHA |
+|   ↳ `filename` | string | ファイルパス |
+|   ↳ `status` | string | 変更ステータス（added、removed、modified、renamed、copied、changed、unchanged） |
+|   ↳ `additions` | number | 追加された行数 |
+|   ↳ `deletions` | number | 削除された行数 |
+|   ↳ `changes` | number | 総変更数 |
+|   ↳ `blob_url` | string | Blob URL |
+|   ↳ `raw_url` | string | 生ファイルURL |
+|   ↳ `contents_url` | string | コンテンツAPI URL |
+|   ↳ `patch` | string | 差分パッチ |
+|   ↳ `previous_filename` | string | 以前のファイル名（リネームの場合） |
+
+### `github_create_gist`
+
+1つ以上のファイルを含む新しいgistを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `description` | string | いいえ | gistの説明 |
+| `files` | json | はい | ファイル名をキー、内容を値とするJSONオブジェクト。例：\{"file.txt": \{"content": "Hello"\}\} |
+| `public` | boolean | いいえ | gistを公開するかどうか（デフォルト：false） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | gist ID |
+| `node_id` | string | GraphQLノードID |
+| `url` | string | API URL |
+| `html_url` | string | Web URL |
+| `forks_url` | string | フォークAPI URL |
+| `commits_url` | string | コミットAPI URL |
+| `git_pull_url` | string | Git pull URL |
+| `git_push_url` | string | Git push URL |
+| `description` | string | gistの説明 |
+| `public` | boolean | gistが公開されているかどうか |
+| `truncated` | boolean | ファイルが切り詰められているかどうか |
+| `comments` | number | コメント数 |
+| `comments_url` | string | コメントAPI URL |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `files` | object | gist内のファイル（ファイル名をキーとするオブジェクト、各ファイルにはfilename、type、language、raw_url、size、truncated、contentが含まれます） |
+| `owner` | object | gistの所有者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+
+### `github_get_gist`
+
+ファイル内容を含むGistをIDで取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | Gist ID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `files` | object | Gist内のファイル（ファイル名をキーとする） |
+|   ↳ `filename` | string | ファイル名 |
+|   ↳ `type` | string | MIMEタイプ |
+|   ↳ `language` | string | プログラミング言語 |
+|   ↳ `raw_url` | string | 生ファイルURL |
+|   ↳ `size` | number | ファイルサイズ（バイト） |
+|   ↳ `truncated` | boolean | 内容が切り詰められているかどうか |
+|   ↳ `content` | string | ファイル内容 |
+| `owner` | object | Gistの所有者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `id` | string | Gist ID |
+| `node_id` | string | GraphQLノードID |
+| `url` | string | API URL |
+| `html_url` | string | GitHub Web URL |
+| `forks_url` | string | フォークAPI URL |
+| `commits_url` | string | コミットAPI URL |
+| `git_pull_url` | string | GitクローンURL |
+| `git_push_url` | string | GitプッシュURL |
+| `description` | string | Gistの説明 |
+| `public` | boolean | Gistが公開されているかどうか |
+| `truncated` | boolean | 内容が切り詰められているかどうか |
+| `comments` | number | コメント数 |
+| `comments_url` | string | コメントAPI URL |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+
+### `github_list_gists`
+
+ユーザーまたは認証されたユーザーのgistを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | いいえ | GitHubユーザー名（認証されたユーザーのgistの場合は省略） |
+| `since` | string | いいえ | この時刻以降に更新されたgistのみ（ISO 8601） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub APIからのgistオブジェクトの配列 |
+|   ↳ `files` | object | gist内のファイル（ファイル名でキー付け） |
+|     ↳ `filename` | string | ファイル名 |
+|     ↳ `type` | string | MIMEタイプ |
+|     ↳ `language` | string | プログラミング言語 |
+|     ↳ `raw_url` | string | 生ファイルURL |
+|     ↳ `size` | number | ファイルサイズ（バイト） |
+|     ↳ `truncated` | boolean | コンテンツが切り詰められているかどうか |
+|     ↳ `content` | string | ファイルの内容 |
+|   ↳ `owner` | object | gistの所有者 |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `id` | string | gist ID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | GitHub Web URL |
+|   ↳ `forks_url` | string | フォークAPI URL |
+|   ↳ `commits_url` | string | コミットAPI URL |
+|   ↳ `git_pull_url` | string | Gitクローン用URL |
+|   ↳ `git_push_url` | string | Gitプッシュ用URL |
+|   ↳ `description` | string | gistの説明 |
+|   ↳ `public` | boolean | gistが公開されているかどうか |
+|   ↳ `truncated` | boolean | コンテンツが切り詰められているかどうか |
+|   ↳ `comments` | number | コメント数 |
+|   ↳ `comments_url` | string | コメントAPI URL |
+|   ↳ `created_at` | string | 作成タイムスタンプ |
+|   ↳ `updated_at` | string | 最終更新タイムスタンプ |
+| `count` | number | 返されたgistの数 |
+
+### `github_update_gist`
+
+gistの説明またはファイルを更新します。ファイルを削除するには、filesオブジェクト内でその値をnullに設定してください
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | 更新するgist ID |
+| `description` | string | いいえ | gistの新しい説明 |
+| `files` | json | いいえ | ファイル名をキーとするJSONオブジェクト。削除する場合はnullに設定、更新/追加する場合はコンテンツを提供 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | gist ID |
+| `node_id` | string | GraphQLノードID |
+| `url` | string | API URL |
+| `html_url` | string | Web URL |
+| `forks_url` | string | フォークAPI URL |
+| `commits_url` | string | コミットAPI URL |
+| `git_pull_url` | string | Git pull URL |
+| `git_push_url` | string | Git push URL |
+| `description` | string | gistの説明 |
+| `public` | boolean | gistが公開されているかどうか |
+| `truncated` | boolean | ファイルが切り詰められているかどうか |
+| `comments` | number | コメント数 |
+| `comments_url` | string | コメントAPI URL |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `files` | object | gist内のファイル（ファイル名をキーとするオブジェクト、各ファイルにはfilename、type、language、raw_url、size、truncated、contentが含まれます） |
+| `owner` | object | gistの所有者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+
+### `github_delete_gist`
+
+IDでgistを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | 削除するgist ID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 削除が成功したかどうか |
+| `gist_id` | string | 削除されたgist ID |
+
+### `github_fork_gist`
+
+gistをフォークして自分のコピーを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | フォークするgist ID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 新しいgist ID |
+| `html_url` | string | WebのURL |
+| `description` | string | 説明 |
+| `public` | boolean | 公開かどうか |
+| `created_at` | string | 作成日 |
+| `owner` | object | オーナー情報 |
+| `files` | object | ファイル |
+
+### `github_star_gist`
+
+gistにスターを付ける
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | スターを付けるgist ID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | スター付けが成功したかどうか |
+| `gist_id` | string | gist ID |
+
+### `github_unstar_gist`
+
+gistのスターを外す
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | はい | スターを外すgist ID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | スター解除が成功したかどうか |
+| `gist_id` | string | gist ID |
+
+### `github_fork_repo`
+
+リポジトリを自分のアカウントまたは組織にフォークする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | フォーク元のリポジトリオーナー |
+| `repo` | string | はい | フォークするリポジトリ名 |
+| `organization` | string | いいえ | フォーク先の組織（省略すると自分のアカウントにフォークされます） |
+| `name` | string | いいえ | フォークされたリポジトリのカスタム名 |
+| `default_branch_only` | boolean | いいえ | デフォルトブランチのみをフォークする（デフォルト：false） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | リポジトリID |
+| `node_id` | string | GraphQLノードID |
+| `name` | string | リポジトリ名 |
+| `full_name` | string | フルネーム（owner/repo） |
+| `private` | boolean | リポジトリがプライベートかどうか |
+| `description` | string | リポジトリの説明 |
+| `html_url` | string | GitHubウェブURL |
+| `url` | string | API URL |
+| `clone_url` | string | HTTPSクローンURL |
+| `ssh_url` | string | SSHクローンURL |
+| `git_url` | string | GitプロトコルURL |
+| `default_branch` | string | デフォルトブランチ名 |
+| `fork` | boolean | これがフォークかどうか |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `pushed_at` | string | 最終プッシュタイムスタンプ |
+| `owner` | object | フォークのオーナー |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `parent` | object | 親リポジトリ（フォーク元） |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+| `source` | object | ソースリポジトリ（最終的な起源） |
+|   ↳ `id` | number | リポジトリID |
+|   ↳ `full_name` | string | フルネーム |
+|   ↳ `html_url` | string | ウェブURL |
+
+### `github_list_forks`
+
+リポジトリのフォークを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `sort` | string | いいえ | 並べ替え：newest、oldest、stargazers、watchers（デフォルト：newest） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub APIからのフォークリポジトリオブジェクトの配列 |
+|   ↳ `id` | number | リポジトリID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `name` | string | リポジトリ名 |
+|   ↳ `full_name` | string | フルネーム（owner/repo） |
+|   ↳ `private` | boolean | リポジトリがプライベートかどうか |
+|   ↳ `description` | string | リポジトリの説明 |
+|   ↳ `html_url` | string | GitHub WebのURL |
+|   ↳ `url` | string | API URL |
+|   ↳ `fork` | boolean | これがフォークかどうか |
+|   ↳ `created_at` | string | 作成タイムスタンプ |
+|   ↳ `updated_at` | string | 最終更新タイムスタンプ |
+|   ↳ `pushed_at` | string | 最終プッシュタイムスタンプ |
+|   ↳ `size` | number | リポジトリサイズ（KB） |
+|   ↳ `stargazers_count` | number | スター数 |
+|   ↳ `watchers_count` | number | ウォッチャー数 |
+|   ↳ `forks_count` | number | フォーク数 |
+|   ↳ `open_issues_count` | number | オープンイシュー数 |
+|   ↳ `language` | string | 主要なプログラミング言語 |
+|   ↳ `default_branch` | string | デフォルトブランチ名 |
+|   ↳ `visibility` | string | リポジトリの可視性 |
+|   ↳ `archived` | boolean | リポジトリがアーカイブされているかどうか |
+|   ↳ `disabled` | boolean | リポジトリが無効化されているかどうか |
+|   ↳ `owner` | object | フォークのオーナー |
+|     ↳ `login` | string | GitHubユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `count` | number | 返されたフォーク数 |
+
+### `github_create_milestone`
+
+リポジトリにマイルストーンを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `title` | string | はい | マイルストーンのタイトル |
+| `state` | string | いいえ | 状態：openまたはclosed（デフォルト：open） |
+| `description` | string | いいえ | マイルストーンの説明 |
+| `due_on` | string | いいえ | 期限日（ISO 8601形式、例：2024-12-31T23:59:59Z） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `creator` | object | マイルストーン作成者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `id` | number | マイルストーンID |
+| `node_id` | string | GraphQLノードID |
+| `number` | number | マイルストーン番号 |
+| `title` | string | マイルストーンのタイトル |
+| `description` | string | マイルストーンの説明 |
+| `state` | string | 状態（openまたはclosed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub Web URL |
+| `labels_url` | string | ラベルAPI URL |
+| `due_on` | string | 期限日（ISO 8601） |
+| `open_issues` | number | オープンなイシューの数 |
+| `closed_issues` | number | クローズされたイシューの数 |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `closed_at` | string | クローズタイムスタンプ |
+
+### `github_get_milestone`
+
+番号で特定のマイルストーンを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `milestone_number` | number | はい | マイルストーン番号 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `creator` | object | マイルストーン作成者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+| `id` | number | マイルストーンID |
+| `node_id` | string | GraphQLノードID |
+| `number` | number | マイルストーン番号 |
+| `title` | string | マイルストーンのタイトル |
+| `description` | string | マイルストーンの説明 |
+| `state` | string | 状態（openまたはclosed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub Web URL |
+| `labels_url` | string | ラベルAPI URL |
+| `due_on` | string | 期限（ISO 8601） |
+| `open_issues` | number | オープンなイシューの数 |
+| `closed_issues` | number | クローズされたイシューの数 |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `closed_at` | string | クローズタイムスタンプ |
+
+### `github_list_milestones`
+
+リポジトリ内のマイルストーンを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `state` | string | いいえ | 状態でフィルタリング：open、closed、all（デフォルト：open） |
+| `sort` | string | いいえ | 並べ替え：due_onまたはcompleteness（デフォルト：due_on） |
+| `direction` | string | いいえ | 並べ替え方向：ascまたはdesc（デフォルト：asc） |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub APIからのマイルストーンオブジェクトの配列 |
+|   ↳ `creator` | object | マイルストーンの作成者 |
+|     ↳ `login` | string | ユーザー名 |
+|     ↳ `id` | number | ユーザーID |
+|     ↳ `node_id` | string | GraphQLノードID |
+|     ↳ `avatar_url` | string | アバター画像URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | プロフィールページURL |
+|     ↳ `type` | string | ユーザーまたは組織 |
+|     ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `id` | number | マイルストーンID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `number` | number | マイルストーン番号 |
+|   ↳ `title` | string | マイルストーンのタイトル |
+|   ↳ `description` | string | マイルストーンの説明 |
+|   ↳ `state` | string | 状態（openまたはclosed） |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | GitHub Web URL |
+|   ↳ `labels_url` | string | ラベルAPI URL |
+|   ↳ `due_on` | string | 期限（ISO 8601） |
+|   ↳ `open_issues` | number | オープンなイシューの数 |
+|   ↳ `closed_issues` | number | クローズされたイシューの数 |
+|   ↳ `created_at` | string | 作成タイムスタンプ |
+|   ↳ `updated_at` | string | 最終更新タイムスタンプ |
+|   ↳ `closed_at` | string | クローズタイムスタンプ |
+| `count` | number | 返されたマイルストーンの数 |
+
+### `github_update_milestone`
+
+リポジトリ内のマイルストーンを更新
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `milestone_number` | number | はい | 更新するマイルストーン番号 |
+| `title` | string | いいえ | 新しいマイルストーンのタイトル |
+| `state` | string | いいえ | 新しい状態：openまたはclosed |
+| `description` | string | いいえ | 新しい説明 |
+| `due_on` | string | いいえ | 新しい期限（ISO 8601形式） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | マイルストーンID |
+| `node_id` | string | GraphQLノードID |
+| `number` | number | マイルストーン番号 |
+| `title` | string | マイルストーンのタイトル |
+| `description` | string | マイルストーンの説明 |
+| `state` | string | 状態（openまたはclosed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub Web URL |
+| `labels_url` | string | ラベルAPI URL |
+| `due_on` | string | 期限（ISO 8601） |
+| `open_issues` | number | オープンなイシューの数 |
+| `closed_issues` | number | クローズされたイシューの数 |
+| `created_at` | string | 作成タイムスタンプ |
+| `updated_at` | string | 最終更新タイムスタンプ |
+| `closed_at` | string | クローズタイムスタンプ |
+| `creator` | object | マイルストーン作成者 |
+|   ↳ `login` | string | ユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+
+### `github_delete_milestone`
+
+リポジトリからマイルストーンを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `milestone_number` | number | はい | 削除するマイルストーン番号 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 削除が成功したかどうか |
+| `milestone_number` | number | 削除されたマイルストーン番号 |
+
+### `github_create_issue_reaction`
+
+イシューにリアクションを追加
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `issue_number` | number | はい | イシュー番号 |
+| `content` | string | はい | リアクションタイプ：+1（いいね）、-1（よくないね）、laugh、confused、heart、hooray、rocket、eyes |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | リアクションID |
+| `node_id` | string | GraphQLノードID |
+| `content` | string | リアクションタイプ（+1、-1、laugh、confused、heart、hooray、rocket、eyes） |
+| `created_at` | string | 作成タイムスタンプ |
+| `user` | object | GitHubユーザーオブジェクト |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `html_url` | string | プロフィールURL |
+|   ↳ `type` | string | アカウントタイプ（UserまたはOrganization） |
+
+### `github_delete_issue_reaction`
+
+イシューからリアクションを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `issue_number` | number | はい | イシュー番号 |
+| `reaction_id` | number | はい | 削除するリアクションID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 削除が成功したかどうか |
+| `reaction_id` | number | 削除されたリアクションID |
+
+### `github_create_comment_reaction`
+
+イシューコメントにリアクションを追加
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `comment_id` | number | はい | コメントID |
+| `content` | string | はい | リアクションタイプ：+1（いいね）、-1（よくないね）、laugh、confused、heart、hooray、rocket、eyes |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | number | リアクションID |
+| `node_id` | string | GraphQLノードID |
+| `content` | string | リアクションタイプ（+1、-1、laugh、confused、heart、hooray、rocket、eyes） |
+| `created_at` | string | 作成タイムスタンプ |
+| `user` | object | GitHubユーザーオブジェクト |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `html_url` | string | プロフィールURL |
+|   ↳ `type` | string | アカウントタイプ（UserまたはOrganization） |
+
+### `github_delete_comment_reaction`
+
+イシューコメントからリアクションを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `comment_id` | number | はい | コメントID |
+| `reaction_id` | number | はい | 削除するリアクションID |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 削除が成功したかどうか |
+| `reaction_id` | number | 削除されたリアクションID |
+
+### `github_star_repo`
+
+リポジトリにスターを付ける
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | スターの付与が成功したかどうか |
+| `owner` | string | リポジトリのオーナー |
+| `repo` | string | リポジトリ名 |
+
+### `github_unstar_repo`
+
+リポジトリからスターを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | スター解除が成功したかどうか |
+| `owner` | string | リポジトリのオーナー |
+| `repo` | string | リポジトリ名 |
+
+### `github_check_star`
+
+リポジトリにスターを付けているかどうかを確認
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | リポジトリにスターを付けているかどうか |
+| `owner` | string | リポジトリのオーナー |
+| `repo` | string | リポジトリ名 |
+
+### `github_list_stargazers`
+
+リポジトリにスターを付けたユーザーを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | はい | リポジトリのオーナー |
+| `repo` | string | はい | リポジトリ名 |
+| `per_page` | number | いいえ | ページあたりの結果数（最大100、デフォルト：30） |
+| `page` | number | いいえ | ページ番号（デフォルト：1） |
+| `apiKey` | string | はい | GitHub APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub APIからのユーザーオブジェクトの配列 |
+|   ↳ `login` | string | GitHubユーザー名 |
+|   ↳ `id` | number | ユーザーID |
+|   ↳ `node_id` | string | GraphQLノードID |
+|   ↳ `avatar_url` | string | アバター画像URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | プロフィールページURL |
+|   ↳ `type` | string | ユーザーまたは組織 |
+|   ↳ `site_admin` | boolean | GitHubスタッフインジケーター |
+|   ↳ `gravatar_id` | string | Gravatar ID |
+|   ↳ `followers_url` | string | フォロワーAPI URL |
+|   ↳ `following_url` | string | フォローAPI URL |
+|   ↳ `gists_url` | string | Gists API URL |
+|   ↳ `starred_url` | string | スター付きAPI URL |
+|   ↳ `repos_url` | string | リポジトリAPI URL |
+| `count` | number | 返されたスターゲイザーの数 |

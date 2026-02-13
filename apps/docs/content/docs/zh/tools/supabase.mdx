@@ -495,3 +495,21 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 
 - 类别：`tools`
 - 类型：`supabase`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `bucket` | string | 是 | 存储桶的名称 |
+| `path` | string | 是 | 文件的路径 \(例如："folder/file.jpg"\) |
+| `expiresIn` | number | 是 | URL 过期的秒数 \(例如：3600 表示 1 小时\) |
+| `download` | boolean | 否 | 如果为 true，则强制下载而不是内联显示 \(默认值：false\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `signedUrl` | string | 访问文件的临时签名 URL |

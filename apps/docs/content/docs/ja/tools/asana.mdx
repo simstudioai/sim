@@ -163,3 +163,16 @@ Asanaタスクにコメント（ストーリー）を追加する
 
 - カテゴリー: `tools`
 - タイプ: `asana`
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作の成功ステータス |
+| `ts` | string | レスポンスのタイムスタンプ |
+| `gid` | string | コメントのグローバル一意識別子 |
+| `text` | string | コメントのテキスト内容 |
+| `created_at` | string | コメント作成のタイムスタンプ |
+| `created_by` | object | コメント作成者の詳細 |
+|   ↳ `gid` | string | 作成者のGID |
+|   ↳ `name` | string | 作成者の名前 |

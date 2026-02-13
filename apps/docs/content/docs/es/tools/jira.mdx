@@ -555,3 +555,32 @@ Obtener usuarios de Jira. Si se proporciona un ID de cuenta, devuelve un solo us
 
 - Categoría: `tools`
 - Tipo: `jira`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `accountId` | string | No | ID de cuenta opcional para obtener un usuario específico. Si no se proporciona, devuelve todos los usuarios. |
+| `startAt` | number | No | Índice del primer usuario a devolver \(para paginación, predeterminado: 0\) |
+| `maxResults` | number | No | Número máximo de usuarios a devolver \(predeterminado: 50\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo ISO 8601 de la operación |
+| `users` | array | Array de usuarios de Jira |
+|   ↳ `accountId` | string | ID de cuenta de Atlassian del usuario |
+|   ↳ `displayName` | string | Nombre para mostrar del usuario |
+|   ↳ `active` | boolean | Si la cuenta de usuario está activa |
+|   ↳ `emailAddress` | string | Dirección de correo electrónico del usuario |
+|   ↳ `accountType` | string | Tipo de cuenta \(p. ej., atlassian, app, customer\) |
+|   ↳ `avatarUrl` | string | URL del avatar del usuario \(48x48\) |
+|   ↳ `timeZone` | string | Zona horaria del usuario |
+|   ↳ `avatarUrls` | json | URLs del avatar del usuario en múltiples tamaños \(16x16, 24x24, 32x32, 48x48\) |
+|   ↳ `self` | string | URL de la API REST para este usuario |
+| `total` | number | Número total de usuarios devueltos |
+| `startAt` | number | Índice de inicio de paginación |
+| `maxResults` | number | Máximo de resultados por página |

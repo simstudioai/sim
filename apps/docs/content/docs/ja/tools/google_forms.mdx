@@ -52,3 +52,193 @@ Google Formsをワークフローに統合します。フォームIDを提供し
 
 - カテゴリー: `tools`
 - タイプ: `google_forms`
+
+質問項目、設定、メタデータを含むフォーム構造を取得します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | 取得するGoogle FormsのフォームID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formId` | string | フォームID |
+| `title` | string | 回答者に表示されるフォームのタイトル |
+| `description` | string | フォームの説明 |
+| `documentTitle` | string | Driveに表示されるドキュメントのタイトル |
+| `responderUri` | string | 回答者と共有するURI |
+| `linkedSheetId` | string | リンクされたGoogleスプレッドシートのID |
+| `revisionId` | string | フォームのリビジョンID |
+| `items` | array | フォーム項目(質問、セクションなど) |
+|   ↳ `itemId` | string | 項目ID |
+|   ↳ `title` | string | 項目のタイトル |
+|   ↳ `description` | string | 項目の説明 |
+| `settings` | json | フォーム設定 |
+| `publishSettings` | json | フォーム公開設定 |
+
+### `google_forms_create_form`
+
+タイトルを指定して新しいGoogle Formを作成します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | はい | 回答者に表示されるフォームのタイトル |
+| `documentTitle` | string | いいえ | Driveに表示されるドキュメントのタイトル(デフォルトはフォームのタイトル) |
+| `unpublished` | boolean | いいえ | trueの場合、回答を受け付けない非公開フォームを作成します |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formId` | string | 作成されたフォームのID |
+| `title` | string | フォームのタイトル |
+| `documentTitle` | string | Driveでのドキュメントタイトル |
+| `responderUri` | string | 回答者と共有するURI |
+| `revisionId` | string | フォームのリビジョンID |
+
+### `google_forms_batch_update`
+
+フォームに複数の更新を適用します(アイテムの追加、情報の更新、設定の変更など)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | Google FormsのフォームID |
+| `requests` | json | はい | 更新リクエストの配列(updateFormInfo、updateSettings、createItem、updateItem、moveItem、deleteItem) |
+| `includeFormInResponse` | boolean | いいえ | レスポンスに更新されたフォームを含めるかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `replies` | array | 各更新リクエストからの応答 |
+| `writeControl` | object | リビジョンIDを含む書き込み制御情報 |
+|   ↳ `requiredRevisionId` | string | 競合検出に必要なリビジョンID |
+|   ↳ `targetRevisionId` | string | ターゲットリビジョンID |
+| `form` | object | 更新されたフォーム(includeFormInResponseがtrueの場合) |
+|   ↳ `formId` | string | フォームID |
+|   ↳ `info` | object | タイトルと説明を含むフォーム情報 |
+|     ↳ `title` | string | 回答者に表示されるフォームタイトル |
+|     ↳ `description` | string | フォームの説明 |
+|     ↳ `documentTitle` | string | Driveで表示されるドキュメントタイトル |
+|   ↳ `settings` | object | フォーム設定 |
+|     ↳ `quizSettings` | object | クイズ設定 |
+|       ↳ `isQuiz` | boolean | フォームがクイズかどうか |
+|     ↳ `emailCollectionType` | string | メール収集タイプ |
+|   ↳ `revisionId` | string | フォームのリビジョンID |
+|   ↳ `responderUri` | string | 回答者と共有するURI |
+|   ↳ `linkedSheetId` | string | リンクされたGoogleスプレッドシートのID |
+|   ↳ `publishSettings` | object | フォーム公開設定 |
+|     ↳ `publishState` | object | 現在の公開状態 |
+|       ↳ `isPublished` | boolean | フォームが公開されているかどうか |
+|       ↳ `isAcceptingResponses` | boolean | フォームが回答を受け付けているかどうか |
+
+### `google_forms_set_publish_settings`
+
+フォームの公開設定を更新します（公開/非公開、回答の受付）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | Google FormsのフォームID |
+| `isPublished` | boolean | はい | フォームが公開され、他のユーザーに表示されるかどうか |
+| `isAcceptingResponses` | boolean | いいえ | フォームが回答を受け付けるかどうか（isPublishedがfalseの場合、強制的にfalseになります） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `formId` | string | フォームID |
+| `publishSettings` | json | 更新された公開設定 |
+|   ↳ `publishState` | object | 公開状態 |
+|     ↳ `isPublished` | boolean | フォームが公開されているかどうか |
+|     ↳ `isAcceptingResponses` | boolean | フォームが回答を受け付けているかどうか |
+
+### `google_forms_create_watch`
+
+フォームの変更に対する通知監視を作成します（スキーマの変更または新しい回答）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | 監視するGoogle FormsのフォームID |
+| `eventType` | string | はい | 監視するイベントタイプ: SCHEMA（フォームの変更）またはRESPONSES（新しい送信） |
+| `topicName` | string | はい | Cloud Pub/Subトピック名（形式: projects/\{project\}/topics/\{topic\}） |
+| `watchId` | string | いいえ | カスタム監視ID（4〜63文字、小文字、数字、ハイフン） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ウォッチID |
+| `eventType` | string | 監視されているイベントタイプ |
+| `topicName` | string | Cloud Pub/Subトピック |
+| `createTime` | string | ウォッチが作成された日時 |
+| `expireTime` | string | ウォッチの有効期限（作成から7日後） |
+| `state` | string | ウォッチの状態（ACTIVE、SUSPENDED） |
+
+### `google_forms_list_watches`
+
+フォームのすべての通知ウォッチを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | Google FormsのフォームID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `watches` | array | フォームのウォッチリスト |
+|   ↳ `id` | string | ウォッチID |
+|   ↳ `eventType` | string | イベントタイプ（SCHEMAまたはRESPONSES） |
+|   ↳ `createTime` | string | ウォッチが作成された日時 |
+|   ↳ `expireTime` | string | ウォッチの有効期限 |
+|   ↳ `state` | string | ウォッチの状態 |
+
+### `google_forms_delete_watch`
+
+フォームから通知ウォッチを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | Google FormsのフォームID |
+| `watchId` | string | はい | 削除するウォッチID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | ウォッチが正常に削除されたかどうか |
+
+### `google_forms_renew_watch`
+
+通知ウォッチをさらに7日間更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | はい | Google FormsのフォームID |
+| `watchId` | string | はい | 更新するウォッチID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ウォッチID |
+| `eventType` | string | 監視されているイベントタイプ |
+| `expireTime` | string | 新しい有効期限 |
+| `state` | string | ウォッチの状態 |

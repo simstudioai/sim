@@ -1,0 +1,172 @@
+---
+title: Dateien übergeben
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Sim macht es einfach, mit Dateien in Ihren Workflows zu arbeiten. Blöcke können Dateien empfangen, verarbeiten und nahtlos an andere Blöcke weitergeben.
+
+## Dateiobjekte
+
+Wenn Blöcke Dateien ausgeben (wie Gmail-Anhänge, generierte Bilder oder geparste Dokumente), geben sie ein standardisiertes Dateiobjekt zurück:
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+Sie können auf alle diese Eigenschaften zugreifen, wenn Sie auf Dateien aus vorherigen Blöcken verweisen.
+
+## Der Datei-Block
+
+Der **Datei-Block** ist der universelle Einstiegspunkt für Dateien in Ihren Workflows. Er akzeptiert Dateien aus jeder Quelle und gibt standardisierte Dateiobjekte aus, die mit allen Integrationen funktionieren.
+
+**Eingaben:**
+- **Hochgeladene Dateien** - Dateien direkt per Drag & Drop oder Auswahl hinzufügen
+- **Externe URLs** - Jede öffentlich zugängliche Datei-URL
+- **Dateien von anderen Blöcken** - Dateien von Gmail-Anhängen, Slack-Downloads usw. übergeben
+
+**Ausgaben:**
+- Eine Liste von `UserFile`-Objekten mit konsistenter Struktur (`name`, `url`, `base64`, `type`, `size`)
+- `combinedContent` - Extrahierter Textinhalt aus allen Dateien (für Dokumente)
+
+**Beispielverwendung:**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+Der Datei-Block führt automatisch folgende Aktionen aus:
+- Erkennt Dateitypen aus URLs und Erweiterungen
+- Extrahiert Text aus PDFs, CSVs und Dokumenten
+- Generiert Base64-Kodierung für Binärdateien
+- Erstellt vorsignierte URLs für sicheren Zugriff
+
+Verwenden Sie den Datei-Block, wenn Sie Dateien aus verschiedenen Quellen normalisieren müssen, bevor Sie sie an andere Blöcke wie Vision, STT oder E-Mail-Integrationen übergeben.
+
+## Dateien zwischen Blöcken übergeben
+
+Verweisen Sie auf Dateien aus vorherigen Blöcken über das Tag-Dropdown. Klicken Sie in ein beliebiges Dateieingabefeld und geben Sie `<` ein, um verfügbare Ausgaben anzuzeigen.
+
+**Häufige Muster:**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+Die meisten Blöcke akzeptieren das vollständige Dateiobjekt und extrahieren automatisch, was sie benötigen. Sie müssen `base64` oder `url` in den meisten Fällen nicht manuell extrahieren.
+
+## Workflows mit Dateien auslösen
+
+Wenn Sie einen Workflow über die API aufrufen, der Dateieingaben erwartet, fügen Sie Dateien in Ihre Anfrage ein:
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+  <Tab value="URL">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+</Tabs>
+
+Der Start-Block des Workflows sollte ein Eingabefeld haben, das für den Empfang des Dateiparameters konfiguriert ist.
+
+## Dateien in API-Antworten empfangen
+
+Wenn ein Workflow Dateien ausgibt, sind diese in der Antwort enthalten:
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+Verwenden Sie `url` für direkte Downloads oder `base64` für Inline-Verarbeitung.
+
+## Blöcke, die mit Dateien arbeiten
+
+**Dateieingaben:**
+- **File** - Dokumente, Bilder und Textdateien parsen
+- **Vision** - Bilder mit KI-Modellen analysieren
+- **Mistral Parser** - Text aus PDFs extrahieren
+
+**Dateiausgaben:**
+- **Gmail** - E-Mail-Anhänge
+- **Slack** - Heruntergeladene Dateien
+- **TTS** - Generierte Audiodateien
+- **Video Generator** - Generierte Videos
+- **Image Generator** - Generierte Bilder
+
+**Dateispeicherung:**
+- **Supabase** - Upload/Download aus dem Speicher
+- **S3** - AWS S3-Operationen
+- **Google Drive** - Drive-Dateioperationen
+- **Dropbox** - Dropbox-Dateioperationen
+
+<Callout type="info">
+  Dateien sind automatisch für nachgelagerte Blöcke verfügbar. Die Ausführungs-Engine übernimmt die gesamte Dateiübertragung und Formatkonvertierung.
+</Callout>
+
+## Best Practices
+
+1. **Dateiobjekte direkt verwenden** - Übergeben Sie das vollständige Dateiobjekt, anstatt einzelne Eigenschaften zu extrahieren. Blöcke übernehmen die Konvertierung automatisch.
+
+2. **Dateitypen prüfen** - Stellen Sie sicher, dass der Dateityp mit dem übereinstimmt, was der empfangende Block erwartet. Der Vision-Block benötigt Bilder, der File-Block verarbeitet Dokumente.
+
+3. **Dateigröße beachten** – Große Dateien erhöhen die Ausführungszeit. Bei sehr großen Dateien sollten Sie Storage-Blöcke (S3, Supabase) für die Zwischenspeicherung verwenden.

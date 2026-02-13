@@ -1,0 +1,142 @@
+---
+title: Despliegue de formulario
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Despliega tu flujo de trabajo como un formulario embebible que los usuarios pueden completar en tu sitio web o compartir mediante enlace. Los envíos de formulario activan tu flujo de trabajo con el tipo de activador `form`.
+
+## Descripción general
+
+El despliegue de formulario convierte el formato de entrada de tu flujo de trabajo en un formulario responsivo que puede ser:
+- Compartido mediante un enlace directo (ej., `https://sim.ai/form/my-survey`)
+- Embebido en cualquier sitio web usando un iframe
+
+Cuando un usuario envía el formulario, activa tu flujo de trabajo con los datos del formulario.
+
+<Callout type="info">
+Los formularios derivan sus campos del formato de entrada del bloque de inicio de tu flujo de trabajo. Cada campo se convierte en una entrada de formulario con el tipo apropiado.
+</Callout>
+
+## Crear un formulario
+
+1. Abre tu flujo de trabajo y haz clic en **Desplegar**
+2. Selecciona la pestaña **Formulario**
+3. Configura:
+   - **URL**: Identificador único (ej., `contact-form` → `sim.ai/form/contact-form`)
+   - **Título**: Encabezado del formulario
+   - **Descripción**: Subtítulo opcional
+   - **Campos del formulario**: Personaliza etiquetas y descripciones para cada campo
+   - **Autenticación**: Pública, protegida por contraseña o lista blanca de correos
+   - **Mensaje de agradecimiento**: Se muestra después del envío
+4. Haz clic en **Lanzar**
+
+## Mapeo de tipos de campo
+
+| Tipo de formato de entrada | Campo de formulario |
+|------------------|------------|
+| `string` | Entrada de texto |
+| `number` | Entrada numérica |
+| `boolean` | Interruptor de alternancia |
+| `object` | Editor JSON |
+| `array` | Editor de array JSON |
+| `files` | Carga de archivo |
+
+## Control de acceso
+
+| Modo | Descripción |
+|------|-------------|
+| **Público** | Cualquiera con el enlace puede enviar |
+| **Contraseña** | Los usuarios deben ingresar una contraseña |
+| **Lista blanca de correos** | Solo los correos/dominios especificados pueden enviar |
+
+Para lista blanca de correos:
+- Exacto: `user@example.com`
+- Dominio: `@example.com` (todos los correos del dominio)
+
+## Incrustación
+
+### Enlace directo
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## Envío por API
+
+Envía formularios de forma programática:
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+
+  </Tab>
+  <Tab value="TypeScript">
+
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+
+  </Tab>
+</Tabs>
+
+### Formularios protegidos
+
+Para formularios protegidos con contraseña:
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+Para formularios protegidos con correo:
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## Solución de problemas
+
+**"No hay campos de entrada configurados"** - Añade campos de formato de entrada a tu bloque de inicio.
+
+**El formulario no se carga en el iframe** - Verifica que el CSP de tu sitio permita iframes desde `sim.ai`.
+
+**Los envíos fallan** - Verifica que el identificador sea correcto y que los campos obligatorios estén completos.

@@ -255,3 +255,57 @@ console.log(`${processedItems} gültige Elemente verarbeitet`);
 - **Setzen Sie vernünftige Grenzen**: Halten Sie die Anzahl der Iterationen in einem vernünftigen Rahmen, um lange Ausführungszeiten zu vermeiden
 - **Verwenden Sie ForEach für Sammlungen**: Verwenden Sie beim Verarbeiten von Arrays oder Objekten ForEach anstelle von For-Schleifen
 - **Behandeln Sie Fehler elegant**: Erwägen Sie, Fehlerbehandlung innerhalb von Schleifen hinzuzufügen, um robuste Workflows zu gewährleisten
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Schleifentyp</strong>: Wählen Sie zwischen 'for', 'forEach', 'while' oder 'doWhile'
+      </li>
+      <li>
+        <strong>Iterationen</strong>: Anzahl der Ausführungen (für for-Schleifen)
+      </li>
+      <li>
+        <strong>Sammlung</strong>: Array oder Objekt zum Durchlaufen (für forEach-Schleifen)
+      </li>
+      <li>
+        <strong>Bedingung</strong>: Boolescher Ausdruck zur Auswertung (für while/do-while-Schleifen)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Verfügbar **innerhalb** der Schleife:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<loop.index>"}</strong>: Aktuelle Iterationsnummer (0-basiert)
+      </li>
+      <li>
+        <strong>{"<loop.currentItem>"}</strong>: Aktuell verarbeitetes Element (nur forEach)
+      </li>
+      <li>
+        <strong>{"<loop.items>"}</strong>: Vollständige Sammlung (nur forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: Array aller Iterationsergebnisse (Zugriff über Blocknamen)
+      </li>
+      <li>
+        <strong>Struktur</strong>: Ergebnisse behalten die Iterationsreihenfolge bei
+      </li>
+      <li>
+        <strong>Zugriff</strong>: Verfügbar in Blöcken nach Abschluss der Schleife
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Setzen Sie vernünftige Grenzen**: Halten Sie die Iterationsanzahl angemessen, um lange Ausführungszeiten zu vermeiden
+- **Verwenden Sie ForEach für Sammlungen**: Verwenden Sie beim Verarbeiten von Arrays oder Objekten ForEach anstelle von For-Schleifen
+- **Behandeln Sie Fehler elegant**: Erwägen Sie, Fehlerbehandlung innerhalb von Schleifen hinzuzufügen, um robuste Workflows zu gewährleisten

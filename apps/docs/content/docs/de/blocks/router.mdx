@@ -100,3 +100,18 @@ Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
 - **Mit verschiedenen Eingaben testen**: Stellen Sie sicher, dass der Router verschiedene Eingabetypen, Grenzfälle und unerwartete Inhalte verarbeiten kann
 - **Routing-Leistung überwachen**: Überprüfen Sie Routing-Entscheidungen regelmäßig und verfeinern Sie Kriterien basierend auf tatsächlichen Nutzungsmustern
 - **Geeignete Modelle auswählen**: Verwenden Sie Modelle mit starken Argumentationsfähigkeiten für komplexe Routing-Entscheidungen
+
+Wenn der Router keine geeignete Route für den gegebenen Kontext ermitteln kann, leitet er stattdessen zum **Fehlerpfad** weiter, anstatt willkürlich eine Route auszuwählen. Dies geschieht, wenn:
+
+- Der Kontext keiner der definierten Routenbeschreibungen eindeutig entspricht
+- Die KI feststellt, dass keine der verfügbaren Routen geeignet ist
+
+## Best Practices
+
+- **Klare Routenbeschreibungen verfassen**: Jede Routenbeschreibung sollte klar erklären, wann diese Route ausgewählt werden sollte. Seien Sie spezifisch bezüglich der Kriterien.
+- **Routen gegenseitig ausschließend gestalten**: Stellen Sie nach Möglichkeit sicher, dass sich Routenbeschreibungen nicht überschneiden, um mehrdeutige Routing-Entscheidungen zu vermeiden.
+- **Einen Fehlerpfad verbinden**: Behandeln Sie Fälle, in denen keine Route passt, indem Sie einen Fehlerbehandler für ein elegantes Fallback-Verhalten verbinden.
+- **Aussagekräftige Routentitel verwenden**: Routentitel erscheinen im Workflow-Canvas, machen Sie sie daher für bessere Lesbarkeit aussagekräftig.
+- **Mit verschiedenen Eingaben testen**: Stellen Sie sicher, dass der Router verschiedene Eingabetypen, Grenzfälle und unerwartete Inhalte verarbeitet.
+- **Routing-Performance überwachen**: Überprüfen Sie Routing-Entscheidungen regelmäßig und verfeinern Sie Routenbeschreibungen basierend auf tatsächlichen Nutzungsmustern.
+- **Geeignete Modelle wählen**: Verwenden Sie Modelle mit starken Reasoning-Fähigkeiten für komplexe Routing-Entscheidungen.

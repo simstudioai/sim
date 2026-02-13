@@ -358,3 +358,370 @@ Eine neue vom Administrator initiierte Nachricht in Intercom erstellen und sende
 
 - Kategorie: `tools`
 - Typ: `intercom`
+
+Erstellen und senden Sie eine neue, vom Administrator initiierte Nachricht in Intercom. Gibt nur API-konforme Felder zurück.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | Ja | Nachrichtentyp: "inapp" für In-App-Nachrichten oder "email" für E-Mail-Nachrichten |
+| `template` | string | Ja | Nachrichtenvorlagenstil: "plain" für einfachen Text oder "personal" für personalisierten Stil |
+| `subject` | string | Nein | Der Betreff der Nachricht \(für E-Mail-Typ\) |
+| `body` | string | Ja | Der Inhalt der Nachricht |
+| `from_type` | string | Ja | Absendertyp: "admin" |
+| `from_id` | string | Ja | Die ID des Administrators, der die Nachricht sendet |
+| `to_type` | string | Ja | Empfängertyp: "contact" |
+| `to_id` | string | Ja | Die ID des Kontakts, der die Nachricht erhält |
+| `created_at` | number | Nein | Unix-Zeitstempel für den Zeitpunkt der Nachrichtenerstellung. Wenn nicht angegeben, wird die aktuelle Zeit verwendet. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | object | Erstelltes Nachrichtenobjekt |
+|   ↳ `id` | string | Eindeutige Kennung für die Nachricht |
+|   ↳ `type` | string | Objekttyp \(message\) |
+|   ↳ `created_at` | number | Unix-Zeitstempel der Nachrichtenerstellung |
+|   ↳ `body` | string | Inhalt der Nachricht |
+|   ↳ `message_type` | string | Typ der Nachricht \(in_app oder email\) |
+|   ↳ `conversation_id` | string | ID der erstellten Konversation |
+|   ↳ `owner` | object | Eigentümer der Nachricht |
+| `messageId` | string | ID der erstellten Nachricht |
+| `success` | boolean | Status des Vorgangserfolgs |
+
+### `intercom_list_admins`
+
+Eine Liste aller Administratoren für den Workspace abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `admins` | array | Array von Administrator-Objekten |
+|   ↳ `id` | string | Eindeutige Kennung für den Administrator |
+|   ↳ `type` | string | Objekttyp \(admin\) |
+|   ↳ `name` | string | Name des Administrators |
+|   ↳ `email` | string | E-Mail des Administrators |
+|   ↳ `job_title` | string | Berufsbezeichnung des Administrators |
+|   ↳ `away_mode_enabled` | boolean | Ob der Administrator im Abwesenheitsmodus ist |
+|   ↳ `away_mode_reassign` | boolean | Ob Konversationen bei Abwesenheit neu zugewiesen werden sollen |
+|   ↳ `has_inbox_seat` | boolean | Ob der Administrator einen bezahlten Posteingangsplatz hat |
+|   ↳ `team_ids` | array | Liste der Team-IDs, denen der Administrator angehört |
+|   ↳ `avatar` | object | Avatar-Informationen |
+|   ↳ `email_verified` | boolean | Ob die E-Mail verifiziert ist |
+| `type` | string | Objekttyp \(admin.list\) |
+
+### `intercom_close_conversation`
+
+Eine Konversation in Intercom schließen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Ja | Die ID der zu schließenden Konversation |
+| `admin_id` | string | Ja | Die ID des Administrators, der die Aktion ausführt |
+| `body` | string | Nein | Optionale Abschlussnachricht, die zur Konversation hinzugefügt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `conversation` | object | Das geschlossene Konversationsobjekt |
+|   ↳ `id` | string | Eindeutige Kennung für die Konversation |
+|   ↳ `type` | string | Objekttyp \(conversation\) |
+|   ↳ `state` | string | Status der Konversation \(closed\) |
+|   ↳ `open` | boolean | Ob die Konversation offen ist \(false\) |
+|   ↳ `read` | boolean | Ob die Konversation gelesen wurde |
+|   ↳ `created_at` | number | Unix-Zeitstempel, wann die Konversation erstellt wurde |
+|   ↳ `updated_at` | number | Unix-Zeitstempel, wann die Konversation zuletzt aktualisiert wurde |
+| `conversationId` | string | ID der geschlossenen Konversation |
+| `state` | string | Status der Konversation \(closed\) |
+
+### `intercom_open_conversation`
+
+Eine geschlossene oder schlummernde Konversation in Intercom öffnen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Ja | Die ID der zu öffnenden Konversation |
+| `admin_id` | string | Ja | Die ID des Administrators, der die Aktion ausführt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `conversation` | object | Das geöffnete Konversationsobjekt |
+|   ↳ `id` | string | Eindeutige Kennung für die Konversation |
+|   ↳ `type` | string | Objekttyp \(conversation\) |
+|   ↳ `state` | string | Status der Konversation \(open\) |
+|   ↳ `open` | boolean | Ob die Konversation offen ist \(true\) |
+|   ↳ `read` | boolean | Ob die Konversation gelesen wurde |
+|   ↳ `created_at` | number | Unix-Zeitstempel, wann die Konversation erstellt wurde |
+|   ↳ `updated_at` | number | Unix-Zeitstempel, wann die Konversation zuletzt aktualisiert wurde |
+| `conversationId` | string | ID der geöffneten Konversation |
+| `state` | string | Status der Konversation \(open\) |
+
+### `intercom_snooze_conversation`
+
+Eine Konversation schlummern lassen, um sie zu einem späteren Zeitpunkt wieder zu öffnen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Ja | Die ID der Konversation, die schlummern soll |
+| `admin_id` | string | Ja | Die ID des Administrators, der die Aktion ausführt |
+| `snoozed_until` | number | Ja | Unix-Zeitstempel für den Zeitpunkt, zu dem die Konversation wieder geöffnet werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `conversation` | object | Das schlummernde Konversationsobjekt |
+|   ↳ `id` | string | Eindeutige Kennung für die Konversation |
+|   ↳ `type` | string | Objekttyp \(conversation\) |
+|   ↳ `state` | string | Status der Konversation \(snoozed\) |
+|   ↳ `open` | boolean | Ob die Konversation offen ist |
+|   ↳ `snoozed_until` | number | Unix-Zeitstempel, wann die Konversation wieder geöffnet wird |
+|   ↳ `created_at` | number | Unix-Zeitstempel, wann die Konversation erstellt wurde |
+|   ↳ `updated_at` | number | Unix-Zeitstempel, wann die Konversation zuletzt aktualisiert wurde |
+| `conversationId` | string | ID der schlummernden Konversation |
+| `state` | string | Status der Konversation \(snoozed\) |
+| `snoozed_until` | number | Unix-Zeitstempel, wann die Konversation wieder geöffnet wird |
+
+### `intercom_assign_conversation`
+
+Eine Konversation einem Administrator oder Team in Intercom zuweisen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Ja | Die ID der Konversation, die zugewiesen werden soll |
+| `admin_id` | string | Ja | Die ID des Administrators, der die Zuweisung durchführt |
+| `assignee_id` | string | Ja | Die ID des Administrators oder Teams, dem die Konversation zugewiesen werden soll. Auf "0" setzen, um die Zuweisung aufzuheben. |
+| `body` | string | Nein | Optionale Nachricht, die beim Zuweisen hinzugefügt werden kann \(z. B. "Übergabe an das Support-Team"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `conversation` | object | Das zugewiesene Konversationsobjekt |
+|   ↳ `id` | string | Eindeutige Kennung für die Konversation |
+|   ↳ `type` | string | Objekttyp \(conversation\) |
+|   ↳ `state` | string | Status der Konversation |
+|   ↳ `open` | boolean | Ob die Konversation offen ist |
+|   ↳ `admin_assignee_id` | number | ID des zugewiesenen Administrators |
+|   ↳ `team_assignee_id` | string | ID des zugewiesenen Teams |
+|   ↳ `created_at` | number | Unix-Zeitstempel, wann die Konversation erstellt wurde |
+|   ↳ `updated_at` | number | Unix-Zeitstempel, wann die Konversation zuletzt aktualisiert wurde |
+| `conversationId` | string | ID der zugewiesenen Konversation |
+| `admin_assignee_id` | number | ID des zugewiesenen Administrators |
+| `team_assignee_id` | string | ID des zugewiesenen Teams |
+
+### `intercom_list_tags`
+
+Eine Liste aller Tags im Workspace abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `tags` | array | Array von Tag-Objekten |
+|   ↳ `id` | string | Eindeutige Kennung für den Tag |
+|   ↳ `type` | string | Objekttyp \(tag\) |
+|   ↳ `name` | string | Name des Tags |
+| `type` | string | Objekttyp \(list\) |
+
+### `intercom_create_tag`
+
+Ein neues Tag erstellen oder einen bestehenden Tag-Namen aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Der Name des Tags. Erstellt ein neues Tag, falls nicht gefunden, oder aktualisiert den Namen, wenn eine ID angegeben ist. |
+| `id` | string | Nein | Die ID eines bestehenden Tags zum Aktualisieren. Weglassen, um ein neues Tag zu erstellen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung für das Tag |
+| `name` | string | Name des Tags |
+| `type` | string | Objekttyp \(tag\) |
+
+### `intercom_tag_contact`
+
+Einem bestimmten Kontakt ein Tag hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Ja | Die ID des Kontakts, der getaggt werden soll |
+| `tagId` | string | Ja | Die ID des anzuwendenden Tags |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung für das Tag |
+| `name` | string | Name des Tags |
+| `type` | string | Objekttyp \(tag\) |
+
+### `intercom_untag_contact`
+
+Ein Tag von einem bestimmten Kontakt entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Ja | Die ID des Kontakts, dessen Tag entfernt werden soll |
+| `tagId` | string | Ja | Die ID des zu entfernenden Tags |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung für das entfernte Tag |
+| `name` | string | Name des entfernten Tags |
+| `type` | string | Objekttyp \(tag\) |
+
+### `intercom_tag_conversation`
+
+Ein Tag zu einer bestimmten Konversation hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Ja | Die ID der zu markierenden Konversation |
+| `tagId` | string | Ja | Die ID des anzuwendenden Tags |
+| `admin_id` | string | Ja | Die ID des Administrators, der das Tag anwendet |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung für das Tag |
+| `name` | string | Name des Tags |
+| `type` | string | Objekttyp \(tag\) |
+
+### `intercom_create_note`
+
+Eine Notiz zu einem bestimmten Kontakt hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Ja | Die ID des Kontakts, zu dem die Notiz hinzugefügt werden soll |
+| `body` | string | Ja | Der Textinhalt der Notiz |
+| `admin_id` | string | Nein | Die ID des Administrators, der die Notiz erstellt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Eindeutige Kennung für die Notiz |
+| `body` | string | Der Textinhalt der Notiz |
+| `created_at` | number | Unix-Zeitstempel, wann die Notiz erstellt wurde |
+| `type` | string | Objekttyp \(note\) |
+| `author` | object | Der Administrator, der die Notiz erstellt hat |
+|   ↳ `type` | string | Autorentyp \(admin\) |
+|   ↳ `id` | string | Autoren-ID |
+|   ↳ `name` | string | Autorenname |
+|   ↳ `email` | string | Autoren-E-Mail |
+| `contact` | object | Der Kontakt, für den die Notiz erstellt wurde |
+|   ↳ `type` | string | Kontakttyp |
+|   ↳ `id` | string | Kontakt-ID |
+
+### `intercom_create_event`
+
+Ein benutzerdefiniertes Ereignis für einen Kontakt in Intercom verfolgen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | Ja | Der Name des Ereignisses \(z. B. "order-completed"\). Verwenden Sie das Format Verb-Nomen in der Vergangenheitsform für bessere Lesbarkeit. |
+| `created_at` | number | Nein | Unix-Zeitstempel für den Zeitpunkt, zu dem das Ereignis aufgetreten ist. Wird dringend empfohlen für Eindeutigkeit. |
+| `user_id` | string | Nein | Ihre Kennung für den Benutzer \(external_id\) |
+| `email` | string | Nein | E-Mail-Adresse des Benutzers. Verwenden Sie dies nur, wenn Ihre App E-Mail zur eindeutigen Identifizierung von Benutzern verwendet. |
+| `id` | string | Nein | Die Intercom-Kontakt-ID |
+| `metadata` | string | Nein | JSON-Objekt mit bis zu 10 Metadaten-Schlüssel-Wert-Paaren über das Ereignis \(z. B. \{"order_value": 99.99\}\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Ob das Ereignis akzeptiert wurde \(202 Accepted\) |
+
+### `intercom_attach_contact_to_company`
+
+Einen Kontakt mit einem Unternehmen in Intercom verknüpfen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Ja | Die ID des Kontakts, der mit dem Unternehmen verknüpft werden soll |
+| `companyId` | string | Ja | Die ID des Unternehmens, mit dem der Kontakt verknüpft werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `company` | object | Das Unternehmensobjekt, mit dem der Kontakt verknüpft wurde |
+|   ↳ `id` | string | Eindeutige Kennung für das Unternehmen |
+|   ↳ `type` | string | Objekttyp \(company\) |
+|   ↳ `company_id` | string | Die von Ihnen definierte company_id |
+|   ↳ `name` | string | Name des Unternehmens |
+|   ↳ `created_at` | number | Unix-Zeitstempel, wann das Unternehmen erstellt wurde |
+|   ↳ `updated_at` | number | Unix-Zeitstempel, wann das Unternehmen aktualisiert wurde |
+|   ↳ `user_count` | number | Anzahl der Benutzer im Unternehmen |
+|   ↳ `session_count` | number | Anzahl der Sitzungen |
+|   ↳ `monthly_spend` | number | Monatlicher Umsatzbetrag |
+|   ↳ `plan` | object | Details zum Unternehmensplan |
+| `companyId` | string | ID des Unternehmens |
+| `name` | string | Name des Unternehmens |
+
+### `intercom_detach_contact_from_company`
+
+Einen Kontakt von einem Unternehmen in Intercom entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Ja | Die ID des Kontakts, der vom Unternehmen getrennt werden soll |
+| `companyId` | string | Ja | Die ID des Unternehmens, von dem der Kontakt getrennt werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `company` | object | Das Unternehmensobjekt, von dem der Kontakt getrennt wurde |
+|   ↳ `id` | string | Eindeutige Kennung für das Unternehmen |
+|   ↳ `type` | string | Objekttyp \(company\) |
+|   ↳ `company_id` | string | Die von Ihnen definierte company_id |
+|   ↳ `name` | string | Name des Unternehmens |
+| `companyId` | string | ID des Unternehmens |
+| `name` | string | Name des Unternehmens |

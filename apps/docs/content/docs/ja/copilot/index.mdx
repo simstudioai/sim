@@ -169,3 +169,175 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 <Callout type="info">
   モデル価格は100万トークンあたりの料金です。実際のコストを算出するには1,000,000で割ります。背景と例については<a href="/execution/costs">コスト計算ページ</a>をご覧ください。
 </Callout>
+
+メッセージにカーソルを合わせて**編集**をクリックすると、メッセージを修正して再送信できます。プロンプトを洗練させるのに便利です。
+
+### メッセージキュー
+
+Copilotが応答中にメッセージを送信すると、キューに追加されます。次のことができます:
+- 展開可能なキューパネルでキューに入っているメッセージを表示
+- キューに入っているメッセージをすぐに送信(現在の応答を中止)
+- キューからメッセージを削除
+
+## ファイル添付
+
+添付アイコンをクリックして、メッセージと一緒にファイルをアップロードできます。サポートされているファイル形式:
+- 画像(プレビューサムネイルが表示されます)
+- PDF
+- テキストファイル、JSON、XML
+- その他のドキュメント形式
+
+ファイルはクリック可能なサムネイルとして表示され、新しいタブで開きます。
+
+## チェックポイントと変更
+
+Copilotがワークフローに変更を加えると、必要に応じて元に戻せるようにチェックポイントが保存されます。
+
+### チェックポイントの表示
+
+Copilotのメッセージにカーソルを合わせてチェックポイントアイコンをクリックすると、そのメッセージに保存されたワークフローの状態を確認できます。
+
+### 変更の取り消し
+
+任意のチェックポイントで**元に戻す**をクリックすると、ワークフローをその状態に復元できます。この操作は元に戻せないことを警告する確認ダイアログが表示されます。
+
+### 変更の承認
+
+Copilotが変更を提案した場合、次のことができます:
+- **承認**: 提案された変更を適用(`Mod+Shift+Enter`)
+- **拒否**: 変更を却下して現在のワークフローを維持
+
+## 思考ブロック
+
+複雑なリクエストの場合、Copilotは展開可能な思考ブロックで推論プロセスを表示することがあります:
+
+- Copilotが思考中はブロックが自動的に展開されます
+- クリックして手動で展開/折りたたみ
+- 思考プロセスの所要時間を表示
+- Copilotがどのように解決策に到達したかを理解するのに役立ちます
+
+## オプション選択
+
+Copilotが複数のオプションを提示した場合、次の方法で選択できます:
+
+| 操作 | アクション |
+|---------|--------|
+| **1-9** | 番号でオプションを選択 |
+| **上下矢印キー** | オプション間を移動 |
+| **Enter** | ハイライトされたオプションを選択 |
+
+選択されたオプションはハイライト表示され、未選択のオプションは取り消し線で表示されます。
+
+## キーボードショートカット
+
+| ショートカット | アクション |
+|----------|--------|
+| `@` | コンテキストメニューを開く |
+| `/` | スラッシュコマンドを開く |
+| `Arrow Up/Down` | メニュー項目を移動 |
+| `Enter` | メニュー項目を選択 |
+| `Esc` | メニューを閉じる |
+| `Mod+Shift+Enter` | Copilotの変更を承認 |
+
+## 使用制限
+
+Copilotの使用量は、基盤となるLLMからのトークン単位で課金されます。使用制限に達すると、Copilotは制限の引き上げを促します。現在のベースから増分($50、$100)で使用量を追加できます。
+
+<Callout type="info">
+  課金の詳細については、[コスト計算ページ](/execution/costs)を参照してください。
+</Callout>
+## Copilot MCP
+
+お気に入りのエディタやAIクライアントで、CopilotをMCPサーバーとして使用できます。これにより、Cursor、Claude Code、Claude Desktop、VS Codeなどのツールから直接、Simワークフローの構築、テスト、デプロイ、管理が可能になります。
+
+### Copilot APIキーの生成
+
+Copilot MCPサーバーに接続するには、**Copilot APIキー**が必要です。
+
+1. [sim.ai](https://sim.ai)にアクセスしてサインイン
+2. **設定** → **Copilot**に移動
+3. **APIキーを生成**をクリック
+4. キーをコピー(一度のみ表示されます)
+
+キーは`sk-sim-copilot-...`のような形式です。以下の設定で使用します。
+
+### Cursor
+
+`.cursor/mcp.json`(プロジェクトレベル)またはグローバルなCursor MCP設定に以下を追加してください。
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`を上記で生成したキーに置き換えてください。
+
+### Claude Code
+
+次のコマンドを実行してCopilot MCPサーバーを追加します:
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+### Claude Desktop
+
+Claude DesktopはHTTPベースのMCPサーバーに接続するために[`mcp-remote`](https://www.npmjs.com/package/mcp-remote)が必要です。Claude Desktopの設定ファイル(macOSでは`~/Library/Application Support/Claude/claude_desktop_config.json`)に以下を追加してください:
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+### VS Code
+
+VS Codeの`settings.json`またはワークスペースの`.vscode/settings.json`に以下を追加してください:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+`YOUR_COPILOT_API_KEY`をあなたのキーに置き換えてください。
+
+<Callout type="info">
+  セルフホスト型デプロイメントの場合は、`https://www.sim.ai`をあなたのセルフホスト型SimのURLに置き換えてください。
+</Callout>

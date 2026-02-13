@@ -158,3 +158,17 @@ Listar asuntos, o obtener un asunto específico si se proporciona matterId
 
 - Categoría: `tools`
 - Tipo: `google_vault`
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Número de asuntos a devolver por página |
+| `pageToken` | string | No | Token para paginación |
+| `matterId` | string | No | ID de asunto opcional para obtener un asunto específico \(p. ej., "12345678901234567890"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `matters` | json | Array de objetos de asunto |
+| `matter` | json | Objeto de asunto individual \(cuando se proporciona matterId\) |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |

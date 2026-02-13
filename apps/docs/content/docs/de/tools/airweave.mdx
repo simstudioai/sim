@@ -1,0 +1,63 @@
+---
+title: Airweave
+description: Durchsuchen Sie Ihre synchronisierten Datensammlungen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airweave](https://airweave.ai/) ist eine KI-gestützte semantische Suchplattform, die Ihnen hilft, Wissen über alle Ihre synchronisierten Datenquellen hinweg zu entdecken und abzurufen. Airweave wurde für moderne Teams entwickelt und ermöglicht schnelle, relevante Suchergebnisse mithilfe neuraler, hybrider oder schlüsselwortbasierter Strategien, die auf Ihre Bedürfnisse zugeschnitten sind.
+
+Mit Airweave können Sie:
+
+- **Intelligenter suchen**: Verwenden Sie natürlichsprachliche Abfragen, um Informationen aufzudecken, die in Ihren verbundenen Tools und Datenbanken gespeichert sind
+- **Ihre Daten vereinheitlichen**: Greifen Sie nahtlos auf Inhalte aus Quellen wie Code, Dokumenten, Chat, E-Mails, Cloud-Dateien und mehr zu
+- **Abruf anpassen**: Wählen Sie zwischen hybriden (semantisch + Schlüsselwort), neuralen oder Schlüsselwort-Suchstrategien für optimale Ergebnisse
+- **Recall steigern**: Erweitern Sie Suchanfragen mit KI, um umfassendere Antworten zu finden
+- **Ergebnisse mit KI neu ordnen**: Priorisieren Sie die relevantesten Antworten mit leistungsstarken Sprachmodellen
+- **Sofortige Antworten erhalten**: Generieren Sie klare, KI-gestützte Antworten, die aus Ihren Daten synthetisiert werden
+
+In Sim ermöglicht die Airweave-Integration Ihren Agenten, alle Daten Ihrer Organisation über ein einziges Tool zu durchsuchen, zusammenzufassen und Erkenntnisse zu extrahieren. Nutzen Sie Airweave, um umfassenden, kontextbezogenen Wissensabruf in Ihren Workflows zu ermöglichen – sei es beim Beantworten von Fragen, Erstellen von Zusammenfassungen oder Unterstützen dynamischer Entscheidungsfindung.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Durchsuchen Sie Ihre synchronisierten Datenquellen mit Airweave. Unterstützt semantische Suche mit hybriden, neuralen oder schlüsselwortbasierten Abrufstrategien. Optional können KI-gestützte Antworten aus Suchergebnissen generiert werden.
+
+## Tools
+
+### `airweave_search`
+
+Durchsuchen Sie Ihre synchronisierten Datensammlungen mit Airweave. Unterstützt semantische Suche mit hybriden, neuralen oder schlüsselwortbasierten Abrufstrategien. Optional können KI-gestützte Antworten aus Suchergebnissen generiert werden.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Airweave API-Schlüssel für die Authentifizierung |
+| `collectionId` | string | Ja | Die lesbare ID der zu durchsuchenden Sammlung |
+| `query` | string | Ja | Der Suchanfragetext |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 100\) |
+| `retrievalStrategy` | string | Nein | Abrufstrategie: hybrid \(Standard\), neural oder keyword |
+| `expandQuery` | boolean | Nein | Abfragevariationen generieren, um die Trefferquote zu verbessern |
+| `rerank` | boolean | Nein | Ergebnisse für verbesserte Relevanz mithilfe von LLM neu ordnen |
+| `generateAnswer` | boolean | Nein | Eine natürlichsprachliche Antwort auf die Abfrage generieren |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | array | Suchergebnisse mit Inhalten, Scores und Metadaten aus Ihren synchronisierten Daten |
+|   ↳ `entity_id` | string | Eindeutige Kennung für die Suchergebnisentität |
+|   ↳ `source_name` | string | Name der Datenquelle \(z. B. "GitHub", "Slack"\) |
+|   ↳ `md_content` | string | Markdown-formatierter Inhalt des Ergebnisses |
+|   ↳ `score` | number | Relevanz-Score aus der Suche |
+|   ↳ `metadata` | object | Zusätzliche Metadaten, die mit dem Ergebnis verknüpft sind |
+|   ↳ `breadcrumbs` | array | Navigationspfad zum Ergebnis innerhalb seiner Quelle |
+|   ↳ `url` | string | URL zum Originalinhalt |
+| `completion` | string | KI-generierte Antwort auf die Abfrage \(wenn generateAnswer aktiviert ist\) |

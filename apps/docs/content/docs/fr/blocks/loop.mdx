@@ -255,3 +255,57 @@ return results;
 - **Définir des limites raisonnables** : Gardez un nombre d'itérations raisonnable pour éviter des temps d'exécution longs
 - **Utilisez ForEach pour les collections** : Lors du traitement de tableaux ou d'objets, utilisez les boucles ForEach plutôt que les boucles For
 - **Gérez les erreurs avec élégance** : Envisagez d'ajouter une gestion des erreurs à l'intérieur des boucles pour des workflows robustes
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Type de boucle</strong> : choisissez entre 'for', 'forEach', 'while' ou 'doWhile'
+      </li>
+      <li>
+        <strong>Itérations</strong> : nombre de fois à exécuter (boucles for)
+      </li>
+      <li>
+        <strong>Collection</strong> : tableau ou objet sur lequel itérer (boucles forEach)
+      </li>
+      <li>
+        <strong>Condition</strong> : expression booléenne à évaluer (boucles while/do-while)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Disponible **à l'intérieur** de la boucle uniquement :
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<loop.index>"}</strong> : numéro d'itération actuel (base 0)
+      </li>
+      <li>
+        <strong>{"<loop.currentItem>"}</strong> : élément actuel en cours de traitement (forEach uniquement)
+      </li>
+      <li>
+        <strong>{"<loop.items>"}</strong> : collection complète (forEach uniquement)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong> : tableau de tous les résultats d'itération (accessible via le nom du bloc)
+      </li>
+      <li>
+        <strong>Structure</strong> : les résultats conservent l'ordre d'itération
+      </li>
+      <li>
+        <strong>Accès</strong> : disponible dans les blocs après la fin de la boucle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Bonnes pratiques
+
+- **Définissez des limites raisonnables** : maintenez des nombres d'itérations raisonnables pour éviter des temps d'exécution longs
+- **Utilisez forEach pour les collections** : lors du traitement de tableaux ou d'objets, utilisez forEach plutôt que des boucles for
+- **Gérez les erreurs avec élégance** : envisagez d'ajouter une gestion des erreurs à l'intérieur des boucles pour des workflows robustes

@@ -165,33 +165,3 @@ ElevenLabsを使用して音声をテキストに文字起こし
 | `summary` | string | 自動生成された要約 |
 
 ### `stt_gemini`
-
-マルチモーダル機能を持つGoogle Geminiを使用して音声をテキストに変換する
-
-#### 入力
-
-| パラメータ | 型 | 必須 | 説明 |
-| --------- | ---- | -------- | ----------- |
-| `provider` | string | はい | STTプロバイダー（gemini） |
-| `apiKey` | string | はい | Google APIキー |
-| `model` | string | いいえ | 使用するGeminiモデル（デフォルト：gemini-2.5-flash） |
-| `audioFile` | file | いいえ | 文字起こしする音声またはビデオファイル |
-| `audioFileReference` | file | いいえ | 前のブロックからの音声/ビデオファイルの参照 |
-| `audioUrl` | string | いいえ | 音声またはビデオファイルのURL |
-| `language` | string | いいえ | 言語コード（例："en"、"es"、"fr"）または自動検出の場合は"auto" |
-| `timestamps` | string | いいえ | タイムスタンプの粒度：none、sentence、またはword |
-
-#### 出力
-
-| パラメータ | 型 | 説明 |
-| --------- | ---- | ----------- |
-| `transcript` | string | 完全な文字起こしテキスト |
-| `segments` | array | タイムスタンプ付きセグメント |
-| `language` | string | 検出または指定された言語 |
-| `duration` | number | 音声の長さ（秒） |
-| `confidence` | number | 全体的な信頼度スコア |
-
-## 注意事項
-
-- カテゴリー: `tools`
-- タイプ: `stt`

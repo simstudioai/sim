@@ -139,3 +139,145 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`google_calendar`
+
+将事件移动到其他日历。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | 源 Google 日历 ID（例如：primary 或 calendar@group.calendar.google.com） |
+| `eventId` | string | 是 | 要移动的 Google 日历事件 ID |
+| `destinationCalendarId` | string | 是 | 目标 Google 日历 ID |
+| `sendUpdates` | string | 否 | 如何向参与者发送更新：all、externalOnly 或 none |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 事件 ID |
+| `htmlLink` | string | 事件链接 |
+| `status` | string | 事件状态 |
+| `summary` | string | 事件标题 |
+| `description` | string | 事件描述 |
+| `location` | string | 事件地点 |
+| `start` | json | 事件开始 |
+| `end` | json | 事件结束 |
+| `attendees` | json | 事件参与者 |
+| `creator` | json | 事件创建者 |
+| `organizer` | json | 事件组织者 |
+
+### `google_calendar_instances`
+
+获取 Google 日历中重复事件的各个实例。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | Google 日历 ID（例如：primary 或 calendar@group.calendar.google.com） |
+| `eventId` | string | 是 | 要获取实例的重复事件 ID |
+| `timeMin` | string | 否 | 实例的下限（RFC3339 时间戳，例如：2025-06-03T00:00:00Z） |
+| `timeMax` | string | 否 | 实例的上限（RFC3339 时间戳，例如：2025-06-04T00:00:00Z） |
+| `maxResults` | number | 否 | 返回的最大实例数（默认 250，最大 2500） |
+| `pageToken` | string | 否 | 用于获取后续结果页面的令牌 |
+| `showDeleted` | boolean | 否 | 是否包含已删除的实例 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | 下一页令牌 |
+| `timeZone` | string | 日历时区 |
+| `instances` | json | 循环事件实例列表 |
+
+### `google_calendar_list_calendars`
+
+列出用户的所有日历
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `minAccessRole` | string | 否 | 返回日历的最小访问角色：freeBusyReader、reader、writer 或 owner |
+| `maxResults` | number | 否 | 返回的日历最大数量（默认 100，最大 250） |
+| `pageToken` | string | 否 | 用于获取后续结果页面的令牌 |
+| `showDeleted` | boolean | 否 | 是否包含已删除的日历 |
+| `showHidden` | boolean | 否 | 是否包含隐藏的日历 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `nextPageToken` | string | 下一页令牌 |
+| `calendars` | array | 日历列表 |
+|   ↳ `id` | string | 日历 ID |
+|   ↳ `summary` | string | 日历标题 |
+|   ↳ `description` | string | 日历描述 |
+|   ↳ `location` | string | 日历位置 |
+|   ↳ `timeZone` | string | 日历时区 |
+|   ↳ `accessRole` | string | 日历访问角色 |
+|   ↳ `backgroundColor` | string | 日历背景色 |
+|   ↳ `foregroundColor` | string | 日历前景色 |
+|   ↳ `primary` | boolean | 是否为主日历 |
+|   ↳ `hidden` | boolean | 日历是否隐藏 |
+|   ↳ `selected` | boolean | 日历是否被选中 |
+
+### `google_calendar_quick_add`
+
+从自然语言文本创建事件。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | Google 日历 ID（例如：primary 或 calendar@group.calendar.google.com） |
+| `text` | string | 是 | 描述事件的自然语言文本（例如：“明天下午 3 点与 John 会面”） |
+| `attendees` | array | 否 | 参与者电子邮件地址数组（也接受逗号分隔字符串） |
+| `sendUpdates` | string | 否 | 如何向参与者发送更新：all、externalOnly 或 none |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 事件 ID |
+| `htmlLink` | string | 事件链接 |
+| `status` | string | 事件状态 |
+| `summary` | string | 事件标题 |
+| `description` | string | 事件描述 |
+| `location` | string | 事件地点 |
+| `start` | json | 事件开始 |
+| `end` | json | 事件结束 |
+| `attendees` | json | 事件参与者 |
+| `creator` | json | 事件创建者 |
+| `organizer` | json | 事件组织者 |
+
+### `google_calendar_invite`
+
+邀请与会者加入现有的 Google 日历事件。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | 否 | Google 日历 ID（例如：primary 或 calendar@group.calendar.google.com） |
+| `eventId` | string | 是 | 要邀请与会者的 Google 日历事件 ID |
+| `attendees` | array | 是 | 要邀请的与会者电子邮件地址数组 |
+| `sendUpdates` | string | 否 | 如何向参与者发送更新：all、externalOnly 或 none |
+| `replaceExisting` | boolean | 否 | 是否替换现有与会者或添加到现有与会者（默认为 false） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 事件 ID |
+| `htmlLink` | string | 事件链接 |
+| `status` | string | 事件状态 |
+| `summary` | string | 事件标题 |
+| `description` | string | 事件描述 |
+| `location` | string | 事件地点 |
+| `start` | json | 事件开始 |
+| `end` | json | 事件结束 |
+| `attendees` | json | 事件参与者 |
+| `creator` | json | 事件创建者 |
+| `organizer` | json | 事件组织者 |
