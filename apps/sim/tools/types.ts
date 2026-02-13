@@ -41,6 +41,12 @@ export interface ToolResponse {
     endTime: string // ISO timestamp when the tool execution ended
     duration: number // Duration in milliseconds
   }
+  // Cost incurred by this tool execution (for billing)
+  cost?: {
+    total: number
+    input?: number
+    output?: number
+  }
 }
 
 export interface OAuthConfig {

@@ -210,39 +210,44 @@ function calculateToolCost(
 }
 
 /**
- * Log usage for a tool that used a hosted API key
+ * Calculate and log hosted key cost for a tool execution.
+ * Logs to usageLog for audit trail and returns cost for accumulation in userStats.
  */
-async function logHostedToolUsage(
+async function processHostedKeyCost(
   tool: ToolConfig,
   params: Record<string, unknown>,
   response: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string
-): Promise<void> {
-  if (!tool.hosting?.pricing || !executionContext?.userId) {
-    return
+): Promise<number> {
+  if (!tool.hosting?.pricing) {
+    return 0
   }
 
   const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
 
-  if (cost <= 0) return
+  if (cost <= 0) return 0
 
-  try {
-    await logFixedUsage({
-      userId: executionContext.userId,
-      source: 'workflow',
-      description: `tool:${tool.id}`,
-      cost,
-      workspaceId: executionContext.workspaceId,
-      workflowId: executionContext.workflowId,
-      executionId: executionContext.executionId,
-      metadata,
-    })
-    logger.debug(`[${requestId}] Logged hosted tool usage for ${tool.id}: $${cost}`, metadata ? { metadata } : {})
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to log hosted tool usage for ${tool.id}:`, error)
-    // Don't throw - usage logging should not break the main flow
+  // Log to usageLog table for audit trail
+  if (executionContext?.userId) {
+    try {
+      await logFixedUsage({
+        userId: executionContext.userId,
+        source: 'workflow',
+        description: `tool:${tool.id}`,
+        cost,
+        workspaceId: executionContext.workspaceId,
+        workflowId: executionContext.workflowId,
+        executionId: executionContext.executionId,
+        metadata,
+      })
+      logger.debug(`[${requestId}] Logged hosted key cost for ${tool.id}: $${cost}`, metadata ? { metadata } : {})
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to log hosted key usage for ${tool.id}:`, error)
+    }
   }
+
+  return cost
 }
 
 /**
@@ -617,16 +622,18 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
-      // Log usage for hosted key if execution was successful
-      if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-        await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
-      }
-
       // Add timing data to the result
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
-      return {
+
+      // Calculate and log hosted key cost if applicable
+      let hostedKeyCost = 0
+      if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
+        hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+      }
+
+      const response: ToolResponse = {
         ...finalResult,
         timing: {
           startTime: startTimeISO,
@@ -634,6 +641,10 @@ export async function executeTool(
           duration,
         },
       }
+      if (hostedKeyCost > 0) {
+        response.cost = { total: hostedKeyCost }
+      }
+      return response
     }
 
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
@@ -666,16 +677,18 @@ export async function executeTool(
     // Process file outputs if execution context is available
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
-    // Log usage for hosted key if execution was successful
-    if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-      await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
-    }
-
     // Add timing data to the result
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
-    return {
+
+    // Calculate and log hosted key cost if applicable
+    let hostedKeyCost = 0
+    if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
+      hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+    }
+
+    const response: ToolResponse = {
       ...finalResult,
       timing: {
         startTime: startTimeISO,
@@ -683,6 +696,10 @@ export async function executeTool(
         duration,
       },
     }
+    if (hostedKeyCost > 0) {
+      response.cost = { total: hostedKeyCost }
+    }
+    return response
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing tool ${toolId}:`, {
       error: error instanceof Error ? error.message : String(error),
