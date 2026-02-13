@@ -17,11 +17,11 @@ import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@
 import { Skeleton } from '@/components/ui'
 import {
   type BYOKKey,
-  type BYOKProviderId,
   useBYOKKeys,
   useDeleteBYOKKey,
   useUpsertBYOKKey,
 } from '@/hooks/queries/byok-keys'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKSettings')
 

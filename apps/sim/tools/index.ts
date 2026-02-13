@@ -18,6 +18,7 @@ import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import type {
+  BYOKProviderId,
   OAuthTokenPayload,
   ToolConfig,
   ToolHostingPricing,
@@ -79,19 +80,13 @@ async function injectHostedKeyIfNeeded(
   if (!isHosted) return { isUsingHostedKey: false }
 
   const { envKeys, apiKeyParam, byokProviderId } = tool.hosting
-  const userProvidedKey = params[apiKeyParam]
-
-  if (userProvidedKey) {
-    logger.debug(`[${requestId}] User provided API key for ${tool.id}, skipping hosted key`)
-    return { isUsingHostedKey: false }
-  }
 
   // Check BYOK workspace key first
   if (byokProviderId && executionContext?.workspaceId) {
     try {
       const byokResult = await getBYOKKey(
         executionContext.workspaceId,
-        byokProviderId as 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
+        byokProviderId as BYOKProviderId
       )
       if (byokResult) {
         params[apiKeyParam] = byokResult.apiKey
@@ -198,14 +193,6 @@ function calculateToolCost(
   switch (pricing.type) {
     case 'per_request':
       return { cost: pricing.cost }
-
-    case 'per_second': {
-      const duration = pricing.getDuration(response)
-      const billableDuration = pricing.minimumSeconds
-        ? Math.max(duration, pricing.minimumSeconds)
-        : duration
-      return { cost: billableDuration * pricing.costPerSecond }
-    }
 
     case 'custom': {
       const result = pricing.getCost(params, response)

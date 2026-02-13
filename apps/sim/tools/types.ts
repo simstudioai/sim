@@ -1,5 +1,7 @@
 import type { OAuthService } from '@/lib/oauth'
 
+export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
 export type OutputType =
@@ -188,17 +190,6 @@ export interface PerRequestPricing {
   cost: number
 }
 
-/** Billed by execution duration (e.g., browser sessions, video processing) */
-export interface PerSecondPricing {
-  type: 'per_second'
-  /** Cost per second in dollars */
-  costPerSecond: number
-  /** Minimum billable seconds */
-  minimumSeconds?: number
-  /** Extract duration from response (in seconds) */
-  getDuration: (response: Record<string, unknown>) => number
-}
-
 /** Result from custom pricing calculation */
 export interface CustomPricingResult {
   /** Cost in dollars */
@@ -217,7 +208,6 @@ export interface CustomPricing<P = Record<string, unknown>, R extends ToolRespon
 /** Union of all pricing models */
 export type ToolHostingPricing<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> =
   | PerRequestPricing
-  | PerSecondPricing
   | CustomPricing<P, R>
 
 /**
@@ -229,8 +219,8 @@ export interface ToolHostingConfig<P = Record<string, unknown>, R extends ToolRe
   envKeys: string[]
   /** The parameter name that receives the API key */
   apiKeyParam: string
-  /** BYOK provider ID for workspace key lookup (e.g., 'serper') */
-  byokProviderId?: string
+  /** BYOK provider ID for workspace key lookup */
+  byokProviderId?: BYOKProviderId
   /** Pricing when using hosted key */
   pricing: ToolHostingPricing<P, R>
 }
