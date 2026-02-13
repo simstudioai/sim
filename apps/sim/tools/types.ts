@@ -127,6 +127,13 @@ export interface ToolConfig<P = any, R = any> {
    * Maps param IDs to their enrichment configuration.
    */
   schemaEnrichment?: Record<string, SchemaEnrichmentConfig>
+
+  /**
+   * Hosted API key configuration for this tool.
+   * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
+   * Usage is billed according to the pricing config.
+   */
+  hosting?: ToolHostingConfig
 }
 
 export interface TableRow {
@@ -169,4 +176,65 @@ export interface SchemaEnrichmentConfig {
     description?: string
     required?: string[]
   } | null>
+}
+
+/**
+ * Pricing models for hosted API key usage
+ */
+/** Flat fee per API call (e.g., Serper search) */
+export interface PerRequestPricing {
+  type: 'per_request'
+  /** Cost per request in dollars */
+  cost: number
+}
+
+/** Usage-based on input/output size (e.g., LLM tokens, TTS characters) */
+export interface PerUnitPricing {
+  type: 'per_unit'
+  /** Cost per unit in dollars */
+  costPerUnit: number
+  /** Unit of measurement */
+  unit: 'token' | 'character' | 'byte' | 'kb' | 'mb'
+  /** Extract usage count from params (before execution) or response (after execution) */
+  getUsage: (params: Record<string, unknown>, response?: Record<string, unknown>) => number
+}
+
+/** Based on result count (e.g., per search result, per email sent) */
+export interface PerResultPricing {
+  type: 'per_result'
+  /** Cost per result in dollars */
+  costPerResult: number
+  /** Maximum results to bill for (cap) */
+  maxResults?: number
+  /** Extract result count from response */
+  getResultCount: (response: Record<string, unknown>) => number
+}
+
+/** Billed by execution duration (e.g., browser sessions, video processing) */
+export interface PerSecondPricing {
+  type: 'per_second'
+  /** Cost per second in dollars */
+  costPerSecond: number
+  /** Minimum billable seconds */
+  minimumSeconds?: number
+  /** Extract duration from response (in seconds) */
+  getDuration: (response: Record<string, unknown>) => number
+}
+
+/** Union of all pricing models */
+export type ToolHostingPricing = PerRequestPricing | PerUnitPricing | PerResultPricing | PerSecondPricing
+
+/**
+ * Configuration for hosted API key support
+ * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own
+ */
+export interface ToolHostingConfig {
+  /** Environment variable names to check for hosted keys (supports rotation with multiple keys) */
+  envKeys: string[]
+  /** The parameter name that receives the API key */
+  apiKeyParam: string
+  /** BYOK provider ID for workspace key lookup (e.g., 'serper') */
+  byokProviderId?: string
+  /** Pricing when using hosted key */
+  pricing: ToolHostingPricing
 }

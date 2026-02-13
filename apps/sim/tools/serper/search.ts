@@ -43,9 +43,18 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
     apiKey: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'Serper API Key',
+    },
+  },
+  hosting: {
+    envKeys: ['SERPER_API_KEY'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'serper',
+    pricing: {
+      type: 'per_request',
+      cost: 0.001, // $0.001 per search (Serper pricing: ~$50/50k searches)
     },
   },
 

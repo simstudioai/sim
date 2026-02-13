@@ -13,7 +13,7 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import { AnthropicIcon, GeminiIcon, MistralIcon, OpenAIIcon, SerperIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
   type BYOKKey,
@@ -59,6 +59,13 @@ const PROVIDERS: {
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'serper',
+    name: 'Serper',
+    icon: SerperIcon,
+    description: 'Web search tool',
+    placeholder: 'Enter your Serper API key',
   },
 ]
 

@@ -78,6 +78,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       placeholder: 'Enter your Serper API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

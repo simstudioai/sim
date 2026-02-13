@@ -1,4 +1,5 @@
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import type { SubBlockConfig } from '@/blocks/types'
 
 export type CanonicalMode = 'basic' | 'advanced'
@@ -269,4 +270,13 @@ export function resolveDependencyValue(
 export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
   if (!subBlock.requiresFeature) return true
   return isTruthy(getEnv(subBlock.requiresFeature))
+}
+
+/**
+ * Check if a subblock should be hidden because we're running on hosted Sim.
+ * Used for tool API key fields that should be hidden when Sim provides hosted keys.
+ */
+export function isSubBlockHiddenByHostedKey(subBlock: SubBlockConfig): boolean {
+  if (!subBlock.hideWhenHosted) return false
+  return isHosted
 }

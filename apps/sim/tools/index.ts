@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { getBYOKKey } from '@/lib/api-key/byok'
+import { logFixedUsage } from '@/lib/billing/core/usage-log'
+import { env } from '@/lib/core/config/env'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
@@ -13,7 +16,12 @@ import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
-import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
+import type {
+  OAuthTokenPayload,
+  ToolConfig,
+  ToolHostingPricing,
+  ToolResponse,
+} from '@/tools/types'
 import {
   formatRequestParams,
   getTool,
@@ -22,6 +30,150 @@ import {
 } from '@/tools/utils'
 
 const logger = createLogger('Tools')
+
+/**
+ * Get a hosted API key from environment variables
+ * Supports rotation when multiple keys are configured
+ */
+function getHostedKeyFromEnv(envKeys: string[]): string | null {
+  const keys = envKeys
+    .map((key) => env[key as keyof typeof env])
+    .filter((value): value is string => Boolean(value))
+
+  if (keys.length === 0) return null
+
+  // Round-robin rotation based on current minute
+  const currentMinute = Math.floor(Date.now() / 60000)
+  const keyIndex = currentMinute % keys.length
+
+  return keys[keyIndex]
+}
+
+/**
+ * Inject hosted API key if tool supports it and user didn't provide one.
+ * Checks BYOK workspace keys first, then falls back to hosted env keys.
+ * Returns whether a hosted (billable) key was injected.
+ */
+async function injectHostedKeyIfNeeded(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<boolean> {
+  if (!tool.hosting) return false
+
+  const { envKeys, apiKeyParam, byokProviderId } = tool.hosting
+  const userProvidedKey = params[apiKeyParam]
+
+  if (userProvidedKey) {
+    logger.debug(`[${requestId}] User provided API key for ${tool.id}, skipping hosted key`)
+    return false
+  }
+
+  // Check BYOK workspace key first
+  if (byokProviderId && executionContext?.workspaceId) {
+    try {
+      const byokResult = await getBYOKKey(
+        executionContext.workspaceId,
+        byokProviderId as 'openai' | 'anthropic' | 'google' | 'mistral' | 'serper'
+      )
+      if (byokResult) {
+        params[apiKeyParam] = byokResult.apiKey
+        logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+        return false // Don't bill - user's own key
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
+      // Fall through to hosted key
+    }
+  }
+
+  // Fall back to hosted env key
+  const hostedKey = getHostedKeyFromEnv(envKeys)
+  if (!hostedKey) {
+    logger.debug(`[${requestId}] No hosted key available for ${tool.id}`)
+    return false
+  }
+
+  params[apiKeyParam] = hostedKey
+  logger.info(`[${requestId}] Using hosted key for ${tool.id}`)
+  return true // Bill the user
+}
+
+/**
+ * Calculate cost based on pricing model
+ */
+function calculateToolCost(
+  pricing: ToolHostingPricing,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>
+): number {
+  switch (pricing.type) {
+    case 'per_request':
+      return pricing.cost
+
+    case 'per_unit': {
+      const usage = pricing.getUsage(params, response)
+      return usage * pricing.costPerUnit
+    }
+
+    case 'per_result': {
+      const resultCount = pricing.getResultCount(response)
+      const billableResults = pricing.maxResults
+        ? Math.min(resultCount, pricing.maxResults)
+        : resultCount
+      return billableResults * pricing.costPerResult
+    }
+
+    case 'per_second': {
+      const duration = pricing.getDuration(response)
+      const billableDuration = pricing.minimumSeconds
+        ? Math.max(duration, pricing.minimumSeconds)
+        : duration
+      return billableDuration * pricing.costPerSecond
+    }
+
+    default: {
+      const exhaustiveCheck: never = pricing
+      throw new Error(`Unknown pricing type: ${(exhaustiveCheck as ToolHostingPricing).type}`)
+    }
+  }
+}
+
+/**
+ * Log usage for a tool that used a hosted API key
+ */
+async function logHostedToolUsage(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<void> {
+  if (!tool.hosting?.pricing || !executionContext?.userId) {
+    return
+  }
+
+  const cost = calculateToolCost(tool.hosting.pricing, params, response)
+
+  if (cost <= 0) return
+
+  try {
+    await logFixedUsage({
+      userId: executionContext.userId,
+      source: 'workflow',
+      description: `tool:${tool.id}`,
+      cost,
+      workspaceId: executionContext.workspaceId,
+      workflowId: executionContext.workflowId,
+      executionId: executionContext.executionId,
+    })
+    logger.debug(`[${requestId}] Logged hosted tool usage for ${tool.id}: $${cost}`)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to log hosted tool usage for ${tool.id}:`, error)
+    // Don't throw - usage logging should not break the main flow
+  }
+}
 
 /**
  * Normalizes a tool ID by stripping resource ID suffix (UUID).
@@ -279,6 +431,14 @@ export async function executeTool(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
+    // Inject hosted API key if tool supports it and user didn't provide one
+    const isUsingHostedKey = await injectHostedKeyIfNeeded(
+      tool,
+      contextParams,
+      executionContext,
+      requestId
+    )
+
     // If we have a credential parameter, fetch the access token
     if (contextParams.credential) {
       logger.info(
@@ -387,6 +547,11 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
+      // Log usage for hosted key if execution was successful
+      if (isUsingHostedKey && finalResult.success) {
+        await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
+      }
+
       // Add timing data to the result
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
@@ -419,6 +584,11 @@ export async function executeTool(
 
     // Process file outputs if execution context is available
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
+
+    // Log usage for hosted key if execution was successful
+    if (isUsingHostedKey && finalResult.success) {
+      await logHostedToolUsage(tool, contextParams, finalResult.output, executionContext, requestId)
+    }
 
     // Add timing data to the result
     const endTime = new Date()

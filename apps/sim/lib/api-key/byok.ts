@@ -10,7 +10,7 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('BYOKKeys')
 
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
+export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'serper'
 
 export interface BYOKKeyResult {
   apiKey: string
