@@ -209,9 +209,14 @@ function calculateToolCost(
   }
 }
 
+interface HostedKeyCostResult {
+  cost: number
+  metadata?: Record<string, unknown>
+}
+
 /**
  * Calculate and log hosted key cost for a tool execution.
- * Logs to usageLog for audit trail and returns cost for accumulation in userStats.
+ * Logs to usageLog for audit trail and returns cost + metadata for output.
  */
 async function processHostedKeyCost(
   tool: ToolConfig,
@@ -219,14 +224,14 @@ async function processHostedKeyCost(
   response: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string
-): Promise<number> {
+): Promise<HostedKeyCostResult> {
   if (!tool.hosting?.pricing) {
-    return 0
+    return { cost: 0 }
   }
 
   const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
 
-  if (cost <= 0) return 0
+  if (cost <= 0) return { cost: 0 }
 
   // Log to usageLog table for audit trail
   if (executionContext?.userId) {
@@ -247,7 +252,7 @@ async function processHostedKeyCost(
     }
   }
 
-  return cost
+  return { cost, metadata }
 }
 
 /**
@@ -643,15 +648,13 @@ export async function executeTool(
 
       // Calculate hosted key cost and merge into output.cost
       if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-        const hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+        const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
         if (hostedKeyCost > 0) {
-          const existingCost = finalResult.output?.cost || {}
           finalResult.output = {
             ...finalResult.output,
             cost: {
-              input: existingCost.input || 0,
-              output: existingCost.output || 0,
-              total: (existingCost.total || 0) + hostedKeyCost,
+              total: hostedKeyCost,
+              ...metadata,
             },
           }
         }
@@ -708,15 +711,13 @@ export async function executeTool(
 
     // Calculate hosted key cost and merge into output.cost
     if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-      const hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+      const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
       if (hostedKeyCost > 0) {
-        const existingCost = finalResult.output?.cost || {}
         finalResult.output = {
           ...finalResult.output,
           cost: {
-            input: existingCost.input || 0,
-            output: existingCost.output || 0,
-            total: (existingCost.total || 0) + hostedKeyCost,
+            total: hostedKeyCost,
+            ...metadata,
           },
         }
       }

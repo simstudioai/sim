@@ -90,7 +90,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     },
   },
   hosting: {
-    envKeys: ['EXA_API_KEY'],
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
     apiKeyParam: 'apiKey',
     byokProviderId: 'exa',
     pricing: {
