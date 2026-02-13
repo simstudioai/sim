@@ -8,7 +8,6 @@ const logger = createLogger('ReferralAttribution')
 const COOKIE_NAME = 'sim_utm'
 
 const TERMINAL_REASONS = new Set([
-  'account_predates_cookie',
   'invalid_cookie',
   'no_utm_cookie',
   'no_matching_campaign',

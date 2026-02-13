@@ -143,8 +143,7 @@ const UTM_COOKIE_MAX_AGE = 3600
 
 /**
  * Sets a `sim_utm` cookie when UTM params are present on auth pages.
- * Captures UTM values, the HTTP Referer, landing page, and a timestamp
- * used by the attribution API to verify the user signed up after visiting the link.
+ * Captures UTM values, the HTTP Referer, landing page, and a timestamp.
  */
 function setUtmCookie(request: NextRequest, response: NextResponse): void {
   const { searchParams, pathname } = request.nextUrl
@@ -179,7 +178,9 @@ export async function proxy(request: NextRequest) {
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
-      return NextResponse.redirect(new URL('/workspace', request.url))
+      const redirect = NextResponse.redirect(new URL('/workspace', request.url))
+      setUtmCookie(request, redirect)
+      return redirect
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())

@@ -67,10 +67,10 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
   }
 
   return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <Label className='shrink-0'>Referral Code</Label>
-      <div className='flex items-center gap-[8px]'>
-        <div className='flex flex-col'>
+    <div className='flex flex-col'>
+      <div className='flex items-center justify-between gap-[12px]'>
+        <Label className='shrink-0'>Referral Code</Label>
+        <div className='flex items-center gap-[8px]'>
           <Input
             type='text'
             value={code}
@@ -85,16 +85,18 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
             className='h-[32px] w-[140px] text-[12px]'
             disabled={isRedeeming}
           />
-          {error && <span className='mt-[4px] text-[11px] text-[var(--text-error)]'>{error}</span>}
+          <Button
+            variant='active'
+            className='h-[32px] shrink-0 rounded-[6px] text-[12px]'
+            onClick={handleRedeem}
+            disabled={isRedeeming || !code.trim()}
+          >
+            {isRedeeming ? 'Redeeming...' : 'Redeem'}
+          </Button>
         </div>
-        <Button
-          variant='active'
-          className='h-[32px] shrink-0 rounded-[6px] text-[12px]'
-          onClick={handleRedeem}
-          disabled={isRedeeming || !code.trim()}
-        >
-          {isRedeeming ? 'Redeeming...' : 'Redeem'}
-        </Button>
+      </div>
+      <div className='mt-[4px] min-h-[18px] text-right'>
+        {error && <span className='text-[11px] text-[var(--text-error)]'>{error}</span>}
       </div>
     </div>
   )

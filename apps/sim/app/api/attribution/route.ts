@@ -1,17 +1,17 @@
 /**
  * POST /api/attribution
  *
- * Automatic UTM-based referral attribution for new signups.
+ * Automatic UTM-based referral attribution.
  *
- * Reads the `sim_utm` cookie (set by proxy on auth pages), verifies the user
- * account was created after the cookie was set, matches a campaign by UTM
- * specificity, and atomically inserts an attribution record + applies bonus credits.
+ * Reads the `sim_utm` cookie (set by proxy on auth pages), matches a campaign
+ * by UTM specificity, and atomically inserts an attribution record + applies
+ * bonus credits.
  *
  * Idempotent — the unique constraint on `userId` prevents double-attribution.
  */
 
 import { db } from '@sim/db'
-import { referralAttribution, referralCampaigns, user, userStats } from '@sim/db/schema'
+import { referralAttribution, referralCampaigns, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -24,7 +24,6 @@ import { applyBonusCredits } from '@/lib/billing/credits/bonus'
 const logger = createLogger('AttributionAPI')
 
 const COOKIE_NAME = 'sim_utm'
-const CLOCK_DRIFT_TOLERANCE_MS = 60 * 1000
 
 const UtmCookieSchema = z.object({
   utm_source: z.string().optional(),
@@ -33,7 +32,7 @@ const UtmCookieSchema = z.object({
   utm_content: z.string().optional(),
   referrer_url: z.string().optional(),
   landing_page: z.string().optional(),
-  created_at: z.string().min(1),
+  created_at: z.string().optional(),
 })
 
 /**
@@ -112,34 +111,6 @@ export async function POST() {
       logger.warn('Failed to parse UTM cookie', { userId: session.user.id })
       cookieStore.delete(COOKIE_NAME)
       return NextResponse.json({ attributed: false, reason: 'invalid_cookie' })
-    }
-
-    const cookieCreatedAt = Number(utmData.created_at)
-    if (!Number.isFinite(cookieCreatedAt)) {
-      logger.warn('UTM cookie has invalid created_at timestamp', { userId: session.user.id })
-      cookieStore.delete(COOKIE_NAME)
-      return NextResponse.json({ attributed: false, reason: 'invalid_cookie' })
-    }
-
-    const userRows = await db
-      .select({ createdAt: user.createdAt })
-      .from(user)
-      .where(eq(user.id, session.user.id))
-      .limit(1)
-
-    if (userRows.length === 0) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    const userCreatedAt = userRows[0].createdAt.getTime()
-    if (userCreatedAt < cookieCreatedAt - CLOCK_DRIFT_TOLERANCE_MS) {
-      logger.info('User account predates UTM cookie, skipping attribution', {
-        userId: session.user.id,
-        userCreatedAt: new Date(userCreatedAt).toISOString(),
-        cookieCreatedAt: new Date(cookieCreatedAt).toISOString(),
-      })
-      cookieStore.delete(COOKIE_NAME)
-      return NextResponse.json({ attributed: false, reason: 'account_predates_cookie' })
     }
 
     const matchedCampaign = await findMatchingCampaign(utmData)
