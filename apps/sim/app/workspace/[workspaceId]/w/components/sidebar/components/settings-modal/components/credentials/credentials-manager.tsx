@@ -1517,7 +1517,7 @@ export function CredentialsManager() {
           provider={createOAuthProviderId as OAuthProvider}
           toolName={resolveProviderLabel(createOAuthProviderId)}
           requiredScopes={createOAuthRequiredScopes}
-          newScopes={createOAuthRequiredScopes}
+          newScopes={[]}
           serviceId={selectedOAuthService?.id || createOAuthProviderId}
           onConnect={async () => {
             await handleConnectOAuthService()
