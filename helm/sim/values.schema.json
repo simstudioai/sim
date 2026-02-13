@@ -120,6 +120,18 @@
               "format": "uri",
               "description": "Public application URL"
             },
+            "INTERNAL_API_BASE_URL": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
+              "description": "Optional server-side internal base URL for internal /api self-calls; defaults to NEXT_PUBLIC_APP_URL when unset"
+            },
             "BETTER_AUTH_URL": {
               "type": "string",
               "format": "uri",

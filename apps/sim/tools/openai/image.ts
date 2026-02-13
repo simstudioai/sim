@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { BaseImageRequestBody } from '@/tools/openai/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -122,7 +122,7 @@ export const imageTool: ToolConfig = {
       if (imageUrl && !base64Image) {
         try {
           logger.info('Fetching image from URL via proxy...')
-          const baseUrl = getBaseUrl()
+          const baseUrl = getInternalApiBaseUrl()
           const proxyUrl = new URL('/api/tools/image', baseUrl)
           proxyUrl.searchParams.append('url', imageUrl)
 

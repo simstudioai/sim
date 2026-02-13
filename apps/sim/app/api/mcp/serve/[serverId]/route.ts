@@ -22,7 +22,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -285,7 +285,7 @@ async function handleToolsCall(
       )
     }
 
-    const executeUrl = `${getBaseUrl()}/api/workflows/${tool.workflowId}/execute`
+    const executeUrl = `${getInternalApiBaseUrl()}/api/workflows/${tool.workflowId}/execute`
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
     if (publicServerOwnerId) {
