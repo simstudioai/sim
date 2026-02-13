@@ -62,9 +62,12 @@ export class AgentBlockHandler implements BlockHandler {
     await validateModelProvider(ctx.userId, model, ctx)
 
     const providerId = getProviderFromModel(model)
-    const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
+    const formattedTools = await this.formatTools(
+      ctx,
+      filteredInputs.tools || [],
+      block.canonicalModes
+    )
 
-    // Resolve skill metadata for progressive disclosure
     const skillInputs = filteredInputs.skills ?? []
     let skillMetadata: Array<{ name: string; description: string }> = []
     if (skillInputs.length > 0 && ctx.workspaceId) {
@@ -221,7 +224,11 @@ export class AgentBlockHandler implements BlockHandler {
     })
   }
 
-  private async formatTools(ctx: ExecutionContext, inputTools: ToolInput[]): Promise<any[]> {
+  private async formatTools(
+    ctx: ExecutionContext,
+    inputTools: ToolInput[],
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ): Promise<any[]> {
     if (!Array.isArray(inputTools)) return []
 
     const filtered = inputTools.filter((tool) => {
@@ -249,7 +256,7 @@ export class AgentBlockHandler implements BlockHandler {
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)
           }
-          return this.transformBlockTool(ctx, tool)
+          return this.transformBlockTool(ctx, tool, canonicalModes)
         } catch (error) {
           logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
           return null
@@ -719,12 +726,17 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private async transformBlockTool(ctx: ExecutionContext, tool: ToolInput) {
+  private async transformBlockTool(
+    ctx: ExecutionContext,
+    tool: ToolInput,
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ) {
     const transformedTool = await transformBlockTool(tool, {
       selectedOperation: tool.operation,
       getAllBlocks,
       getToolAsync: (toolId: string) => getToolAsync(toolId, ctx.workflowId),
       getTool,
+      canonicalModes,
     })
 
     if (transformedTool) {

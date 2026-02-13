@@ -98,6 +98,27 @@ import {
 const logger = createLogger('ToolInput')
 
 /**
+ * Extracts canonical mode overrides scoped to a specific tool type.
+ * Canonical modes are stored with `{blockType}:{canonicalId}` keys to prevent
+ * cross-tool collisions when multiple tools share the same canonicalParamId.
+ */
+function scopeCanonicalOverrides(
+  overrides: CanonicalModeOverrides | undefined,
+  blockType: string | undefined
+): CanonicalModeOverrides | undefined {
+  if (!overrides || !blockType) return undefined
+  const prefix = `${blockType}:`
+  let scoped: CanonicalModeOverrides | undefined
+  for (const [key, val] of Object.entries(overrides)) {
+    if (key.startsWith(prefix) && val) {
+      if (!scoped) scoped = {}
+      scoped[key.slice(prefix.length)] = val
+    }
+  }
+  return scoped
+}
+
+/**
  * Renders the input for workflow_executor's inputMapping parameter.
  * This is a special case that doesn't map to any SubBlockConfig, so it's kept here.
  */
@@ -498,7 +519,6 @@ export const ToolInput = memo(function ToolInput({
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
-  // Fetch workflows for the Workflows section in the dropdown
   const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
   const availableWorkflows = useMemo(
     () => workflowsList.filter((w) => w.id !== workflowId),
@@ -1208,7 +1228,6 @@ export const ToolInput = memo(function ToolInput({
   const toolGroups = useMemo((): ComboboxOptionGroup[] => {
     const groups: ComboboxOptionGroup[] = []
 
-    // Actions group (no section header)
     const actionItems: ComboboxOption[] = []
     if (!permissionConfig.disableCustomTools) {
       actionItems.push({
@@ -1238,7 +1257,6 @@ export const ToolInput = memo(function ToolInput({
       groups.push({ items: actionItems })
     }
 
-    // Custom Tools section
     if (!permissionConfig.disableCustomTools && customTools.length > 0) {
       groups.push({
         section: 'Custom Tools',
@@ -1268,7 +1286,6 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    // MCP Tools section
     if (!permissionConfig.disableMcpTools && availableMcpTools.length > 0) {
       groups.push({
         section: 'MCP Tools',
@@ -1306,11 +1323,9 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    // Split tool blocks into built-in tools and integrations
     const builtInTools = toolBlocks.filter((block) => BUILT_IN_TOOL_TYPES.has(block.type))
     const integrations = toolBlocks.filter((block) => !BUILT_IN_TOOL_TYPES.has(block.type))
 
-    // Built-in Tools section
     if (builtInTools.length > 0) {
       groups.push({
         section: 'Built-in Tools',
@@ -1328,7 +1343,6 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    // Integrations section
     if (integrations.length > 0) {
       groups.push({
         section: 'Integrations',
@@ -1410,7 +1424,6 @@ export const ToolInput = memo(function ToolInput({
 
   return (
     <div className='w-full space-y-[8px]'>
-      {/* Add Tool Combobox - always at top */}
       <Combobox
         options={[]}
         groups={toolGroups}
@@ -1423,10 +1436,8 @@ export const ToolInput = memo(function ToolInput({
         onOpenChange={setOpen}
       />
 
-      {/* Selected Tools List */}
       {selectedTools.length > 0 &&
         selectedTools.map((tool, toolIndex) => {
-          // Handle custom tools, MCP tools, and workflow tools differently
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
           const isWorkflowTool = tool.type === 'workflow'
@@ -1435,13 +1446,11 @@ export const ToolInput = memo(function ToolInput({
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
 
-          // Get the current tool ID (may change based on operation)
           const currentToolId =
             !isCustomTool && !isMcpTool
               ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId || ''
               : tool.toolId || ''
 
-          // Get tool parameters using the new utility with block type for UI components
           const toolParams =
             !isCustomTool && !isMcpTool && currentToolId
               ? getToolParametersConfig(currentToolId, tool.type, {
@@ -1450,7 +1459,8 @@ export const ToolInput = memo(function ToolInput({
                 })
               : null
 
-          // Get subblocks for tool-input (primary source for registry tools)
+          const toolScopedOverrides = scopeCanonicalOverrides(canonicalModeOverrides, tool.type)
+
           const subBlocksResult: SubBlocksForToolInput | null =
             !isCustomTool && !isMcpTool && currentToolId
               ? getSubBlocksForToolInput(
@@ -1460,16 +1470,14 @@ export const ToolInput = memo(function ToolInput({
                     operation: tool.operation,
                     ...tool.params,
                   },
-                  canonicalModeOverrides
+                  toolScopedOverrides
                 )
               : null
 
-          // Build canonical index for proper dependency resolution
           const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
             ? buildCanonicalIndex(toolBlock.subBlocks)
             : null
 
-          // Build preview context with canonical resolution
           const toolContextValues = toolCanonicalIndex
             ? buildPreviewContextValues(tool.params || {}, {
                 blockType: tool.type,
@@ -1479,12 +1487,10 @@ export const ToolInput = memo(function ToolInput({
               })
             : tool.params || {}
 
-          // For custom tools, resolve from reference (new format) or use inline (legacy)
           const resolvedCustomTool = isCustomTool
             ? resolveCustomToolFromReference(tool, customTools)
             : null
 
-          // Derive title and schema from resolved tool or inline data
           const customToolTitle = isCustomTool
             ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
             : null
@@ -1503,8 +1509,6 @@ export const ToolInput = memo(function ToolInput({
                 )
               : []
 
-          // For MCP tools, extract parameters from input schema
-          // Use cached schema from tool object if available, otherwise fetch from mcpTools
           const mcpTool = isMcpTool ? mcpTools.find((t) => t.id === tool.toolId) : null
           const mcpToolSchema = isMcpTool ? tool.schema || mcpTool?.inputSchema : null
           const mcpToolParams =
@@ -1521,8 +1525,6 @@ export const ToolInput = memo(function ToolInput({
                 )
               : []
 
-          // Get all parameters to display
-          // For registry tools with subBlocks, use the subblock-first approach
           const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
           const displayParams: ToolParameterConfig[] = isCustomTool
             ? customToolParams
@@ -1533,20 +1535,17 @@ export const ToolInput = memo(function ToolInput({
             ? subBlocksResult!.subBlocks
             : []
 
-          // Check if tool requires OAuth
           const requiresOAuth =
             !isCustomTool && !isMcpTool && currentToolId && toolRequiresOAuth(currentToolId)
           const oauthConfig =
             !isCustomTool && !isMcpTool && currentToolId ? getToolOAuthConfig(currentToolId) : null
 
-          // Determine if tool has expandable body content
           const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
           const hasParams = useSubBlocks
             ? displaySubBlocks.length > 0
             : displayParams.filter((param) => evaluateParameterCondition(param, tool)).length > 0
           const hasToolBody = hasOperations || (requiresOAuth && oauthConfig) || hasParams
 
-          // Only show expansion if tool has body content
           const isExpandedForDisplay = hasToolBody
             ? isPreview
               ? (previewExpanded[toolIndex] ?? !!tool.isExpanded)
@@ -1717,7 +1716,6 @@ export const ToolInput = memo(function ToolInput({
 
               {!isCustomTool && isExpandedForDisplay && (
                 <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[8px] py-[8px]'>
-                  {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)
                     const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
@@ -1743,7 +1741,6 @@ export const ToolInput = memo(function ToolInput({
                     ) : null
                   })()}
 
-                  {/* OAuth credential selector if required */}
                   {requiresOAuth && oauthConfig && (
                     <div className='relative min-w-0 space-y-[6px]'>
                       <div className='font-medium text-[13px] text-[var(--text-primary)]'>
@@ -1768,20 +1765,28 @@ export const ToolInput = memo(function ToolInput({
                     </div>
                   )}
 
-                  {/* Tool parameters */}
                   {(() => {
                     const renderedElements: React.ReactNode[] = []
 
-                    // SubBlock-first rendering for registry tools
                     if (useSubBlocks && displaySubBlocks.length > 0) {
                       const coveredParamIds = new Set(
-                        displaySubBlocks.map((sb) => sb.canonicalParamId || sb.id)
+                        displaySubBlocks.flatMap((sb) => {
+                          const ids = [sb.id]
+                          if (sb.canonicalParamId) ids.push(sb.canonicalParamId)
+                          const cId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
+                          if (cId) {
+                            const group = toolCanonicalIndex?.groupsById[cId]
+                            if (group) {
+                              if (group.basicId) ids.push(group.basicId)
+                              ids.push(...group.advancedIds)
+                            }
+                          }
+                          return ids
+                        })
                       )
 
                       displaySubBlocks.forEach((sb) => {
-                        const effectiveParamId = sb.canonicalParamId || sb.id
-
-                        // Compute canonical toggle for basic/advanced mode switching
+                        const effectiveParamId = sb.id
                         const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
                         const canonicalGroup = canonicalId
                           ? toolCanonicalIndex?.groupsById[canonicalId]
@@ -1792,7 +1797,7 @@ export const ToolInput = memo(function ToolInput({
                             ? resolveCanonicalMode(
                                 canonicalGroup,
                                 { operation: tool.operation, ...tool.params },
-                                canonicalModeOverrides
+                                toolScopedOverrides
                               )
                             : undefined
 
@@ -1803,12 +1808,15 @@ export const ToolInput = memo(function ToolInput({
                                 onToggle: () => {
                                   const nextMode =
                                     canonicalMode === 'advanced' ? 'basic' : 'advanced'
-                                  collaborativeSetBlockCanonicalMode(blockId, canonicalId, nextMode)
+                                  collaborativeSetBlockCanonicalMode(
+                                    blockId,
+                                    `${tool.type}:${canonicalId}`,
+                                    nextMode
+                                  )
                                 },
                               }
                             : undefined
 
-                        // Ensure title is present for SubBlock's label rendering
                         const sbWithTitle = sb.title
                           ? sb
                           : { ...sb, title: formatParameterLabel(effectiveParamId) }
@@ -1829,8 +1837,6 @@ export const ToolInput = memo(function ToolInput({
                         )
                       })
 
-                      // Render remaining tool params not covered by subblocks
-                      // (e.g. inputMapping for workflow tools with custom UI)
                       const uncoveredParams = displayParams.filter(
                         (param) =>
                           !coveredParamIds.has(param.id) && evaluateParameterCondition(param, tool)
@@ -1867,8 +1873,6 @@ export const ToolInput = memo(function ToolInput({
                       )
                     }
 
-                    // Fallback: legacy ToolParameterConfig-based rendering
-                    // Used for custom tools, MCP tools, and registry tools without subBlocks
                     const filteredParams = displayParams.filter((param) =>
                       evaluateParameterCondition(param, tool)
                     )
@@ -1907,7 +1911,6 @@ export const ToolInput = memo(function ToolInput({
           )
         })}
 
-      {/* Custom Tool Modal */}
       <CustomToolModal
         open={customToolModalOpen}
         onOpenChange={(open) => {
@@ -1921,11 +1924,9 @@ export const ToolInput = memo(function ToolInput({
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? (() => {
                 const storedTool = selectedTools[editingToolIndex]
-                // Resolve the full tool definition from reference or inline
                 const resolved = resolveCustomToolFromReference(storedTool, customTools)
 
                 if (resolved) {
-                  // Find the database ID
                   const dbTool = storedTool.customToolId
                     ? customTools.find((t) => t.id === storedTool.customToolId)
                     : customTools.find(
@@ -1939,7 +1940,6 @@ export const ToolInput = memo(function ToolInput({
                   }
                 }
 
-                // Fallback to inline definition (legacy format)
                 return {
                   id: customTools.find(
                     (tool) => tool.schema?.function?.name === storedTool.schema?.function?.name

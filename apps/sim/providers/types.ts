@@ -112,6 +112,8 @@ export interface ProviderToolConfig {
     required: string[]
   }
   usageControl?: ToolUsageControl
+  /** Block-level params transformer — converts SubBlock values to tool-ready params */
+  paramsTransform?: (params: Record<string, any>) => Record<string, any>
 }
 
 export interface Message {

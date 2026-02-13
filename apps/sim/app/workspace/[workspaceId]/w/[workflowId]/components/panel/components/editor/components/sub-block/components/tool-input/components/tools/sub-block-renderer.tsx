@@ -22,12 +22,15 @@ interface ToolSubBlockRendererProps {
 }
 
 /**
+ * SubBlock types whose store values are objects/arrays/non-strings.
+ * tool.params stores strings (via JSON.stringify), so when syncing
+ * back to the store we parse them to restore the native shape.
+ */
+const OBJECT_SUBBLOCK_TYPES = new Set(['file-upload', 'table', 'grouped-checkbox-list'])
+
+/**
  * Bridges the subblock store with StoredTool.params via a synthetic store key,
  * then delegates all rendering to SubBlock for full parity.
- *
- * Two effects handle bidirectional sync:
- * - tool.params → store (external changes)
- * - store → tool.params (user interaction)
  */
 export function ToolSubBlockRenderer({
   blockId,
@@ -44,17 +47,13 @@ export function ToolSubBlockRenderer({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, syntheticId)
 
   const toolParamValue = toolParams?.[effectiveParamId] ?? ''
+  const isObjectType = OBJECT_SUBBLOCK_TYPES.has(subBlock.type)
 
-  /** Tracks the last value we pushed to the store from tool.params to avoid echo loops */
   const lastPushedToStoreRef = useRef<string | null>(null)
-  /** Tracks the last value we synced back to tool.params from the store */
   const lastPushedToParamsRef = useRef<string | null>(null)
 
-  // Sync tool.params → store: push when the prop value changes (including first mount)
   useEffect(() => {
     if (!toolParamValue && lastPushedToStoreRef.current === null) {
-      // Skip initializing the store with an empty value on first mount —
-      // let the SubBlock component use its own default.
       lastPushedToStoreRef.current = toolParamValue
       lastPushedToParamsRef.current = toolParamValue
       return
@@ -62,11 +61,22 @@ export function ToolSubBlockRenderer({
     if (toolParamValue !== lastPushedToStoreRef.current) {
       lastPushedToStoreRef.current = toolParamValue
       lastPushedToParamsRef.current = toolParamValue
+
+      if (isObjectType && typeof toolParamValue === 'string' && toolParamValue) {
+        try {
+          const parsed = JSON.parse(toolParamValue)
+          if (typeof parsed === 'object' && parsed !== null) {
+            setStoreValue(parsed)
+            return
+          }
+        } catch {
+          // Not valid JSON — fall through to set as string
+        }
+      }
       setStoreValue(toolParamValue)
     }
-  }, [toolParamValue, setStoreValue])
+  }, [toolParamValue, setStoreValue, isObjectType])
 
-  // Sync store → tool.params: push when the user changes the value via SubBlock
   useEffect(() => {
     if (storeValue == null) return
     const stringValue = typeof storeValue === 'string' ? storeValue : JSON.stringify(storeValue)
@@ -77,7 +87,6 @@ export function ToolSubBlockRenderer({
     }
   }, [storeValue, toolIndex, effectiveParamId, onParamChange])
 
-  // Suppress SubBlock's "*" required indicator when the LLM can fill the param
   const visibility = subBlock.paramVisibility ?? 'user-or-llm'
   const isOptionalForUser = visibility !== 'user-only'
 
