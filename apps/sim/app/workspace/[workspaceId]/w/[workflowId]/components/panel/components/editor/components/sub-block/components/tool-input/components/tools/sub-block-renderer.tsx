@@ -78,8 +78,13 @@ export function ToolSubBlockRenderer({
   }, [toolParamValue, setStoreValue, isObjectType])
 
   useEffect(() => {
-    if (storeValue == null) return
-    const stringValue = typeof storeValue === 'string' ? storeValue : JSON.stringify(storeValue)
+    if (storeValue == null && lastPushedToParamsRef.current === null) return
+    const stringValue =
+      storeValue == null
+        ? ''
+        : typeof storeValue === 'string'
+          ? storeValue
+          : JSON.stringify(storeValue)
     if (stringValue !== lastPushedToParamsRef.current) {
       lastPushedToParamsRef.current = stringValue
       lastPushedToStoreRef.current = stringValue
