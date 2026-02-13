@@ -95,10 +95,10 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     byokProviderId: 'exa',
     pricing: {
       type: 'custom',
-      getCost: (params, response) => {
-        // Use costDollars from Exa API response
-        if (response.costDollars?.total) {
-          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+      getCost: (params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        if (output._costDollars?.total) {
+          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
         }
 
         // Fallback: estimate based on search type and result count
@@ -107,7 +107,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
         if (isDeepSearch) {
           return 0.015
         }
-        const resultCount = response.results?.length || 0
+        const resultCount = output.results?.length || 0
         return resultCount <= 25 ? 0.005 : 0.025
       },
     },
@@ -193,7 +193,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           highlights: result.highlights,
           score: result.score,
         })),
-        costDollars: data.costDollars,
+        _costDollars: data.costDollars,
       },
     }
   },

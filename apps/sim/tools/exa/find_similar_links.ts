@@ -85,14 +85,14 @@ export const findSimilarLinksTool: ToolConfig<
     byokProviderId: 'exa',
     pricing: {
       type: 'custom',
-      getCost: (_params, response) => {
-        // Use costDollars from Exa API response
-        if (response.costDollars?.total) {
-          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        if (output._costDollars?.total) {
+          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
         }
         // Fallback: $5/1000 (1-25 results) or $25/1000 (26-100 results)
         logger.warn('Exa find_similar_links response missing costDollars, using fallback pricing')
-        const resultCount = response.similarLinks?.length || 0
+        const resultCount = output.similarLinks?.length || 0
         return resultCount <= 25 ? 0.005 : 0.025
       },
     },
@@ -161,7 +161,7 @@ export const findSimilarLinksTool: ToolConfig<
           highlights: result.highlights,
           score: result.score || 0,
         })),
-        costDollars: data.costDollars,
+        _costDollars: data.costDollars,
       },
     }
   },

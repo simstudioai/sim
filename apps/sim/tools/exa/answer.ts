@@ -36,10 +36,10 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     byokProviderId: 'exa',
     pricing: {
       type: 'custom',
-      getCost: (_params, response) => {
-        // Use costDollars from Exa API response
-        if (response.costDollars?.total) {
-          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        if (output._costDollars?.total) {
+          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
         }
         // Fallback: $5/1000 requests
         logger.warn('Exa answer response missing costDollars, using fallback pricing')
@@ -81,7 +81,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
             url: citation.url,
             text: citation.text || '',
           })) || [],
-        costDollars: data.costDollars,
+        _costDollars: data.costDollars,
       },
     }
   },

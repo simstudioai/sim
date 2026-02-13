@@ -97,38 +97,7 @@ export class GenericBlockHandler implements BlockHandler {
         throw error
       }
 
-      const output = result.output
-
-      // Merge costs from output (e.g., AI model costs) and result (e.g., hosted key costs)
-      // TODO: migrate model usage to output cost.
-      const outputCost = output?.cost
-      const resultCost = result.cost
-
-      let cost = null
-      if (outputCost || resultCost) {
-        cost = {
-          input: (outputCost?.input || 0) + (resultCost?.input || 0),
-          output: (outputCost?.output || 0) + (resultCost?.output || 0),
-          total: (outputCost?.total || 0) + (resultCost?.total || 0),
-          tokens: outputCost?.tokens,
-          model: outputCost?.model,
-        }
-      }
-
-      if (cost) {
-        return {
-          ...output,
-          cost: {
-            input: cost.input,
-            output: cost.output,
-            total: cost.total,
-          },
-          tokens: cost.tokens,
-          model: cost.model,
-        }
-      }
-
-      return output
+      return result.output
     } catch (error: any) {
       if (!error.message || error.message === 'undefined (undefined)') {
         let errorMessage = `Block execution of ${tool?.name || block.config.tool} failed`

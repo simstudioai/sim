@@ -251,6 +251,20 @@ async function processHostedKeyCost(
 }
 
 /**
+ * Strips internal fields (keys starting with underscore) from output.
+ * Used to hide internal data (e.g., _costDollars) from end users.
+ */
+function stripInternalFields(output: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(output)) {
+    if (!key.startsWith('_')) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+/**
  * Normalizes a tool ID by stripping resource ID suffix (UUID).
  * Workflow tools: 'workflow_executor_<uuid>' -> 'workflow_executor'
  * Knowledge tools: 'knowledge_search_<uuid>' -> 'knowledge_search'
@@ -627,24 +641,34 @@ export async function executeTool(
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
 
-      // Calculate and log hosted key cost if applicable
-      let hostedKeyCost = 0
+      // Calculate hosted key cost and merge into output.cost
       if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-        hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+        const hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+        if (hostedKeyCost > 0) {
+          const existingCost = finalResult.output?.cost || {}
+          finalResult.output = {
+            ...finalResult.output,
+            cost: {
+              input: existingCost.input || 0,
+              output: existingCost.output || 0,
+              total: (existingCost.total || 0) + hostedKeyCost,
+            },
+          }
+        }
       }
 
-      const response: ToolResponse = {
+      // Strip internal fields (keys starting with _) from output before returning
+      const strippedOutput = stripInternalFields(finalResult.output || {})
+
+      return {
         ...finalResult,
+        output: strippedOutput,
         timing: {
           startTime: startTimeISO,
           endTime: endTimeISO,
           duration,
         },
       }
-      if (hostedKeyCost > 0) {
-        response.cost = { total: hostedKeyCost }
-      }
-      return response
     }
 
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
@@ -682,24 +706,34 @@ export async function executeTool(
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
 
-    // Calculate and log hosted key cost if applicable
-    let hostedKeyCost = 0
+    // Calculate hosted key cost and merge into output.cost
     if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-      hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+      const hostedKeyCost = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+      if (hostedKeyCost > 0) {
+        const existingCost = finalResult.output?.cost || {}
+        finalResult.output = {
+          ...finalResult.output,
+          cost: {
+            input: existingCost.input || 0,
+            output: existingCost.output || 0,
+            total: (existingCost.total || 0) + hostedKeyCost,
+          },
+        }
+      }
     }
 
-    const response: ToolResponse = {
+    // Strip internal fields (keys starting with _) from output before returning
+    const strippedOutput = stripInternalFields(finalResult.output || {})
+
+    return {
       ...finalResult,
+      output: strippedOutput,
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,
         duration,
       },
     }
-    if (hostedKeyCost > 0) {
-      response.cost = { total: hostedKeyCost }
-    }
-    return response
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing tool ${toolId}:`, {
       error: error instanceof Error ? error.message : String(error),

@@ -40,10 +40,10 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     byokProviderId: 'exa',
     pricing: {
       type: 'custom',
-      getCost: (params, response) => {
-        // Use costDollars from Exa API response
-        if (response.costDollars?.total) {
-          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+      getCost: (params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        if (output._costDollars?.total) {
+          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
         }
 
         // Fallback to estimate if cost not available
@@ -130,8 +130,8 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
                 score: 1.0,
               },
             ],
-            // Include cost breakdown for pricing calculation
-            costDollars: taskData.costDollars,
+            // Include cost breakdown for pricing calculation (internal field, stripped from final output)
+            _costDollars: taskData.costDollars,
           }
           return result
         }

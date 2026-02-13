@@ -70,14 +70,14 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     byokProviderId: 'exa',
     pricing: {
       type: 'custom',
-      getCost: (_params, response) => {
-        // Use costDollars from Exa API response
-        if (response.costDollars?.total) {
-          return { cost: response.costDollars.total, metadata: { costDollars: response.costDollars } }
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        if (output._costDollars?.total) {
+          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
         }
         // Fallback: $1/1000 pages
         logger.warn('Exa get_contents response missing costDollars, using fallback pricing')
-        return (response.results?.length || 0) * 0.001
+        return (output.results?.length || 0) * 0.001
       },
     },
   },
@@ -152,7 +152,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
           summary: result.summary || '',
           highlights: result.highlights,
         })),
-        costDollars: data.costDollars,
+        _costDollars: data.costDollars,
       },
     }
   },

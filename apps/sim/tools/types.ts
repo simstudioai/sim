@@ -41,12 +41,6 @@ export interface ToolResponse {
     endTime: string // ISO timestamp when the tool execution ended
     duration: number // Duration in milliseconds
   }
-  // Cost incurred by this tool execution (for billing)
-  cost?: {
-    total: number
-    input?: number
-    output?: number
-  }
 }
 
 export interface OAuthConfig {
@@ -141,7 +135,7 @@ export interface ToolConfig<P = any, R = any> {
    * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
    * Usage is billed according to the pricing config.
    */
-  hosting?: ToolHostingConfig<P, R extends ToolResponse ? R : ToolResponse>
+  hosting?: ToolHostingConfig<P>
 }
 
 export interface TableRow {
@@ -205,22 +199,22 @@ export interface CustomPricingResult {
 }
 
 /** Custom pricing calculated from params and response (e.g., Exa with different modes/result counts) */
-export interface CustomPricing<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> {
+export interface CustomPricing<P = Record<string, unknown>> {
   type: 'custom'
-  /** Calculate cost based on request params and response data. Returns cost or cost with metadata. */
-  getCost: (params: P, response: R['output']) => number | CustomPricingResult
+  /** Calculate cost based on request params and response output. Fields starting with _ are internal. */
+  getCost: (params: P, output: Record<string, unknown>) => number | CustomPricingResult
 }
 
 /** Union of all pricing models */
-export type ToolHostingPricing<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> =
+export type ToolHostingPricing<P = Record<string, unknown>> =
   | PerRequestPricing
-  | CustomPricing<P, R>
+  | CustomPricing<P>
 
 /**
  * Configuration for hosted API key support
  * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own
  */
-export interface ToolHostingConfig<P = Record<string, unknown>, R extends ToolResponse = ToolResponse> {
+export interface ToolHostingConfig<P = Record<string, unknown>> {
   /** Environment variable names to check for hosted keys (supports rotation with multiple keys) */
   envKeys: string[]
   /** The parameter name that receives the API key */
@@ -228,5 +222,5 @@ export interface ToolHostingConfig<P = Record<string, unknown>, R extends ToolRe
   /** BYOK provider ID for workspace key lookup */
   byokProviderId?: BYOKProviderId
   /** Pricing when using hosted key */
-  pricing: ToolHostingPricing<P, R>
+  pricing: ToolHostingPricing<P>
 }
