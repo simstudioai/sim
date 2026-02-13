@@ -45,6 +45,8 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       id: 'credential',
       title: 'Pipedrive Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'pipedrive',
       requiredScopes: [
         'base',
@@ -56,6 +58,15 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
         'projects:full',
       ],
       placeholder: 'Select Pipedrive account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Pipedrive Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {

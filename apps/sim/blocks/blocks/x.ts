@@ -32,8 +32,18 @@ export const XBlock: BlockConfig<XResponse> = {
       title: 'X Account',
       type: 'oauth-input',
       serviceId: 'x',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       placeholder: 'Select X account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'X Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
     },
     {
       id: 'text',

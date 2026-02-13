@@ -2,7 +2,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Plus, RefreshCw, Search, Share2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Plus, RefreshCw, Search, Share2, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -185,6 +185,7 @@ export function CredentialsManager() {
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
+  const [copyIdSuccess, setCopyIdSuccess] = useState(false)
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
 
@@ -1103,7 +1104,29 @@ export function CredentialsManager() {
               {selectedCredential.type === 'oauth' ? (
                 <div className='flex flex-col gap-[10px]'>
                   <div>
-                    <Label htmlFor='credential-display-name'>Display Name</Label>
+                    <div className='flex items-center gap-[6px]'>
+                      <Label htmlFor='credential-display-name'>Display Name</Label>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            className='h-[20px] w-[20px] p-0'
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedCredential.id)
+                              setCopyIdSuccess(true)
+                              setTimeout(() => setCopyIdSuccess(false), 2000)
+                            }}
+                          >
+                            {copyIdSuccess ? (
+                              <Check className='h-[11px] w-[11px]' />
+                            ) : (
+                              <Copy className='h-[11px] w-[11px]' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>Copy credential ID</Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
                     <Input
                       id='credential-display-name'
                       value={selectedDisplayNameDraft}

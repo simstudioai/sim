@@ -32,11 +32,21 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'credential',
       title: 'Asana Account',
       type: 'oauth-input',
-
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'asana',
       requiredScopes: ['default'],
       placeholder: 'Select Asana account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Asana Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     {
       id: 'workspace',

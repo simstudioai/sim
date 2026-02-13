@@ -60,6 +60,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       id: 'credential',
       title: 'Jira Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'jira',
       requiredScopes: [
@@ -95,6 +97,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         'delete:issue-link:jira',
       ],
       placeholder: 'Select Jira account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Jira Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Project selector (basic mode)
     {

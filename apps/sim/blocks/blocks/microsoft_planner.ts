@@ -61,6 +61,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'microsoft-planner',
       requiredScopes: [
         'openid',
@@ -72,6 +74,14 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
     },
 
     // Plan ID - for various operations

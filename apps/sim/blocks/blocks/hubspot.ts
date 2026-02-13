@@ -39,6 +39,8 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'credential',
       title: 'HubSpot Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'hubspot',
       requiredScopes: [
         'crm.objects.contacts.read',
@@ -66,6 +68,15 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
         'tickets',
       ],
       placeholder: 'Select HubSpot account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'HubSpot Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {

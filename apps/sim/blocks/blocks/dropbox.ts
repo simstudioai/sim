@@ -38,6 +38,8 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       id: 'credential',
       title: 'Dropbox Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'dropbox',
       requiredScopes: [
         'account_info.read',
@@ -49,6 +51,15 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
         'sharing.write',
       ],
       placeholder: 'Select Dropbox account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Dropbox Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // Upload operation inputs

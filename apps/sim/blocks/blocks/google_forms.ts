@@ -34,6 +34,8 @@ export const GoogleFormsBlock: BlockConfig = {
       id: 'credential',
       title: 'Google Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'google-forms',
       requiredScopes: [
@@ -44,6 +46,15 @@ export const GoogleFormsBlock: BlockConfig = {
         'https://www.googleapis.com/auth/forms.responses.readonly',
       ],
       placeholder: 'Select Google account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Form selector (basic mode)
     {
@@ -233,7 +244,7 @@ Example for "Add a required multiple choice question about favorite color":
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           operation,
           formId, // Canonical param from formSelector (basic) or manualFormId (advanced)
           responseId,
@@ -251,7 +262,7 @@ Example for "Add a required multiple choice question about favorite color":
           ...rest
         } = params
 
-        const baseParams = { ...rest, credential }
+        const baseParams = { ...rest, credential: oauthCredential }
         const effectiveFormId = formId ? String(formId).trim() : undefined
 
         switch (operation) {

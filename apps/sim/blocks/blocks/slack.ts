@@ -69,6 +69,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'credential',
       title: 'Slack Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'slack',
       requiredScopes: [
         'channels:read',
@@ -87,6 +89,20 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         'reactions:write',
       ],
       placeholder: 'Select Slack workspace',
+      dependsOn: ['authMethod'],
+      condition: {
+        field: 'authMethod',
+        value: 'oauth',
+      },
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Slack Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       dependsOn: ['authMethod'],
       condition: {
         field: 'authMethod',
@@ -547,7 +563,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           authMethod,
           botToken,
           operation,
@@ -597,7 +613,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           baseParams.accessToken = botToken
         } else {
           // Default to OAuth
-          baseParams.credential = credential
+          baseParams.credential = oauthCredential
         }
 
         switch (operation) {

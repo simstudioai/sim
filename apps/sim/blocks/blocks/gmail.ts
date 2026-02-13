@@ -76,6 +76,8 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       id: 'credential',
       title: 'Gmail Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'gmail',
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
@@ -83,6 +85,15 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Gmail Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // Send Email Fields
@@ -406,7 +417,7 @@ Return ONLY the search query - no explanations, no extra text.`,
       tool: selectGmailToolId,
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           folder,
           addLabelIds,
           removeLabelIds,
@@ -467,7 +478,7 @@ Return ONLY the search query - no explanations, no extra text.`,
 
         return {
           ...rest,
-          credential,
+          credential: oauthCredential,
           ...(normalizedAttachments && { attachments: normalizedAttachments }),
         }
       },

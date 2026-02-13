@@ -43,6 +43,8 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       title: 'Reddit Account',
       type: 'oauth-input',
       serviceId: 'reddit',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: [
         'identity',
         'read',
@@ -62,6 +64,15 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         'modmail',
       ],
       placeholder: 'Select Reddit account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Reddit Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 

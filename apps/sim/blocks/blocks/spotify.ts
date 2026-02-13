@@ -160,6 +160,17 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       title: 'Spotify Account',
       type: 'oauth-input',
       serviceId: 'spotify',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Spotify Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 

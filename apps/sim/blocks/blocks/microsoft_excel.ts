@@ -36,6 +36,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'microsoft-excel',
       requiredScopes: [
         'openid',
@@ -46,6 +48,15 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -351,6 +362,8 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'microsoft-excel',
       requiredScopes: [
         'openid',
@@ -361,6 +374,15 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // Spreadsheet Selector (basic mode)

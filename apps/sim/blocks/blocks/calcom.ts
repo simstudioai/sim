@@ -49,7 +49,18 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       title: 'Cal.com Account',
       type: 'oauth-input',
       serviceId: 'calcom',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       placeholder: 'Select Cal.com account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Cal.com Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 

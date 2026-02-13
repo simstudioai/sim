@@ -39,6 +39,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -49,6 +51,14 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
     },
     // Create File Fields
     {

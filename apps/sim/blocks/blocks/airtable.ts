@@ -32,6 +32,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'credential',
       title: 'Airtable Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'airtable',
       requiredScopes: [
         'data.records:read',
@@ -40,6 +42,15 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         'webhook:manage',
       ],
       placeholder: 'Select Airtable account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Airtable Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {

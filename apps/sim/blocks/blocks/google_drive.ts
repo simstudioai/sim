@@ -44,6 +44,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       id: 'credential',
       title: 'Google Drive Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'google-drive',
       requiredScopes: [
@@ -51,6 +53,15 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google Drive account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Drive Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Create/Upload File Fields
     {
@@ -786,7 +797,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           // Folder canonical params (per-operation)
           uploadFolderId,
           createFolderParentId,
@@ -873,7 +884,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           sendNotification === 'true' ? true : sendNotification === 'false' ? false : undefined
 
         return {
-          credential,
+          credential: oauthCredential,
           folderId: effectiveFolderId,
           fileId: effectiveFileId,
           destinationFolderId: effectiveDestinationFolderId,

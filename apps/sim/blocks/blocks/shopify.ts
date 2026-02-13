@@ -61,6 +61,8 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Shopify Account',
       type: 'oauth-input',
       serviceId: 'shopify',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: [
         'write_products',
         'write_orders',
@@ -70,6 +72,15 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         'write_merchant_managed_fulfillment_orders',
       ],
       placeholder: 'Select Shopify account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Shopify Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {

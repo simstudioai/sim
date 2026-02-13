@@ -38,6 +38,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'sharepoint',
       requiredScopes: [
         'openid',
@@ -49,6 +51,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
     },
 
     {

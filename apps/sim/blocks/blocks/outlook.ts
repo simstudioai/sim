@@ -39,6 +39,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'outlook',
       requiredScopes: [
         'Mail.ReadWrite',
@@ -51,6 +53,15 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         'email',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {

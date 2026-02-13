@@ -39,10 +39,21 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       id: 'credential',
       title: 'Google Calendar Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       placeholder: 'Select Google Calendar account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Calendar Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Calendar selector (basic mode) - not needed for list_calendars
     {
@@ -576,7 +587,7 @@ Return ONLY the natural language event text - no explanations.`,
         }
 
         return {
-          credential,
+          credential: oauthCredential,
           ...processedParams,
         }
       },

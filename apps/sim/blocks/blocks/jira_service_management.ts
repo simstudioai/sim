@@ -55,6 +55,8 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'credential',
       title: 'Jira Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'jira',
       requiredScopes: [
@@ -94,6 +96,15 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         'write:request.approval:jira-service-management',
       ],
       placeholder: 'Select Jira account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Jira Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     {
       id: 'serviceDeskId',

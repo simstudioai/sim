@@ -51,6 +51,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
@@ -83,6 +85,15 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'read:content.metadata:confluence',
       ],
       placeholder: 'Select Confluence account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Confluence Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -424,6 +435,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
@@ -456,6 +469,15 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         'read:content.metadata:confluence',
       ],
       placeholder: 'Select Confluence account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Confluence Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
