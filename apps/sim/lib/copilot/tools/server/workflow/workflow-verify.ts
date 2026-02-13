@@ -79,8 +79,9 @@ function evaluateAssertions(params: {
     edges: Array<Record<string, any>>
   }
   assertions: string[]
-}): { failures: string[]; checks: Array<Record<string, any>> } {
+}): { failures: string[]; warnings: string[]; checks: Array<Record<string, any>> } {
   const failures: string[] = []
+  const warnings: string[] = []
   const checks: Array<Record<string, any>> = []
 
   for (const assertion of params.assertions) {
@@ -126,12 +127,13 @@ function evaluateAssertions(params: {
       continue
     }
 
-    // Unknown assertion format - mark as warning failure for explicit visibility.
+    // Unknown assertion format should not fail structural verification.
+    // Keep explicit visibility via warnings/check metadata.
     checks.push({ assert: assertion, passed: false, reason: 'unknown_assertion_type' })
-    failures.push(`Unknown assertion format: ${assertion}`)
+    warnings.push(`Unknown assertion format: ${assertion}`)
   }
 
-  return { failures, checks }
+  return { failures, warnings, checks }
 }
 
 export const workflowVerifyServerTool: BaseServerTool<WorkflowVerifyParams, any> = {
@@ -182,6 +184,7 @@ export const workflowVerifyServerTool: BaseServerTool<WorkflowVerifyParams, any>
       errorCount: validation.errors.length,
       warningCount: validation.warnings.length,
       assertionFailures: assertionResults.failures.length,
+      assertionWarnings: assertionResults.warnings.length,
     })
 
     return {
@@ -195,6 +198,7 @@ export const workflowVerifyServerTool: BaseServerTool<WorkflowVerifyParams, any>
       },
       assertions: assertionResults.checks,
       failures: assertionResults.failures,
+      warnings: assertionResults.warnings,
     }
   },
 }

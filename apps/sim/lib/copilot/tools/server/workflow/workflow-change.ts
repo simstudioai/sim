@@ -309,8 +309,43 @@ function stableUnique(values: string[]): string[] {
 
 function normalizeAcceptance(assertions: ChangeSpec['acceptance'] | undefined): string[] {
   if (!Array.isArray(assertions)) return []
+  const toCanonicalAssertion = (
+    item: string | { kind?: string; assert: string } | undefined
+  ): string | null => {
+    if (!item) return null
+    const rawAssert = typeof item === 'string' ? item : item.assert
+    if (typeof rawAssert !== 'string' || rawAssert.trim().length === 0) return null
+    const assert = rawAssert.trim()
+    const kind = typeof item === 'string' ? '' : String(item.kind || '').trim().toLowerCase()
+
+    const normalizeKnown = (value: string): string => {
+      if (
+        value.startsWith('block_exists:') ||
+        value.startsWith('path_exists:') ||
+        value.startsWith('trigger_exists:')
+      ) {
+        return value
+      }
+      return ''
+    }
+
+    const known = normalizeKnown(assert)
+    if (known) return known
+
+    if (kind === 'block_exists') return `block_exists:${assert}`
+    if (kind === 'path_exists') return `path_exists:${assert}`
+    if (kind === 'trigger_exists') return `trigger_exists:${assert}`
+
+    // Shorthand compatibility: if assertion looks like A->B, treat as path_exists.
+    if (assert.includes('->')) {
+      return `path_exists:${assert}`
+    }
+    // Single token fallback defaults to block_exists.
+    return `block_exists:${assert}`
+  }
+
   return assertions
-    .map((item) => (typeof item === 'string' ? item : item?.assert))
+    .map((item) => (typeof item === 'string' ? toCanonicalAssertion(item) : toCanonicalAssertion(item)))
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
 }
 
@@ -721,6 +756,7 @@ async function compileChangeSpec(params: {
   const connectionState = buildConnectionState(workingState)
   const connectionTouchedSources = new Set<string>()
   const plannedBlockTypes = new Map<string, string>()
+  const schemaFallbackLogged = new Set<string>()
 
   const isSchemaLoaded = (blockType: string | null): boolean =>
     Boolean(blockType && schemaContext.loadedSchemaTypes.has(blockType))
@@ -737,15 +773,27 @@ async function compileChangeSpec(params: {
     if (isSchemaLoaded(blockType)) {
       return true
     }
+    // Intelligence-first fallback: compiler can still validate against registry schema
+    // even when context pack did not include that type.
+    if (getBlock(blockType)) {
+      if (!schemaFallbackLogged.has(blockType)) {
+        schemaFallbackLogged.add(blockType)
+        warnings.push(
+          `${operationName} on ${targetId} used server schema for block type "${blockType}" ` +
+            `(not present in context pack).`
+        )
+      }
+      return true
+    }
     if (schemaContext.contextPackProvided) {
       diagnostics.push(
-        `${operationName} on ${targetId} requires schema for block type "${blockType}". ` +
+        `${operationName} on ${targetId} failed: unknown schema for block type "${blockType}". ` +
           `Call workflow_context_expand with blockTypes:["${blockType}"] and retry dry_run.`
       )
       return false
     }
     diagnostics.push(
-      `${operationName} on ${targetId} requires schema-loaded context. ` +
+      `${operationName} on ${targetId} failed: unknown schema for block type "${blockType}". ` +
         `Call workflow_context_get, then workflow_context_expand for "${blockType}", ` +
         `then retry dry_run with contextPackId.`
     )
@@ -992,6 +1040,16 @@ async function compileChangeSpec(params: {
     }
     const topLevelField = pathSegments[0]
     if (!['name', 'type', 'triggerMode', 'advancedMode', 'enabled'].includes(topLevelField)) {
+      if (
+        blockType === 'agent' &&
+        ['systemPrompt', 'context', 'prompt', 'instructions', 'userPrompt'].includes(topLevelField)
+      ) {
+        diagnostics.push(
+          `Unsupported agent field "${change.path}" on ${targetId}. ` +
+            `Agent prompt configuration belongs in inputs.messages (messages-input), not top-level fields.`
+        )
+        return
+      }
       diagnostics.push(`Unsupported top-level path "${change.path}" on ${targetId}`)
       return
     }
