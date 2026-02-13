@@ -35,6 +35,8 @@ export interface WorkflowExecutionState {
   lastRunPath: Map<string, BlockRunStatus>
   /** Maps edge IDs to their run result from the last execution */
   lastRunEdges: Map<string, EdgeRunStatus>
+  /** The execution ID of the currently running execution */
+  currentExecutionId: string | null
 }
 
 /**
@@ -54,6 +56,7 @@ export const defaultWorkflowExecutionState: WorkflowExecutionState = {
   debugContext: null,
   lastRunPath: new Map(),
   lastRunEdges: new Map(),
+  currentExecutionId: null,
 }
 
 /**
@@ -96,6 +99,10 @@ export interface ExecutionActions {
   setEdgeRunStatus: (workflowId: string, edgeId: string, status: EdgeRunStatus) => void
   /** Clears the run path and run edges for a workflow */
   clearRunPath: (workflowId: string) => void
+  /** Stores the current execution ID for a workflow */
+  setCurrentExecutionId: (workflowId: string, executionId: string | null) => void
+  /** Returns the current execution ID for a workflow */
+  getCurrentExecutionId: (workflowId: string) => string | null
   /** Resets the entire store to its initial empty state */
   reset: () => void
   /** Stores a serializable execution snapshot for a workflow */

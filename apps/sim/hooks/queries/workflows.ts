@@ -642,6 +642,10 @@ export function useDeployChildWorkflow() {
       queryClient.invalidateQueries({
         queryKey: workflowKeys.deploymentStatus(variables.workflowId),
       })
+      // Invalidate workflow state so tool input mappings refresh
+      queryClient.invalidateQueries({
+        queryKey: workflowKeys.state(variables.workflowId),
+      })
       // Also invalidate deployment queries
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),

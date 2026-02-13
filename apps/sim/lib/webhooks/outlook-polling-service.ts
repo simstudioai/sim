@@ -12,7 +12,7 @@ import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -601,7 +601,7 @@ async function processOutlookEmails(
             `[${requestId}] Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
           )
 
-          const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
+          const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
           const response = await fetch(webhookUrl, {
             method: 'POST',

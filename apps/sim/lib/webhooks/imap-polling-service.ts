@@ -7,7 +7,7 @@ import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('ImapPollingService')
@@ -639,7 +639,7 @@ async function processEmails(
               timestamp: new Date().toISOString(),
             }
 
-            const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
+            const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
             const response = await fetch(webhookUrl, {
               method: 'POST',

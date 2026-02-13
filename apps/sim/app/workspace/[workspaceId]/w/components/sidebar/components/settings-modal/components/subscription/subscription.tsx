@@ -17,6 +17,7 @@ import {
   CancelSubscription,
   CreditBalance,
   PlanCard,
+  ReferralCode,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import {
   ENTERPRISE_PLAN_FEATURES,
@@ -547,6 +548,10 @@ export function Subscription() {
           isLoading={isLoading}
           onPurchaseComplete={() => refetchSubscription()}
         />
+      )}
+
+      {!subscription.isEnterprise && (
+        <ReferralCode onRedeemComplete={() => refetchSubscription()} />
       )}
 
       {/* Next Billing Date - hidden from team members */}

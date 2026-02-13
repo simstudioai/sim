@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
@@ -79,7 +79,7 @@ export class RouterBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(routerConfig.model)
 
     try {
-      const url = new URL('/api/providers', getBaseUrl())
+      const url = new URL('/api/providers', getInternalApiBaseUrl())
       if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
@@ -209,7 +209,7 @@ export class RouterBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(routerConfig.model)
 
     try {
-      const url = new URL('/api/providers', getBaseUrl())
+      const url = new URL('/api/providers', getInternalApiBaseUrl())
       if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.context }]

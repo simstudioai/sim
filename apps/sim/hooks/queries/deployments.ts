@@ -423,7 +423,7 @@ interface GenerateVersionDescriptionVariables {
 
 const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are writing deployment version descriptions for a workflow automation platform.
 
-Write a brief, factual description (1-3 sentences, under 400 characters) that states what changed between versions.
+Write a brief, factual description (1-3 sentences, under 2000 characters) that states what changed between versions.
 
 Guidelines:
 - Use the specific values provided (credential names, channel names, model names)

@@ -85,7 +85,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-6'),
+  model: z.string().optional().default('claude-opus-4-5'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
@@ -113,6 +113,7 @@ const ChatMessageSchema = z.object({
         workflowId: z.string().optional(),
         knowledgeId: z.string().optional(),
         blockId: z.string().optional(),
+        blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
         // For workflow_block, provide both workflowId and blockId
@@ -159,6 +160,20 @@ export async function POST(req: NextRequest) {
       commands,
     } = ChatMessageSchema.parse(body)
 
+    const normalizedContexts = Array.isArray(contexts)
+      ? contexts.map((ctx) => {
+          if (ctx.kind !== 'blocks') return ctx
+          if (Array.isArray(ctx.blockIds) && ctx.blockIds.length > 0) return ctx
+          if (ctx.blockId) {
+            return {
+              ...ctx,
+              blockIds: [ctx.blockId],
+            }
+          }
+          return ctx
+        })
+      : contexts
+
     // Resolve workflowId - if not provided, use first workflow or find by name
     const resolved = await resolveWorkflowIdForUser(
       authenticatedUserId,
@@ -176,10 +191,10 @@ export async function POST(req: NextRequest) {
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
-        hasContexts: Array.isArray(contexts),
-        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
-        contextsPreview: Array.isArray(contexts)
-          ? contexts.map((c: any) => ({
+        hasContexts: Array.isArray(normalizedContexts),
+        contextsCount: Array.isArray(normalizedContexts) ? normalizedContexts.length : 0,
+        contextsPreview: Array.isArray(normalizedContexts)
+          ? normalizedContexts.map((c: any) => ({
               kind: c?.kind,
               chatId: c?.chatId,
               workflowId: c?.workflowId,
@@ -191,17 +206,25 @@ export async function POST(req: NextRequest) {
     } catch {}
     // Preprocess contexts server-side
     let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(contexts) && contexts.length > 0) {
+    if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
       try {
         const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        const processed = await processContextsServer(contexts as any, authenticatedUserId, message)
+        const processed = await processContextsServer(
+          normalizedContexts as any,
+          authenticatedUserId,
+          message
+        )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
           processedCount: agentContexts.length,
           kinds: agentContexts.map((c) => c.type),
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
         })
-        if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
+        if (
+          Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 &&
+          agentContexts.length === 0
+        ) {
           logger.warn(
             `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
           )
@@ -215,7 +238,7 @@ export async function POST(req: NextRequest) {
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-6'
+    const selectedModel = model || 'claude-opus-4-5'
 
     if (chatId || createNewChat) {
       const chatResult = await resolveOrCreateChat({
@@ -246,11 +269,13 @@ export async function POST(req: NextRequest) {
         mode,
         model: selectedModel,
         provider,
+        conversationId: effectiveConversationId,
         conversationHistory,
         contexts: agentContexts,
         fileAttachments,
         commands,
         chatId: actualChatId,
+        prefetch,
         implicitFeedback,
       },
       {
@@ -432,10 +457,15 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
-        ...(Array.isArray(contexts) &&
-          contexts.length > 0 && {
-            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+        ...(Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 && {
+            contexts: normalizedContexts,
+          }),
+        ...(Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 && {
+            contentBlocks: [
+              { type: 'contexts', contexts: normalizedContexts as any, timestamp: Date.now() },
+            ],
           }),
       }
 

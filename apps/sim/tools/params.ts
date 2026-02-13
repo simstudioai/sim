@@ -1,13 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
-import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig as BlockSubBlockConfig, GenerationType } from '@/blocks/types'
 import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
-import type { ParameterVisibility, ToolConfig } from '@/tools/types'
+import type { OAuthConfig, ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
@@ -64,6 +68,14 @@ export interface UIComponentConfig {
   mode?: 'basic' | 'advanced' | 'both' | 'trigger'
   /** The actual subblock ID this config was derived from */
   actualSubBlockId?: string
+  /** Wand configuration for AI assistance */
+  wandConfig?: {
+    enabled: boolean
+    prompt: string
+    generationType?: GenerationType
+    placeholder?: string
+    maintainHistory?: boolean
+  }
 }
 
 export interface SubBlockConfig {
@@ -327,6 +339,7 @@ export function getToolParametersConfig(
               canonicalParamId: subBlock.canonicalParamId,
               mode: subBlock.mode,
               actualSubBlockId: subBlock.id,
+              wandConfig: subBlock.wandConfig,
             }
           }
         }
@@ -811,4 +824,201 @@ export function formatParameterLabel(paramId: string): string {
 
   // Simple case - just capitalize first letter
   return paramId.charAt(0).toUpperCase() + paramId.slice(1)
+}
+
+/**
+ * SubBlock IDs that are "structural" — they control tool routing or auth,
+ * not user-facing parameters. These are excluded from tool-input rendering
+ * unless they have an explicit paramVisibility set.
+ */
+const STRUCTURAL_SUBBLOCK_IDS = new Set(['operation', 'authMethod', 'destinationType'])
+
+/**
+ * SubBlock types that represent auth/credential inputs handled separately
+ * by the tool-input OAuth credential selector.
+ */
+const AUTH_SUBBLOCK_TYPES = new Set(['oauth-input'])
+
+/**
+ * SubBlock types that should never appear in tool-input context.
+ */
+const EXCLUDED_SUBBLOCK_TYPES = new Set([
+  'tool-input',
+  'skill-input',
+  'condition-input',
+  'eval-input',
+  'webhook-config',
+  'schedule-info',
+  'trigger-save',
+  'input-format',
+  'response-format',
+  'mcp-server-selector',
+  'mcp-tool-selector',
+  'mcp-dynamic-args',
+  'input-mapping',
+  'variables-input',
+  'messages-input',
+  'router-input',
+  'text',
+])
+
+export interface SubBlocksForToolInput {
+  toolConfig: ToolConfig
+  subBlocks: BlockSubBlockConfig[]
+  oauthConfig?: OAuthConfig
+}
+
+/**
+ * Returns filtered SubBlockConfig[] for rendering in tool-input context.
+ * Uses subblock definitions as the primary source of UI metadata,
+ * getting all features (wandConfig, rich conditions, dependsOn, etc.) for free.
+ *
+ * For blocks without paramVisibility annotations, falls back to inferring
+ * visibility from the tool's param definitions.
+ */
+export function getSubBlocksForToolInput(
+  toolId: string,
+  blockType: string,
+  currentValues?: Record<string, unknown>,
+  canonicalModeOverrides?: CanonicalModeOverrides
+): SubBlocksForToolInput | null {
+  try {
+    const toolConfig = getTool(toolId)
+    if (!toolConfig) {
+      logger.warn(`Tool not found: ${toolId}`)
+      return null
+    }
+
+    const blockConfigs = getBlockConfigurations()
+    const blockConfig = blockConfigs[blockType]
+    if (!blockConfig?.subBlocks?.length) {
+      return null
+    }
+
+    const allSubBlocks = blockConfig.subBlocks as BlockSubBlockConfig[]
+    const canonicalIndex = buildCanonicalIndex(allSubBlocks)
+
+    // Build values for condition evaluation
+    const values = currentValues || {}
+    const valuesWithOperation = { ...values }
+    if (valuesWithOperation.operation === undefined) {
+      const parts = toolId.split('_')
+      valuesWithOperation.operation =
+        parts.length >= 3 ? parts.slice(2).join('_') : parts[parts.length - 1]
+    }
+
+    // Build a map of tool param IDs to their resolved visibility
+    const toolParamVisibility: Record<string, ParameterVisibility> = {}
+    for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
+      toolParamVisibility[paramId] =
+        param.visibility ?? (param.required ? 'user-or-llm' : 'user-only')
+    }
+
+    // Track which canonical groups we've already included (to avoid duplicates)
+    const includedCanonicalIds = new Set<string>()
+
+    const filtered: BlockSubBlockConfig[] = []
+
+    for (const sb of allSubBlocks) {
+      // Skip excluded types
+      if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
+
+      // Skip trigger-mode-only subblocks
+      if (sb.mode === 'trigger') continue
+
+      // Determine the effective param ID (canonical or subblock id)
+      const effectiveParamId = sb.canonicalParamId || sb.id
+
+      // Resolve paramVisibility: explicit > inferred from tool params > skip
+      let visibility = sb.paramVisibility
+      if (!visibility) {
+        // Infer from structural checks
+        if (STRUCTURAL_SUBBLOCK_IDS.has(sb.id)) {
+          visibility = 'hidden'
+        } else if (AUTH_SUBBLOCK_TYPES.has(sb.type)) {
+          visibility = 'hidden'
+        } else if (
+          sb.password &&
+          (sb.id === 'botToken' || sb.id === 'accessToken' || sb.id === 'apiKey')
+        ) {
+          // Auth tokens without explicit paramVisibility are hidden
+          // (they're handled by the OAuth credential selector or structurally)
+          // But only if they don't have a matching tool param
+          if (!(sb.id in toolParamVisibility)) {
+            visibility = 'hidden'
+          } else {
+            visibility = toolParamVisibility[sb.id] || 'user-or-llm'
+          }
+        } else if (effectiveParamId in toolParamVisibility) {
+          // Fallback: infer from tool param visibility
+          visibility = toolParamVisibility[effectiveParamId]
+        } else if (sb.id in toolParamVisibility) {
+          visibility = toolParamVisibility[sb.id]
+        } else if (sb.canonicalParamId) {
+          // SubBlock has a canonicalParamId that doesn't directly match a tool param.
+          // This means the block's params() function transforms it before sending to the tool
+          // (e.g. listFolderId → folderId). These are user-facing inputs, default to user-or-llm.
+          visibility = 'user-or-llm'
+        } else {
+          // SubBlock has no corresponding tool param — skip it
+          continue
+        }
+      }
+
+      // Filter by visibility: exclude hidden and llm-only
+      if (visibility === 'hidden' || visibility === 'llm-only') continue
+
+      // Evaluate condition against current values
+      if (sb.condition) {
+        const conditionMet = evaluateSubBlockCondition(
+          sb.condition as SubBlockCondition,
+          valuesWithOperation
+        )
+        if (!conditionMet) continue
+      }
+
+      // Handle canonical pairs: only include the active mode variant
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[sb.id]
+      if (canonicalId) {
+        const group = canonicalIndex.groupsById[canonicalId]
+        if (group && isCanonicalPair(group)) {
+          if (includedCanonicalIds.has(canonicalId)) continue
+          includedCanonicalIds.add(canonicalId)
+
+          // Determine active mode
+          const mode = resolveCanonicalMode(group, valuesWithOperation, canonicalModeOverrides)
+          if (mode === 'advanced') {
+            // Find the advanced variant
+            const advancedSb = allSubBlocks.find((s) => group.advancedIds.includes(s.id))
+            if (advancedSb) {
+              filtered.push({ ...advancedSb, paramVisibility: visibility })
+            }
+          } else {
+            // Include basic variant (current sb if it's the basic one)
+            if (group.basicId === sb.id) {
+              filtered.push({ ...sb, paramVisibility: visibility })
+            } else {
+              const basicSb = allSubBlocks.find((s) => s.id === group.basicId)
+              if (basicSb) {
+                filtered.push({ ...basicSb, paramVisibility: visibility })
+              }
+            }
+          }
+          continue
+        }
+      }
+
+      // Non-canonical, non-hidden, condition-passing subblock
+      filtered.push({ ...sb, paramVisibility: visibility })
+    }
+
+    return {
+      toolConfig,
+      subBlocks: filtered,
+      oauthConfig: toolConfig.oauth,
+    }
+  } catch (error) {
+    logger.error('Error getting subblocks for tool input:', error)
+    return null
+  }
 }

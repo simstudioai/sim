@@ -340,13 +340,7 @@ export const Panel = memo(function Panel() {
    * Register global keyboard shortcuts using the central commands registry.
    *
    * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
-   * - C: Focus Copilot tab
-   * - T: Focus Toolbar tab
-   * - E: Focus Editor tab
    * - Mod+F: Focus Toolbar tab and search input
-   *
-   * The tab-switching commands are disabled inside editable elements so typing
-   * in inputs or textareas is not interrupted.
    */
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -358,33 +352,6 @@ export const Panel = memo(function Panel() {
           } else {
             void runWorkflow()
           }
-        },
-        overrides: {
-          allowInEditable: false,
-        },
-      },
-      {
-        id: 'focus-copilot-tab',
-        handler: () => {
-          setActiveTab('copilot')
-        },
-        overrides: {
-          allowInEditable: false,
-        },
-      },
-      {
-        id: 'focus-toolbar-tab',
-        handler: () => {
-          setActiveTab('toolbar')
-        },
-        overrides: {
-          allowInEditable: false,
-        },
-      },
-      {
-        id: 'focus-editor-tab',
-        handler: () => {
-          setActiveTab('editor')
         },
         overrides: {
           allowInEditable: false,

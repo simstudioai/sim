@@ -137,6 +137,36 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'] as const
+const UTM_COOKIE_NAME = 'sim_utm'
+const UTM_COOKIE_MAX_AGE = 3600
+
+/**
+ * Sets a `sim_utm` cookie when UTM params are present on auth pages.
+ * Captures UTM values, the HTTP Referer, landing page, and a timestamp.
+ */
+function setUtmCookie(request: NextRequest, response: NextResponse): void {
+  const { searchParams, pathname } = request.nextUrl
+  const hasUtm = UTM_KEYS.some((key) => searchParams.get(key))
+  if (!hasUtm) return
+
+  const utmData: Record<string, string> = {}
+  for (const key of UTM_KEYS) {
+    const value = searchParams.get(key)
+    if (value) utmData[key] = value
+  }
+  utmData.referrer_url = request.headers.get('referer') || ''
+  utmData.landing_page = pathname
+  utmData.created_at = Date.now().toString()
+
+  response.cookies.set(UTM_COOKIE_NAME, JSON.stringify(utmData), {
+    path: '/',
+    maxAge: UTM_COOKIE_MAX_AGE,
+    sameSite: 'lax',
+    httpOnly: false, // Client-side hook needs to detect cookie presence
+  })
+}
+
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
@@ -148,10 +178,13 @@ export async function proxy(request: NextRequest) {
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
-      return NextResponse.redirect(new URL('/workspace', request.url))
+      const redirect = NextResponse.redirect(new URL('/workspace', request.url))
+      setUtmCookie(request, redirect)
+      return redirect
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    setUtmCookie(request, response)
     return response
   }
 
