@@ -2,7 +2,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search, Share2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Plus, Search, Share2, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -297,7 +297,7 @@ export function CredentialsManager() {
     [createSecretScope]
   )
   const selectedExistingEnvCredential = useMemo(() => {
-    if (createType !== 'secret') return null
+    if (createType !== 'secret' || createSecretInputMode !== 'single') return null
     const envKey = normalizeEnvKeyInput(createEnvKey)
     if (!envKey) return null
     return (
@@ -306,7 +306,31 @@ export function CredentialsManager() {
           row.type === createSecretType && (row.envKey || '').toLowerCase() === envKey.toLowerCase()
       ) ?? null
     )
-  }, [credentials, createEnvKey, createSecretType, createType])
+  }, [credentials, createEnvKey, createSecretType, createType, createSecretInputMode])
+
+  const crossScopeEnvConflict = useMemo(() => {
+    if (createType !== 'secret' || createSecretInputMode !== 'single') return null
+    if (createSecretScope !== 'personal') return null
+    const envKey = normalizeEnvKeyInput(createEnvKey)
+    if (!envKey) return null
+    return (
+      credentials.find(
+        (row) =>
+          row.type === 'env_workspace' && (row.envKey || '').toLowerCase() === envKey.toLowerCase()
+      ) ?? null
+    )
+  }, [credentials, createEnvKey, createSecretScope, createType, createSecretInputMode])
+
+  const existingOAuthDisplayName = useMemo(() => {
+    if (createType !== 'oauth') return null
+    const name = createDisplayName.trim()
+    if (!name) return null
+    return (
+      credentials.find(
+        (row) => row.type === 'oauth' && row.displayName.toLowerCase() === name.toLowerCase()
+      ) ?? null
+    )
+  }, [credentials, createDisplayName, createType])
   const selectedEnvCurrentValue = useMemo(() => {
     if (!selectedCredential || selectedCredential.type === 'oauth') return ''
     const envKey = selectedCredential.envKey || ''
@@ -1309,6 +1333,20 @@ export function CredentialsManager() {
                       />
                     </div>
                   </div>
+                  {existingOAuthDisplayName && (
+                    <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
+                      <div className='flex items-start gap-[10px]'>
+                        <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+                        <p className='text-[12px] text-red-700 dark:text-red-300'>
+                          A credential named{' '}
+                          <span className='font-medium'>
+                            {existingOAuthDisplayName.displayName}
+                          </span>{' '}
+                          already exists.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className='flex flex-col gap-[10px]'>
@@ -1411,28 +1449,29 @@ export function CredentialsManager() {
                       </div>
 
                       {selectedExistingEnvCredential && (
-                        <div className='rounded-[8px] border border-[var(--brand-9)]/40 bg-[var(--surface-3)] px-[10px] py-[8px]'>
-                          <p className='text-[12px] text-[var(--text-primary)]'>
-                            This secret key already maps to credential{' '}
-                            <span className='font-medium'>
-                              {selectedExistingEnvCredential.displayName}
-                            </span>
-                            .
-                          </p>
-                          <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                            Create will update the secret value and reuse the existing credential.
-                          </p>
-                          <Button
-                            variant='ghost'
-                            className='mt-[6px]'
-                            onClick={() => {
-                              setSelectedCredentialId(selectedExistingEnvCredential.id)
-                              setShowCreateModal(false)
-                              resetCreateForm()
-                            }}
-                          >
-                            Open existing credential
-                          </Button>
+                        <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
+                          <div className='flex items-start gap-[10px]'>
+                            <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+                            <p className='text-[12px] text-red-700 dark:text-red-300'>
+                              A secret with key{' '}
+                              <span className='font-medium'>
+                                {selectedExistingEnvCredential.displayName}
+                              </span>{' '}
+                              already exists.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {!selectedExistingEnvCredential && crossScopeEnvConflict && (
+                        <div className='rounded-[8px] border border-amber-500/50 bg-amber-50 p-[12px] dark:bg-amber-950/30'>
+                          <div className='flex items-start gap-[10px]'>
+                            <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400' />
+                            <p className='text-[12px] text-amber-700 dark:text-amber-300'>
+                              A workspace secret with key{' '}
+                              <span className='font-medium'>{crossScopeEnvConflict.envKey}</span>{' '}
+                              already exists. Workspace secrets take precedence at runtime.
+                            </p>
+                          </div>
                         </div>
                       )}
                     </>
@@ -1471,8 +1510,13 @@ export function CredentialsManager() {
               )}
 
               {createError && (
-                <div className='whitespace-pre-wrap rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[12px] text-[var(--status-red)]'>
-                  {createError}
+                <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
+                  <div className='flex items-start gap-[10px]'>
+                    <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+                    <p className='whitespace-pre-wrap text-[12px] text-red-700 dark:text-red-300'>
+                      {createError}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1488,10 +1532,13 @@ export function CredentialsManager() {
                 (createType === 'oauth'
                   ? !createOAuthProviderId ||
                     !createDisplayName.trim() ||
-                    connectOAuthService.isPending
+                    connectOAuthService.isPending ||
+                    Boolean(existingOAuthDisplayName)
                   : createSecretInputMode === 'bulk'
                     ? !createBulkText.trim()
-                    : !createEnvKey.trim() || !createEnvValue.trim()) ||
+                    : !createEnvKey.trim() ||
+                      !createEnvValue.trim() ||
+                      Boolean(selectedExistingEnvCredential)) ||
                 createCredential.isPending ||
                 savePersonalEnvironment.isPending ||
                 upsertWorkspaceEnvironment.isPending ||
@@ -1508,9 +1555,7 @@ export function CredentialsManager() {
                     upsertWorkspaceEnvironment.isPending
                     ? 'Importing...'
                     : 'Import all'
-                  : selectedExistingEnvCredential
-                    ? 'Update and use existing'
-                    : 'Create'}
+                  : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
