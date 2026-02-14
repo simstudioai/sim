@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -149,7 +149,7 @@ function getTriggerIcon(
  * @param props - The component props
  * @returns The complete logs toolbar
  */
-export function LogsToolbar({
+export const LogsToolbar = memo(function LogsToolbar({
   viewMode,
   onViewModeChange,
   isRefreshing,
@@ -749,4 +749,4 @@ export function LogsToolbar({
       </div>
     </div>
   )
-}
+})

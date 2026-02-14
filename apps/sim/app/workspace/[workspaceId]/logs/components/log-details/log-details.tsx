@@ -43,184 +43,199 @@ import { useLogDetailsUIStore } from '@/stores/logs/store'
 /**
  * Workflow Output section with code viewer, copy, search, and context menu functionality
  */
-function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [copied, setCopied] = useState(false)
+const WorkflowOutputSection = memo(
+  function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
+    const contentRef = useRef<HTMLDivElement>(null)
+    const [copied, setCopied] = useState(false)
+    const copyTimerRef = useRef<number | null>(null)
 
-  // Context menu state
-  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+    const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+    const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
 
-  const {
-    isSearchActive,
-    searchQuery,
-    setSearchQuery,
-    matchCount,
-    currentMatchIndex,
-    activateSearch,
-    closeSearch,
-    goToNextMatch,
-    goToPreviousMatch,
-    handleMatchCountChange,
-    searchInputRef,
-  } = useCodeViewerFeatures({ contentRef })
+    const {
+      isSearchActive,
+      searchQuery,
+      setSearchQuery,
+      matchCount,
+      currentMatchIndex,
+      activateSearch,
+      closeSearch,
+      goToNextMatch,
+      goToPreviousMatch,
+      handleMatchCountChange,
+      searchInputRef,
+    } = useCodeViewerFeatures({ contentRef })
 
-  const jsonString = useMemo(() => JSON.stringify(output, null, 2), [output])
+    const jsonString = useMemo(() => JSON.stringify(output, null, 2), [output])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenuPosition({ x: e.clientX, y: e.clientY })
-    setIsContextMenuOpen(true)
-  }, [])
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setIsContextMenuOpen(true)
+    }, [])
 
-  const closeContextMenu = useCallback(() => {
-    setIsContextMenuOpen(false)
-  }, [])
+    const closeContextMenu = useCallback(() => {
+      setIsContextMenuOpen(false)
+    }, [])
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(jsonString)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-    closeContextMenu()
-  }, [jsonString, closeContextMenu])
+    const handleCopy = useCallback(() => {
+      navigator.clipboard.writeText(jsonString)
+      setCopied(true)
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = window.setTimeout(() => setCopied(false), 1500)
+      closeContextMenu()
+    }, [jsonString, closeContextMenu])
 
-  const handleSearch = useCallback(() => {
-    activateSearch()
-    closeContextMenu()
-  }, [activateSearch, closeContextMenu])
+    useEffect(() => {
+      return () => {
+        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+      }
+    }, [])
 
-  return (
-    <div className='relative flex min-w-0 flex-col overflow-hidden'>
-      <div ref={contentRef} onContextMenu={handleContextMenu} className='relative'>
-        <Code.Viewer
-          code={jsonString}
-          language='json'
-          className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-          wrapText
-          searchQuery={isSearchActive ? searchQuery : undefined}
-          currentMatchIndex={currentMatchIndex}
-          onMatchCountChange={handleMatchCountChange}
-        />
-        {/* Glass action buttons overlay */}
-        {!isSearchActive && (
-          <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  type='button'
-                  variant='default'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCopy()
-                  }}
-                  className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
-                >
-                  {copied ? (
-                    <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
-                  ) : (
-                    <Clipboard className='h-[10px] w-[10px]' />
-                  )}
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
-            </Tooltip.Root>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  type='button'
-                  variant='default'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    activateSearch()
-                  }}
-                  className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
-                >
-                  <Search className='h-[10px] w-[10px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Search</Tooltip.Content>
-            </Tooltip.Root>
+    const handleSearch = useCallback(() => {
+      activateSearch()
+      closeContextMenu()
+    }, [activateSearch, closeContextMenu])
+
+    return (
+      <div className='relative flex min-w-0 flex-col overflow-hidden'>
+        <div ref={contentRef} onContextMenu={handleContextMenu} className='relative'>
+          <Code.Viewer
+            code={jsonString}
+            language='json'
+            className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+            wrapText
+            searchQuery={isSearchActive ? searchQuery : undefined}
+            currentMatchIndex={currentMatchIndex}
+            onMatchCountChange={handleMatchCountChange}
+          />
+          {/* Glass action buttons overlay */}
+          {!isSearchActive && (
+            <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCopy()
+                    }}
+                    className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                  >
+                    {copied ? (
+                      <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                    ) : (
+                      <Clipboard className='h-[10px] w-[10px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+              </Tooltip.Root>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      activateSearch()
+                    }}
+                    className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                  >
+                    <Search className='h-[10px] w-[10px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>Search</Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+          )}
+        </div>
+
+        {/* Search Overlay */}
+        {isSearchActive && (
+          <div
+            className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Input
+              ref={searchInputRef}
+              type='text'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='Search...'
+              className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+            />
+            <span
+              className={cn(
+                'min-w-[45px] text-center text-[11px]',
+                matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+              )}
+            >
+              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
+            </span>
+            <Button
+              variant='ghost'
+              className='!p-1'
+              onClick={goToPreviousMatch}
+              disabled={matchCount === 0}
+              aria-label='Previous match'
+            >
+              <ArrowUp className='h-[12px] w-[12px]' />
+            </Button>
+            <Button
+              variant='ghost'
+              className='!p-1'
+              onClick={goToNextMatch}
+              disabled={matchCount === 0}
+              aria-label='Next match'
+            >
+              <ArrowDown className='h-[12px] w-[12px]' />
+            </Button>
+            <Button
+              variant='ghost'
+              className='!p-1'
+              onClick={closeSearch}
+              aria-label='Close search'
+            >
+              <X className='h-[12px] w-[12px]' />
+            </Button>
           </div>
         )}
+
+        {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
+        {typeof document !== 'undefined' &&
+          createPortal(
+            <Popover
+              open={isContextMenuOpen}
+              onOpenChange={closeContextMenu}
+              variant='secondary'
+              size='sm'
+              colorScheme='inverted'
+            >
+              <PopoverAnchor
+                style={{
+                  position: 'fixed',
+                  left: `${contextMenuPosition.x}px`,
+                  top: `${contextMenuPosition.y}px`,
+                  width: '1px',
+                  height: '1px',
+                }}
+              />
+              <PopoverContent align='start' side='bottom' sideOffset={4}>
+                <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
+                <PopoverDivider />
+                <PopoverItem onClick={handleSearch}>Search</PopoverItem>
+              </PopoverContent>
+            </Popover>,
+            document.body
+          )}
       </div>
-
-      {/* Search Overlay */}
-      {isSearchActive && (
-        <div
-          className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Input
-            ref={searchInputRef}
-            type='text'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search...'
-            className='mr-[2px] h-[23px] w-[94px] text-[12px]'
-          />
-          <span
-            className={cn(
-              'min-w-[45px] text-center text-[11px]',
-              matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-            )}
-          >
-            {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-          </span>
-          <Button
-            variant='ghost'
-            className='!p-1'
-            onClick={goToPreviousMatch}
-            disabled={matchCount === 0}
-            aria-label='Previous match'
-          >
-            <ArrowUp className='h-[12px] w-[12px]' />
-          </Button>
-          <Button
-            variant='ghost'
-            className='!p-1'
-            onClick={goToNextMatch}
-            disabled={matchCount === 0}
-            aria-label='Next match'
-          >
-            <ArrowDown className='h-[12px] w-[12px]' />
-          </Button>
-          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
-            <X className='h-[12px] w-[12px]' />
-          </Button>
-        </div>
-      )}
-
-      {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
-      {typeof document !== 'undefined' &&
-        createPortal(
-          <Popover
-            open={isContextMenuOpen}
-            onOpenChange={closeContextMenu}
-            variant='secondary'
-            size='sm'
-            colorScheme='inverted'
-          >
-            <PopoverAnchor
-              style={{
-                position: 'fixed',
-                left: `${contextMenuPosition.x}px`,
-                top: `${contextMenuPosition.y}px`,
-                width: '1px',
-                height: '1px',
-              }}
-            />
-            <PopoverContent align='start' side='bottom' sideOffset={4}>
-              <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
-              <PopoverDivider />
-              <PopoverItem onClick={handleSearch}>Search</PopoverItem>
-            </PopoverContent>
-          </Popover>,
-          document.body
-        )}
-    </div>
-  )
-}
+    )
+  },
+  (prev, next) => JSON.stringify(prev.output) === JSON.stringify(next.output)
+)
 
 interface LogDetailsProps {
   /** The log to display details for */
@@ -278,7 +293,6 @@ export const LogDetails = memo(function LogDetails({
     return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
 
-  // Extract and clean the workflow final output (recursively remove hidden keys for cleaner display)
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
       | { finalOutput?: Record<string, unknown> }
