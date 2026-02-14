@@ -39,6 +39,7 @@ export async function executeWorkflowWithFullLogging(
   const workflowEdges = useWorkflowStore.getState().edges
 
   const activeBlocksSet = new Set<string>()
+  const activeBlockRefCounts = new Map<string, number>()
 
   const payload: any = {
     input: options.workflowInput,
@@ -103,6 +104,8 @@ export async function executeWorkflowWithFullLogging(
 
           switch (event.type) {
             case 'block:started': {
+              const startCount = activeBlockRefCounts.get(event.data.blockId) ?? 0
+              activeBlockRefCounts.set(event.data.blockId, startCount + 1)
               activeBlocksSet.add(event.data.blockId)
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
@@ -115,8 +118,14 @@ export async function executeWorkflowWithFullLogging(
               break
             }
 
-            case 'block:completed':
-              activeBlocksSet.delete(event.data.blockId)
+            case 'block:completed': {
+              const completeCount = activeBlockRefCounts.get(event.data.blockId) ?? 1
+              if (completeCount <= 1) {
+                activeBlockRefCounts.delete(event.data.blockId)
+                activeBlocksSet.delete(event.data.blockId)
+              } else {
+                activeBlockRefCounts.set(event.data.blockId, completeCount - 1)
+              }
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'success')
@@ -144,9 +153,16 @@ export async function executeWorkflowWithFullLogging(
                 options.onBlockComplete(event.data.blockId, event.data.output).catch(() => {})
               }
               break
+            }
 
-            case 'block:error':
-              activeBlocksSet.delete(event.data.blockId)
+            case 'block:error': {
+              const errorCount = activeBlockRefCounts.get(event.data.blockId) ?? 1
+              if (errorCount <= 1) {
+                activeBlockRefCounts.delete(event.data.blockId)
+                activeBlocksSet.delete(event.data.blockId)
+              } else {
+                activeBlockRefCounts.set(event.data.blockId, errorCount - 1)
+              }
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'error')
@@ -171,6 +187,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationContainerId: event.data.iterationContainerId,
               })
               break
+            }
 
             case 'execution:completed':
               executionResult = {

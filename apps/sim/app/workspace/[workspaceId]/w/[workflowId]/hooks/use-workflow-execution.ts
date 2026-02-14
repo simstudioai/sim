@@ -63,6 +63,7 @@ interface BlockEventHandlerConfig {
   executionIdRef: { current: string }
   workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
+  activeBlockRefCounts: Map<string, number>
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
@@ -309,6 +310,7 @@ export function useWorkflowExecution() {
         executionIdRef,
         workflowEdges,
         activeBlocksSet,
+        activeBlockRefCounts,
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
@@ -328,9 +330,18 @@ export function useWorkflowExecution() {
       const updateActiveBlocks = (blockId: string, isActive: boolean) => {
         if (!workflowId) return
         if (isActive) {
+          const count = activeBlockRefCounts.get(blockId) ?? 0
+          activeBlockRefCounts.set(blockId, count + 1)
           activeBlocksSet.add(blockId)
         } else {
-          activeBlocksSet.delete(blockId)
+          const count = activeBlockRefCounts.get(blockId) ?? 1
+          const next = count - 1
+          if (next <= 0) {
+            activeBlockRefCounts.delete(blockId)
+            activeBlocksSet.delete(blockId)
+          } else {
+            activeBlockRefCounts.set(blockId, next)
+          }
         }
         setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
@@ -1280,6 +1291,7 @@ export function useWorkflowExecution() {
       }
 
       const activeBlocksSet = new Set<string>()
+      const activeBlockRefCounts = new Map<string, number>()
       const streamedContent = new Map<string, string>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1292,6 +1304,7 @@ export function useWorkflowExecution() {
           executionIdRef,
           workflowEdges,
           activeBlocksSet,
+          activeBlockRefCounts,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -1902,6 +1915,7 @@ export function useWorkflowExecution() {
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
       const activeBlocksSet = new Set<string>()
+      const activeBlockRefCounts = new Map<string, number>()
 
       try {
         const blockHandlers = buildBlockEventHandlers({
@@ -1909,6 +1923,7 @@ export function useWorkflowExecution() {
           executionIdRef,
           workflowEdges,
           activeBlocksSet,
+          activeBlockRefCounts,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -2104,6 +2119,7 @@ export function useWorkflowExecution() {
 
     const workflowEdges = useWorkflowStore.getState().edges
     const activeBlocksSet = new Set<string>()
+    const activeBlockRefCounts = new Map<string, number>()
     const accumulatedBlockLogs: BlockLog[] = []
     const accumulatedBlockStates = new Map<string, BlockState>()
     const executedBlockIds = new Set<string>()
@@ -2115,6 +2131,7 @@ export function useWorkflowExecution() {
       executionIdRef,
       workflowEdges,
       activeBlocksSet,
+      activeBlockRefCounts,
       accumulatedBlockLogs,
       accumulatedBlockStates,
       executedBlockIds,
