@@ -236,13 +236,11 @@ export default function Logs() {
   useEffect(() => {
     activeLogRefetchRef.current = activeLogQuery.refetch
   }, [activeLogQuery.refetch])
-  useEffect(() => {
-    logsQueryRef.current = {
-      isFetching: logsQuery.isFetching,
-      hasNextPage: logsQuery.hasNextPage ?? false,
-      fetchNextPage: logsQuery.fetchNextPage,
-    }
-  }, [logsQuery.isFetching, logsQuery.hasNextPage, logsQuery.fetchNextPage])
+  logsQueryRef.current = {
+    isFetching: logsQuery.isFetching,
+    hasNextPage: logsQuery.hasNextPage ?? false,
+    fetchNextPage: logsQuery.fetchNextPage,
+  }
 
   useEffect(() => {
     const timers = refreshTimersRef.current
