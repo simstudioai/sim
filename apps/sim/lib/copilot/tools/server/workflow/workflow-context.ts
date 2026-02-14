@@ -14,6 +14,13 @@ import {
 
 const logger = createLogger('WorkflowContextServerTool')
 
+const WORKFLOW_HARD_CONSTRAINTS = [
+  'No nested subflows: loop/parallel cannot be placed inside loop/parallel.',
+  'No cyclic edges: workflow graph must remain acyclic. Use loop/parallel blocks for iteration.',
+  'Container handle rules: loop/parallel start handles connect only to children; end handles connect only outside the container.',
+  'Executable non-trigger blocks should have an incoming connection unless intentionally disconnected.',
+]
+
 const WorkflowContextGetInputSchema = z.object({
   workflowId: z.string(),
   objective: z.string().optional(),
@@ -196,6 +203,7 @@ export const workflowContextGetServerTool: BaseServerTool<WorkflowContextGetPara
       unresolvedRequestedBlockTypes: resolvedRequestedTypes.unresolved,
       knownBlockTypes: knownTypes,
       inScopeSchemas: schemasByType,
+      hardConstraints: WORKFLOW_HARD_CONSTRAINTS,
     }
   },
 }
@@ -267,6 +275,7 @@ export const workflowContextExpandServerTool: BaseServerTool<WorkflowContextExpa
       unresolvedBlockTypes: resolvedTypes.unresolved,
       knownBlockTypes: knownTypes,
       warnings,
+      hardConstraints: WORKFLOW_HARD_CONSTRAINTS,
     }
   },
 }

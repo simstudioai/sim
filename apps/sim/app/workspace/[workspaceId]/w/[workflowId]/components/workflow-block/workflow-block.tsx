@@ -107,6 +107,31 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 }
 
 /**
+ * Parse subblock values that may arrive as JSON strings or already-materialized arrays.
+ */
+const parseStructuredArrayValue = (value: unknown): Array<Record<string, unknown>> | null => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> => typeof item === 'object' && item !== null
+    )
+  }
+  if (typeof value !== 'string') {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+    return parsed.filter(
+      (item): item is Record<string, unknown> => typeof item === 'object' && item !== null
+    )
+  } catch {
+    return null
+  }
+}
+
+/**
  * Type guard for variable assignments array
  */
 const isVariableAssignmentsArray = (
@@ -961,25 +986,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     if (type !== 'condition') return [] as { id: string; title: string; value: string }[]
 
     const conditionsValue = subBlockState.conditions?.value
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `${id}-cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
+    const parsed = parseStructuredArrayValue(conditionsValue)
+    if (parsed && parsed.length > 0) {
+      return parsed.map((item, index) => {
+        const conditionId = typeof item.id === 'string' ? item.id : `${id}-cond-${index}`
+        const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
+        return {
+          id: conditionId,
+          title,
+          value: typeof item.value === 'string' ? item.value : '',
         }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse condition subblock value', { error, blockId: id })
+      })
+    }
+
+    if (typeof conditionsValue === 'string' && conditionsValue.trim()) {
+      logger.warn('Failed to parse condition subblock value', { blockId: id })
     }
 
     return [
@@ -997,24 +1018,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     if (type !== 'router_v2') return [] as { id: string; value: string }[]
 
     const routesValue = subBlockState.routes?.value
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
+    const parsed = parseStructuredArrayValue(routesValue)
+    if (parsed && parsed.length > 0) {
+      return parsed.map((item, index) => ({
+        id: typeof item.id === 'string' ? item.id : `${id}-route${index + 1}`,
+        value: typeof item.value === 'string' ? item.value : '',
+      }))
+    }
 
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              // Use stable ID format that matches ConditionInput's generateStableId
-              id: routeItem?.id ?? `${id}-route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to parse router routes value', { error, blockId: id })
+    if (typeof routesValue === 'string' && routesValue.trim()) {
+      logger.warn('Failed to parse router routes value', { blockId: id })
     }
 
     // Fallback must match ConditionInput's default: generateStableId(blockId, 'route1') = `${blockId}-route1`

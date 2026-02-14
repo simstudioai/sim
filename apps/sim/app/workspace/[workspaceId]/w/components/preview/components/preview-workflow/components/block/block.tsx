@@ -72,6 +72,31 @@ function extractValue(entry: SubBlockValueEntry | unknown): unknown {
   return entry
 }
 
+/**
+ * Parse subblock values that may be JSON strings or already-materialized arrays.
+ */
+function parseStructuredArrayValue(value: unknown): Array<Record<string, unknown>> | null {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> => typeof item === 'object' && item !== null
+    )
+  }
+  if (typeof value !== 'string') {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+    return parsed.filter(
+      (item): item is Record<string, unknown> => typeof item === 'object' && item !== null
+    )
+  } catch {
+    return null
+  }
+}
+
 interface SubBlockRowProps {
   title: string
   value?: string
@@ -347,25 +372,16 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     if (lightweight) return defaultRows
 
     const conditionsValue = rawValues.conditions
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
+    const parsed = parseStructuredArrayValue(conditionsValue)
+    if (parsed && parsed.length > 0) {
+      return parsed.map((item, index) => {
+        const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
+        return {
+          id: typeof item.id === 'string' ? item.id : `cond-${index}`,
+          title,
+          value: typeof item.value === 'string' ? item.value : '',
         }
-      }
-    } catch {
-      /* empty */
+      })
     }
 
     return defaultRows
@@ -384,23 +400,12 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     if (lightweight) return defaultRows
 
     const routesValue = rawValues.routes
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              id: routeItem?.id ?? `route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch {
-      /* empty */
+    const parsed = parseStructuredArrayValue(routesValue)
+    if (parsed && parsed.length > 0) {
+      return parsed.map((item, index) => ({
+        id: typeof item.id === 'string' ? item.id : `route${index + 1}`,
+        value: typeof item.value === 'string' ? item.value : '',
+      }))
     }
 
     return defaultRows

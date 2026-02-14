@@ -46,6 +46,15 @@ function resolveBlockToken(
     if (blockName === normalized) return blockId
     if (canonicalizeToken(blockName) === canonical) return blockId
   }
+
+  // Convenience fallback: if token matches exactly one block type in the workflow,
+  // resolve to that block. This avoids false negatives for shorthand assertions
+  // such as "block_exists:loop" when the workflow has a single loop block.
+  const typeMatches = resolveBlocksByType(workflowState, token)
+  if (typeMatches.length === 1) {
+    return typeMatches[0]
+  }
+
   return null
 }
 

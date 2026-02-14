@@ -53,6 +53,24 @@ function getProperties(schema: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+function getSchemaType(schema: unknown): string | null {
+  if (typeof schema !== 'object' || schema === null) return null
+  const rawType = (schema as { type?: unknown }).type
+  return typeof rawType === 'string' ? rawType.toLowerCase() : null
+}
+
+function isDynamicSchemaNode(schema: unknown): boolean {
+  const schemaType = getSchemaType(schema)
+  if (!schemaType) return false
+  if (schemaType === 'any' || schemaType === 'json') {
+    return true
+  }
+  if (schemaType === 'object' && !getProperties(schema)) {
+    return true
+  }
+  return false
+}
+
 function lookupField(schema: unknown, fieldName: string): unknown | undefined {
   if (typeof schema !== 'object' || schema === null) return undefined
   const typed = schema as Record<string, unknown>
@@ -83,6 +101,12 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
       return false
     }
 
+    if (isDynamicSchemaNode(current)) {
+      // Dynamic schema node (json/any/object-without-properties):
+      // allow deeper traversal without strict field validation.
+      return true
+    }
+
     if (/^\d+$/.test(part)) {
       if (isFileType(current)) {
         const nextPart = pathParts[i + 1]
@@ -94,7 +118,12 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
         )
       }
       if (isArrayType(current)) {
-        current = getArrayItems(current)
+        const items = getArrayItems(current)
+        if (items === undefined) {
+          // Arrays without declared item schema are treated as dynamic.
+          return true
+        }
+        current = items
       }
       continue
     }
@@ -116,6 +145,10 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
       }
 
       current = isArrayType(fieldDef) ? getArrayItems(fieldDef) : fieldDef
+      if (current === undefined) {
+        // Array/object without explicit shape after this segment.
+        return true
+      }
       continue
     }
 

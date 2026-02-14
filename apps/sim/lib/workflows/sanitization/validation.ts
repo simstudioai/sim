@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { detectDirectedCycle } from '@/lib/workflows/sanitization/graph-validation'
 import { getBlock } from '@/blocks/registry'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -288,6 +289,16 @@ export function validateWorkflowState(
         if (!targetExists) {
           errors.push(`Edge references non-existent target block '${edge.target}'`)
         }
+      }
+
+      const cycleResult = detectDirectedCycle(
+        workflowState.edges as Array<{ source?: string; target?: string }>
+      )
+      if (cycleResult.hasCycle) {
+        const cyclePath = cycleResult.cyclePath.join(' -> ')
+        errors.push(
+          `Workflow contains a cycle (${cyclePath}). Use loop/parallel blocks for iteration instead of cyclic edges.`
+        )
       }
     }
 

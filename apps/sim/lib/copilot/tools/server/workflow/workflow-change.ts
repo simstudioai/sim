@@ -14,7 +14,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getBlock } from '@/blocks/registry'
 import { getTool } from '@/tools/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
+import { isAnnotationOnlyBlock, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { getBlockSchema } from '@/executor/utils/block-data'
 import { InvalidFieldError, type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -22,6 +22,7 @@ import {
   createReferencePattern,
 } from '@/executor/utils/reference-validation'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
+import { detectDirectedCycle } from '@/lib/workflows/sanitization/graph-validation'
 import {
   getContextPack,
   getProposal,
@@ -30,7 +31,12 @@ import {
 } from './change-store'
 import { applyWorkflowOperations } from './workflow-operations/apply'
 import { applyOperationsToWorkflowState } from './workflow-operations/engine'
-import { preValidateCredentialInputs, validateInputsForBlock } from './workflow-operations/validation'
+import {
+  preValidateCredentialInputs,
+  validateConditionHandle,
+  validateInputsForBlock,
+  validateRouterHandle,
+} from './workflow-operations/validation'
 import { workflowVerifyServerTool } from './workflow-verify'
 import { hashWorkflowState, loadWorkflowStateFromDb } from './workflow-state'
 import type { SerializedBlock } from '@/serializer/types'
@@ -590,9 +596,276 @@ function normalizeLegacyAgentInputs(params: {
   return nextInputs
 }
 
+function parseArrayLikeInput(value: unknown): { items: unknown[] | null; fromJson: boolean } {
+  if (Array.isArray(value)) {
+    return { items: value, fromJson: false }
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    // Accept common wrapper shapes produced by different model/tool patterns.
+    // Examples: {options:[...]}, {rows:[...]}, {items:[...]}, {conditions:[...]}, {routes:[...]}
+    for (const key of ['options', 'rows', 'items', 'conditions', 'branches', 'routes', 'value']) {
+      const candidate = record[key]
+      if (Array.isArray(candidate)) {
+        return { items: candidate, fromJson: false }
+      }
+      if (typeof candidate === 'string') {
+        const trimmed = candidate.trim()
+        if (!trimmed) {
+          continue
+        }
+        try {
+          const parsed = JSON.parse(trimmed)
+          if (Array.isArray(parsed)) {
+            return { items: parsed, fromJson: true }
+          }
+        } catch {
+          // Not JSON; ignore and keep probing other wrapper keys.
+        }
+      }
+    }
+    // Accept a single row object and treat it as a one-item array.
+    const looksLikeSingleRow =
+      Object.prototype.hasOwnProperty.call(record, 'id') ||
+      Object.prototype.hasOwnProperty.call(record, 'title') ||
+      Object.prototype.hasOwnProperty.call(record, 'label') ||
+      Object.prototype.hasOwnProperty.call(record, 'name') ||
+      Object.prototype.hasOwnProperty.call(record, 'value') ||
+      Object.prototype.hasOwnProperty.call(record, 'condition') ||
+      Object.prototype.hasOwnProperty.call(record, 'expression') ||
+      Object.prototype.hasOwnProperty.call(record, 'when')
+    if (looksLikeSingleRow) {
+      return { items: [record], fromJson: false }
+    }
+    return { items: null, fromJson: false }
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return { items: [], fromJson: true }
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return { items: parsed, fromJson: true }
+      }
+      return { items: null, fromJson: true }
+    } catch {
+      return { items: null, fromJson: false }
+    }
+  }
+  return { items: null, fromJson: false }
+}
+
+function normalizeConditionTitleForPosition(params: {
+  rawTitle: unknown
+  index: number
+  total: number
+}): {
+  title: 'if' | 'else if' | 'else'
+  overwritten: boolean
+  rawTitleText: string
+} {
+  const { rawTitle, index, total } = params
+  const rawTitleText = typeof rawTitle === 'string' ? rawTitle.trim() : ''
+  const expectedTitle: 'if' | 'else if' | 'else' =
+    index === 0 ? 'if' : index === total - 1 ? 'else' : 'else if'
+  const normalizedRawToken = normalizeAliasToken(rawTitleText)
+
+  const tokenMatchesExpected = (() => {
+    if (!normalizedRawToken) return false
+    if (expectedTitle === 'if') {
+      return normalizedRawToken === 'if'
+    }
+    if (expectedTitle === 'else if') {
+      return normalizedRawToken === 'elseif' || normalizedRawToken.startsWith('elseif')
+    }
+    return normalizedRawToken === 'else'
+  })()
+
+  return {
+    title: expectedTitle,
+    overwritten: Boolean(rawTitleText) && !tokenMatchesExpected,
+    rawTitleText,
+  }
+}
+
+function normalizeConditionInputValue(params: {
+  value: unknown
+  targetId: string
+  operationName: 'patch_block' | 'ensure_block'
+}): {
+  value: Array<{ id: string; title: string; value: string }> | unknown
+  warnings: string[]
+  diagnostics: string[]
+} {
+  const { value, targetId, operationName } = params
+  const warnings: string[] = []
+  const diagnostics: string[] = []
+
+  const parsed = parseArrayLikeInput(value)
+  let items = parsed.items
+  if (!items && typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length > 0) {
+      items = [trimmed]
+      warnings.push(
+        `${operationName} on ${targetId} received non-JSON conditions string; treated as a single "if" condition expression`
+      )
+    }
+  }
+
+  if (!items) {
+    diagnostics.push(
+      `${operationName} on ${targetId} has invalid conditions value. Expected JSON array or array of condition objects.`
+    )
+    return { value, warnings, diagnostics }
+  }
+
+  const objectItems = items
+    .map((item) => {
+      if (typeof item === 'string') {
+        return {
+          id: crypto.randomUUID(),
+          title: '',
+          value: item,
+        }
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return null
+      }
+      const itemRecord = item as Record<string, unknown>
+      const idCandidate = String(itemRecord.id || '').trim()
+      const titleCandidate = itemRecord.title ?? itemRecord.label ?? itemRecord.name
+      const valueCandidate =
+        itemRecord.value ?? itemRecord.condition ?? itemRecord.expression ?? itemRecord.when ?? ''
+      return {
+        id: idCandidate || crypto.randomUUID(),
+        title: typeof titleCandidate === 'string' ? titleCandidate : '',
+        value: typeof valueCandidate === 'string' ? valueCandidate : String(valueCandidate ?? ''),
+      }
+    })
+    .filter((item): item is { id: string; title: string; value: string } => Boolean(item))
+
+  if (objectItems.length === 0) {
+    diagnostics.push(`${operationName} on ${targetId} has no valid condition entries`)
+    return { value, warnings, diagnostics }
+  }
+
+  const normalized = objectItems.map((item, index) => {
+    const titleNormalization = normalizeConditionTitleForPosition({
+      rawTitle: item.title,
+      index,
+      total: objectItems.length,
+    })
+    let normalizedValue = String(item.value || '')
+    if (titleNormalization.overwritten) {
+      warnings.push(
+        `${operationName} on ${targetId} normalized condition title "${titleNormalization.rawTitleText}" to "${titleNormalization.title}" at index ${index}`
+      )
+    }
+    if (titleNormalization.title === 'else' && normalizedValue.trim().length > 0) {
+      warnings.push(
+        `${operationName} on ${targetId} ignored expression on "else" branch at index ${index}; else branch does not evaluate a condition`
+      )
+      normalizedValue = ''
+    }
+    return {
+      id: String(item.id || '').trim() || crypto.randomUUID(),
+      title: titleNormalization.title,
+      value: normalizedValue,
+    }
+  })
+
+  return {
+    value: normalized,
+    warnings,
+    diagnostics,
+  }
+}
+
+function normalizeRouterRoutesInputValue(params: {
+  value: unknown
+  targetId: string
+  operationName: 'patch_block' | 'ensure_block'
+}): {
+  value: Array<{ id: string; title: string; value: string }> | unknown
+  warnings: string[]
+  diagnostics: string[]
+} {
+  const { value, targetId, operationName } = params
+  const warnings: string[] = []
+  const diagnostics: string[] = []
+  const parsed = parseArrayLikeInput(value)
+  let items = parsed.items
+
+  if (!items && typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length > 0) {
+      items = [{ title: 'route-1', value: trimmed }]
+      warnings.push(
+        `${operationName} on ${targetId} received non-JSON routes string; treated as a single route description`
+      )
+    }
+  }
+
+  if (!items) {
+    diagnostics.push(
+      `${operationName} on ${targetId} has invalid routes value. Expected JSON array or array of route objects.`
+    )
+    return { value, warnings, diagnostics }
+  }
+
+  const normalized = items
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return {
+          id: crypto.randomUUID(),
+          title: `route-${index + 1}`,
+          value: item,
+        }
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return null
+      }
+      const itemRecord = item as Record<string, unknown>
+      const idCandidate =
+        String(itemRecord.id || itemRecord.routeId || itemRecord.key || '').trim() ||
+        crypto.randomUUID()
+      const titleCandidate =
+        String(itemRecord.title || itemRecord.name || itemRecord.label || '').trim() ||
+        `route-${index + 1}`
+      const valueCandidate =
+        itemRecord.value ??
+        itemRecord.description ??
+        itemRecord.condition ??
+        itemRecord.expression ??
+        itemRecord.prompt ??
+        ''
+      return {
+        id: idCandidate,
+        title: titleCandidate,
+        value: typeof valueCandidate === 'string' ? valueCandidate : String(valueCandidate ?? ''),
+      }
+    })
+    .filter((item): item is { id: string; title: string; value: string } => Boolean(item))
+
+  if (normalized.length === 0) {
+    diagnostics.push(`${operationName} on ${targetId} has no valid route entries`)
+    return { value, warnings, diagnostics }
+  }
+
+  return {
+    value: normalized,
+    warnings,
+    diagnostics,
+  }
+}
+
 type ReferenceValidationContext = {
   blockNameMapping: Record<string, string>
   blockOutputSchemas: Record<string, OutputSchema>
+  blockMetaById: Record<string, { type: string; triggerMode: boolean }>
 }
 
 function createSerializedBlockForReferenceValidation(
@@ -633,6 +906,7 @@ function buildReferenceValidationContext(workflowState: {
 }): ReferenceValidationContext {
   const blockNameMapping: Record<string, string> = {}
   const blockOutputSchemas: Record<string, OutputSchema> = {}
+  const blockMetaById: Record<string, { type: string; triggerMode: boolean }> = {}
 
   for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
     const serializedBlock = createSerializedBlockForReferenceValidation(
@@ -653,11 +927,18 @@ function buildReferenceValidationContext(workflowState: {
     if (schema && Object.keys(schema).length > 0) {
       blockOutputSchemas[blockId] = schema
     }
+
+    const blockRecord = block as Record<string, unknown>
+    blockMetaById[blockId] = {
+      type: String(blockRecord.type || ''),
+      triggerMode: blockRecord.triggerMode === true,
+    }
   }
 
   return {
     blockNameMapping,
     blockOutputSchemas,
+    blockMetaById,
   }
 }
 
@@ -775,6 +1056,9 @@ function validateReference(
     return null
   }
 
+  const sourceBlockId = context.blockNameMapping[normalizeName(head)]
+  const sourceBlockMeta = sourceBlockId ? context.blockMetaById[sourceBlockId] : undefined
+
   // Keep variable/loop/parallel references warning-free at compile time because
   // they can be context-dependent and <...> may also be used for non-variable text.
   if (
@@ -782,6 +1066,12 @@ function validateReference(
     head === REFERENCE.PREFIX.LOOP ||
     head === REFERENCE.PREFIX.PARALLEL
   ) {
+    return null
+  }
+
+  // Trigger outputs are often runtime-shaped and can include provider-specific payloads
+  // that are not fully represented in static schemas. Do not emit field warnings here.
+  if (sourceBlockMeta?.triggerMode) {
     return null
   }
 
@@ -874,25 +1164,66 @@ function normalizeSingleWorkflowReferenceToken(params: {
 
   const originalValidationError = validateReference(trimmed, context)
   const originalIsValid = !originalValidationError
-  if (originalIsValid) {
-    return { normalized: trimmed }
-  }
+  const originalWrapperDepth = (() => {
+    let depth = 0
+    for (const segment of pathParts) {
+      if (!REFERENCE_PATH_WRAPPER_SEGMENTS.has(normalizeAliasToken(segment || ''))) {
+        break
+      }
+      depth += 1
+    }
+    return depth
+  })()
 
   const candidateHeads = getNormalizedReferenceHeadCandidates(head)
   const candidatePaths = getNormalizedReferencePathCandidates(pathParts)
-  const validCandidates: string[] = []
+  const validCandidates = new Set<string>()
+  if (originalIsValid) {
+    validCandidates.add(trimmed)
+  }
 
   for (const candidateHead of candidateHeads) {
     for (const candidatePath of candidatePaths) {
       const candidate = buildReferenceToken(candidateHead, candidatePath)
       if (!validateReference(candidate, context)) {
-        validCandidates.push(candidate)
+        validCandidates.add(candidate)
       }
     }
   }
 
-  if (validCandidates.length > 0) {
-    const preferred = validCandidates[0]
+  const scoreCandidate = (candidate: string): { wrapperDepth: number; pathLength: number } => {
+    const parsedCandidate = parseReferencePath(candidate)
+    const candidatePath = parsedCandidate.slice(1)
+    let wrapperDepth = 0
+    for (const segment of candidatePath) {
+      if (!REFERENCE_PATH_WRAPPER_SEGMENTS.has(normalizeAliasToken(segment || ''))) {
+        break
+      }
+      wrapperDepth += 1
+    }
+    return {
+      wrapperDepth,
+      pathLength: candidatePath.length,
+    }
+  }
+
+  const orderedCandidates = [...validCandidates].sort((a, b) => {
+    const scoreA = scoreCandidate(a)
+    const scoreB = scoreCandidate(b)
+    if (scoreA.wrapperDepth !== scoreB.wrapperDepth) {
+      return scoreA.wrapperDepth - scoreB.wrapperDepth
+    }
+    if (scoreA.pathLength !== scoreB.pathLength) {
+      return scoreA.pathLength - scoreB.pathLength
+    }
+    return a.localeCompare(b)
+  })
+
+  if (orderedCandidates.length > 0) {
+    const preferred = orderedCandidates[0]
+    if (originalIsValid && originalWrapperDepth === 0 && preferred === trimmed) {
+      return { normalized: trimmed }
+    }
     if (preferred !== trimmed) {
       return {
         normalized: preferred,
@@ -900,6 +1231,10 @@ function normalizeSingleWorkflowReferenceToken(params: {
       }
     }
     return { normalized: preferred }
+  }
+
+  if (originalIsValid) {
+    return { normalized: trimmed }
   }
 
   return { normalized: trimmed }
@@ -1728,6 +2063,537 @@ function ensureConnectionTarget(
   return [...existing, target]
 }
 
+function canonicalizeConditionHandleAlias(handle: string): {
+  handle: string
+  warning?: string
+} {
+  const trimmed = String(handle || '').trim()
+  if (!trimmed) return { handle: 'if', warning: 'defaulted empty condition handle to "if"' }
+  if (trimmed.startsWith('condition-')) {
+    const suffix = trimmed.slice('condition-'.length).trim()
+    if (UUID_REGEX.test(suffix)) {
+      return { handle: trimmed }
+    }
+    const normalizedSuffix = normalizeAliasToken(suffix)
+    if (normalizedSuffix === 'if' || normalizedSuffix === 'then' || normalizedSuffix === 'true') {
+      return { handle: 'if', warning: `normalized condition handle "${trimmed}" to "if"` }
+    }
+    if (
+      normalizedSuffix === 'else' ||
+      normalizedSuffix === 'otherwise' ||
+      normalizedSuffix === 'default'
+    ) {
+      return { handle: 'else', warning: `normalized condition handle "${trimmed}" to "else"` }
+    }
+    const elseIfMatch =
+      suffix.match(/^else[\s_-]*if(?:[\s_-]*(\d+))?$/i) ||
+      suffix.match(/^elseif(?:[\s_-]*(\d+))?$/i)
+    if (elseIfMatch) {
+      const rawIndex = elseIfMatch[1]
+      const parsed = rawIndex ? Number.parseInt(rawIndex, 10) : 0
+      const index = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+      return {
+        handle: `else-if-${index}`,
+        warning: `normalized condition handle "${trimmed}" to "else-if-${index}"`,
+      }
+    }
+    return { handle: trimmed }
+  }
+
+  const normalized = normalizeAliasToken(trimmed)
+  if (normalized === 'source' || normalized === 'success') {
+    return {
+      handle: 'if',
+      warning: `normalized condition handle "${trimmed}" to "if"`,
+    }
+  }
+  if (normalized === 'if' || normalized === 'true' || normalized === 'then') {
+    return { handle: 'if' }
+  }
+  if (normalized === 'else' || normalized === 'otherwise' || normalized === 'default') {
+    return { handle: 'else' }
+  }
+
+  const elseIfMatch =
+    trimmed.match(/^else[\s_-]*if(?:[\s_-]*(\d+))?$/i) ||
+    trimmed.match(/^elseif(?:[\s_-]*(\d+))?$/i)
+  if (elseIfMatch) {
+    const rawIndex = elseIfMatch[1]
+    if (!rawIndex) {
+      return { handle: 'else-if-0', warning: `normalized condition handle "${trimmed}" to "else-if-0"` }
+    }
+    const parsed = Number(rawIndex)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { handle: 'else-if-0', warning: `normalized condition handle "${trimmed}" to "else-if-0"` }
+    }
+    return { handle: `else-if-${parsed}` }
+  }
+
+  return { handle: trimmed }
+}
+
+function canonicalizeRouterHandleAlias(handle: string): {
+  handle: string
+  warning?: string
+} {
+  const trimmed = String(handle || '').trim()
+  if (!trimmed) {
+    return { handle: 'route-0', warning: 'defaulted empty router handle to "route-0"' }
+  }
+  if (trimmed.startsWith('router-')) return { handle: trimmed }
+
+  const normalized = normalizeAliasToken(trimmed)
+  if (normalized === 'source' || normalized === 'success' || normalized === 'route') {
+    return {
+      handle: 'route-0',
+      warning: `normalized router handle "${trimmed}" to "route-0"`,
+    }
+  }
+
+  const routeMatch = trimmed.match(/^route[\s_-]*(\d+)$/i)
+  if (routeMatch) {
+    const parsed = Number(routeMatch[1])
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { handle: 'route-0', warning: `normalized router handle "${trimmed}" to "route-0"` }
+    }
+    return { handle: `route-${parsed}` }
+  }
+
+  return { handle: trimmed }
+}
+
+function parseRouterRowsForCompile(
+  routesValue: unknown
+): Array<{ id: string; title: string }> {
+  let rows: unknown[] | null = null
+  if (Array.isArray(routesValue)) {
+    rows = routesValue
+  } else if (typeof routesValue === 'string') {
+    try {
+      const parsed = JSON.parse(routesValue)
+      if (Array.isArray(parsed)) {
+        rows = parsed
+      }
+    } catch {
+      rows = null
+    }
+  }
+
+  if (!rows) return []
+  return rows
+    .map((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return null
+      const record = row as Record<string, unknown>
+      return {
+        id: String(record.id || '').trim(),
+        title: String(record.title || record.name || record.label || '').trim(),
+      }
+    })
+    .filter((row): row is { id: string; title: string } => Boolean(row))
+}
+
+function resolveRouterHandleAliasFromRoutes(params: {
+  requestedHandle: string
+  canonicalHandle: string
+  routesValue: unknown
+}): { handle: string; warning?: string } {
+  const { requestedHandle, canonicalHandle, routesValue } = params
+  if (canonicalHandle.startsWith('route-')) {
+    return { handle: canonicalHandle }
+  }
+
+  const routeRows = parseRouterRowsForCompile(routesValue)
+  if (routeRows.length === 0) {
+    return { handle: canonicalHandle }
+  }
+
+  if (canonicalHandle.startsWith('router-')) {
+    const suffix = canonicalHandle.slice('router-'.length).trim()
+    const suffixToken = normalizeAliasToken(suffix)
+    const idMatch = routeRows.find((route) => normalizeAliasToken(route.id) === suffixToken)
+    if (idMatch) {
+      return { handle: `router-${idMatch.id}` }
+    }
+    const routeIndexMatch = suffix.match(/^route[\s_-]*(\d+)$/i)
+    if (routeIndexMatch) {
+      const rawNumber = Number.parseInt(routeIndexMatch[1], 10)
+      if (Number.isFinite(rawNumber)) {
+        // Legacy router-route-N aliases are commonly 1-indexed in prompts.
+        const zeroIndexed = Math.max(0, rawNumber - 1)
+        if (zeroIndexed < routeRows.length) {
+          return {
+            handle: `route-${zeroIndexed}`,
+            warning:
+              `normalized router handle "${requestedHandle}" to "route-${zeroIndexed}" ` +
+              `(from legacy "${canonicalHandle}")`,
+          }
+        }
+      }
+    }
+  }
+
+  const requestedToken = normalizeAliasToken(requestedHandle)
+  const canonicalToken = normalizeAliasToken(canonicalHandle)
+  const routerSuffixToken = canonicalHandle.startsWith('router-')
+    ? normalizeAliasToken(canonicalHandle.slice('router-'.length))
+    : ''
+  const tokensToMatch = stableUnique(
+    [requestedToken, canonicalToken, routerSuffixToken].filter(Boolean)
+  )
+
+  for (let index = 0; index < routeRows.length; index++) {
+    const route = routeRows[index]
+    const idToken = normalizeAliasToken(route.id)
+    const titleToken = normalizeAliasToken(route.title)
+
+    if (route.id && tokensToMatch.includes(idToken)) {
+      return {
+        handle: `router-${route.id}`,
+        warning: `normalized router handle "${requestedHandle}" to route id "${route.id}"`,
+      }
+    }
+
+    if (route.title && tokensToMatch.includes(titleToken)) {
+      return {
+        handle: `route-${index}`,
+        warning:
+          `normalized router handle "${requestedHandle}" to "route-${index}" ` +
+          `using route title "${route.title}"`,
+      }
+    }
+  }
+
+  return { handle: canonicalHandle }
+}
+
+function parseConditionRowsForCompile(
+  conditionsValue: unknown
+): Array<{ id: string; title: string }> {
+  const normalizedRows = normalizeConditionRowsForCompile(conditionsValue)
+  if (!normalizedRows) return []
+  return normalizedRows.map((row) => ({ id: row.id, title: row.title }))
+}
+
+function resolveConditionHandleAliasFromConditions(params: {
+  requestedHandle: string
+  canonicalHandle: string
+  conditionsValue: unknown
+}): { handle: string; warning?: string } {
+  const { requestedHandle, canonicalHandle, conditionsValue } = params
+  if (
+    canonicalHandle === 'if' ||
+    canonicalHandle === 'else' ||
+    canonicalHandle.startsWith('else-if-')
+  ) {
+    return { handle: canonicalHandle }
+  }
+
+  const conditionRows = parseConditionRowsForCompile(conditionsValue)
+  if (conditionRows.length === 0) {
+    return { handle: canonicalHandle }
+  }
+
+  const parseConditionBranchAlias = (raw: string): string | null => {
+    const trimmed = String(raw || '').trim()
+    if (!trimmed) return null
+
+    const normalized = normalizeAliasToken(trimmed)
+    if (normalized === 'if' || normalized === 'then' || normalized === 'true') {
+      return 'if'
+    }
+    if (normalized === 'else' || normalized === 'otherwise' || normalized === 'default') {
+      return 'else'
+    }
+
+    const elseIfMatch =
+      trimmed.match(/^else[\s_-]*if(?:[\s_-]*(\d+))?$/i) ||
+      trimmed.match(/^elseif(?:[\s_-]*(\d+))?$/i)
+    if (elseIfMatch) {
+      const rawIndex = elseIfMatch[1]
+      const index = rawIndex ? Number.parseInt(rawIndex, 10) : 0
+      return Number.isFinite(index) && index >= 0 ? `else-if-${index}` : 'else-if-0'
+    }
+
+    const semanticTail = trimmed.match(/(?:^|[-_])(if|else|else[\s_-]*if(?:[\s_-]*\d+)?)$/i)
+    if (semanticTail?.[1]) {
+      return parseConditionBranchAlias(semanticTail[1])
+    }
+
+    return null
+  }
+
+  if (canonicalHandle.startsWith('condition-')) {
+    const rawSuffix = canonicalHandle.slice('condition-'.length).trim()
+    const suffixToken = normalizeAliasToken(rawSuffix)
+    const idMatch = conditionRows.find((row) => normalizeAliasToken(row.id) === suffixToken)
+    if (idMatch) {
+      return { handle: `condition-${idMatch.id}` }
+    }
+    const branchAlias = parseConditionBranchAlias(rawSuffix)
+    if (branchAlias) {
+      return {
+        handle: branchAlias,
+        warning: `normalized condition handle "${requestedHandle}" to "${branchAlias}"`,
+      }
+    }
+  }
+
+  const requestedToken = normalizeAliasToken(requestedHandle)
+  const canonicalToken = normalizeAliasToken(canonicalHandle)
+  const tokensToMatch = stableUnique([requestedToken, canonicalToken].filter(Boolean))
+
+  for (let index = 0; index < conditionRows.length; index++) {
+    const row = conditionRows[index]
+    const idToken = normalizeAliasToken(row.id)
+    const titleToken = normalizeAliasToken(row.title)
+
+    if (row.id && tokensToMatch.includes(idToken)) {
+      return {
+        handle: `condition-${row.id}`,
+        warning: `normalized condition handle "${requestedHandle}" to condition id "${row.id}"`,
+      }
+    }
+
+    if (tokensToMatch.includes(titleToken)) {
+      if (row.title === 'if') return { handle: 'if' }
+      if (row.title === 'else') return { handle: 'else' }
+      return {
+        handle: `else-if-${Math.max(0, index - 1)}`,
+        warning:
+          `normalized condition handle "${requestedHandle}" to "else-if-${Math.max(0, index - 1)}" ` +
+          `using condition title "${row.title}"`,
+      }
+    }
+  }
+
+  return { handle: canonicalHandle }
+}
+
+function normalizeConditionRowsForCompile(
+  value: unknown
+): Array<{ id: string; title: 'if' | 'else if' | 'else'; value: string }> | null {
+  const parsed = parseArrayLikeInput(value)
+  if (!parsed.items) return null
+
+  const rows = parsed.items
+    .map((item) => {
+      if (typeof item === 'string') {
+        return {
+          id: crypto.randomUUID(),
+          title: '',
+          value: item,
+        }
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const record = item as Record<string, unknown>
+      const titleCandidate = record.title ?? record.label ?? record.name
+      const valueCandidate =
+        record.value ?? record.condition ?? record.expression ?? record.when ?? ''
+      return {
+        id: String(record.id || '').trim() || crypto.randomUUID(),
+        title: typeof titleCandidate === 'string' ? titleCandidate : '',
+        value: typeof valueCandidate === 'string' ? valueCandidate : String(valueCandidate ?? ''),
+      }
+    })
+    .filter((row): row is { id: string; title: string; value: string } => Boolean(row))
+
+  if (rows.length === 0) return null
+
+  return rows.map((row, index) => {
+    const titleNormalization = normalizeConditionTitleForPosition({
+      rawTitle: row.title,
+      index,
+      total: rows.length,
+    })
+    return {
+      id: row.id,
+      title: titleNormalization.title,
+      value: titleNormalization.title === 'else' ? '' : String(row.value || ''),
+    }
+  })
+}
+
+function maybeAutoAddElseBranchForCondition(params: {
+  sourceBlockId: string
+  sourceBlock: Record<string, any> | undefined
+  requestedHandle: string
+}): {
+  updatedValue?: Array<{ id: string; title: 'if' | 'else if' | 'else'; value: string }>
+  warnings: string[]
+} {
+  const { sourceBlockId, sourceBlock, requestedHandle } = params
+  if (requestedHandle !== 'else' || !sourceBlock) {
+    return { warnings: [] }
+  }
+
+  const currentValue = sourceBlock?.subBlocks?.conditions?.value
+  const normalizedRows = normalizeConditionRowsForCompile(currentValue)
+  if (!normalizedRows || normalizedRows.length === 0) {
+    return { warnings: [] }
+  }
+
+  const hasElse = normalizedRows.some((row) => row.title === 'else')
+  if (hasElse) {
+    return { warnings: [] }
+  }
+
+  const nextRows = [
+    ...normalizedRows.map((row, index) => ({
+      ...row,
+      title: (index === 0 ? 'if' : 'else if') as 'if' | 'else if' | 'else',
+      value: row.value,
+    })),
+    { id: crypto.randomUUID(), title: 'else' as const, value: '' },
+  ]
+
+  if (!sourceBlock.subBlocks) {
+    sourceBlock.subBlocks = {}
+  }
+  const existingConditionsSubBlock =
+    sourceBlock.subBlocks.conditions && typeof sourceBlock.subBlocks.conditions === 'object'
+      ? sourceBlock.subBlocks.conditions
+      : { id: 'conditions', type: 'condition-input' }
+  sourceBlock.subBlocks.conditions = {
+    ...existingConditionsSubBlock,
+    id: 'conditions',
+    value: nextRows,
+  }
+
+  return {
+    updatedValue: nextRows,
+    warnings: [
+      `Condition block "${sourceBlockId}" auto-added an "else" row because a connection used handle "else".`,
+    ],
+  }
+}
+
+function normalizeBranchingSourceHandleForCompile(params: {
+  sourceBlockId: string
+  sourceBlockType: string
+  sourceHandle: string
+  sourceBlock: Record<string, any> | undefined
+}): {
+  sourceHandle: string
+  warnings: string[]
+  diagnostic?: string
+  inputPatch?: { field: string; value: unknown }
+} {
+  const { sourceBlockId, sourceBlockType, sourceHandle, sourceBlock } = params
+  const warnings: string[] = []
+
+  if (sourceBlockType === 'condition') {
+    const canonicalized = canonicalizeConditionHandleAlias(sourceHandle)
+    if (canonicalized.warning) warnings.push(canonicalized.warning)
+    const autoElse = maybeAutoAddElseBranchForCondition({
+      sourceBlockId,
+      sourceBlock,
+      requestedHandle: canonicalized.handle,
+    })
+    warnings.push(...autoElse.warnings)
+
+    let conditionValue = sourceBlock?.subBlocks?.conditions?.value
+    if (autoElse.updatedValue) {
+      conditionValue = autoElse.updatedValue
+    }
+    if (!conditionValue) {
+      return {
+        sourceHandle: canonicalized.handle,
+        warnings,
+        diagnostic:
+          `Condition block "${sourceBlockId}" has no conditions configured. ` +
+          `Set inputs.conditions before connecting branches.`,
+      }
+    }
+    const resolvedAlias = resolveConditionHandleAliasFromConditions({
+      requestedHandle: sourceHandle,
+      canonicalHandle: canonicalized.handle,
+      conditionsValue: conditionValue,
+    })
+    if (resolvedAlias.warning) warnings.push(resolvedAlias.warning)
+
+    const handleForValidation = resolvedAlias.handle
+    const validation = validateConditionHandle(handleForValidation, sourceBlockId, conditionValue)
+    if (!validation.valid) {
+      return {
+        sourceHandle: handleForValidation,
+        warnings,
+        diagnostic:
+          `Invalid condition branch handle "${sourceHandle}" for block "${sourceBlockId}": ` +
+          `${validation.error}`,
+      }
+    }
+    return {
+      sourceHandle: validation.normalizedHandle || handleForValidation,
+      warnings,
+      inputPatch: autoElse.updatedValue
+        ? {
+            field: 'conditions',
+            value: autoElse.updatedValue,
+          }
+        : undefined,
+    }
+  }
+
+  if (sourceBlockType === 'router_v2') {
+    const canonicalized = canonicalizeRouterHandleAlias(sourceHandle)
+    if (canonicalized.warning) warnings.push(canonicalized.warning)
+    const routesValue = sourceBlock?.subBlocks?.routes?.value
+    if (!routesValue) {
+      return {
+        sourceHandle: canonicalized.handle,
+        warnings,
+        diagnostic:
+          `Router block "${sourceBlockId}" has no routes configured. ` +
+          `Set inputs.routes before connecting route branches.`,
+      }
+    }
+    const resolvedAlias = resolveRouterHandleAliasFromRoutes({
+      requestedHandle: sourceHandle,
+      canonicalHandle: canonicalized.handle,
+      routesValue,
+    })
+    if (resolvedAlias.warning) warnings.push(resolvedAlias.warning)
+
+    const handleForValidation = resolvedAlias.handle
+    const validation = validateRouterHandle(handleForValidation, sourceBlockId, routesValue)
+    if (!validation.valid) {
+      return {
+        sourceHandle: handleForValidation,
+        warnings,
+        diagnostic:
+          `Invalid router branch handle "${sourceHandle}" for block "${sourceBlockId}": ` +
+          `${validation.error}`,
+      }
+    }
+    return {
+      sourceHandle: validation.normalizedHandle || handleForValidation,
+      warnings,
+    }
+  }
+
+  if (sourceBlockType === 'router') {
+    const canonicalized = canonicalizeRouterHandleAlias(sourceHandle)
+    if (canonicalized.warning) warnings.push(canonicalized.warning)
+    // Legacy router does not use route definitions in inputs; keep deterministic by
+    // normalizing ambiguous route aliases to "source".
+    if (canonicalized.handle.startsWith('route-')) {
+      return {
+        sourceHandle: 'source',
+        warnings: [
+          ...warnings,
+          `normalized legacy router handle "${sourceHandle}" to "source"`,
+        ],
+      }
+    }
+    return {
+      sourceHandle: canonicalized.handle,
+      warnings,
+    }
+  }
+
+  return { sourceHandle, warnings }
+}
+
 function expectedContainerTypeForSourceHandle(
   handle: string | undefined
 ): 'loop' | 'parallel' | null {
@@ -1742,6 +2608,8 @@ function normalizeContainerConnectionHandles(params: {
   targetHandle: string
   sourceBlockType: string
   targetBlockType: string
+  sourceParentId: string | null
+  targetParentId: string | null
 }): { sourceHandle: string; targetHandle: string; warnings: string[] } {
   const {
     fromBlockId,
@@ -1750,24 +2618,101 @@ function normalizeContainerConnectionHandles(params: {
     targetHandle,
     sourceBlockType,
     targetBlockType,
+    sourceParentId,
+    targetParentId,
   } = params
 
   let nextSourceHandle = sourceHandle
   let nextTargetHandle = targetHandle
   const warnings: string[] = []
 
-  const sourceHandleContainerType = expectedContainerTypeForSourceHandle(sourceHandle)
-  if (sourceHandleContainerType && sourceBlockType !== sourceHandleContainerType) {
-    if (targetBlockType === sourceHandleContainerType) {
+  const inferContainerSourceHandle = (
+    blockType: 'loop' | 'parallel',
+    isTargetInsideContainer: boolean
+  ): string =>
+    blockType === 'loop'
+      ? isTargetInsideContainer
+        ? 'loop-start-source'
+        : 'loop-end-source'
+      : isTargetInsideContainer
+        ? 'parallel-start-source'
+        : 'parallel-end-source'
+
+  const mapContainerHandleForType = (
+    handle: string,
+    blockType: 'loop' | 'parallel'
+  ): string | null => {
+    if (handle.endsWith('start-source')) {
+      return blockType === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+    }
+    if (handle.endsWith('end-source')) {
+      return blockType === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+    }
+    return null
+  }
+
+  if ((sourceBlockType === 'loop' || sourceBlockType === 'parallel') && nextSourceHandle === 'source') {
+    const inferred = inferContainerSourceHandle(
+      sourceBlockType,
+      targetParentId === fromBlockId
+    )
+    nextSourceHandle = inferred
+    warnings.push(
+      `normalized source handle "source" to "${inferred}" for ${fromBlockId}->${toBlockId} based on container boundary`
+    )
+  }
+
+  const sourceHandleContainerType = expectedContainerTypeForSourceHandle(nextSourceHandle)
+  if (
+    sourceHandleContainerType &&
+    (sourceBlockType === 'loop' || sourceBlockType === 'parallel') &&
+    sourceHandleContainerType !== sourceBlockType
+  ) {
+    const remapped = mapContainerHandleForType(nextSourceHandle, sourceBlockType)
+    if (remapped && remapped !== nextSourceHandle) {
+      warnings.push(
+        `normalized source handle "${nextSourceHandle}" to "${remapped}" for ${fromBlockId} (${sourceBlockType})`
+      )
+      nextSourceHandle = remapped
+    }
+  }
+
+  const normalizedSourceHandleContainerType = expectedContainerTypeForSourceHandle(nextSourceHandle)
+  if (normalizedSourceHandleContainerType && sourceBlockType !== normalizedSourceHandleContainerType) {
+    if (targetBlockType === normalizedSourceHandleContainerType) {
+      const originalSourceHandle = nextSourceHandle
       nextSourceHandle = 'source'
       warnings.push(
-        `normalized source handle "${sourceHandle}" to "source" for ${fromBlockId}->${toBlockId}. ` +
+        `normalized source handle "${originalSourceHandle}" to "source" for ${fromBlockId}->${toBlockId}. ` +
           `Container source handles belong on the container block as the "from" endpoint.`
       )
     }
   }
 
   const targetHandleContainerType = expectedContainerTypeForSourceHandle(targetHandle)
+  if (
+    targetHandleContainerType &&
+    targetBlockType === targetHandleContainerType &&
+    sourceBlockType !== targetHandleContainerType
+  ) {
+    const isStartHandle = targetHandle.endsWith('start-source')
+    const isEndHandle = targetHandle.endsWith('end-source')
+
+    if (isStartHandle) {
+      nextTargetHandle = 'target'
+      warnings.push(
+        `normalized target handle "${targetHandle}" to "target" for ${fromBlockId}->${toBlockId}. ` +
+          `Container start handles belong on the container as source handles.`
+      )
+    } else if (isEndHandle && sourceParentId === toBlockId) {
+      nextTargetHandle = 'target'
+      warnings.push(
+        `normalized target handle "${targetHandle}" to "target" for ${fromBlockId}->${toBlockId}. ` +
+          `Child blocks do not connect to container end handles directly.`
+      )
+    }
+  }
+
   if (targetHandleContainerType && targetBlockType !== targetHandleContainerType) {
     if (sourceBlockType === targetHandleContainerType) {
       nextTargetHandle = 'target'
@@ -1794,6 +2739,67 @@ function hasIncomingConnection(connectionState: ConnectionState, targetId: strin
     }
   }
   return false
+}
+
+function formatCyclePathForDiagnostics(params: {
+  cyclePath: string[]
+  workflowState: { blocks: Record<string, any> }
+}): string {
+  const { cyclePath, workflowState } = params
+  if (!Array.isArray(cyclePath) || cyclePath.length === 0) {
+    return 'unknown'
+  }
+  return cyclePath
+    .map((blockId) => {
+      const blockName = String(workflowState.blocks?.[blockId]?.name || '').trim()
+      return blockName ? `${blockName} (${blockId})` : blockId
+    })
+    .join(' -> ')
+}
+
+function isTriggerLikeBlockType(blockType: string): boolean {
+  if (!blockType) return false
+  const blockConfig = getBlock(blockType)
+  if (blockConfig?.category === 'triggers') {
+    return true
+  }
+  return (
+    blockType === 'start_trigger' ||
+    blockType === 'starter' ||
+    blockType.endsWith('_trigger')
+  )
+}
+
+function collectUnusedIncomingPortWarnings(workflowState: {
+  blocks: Record<string, any>
+  edges: Array<Record<string, any>>
+}): string[] {
+  const incomingCounts = new Map<string, number>()
+  for (const edge of workflowState.edges || []) {
+    const targetId = String(edge?.target || '').trim()
+    if (!targetId) continue
+    incomingCounts.set(targetId, (incomingCounts.get(targetId) || 0) + 1)
+  }
+
+  const warnings: string[] = []
+  for (const [blockId, rawBlock] of Object.entries(workflowState.blocks || {})) {
+    const block = rawBlock as Record<string, any>
+    const blockType = String(block?.type || '').trim()
+    if (!blockType) continue
+    if (block?.enabled === false) continue
+    if (isAnnotationOnlyBlock(blockType)) continue
+    if (isTriggerLikeBlockType(blockType)) continue
+
+    const incomingCount = incomingCounts.get(blockId) || 0
+    if (incomingCount > 0) continue
+
+    const blockName = String(block?.name || '').trim() || blockId
+    warnings.push(
+      `Block "${blockName}" (${blockId}) has an unused incoming target port (no incoming connection).`
+    )
+  }
+
+  return warnings
 }
 
 function addSubflowWiringWarnings(params: {
@@ -1874,11 +2880,13 @@ async function compileChangeSpec(params: {
   const touchedBlocks = new Set<string>()
   const touchedSubflowIds = new Set<string>()
   const resolvedIds: Record<string, string> = { ...(changeSpec.resolvedIds || {}) }
+  const deferredConnectionMutations: Array<{ mutation: any; mutationIndex: number }> = []
 
   const aliasMap = new Map<string, string>()
   const workingState = deepClone(workflowState)
   const connectionState = buildConnectionState(workingState)
   const connectionTouchedSources = new Set<string>()
+  const connectionInputPatches = new Map<string, Record<string, unknown>>()
   const plannedBlockTypes = new Map<string, string>()
   const schemaFallbackLogged = new Set<string>()
 
@@ -2130,6 +3138,40 @@ async function compileChangeSpec(params: {
     return normalized
   }
 
+  const normalizeBranchingInputsForCompile = (params: {
+    targetId: string
+    blockType: string
+    operationName: 'patch_block' | 'ensure_block'
+    inputs: Record<string, any>
+  }): Record<string, any> => {
+    const { targetId, blockType, operationName } = params
+    const normalizedInputs: Record<string, any> = { ...(params.inputs || {}) }
+
+    if (blockType === 'condition' && Object.prototype.hasOwnProperty.call(normalizedInputs, 'conditions')) {
+      const normalizedConditions = normalizeConditionInputValue({
+        value: normalizedInputs.conditions,
+        targetId,
+        operationName,
+      })
+      warnings.push(...normalizedConditions.warnings)
+      diagnostics.push(...normalizedConditions.diagnostics)
+      normalizedInputs.conditions = normalizedConditions.value
+    }
+
+    if (blockType === 'router_v2' && Object.prototype.hasOwnProperty.call(normalizedInputs, 'routes')) {
+      const normalizedRoutes = normalizeRouterRoutesInputValue({
+        value: normalizedInputs.routes,
+        targetId,
+        operationName,
+      })
+      warnings.push(...normalizedRoutes.warnings)
+      diagnostics.push(...normalizedRoutes.diagnostics)
+      normalizedInputs.routes = normalizedRoutes.value
+    }
+
+    return normalizedInputs
+  }
+
   const normalizeInputsWithSchema = (
     targetId: string,
     blockType: string,
@@ -2142,10 +3184,16 @@ async function compileChangeSpec(params: {
       operationName,
       inputs,
     })
+    const normalizedBranchingInputs = normalizeBranchingInputsForCompile({
+      targetId,
+      blockType,
+      operationName,
+      inputs: normalizedContainerInputs,
+    })
     if (!requireSchema(targetId, blockType, operationName)) {
       return {}
     }
-    const validation = validateInputsForBlock(blockType, normalizedContainerInputs, targetId)
+    const validation = validateInputsForBlock(blockType, normalizedBranchingInputs, targetId)
     for (const validationError of validation.errors) {
       diagnostics.push(
         `${operationName} on ${targetId} failed input validation: ${validationError.error}`
@@ -2227,6 +3275,114 @@ async function compileChangeSpec(params: {
 
   const resolveBlockType = (blockId: string): string =>
     String(workingState.blocks[blockId]?.type || plannedBlockTypes.get(blockId) || '')
+
+  const resolveParentId = (blockId: string): string | null => {
+    const parentId = String(workingState.blocks[blockId]?.data?.parentId || '').trim()
+    return parentId.length > 0 ? parentId : null
+  }
+
+  const applyConnectionMutation = (mutation: any): void => {
+    const from = resolveTarget(mutation.from)
+    const to = resolveTarget(mutation.to)
+    if (!from || !to) {
+      diagnostics.push(
+        `${mutation.action} requires resolvable from/to targets. Prefer alias/match selectors, ` +
+          'or refresh workflow_context_get after prior apply before retrying.'
+      )
+      return
+    }
+    const sourceBlockType = resolveBlockType(from)
+    const targetBlockType = resolveBlockType(to)
+    const sourceParentId = resolveParentId(from)
+    const normalizedBranchHandle = normalizeBranchingSourceHandleForCompile({
+      sourceBlockId: from,
+      sourceBlockType,
+      sourceHandle: normalizeHandle(mutation.handle),
+      sourceBlock: workingState.blocks[from],
+    })
+    warnings.push(
+      ...normalizedBranchHandle.warnings.map(
+        (warning) => `${mutation.action} from "${from}" to "${to}": ${warning}`
+      )
+    )
+    if (normalizedBranchHandle.diagnostic) {
+      diagnostics.push(
+        `${mutation.action} from "${from}" to "${to}" failed: ${normalizedBranchHandle.diagnostic}`
+      )
+      return
+    }
+    if (normalizedBranchHandle.inputPatch) {
+      const existingPatch = connectionInputPatches.get(from) || {}
+      connectionInputPatches.set(from, {
+        ...existingPatch,
+        [normalizedBranchHandle.inputPatch.field]: normalizedBranchHandle.inputPatch.value,
+      })
+    }
+    let rawTargetHandle = mutation.toHandle || 'target'
+    const initialTargetHandleContainerType = expectedContainerTypeForSourceHandle(rawTargetHandle)
+    if (
+      initialTargetHandleContainerType &&
+      targetBlockType === initialTargetHandleContainerType &&
+      sourceBlockType !== initialTargetHandleContainerType
+    ) {
+      const isEndHandle = rawTargetHandle.endsWith('end-source')
+      if (isEndHandle && sourceParentId === to) {
+        warnings.push(
+          `${mutation.action} from "${from}" to "${to}" used "${rawTargetHandle}" on toHandle. ` +
+            `This pattern is implicit for subflow completion and was skipped. ` +
+            `Use from=<${to}> with handle="${rawTargetHandle}" to route container exit to a downstream block.`
+        )
+        return
+      }
+      if (rawTargetHandle.endsWith('start-source')) {
+        warnings.push(
+          `${mutation.action} from "${from}" to "${to}" moved toHandle "${rawTargetHandle}" to default "target". ` +
+            `Container start handles belong on the container as source handles.`
+        )
+        rawTargetHandle = 'target'
+      }
+    }
+    const rawTargetHandleContainerType = expectedContainerTypeForSourceHandle(rawTargetHandle)
+    if (
+      rawTargetHandleContainerType &&
+      targetBlockType === rawTargetHandleContainerType &&
+      sourceBlockType !== rawTargetHandleContainerType
+    ) {
+      diagnostics.push(
+        `${mutation.action} from "${from}" to "${to}" uses toHandle "${rawTargetHandle}" incorrectly. ` +
+          `Container handles must be used as source handles on the container block. ` +
+          `Use from=<container>, handle="${rawTargetHandle}", to=<target>.`
+      )
+      return
+    }
+    const normalizedHandles = normalizeContainerConnectionHandles({
+      fromBlockId: from,
+      toBlockId: to,
+      sourceHandle: normalizedBranchHandle.sourceHandle,
+      targetHandle: rawTargetHandle,
+      sourceBlockType,
+      targetBlockType,
+      sourceParentId,
+      targetParentId: String(workingState.blocks[to]?.data?.parentId || '') || null,
+    })
+    warnings.push(...normalizedHandles.warnings)
+    const sourceHandle = normalizedHandles.sourceHandle
+    const targetHandle = normalizedHandles.targetHandle
+    let sourceMap = connectionState.get(from)
+    if (!sourceMap) {
+      sourceMap = new Map()
+      connectionState.set(from, sourceMap)
+    }
+    const existingTargets = sourceMap.get(sourceHandle) || []
+    const mode =
+      mutation.action === 'disconnect'
+        ? 'remove'
+        : ('mode' in mutation ? mutation.mode : undefined) || 'set'
+    const nextTargets = ensureConnectionTarget(existingTargets, { block: to, handle: targetHandle }, mode)
+    sourceMap.set(sourceHandle, nextTargets)
+    connectionTouchedSources.add(from)
+    touchedBlocks.add(from)
+  }
 
   const normalizeMutationValueWithWorkingState = (
     value: unknown,
@@ -2605,6 +3761,7 @@ async function compileChangeSpec(params: {
       return
     }
     const topLevelField = pathSegments[0]
+    const topLevelToken = normalizeAliasToken(topLevelField)
     if (!['name', 'type', 'triggerMode', 'advancedMode', 'enabled'].includes(topLevelField)) {
       if (
         blockType === 'agent' &&
@@ -2639,7 +3796,101 @@ async function compileChangeSpec(params: {
         )
         return
       }
+      if (blockType === 'condition' && (topLevelToken === 'conditions' || topLevelToken === 'branches')) {
+        const currentConditions =
+          paramsOut.inputs?.conditions ??
+          workingState.blocks[targetId]?.subBlocks?.conditions?.value ??
+          []
+        let nextConditions: unknown = currentConditions
+        if (change.op === 'set') {
+          nextConditions = normalizedChangeValue
+        } else if (change.op === 'unset') {
+          nextConditions = []
+        } else if (change.op === 'append') {
+          const asArray = Array.isArray(currentConditions) ? [...currentConditions] : []
+          asArray.push(normalizedChangeValue)
+          nextConditions = asArray
+        } else if (change.op === 'remove') {
+          if (!Array.isArray(currentConditions)) {
+            diagnostics.push(
+              `remove on ${targetId} at "${change.path}" requires an array value for condition branches`
+            )
+            return
+          }
+          nextConditions = removeArrayItem(currentConditions, normalizedChangeValue)
+        } else if (change.op === 'merge') {
+          diagnostics.push(
+            `merge on ${targetId} at "${change.path}" is not supported for condition branches. ` +
+              `Use set/append/remove.`
+          )
+          return
+        }
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs.conditions = nextConditions
+        warnings.push(
+          `Converted top-level condition path "${change.path}" to "inputs.conditions" on ${targetId}`
+        )
+        return
+      }
+      if (blockType === 'router_v2' && (topLevelToken === 'routes' || topLevelToken === 'route')) {
+        const currentRoutes =
+          paramsOut.inputs?.routes ??
+          workingState.blocks[targetId]?.subBlocks?.routes?.value ??
+          []
+        let nextRoutes: unknown = currentRoutes
+        if (change.op === 'set') {
+          nextRoutes = normalizedChangeValue
+        } else if (change.op === 'unset') {
+          nextRoutes = []
+        } else if (change.op === 'append') {
+          const asArray = Array.isArray(currentRoutes) ? [...currentRoutes] : []
+          asArray.push(normalizedChangeValue)
+          nextRoutes = asArray
+        } else if (change.op === 'remove') {
+          if (!Array.isArray(currentRoutes)) {
+            diagnostics.push(
+              `remove on ${targetId} at "${change.path}" requires an array value for router routes`
+            )
+            return
+          }
+          nextRoutes = removeArrayItem(currentRoutes, normalizedChangeValue)
+        } else if (change.op === 'merge') {
+          diagnostics.push(
+            `merge on ${targetId} at "${change.path}" is not supported for router routes. ` +
+              `Use set/append/remove.`
+          )
+          return
+        }
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs.routes = nextRoutes
+        warnings.push(
+          `Converted top-level router path "${change.path}" to "inputs.routes" on ${targetId}`
+        )
+        return
+      }
+      if (blockType === 'router_v2' && topLevelToken === 'context') {
+        paramsOut.inputs = paramsOut.inputs || {}
+        paramsOut.inputs.context = change.op === 'unset' ? null : normalizedChangeValue
+        warnings.push(
+          `Converted top-level router path "${change.path}" to "inputs.context" on ${targetId}`
+        )
+        return
+      }
       diagnostics.push(`Unsupported top-level path "${change.path}" on ${targetId}`)
+      return
+    }
+    if (
+      topLevelField === 'type' &&
+      change.op !== 'unset' &&
+      typeof normalizedChangeValue === 'string' &&
+      isContainerBlockType(normalizedChangeValue) &&
+      String(workingState.blocks[targetId]?.data?.parentId || '').trim().length > 0
+    ) {
+      diagnostics.push(
+        `patch_block on ${targetId} cannot set type "${normalizedChangeValue}" inside subflow "${String(
+          workingState.blocks[targetId]?.data?.parentId || ''
+        )}". Nested loop/parallel containers are not supported.`
+      )
       return
     }
     paramsOut[topLevelField] = change.op === 'unset' ? null : normalizedChangeValue
@@ -2655,6 +3906,18 @@ async function compileChangeSpec(params: {
 
       const existingBlock = workingState.blocks[targetId]
       if (existingBlock) {
+        if (
+          mutation.type &&
+          isContainerBlockType(mutation.type) &&
+          String(existingBlock?.data?.parentId || '').trim().length > 0
+        ) {
+          diagnostics.push(
+            `ensure_block on ${targetId} cannot set type "${mutation.type}" inside subflow "${String(
+              existingBlock?.data?.parentId || ''
+            )}". Nested loop/parallel containers are not supported.`
+          )
+          continue
+        }
         const editParams: Record<string, any> = {}
         if (mutation.name) editParams.name = mutation.name
         if (mutation.type) editParams.type = mutation.type
@@ -2879,6 +4142,13 @@ async function compileChangeSpec(params: {
           plannedBlockTypes.get(existingTargetId) ||
           mutation.type ||
           ''
+        if (isContainerBlockType(existingType)) {
+          diagnostics.push(
+            `insert_into_subflow cannot move container "${existingTargetId}" of type "${existingType}" into "${subflowId}". ` +
+              'Nested loop/parallel containers are not supported.'
+          )
+          continue
+        }
         if (!existingType) {
           diagnostics.push(`insert_into_subflow on ${existingTargetId} failed: unknown block type`)
           continue
@@ -2954,6 +4224,13 @@ async function compileChangeSpec(params: {
         diagnostics.push(
           `insert_into_subflow requires type and name when creating a new child block` +
             (targetId ? ` (target: "${targetId}")` : '')
+        )
+        continue
+      }
+      if (isContainerBlockType(mutation.type)) {
+        diagnostics.push(
+          `insert_into_subflow cannot create type "${mutation.type}" inside "${subflowId}". ` +
+            'Nested loop/parallel containers are not supported.'
         )
         continue
       }
@@ -3090,43 +4367,13 @@ async function compileChangeSpec(params: {
     }
 
     if (mutation.action === 'connect' || mutation.action === 'disconnect') {
-      const from = resolveTarget(mutation.from)
-      const to = resolveTarget(mutation.to)
-      if (!from || !to) {
-        diagnostics.push(
-          `${mutation.action} requires resolvable from/to targets. Prefer alias/match selectors, ` +
-            'or refresh workflow_context_get after prior apply before retrying.'
-        )
-        continue
-      }
-      const normalizedHandles = normalizeContainerConnectionHandles({
-        fromBlockId: from,
-        toBlockId: to,
-        sourceHandle: normalizeHandle(mutation.handle),
-        targetHandle: mutation.toHandle || 'target',
-        sourceBlockType: resolveBlockType(from),
-        targetBlockType: resolveBlockType(to),
-      })
-      warnings.push(...normalizedHandles.warnings)
-      const sourceHandle = normalizedHandles.sourceHandle
-      const targetHandle = normalizedHandles.targetHandle
-      let sourceMap = connectionState.get(from)
-      if (!sourceMap) {
-        sourceMap = new Map()
-        connectionState.set(from, sourceMap)
-      }
-      const existingTargets = sourceMap.get(sourceHandle) || []
-      const mode =
-        mutation.action === 'disconnect' ? 'remove' : ('mode' in mutation ? mutation.mode : undefined) || 'set'
-      const nextTargets = ensureConnectionTarget(
-        existingTargets,
-        { block: to, handle: targetHandle },
-        mode
-      )
-      sourceMap.set(sourceHandle, nextTargets)
-      connectionTouchedSources.add(from)
-      touchedBlocks.add(from)
+      deferredConnectionMutations.push({ mutation, mutationIndex })
+      continue
     }
+  }
+
+  for (const { mutation } of deferredConnectionMutations) {
+    applyConnectionMutation(mutation)
   }
 
   for (const link of changeSpec.links || []) {
@@ -3154,13 +4401,78 @@ async function compileChangeSpec(params: {
       continue
     }
 
+    const sourceBlockType = resolveBlockType(from)
+    const targetBlockType = resolveBlockType(to)
+    const sourceParentId = resolveParentId(from)
+    const normalizedBranchHandle = normalizeBranchingSourceHandleForCompile({
+      sourceBlockId: from,
+      sourceBlockType,
+      sourceHandle: normalizeHandle(link.from.handle),
+      sourceBlock: workingState.blocks[from],
+    })
+    warnings.push(
+      ...normalizedBranchHandle.warnings.map(
+        (warning) => `link from "${from}" to "${to}": ${warning}`
+      )
+    )
+    if (normalizedBranchHandle.diagnostic) {
+      diagnostics.push(`link from "${from}" to "${to}" failed: ${normalizedBranchHandle.diagnostic}`)
+      continue
+    }
+    if (normalizedBranchHandle.inputPatch) {
+      const existingPatch = connectionInputPatches.get(from) || {}
+      connectionInputPatches.set(from, {
+        ...existingPatch,
+        [normalizedBranchHandle.inputPatch.field]: normalizedBranchHandle.inputPatch.value,
+      })
+    }
+    let rawTargetHandle = link.to.handle || 'target'
+    const initialTargetHandleContainerType = expectedContainerTypeForSourceHandle(rawTargetHandle)
+    if (
+      initialTargetHandleContainerType &&
+      targetBlockType === initialTargetHandleContainerType &&
+      sourceBlockType !== initialTargetHandleContainerType
+    ) {
+      const isEndHandle = rawTargetHandle.endsWith('end-source')
+      if (isEndHandle && sourceParentId === to) {
+        warnings.push(
+          `link from "${from}" to "${to}" used to.handle "${rawTargetHandle}". ` +
+            `This child->container-end pattern is implicit and was skipped. ` +
+            `Use from=<${to}>, from.handle="${rawTargetHandle}", to=<downstream>.`
+        )
+        continue
+      }
+      if (rawTargetHandle.endsWith('start-source')) {
+        warnings.push(
+          `link from "${from}" to "${to}" moved to.handle "${rawTargetHandle}" to "target". ` +
+            `Container start handles belong on the container as source handles.`
+        )
+        rawTargetHandle = 'target'
+      }
+    }
+    const rawTargetHandleContainerType = expectedContainerTypeForSourceHandle(rawTargetHandle)
+    if (
+      rawTargetHandleContainerType &&
+      targetBlockType === rawTargetHandleContainerType &&
+      sourceBlockType !== rawTargetHandleContainerType
+    ) {
+      diagnostics.push(
+        `link from "${from}" to "${to}" uses to.handle "${rawTargetHandle}" incorrectly. ` +
+          `Container handles must be used as source handles on the container block. ` +
+          `Use from=<container>, from.handle="${rawTargetHandle}", to=<target>.`
+      )
+      continue
+    }
+
     const normalizedHandles = normalizeContainerConnectionHandles({
       fromBlockId: from,
       toBlockId: to,
-      sourceHandle: normalizeHandle(link.from.handle),
-      targetHandle: link.to.handle || 'target',
-      sourceBlockType: resolveBlockType(from),
-      targetBlockType: resolveBlockType(to),
+      sourceHandle: normalizedBranchHandle.sourceHandle,
+      targetHandle: rawTargetHandle,
+      sourceBlockType,
+      targetBlockType,
+      sourceParentId,
+      targetParentId: String(workingState.blocks[to]?.data?.parentId || '') || null,
     })
     warnings.push(...normalizedHandles.warnings)
     const sourceHandle = normalizedHandles.sourceHandle
@@ -3184,12 +4496,17 @@ async function compileChangeSpec(params: {
   for (const sourceBlockId of stableUnique([...connectionTouchedSources])) {
     if (!connectionState.has(sourceBlockId)) continue
     const sourceConnections = connectionState.get(sourceBlockId)!
+    const inputPatch = connectionInputPatches.get(sourceBlockId)
+    const paramsOut: Record<string, unknown> = {
+      connections: connectionStateToPayload(sourceConnections),
+    }
+    if (inputPatch && Object.keys(inputPatch).length > 0) {
+      paramsOut.inputs = inputPatch
+    }
     operations.push({
       operation_type: 'edit',
       block_id: sourceBlockId,
-      params: {
-        connections: connectionStateToPayload(sourceConnections),
-      },
+      params: paramsOut,
     })
   }
 
@@ -3291,6 +4608,26 @@ async function validateAndSimulateOperations(params: {
   for (const skippedItem of skippedItems) {
     diagnostics.push(skippedItem.reason)
   }
+
+  const beforeCycle = detectDirectedCycle((params.workflowState.edges || []) as Array<Record<string, any>>)
+  const afterCycle = detectDirectedCycle((state.edges || []) as Array<Record<string, any>>)
+  if (afterCycle.hasCycle) {
+    const cyclePath = formatCyclePathForDiagnostics({
+      cyclePath: afterCycle.cyclePath,
+      workflowState: state,
+    })
+    if (!beforeCycle.hasCycle) {
+      diagnostics.push(
+        `Workflow edit introduces a cycle (${cyclePath}). Use loop/parallel blocks for iteration instead of cyclic edges.`
+      )
+    } else {
+      diagnostics.push(
+        `Workflow still contains a cycle (${cyclePath}). Remove cyclic edges to keep the workflow acyclic.`
+      )
+    }
+  }
+
+  warnings.push(...collectUnusedIncomingPortWarnings(state))
 
   if (Object.keys(state.blocks || {}).length === 0) {
     diagnostics.push('Simulation produced an empty workflow state')
@@ -3425,6 +4762,17 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         acceptance: materializedAcceptance,
         postApply: normalizedPostApply,
         handoff: proposal.handoff,
+        guidance: {
+          diagnosticsBlocking: diagnostics.length > 0,
+          warningsAdvisory: true,
+          recommendedNextAction:
+            diagnostics.length === 0 ? 'apply_proposal' : 'revise_changespec_before_apply',
+          retryMutation: diagnostics.length > 0,
+          summary:
+            diagnostics.length === 0
+              ? 'Dry run compiled successfully. Warnings are advisory unless they represent explicit missing wiring/credentials.'
+              : 'Dry run has blocking diagnostics. Revise changeSpec before apply.',
+        },
       }
     }
 
@@ -3546,6 +4894,16 @@ export const workflowChangeServerTool: BaseServerTool<WorkflowChangeParams, any>
         evaluator: evaluatorGate,
       },
       handoff: proposal.handoff,
+      guidance: {
+        mutationApplied: applyResult?.success === true,
+        postApplyPassed: evaluatorGate.passed,
+        warningsAdvisory: true,
+        recommendedNextAction: evaluatorGate.passed ? 'summarize_and_stop' : 'inspect_post_apply_failures',
+        retryMutation: applyResult?.success !== true,
+        summary: evaluatorGate.passed
+          ? 'Apply completed and post-apply gate passed. Avoid additional mutation retries unless user requested further changes.'
+          : 'Apply completed but post-apply gate failed. Inspect failures before any retry.',
+      },
     }
   },
 }

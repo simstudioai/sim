@@ -184,6 +184,48 @@ describe('resolveBlockReference', () => {
       const result = resolveBlockReference('start', ['input'], ctx)
       expect(result).toEqual({ value: undefined, blockId: 'block-1' })
     })
+
+    it('should allow nested access under json output schema fields', () => {
+      const ctx = createContext({
+        blockData: {},
+        blockOutputSchemas: {
+          'block-1': {
+            result: { type: 'json' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['result', 'emails', '0', 'subject'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
+
+    it('should allow nested access under any output schema fields', () => {
+      const ctx = createContext({
+        blockData: {},
+        blockOutputSchemas: {
+          'block-1': {
+            payload: { type: 'any' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['payload', 'nested', 'key'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
+
+    it('should allow nested access for arrays without explicit item schema', () => {
+      const ctx = createContext({
+        blockData: {},
+        blockOutputSchemas: {
+          'block-1': {
+            rows: { type: 'array' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['rows', '0', 'value'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
   })
 
   describe('without schema (pass-through mode)', () => {
