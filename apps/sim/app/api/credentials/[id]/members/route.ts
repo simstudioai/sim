@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
 
@@ -37,13 +38,22 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const { id: credentialId } = await context.params
 
     const [cred] = await db
-      .select({ id: credential.id })
+      .select({ id: credential.id, workspaceId: credential.workspaceId })
       .from(credential)
       .where(eq(credential.id, credentialId))
       .limit(1)
 
     if (!cred) {
       return NextResponse.json({ members: [] }, { status: 200 })
+    }
+
+    const callerPerm = await getUserEntityPermissions(
+      session.user.id,
+      'workspace',
+      cred.workspaceId
+    )
+    if (callerPerm === null) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const members = await db

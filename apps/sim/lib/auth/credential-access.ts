@@ -39,6 +39,8 @@ export async function authorizeCredentialUse(
     return { ok: false, error: auth.error || 'Authentication required' }
   }
 
+  const actingUserId = auth.authType === 'internal_jwt' ? callerUserId : auth.userId
+
   const [workflowContext] = workflowId
     ? await db
         .select({ workspaceId: workflowTable.workspaceId })
@@ -81,12 +83,9 @@ export async function authorizeCredentialUse(
       return { ok: false, error: 'Credential account not found' }
     }
 
-    const effectiveCallerId =
-      callerUserId || (auth.authType !== 'internal_jwt' ? auth.userId : null)
-
-    if (effectiveCallerId) {
+    if (actingUserId) {
       const requesterPerm = await getUserEntityPermissions(
-        effectiveCallerId,
+        actingUserId,
         'workspace',
         platformCredential.workspaceId
       )
@@ -97,7 +96,7 @@ export async function authorizeCredentialUse(
         .where(
           and(
             eq(credentialMember.credentialId, platformCredential.id),
-            eq(credentialMember.userId, effectiveCallerId),
+            eq(credentialMember.userId, actingUserId),
             eq(credentialMember.status, 'active')
           )
         )
@@ -167,16 +166,14 @@ export async function authorizeCredentialUse(
       return { ok: false, error: 'Credential account not found' }
     }
 
-    const legacyCallerId = callerUserId || (auth.authType !== 'internal_jwt' ? auth.userId : null)
-
-    if (legacyCallerId) {
+    if (actingUserId) {
       const [membership] = await db
         .select({ id: credentialMember.id })
         .from(credentialMember)
         .where(
           and(
             eq(credentialMember.credentialId, workspaceCredential.id),
-            eq(credentialMember.userId, legacyCallerId),
+            eq(credentialMember.userId, actingUserId),
             eq(credentialMember.status, 'active')
           )
         )
