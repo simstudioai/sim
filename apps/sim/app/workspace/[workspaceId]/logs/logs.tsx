@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
@@ -11,7 +12,12 @@ import {
 } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { useFolders } from '@/hooks/queries/folders'
-import { useDashboardStats, useLogDetail, useLogsList } from '@/hooks/queries/logs'
+import {
+  prefetchLogDetail,
+  useDashboardStats,
+  useLogDetail,
+  useLogsList,
+} from '@/hooks/queries/logs'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
@@ -94,8 +100,19 @@ export default function Logs() {
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
 
   const activeLogId = isPreviewOpen ? previewLogId : selectedLogId
+  const queryClient = useQueryClient()
+
+  const detailRefetchInterval = useCallback(
+    (query: { state: { data?: WorkflowLog } }) => {
+      if (!isLive) return false
+      const status = query.state.data?.status
+      return status === 'running' || status === 'pending' ? 3000 : false
+    },
+    [isLive]
+  )
+
   const activeLogQuery = useLogDetail(activeLogId ?? undefined, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: detailRefetchInterval,
   })
 
   const logFilters = useMemo(
@@ -153,6 +170,13 @@ export default function Logs() {
     if (!activeLogQuery.data || isPreviewOpen) return selectedLogFromList
     return { ...selectedLogFromList, ...activeLogQuery.data }
   }, [selectedLogFromList, activeLogQuery.data, isPreviewOpen])
+
+  const handleLogHover = useCallback(
+    (log: WorkflowLog) => {
+      prefetchLogDetail(queryClient, log.id)
+    },
+    [queryClient]
+  )
 
   useFolders(workspaceId)
 
@@ -476,6 +500,7 @@ export default function Logs() {
                     logs={logs}
                     selectedLogId={selectedLogId}
                     onLogClick={handleLogClick}
+                    onLogHover={handleLogHover}
                     onLogContextMenu={handleLogContextMenu}
                     selectedRowRef={selectedRowRef}
                     hasNextPage={logsQuery.hasNextPage ?? false}
