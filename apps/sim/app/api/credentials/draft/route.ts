@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { pendingCredentialDraft } from '@sim/db/schema'
+import { credential, credentialMember, pendingCredentialDraft } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, lt } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialDraftAPI')
 
@@ -33,6 +34,36 @@ export async function POST(request: Request) {
 
     const { workspaceId, providerId, displayName, description, credentialId } = parsed.data
     const userId = session.user.id
+
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
+    }
+
+    if (credentialId) {
+      const [membership] = await db
+        .select({ role: credentialMember.role, status: credentialMember.status })
+        .from(credentialMember)
+        .innerJoin(credential, eq(credential.id, credentialMember.credentialId))
+        .where(
+          and(
+            eq(credentialMember.credentialId, credentialId),
+            eq(credentialMember.userId, userId),
+            eq(credentialMember.status, 'active'),
+            eq(credentialMember.role, 'admin'),
+            eq(credential.workspaceId, workspaceId)
+          )
+        )
+        .limit(1)
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'Admin access required on the target credential' },
+          { status: 403 }
+        )
+      }
+    }
+
     const now = new Date()
 
     await db

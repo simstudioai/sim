@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
+import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -100,6 +100,28 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
           eq(permissions.entityId, workspaceId)
         )
       )
+
+    // Revoke credential memberships for all credentials in this workspace
+    const workspaceCredentialIds = await db
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.workspaceId, workspaceId))
+
+    if (workspaceCredentialIds.length > 0) {
+      await db
+        .update(credentialMember)
+        .set({ status: 'revoked', updatedAt: new Date() })
+        .where(
+          and(
+            eq(credentialMember.userId, userId),
+            eq(credentialMember.status, 'active'),
+            inArray(
+              credentialMember.credentialId,
+              workspaceCredentialIds.map((c) => c.id)
+            )
+          )
+        )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

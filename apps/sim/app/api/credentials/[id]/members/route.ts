@@ -13,7 +13,18 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-async function requireAdminMembership(credentialId: string, userId: string) {
+async function requireWorkspaceAdminMembership(credentialId: string, userId: string) {
+  const [cred] = await db
+    .select({ id: credential.id, workspaceId: credential.workspaceId })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!cred) return null
+
+  const perm = await getUserEntityPermissions(userId, 'workspace', cred.workspaceId)
+  if (perm === null) return null
+
   const [membership] = await db
     .select({ role: credentialMember.role, status: credentialMember.status })
     .from(credentialMember)
@@ -91,7 +102,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id: credentialId } = await context.params
 
-    const admin = await requireAdminMembership(credentialId, session.user.id)
+    const admin = await requireWorkspaceAdminMembership(credentialId, session.user.id)
     if (!admin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
@@ -153,7 +164,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'userId query parameter required' }, { status: 400 })
     }
 
-    const admin = await requireAdminMembership(credentialId, session.user.id)
+    const admin = await requireWorkspaceAdminMembership(credentialId, session.user.id)
     if (!admin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
