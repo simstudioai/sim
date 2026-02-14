@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
@@ -79,9 +79,7 @@ interface SettingsModalProps {
 type SettingsSection =
   | 'general'
   | 'credentials'
-  | 'environment'
   | 'template-profile'
-  | 'integrations'
   | 'credential-sets'
   | 'access-control'
   | 'apikeys'
@@ -216,8 +214,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
-  const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
-  const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -319,32 +315,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     if (!isBillingEnabled && (activeSection === 'subscription' || activeSection === 'team')) {
       return 'general'
     }
-    if (activeSection === 'environment' || activeSection === 'integrations') {
-      return 'credentials'
-    }
     return activeSection
   }, [activeSection])
-
-  const registerEnvironmentBeforeLeaveHandler = useCallback(
-    (handler: (onProceed: () => void) => void) => {
-      environmentBeforeLeaveHandler.current = handler
-    },
-    []
-  )
-
-  const registerIntegrationsCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    integrationsCloseHandler.current = handler
-  }, [])
 
   const handleSectionChange = useCallback(
     (sectionId: SettingsSection) => {
       if (sectionId === effectiveActiveSection) return
-
-      if (effectiveActiveSection === 'credentials' && environmentBeforeLeaveHandler.current) {
-        environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
-        return
-      }
-
       setActiveSection(sectionId)
     },
     [effectiveActiveSection]
@@ -368,11 +344,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
-      if (event.detail.tab === 'environment' || event.detail.tab === 'integrations') {
-        setActiveSection('credentials')
-      } else {
-        setActiveSection(event.detail.tab)
-      }
+      setActiveSection(event.detail.tab)
       onOpenChange(true)
     }
 
@@ -477,29 +449,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }
 
-  // Handle dialog close - delegate to environment component if it's active
   const handleDialogOpenChange = (newOpen: boolean) => {
-    if (
-      !newOpen &&
-      effectiveActiveSection === 'credentials' &&
-      environmentBeforeLeaveHandler.current
-    ) {
-      environmentBeforeLeaveHandler.current(() => {
-        if (integrationsCloseHandler.current) {
-          integrationsCloseHandler.current(newOpen)
-        } else {
-          onOpenChange(false)
-        }
-      })
-    } else if (
-      !newOpen &&
-      effectiveActiveSection === 'credentials' &&
-      integrationsCloseHandler.current
-    ) {
-      integrationsCloseHandler.current(newOpen)
-    } else {
-      onOpenChange(newOpen)
-    }
+    onOpenChange(newOpen)
   }
 
   return (
@@ -548,11 +499,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           <SModalMainBody>
             {effectiveActiveSection === 'general' && <General onOpenChange={onOpenChange} />}
             {effectiveActiveSection === 'credentials' && (
-              <Credentials
-                onOpenChange={onOpenChange}
-                registerCloseHandler={registerIntegrationsCloseHandler}
-                registerBeforeLeaveHandler={registerEnvironmentBeforeLeaveHandler}
-              />
+              <Credentials onOpenChange={onOpenChange} />
             )}
             {effectiveActiveSection === 'template-profile' && <TemplateProfile />}
             {effectiveActiveSection === 'credential-sets' && <CredentialSets />}

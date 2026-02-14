@@ -4,8 +4,6 @@ import { CredentialsManager } from '@/app/workspace/[workspaceId]/w/components/s
 
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
-  registerCloseHandler?: (handler: (open: boolean) => void) => void
-  registerBeforeLeaveHandler?: (handler: (onProceed: () => void) => void) => void
 }
 
 export function Credentials(_props: CredentialsProps) {
