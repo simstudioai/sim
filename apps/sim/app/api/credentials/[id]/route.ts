@@ -17,19 +17,12 @@ const updateCredentialSchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
-    accountId: z.string().trim().min(1).optional(),
   })
   .strict()
-  .refine(
-    (data) =>
-      data.displayName !== undefined ||
-      data.description !== undefined ||
-      data.accountId !== undefined,
-    {
-      message: 'At least one field must be provided',
-      path: ['displayName'],
-    }
-  )
+  .refine((data) => data.displayName !== undefined || data.description !== undefined, {
+    message: 'At least one field must be provided',
+    path: ['displayName'],
+  })
 
 async function getCredentialResponse(credentialId: string, userId: string) {
   const [row] = await db

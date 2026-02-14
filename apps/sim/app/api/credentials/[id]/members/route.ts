@@ -188,27 +188,35 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    if (target.role === 'admin') {
-      const activeAdmins = await db
-        .select({ id: credentialMember.id })
-        .from(credentialMember)
-        .where(
-          and(
-            eq(credentialMember.credentialId, credentialId),
-            eq(credentialMember.role, 'admin'),
-            eq(credentialMember.status, 'active')
+    const revoked = await db.transaction(async (tx) => {
+      if (target.role === 'admin') {
+        const activeAdmins = await tx
+          .select({ id: credentialMember.id })
+          .from(credentialMember)
+          .where(
+            and(
+              eq(credentialMember.credentialId, credentialId),
+              eq(credentialMember.role, 'admin'),
+              eq(credentialMember.status, 'active')
+            )
           )
-        )
 
-      if (activeAdmins.length <= 1) {
-        return NextResponse.json({ error: 'Cannot remove the last admin' }, { status: 400 })
+        if (activeAdmins.length <= 1) {
+          return false
+        }
       }
-    }
 
-    await db
-      .update(credentialMember)
-      .set({ status: 'revoked', updatedAt: new Date() })
-      .where(eq(credentialMember.id, target.id))
+      await tx
+        .update(credentialMember)
+        .set({ status: 'revoked', updatedAt: new Date() })
+        .where(eq(credentialMember.id, target.id))
+
+      return true
+    })
+
+    if (!revoked) {
+      return NextResponse.json({ error: 'Cannot remove the last admin' }, { status: 400 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
