@@ -16,7 +16,7 @@ interface UseScrollManagementOptions {
   /**
    * Distance from bottom (in pixels) within which auto-scroll stays active
    * @remarks Lower values = less sticky (user can scroll away easier)
-   * @defaultValue 100
+   * @defaultValue 30
    */
   stickinessThreshold?: number
 }
@@ -41,7 +41,7 @@ export function useScrollManagement(
   const lastScrollTopRef = useRef(0)
 
   const scrollBehavior = options?.behavior ?? 'smooth'
-  const stickinessThreshold = options?.stickinessThreshold ?? 100
+  const stickinessThreshold = options?.stickinessThreshold ?? 30
 
   /** Scrolls the container to the bottom */
   const scrollToBottom = useCallback(() => {
