@@ -230,12 +230,8 @@ export default function Logs() {
   useEffect(() => {
     selectedLogIdRef.current = selectedLogId
   }, [selectedLogId])
-  useEffect(() => {
-    logsRefetchRef.current = logsQuery.refetch
-  }, [logsQuery.refetch])
-  useEffect(() => {
-    activeLogRefetchRef.current = activeLogQuery.refetch
-  }, [activeLogQuery.refetch])
+  logsRefetchRef.current = logsQuery.refetch
+  activeLogRefetchRef.current = activeLogQuery.refetch
   logsQueryRef.current = {
     isFetching: logsQuery.isFetching,
     hasNextPage: logsQuery.hasNextPage ?? false,
@@ -358,27 +354,22 @@ export default function Logs() {
     }
   }, [])
 
-  const isLiveRef = useRef(isLive)
-  useEffect(() => {
-    isLiveRef.current = isLive
-  }, [isLive])
-
   const handleToggleLive = useCallback(() => {
-    const wasLive = isLiveRef.current
-    setIsLive((prev) => !prev)
-
-    if (!wasLive) {
-      setIsVisuallyRefreshing(true)
-      const timerId = window.setTimeout(() => {
-        setIsVisuallyRefreshing(false)
-        refreshTimersRef.current.delete(timerId)
-      }, REFRESH_SPINNER_DURATION_MS)
-      refreshTimersRef.current.add(timerId)
-      logsRefetchRef.current()
-      if (selectedLogIdRef.current) {
-        activeLogRefetchRef.current()
+    setIsLive((prev) => {
+      if (!prev) {
+        setIsVisuallyRefreshing(true)
+        const timerId = window.setTimeout(() => {
+          setIsVisuallyRefreshing(false)
+          refreshTimersRef.current.delete(timerId)
+        }, REFRESH_SPINNER_DURATION_MS)
+        refreshTimersRef.current.add(timerId)
+        logsRefetchRef.current()
+        if (selectedLogIdRef.current) {
+          activeLogRefetchRef.current()
+        }
       }
-    }
+      return !prev
+    })
   }, [])
 
   const prevIsFetchingRef = useRef(logsQuery.isFetching)
