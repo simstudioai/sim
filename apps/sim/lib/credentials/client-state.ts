@@ -2,6 +2,7 @@
 
 export const PENDING_OAUTH_CREDENTIAL_DRAFT_KEY = 'sim.pending-oauth-credential-draft'
 export const PENDING_CREDENTIAL_CREATE_REQUEST_KEY = 'sim.pending-credential-create-request'
+export const PENDING_CREDENTIAL_CREATE_REQUEST_EVENT = 'sim:pending-credential-create-request'
 
 export interface PendingOAuthCredentialDraft {
   workspaceId: string
@@ -69,6 +70,11 @@ export function readPendingCredentialCreateRequest(): PendingCredentialCreateReq
 export function writePendingCredentialCreateRequest(payload: PendingCredentialCreateRequest) {
   if (typeof window === 'undefined') return
   window.sessionStorage.setItem(PENDING_CREDENTIAL_CREATE_REQUEST_KEY, JSON.stringify(payload))
+  window.dispatchEvent(
+    new CustomEvent<PendingCredentialCreateRequest>(PENDING_CREDENTIAL_CREATE_REQUEST_EVENT, {
+      detail: payload,
+    })
+  )
 }
 
 export function clearPendingCredentialCreateRequest() {

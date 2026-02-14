@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { AlertTriangle, Check, Copy, Plus, RefreshCw, Search, Share2, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -25,6 +25,8 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
+  PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
+  type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import {
@@ -424,41 +426,69 @@ export function CredentialsManager() {
     setCreateError(null)
   }, [createOAuthProviderId])
 
+  const applyPendingCredentialCreateRequest = useCallback(
+    (request: PendingCredentialCreateRequest) => {
+      if (request.workspaceId !== workspaceId) {
+        return
+      }
+
+      if (Date.now() - request.requestedAt > 15 * 60 * 1000) {
+        clearPendingCredentialCreateRequest()
+        return
+      }
+
+      setShowCreateModal(true)
+      setShowCreateOAuthRequiredModal(false)
+      setCreateError(null)
+      setCreateDescription('')
+      setCreateEnvValue('')
+
+      if (request.type === 'oauth') {
+        setCreateType('oauth')
+        setCreateOAuthProviderId(request.providerId)
+        setCreateDisplayName(request.displayName)
+        setCreateEnvKey('')
+      } else {
+        setCreateType('secret')
+        setCreateSecretScope(request.type === 'env_workspace' ? 'workspace' : 'personal')
+        setCreateOAuthProviderId('')
+        setCreateDisplayName('')
+        setCreateEnvKey(request.envKey || '')
+      }
+
+      clearPendingCredentialCreateRequest()
+    },
+    [workspaceId]
+  )
+
   useEffect(() => {
     if (!workspaceId) return
     const request = readPendingCredentialCreateRequest()
     if (!request) return
+    applyPendingCredentialCreateRequest(request)
+  }, [workspaceId, applyPendingCredentialCreateRequest])
 
-    if (request.workspaceId !== workspaceId) {
-      return
+  useEffect(() => {
+    if (!workspaceId) return
+
+    const handlePendingCreateRequest = (event: Event) => {
+      const request = (event as CustomEvent<PendingCredentialCreateRequest>).detail
+      if (!request) return
+      applyPendingCredentialCreateRequest(request)
     }
 
-    if (Date.now() - request.requestedAt > 15 * 60 * 1000) {
-      clearPendingCredentialCreateRequest()
-      return
+    window.addEventListener(
+      PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
+      handlePendingCreateRequest as EventListener
+    )
+
+    return () => {
+      window.removeEventListener(
+        PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
+        handlePendingCreateRequest as EventListener
+      )
     }
-
-    setShowCreateModal(true)
-    setShowCreateOAuthRequiredModal(false)
-    setCreateError(null)
-    setCreateDescription('')
-    setCreateEnvValue('')
-
-    if (request.type === 'oauth') {
-      setCreateType('oauth')
-      setCreateOAuthProviderId(request.providerId)
-      setCreateDisplayName(request.displayName)
-      setCreateEnvKey('')
-    } else {
-      setCreateType('secret')
-      setCreateSecretScope(request.type === 'env_workspace' ? 'workspace' : 'personal')
-      setCreateOAuthProviderId('')
-      setCreateDisplayName('')
-      setCreateEnvKey(request.envKey || '')
-    }
-
-    clearPendingCredentialCreateRequest()
-  }, [workspaceId])
+  }, [workspaceId, applyPendingCredentialCreateRequest])
 
   useEffect(() => {
     if (!selectedCredential) {
