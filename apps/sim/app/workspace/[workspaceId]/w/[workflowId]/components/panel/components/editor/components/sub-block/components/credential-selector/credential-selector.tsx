@@ -1,7 +1,6 @@
 'use client'
 
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -28,7 +27,6 @@ import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-const logger = createLogger('CredentialSelector')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 interface CredentialSelectorProps {
@@ -153,13 +151,7 @@ export function CredentialSelector({
     if (selectedCredential) return selectedCredential.name
     if (inaccessibleCredentialName) return inaccessibleCredentialName
     return ''
-  }, [
-    selectedCredentialSet,
-    selectedCredential,
-    inaccessibleCredentialName,
-    selectedId,
-    credentialsLoading,
-  ])
+  }, [selectedCredentialSet, selectedCredential, inaccessibleCredentialName])
 
   const displayValue = isEditing ? editingValue : resolvedLabel
 

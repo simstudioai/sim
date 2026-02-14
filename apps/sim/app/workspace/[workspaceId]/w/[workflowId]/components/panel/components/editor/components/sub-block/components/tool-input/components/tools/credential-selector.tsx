@@ -128,7 +128,7 @@ export function ToolCredentialSelector({
     if (selectedCredential) return selectedCredential.name
     if (inaccessibleCredentialName) return inaccessibleCredentialName
     return ''
-  }, [selectedCredential, inaccessibleCredentialName, selectedId, credentialsLoading])
+  }, [selectedCredential, inaccessibleCredentialName])
 
   const inputValue = isEditing ? editingInputValue : resolvedLabel
 
