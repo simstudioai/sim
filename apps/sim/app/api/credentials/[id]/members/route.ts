@@ -173,13 +173,13 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       .select({
         id: credentialMember.id,
         role: credentialMember.role,
-        status: credentialMember.status,
       })
       .from(credentialMember)
       .where(
         and(
           eq(credentialMember.credentialId, credentialId),
-          eq(credentialMember.userId, targetUserId)
+          eq(credentialMember.userId, targetUserId),
+          eq(credentialMember.status, 'active')
         )
       )
       .limit(1)
