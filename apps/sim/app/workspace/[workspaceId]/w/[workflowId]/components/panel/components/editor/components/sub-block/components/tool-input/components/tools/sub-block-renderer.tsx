@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ToolSubBlockRendererProps {
   blockId: string
@@ -44,53 +45,43 @@ export function ToolSubBlockRenderer({
   canonicalToggle,
 }: ToolSubBlockRendererProps) {
   const syntheticId = `${subBlockId}-tool-${toolIndex}-${effectiveParamId}`
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, syntheticId)
-
   const toolParamValue = toolParams?.[effectiveParamId] ?? ''
   const isObjectType = OBJECT_SUBBLOCK_TYPES.has(subBlock.type)
 
-  const lastPushedToStoreRef = useRef<string | null>(null)
-  const lastPushedToParamsRef = useRef<string | null>(null)
+  const syncedRef = useRef<string | null>(null)
+  const onParamChangeRef = useRef(onParamChange)
+  onParamChangeRef.current = onParamChange
 
   useEffect(() => {
-    if (!toolParamValue && lastPushedToStoreRef.current === null) {
-      lastPushedToStoreRef.current = toolParamValue
-      lastPushedToParamsRef.current = toolParamValue
-      return
-    }
-    if (toolParamValue !== lastPushedToStoreRef.current) {
-      lastPushedToStoreRef.current = toolParamValue
-      lastPushedToParamsRef.current = toolParamValue
+    const unsub = useSubBlockStore.subscribe((state, prevState) => {
+      const wfId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!wfId) return
+      const newVal = state.workflowValues[wfId]?.[blockId]?.[syntheticId]
+      const oldVal = prevState.workflowValues[wfId]?.[blockId]?.[syntheticId]
+      if (newVal === oldVal) return
+      const stringified =
+        newVal == null ? '' : typeof newVal === 'string' ? newVal : JSON.stringify(newVal)
+      if (stringified === syncedRef.current) return
+      syncedRef.current = stringified
+      onParamChangeRef.current(toolIndex, effectiveParamId, stringified)
+    })
+    return unsub
+  }, [blockId, syntheticId, toolIndex, effectiveParamId])
 
-      if (isObjectType && typeof toolParamValue === 'string' && toolParamValue) {
-        try {
-          const parsed = JSON.parse(toolParamValue)
-          if (typeof parsed === 'object' && parsed !== null) {
-            setStoreValue(parsed)
-            return
-          }
-        } catch {
-          // Not valid JSON — fall through to set as string
+  useEffect(() => {
+    if (toolParamValue === syncedRef.current) return
+    syncedRef.current = toolParamValue
+    if (isObjectType && toolParamValue) {
+      try {
+        const parsed = JSON.parse(toolParamValue)
+        if (typeof parsed === 'object' && parsed !== null) {
+          useSubBlockStore.getState().setValue(blockId, syntheticId, parsed)
+          return
         }
-      }
-      setStoreValue(toolParamValue)
+      } catch {}
     }
-  }, [toolParamValue, setStoreValue, isObjectType])
-
-  useEffect(() => {
-    if (storeValue == null && lastPushedToParamsRef.current === null) return
-    const stringValue =
-      storeValue == null
-        ? ''
-        : typeof storeValue === 'string'
-          ? storeValue
-          : JSON.stringify(storeValue)
-    if (stringValue !== lastPushedToParamsRef.current) {
-      lastPushedToParamsRef.current = stringValue
-      lastPushedToStoreRef.current = stringValue
-      onParamChange(toolIndex, effectiveParamId, stringValue)
-    }
-  }, [storeValue, toolIndex, effectiveParamId, onParamChange])
+    useSubBlockStore.getState().setValue(blockId, syntheticId, toolParamValue)
+  }, [toolParamValue, blockId, syntheticId, isObjectType])
 
   const visibility = subBlock.paramVisibility ?? 'user-or-llm'
   const isOptionalForUser = visibility !== 'user-only'
