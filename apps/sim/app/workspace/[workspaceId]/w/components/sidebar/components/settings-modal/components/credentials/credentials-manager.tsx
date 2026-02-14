@@ -939,7 +939,7 @@ export function CredentialsManager() {
       <div className='flex w-[320px] min-w-[320px] flex-col gap-[12px] border-[var(--border-1)] border-r pr-[16px]'>
         <div className='flex items-center gap-[8px]'>
           <div className='relative flex-1'>
-            <Search className='absolute top-1/2 left-[10px] h-[14px] w-[14px] -translate-y-1/2 text-[var(--text-tertiary)]' />
+            <Search className='-translate-y-1/2 absolute top-1/2 left-[10px] h-[14px] w-[14px] text-[var(--text-tertiary)]' />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
