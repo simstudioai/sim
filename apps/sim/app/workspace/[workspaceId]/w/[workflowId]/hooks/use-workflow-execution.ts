@@ -38,7 +38,11 @@ import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/executi
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import {
+  extractChildWorkflowEntries,
+  hasChildTraceSpans,
+  useTerminalConsoleStore,
+} from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -515,6 +519,20 @@ export function useWorkflowExecution() {
           updateConsoleEntry(data)
         } else {
           addConsoleEntry(data, data.output as NormalizedBlockOutput)
+        }
+
+        // Extract child workflow trace spans into separate console entries
+        if (data.blockType === 'workflow' && hasChildTraceSpans(data.output)) {
+          const childEntries = extractChildWorkflowEntries({
+            parentBlockId: data.blockId,
+            executionId: executionIdRef.current,
+            executionOrder: data.executionOrder,
+            workflowId: workflowId!,
+            childTraceSpans: data.output.childTraceSpans,
+          })
+          for (const entry of childEntries) {
+            addConsole(entry)
+          }
         }
 
         if (onBlockCompleteCallback) {

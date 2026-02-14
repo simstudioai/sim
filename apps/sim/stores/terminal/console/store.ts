@@ -224,7 +224,11 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
           const newEntry = get().entries[0]
 
-          if (newEntry?.error && newEntry.blockType !== 'cancelled') {
+          if (
+            newEntry?.error &&
+            newEntry.blockType !== 'cancelled' &&
+            !newEntry.parentWorkflowBlockId
+          ) {
             notifyBlockError({
               error: newEntry.error,
               blockName: newEntry.blockName || 'Unknown Block',
@@ -249,7 +253,9 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           })),
 
         exportConsoleCSV: (workflowId: string) => {
-          const entries = get().entries.filter((entry) => entry.workflowId === workflowId)
+          const entries = get().entries.filter(
+            (entry) => entry.workflowId === workflowId && !entry.parentWorkflowBlockId
+          )
 
           if (entries.length === 0) {
             return

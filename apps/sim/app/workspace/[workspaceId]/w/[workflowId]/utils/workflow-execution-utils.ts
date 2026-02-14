@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import {
+  extractChildWorkflowEntries,
+  hasChildTraceSpans,
+  useTerminalConsoleStore,
+} from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -148,6 +152,20 @@ export async function executeWorkflowWithFullLogging(
                 iterationType: event.data.iterationType,
                 iterationContainerId: event.data.iterationContainerId,
               })
+
+              // Extract child workflow trace spans into separate console entries
+              if (event.data.blockType === 'workflow' && hasChildTraceSpans(event.data.output)) {
+                const childEntries = extractChildWorkflowEntries({
+                  parentBlockId: event.data.blockId,
+                  executionId,
+                  executionOrder: event.data.executionOrder,
+                  workflowId: activeWorkflowId,
+                  childTraceSpans: event.data.output.childTraceSpans,
+                })
+                for (const entry of childEntries) {
+                  addConsole(entry)
+                }
+              }
 
               if (options.onBlockComplete) {
                 options.onBlockComplete(event.data.blockId, event.data.output).catch(() => {})
