@@ -1230,7 +1230,7 @@ describe('Rate Limiting and Retry Logic', () => {
     vi.resetAllMocks()
     cleanupEnvVars()
     mockIsHosted.value = false
-    delete mockEnv.TEST_HOSTED_KEY
+    mockEnv.TEST_HOSTED_KEY = undefined
   })
 
   it('should retry on 429 rate limit errors with exponential backoff', async () => {
@@ -1428,7 +1428,7 @@ describe('Cost Field Handling', () => {
     vi.resetAllMocks()
     cleanupEnvVars()
     mockIsHosted.value = false
-    delete mockEnv.TEST_HOSTED_KEY
+    mockEnv.TEST_HOSTED_KEY = undefined
   })
 
   it('should add cost to output when using hosted key with per_request pricing', async () => {
@@ -1541,7 +1541,12 @@ describe('Cost Field Handling', () => {
 
     const mockContext = createToolExecutionContext()
     // Pass user's own API key
-    const result = await executeTool('test_no_hosted_cost', { apiKey: 'user-api-key' }, false, mockContext)
+    const result = await executeTool(
+      'test_no_hosted_cost',
+      { apiKey: 'user-api-key' },
+      false,
+      mockContext
+    )
 
     expect(result.success).toBe(true)
     // Should not have cost since user provided their own key

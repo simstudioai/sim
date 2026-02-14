@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { generateInternalToken } from '@/lib/auth/internal'
 import { getBYOKKey } from '@/lib/api-key/byok'
+import { generateInternalToken } from '@/lib/auth/internal'
 import { logFixedUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -9,6 +9,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
@@ -30,7 +31,6 @@ import {
   getToolAsync,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
-import { PlatformEvents } from '@/lib/core/telemetry'
 
 const logger = createLogger('Tools')
 
@@ -154,7 +154,7 @@ async function executeWithRetry<T>(
         throw error
       }
 
-      const delayMs = baseDelayMs * Math.pow(2, attempt)
+      const delayMs = baseDelayMs * 2 ** attempt
 
       // Track throttling event via telemetry
       PlatformEvents.hostedKeyThrottled({
@@ -168,7 +168,9 @@ async function executeWithRetry<T>(
         workflowId: executionContext?.workflowId,
       })
 
-      logger.warn(`[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+      logger.warn(
+        `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
+      )
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
@@ -246,7 +248,10 @@ async function processHostedKeyCost(
         executionId: executionContext.executionId,
         metadata,
       })
-      logger.debug(`[${requestId}] Logged hosted key cost for ${tool.id}: $${cost}`, metadata ? { metadata } : {})
+      logger.debug(
+        `[${requestId}] Logged hosted key cost for ${tool.id}: $${cost}`,
+        metadata ? { metadata } : {}
+      )
     } catch (error) {
       logger.error(`[${requestId}] Failed to log hosted key usage for ${tool.id}:`, error)
     }
@@ -648,7 +653,13 @@ export async function executeTool(
 
       // Calculate hosted key cost and merge into output.cost
       if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-        const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+        const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
+          tool,
+          contextParams,
+          finalResult.output,
+          executionContext,
+          requestId
+        )
         if (hostedKeyCost > 0) {
           finalResult.output = {
             ...finalResult.output,
@@ -677,15 +688,12 @@ export async function executeTool(
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
     const result = hostedKeyInfo.isUsingHostedKey
-      ? await executeWithRetry(
-          () => executeToolRequest(toolId, tool, contextParams),
-          {
-            requestId,
-            toolId,
-            envVarName: hostedKeyInfo.envVarName!,
-            executionContext,
-          }
-        )
+      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams), {
+          requestId,
+          toolId,
+          envVarName: hostedKeyInfo.envVarName!,
+          executionContext,
+        })
       : await executeToolRequest(toolId, tool, contextParams)
 
     // Apply post-processing if available and not skipped
@@ -711,7 +719,13 @@ export async function executeTool(
 
     // Calculate hosted key cost and merge into output.cost
     if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-      const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(tool, contextParams, finalResult.output, executionContext, requestId)
+      const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
+        tool,
+        contextParams,
+        finalResult.output,
+        executionContext,
+        requestId
+      )
       if (hostedKeyCost > 0) {
         finalResult.output = {
           ...finalResult.output,

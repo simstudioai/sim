@@ -206,9 +206,7 @@ export interface CustomPricing<P = Record<string, unknown>> {
 }
 
 /** Union of all pricing models */
-export type ToolHostingPricing<P = Record<string, unknown>> =
-  | PerRequestPricing
-  | CustomPricing<P>
+export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
 
 /**
  * Configuration for hosted API key support
