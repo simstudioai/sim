@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (lookupCredentialId) {
-      const [row] = await db
+      let [row] = await db
         .select({
           id: credential.id,
           displayName: credential.displayName,
@@ -194,6 +194,24 @@ export async function GET(request: NextRequest) {
         .from(credential)
         .where(and(eq(credential.id, lookupCredentialId), eq(credential.workspaceId, workspaceId)))
         .limit(1)
+
+      if (!row) {
+        ;[row] = await db
+          .select({
+            id: credential.id,
+            displayName: credential.displayName,
+            type: credential.type,
+            providerId: credential.providerId,
+          })
+          .from(credential)
+          .where(
+            and(
+              eq(credential.accountId, lookupCredentialId),
+              eq(credential.workspaceId, workspaceId)
+            )
+          )
+          .limit(1)
+      }
 
       return NextResponse.json({ credential: row ?? null })
     }

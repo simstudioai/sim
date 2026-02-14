@@ -145,7 +145,7 @@ oauth_creds AS (
 		'cred_' || md5(wua.workspace_id || ':' || a.id) AS id,
 		wua.workspace_id,
 		'oauth'::"credential_type",
-		'Default ' || COALESCE(pn.sname, a.provider_id) || ' Credential',
+		COALESCE(u.name, 'User') || '''s ' || COALESCE(pn.sname, a.provider_id),
 		a.provider_id,
 		a.id,
 		a.user_id,
@@ -153,6 +153,7 @@ oauth_creds AS (
 		now()
 	FROM "account" a
 	INNER JOIN workspace_user_access wua ON wua.user_id = a.user_id
+	INNER JOIN "user" u ON u.id = a.user_id
 	LEFT JOIN provider_names pn ON pn.pid = a.provider_id
 	WHERE a.provider_id != 'credential'
 	ON CONFLICT DO NOTHING

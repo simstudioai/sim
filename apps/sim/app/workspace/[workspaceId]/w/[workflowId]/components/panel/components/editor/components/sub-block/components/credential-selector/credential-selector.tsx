@@ -133,6 +133,9 @@ export function CredentialSelector({
         if (!response.ok || cancelled) return
         const data = await response.json()
         if (!cancelled && data.credential?.displayName) {
+          if (data.credential.id !== selectedId) {
+            setStoreValue(data.credential.id)
+          }
           setInaccessibleCredentialName(data.credential.displayName)
         }
       } catch {

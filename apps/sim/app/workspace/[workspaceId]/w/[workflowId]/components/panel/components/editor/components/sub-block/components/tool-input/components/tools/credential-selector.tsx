@@ -109,6 +109,9 @@ export function ToolCredentialSelector({
         if (!response.ok || cancelled) return
         const data = await response.json()
         if (!cancelled && data.credential?.displayName) {
+          if (data.credential.id !== selectedId) {
+            onChange(data.credential.id)
+          }
           setInaccessibleCredentialName(data.credential.displayName)
         }
       } catch {
