@@ -332,7 +332,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           operation,
           teamId, // Canonical param from teamSelector (basic) or manualTeamId (advanced)
           chatId, // Canonical param from chatSelector (basic) or manualChatId (advanced)
@@ -350,7 +350,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
 
         const baseParams: Record<string, any> = {
           ...rest,
-          credential,
+          oauthCredential,
         }
 
         if ((operation === 'read_chat' || operation === 'read_channel') && includeAttachments) {
@@ -430,7 +430,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft Teams access token' },
+    oauthCredential: { type: 'string', description: 'Microsoft Teams access token' },
     messageId: {
       type: 'string',
       description: 'Message identifier for update/delete/reply/reaction operations',

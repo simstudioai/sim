@@ -678,7 +678,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       params: (params) => {
         // OAuth authentication for WordPress.com
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          credential: params.oauthCredential,
           siteId: params.siteId,
         }
 
@@ -901,6 +901,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: { type: 'string', description: 'WordPress OAuth credential' },
     siteId: { type: 'string', description: 'WordPress.com site ID or domain' },
     // Post inputs
     postId: { type: 'number', description: 'Post ID' },

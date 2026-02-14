@@ -230,7 +230,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         }
       },
       params: (params) => {
-        const { credential, records, fields, ...rest } = params
+        const { oauthCredential, records, fields, ...rest } = params
         let parsedRecords: any | undefined
         let parsedFields: any | undefined
 
@@ -248,7 +248,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
 
         // Construct parameters based on operation
         const baseParams = {
-          credential,
+          credential: oauthCredential,
           ...rest,
         }
 
@@ -266,7 +266,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Airtable access token' },
+    oauthCredential: { type: 'string', description: 'Airtable access token' },
     baseId: { type: 'string', description: 'Airtable base identifier' },
     tableId: { type: 'string', description: 'Airtable table identifier' },
     // Conditional inputs

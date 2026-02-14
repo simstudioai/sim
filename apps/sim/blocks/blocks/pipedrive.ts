@@ -757,10 +757,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
+        const { oauthCredential, operation, ...rest } = params
 
         const cleanParams: Record<string, any> = {
-          credential,
+          oauthCredential,
         }
 
         Object.entries(rest).forEach(([key, value]) => {
@@ -775,7 +775,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Pipedrive access token' },
+    oauthCredential: { type: 'string', description: 'Pipedrive access token' },
     deal_id: { type: 'string', description: 'Deal ID' },
     title: { type: 'string', description: 'Title' },
     value: { type: 'string', description: 'Monetary value' },

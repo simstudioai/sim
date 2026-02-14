@@ -351,10 +351,11 @@ describe('OAuth Token API Routes', () => {
    */
   describe('GET handler', () => {
     it('should return access token successfully', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: true,
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
         authType: 'session',
-        userId: 'test-user-id',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
       })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
@@ -380,8 +381,8 @@ describe('OAuth Token API Routes', () => {
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('accessToken', 'fresh-token')
 
-      expect(mockCheckSessionOrInternalAuth).toHaveBeenCalled()
-      expect(mockGetCredential).toHaveBeenCalledWith(mockRequestId, 'credential-id', 'test-user-id')
+      expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
+      expect(mockGetCredential).toHaveBeenCalled()
       expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
     })
 
@@ -399,8 +400,8 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle authentication failure', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: false,
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: false,
         error: 'Authentication required',
       })
 
@@ -413,15 +414,16 @@ describe('OAuth Token API Routes', () => {
       const response = await GET(req as any)
       const data = await response.json()
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(403)
       expect(data).toHaveProperty('error')
     })
 
     it('should handle credential not found', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: true,
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
         authType: 'session',
-        userId: 'test-user-id',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
       })
       mockGetCredential.mockResolvedValueOnce(undefined)
 
@@ -439,10 +441,11 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle missing access token', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: true,
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
         authType: 'session',
-        userId: 'test-user-id',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
       })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
@@ -465,10 +468,11 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle token refresh failure', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: true,
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
         authType: 'session',
-        userId: 'test-user-id',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
       })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',

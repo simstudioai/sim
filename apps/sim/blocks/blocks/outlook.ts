@@ -337,7 +337,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           folder,
           destinationId,
           copyDestinationId,
@@ -396,14 +396,14 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
 
         return {
           ...rest,
-          credential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Outlook access token' },
+    oauthCredential: { type: 'string', description: 'Outlook access token' },
     // Send operation inputs
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },

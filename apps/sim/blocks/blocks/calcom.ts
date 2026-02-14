@@ -566,7 +566,7 @@ Return ONLY valid JSON - no explanations.`,
       params: (params) => {
         const {
           operation,
-          credential,
+          oauthCredential,
           attendeeName,
           attendeeEmail,
           attendeeTimeZone,
@@ -756,7 +756,7 @@ Return ONLY valid JSON - no explanations.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Cal.com OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Cal.com OAuth credential' },
     eventTypeId: { type: 'number', description: 'Event type ID' },
     start: { type: 'string', description: 'Start time (ISO 8601)' },
     end: { type: 'string', description: 'End time (ISO 8601)' },

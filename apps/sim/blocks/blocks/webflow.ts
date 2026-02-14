@@ -167,7 +167,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           fieldData,
           siteId, // Canonical param from siteSelector (basic) or manualSiteId (advanced)
           collectionId, // Canonical param from collectionSelector (basic) or manualCollectionId (advanced)
@@ -189,7 +189,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         const effectiveItemId = itemId ? String(itemId).trim() : ''
 
         const baseParams = {
-          credential,
+          credential: oauthCredential,
           siteId: effectiveSiteId,
           collectionId: effectiveCollectionId,
           ...rest,
@@ -214,7 +214,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Webflow OAuth access token' },
+    oauthCredential: { type: 'string', description: 'Webflow OAuth access token' },
     siteId: { type: 'string', description: 'Webflow site identifier' },
     collectionId: { type: 'string', description: 'Webflow collection identifier' },
     itemId: { type: 'string', description: 'Item identifier' },

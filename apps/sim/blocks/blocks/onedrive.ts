@@ -365,7 +365,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           // Folder canonical params (per-operation)
           uploadFolderId,
           createFolderParentId,
@@ -415,7 +415,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
 
         return {
-          credential,
+          oauthCredential,
           ...rest,
           values: normalizedValues,
           file: normalizedFile,
@@ -430,7 +430,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft account credential' },
+    oauthCredential: { type: 'string', description: 'Microsoft account credential' },
     // Upload and Create operation inputs
     fileName: { type: 'string', description: 'File name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },

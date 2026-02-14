@@ -262,7 +262,7 @@ Example for "Add a required multiple choice question about favorite color":
           ...rest
         } = params
 
-        const baseParams = { ...rest, credential: oauthCredential }
+        const baseParams = { ...rest, oauthCredential }
         const effectiveFormId = formId ? String(formId).trim() : undefined
 
         switch (operation) {
@@ -320,7 +320,7 @@ Example for "Add a required multiple choice question about favorite color":
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Google OAuth credential' },
     formId: { type: 'string', description: 'Google Form ID' },
     responseId: { type: 'string', description: 'Specific response ID' },
     pageSize: { type: 'string', description: 'Max responses to retrieve' },

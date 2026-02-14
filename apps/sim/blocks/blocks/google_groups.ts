@@ -327,7 +327,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
         switch (operation) {
           case 'list_groups':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               customer: rest.customer,
               domain: rest.domain,
               query: rest.query,
@@ -401,29 +401,29 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             }
           case 'remove_alias':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               alias: rest.alias,
             }
           case 'get_settings':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupEmail: rest.groupEmail,
             }
           case 'update_settings':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupEmail: rest.groupEmail,
             }
           default:
-            return { credential: oauthCredential, ...rest }
+            return { oauthCredential, ...rest }
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Workspace OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Google Workspace OAuth credential' },
     customer: { type: 'string', description: 'Customer ID for listing groups' },
     domain: { type: 'string', description: 'Domain filter for listing groups' },
     query: { type: 'string', description: 'Search query for filtering groups' },

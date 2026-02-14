@@ -538,7 +538,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       },
       params: (params) => {
         const baseParams: Record<string, unknown> = {
-          credential: params.credential,
+          oauthCredential: params.oauthCredential,
           shopDomain: params.shopDomain?.trim(),
         }
 
@@ -785,7 +785,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Shopify access token' },
+    oauthCredential: { type: 'string', description: 'Shopify access token' },
     shopDomain: { type: 'string', description: 'Shopify store domain' },
     // Product inputs
     productId: { type: 'string', description: 'Product ID' },

@@ -363,7 +363,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Dropbox OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Dropbox OAuth credential' },
     // Common inputs
     path: { type: 'string', description: 'Path in Dropbox' },
     autorename: { type: 'boolean', description: 'Auto-rename on conflict' },

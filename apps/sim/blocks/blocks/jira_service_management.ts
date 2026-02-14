@@ -504,7 +504,7 @@ Return ONLY the comment text - no explanations.`,
       },
       params: (params) => {
         const baseParams = {
-          credential: params.credential,
+          oauthCredential: params.oauthCredential,
           domain: params.domain,
         }
 
@@ -751,7 +751,7 @@ Return ONLY the comment text - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
-    credential: { type: 'string', description: 'Jira Service Management access token' },
+    oauthCredential: { type: 'string', description: 'Jira Service Management access token' },
     serviceDeskId: { type: 'string', description: 'Service desk ID' },
     requestTypeId: { type: 'string', description: 'Request type ID' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },

@@ -1515,7 +1515,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
         // Base params that most operations need
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          oauthCredential: params.oauthCredential,
         }
 
         // Operation-specific param mapping
@@ -2334,7 +2334,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Linear access token' },
+    oauthCredential: { type: 'string', description: 'Linear access token' },
     teamId: { type: 'string', description: 'Linear team identifier (canonical param)' },
     projectId: { type: 'string', description: 'Linear project identifier (canonical param)' },
     issueId: { type: 'string', description: 'Issue identifier' },

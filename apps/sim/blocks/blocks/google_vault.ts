@@ -452,7 +452,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
         const { oauthCredential, holdStartTime, holdEndTime, holdTerms, ...rest } = params
         return {
           ...rest,
-          credential: oauthCredential,
+          oauthCredential,
           // Map hold-specific fields to their tool parameter names
           ...(holdStartTime && { startTime: holdStartTime }),
           ...(holdEndTime && { endTime: holdEndTime }),
@@ -464,7 +464,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
   inputs: {
     // Core inputs
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Vault OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Google Vault OAuth credential' },
     matterId: { type: 'string', description: 'Matter ID' },
 
     // Create export inputs

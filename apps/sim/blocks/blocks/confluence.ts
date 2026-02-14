@@ -298,7 +298,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           pageId,
           operation,
           attachmentFile,
@@ -311,7 +311,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'upload_attachment') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             file: attachmentFile,
@@ -322,7 +322,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          credential,
+          credential: oauthCredential,
           pageId: effectivePageId || undefined,
           operation,
           ...rest,
@@ -333,7 +333,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
-    credential: { type: 'string', description: 'Confluence access token' },
+    oauthCredential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
@@ -965,7 +965,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           pageId,
           operation,
           attachmentFile,
@@ -990,7 +990,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'add_label') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             prefix: labelPrefix || 'global',
@@ -1000,7 +1000,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'create_blogpost') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             status: blogPostStatus || 'current',
             ...rest,
@@ -1009,7 +1009,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'delete') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             purge: purge || false,
@@ -1019,7 +1019,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'list_comments') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             bodyFormat: bodyFormat || 'storage',
@@ -1045,7 +1045,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (supportsCursor.includes(operation) && cursor) {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId || undefined,
             operation,
             cursor,
@@ -1058,7 +1058,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             throw new Error('Property key is required for this operation.')
           }
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             key: propertyKey,
@@ -1069,7 +1069,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'delete_page_property') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             propertyId,
@@ -1079,7 +1079,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'get_pages_by_label') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             labelId,
             cursor: cursor || undefined,
@@ -1089,7 +1089,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'list_space_labels') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             cursor: cursor || undefined,
             ...rest,
@@ -1102,7 +1102,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             throw new Error('File is required for upload attachment operation.')
           }
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             file: normalizedFile,
@@ -1113,7 +1113,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          credential,
+          credential: oauthCredential,
           pageId: effectivePageId || undefined,
           blogPostId: blogPostId || undefined,
           versionNumber: versionNumber ? Number.parseInt(String(versionNumber), 10) : undefined,
@@ -1126,7 +1126,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
-    credential: { type: 'string', description: 'Confluence access token' },
+    oauthCredential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },

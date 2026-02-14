@@ -884,7 +884,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           sendNotification === 'true' ? true : sendNotification === 'false' ? false : undefined
 
         return {
-          credential: oauthCredential,
+          oauthCredential,
           folderId: effectiveFolderId,
           fileId: effectiveFileId,
           destinationFolderId: effectiveDestinationFolderId,
@@ -902,7 +902,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Drive access token' },
+    oauthCredential: { type: 'string', description: 'Google Drive access token' },
     // Folder canonical params (per-operation)
     uploadFolderId: { type: 'string', description: 'Parent folder for upload/create' },
     createFolderParentId: { type: 'string', description: 'Parent folder for create folder' },

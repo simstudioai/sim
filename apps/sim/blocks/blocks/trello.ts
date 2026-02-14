@@ -405,7 +405,7 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
   },
   inputs: {
     operation: { type: 'string', description: 'Trello operation to perform' },
-    credential: { type: 'string', description: 'Trello OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Trello OAuth credential' },
     boardId: { type: 'string', description: 'Board ID' },
     listId: { type: 'string', description: 'List ID' },
     cardId: { type: 'string', description: 'Card ID' },

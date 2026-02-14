@@ -271,14 +271,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
-          credential: oauthCredential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Sheets access token' },
+    oauthCredential: { type: 'string', description: 'Google Sheets access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     range: { type: 'string', description: 'Cell range' },
     values: { type: 'string', description: 'Cell values data' },
@@ -761,7 +761,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             title: (title as string)?.trim(),
             sheetTitles: sheetTitlesArray,
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -775,7 +775,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         if (operation === 'get_info') {
           return {
             spreadsheetId: effectiveSpreadsheetId,
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -785,7 +785,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -796,7 +796,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             ...rest,
             spreadsheetId: effectiveSpreadsheetId,
             data: parsedData,
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -806,7 +806,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -816,7 +816,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             sourceSpreadsheetId: effectiveSpreadsheetId,
             sheetId: Number.parseInt(sheetId as string, 10),
             destinationSpreadsheetId: (destinationSpreadsheetId as string)?.trim(),
-            credential: oauthCredential,
+            oauthCredential,
           }
         }
 
@@ -835,14 +835,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           sheetName: effectiveSheetName,
           cellRange: cellRange ? (cellRange as string).trim() : undefined,
           values: parsedValues,
-          credential: oauthCredential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Sheets access token' },
+    oauthCredential: { type: 'string', description: 'Google Sheets access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },

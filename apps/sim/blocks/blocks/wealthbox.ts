@@ -180,14 +180,14 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, operation, contactId, taskId, ...rest } = params
+        const { oauthCredential, operation, contactId, taskId, ...rest } = params
 
         // contactId is the canonical param for both basic (file-selector) and advanced (manualContactId) modes
         const effectiveContactId = contactId ? String(contactId).trim() : ''
 
         const baseParams = {
           ...rest,
-          credential,
+          credential: oauthCredential,
         }
 
         if (operation === 'read_note' || operation === 'write_note') {
@@ -231,7 +231,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Wealthbox access token' },
+    oauthCredential: { type: 'string', description: 'Wealthbox access token' },
     noteId: { type: 'string', description: 'Note identifier' },
     contactId: { type: 'string', description: 'Contact identifier' },
     taskId: { type: 'string', description: 'Task identifier' },

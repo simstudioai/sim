@@ -225,7 +225,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         }
       },
       params: (params) => {
-        const { credential, operation } = params
+        const { oauthCredential, operation } = params
 
         const projectsArray = params.projects
           ? params.projects
@@ -235,7 +235,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           : undefined
 
         const baseParams = {
-          accessToken: credential?.accessToken,
+          accessToken: oauthCredential?.accessToken,
         }
 
         switch (operation) {
@@ -294,6 +294,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: { type: 'string', description: 'Asana OAuth credential' },
     workspace: { type: 'string', description: 'Workspace GID' },
     taskGid: { type: 'string', description: 'Task GID' },
     getTasks_workspace: { type: 'string', description: 'Workspace GID for getting tasks' },

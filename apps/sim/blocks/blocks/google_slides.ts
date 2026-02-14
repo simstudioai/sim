@@ -673,7 +673,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           presentationId,
           folderId,
           slideIndex,
@@ -690,7 +690,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
         const result: Record<string, any> = {
           ...rest,
           presentationId: effectivePresentationId || undefined,
-          credential: oauthCredential,
+          oauthCredential,
         }
 
         // Handle operation-specific params
@@ -810,7 +810,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Slides access token' },
+    oauthCredential: { type: 'string', description: 'Google Slides access token' },
     presentationId: { type: 'string', description: 'Presentation identifier (canonical param)' },
     // Write operation
     slideIndex: { type: 'number', description: 'Slide index to write to' },

@@ -181,10 +181,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { oauthCredential, ...rest } = params
 
         const parsedParams: Record<string, any> = {
-          credential: credential,
+          credential: oauthCredential,
         }
 
         Object.keys(rest).forEach((key) => {
@@ -210,7 +210,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'X account credential' },
+    oauthCredential: { type: 'string', description: 'X account credential' },
     text: { type: 'string', description: 'Tweet text content' },
     replyTo: { type: 'string', description: 'Reply to tweet ID' },
     mediaIds: { type: 'string', description: 'Media identifiers' },

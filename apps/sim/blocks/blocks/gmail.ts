@@ -478,7 +478,7 @@ Return ONLY the search query - no explanations, no extra text.`,
 
         return {
           ...rest,
-          credential: oauthCredential,
+          oauthCredential,
           ...(normalizedAttachments && { attachments: normalizedAttachments }),
         }
       },
@@ -486,7 +486,7 @@ Return ONLY the search query - no explanations, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Gmail access token' },
+    oauthCredential: { type: 'string', description: 'Gmail access token' },
     // Send operation inputs
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },

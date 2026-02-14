@@ -252,7 +252,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, tableName, worksheetName, ...rest } = params
+        const { oauthCredential, values, spreadsheetId, tableName, worksheetName, ...rest } = params
 
         // Use canonical param ID (raw subBlock IDs are deleted after serialization)
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
@@ -280,7 +280,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
-          credential,
+          oauthCredential,
         }
 
         if (params.operation === 'table_add') {
@@ -303,7 +303,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft Excel access token' },
+    oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     range: { type: 'string', description: 'Cell range' },
     tableName: { type: 'string', description: 'Table name' },
@@ -519,7 +519,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         fallbackToolId: 'microsoft_excel_read_v2',
       }),
       params: (params) => {
-        const { credential, values, spreadsheetId, sheetName, cellRange, ...rest } = params
+        const { oauthCredential, values, spreadsheetId, sheetName, cellRange, ...rest } = params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
@@ -541,14 +541,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           sheetName: effectiveSheetName,
           cellRange: cellRange ? (cellRange as string).trim() : undefined,
           values: parsedValues,
-          credential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft Excel access token' },
+    oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },

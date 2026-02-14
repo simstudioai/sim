@@ -4,7 +4,7 @@ import { AuthMode } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
 interface MicrosoftPlannerBlockParams {
-  credential: string
+  oauthCredential: string
   accessToken?: string
   planId?: string
   taskId?: string
@@ -360,7 +360,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           operation,
           groupId,
           planId,
@@ -385,7 +385,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         const baseParams: MicrosoftPlannerBlockParams = {
           ...rest,
-          credential,
+          oauthCredential,
         }
 
         // Handle different task ID fields based on operation
@@ -570,7 +570,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft account credential' },
+    oauthCredential: { type: 'string', description: 'Microsoft account credential' },
     groupId: { type: 'string', description: 'Microsoft 365 group ID' },
     planId: { type: 'string', description: 'Plan ID' },
     readTaskId: { type: 'string', description: 'Task ID for read operation' },

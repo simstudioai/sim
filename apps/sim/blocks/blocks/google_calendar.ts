@@ -523,7 +523,7 @@ Return ONLY the natural language event text - no explanations.`,
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           operation,
           attendees,
           replaceExisting,
@@ -587,7 +587,7 @@ Return ONLY the natural language event text - no explanations.`,
         }
 
         return {
-          credential: oauthCredential,
+          oauthCredential,
           ...processedParams,
         }
       },
@@ -595,7 +595,7 @@ Return ONLY the natural language event text - no explanations.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Calendar access token' },
+    oauthCredential: { type: 'string', description: 'Google Calendar access token' },
     calendarId: { type: 'string', description: 'Calendar identifier (canonical param)' },
 
     // Create/Update operation inputs

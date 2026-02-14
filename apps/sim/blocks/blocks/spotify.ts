@@ -807,7 +807,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Spotify OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Spotify OAuth credential' },
     // Search
     query: { type: 'string', description: 'Search query' },
     type: { type: 'string', description: 'Search type' },

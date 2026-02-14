@@ -800,14 +800,14 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { credential, projectId, issueKey, ...rest } = params
+        const { oauthCredential, projectId, issueKey, ...rest } = params
 
         // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
         const effectiveProjectId = projectId ? String(projectId).trim() : ''
         const effectiveIssueKey = issueKey ? String(issueKey).trim() : ''
 
         const baseParams = {
-          credential,
+          oauthCredential,
           domain: params.domain,
         }
 
@@ -1060,7 +1060,7 @@ Return ONLY the comment text - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
-    credential: { type: 'string', description: 'Jira access token' },
+    oauthCredential: { type: 'string', description: 'Jira access token' },
     issueKey: { type: 'string', description: 'Issue key identifier (canonical param)' },
     projectId: { type: 'string', description: 'Project identifier (canonical param)' },
     // Update/Write operation inputs
