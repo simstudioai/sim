@@ -122,28 +122,14 @@ export class PauseResumeManager {
 
     const now = new Date()
 
-    await db
-      .insert(pausedExecutions)
-      .values({
-        id: randomUUID(),
-        workflowId,
-        executionId,
-        executionSnapshot: snapshotSeed,
-        pausePoints: pausePointsRecord,
-        totalPauseCount: pausePoints.length,
-        resumedCount: 0,
-        status: 'paused',
-        metadata: {
-          pauseScope: 'execution',
-          triggerIds: snapshotSeed.triggerIds,
-          executorUserId: executorUserId ?? null,
-        },
-        pausedAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: pausedExecutions.executionId,
-        set: {
+    // Wrap persistence in a transaction to prevent race conditions with concurrent resume requests
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(pausedExecutions)
+        .values({
+          id: randomUUID(),
+          workflowId,
+          executionId,
           executionSnapshot: snapshotSeed,
           pausePoints: pausePointsRecord,
           totalPauseCount: pausePoints.length,
@@ -154,10 +140,28 @@ export class PauseResumeManager {
             triggerIds: snapshotSeed.triggerIds,
             executorUserId: executorUserId ?? null,
           },
+          pausedAt: now,
           updatedAt: now,
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: pausedExecutions.executionId,
+          set: {
+            executionSnapshot: snapshotSeed,
+            pausePoints: pausePointsRecord,
+            totalPauseCount: pausePoints.length,
+            resumedCount: 0,
+            status: 'paused',
+            metadata: {
+              pauseScope: 'execution',
+              triggerIds: snapshotSeed.triggerIds,
+              executorUserId: executorUserId ?? null,
+            },
+            updatedAt: now,
+          },
+        })
+    })
 
+    // Process queued resumes after transaction commits to ensure visibility
     await PauseResumeManager.processQueuedResumes(executionId)
   }
 
