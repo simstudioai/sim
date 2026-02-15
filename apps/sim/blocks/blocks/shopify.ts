@@ -61,6 +61,8 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Shopify Account',
       type: 'oauth-input',
       serviceId: 'shopify',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: [
         'write_products',
         'write_orders',
@@ -70,6 +72,15 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         'write_merchant_managed_fulfillment_orders',
       ],
       placeholder: 'Select Shopify account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Shopify Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -527,7 +538,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       },
       params: (params) => {
         const baseParams: Record<string, unknown> = {
-          credential: params.credential,
+          oauthCredential: params.oauthCredential,
           shopDomain: params.shopDomain?.trim(),
         }
 
@@ -774,7 +785,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Shopify access token' },
+    oauthCredential: { type: 'string', description: 'Shopify access token' },
     shopDomain: { type: 'string', description: 'Shopify store domain' },
     // Product inputs
     productId: { type: 'string', description: 'Product ID' },

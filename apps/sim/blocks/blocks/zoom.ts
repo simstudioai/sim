@@ -38,6 +38,8 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       title: 'Zoom Account',
       type: 'oauth-input',
       serviceId: 'zoom',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: [
         'user:read:user',
         'meeting:write:meeting',
@@ -52,6 +54,15 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         'cloud_recording:delete:recording_file',
       ],
       placeholder: 'Select Zoom account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Zoom Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // User ID for create/list operations
@@ -413,7 +424,7 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
       },
       params: (params) => {
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          credential: params.oauthCredential,
         }
 
         switch (params.operation) {
@@ -558,7 +569,7 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Zoom access token' },
+    oauthCredential: { type: 'string', description: 'Zoom access token' },
     userId: { type: 'string', description: 'User ID or email (use "me" for authenticated user)' },
     meetingId: { type: 'string', description: 'Meeting ID' },
     topic: { type: 'string', description: 'Meeting topic' },

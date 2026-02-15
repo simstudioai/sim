@@ -42,8 +42,19 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       title: 'Trello Account',
       type: 'oauth-input',
       serviceId: 'trello',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: ['read', 'write'],
       placeholder: 'Select Trello account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Trello Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 
@@ -394,7 +405,7 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
   },
   inputs: {
     operation: { type: 'string', description: 'Trello operation to perform' },
-    credential: { type: 'string', description: 'Trello OAuth credential' },
+    oauthCredential: { type: 'string', description: 'Trello OAuth credential' },
     boardId: { type: 'string', description: 'Board ID' },
     listId: { type: 'string', description: 'List ID' },
     cardId: { type: 'string', description: 'Card ID' },

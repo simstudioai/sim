@@ -9,6 +9,7 @@ import {
   PopoverSection,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   usePersonalEnvironment,
   useWorkspaceEnvironment,
@@ -168,7 +169,15 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }, [searchTerm])
 
   const openEnvironmentSettings = () => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'environment' } }))
+    if (workspaceId) {
+      writePendingCredentialCreateRequest({
+        workspaceId,
+        type: 'env_personal',
+        envKey: searchTerm.trim(),
+        requestedAt: Date.now(),
+      })
+    }
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
     onClose?.()
   }
 
@@ -302,7 +311,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
               }}
             >
               <Plus className='h-3 w-3' />
-              <span>Create environment variable</span>
+              <span>Create Secret</span>
             </PopoverItem>
           </PopoverScrollArea>
         ) : (

@@ -16,6 +16,7 @@ export interface ExecutionMetadata {
   useDraftState: boolean
   startTime: string
   isClientSession?: boolean
+  enforceCredentialAccess?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   credentialAccountUserId?: string
@@ -80,6 +81,7 @@ export interface ContextExtensions {
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>
   isDeployedContext?: boolean
+  enforceCredentialAccess?: boolean
   isChildExecution?: boolean
   resumeFromSnapshot?: boolean
   resumePendingQueue?: string[]

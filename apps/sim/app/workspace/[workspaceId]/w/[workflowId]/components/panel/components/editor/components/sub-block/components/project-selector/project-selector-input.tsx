@@ -7,7 +7,6 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
@@ -73,11 +72,6 @@ export function ProjectSelectorInput({
 
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
-
-  const { isForeignCredential } = useForeignCredential(
-    effectiveProviderId,
-    (connectedCredential as string) || ''
-  )
   const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
     disabled,
@@ -123,7 +117,7 @@ export function ProjectSelectorInput({
               subBlock={subBlock}
               selectorKey={selectorResolution.key}
               selectorContext={selectorResolution.context}
-              disabled={finalDisabled || isForeignCredential || missingCredential}
+              disabled={finalDisabled || missingCredential}
               isPreview={isPreview}
               previewValue={previewValue ?? null}
               placeholder={subBlock.placeholder || 'Select project'}

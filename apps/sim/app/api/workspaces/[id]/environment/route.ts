@@ -1,12 +1,14 @@
 import { db } from '@sim/db'
-import { environment, workspaceEnvironment } from '@sim/db/schema'
+import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
@@ -44,44 +46,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Workspace env (encrypted)
-    const wsEnvRow = await db
-      .select()
-      .from(workspaceEnvironment)
-      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-      .limit(1)
-
-    const wsEncrypted: Record<string, string> = (wsEnvRow[0]?.variables as any) || {}
-
-    // Personal env (encrypted)
-    const personalRow = await db
-      .select()
-      .from(environment)
-      .where(eq(environment.userId, userId))
-      .limit(1)
-
-    const personalEncrypted: Record<string, string> = (personalRow[0]?.variables as any) || {}
-
-    // Decrypt both for UI
-    const decryptAll = async (src: Record<string, string>) => {
-      const out: Record<string, string> = {}
-      for (const [k, v] of Object.entries(src)) {
-        try {
-          const { decrypted } = await decryptSecret(v)
-          out[k] = decrypted
-        } catch {
-          out[k] = ''
-        }
-      }
-      return out
-    }
-
-    const [workspaceDecrypted, personalDecrypted] = await Promise.all([
-      decryptAll(wsEncrypted),
-      decryptAll(personalEncrypted),
-    ])
-
-    const conflicts = Object.keys(personalDecrypted).filter((k) => k in workspaceDecrypted)
+    const { workspaceDecrypted, personalDecrypted, conflicts } = await getPersonalAndWorkspaceEnv(
+      userId,
+      workspaceId
+    )
 
     return NextResponse.json(
       {
@@ -156,6 +124,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         set: { variables: merged, updatedAt: new Date() },
       })
 
+    await syncWorkspaceEnvCredentials({
+      workspaceId,
+      envKeys: Object.keys(merged),
+      actingUserId: userId,
+    })
+
     return NextResponse.json({ success: true })
   } catch (error: any) {
     logger.error(`[${requestId}] Workspace env PUT error`, error)
@@ -221,6 +195,12 @@ export async function DELETE(
         target: [workspaceEnvironment.workspaceId],
         set: { variables: current, updatedAt: new Date() },
       })
+
+    await syncWorkspaceEnvCredentials({
+      workspaceId,
+      envKeys: Object.keys(current),
+      actingUserId: userId,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

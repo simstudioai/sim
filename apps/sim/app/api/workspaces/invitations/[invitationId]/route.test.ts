@@ -8,15 +8,27 @@ const mockHasWorkspaceAdminAccess = vi.fn()
 let dbSelectResults: any[] = []
 let dbSelectCallIndex = 0
 
-const mockDbSelect = vi.fn().mockImplementation(() => ({
-  from: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  then: vi.fn().mockImplementation((callback: (rows: any[]) => any) => {
-    const result = dbSelectResults[dbSelectCallIndex] || []
-    dbSelectCallIndex++
-    return Promise.resolve(callback ? callback(result) : result)
-  }),
-}))
+const mockDbSelect = vi.fn().mockImplementation(() => {
+  const makeThen = () =>
+    vi.fn().mockImplementation((callback: (rows: any[]) => any) => {
+      const result = dbSelectResults[dbSelectCallIndex] || []
+      dbSelectCallIndex++
+      return Promise.resolve(callback ? callback(result) : result)
+    })
+  const makeLimit = () =>
+    vi.fn().mockImplementation(() => {
+      const result = dbSelectResults[dbSelectCallIndex] || []
+      dbSelectCallIndex++
+      return Promise.resolve(result)
+    })
+
+  const chain: any = {}
+  chain.from = vi.fn().mockReturnValue(chain)
+  chain.where = vi.fn().mockReturnValue(chain)
+  chain.limit = makeLimit()
+  chain.then = makeThen()
+  return chain
+})
 
 const mockDbInsert = vi.fn().mockImplementation(() => ({
   values: vi.fn().mockResolvedValue(undefined),
@@ -51,6 +63,10 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   hasWorkspaceAdminAccess: (userId: string, workspaceId: string) =>
     mockHasWorkspaceAdminAccess(userId, workspaceId),
+}))
+
+vi.mock('@/lib/credentials/environment', () => ({
+  syncWorkspaceEnvCredentials: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
@@ -94,6 +110,10 @@ vi.mock('@sim/db/schema', () => ({
     entityId: 'entityId',
     userId: 'userId',
     permissionType: 'permissionType',
+  },
+  workspaceEnvironment: {
+    workspaceId: 'workspaceId',
+    variables: 'variables',
   },
 }))
 
@@ -206,6 +226,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         [mockInvitation],
         [mockWorkspace],
         [{ ...mockUser, email: 'invited@example.com' }],
+        [],
         [],
       ]
 
@@ -459,6 +480,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         [mockInvitation],
         [mockWorkspace],
         [{ ...mockUser, email: 'invited@example.com' }],
+        [],
         [],
       ]
 

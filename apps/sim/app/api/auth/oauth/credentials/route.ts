@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, user } from '@sim/db/schema'
+import { account, credential, credentialMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
@@ -7,8 +7,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { evaluateScopeCoverage, type OAuthProvider, parseProvider } from '@/lib/oauth'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +20,7 @@ const credentialsQuerySchema = z
   .object({
     provider: z.string().nullish(),
     workflowId: z.string().uuid('Workflow ID must be a valid UUID').nullish(),
+    workspaceId: z.string().uuid('Workspace ID must be a valid UUID').nullish(),
     credentialId: z
       .string()
       .min(1, 'Credential ID must not be empty')
@@ -35,6 +38,79 @@ interface GoogleIdToken {
   name?: string
 }
 
+function toCredentialResponse(
+  id: string,
+  displayName: string,
+  providerId: string,
+  updatedAt: Date,
+  scope: string | null
+) {
+  const storedScope = scope?.trim()
+  const grantedScopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
+  const scopeEvaluation = evaluateScopeCoverage(providerId, grantedScopes)
+  const [_, featureType = 'default'] = providerId.split('-')
+
+  return {
+    id,
+    name: displayName,
+    provider: providerId,
+    lastUsed: updatedAt.toISOString(),
+    isDefault: featureType === 'default',
+    scopes: scopeEvaluation.grantedScopes,
+    canonicalScopes: scopeEvaluation.canonicalScopes,
+    missingScopes: scopeEvaluation.missingScopes,
+    extraScopes: scopeEvaluation.extraScopes,
+    requiresReauthorization: scopeEvaluation.requiresReauthorization,
+  }
+}
+
+async function getFallbackDisplayName(
+  requestId: string,
+  providerParam: string | null | undefined,
+  accountRow: {
+    idToken: string | null
+    accountId: string
+    userId: string
+  }
+) {
+  const providerForParse = (providerParam || 'google') as OAuthProvider
+  const { baseProvider } = parseProvider(providerForParse)
+
+  if (accountRow.idToken) {
+    try {
+      const decoded = jwtDecode<GoogleIdToken>(accountRow.idToken)
+      if (decoded.email) return decoded.email
+      if (decoded.name) return decoded.name
+    } catch (_error) {
+      logger.warn(`[${requestId}] Error decoding ID token`, {
+        accountId: accountRow.accountId,
+      })
+    }
+  }
+
+  if (baseProvider === 'github') {
+    return `${accountRow.accountId} (GitHub)`
+  }
+
+  try {
+    const userRecord = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, accountRow.userId))
+      .limit(1)
+
+    if (userRecord.length > 0) {
+      return userRecord[0].email
+    }
+  } catch (_error) {
+    logger.warn(`[${requestId}] Error fetching user email`, {
+      userId: accountRow.userId,
+    })
+  }
+
+  return `${accountRow.accountId} (${baseProvider})`
+}
+
 /**
  * Get credentials for a specific provider
  */
@@ -46,6 +122,7 @@ export async function GET(request: NextRequest) {
     const rawQuery = {
       provider: searchParams.get('provider'),
       workflowId: searchParams.get('workflowId'),
+      workspaceId: searchParams.get('workspaceId'),
       credentialId: searchParams.get('credentialId'),
     }
 
@@ -78,7 +155,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { provider: providerParam, workflowId, credentialId } = parseResult.data
+    const { provider: providerParam, workflowId, workspaceId, credentialId } = parseResult.data
 
     // Authenticate requester (supports session and internal JWT)
     const authResult = await checkSessionOrInternalAuth(request)
@@ -88,7 +165,7 @@ export async function GET(request: NextRequest) {
     }
     const requesterUserId = authResult.userId
 
-    const effectiveUserId = requesterUserId
+    let effectiveWorkspaceId = workspaceId ?? undefined
     if (workflowId) {
       const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
@@ -106,101 +183,145 @@ export async function GET(request: NextRequest) {
           { status: workflowAuthorization.status }
         )
       }
+      effectiveWorkspaceId = workflowAuthorization.workflow?.workspaceId || undefined
     }
 
-    // Parse the provider to get base provider and feature type (if provider is present)
-    const { baseProvider } = parseProvider((providerParam || 'google') as OAuthProvider)
+    if (effectiveWorkspaceId) {
+      const workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
+      if (!workspaceAccess.hasAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
     let accountsData
 
+    if (credentialId) {
+      const [platformCredential] = await db
+        .select({
+          id: credential.id,
+          workspaceId: credential.workspaceId,
+          type: credential.type,
+          displayName: credential.displayName,
+          providerId: credential.providerId,
+          accountId: credential.accountId,
+          accountProviderId: account.providerId,
+          accountScope: account.scope,
+          accountUpdatedAt: account.updatedAt,
+        })
+        .from(credential)
+        .leftJoin(account, eq(credential.accountId, account.id))
+        .where(eq(credential.id, credentialId))
+        .limit(1)
+
+      if (platformCredential) {
+        if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
+          return NextResponse.json({ credentials: [] }, { status: 200 })
+        }
+
+        if (workflowId) {
+          if (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
+        } else {
+          const [membership] = await db
+            .select({ id: credentialMember.id })
+            .from(credentialMember)
+            .where(
+              and(
+                eq(credentialMember.credentialId, platformCredential.id),
+                eq(credentialMember.userId, requesterUserId),
+                eq(credentialMember.status, 'active')
+              )
+            )
+            .limit(1)
+
+          if (!membership) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
+        }
+
+        if (!platformCredential.accountProviderId || !platformCredential.accountUpdatedAt) {
+          return NextResponse.json({ credentials: [] }, { status: 200 })
+        }
+
+        return NextResponse.json(
+          {
+            credentials: [
+              toCredentialResponse(
+                platformCredential.id,
+                platformCredential.displayName,
+                platformCredential.accountProviderId,
+                platformCredential.accountUpdatedAt,
+                platformCredential.accountScope
+              ),
+            ],
+          },
+          { status: 200 }
+        )
+      }
+    }
+
+    if (effectiveWorkspaceId && providerParam) {
+      await syncWorkspaceOAuthCredentialsForUser({
+        workspaceId: effectiveWorkspaceId,
+        userId: requesterUserId,
+      })
+
+      const credentialsData = await db
+        .select({
+          id: credential.id,
+          displayName: credential.displayName,
+          providerId: account.providerId,
+          scope: account.scope,
+          updatedAt: account.updatedAt,
+        })
+        .from(credential)
+        .innerJoin(account, eq(credential.accountId, account.id))
+        .innerJoin(
+          credentialMember,
+          and(
+            eq(credentialMember.credentialId, credential.id),
+            eq(credentialMember.userId, requesterUserId),
+            eq(credentialMember.status, 'active')
+          )
+        )
+        .where(
+          and(
+            eq(credential.workspaceId, effectiveWorkspaceId),
+            eq(credential.type, 'oauth'),
+            eq(account.providerId, providerParam)
+          )
+        )
+
+      return NextResponse.json(
+        {
+          credentials: credentialsData.map((row) =>
+            toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
+          ),
+        },
+        { status: 200 }
+      )
+    }
+
     if (credentialId && workflowId) {
-      // When both workflowId and credentialId are provided, fetch by ID only.
-      // Workspace authorization above already proves access; the credential
-      // may belong to another workspace member (e.g. for display name resolution).
       accountsData = await db.select().from(account).where(eq(account.id, credentialId))
     } else if (credentialId) {
       accountsData = await db
         .select()
         .from(account)
-        .where(and(eq(account.userId, effectiveUserId), eq(account.id, credentialId)))
+        .where(and(eq(account.userId, requesterUserId), eq(account.id, credentialId)))
     } else {
-      // Fetch all credentials for provider and effective user
       accountsData = await db
         .select()
         .from(account)
-        .where(and(eq(account.userId, effectiveUserId), eq(account.providerId, providerParam!)))
+        .where(and(eq(account.userId, requesterUserId), eq(account.providerId, providerParam!)))
     }
 
     // Transform accounts into credentials
     const credentials = await Promise.all(
       accountsData.map(async (acc) => {
-        // Extract the feature type from providerId (e.g., 'google-default' -> 'default')
-        const [_, featureType = 'default'] = acc.providerId.split('-')
-
-        // Try multiple methods to get a user-friendly display name
-        let displayName = ''
-
-        // Method 1: Try to extract email from ID token (works for Google, etc.)
-        if (acc.idToken) {
-          try {
-            const decoded = jwtDecode<GoogleIdToken>(acc.idToken)
-            if (decoded.email) {
-              displayName = decoded.email
-            } else if (decoded.name) {
-              displayName = decoded.name
-            }
-          } catch (_error) {
-            logger.warn(`[${requestId}] Error decoding ID token`, {
-              accountId: acc.id,
-            })
-          }
-        }
-
-        // Method 2: For GitHub, the accountId might be the username
-        if (!displayName && baseProvider === 'github') {
-          displayName = `${acc.accountId} (GitHub)`
-        }
-
-        // Method 3: Try to get the user's email from our database
-        if (!displayName) {
-          try {
-            const userRecord = await db
-              .select({ email: user.email })
-              .from(user)
-              .where(eq(user.id, acc.userId))
-              .limit(1)
-
-            if (userRecord.length > 0) {
-              displayName = userRecord[0].email
-            }
-          } catch (_error) {
-            logger.warn(`[${requestId}] Error fetching user email`, {
-              userId: acc.userId,
-            })
-          }
-        }
-
-        // Fallback: Use accountId with provider type as context
-        if (!displayName) {
-          displayName = `${acc.accountId} (${baseProvider})`
-        }
-
-        const storedScope = acc.scope?.trim()
-        const grantedScopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
-        const scopeEvaluation = evaluateScopeCoverage(acc.providerId, grantedScopes)
-
-        return {
-          id: acc.id,
-          name: displayName,
-          provider: acc.providerId,
-          lastUsed: acc.updatedAt.toISOString(),
-          isDefault: featureType === 'default',
-          scopes: scopeEvaluation.grantedScopes,
-          canonicalScopes: scopeEvaluation.canonicalScopes,
-          missingScopes: scopeEvaluation.missingScopes,
-          extraScopes: scopeEvaluation.extraScopes,
-          requiresReauthorization: scopeEvaluation.requiresReauthorization,
-        }
+        const displayName = await getFallbackDisplayName(requestId, providerParam, acc)
+        return toCredentialResponse(acc.id, displayName, acc.providerId, acc.updatedAt, acc.scope)
       })
     )
 

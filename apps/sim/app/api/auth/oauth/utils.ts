@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, credentialSetMember } from '@sim/db/schema'
+import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { refreshOAuthToken } from '@/lib/oauth'
@@ -23,6 +23,28 @@ interface AccountInsertData {
   refreshToken?: string
   idToken?: string
   accessTokenExpiresAt?: Date
+}
+
+async function resolveOAuthAccountId(
+  credentialId: string
+): Promise<{ accountId: string; usedCredentialTable: boolean } | null> {
+  const [credentialRow] = await db
+    .select({
+      type: credential.type,
+      accountId: credential.accountId,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (credentialRow) {
+    if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
+      return null
+    }
+    return { accountId: credentialRow.accountId, usedCredentialTable: true }
+  }
+
+  return { accountId: credentialId, usedCredentialTable: false }
 }
 
 /**
@@ -52,10 +74,16 @@ export async function safeAccountInsert(
  * Get a credential by ID and verify it belongs to the user
  */
 export async function getCredential(requestId: string, credentialId: string, userId: string) {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
+    return undefined
+  }
+
   const credentials = await db
     .select()
     .from(account)
-    .where(and(eq(account.id, credentialId), eq(account.userId, userId)))
+    .where(and(eq(account.id, resolved.accountId), eq(account.userId, userId)))
     .limit(1)
 
   if (!credentials.length) {
@@ -63,7 +91,10 @@ export async function getCredential(requestId: string, credentialId: string, use
     return undefined
   }
 
-  return credentials[0]
+  return {
+    ...credentials[0],
+    resolvedCredentialId: resolved.accountId,
+  }
 }
 
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
@@ -238,7 +269,9 @@ export async function refreshAccessTokenIfNeeded(
       }
 
       // Update the token in the database
-      await db.update(account).set(updateData).where(eq(account.id, credentialId))
+      const resolvedCredentialId =
+        (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
+      await db.update(account).set(updateData).where(eq(account.id, resolvedCredentialId))
 
       logger.info(`[${requestId}] Successfully refreshed access token for credential`)
       return refreshedToken.accessToken
@@ -274,6 +307,8 @@ export async function refreshTokenIfNeeded(
   credential: any,
   credentialId: string
 ): Promise<{ accessToken: string; refreshed: boolean }> {
+  const resolvedCredentialId = credential.resolvedCredentialId ?? credentialId
+
   // Decide if we should refresh: token missing OR expired
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
@@ -334,7 +369,7 @@ export async function refreshTokenIfNeeded(
       updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
     }
 
-    await db.update(account).set(updateData).where(eq(account.id, credentialId))
+    await db.update(account).set(updateData).where(eq(account.id, resolvedCredentialId))
 
     logger.info(`[${requestId}] Successfully refreshed access token`)
     return { accessToken: refreshedToken, refreshed: true }
@@ -343,7 +378,7 @@ export async function refreshTokenIfNeeded(
       `[${requestId}] Refresh attempt failed, checking if another concurrent request succeeded`
     )
 
-    const freshCredential = await getCredential(requestId, credentialId, credential.userId)
+    const freshCredential = await getCredential(requestId, resolvedCredentialId, credential.userId)
     if (freshCredential?.accessToken) {
       const freshExpiresAt = freshCredential.accessTokenExpiresAt
       const stillValid = !freshExpiresAt || freshExpiresAt > new Date()

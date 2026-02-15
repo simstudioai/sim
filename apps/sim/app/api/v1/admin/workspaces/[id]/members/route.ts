@@ -32,9 +32,10 @@
 
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { permissions, user, workspace } from '@sim/db/schema'
+import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -231,6 +232,20 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       permissions: body.permissions,
       permissionId,
     })
+
+    const [wsEnvRow] = await db
+      .select({ variables: workspaceEnvironment.variables })
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+      .limit(1)
+    const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+    if (wsEnvKeys.length > 0) {
+      await syncWorkspaceEnvCredentials({
+        workspaceId,
+        envKeys: wsEnvKeys,
+        actingUserId: body.userId,
+      })
+    }
 
     return singleResponse({
       id: permissionId,

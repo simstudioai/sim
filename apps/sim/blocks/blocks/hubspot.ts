@@ -39,6 +39,8 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
       id: 'credential',
       title: 'HubSpot Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'hubspot',
       requiredScopes: [
         'crm.objects.contacts.read',
@@ -66,6 +68,15 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
         'tickets',
       ],
       placeholder: 'Select HubSpot account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'HubSpot Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -823,7 +834,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           operation,
           propertiesToSet,
           properties,
@@ -835,7 +846,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
         } = params
 
         const cleanParams: Record<string, any> = {
-          credential,
+          oauthCredential,
         }
 
         const createUpdateOps = [
@@ -890,7 +901,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'HubSpot access token' },
+    oauthCredential: { type: 'string', description: 'HubSpot access token' },
     contactId: { type: 'string', description: 'Contact ID or email' },
     companyId: { type: 'string', description: 'Company ID or domain' },
     idProperty: { type: 'string', description: 'Property name to use as unique identifier' },
