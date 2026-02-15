@@ -273,7 +273,7 @@ export function BlockMenu({
                 }
               }}
             >
-              Run from block
+              Run
             </PopoverItem>
             {/* Hide "Run until" for triggers - they're always at the start */}
             {!hasTriggerBlock && (
