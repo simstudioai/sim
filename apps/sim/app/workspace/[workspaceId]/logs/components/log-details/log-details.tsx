@@ -234,8 +234,7 @@ const WorkflowOutputSection = memo(
       </div>
     )
   },
-  (prev, next) =>
-    prev.output === next.output || JSON.stringify(prev.output) === JSON.stringify(next.output)
+  (prev, next) => prev.output === next.output
 )
 
 interface LogDetailsProps {

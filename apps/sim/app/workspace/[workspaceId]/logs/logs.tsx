@@ -230,13 +230,19 @@ export default function Logs() {
   useEffect(() => {
     selectedLogIdRef.current = selectedLogId
   }, [selectedLogId])
-  logsRefetchRef.current = logsQuery.refetch
-  activeLogRefetchRef.current = activeLogQuery.refetch
-  logsQueryRef.current = {
-    isFetching: logsQuery.isFetching,
-    hasNextPage: logsQuery.hasNextPage ?? false,
-    fetchNextPage: logsQuery.fetchNextPage,
-  }
+  useEffect(() => {
+    logsRefetchRef.current = logsQuery.refetch
+  }, [logsQuery.refetch])
+  useEffect(() => {
+    activeLogRefetchRef.current = activeLogQuery.refetch
+  }, [activeLogQuery.refetch])
+  useEffect(() => {
+    logsQueryRef.current = {
+      isFetching: logsQuery.isFetching,
+      hasNextPage: logsQuery.hasNextPage ?? false,
+      fetchNextPage: logsQuery.fetchNextPage,
+    }
+  }, [logsQuery.isFetching, logsQuery.hasNextPage, logsQuery.fetchNextPage])
 
   useEffect(() => {
     const timers = refreshTimersRef.current

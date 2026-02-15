@@ -371,9 +371,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
     [toggleWorkflowId]
   )
 
-  useEffect(() => {
-    lastAnchorIndicesRef.current = lastAnchorIndices
-  }, [lastAnchorIndices])
+  lastAnchorIndicesRef.current = lastAnchorIndices
 
   /**
    * Handles segment click for selecting time segments.
