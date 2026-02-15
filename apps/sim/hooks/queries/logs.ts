@@ -1,4 +1,10 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  type QueryClient,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import type {
@@ -146,17 +152,45 @@ export function useLogsList(
 
 interface UseLogDetailOptions {
   enabled?: boolean
-  refetchInterval?: number | false
+  refetchInterval?:
+    | number
+    | false
+    | ((query: { state: { data?: WorkflowLog } }) => number | false | undefined)
 }
 
 export function useLogDetail(logId: string | undefined, options?: UseLogDetailOptions) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: logKeys.detail(logId),
     queryFn: () => fetchLogDetail(logId as string),
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
+    initialData: () => {
+      if (!logId) return undefined
+      const listQueries = queryClient.getQueriesData<{
+        pages: { logs: WorkflowLog[] }[]
+      }>({
+        queryKey: logKeys.lists(),
+      })
+      for (const [, data] of listQueries) {
+        const match = data?.pages?.flatMap((p) => p.logs).find((l) => l.id === logId)
+        if (match) return match
+      }
+      return undefined
+    },
+    initialDataUpdatedAt: 0,
+  })
+}
+
+/**
+ * Prefetches log detail data on hover for instant panel rendering on click.
+ */
+export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
+  queryClient.prefetchQuery({
+    queryKey: logKeys.detail(logId),
+    queryFn: () => fetchLogDetail(logId),
+    staleTime: 30 * 1000,
   })
 }
 

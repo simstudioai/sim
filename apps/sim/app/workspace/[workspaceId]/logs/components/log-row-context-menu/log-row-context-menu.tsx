@@ -1,6 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { memo } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -29,7 +30,7 @@ interface LogRowContextMenuProps {
  * Context menu for log rows.
  * Provides quick actions for copying data, navigation, and filtering.
  */
-export function LogRowContextMenu({
+export const LogRowContextMenu = memo(function LogRowContextMenu({
   isOpen,
   position,
   menuRef,
@@ -121,4 +122,4 @@ export function LogRowContextMenu({
       </PopoverContent>
     </Popover>
   )
-}
+})
