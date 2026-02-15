@@ -339,7 +339,8 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
 })
 
 /**
- * Entry node component - dispatches to appropriate component based on node type
+ * Entry node component - dispatches to appropriate component based on node type.
+ * Handles recursive rendering for workflow nodes with arbitrarily nested children.
  */
 const EntryNodeRow = memo(function EntryNodeRow({
   node,
@@ -377,6 +378,98 @@ const EntryNodeRow = memo(function EntryNodeRow({
         isExpanded={expandedNodes.has(node.entry.id)}
         onToggle={() => onToggleNode(node.entry.id)}
       />
+    )
+  }
+
+  if (nodeType === 'workflow') {
+    const { entry, children } = node
+    const BlockIcon = getBlockIcon(entry.blockType)
+    const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
+    const bgColor = getBlockColor(entry.blockType)
+    const nodeId = entry.id
+    const isExpanded = expandedNodes.has(nodeId)
+    const hasChildren = children.length > 0
+    const isSelected = selectedEntryId === entry.id
+    const isRunning = Boolean(entry.isRunning)
+    const isCanceled = Boolean(entry.isCanceled)
+
+    return (
+      <div className='flex min-w-0 flex-col'>
+        {/* Workflow Block Header */}
+        <div
+          data-entry-id={entry.id}
+          className={clsx(
+            ROW_STYLES.base,
+            'h-[26px]',
+            isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
+          )}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (hasChildren) {
+              onToggleNode(nodeId)
+            }
+            onSelectEntry(entry)
+          }}
+        >
+          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+            <div
+              className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+              style={{ background: bgColor }}
+            >
+              {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            </div>
+            <span
+              className={clsx(
+                'min-w-0 truncate font-medium text-[13px]',
+                hasError
+                  ? 'text-[var(--text-error)]'
+                  : isSelected || isExpanded
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              )}
+            >
+              {entry.blockName}
+            </span>
+            {hasChildren && (
+              <ChevronDown
+                className={clsx(
+                  'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                  !isExpanded && '-rotate-90'
+                )}
+              />
+            )}
+          </div>
+          <span
+            className={clsx(
+              'flex-shrink-0 font-medium text-[13px]',
+              !isRunning &&
+                (isCanceled ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+            )}
+          >
+            <StatusDisplay
+              isRunning={isRunning}
+              isCanceled={isCanceled}
+              formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+            />
+          </span>
+        </div>
+
+        {/* Nested Child Workflow Blocks (recursive) */}
+        {isExpanded && hasChildren && (
+          <div className={ROW_STYLES.nested}>
+            {children.map((child) => (
+              <EntryNodeRow
+                key={child.entry.id}
+                node={child}
+                selectedEntryId={selectedEntryId}
+                onSelectEntry={onSelectEntry}
+                expandedNodes={expandedNodes}
+                onToggleNode={onToggleNode}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -555,6 +648,8 @@ export const Terminal = memo(function Terminal() {
   const uniqueBlocks = useMemo(() => {
     const blocksMap = new Map<string, { blockId: string; blockName: string; blockType: string }>()
     allWorkflowEntries.forEach((entry) => {
+      // Skip child workflow entries — they use synthetic IDs and shouldn't appear in filters
+      if (entry.parentWorkflowBlockId) return
       if (!blocksMap.has(entry.blockId)) {
         blocksMap.set(entry.blockId, {
           blockId: entry.blockId,
@@ -667,19 +762,22 @@ export const Terminal = memo(function Terminal() {
 
     const newestExec = executionGroups[0]
 
-    // Collect all node IDs that should be expanded (subflows and their iterations)
+    // Collect all expandable node IDs recursively (subflows, iterations, and workflow nodes)
     const nodeIdsToExpand: string[] = []
-    for (const node of newestExec.entryTree) {
-      if (node.nodeType === 'subflow' && node.children.length > 0) {
-        nodeIdsToExpand.push(node.entry.id)
-        // Also expand all iteration children
-        for (const iterNode of node.children) {
-          if (iterNode.nodeType === 'iteration') {
-            nodeIdsToExpand.push(iterNode.entry.id)
-          }
+    const collectExpandableNodes = (nodes: EntryNode[]) => {
+      for (const node of nodes) {
+        if (node.children.length === 0) continue
+        if (
+          node.nodeType === 'subflow' ||
+          node.nodeType === 'iteration' ||
+          node.nodeType === 'workflow'
+        ) {
+          nodeIdsToExpand.push(node.entry.id)
+          collectExpandableNodes(node.children)
         }
       }
     }
+    collectExpandableNodes(newestExec.entryTree)
 
     if (nodeIdsToExpand.length > 0) {
       setExpandedNodes((prev) => {

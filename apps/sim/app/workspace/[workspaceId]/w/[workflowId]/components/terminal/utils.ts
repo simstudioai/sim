@@ -120,10 +120,10 @@ export function isSubflowBlockType(blockType: string): boolean {
 /**
  * Node type for the tree structure
  */
-export type EntryNodeType = 'block' | 'subflow' | 'iteration'
+export type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
 
 /**
- * Entry node for tree structure - represents a block, subflow, or iteration
+ * Entry node for tree structure - represents a block, subflow, iteration, or workflow
  */
 export interface EntryNode {
   /** The console entry (for blocks) or synthetic entry (for subflows/iterations) */
@@ -175,12 +175,17 @@ interface IterationGroup {
  * Sorts by start time to ensure chronological order.
  */
 function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
-  // Separate regular blocks from iteration entries
+  // Separate regular blocks from iteration entries and child workflow entries
   const regularBlocks: ConsoleEntry[] = []
   const iterationEntries: ConsoleEntry[] = []
+  const childWorkflowEntries = new Map<string, ConsoleEntry[]>()
 
   for (const entry of entries) {
-    if (entry.iterationType && entry.iterationCurrent !== undefined) {
+    if (entry.parentWorkflowBlockId) {
+      const existing = childWorkflowEntries.get(entry.parentWorkflowBlockId) || []
+      existing.push(entry)
+      childWorkflowEntries.set(entry.parentWorkflowBlockId, existing)
+    } else if (entry.iterationType && entry.iterationCurrent !== undefined) {
       iterationEntries.push(entry)
     } else {
       regularBlocks.push(entry)
@@ -338,12 +343,53 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     })
   }
 
-  // Build nodes for regular blocks
-  const regularNodes: EntryNode[] = regularBlocks.map((entry) => ({
-    entry,
-    children: [],
-    nodeType: 'block' as const,
-  }))
+  /**
+   * Recursively builds child nodes for workflow blocks.
+   * Handles multi-level nesting where a child workflow block itself has children.
+   */
+  const buildWorkflowChildNodes = (parentBlockId: string): EntryNode[] => {
+    const childEntries = childWorkflowEntries.get(parentBlockId)
+    if (!childEntries || childEntries.length === 0) return []
+
+    childEntries.sort((a, b) => {
+      const aTime = new Date(a.startedAt || a.timestamp).getTime()
+      const bTime = new Date(b.startedAt || b.timestamp).getTime()
+      return aTime - bTime
+    })
+
+    return childEntries.map((child) => {
+      const nestedChildren = buildWorkflowChildNodes(child.blockId)
+      if (nestedChildren.length > 0) {
+        return {
+          entry: child,
+          children: nestedChildren,
+          nodeType: 'workflow' as const,
+        }
+      }
+      return {
+        entry: child,
+        children: [],
+        nodeType: 'block' as const,
+      }
+    })
+  }
+
+  // Build nodes for regular blocks, promoting workflow blocks with children to 'workflow' nodes
+  const regularNodes: EntryNode[] = regularBlocks.map((entry) => {
+    const childNodes = buildWorkflowChildNodes(entry.blockId)
+    if (childNodes.length > 0) {
+      return {
+        entry,
+        children: childNodes,
+        nodeType: 'workflow' as const,
+      }
+    }
+    return {
+      entry,
+      children: [],
+      nodeType: 'block' as const,
+    }
+  })
 
   // Combine all nodes and sort by executionOrder ascending (oldest first, top-down)
   const allNodes = [...subflowNodes, ...regularNodes]

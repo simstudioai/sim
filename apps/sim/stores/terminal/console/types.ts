@@ -22,6 +22,7 @@ export interface ConsoleEntry {
   iterationTotal?: number
   iterationType?: SubflowType
   iterationContainerId?: string
+  parentWorkflowBlockId?: string
   isRunning?: boolean
   isCanceled?: boolean
 }
@@ -44,6 +45,7 @@ export interface ConsoleUpdate {
   iterationTotal?: number
   iterationType?: SubflowType
   iterationContainerId?: string
+  parentWorkflowBlockId?: string
 }
 
 export interface ConsoleStore {

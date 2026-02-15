@@ -88,21 +88,38 @@ export function useTerminalFilters() {
       let result = entries
 
       if (hasActiveFilters) {
-        result = entries.filter((entry) => {
-          // Block ID filter
-          if (filters.blockIds.size > 0 && !filters.blockIds.has(entry.blockId)) {
-            return false
-          }
+        // Determine which top-level entries pass the filters
+        const visibleBlockIds = new Set<string>()
+        for (const entry of entries) {
+          if (entry.parentWorkflowBlockId) continue
 
-          // Status filter
-          if (filters.statuses.size > 0) {
+          let passes = true
+          if (filters.blockIds.size > 0 && !filters.blockIds.has(entry.blockId)) {
+            passes = false
+          }
+          if (passes && filters.statuses.size > 0) {
             const isError = !!entry.error
             const hasStatus = isError ? filters.statuses.has('error') : filters.statuses.has('info')
-            if (!hasStatus) return false
+            if (!hasStatus) passes = false
           }
+          if (passes) {
+            visibleBlockIds.add(entry.blockId)
+          }
+        }
 
-          return true
-        })
+        // Propagate visibility to child workflow entries (handles arbitrary nesting).
+        // Keep iterating until no new children are discovered.
+        let prevSize = 0
+        while (visibleBlockIds.size !== prevSize) {
+          prevSize = visibleBlockIds.size
+          for (const entry of entries) {
+            if (entry.parentWorkflowBlockId && visibleBlockIds.has(entry.parentWorkflowBlockId)) {
+              visibleBlockIds.add(entry.blockId)
+            }
+          }
+        }
+
+        result = entries.filter((entry) => visibleBlockIds.has(entry.blockId))
       }
 
       // Sort by executionOrder (monotonically increasing integer from server)
