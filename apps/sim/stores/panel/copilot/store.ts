@@ -39,6 +39,7 @@ import {
   buildToolCallsById,
   normalizeMessagesForUI,
   persistMessages,
+  persistMessagesBeacon,
   saveMessageCheckpoint,
 } from '@/lib/copilot/messages'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
@@ -78,6 +79,28 @@ let _isPageUnloading = false
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     _isPageUnloading = true
+
+    // Emergency persistence: flush any pending streaming updates to the store and
+    // persist via sendBeacon (which is guaranteed to be queued during page teardown).
+    // Without this, thinking blocks and in-progress content are lost on refresh.
+    try {
+      const state = useCopilotStore.getState()
+      if (state.isSendingMessage && state.currentChat) {
+        // Flush batched streaming updates into the store messages
+        flushStreamingUpdates(useCopilotStore.setState.bind(useCopilotStore))
+        const flushedState = useCopilotStore.getState()
+        persistMessagesBeacon({
+          chatId: flushedState.currentChat!.id,
+          messages: flushedState.messages,
+          sensitiveCredentialIds: flushedState.sensitiveCredentialIds,
+          planArtifact: flushedState.streamingPlanContent || null,
+          mode: flushedState.mode,
+          model: flushedState.selectedModel,
+        })
+      }
+    } catch {
+      // Best-effort — don't let errors prevent page unload
+    }
   })
 }
 function isPageUnloading(): boolean {
@@ -1525,19 +1548,26 @@ export const useCopilotStore = create<CopilotStore>()(
         // Immediately put all in-progress tools into aborted state
         abortAllInProgressTools(set, get)
 
-        // Persist whatever contentBlocks/text we have to keep ordering for reloads
+        // Persist whatever contentBlocks/text we have to keep ordering for reloads.
+        // During page unload, use sendBeacon which is guaranteed to be queued even
+        // as the page tears down. Regular async fetch won't complete in time.
         const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
             const currentMessages = get().messages
-            void persistMessages({
+            const persistParams = {
               chatId: currentChat.id,
               messages: currentMessages,
               sensitiveCredentialIds: get().sensitiveCredentialIds,
               planArtifact: streamingPlanContent || null,
               mode,
               model: selectedModel,
-            })
+            }
+            if (isPageUnloading()) {
+              persistMessagesBeacon(persistParams)
+            } else {
+              void persistMessages(persistParams)
+            }
           } catch (error) {
             logger.warn('[Copilot] Failed to queue abort snapshot persistence', {
               error: error instanceof Error ? error.message : String(error),
