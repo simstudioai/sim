@@ -97,27 +97,7 @@ export class GenericBlockHandler implements BlockHandler {
         throw error
       }
 
-      const output = result.output
-      let cost = null
-
-      if (output?.cost) {
-        cost = output.cost
-      }
-
-      if (cost) {
-        return {
-          ...output,
-          cost: {
-            input: cost.input,
-            output: cost.output,
-            total: cost.total,
-          },
-          tokens: cost.tokens,
-          model: cost.model,
-        }
-      }
-
-      return output
+      return result.output
     } catch (error: any) {
       if (!error.message || error.message === 'undefined (undefined)') {
         let errorMessage = `Block execution of ${tool?.name || block.config.tool} failed`

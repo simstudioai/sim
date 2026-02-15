@@ -3,6 +3,7 @@ import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
+  isSubBlockHiddenByHostedKey,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
@@ -107,6 +108,9 @@ export function useEditorSubblockLayout(
 
       // Check required feature if specified - declarative feature gating
       if (!isSubBlockFeatureEnabled(block)) return false
+
+      // Hide tool API key fields when hosted key is available
+      if (isSubBlockHiddenByHostedKey(block)) return false
 
       // Special handling for trigger-config type (legacy trigger configuration UI)
       if (block.type === ('trigger-config' as SubBlockType)) {

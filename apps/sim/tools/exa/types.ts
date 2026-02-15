@@ -6,6 +6,11 @@ export interface ExaBaseParams {
   apiKey: string
 }
 
+/** Cost breakdown returned by Exa API responses */
+export interface ExaCostDollars {
+  total: number
+}
+
 // Search tool types
 export interface ExaSearchParams extends ExaBaseParams {
   query: string
@@ -50,6 +55,7 @@ export interface ExaSearchResult {
 export interface ExaSearchResponse extends ToolResponse {
   output: {
     results: ExaSearchResult[]
+    costDollars?: ExaCostDollars
   }
 }
 
@@ -78,6 +84,7 @@ export interface ExaGetContentsResult {
 export interface ExaGetContentsResponse extends ToolResponse {
   output: {
     results: ExaGetContentsResult[]
+    costDollars?: ExaCostDollars
   }
 }
 
@@ -120,6 +127,7 @@ export interface ExaSimilarLink {
 export interface ExaFindSimilarLinksResponse extends ToolResponse {
   output: {
     similarLinks: ExaSimilarLink[]
+    costDollars?: ExaCostDollars
   }
 }
 
@@ -137,6 +145,7 @@ export interface ExaAnswerResponse extends ToolResponse {
       url: string
       text: string
     }[]
+    costDollars?: ExaCostDollars
   }
 }
 
@@ -158,6 +167,7 @@ export interface ExaResearchResponse extends ToolResponse {
       author?: string
       score: number
     }[]
+    costDollars?: ExaCostDollars
   }
 }
 

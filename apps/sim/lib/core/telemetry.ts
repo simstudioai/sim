@@ -935,6 +935,31 @@ export const PlatformEvents = {
   },
 
   /**
+   * Track hosted key throttled (rate limited)
+   */
+  hostedKeyThrottled: (attrs: {
+    toolId: string
+    envVarName: string
+    attempt: number
+    maxRetries: number
+    delayMs: number
+    userId?: string
+    workspaceId?: string
+    workflowId?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.throttled', {
+      'tool.id': attrs.toolId,
+      'hosted_key.env_var': attrs.envVarName,
+      'throttle.attempt': attrs.attempt,
+      'throttle.max_retries': attrs.maxRetries,
+      'throttle.delay_ms': attrs.delayMs,
+      ...(attrs.userId && { 'user.id': attrs.userId }),
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    })
+  },
+
+  /**
    * Track chat deployed (workflow deployed as chat interface)
    */
   chatDeployed: (attrs: {

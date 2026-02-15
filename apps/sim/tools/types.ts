@@ -1,5 +1,7 @@
 import type { OAuthService } from '@/lib/oauth'
 
+export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa'
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
 export type OutputType =
@@ -127,6 +129,13 @@ export interface ToolConfig<P = any, R = any> {
    * Maps param IDs to their enrichment configuration.
    */
   schemaEnrichment?: Record<string, SchemaEnrichmentConfig>
+
+  /**
+   * Hosted API key configuration for this tool.
+   * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
+   * Usage is billed according to the pricing config.
+   */
+  hosting?: ToolHostingConfig<P>
 }
 
 export interface TableRow {
@@ -169,4 +178,47 @@ export interface SchemaEnrichmentConfig {
     description?: string
     required?: string[]
   } | null>
+}
+
+/**
+ * Pricing models for hosted API key usage
+ */
+/** Flat fee per API call (e.g., Serper search) */
+export interface PerRequestPricing {
+  type: 'per_request'
+  /** Cost per request in dollars */
+  cost: number
+}
+
+/** Result from custom pricing calculation */
+export interface CustomPricingResult {
+  /** Cost in dollars */
+  cost: number
+  /** Optional metadata about the cost calculation (e.g., breakdown from API) */
+  metadata?: Record<string, unknown>
+}
+
+/** Custom pricing calculated from params and response (e.g., Exa with different modes/result counts) */
+export interface CustomPricing<P = Record<string, unknown>> {
+  type: 'custom'
+  /** Calculate cost based on request params and response output. Fields starting with _ are internal. */
+  getCost: (params: P, output: Record<string, unknown>) => number | CustomPricingResult
+}
+
+/** Union of all pricing models */
+export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
+
+/**
+ * Configuration for hosted API key support
+ * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own
+ */
+export interface ToolHostingConfig<P = Record<string, unknown>> {
+  /** Environment variable names to check for hosted keys (supports rotation with multiple keys) */
+  envKeys: string[]
+  /** The parameter name that receives the API key */
+  apiKeyParam: string
+  /** BYOK provider ID for workspace key lookup */
+  byokProviderId?: BYOKProviderId
+  /** Pricing when using hosted key */
+  pricing: ToolHostingPricing<P>
 }

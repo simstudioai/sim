@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { API_ENDPOINTS } from '@/stores/constants'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeysQueries')
-
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
 
 export interface BYOKKey {
   id: string
