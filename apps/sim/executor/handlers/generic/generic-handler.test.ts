@@ -171,9 +171,10 @@ describe('GenericBlockHandler', () => {
     })
 
     it.concurrent(
-      'should extract and restructure cost information from knowledge tools',
+      'should pass through cost information from knowledge tools unchanged',
       async () => {
         const inputs = { query: 'test query' }
+        // Tool's transformResponse already restructures cost, so executeTool returns restructured data
         const mockToolResponse = {
           success: true,
           output: {
@@ -184,18 +185,13 @@ describe('GenericBlockHandler', () => {
               input: 0.00001042,
               output: 0,
               total: 0.00001042,
-              tokens: {
-                input: 521,
-                output: 0,
-                total: 521,
-              },
-              model: 'text-embedding-3-small',
-              pricing: {
-                input: 0.02,
-                output: 0,
-                updatedAt: '2025-07-10',
-              },
             },
+            tokens: {
+              input: 521,
+              output: 0,
+              total: 521,
+            },
+            model: 'text-embedding-3-small',
           },
         }
 
@@ -203,7 +199,7 @@ describe('GenericBlockHandler', () => {
 
         const result = await handler.execute(mockContext, mockBlock, inputs)
 
-        // Verify cost information is restructured correctly for enhanced logging
+        // Generic handler passes through output unchanged
         expect(result).toEqual({
           results: [],
           query: 'test query',
@@ -223,7 +219,7 @@ describe('GenericBlockHandler', () => {
       }
     )
 
-    it.concurrent('should handle knowledge_upload_chunk cost information', async () => {
+    it.concurrent('should pass through knowledge_upload_chunk output unchanged', async () => {
       // Update to upload_chunk tool
       mockBlock.config.tool = 'knowledge_upload_chunk'
       mockTool.id = 'knowledge_upload_chunk'
@@ -237,6 +233,7 @@ describe('GenericBlockHandler', () => {
       })
 
       const inputs = { content: 'test content' }
+      // Tool's transformResponse already restructures cost
       const mockToolResponse = {
         success: true,
         output: {
@@ -251,18 +248,13 @@ describe('GenericBlockHandler', () => {
             input: 0.00000521,
             output: 0,
             total: 0.00000521,
-            tokens: {
-              input: 260,
-              output: 0,
-              total: 260,
-            },
-            model: 'text-embedding-3-small',
-            pricing: {
-              input: 0.02,
-              output: 0,
-              updatedAt: '2025-07-10',
-            },
           },
+          tokens: {
+            input: 260,
+            output: 0,
+            total: 260,
+          },
+          model: 'text-embedding-3-small',
         },
       }
 
@@ -270,7 +262,7 @@ describe('GenericBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      // Verify cost information is restructured correctly
+      // Generic handler passes through output unchanged
       expect(result).toEqual({
         data: {
           id: 'chunk-123',
@@ -309,57 +301,12 @@ describe('GenericBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      // Should return original output without cost transformation
+      // Should return original output unchanged
       expect(result).toEqual({
         results: [],
         query: 'test query',
         totalResults: 0,
       })
     })
-
-    it.concurrent(
-      'should process cost info for all tools (universal cost extraction)',
-      async () => {
-        mockBlock.config.tool = 'some_other_tool'
-        mockTool.id = 'some_other_tool'
-
-        mockGetTool.mockImplementation((toolId) => {
-          if (toolId === 'some_other_tool') {
-            return mockTool
-          }
-          return undefined
-        })
-
-        const inputs = { param: 'value' }
-        const mockToolResponse = {
-          success: true,
-          output: {
-            result: 'success',
-            cost: {
-              input: 0.001,
-              output: 0.002,
-              total: 0.003,
-              tokens: { input: 100, output: 50, total: 150 },
-              model: 'some-model',
-            },
-          },
-        }
-
-        mockExecuteTool.mockResolvedValue(mockToolResponse)
-
-        const result = await handler.execute(mockContext, mockBlock, inputs)
-
-        expect(result).toEqual({
-          result: 'success',
-          cost: {
-            input: 0.001,
-            output: 0.002,
-            total: 0.003,
-          },
-          tokens: { input: 100, output: 50, total: 150 },
-          model: 'some-model',
-        })
-      }
-    )
   })
 })
