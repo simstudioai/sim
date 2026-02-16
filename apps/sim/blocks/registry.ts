@@ -138,6 +138,7 @@ import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
+import { TikTokBlock } from '@/blocks/blocks/tiktok'
 import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
@@ -320,6 +321,7 @@ export const registry: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
+  tiktok: TikTokBlock,
   textract: TextractBlock,
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
