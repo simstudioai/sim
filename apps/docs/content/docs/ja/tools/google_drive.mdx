@@ -124,3 +124,270 @@ Google Drive内のファイルとフォルダを一覧表示する
 
 - カテゴリ: `tools`
 - タイプ: `google_drive`
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | file | 実行ファイルに保存されたダウンロード済みファイル |
+| `metadata` | object | Google Driveからの完全なファイルメタデータ |
+|   ↳ `id` | string | Google DriveファイルID |
+|   ↳ `kind` | string | リソースタイプ識別子 |
+|   ↳ `name` | string | ファイル名 |
+|   ↳ `mimeType` | string | MIMEタイプ |
+|   ↳ `description` | string | ファイルの説明 |
+|   ↳ `originalFilename` | string | 元のアップロードファイル名 |
+|   ↳ `fullFileExtension` | string | 完全なファイル拡張子 |
+|   ↳ `fileExtension` | string | ファイル拡張子 |
+|   ↳ `owners` | json | ファイル所有者のリスト |
+|   ↳ `permissions` | json | ファイルの権限 |
+|   ↳ `permissionIds` | json | 権限ID |
+|   ↳ `shared` | boolean | ファイルが共有されているかどうか |
+|   ↳ `ownedByMe` | boolean | 現在のユーザーが所有しているかどうか |
+|   ↳ `writersCanShare` | boolean | 編集者が共有できるかどうか |
+|   ↳ `viewersCanCopyContent` | boolean | 閲覧者がコピーできるかどうか |
+|   ↳ `copyRequiresWriterPermission` | boolean | コピーに編集者権限が必要かどうか |
+|   ↳ `sharingUser` | json | ファイルを共有したユーザー |
+|   ↳ `starred` | boolean | ファイルにスターが付いているかどうか |
+|   ↳ `trashed` | boolean | ファイルがゴミ箱にあるかどうか |
+|   ↳ `explicitlyTrashed` | boolean | 明示的にゴミ箱に移動されたかどうか |
+|   ↳ `appProperties` | json | アプリ固有のプロパティ |
+|   ↳ `createdTime` | string | ファイル作成時刻 |
+|   ↳ `modifiedTime` | string | 最終更新時刻 |
+|   ↳ `modifiedByMeTime` | string | 現在のユーザーによる更新時刻 |
+|   ↳ `viewedByMeTime` | string | 現在のユーザーによる最終閲覧時刻 |
+|   ↳ `sharedWithMeTime` | string | 現在のユーザーとの共有時刻 |
+|   ↳ `lastModifyingUser` | json | ファイルを最後に更新したユーザー |
+|   ↳ `viewedByMe` | boolean | 現在のユーザーが閲覧したかどうか |
+|   ↳ `modifiedByMe` | boolean | 現在のユーザーが更新したかどうか |
+|   ↳ `webViewLink` | string | ブラウザで表示するURL |
+|   ↳ `webContentLink` | string | 直接ダウンロードURL |
+|   ↳ `iconLink` | string | ファイルアイコンのURL |
+|   ↳ `thumbnailLink` | string | サムネイルのURL |
+|   ↳ `exportLinks` | json | エクスポート形式のリンク |
+|   ↳ `size` | string | ファイルサイズ（バイト） |
+|   ↳ `quotaBytesUsed` | string | 使用されたストレージ容量 |
+|   ↳ `md5Checksum` | string | MD5ハッシュ |
+|   ↳ `sha1Checksum` | string | SHA-1ハッシュ |
+|   ↳ `sha256Checksum` | string | SHA-256ハッシュ |
+|   ↳ `parents` | json | 親フォルダID |
+|   ↳ `spaces` | json | ファイルを含むスペース |
+|   ↳ `driveId` | string | 共有ドライブID |
+|   ↳ `capabilities` | json | ファイルに対するユーザーの権限 |
+|   ↳ `version` | string | バージョン番号 |
+|   ↳ `headRevisionId` | string | ヘッドリビジョンID |
+|   ↳ `hasThumbnail` | boolean | サムネイルがあるかどうか |
+|   ↳ `thumbnailVersion` | string | サムネイルバージョン |
+|   ↳ `imageMediaMetadata` | json | 画像固有のメタデータ |
+|   ↳ `videoMediaMetadata` | json | 動画固有のメタデータ |
+|   ↳ `isAppAuthorized` | boolean | リクエストしたアプリによって作成されたかどうか |
+|   ↳ `contentRestrictions` | json | コンテンツ制限 |
+|   ↳ `linkShareMetadata` | json | リンク共有メタデータ |
+|   ↳ `revisions` | json | ファイルのリビジョン履歴（最初の100リビジョンのみ） |
+
+### `google_drive_copy`
+
+Google Driveでファイルのコピーを作成します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | コピーするファイルのID |
+| `newName` | string | いいえ | コピーしたファイルの名前（デフォルトは「Copy of [元の名前]」） |
+| `destinationFolderId` | string | いいえ | コピーを配置するフォルダのID（デフォルトは元のファイルと同じ場所） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | json | コピーされたファイルのメタデータ |
+|   ↳ `id` | string | コピーのGoogle DriveファイルID |
+|   ↳ `kind` | string | リソースタイプ識別子 |
+|   ↳ `name` | string | ファイル名 |
+|   ↳ `mimeType` | string | MIMEタイプ |
+|   ↳ `webViewLink` | string | ブラウザで表示するURL |
+|   ↳ `parents` | json | 親フォルダID |
+|   ↳ `createdTime` | string | ファイル作成時刻 |
+|   ↳ `modifiedTime` | string | 最終更新時刻 |
+|   ↳ `owners` | json | ファイル所有者のリスト |
+|   ↳ `size` | string | ファイルサイズ（バイト） |
+
+### `google_drive_update`
+
+Google Driveでファイルのメタデータを更新します（名前変更、移動、スター付け、説明の追加）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | 更新するファイルのID |
+| `name` | string | いいえ | ファイルの新しい名前 |
+| `description` | string | いいえ | ファイルの新しい説明 |
+| `addParents` | string | いいえ | 追加する親フォルダIDのカンマ区切りリスト（ファイルをこれらのフォルダに移動） |
+| `removeParents` | string | いいえ | 削除する親フォルダIDのカンマ区切りリスト |
+| `starred` | boolean | いいえ | ファイルにスターを付けるか外すか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | json | 更新されたファイルのメタデータ |
+|   ↳ `id` | string | Google DriveファイルID |
+|   ↳ `kind` | string | リソースタイプ識別子 |
+|   ↳ `name` | string | ファイル名 |
+|   ↳ `mimeType` | string | MIMEタイプ |
+|   ↳ `description` | string | ファイルの説明 |
+|   ↳ `starred` | boolean | ファイルがスター付きかどうか |
+|   ↳ `webViewLink` | string | ブラウザで表示するURL |
+|   ↳ `parents` | json | 親フォルダID |
+|   ↳ `modifiedTime` | string | 最終更新日時 |
+
+### `google_drive_trash`
+
+Google Driveでファイルをゴミ箱に移動する(後で復元可能)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | ゴミ箱に移動するファイルのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `file` | json | ゴミ箱に移動されたファイルのメタデータ |
+|   ↳ `id` | string | Google DriveファイルID |
+|   ↳ `kind` | string | リソースタイプ識別子 |
+|   ↳ `name` | string | ファイル名 |
+|   ↳ `mimeType` | string | MIMEタイプ |
+|   ↳ `trashed` | boolean | ファイルがゴミ箱にあるかどうか(trueであるべき) |
+|   ↳ `trashedTime` | string | ファイルがゴミ箱に移動された日時 |
+|   ↳ `webViewLink` | string | ブラウザで表示するURL |
+
+### `google_drive_delete`
+
+Google Driveからファイルを完全に削除します（ゴミ箱をバイパス）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | 完全に削除するファイルのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | ファイルが正常に削除されたかどうか |
+| `fileId` | string | 削除されたファイルのID |
+
+### `google_drive_share`
+
+ファイルをユーザー、グループ、ドメインと共有するか、公開します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | 共有するファイルのID |
+| `type` | string | はい | 付与先のタイプ：user、group、domain、またはanyone |
+| `role` | string | はい | 権限ロール：owner（所有権の譲渡）、organizer（共有ドライブのみ）、fileOrganizer（共有ドライブのみ）、writer（編集）、commenter（閲覧とコメント）、reader（閲覧のみ） |
+| `email` | string | いいえ | ユーザーまたはグループのメールアドレス（type=userまたはtype=groupの場合は必須） |
+| `domain` | string | いいえ | 共有するドメイン（type=domainの場合は必須） |
+| `transferOwnership` | boolean | いいえ | roleがownerの場合は必須。指定されたユーザーに所有権を譲渡します。 |
+| `moveToNewOwnersRoot` | boolean | いいえ | 所有権を譲渡する際、ファイルを新しい所有者のマイドライブのルートフォルダに移動します。 |
+| `sendNotification` | boolean | いいえ | メール通知を送信するかどうか（デフォルト：true） |
+| `emailMessage` | string | いいえ | 通知メールに含めるカスタムメッセージ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `permission` | json | 作成された権限の詳細 |
+|   ↳ `id` | string | 権限ID |
+|   ↳ `type` | string | 付与先のタイプ \(user、group、domain、anyone\) |
+|   ↳ `role` | string | 権限ロール |
+|   ↳ `emailAddress` | string | 付与先のメールアドレス |
+|   ↳ `displayName` | string | 付与先の表示名 |
+|   ↳ `domain` | string | 付与先のドメイン |
+|   ↳ `expirationTime` | string | 有効期限 |
+|   ↳ `deleted` | boolean | 付与先が削除されているかどうか |
+
+### `google_drive_unshare`
+
+ファイルから権限を削除する(アクセスを取り消す)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | 権限を変更するファイルのID |
+| `permissionId` | string | はい | 削除する権限のID \(list_permissionsを使用して確認\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `removed` | boolean | 権限が正常に削除されたかどうか |
+| `fileId` | string | ファイルのID |
+| `permissionId` | string | 削除された権限のID |
+
+### `google_drive_list_permissions`
+
+Google Driveのファイルに対するすべての権限(アクセス権を持つユーザー)を一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | はい | 権限を一覧表示するファイルのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `permissions` | array | ファイルの権限リスト |
+|   ↳ `id` | string | 権限ID（権限削除に使用） |
+|   ↳ `type` | string | 付与先のタイプ（user、group、domain、anyone） |
+|   ↳ `role` | string | 権限ロール（owner、organizer、fileOrganizer、writer、commenter、reader） |
+|   ↳ `emailAddress` | string | 付与先のメールアドレス |
+|   ↳ `displayName` | string | 付与先の表示名 |
+|   ↳ `photoLink` | string | 付与先の写真URL |
+|   ↳ `domain` | string | 付与先のドメイン |
+|   ↳ `expirationTime` | string | 権限の有効期限 |
+|   ↳ `deleted` | boolean | 付与先のアカウントが削除されているかどうか |
+|   ↳ `allowFileDiscovery` | boolean | 付与先がファイルを検索可能かどうか |
+|   ↳ `pendingOwner` | boolean | 所有権の移転が保留中かどうか |
+|   ↳ `permissionDetails` | json | 継承された権限の詳細 |
+| `nextPageToken` | string | 次のページの権限を取得するためのトークン |
+
+### `google_drive_get_about`
+
+ユーザーとそのGoogle Driveに関する情報を取得します（ストレージ容量、機能）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `user` | json | 認証されたユーザーに関する情報 |
+|   ↳ `displayName` | string | ユーザーの表示名 |
+|   ↳ `emailAddress` | string | ユーザーのメールアドレス |
+|   ↳ `photoLink` | string | ユーザープロフィール写真のURL |
+|   ↳ `permissionId` | string | ユーザー権限ID |
+|   ↳ `me` | boolean | これが認証されたユーザーかどうか |
+| `storageQuota` | json | ストレージ容量情報（バイト単位） |
+|   ↳ `limit` | string | 合計ストレージ制限（バイト単位、無制限の場合はnull） |
+|   ↳ `usage` | string | 使用中の合計ストレージ（バイト単位） |
+|   ↳ `usageInDrive` | string | Driveファイルが使用しているストレージ（バイト単位） |
+|   ↳ `usageInDriveTrash` | string | ゴミ箱内のファイルが使用しているストレージ（バイト単位） |
+| `canCreateDrives` | boolean | ユーザーが共有ドライブを作成できるかどうか |
+| `importFormats` | json | インポート可能なMIMEタイプとその変換先フォーマットのマップ |
+| `exportFormats` | json | Google WorkspaceのMIMEタイプとそのエクスポート可能なフォーマットのマップ |
+| `maxUploadSize` | string | 最大アップロードサイズ（バイト単位） |

@@ -495,3 +495,21 @@ Erstellt eine temporäre signierte URL für eine Datei in einem Supabase-Speiche
 
 - Kategorie: `tools`
 - Typ: `supabase`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Ja | Der Name des Speicher-Buckets |
+| `path` | string | Ja | Der Pfad zur Datei \(z.B. "ordner/datei.jpg"\) |
+| `expiresIn` | number | Ja | Anzahl der Sekunden bis zum Ablauf der URL \(z.B. 3600 für 1 Stunde\) |
+| `download` | boolean | Nein | Wenn true, wird der Download erzwungen anstatt der Inline-Anzeige \(Standard: false\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `signedUrl` | string | Die temporäre signierte URL für den Zugriff auf die Datei |

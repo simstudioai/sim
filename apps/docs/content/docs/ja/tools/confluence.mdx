@@ -354,3 +354,512 @@ Confluenceページのすべてのラベルを一覧表示します。
 
 - カテゴリー: `tools`
 - タイプ: `confluence`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `blogPostId` | string | はい | 取得するブログ投稿のID |
+| `bodyFormat` | string | いいえ | ブログ投稿本文の形式：storage、atlas_doc_format、またはview |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `id` | string | ブログ投稿ID |
+| `title` | string | ブログ投稿タイトル |
+| `status` | string | ブログ投稿ステータス |
+| `spaceId` | string | スペースID |
+| `authorId` | string | 作成者アカウントID |
+| `createdAt` | string | 作成タイムスタンプ |
+| `version` | object | バージョン情報 |
+|   ↳ `number` | number | バージョン番号 |
+|   ↳ `message` | string | バージョンメッセージ |
+|   ↳ `minorEdit` | boolean | これがマイナー編集かどうか |
+|   ↳ `authorId` | string | バージョン作成者のアカウントID |
+|   ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+| `body` | object | 要求された形式のブログ投稿本文コンテンツ |
+|   ↳ `storage` | object | ストレージ形式の本文（Confluenceマークアップ） |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+|   ↳ `view` | object | ビュー形式の本文（レンダリングされたHTML） |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+|   ↳ `atlas_doc_format` | object | Atlassian Document Format（ADF）の本文 |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+| `webUrl` | string | ブログ投稿を表示するURL |
+
+### `confluence_create_blogpost`
+
+Confluenceスペースに新しいブログ投稿を作成します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン(例: yourcompany.atlassian.net) |
+| `spaceId` | string | はい | ブログ投稿を作成するスペースのID |
+| `title` | string | はい | ブログ投稿のタイトル |
+| `content` | string | はい | Confluenceストレージ形式(HTML)のブログ投稿コンテンツ |
+| `status` | string | いいえ | ブログ投稿のステータス: current(デフォルト)またはdraft |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `id` | string | 作成されたブログ投稿ID |
+| `title` | string | ブログ投稿のタイトル |
+| `status` | string | ブログ投稿のステータス |
+| `spaceId` | string | スペースID |
+| `authorId` | string | 作成者のアカウントID |
+| `body` | object | ブログ投稿の本文コンテンツ |
+|   ↳ `storage` | object | ストレージ形式の本文(Confluenceマークアップ) |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+|   ↳ `view` | object | ビュー形式の本文(レンダリングされたHTML) |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+|   ↳ `atlas_doc_format` | object | Atlassian Document Format(ADF)の本文 |
+|     ↳ `value` | string | 指定された形式のコンテンツ値 |
+|     ↳ `representation` | string | コンテンツ表現タイプ |
+| `version` | object | ブログ投稿のバージョン情報 |
+|   ↳ `number` | number | バージョン番号 |
+|   ↳ `message` | string | バージョンメッセージ |
+|   ↳ `minorEdit` | boolean | これがマイナー編集かどうか |
+|   ↳ `authorId` | string | バージョン作成者のアカウントID |
+|   ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+| `webUrl` | string | ブログ投稿を表示するURL |
+
+### `confluence_list_blogposts_in_space`
+
+特定のConfluenceスペース内のすべてのブログ投稿を一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例:yourcompany.atlassian.net） |
+| `spaceId` | string | はい | ブログ投稿を一覧表示するConfluenceスペースのID |
+| `limit` | number | いいえ | 返すブログ投稿の最大数（デフォルト:25、最大:250） |
+| `status` | string | いいえ | ステータスでフィルタ:current、archived、trashed、またはdraft |
+| `bodyFormat` | string | いいえ | ブログ投稿本文の形式:storage、atlas_doc_format、またはview |
+| `cursor` | string | いいえ | 前回のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `blogPosts` | array | スペース内のブログ投稿の配列 |
+|   ↳ `id` | string | ブログ投稿ID |
+|   ↳ `title` | string | ブログ投稿タイトル |
+|   ↳ `status` | string | ブログ投稿ステータス |
+|   ↳ `spaceId` | string | スペースID |
+|   ↳ `authorId` | string | 作成者アカウントID |
+|   ↳ `createdAt` | string | 作成タイムスタンプ |
+|   ↳ `version` | object | バージョン情報 |
+|     ↳ `number` | number | バージョン番号 |
+|     ↳ `message` | string | バージョンメッセージ |
+|     ↳ `minorEdit` | boolean | マイナー編集かどうか |
+|     ↳ `authorId` | string | バージョン作成者のアカウントID |
+|     ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+|   ↳ `body` | object | ブログ投稿本文コンテンツ |
+|     ↳ `storage` | object | ストレージ形式の本文（Confluenceマークアップ） |
+|       ↳ `value` | string | 指定された形式のコンテンツ値 |
+|       ↳ `representation` | string | コンテンツ表現タイプ |
+|     ↳ `view` | object | ビュー形式の本文（レンダリングされたHTML） |
+|       ↳ `value` | string | 指定された形式のコンテンツ値 |
+|       ↳ `representation` | string | コンテンツ表現タイプ |
+|     ↳ `atlas_doc_format` | object | Atlassian Document Format（ADF）の本文 |
+|       ↳ `value` | string | 指定された形式のコンテンツ値 |
+|       ↳ `representation` | string | コンテンツ表現タイプ |
+|   ↳ `webUrl` | string | ブログ投稿を表示するURL |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_create_comment`
+
+Confluenceページにコメントを追加します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | コメントするConfluenceページID |
+| `comment` | string | はい | Confluenceストレージ形式でのコメントテキスト |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 作成のタイムスタンプ |
+| `commentId` | string | 作成されたコメントID |
+| `pageId` | string | ページID |
+
+### `confluence_list_comments`
+
+Confluenceページのすべてのコメントを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | コメントを一覧表示するConfluenceページID |
+| `limit` | number | いいえ | 返すコメントの最大数（デフォルト：25） |
+| `bodyFormat` | string | いいえ | コメント本文の形式：storage、atlas_doc_format、view、またはexport_view（デフォルト：storage） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `comments` | array | Confluenceコメントの配列 |
+|   ↳ `id` | string | 一意のコメント識別子 |
+|   ↳ `status` | string | コメントステータス(例:current) |
+|   ↳ `title` | string | コメントタイトル |
+|   ↳ `pageId` | string | コメントが属するページのID |
+|   ↳ `blogPostId` | string | コメントが属するブログ投稿のID |
+|   ↳ `parentCommentId` | string | 親コメントのID |
+|   ↳ `body` | object | コメント本文コンテンツ |
+|     ↳ `value` | string | コメント本文コンテンツ |
+|     ↳ `representation` | string | コンテンツ表現形式(例:storage、view) |
+|   ↳ `createdAt` | string | コメントが作成されたISO 8601タイムスタンプ |
+|   ↳ `authorId` | string | コメント作成者のアカウントID |
+|   ↳ `version` | object | コメントバージョン情報 |
+|     ↳ `number` | number | バージョン番号 |
+|     ↳ `message` | string | バージョンメッセージ |
+|     ↳ `minorEdit` | boolean | マイナー編集かどうか |
+|     ↳ `authorId` | string | バージョン作成者のアカウントID |
+|     ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_update_comment`
+
+Confluenceページの既存のコメントを更新します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `commentId` | string | はい | 更新するConfluenceコメントID |
+| `comment` | string | はい | Confluenceストレージ形式での更新されたコメントテキスト |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 更新のタイムスタンプ |
+| `commentId` | string | 更新されたコメントID |
+| `updated` | boolean | 更新ステータス |
+
+### `confluence_delete_comment`
+
+Confluenceページからコメントを削除します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `commentId` | string | はい | 削除するConfluenceコメントID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 削除のタイムスタンプ |
+| `commentId` | string | 削除されたコメントID |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_upload_attachment`
+
+Confluenceページにファイルを添付ファイルとしてアップロードします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ファイルを添付するConfluenceページID |
+| `file` | file | はい | 添付ファイルとしてアップロードするファイル |
+| `fileName` | string | いいえ | 添付ファイルのオプションのカスタムファイル名 |
+| `comment` | string | いいえ | 添付ファイルに追加するオプションのコメント |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | アップロードのタイムスタンプ |
+| `attachmentId` | string | アップロードされた添付ファイルID |
+| `title` | string | 添付ファイル名 |
+| `fileSize` | number | ファイルサイズ（バイト） |
+| `mediaType` | string | 添付ファイルのMIMEタイプ |
+| `downloadUrl` | string | 添付ファイルのダウンロードURL |
+| `pageId` | string | 添付ファイルが追加されたページID |
+
+### `confluence_list_attachments`
+
+Confluenceページ上のすべての添付ファイルを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | 添付ファイルを一覧表示するConfluenceページID |
+| `limit` | number | いいえ | 返す添付ファイルの最大数（デフォルト：50、最大：250） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `attachments` | array | Confluence添付ファイルの配列 |
+|   ↳ `id` | string | 一意の添付ファイル識別子（「att」で始まる） |
+|   ↳ `title` | string | 添付ファイル名 |
+|   ↳ `status` | string | 添付ファイルのステータス（例：current、archived、trashed） |
+|   ↳ `mediaType` | string | 添付ファイルのMIMEタイプ |
+|   ↳ `fileSize` | number | ファイルサイズ（バイト単位） |
+|   ↳ `downloadUrl` | string | 添付ファイルをダウンロードするURL |
+|   ↳ `webuiUrl` | string | Confluence UIで添付ファイルを表示するURL |
+|   ↳ `pageId` | string | 添付ファイルが属するページのID |
+|   ↳ `blogPostId` | string | 添付ファイルが属するブログ投稿のID |
+|   ↳ `comment` | string | 添付ファイルのコメント/説明 |
+|   ↳ `version` | object | 添付ファイルのバージョン情報 |
+|     ↳ `number` | number | バージョン番号 |
+|     ↳ `message` | string | バージョンメッセージ |
+|     ↳ `minorEdit` | boolean | これがマイナー編集かどうか |
+|     ↳ `authorId` | string | バージョン作成者のアカウントID |
+|     ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_delete_attachment`
+
+Confluenceページから添付ファイルを削除します（ゴミ箱に移動します）。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `attachmentId` | string | はい | 削除するConfluence添付ファイルID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 削除のタイムスタンプ |
+| `attachmentId` | string | 削除された添付ファイルID |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_list_labels`
+
+Confluenceページ上のすべてのラベルを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ラベルを一覧表示するConfluenceページID |
+| `limit` | number | いいえ | 返すラベルの最大数（デフォルト：25、最大：250） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 取得のタイムスタンプ |
+| `labels` | array | ページ上のラベルの配列 |
+|   ↳ `id` | string | 一意のラベル識別子 |
+|   ↳ `name` | string | ラベル名 |
+|   ↳ `prefix` | string | ラベルのプレフィックス/タイプ（例：global、my、team） |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_add_label`
+
+整理と分類のためにConfluenceページにラベルを追加します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ラベルを追加するConfluenceページID |
+| `labelName` | string | はい | 追加するラベルの名前 |
+| `prefix` | string | いいえ | ラベルのプレフィックス：global（デフォルト）、my、team、またはsystem |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `pageId` | string | ラベルが追加されたページID |
+| `labelName` | string | 追加されたラベルの名前 |
+| `labelId` | string | 追加されたラベルのID |
+
+### `confluence_delete_label`
+
+Confluenceページからラベルを削除します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `pageId` | string | はい | ラベルを削除するConfluenceページID |
+| `labelName` | string | はい | 削除するラベルの名前 |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `pageId` | string | ラベルが削除されたページID |
+| `labelName` | string | 削除されたラベル名 |
+| `deleted` | boolean | 削除ステータス |
+
+### `confluence_get_pages_by_label`
+
+特定のラベルが適用されているすべてのページを取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `labelId` | string | はい | ページを取得するラベルのID |
+| `limit` | number | いいえ | 返すページの最大数（デフォルト：50、最大：250） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `labelId` | string | ラベルのID |
+| `pages` | array | このラベルが付いたページの配列 |
+|   ↳ `id` | string | 一意のページ識別子 |
+|   ↳ `title` | string | ページタイトル |
+|   ↳ `status` | string | ページステータス（例：current、archived、trashed、draft） |
+|   ↳ `spaceId` | string | ページを含むスペースのID |
+|   ↳ `parentId` | string | 親ページのID（トップレベルの場合はnull） |
+|   ↳ `authorId` | string | ページ作成者のアカウントID |
+|   ↳ `createdAt` | string | ページが作成されたISO 8601タイムスタンプ |
+|   ↳ `version` | object | ページバージョン情報 |
+|     ↳ `number` | number | バージョン番号 |
+|     ↳ `message` | string | バージョンメッセージ |
+|     ↳ `minorEdit` | boolean | これがマイナー編集かどうか |
+|     ↳ `authorId` | string | バージョン作成者のアカウントID |
+|     ↳ `createdAt` | string | バージョン作成のISO 8601タイムスタンプ |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_list_space_labels`
+
+Confluenceスペースに関連付けられたすべてのラベルを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `spaceId` | string | はい | ラベルを一覧表示するConfluenceスペースID |
+| `limit` | number | いいえ | 返すラベルの最大数（デフォルト：25、最大：250） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `spaceId` | string | スペースID |
+| `labels` | array | スペース上のラベルの配列 |
+|   ↳ `id` | string | 一意のラベル識別子 |
+|   ↳ `name` | string | ラベル名 |
+|   ↳ `prefix` | string | ラベルのプレフィックス/タイプ（例：global、my、team） |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |
+
+### `confluence_get_space`
+
+特定のConfluenceスペースの詳細を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `spaceId` | string | はい | 取得するConfluenceスペースID |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `spaceId` | string | スペースID |
+| `name` | string | スペース名 |
+| `key` | string | スペースキー |
+| `type` | string | スペースタイプ（global、personal） |
+| `status` | string | スペースステータス（current、archived） |
+| `url` | string | Confluenceでスペースを表示するURL |
+| `authorId` | string | スペース作成者のアカウントID |
+| `createdAt` | string | スペースが作成されたISO 8601タイムスタンプ |
+| `homepageId` | string | スペースホームページのID |
+| `description` | object | スペース説明コンテンツ |
+|   ↳ `value` | string | 説明テキストコンテンツ |
+|   ↳ `representation` | string | コンテンツ表現形式（例：plain、view、storage） |
+
+### `confluence_list_spaces`
+
+ユーザーがアクセスできるすべてのConfluenceスペースを一覧表示します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのConfluenceドメイン（例：yourcompany.atlassian.net） |
+| `limit` | number | いいえ | 返すスペースの最大数（デフォルト：25、最大：250） |
+| `cursor` | string | いいえ | 前のレスポンスからのページネーションカーソル |
+| `cloudId` | string | いいえ | インスタンスのConfluence Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `spaces` | array | Confluenceスペースの配列 |
+|   ↳ `id` | string | 一意のスペース識別子 |
+|   ↳ `key` | string | スペースキー(URLで使用される短い識別子) |
+|   ↳ `name` | string | スペース名 |
+|   ↳ `type` | string | スペースタイプ(例:global、personal) |
+|   ↳ `status` | string | スペースステータス(例:current、archived) |
+|   ↳ `authorId` | string | スペース作成者のアカウントID |
+|   ↳ `createdAt` | string | スペースが作成されたISO 8601タイムスタンプ |
+|   ↳ `homepageId` | string | スペースホームページのID |
+|   ↳ `description` | object | スペースの説明 |
+|     ↳ `value` | string | 説明テキストコンテンツ |
+|     ↳ `representation` | string | コンテンツ表現形式(例:plain、view、storage) |
+| `nextCursor` | string | 次のページの結果を取得するためのカーソル |

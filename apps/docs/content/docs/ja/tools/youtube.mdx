@@ -194,3 +194,64 @@ YouTube動画からコメントを取得します。
 
 - カテゴリ: `tools`
 - タイプ: `youtube`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | string | いいえ | カテゴリを取得する国コード（ISO 3166-1 alpha-2、例："US"、"GB"、"JP"）。デフォルトはUS。 |
+| `hl` | string | いいえ | カテゴリタイトルの言語（ISO 639-1コード、例："en"、"es"、"fr"）。デフォルトは英語。 |
+| `apiKey` | string | はい | YouTube APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `items` | array | 指定された地域で利用可能な動画カテゴリの配列 |
+|   ↳ `categoryId` | string | 検索/トレンドフィルタで使用するカテゴリID（例："10"は音楽） |
+|   ↳ `title` | string | 人間が読めるカテゴリ名 |
+|   ↳ `assignable` | boolean | このカテゴリで動画にタグ付けできるかどうか |
+| `totalResults` | number | 利用可能なカテゴリの総数 |
+
+### `youtube_video_details`
+
+統計、コンテンツの詳細、ライブストリーミング情報、メタデータを含む、特定のYouTube動画の詳細情報を取得します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | はい | YouTube動画ID（11文字の文字列、例："dQw4w9WgXcQ"） |
+| `apiKey` | string | はい | YouTube APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube動画ID |
+| `title` | string | 動画タイトル |
+| `description` | string | 動画の説明 |
+| `channelId` | string | チャンネルID |
+| `channelTitle` | string | チャンネル名 |
+| `publishedAt` | string | 公開日時 |
+| `duration` | string | ISO 8601形式の動画の長さ（例："PT4M13S"は4分13秒） |
+| `viewCount` | number | 再生回数 |
+| `likeCount` | number | いいね数 |
+| `commentCount` | number | コメント数 |
+| `favoriteCount` | number | お気に入りに追加された回数 |
+| `thumbnail` | string | 動画サムネイルURL |
+| `tags` | array | 動画タグ |
+| `categoryId` | string | YouTube動画カテゴリID |
+| `definition` | string | 動画の解像度："hd"または"sd" |
+| `caption` | string | 字幕が利用可能かどうか："true"または"false" |
+| `licensedContent` | boolean | ライセンスコンテンツかどうか |
+| `privacyStatus` | string | 動画のプライバシーステータス："public"、"private"、または"unlisted" |
+| `liveBroadcastContent` | string | ライブ配信ステータス："live"、"upcoming"、または"none" |
+| `defaultLanguage` | string | 動画メタデータのデフォルト言語 |
+| `defaultAudioLanguage` | string | 動画のデフォルト音声言語 |
+| `isLiveContent` | boolean | この動画がライブストリームであるか、またはライブストリームであったか |
+| `scheduledStartTime` | string | 今後のライブストリームの予定開始時刻（ISO 8601） |
+| `actualStartTime` | string | ライブストリームが実際に開始された時刻（ISO 8601） |
+| `actualEndTime` | string | ライブストリームが終了した時刻（ISO 8601） |
+| `concurrentViewers` | number | 現在の視聴者数（アクティブなライブストリームのみ） |
+| `activeLiveChatId` | string | ストリームのライブチャットID（アクティブなライブストリームのみ） |

@@ -193,3 +193,51 @@ const allResults = input.parallel.results;
 - **仅限独立操作**：确保操作之间没有依赖关系
 - **处理速率限制**：为 API 密集型工作流添加延迟或节流
 - **错误处理**：每个实例应优雅地处理自己的错误
+
+## 输入与输出
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>并行类型</strong>：在 'count' 或 'collection' 之间选择
+      </li>
+      <li>
+        <strong>Count</strong>：要运行的实例数量（基于 count）
+      </li>
+      <li>
+        <strong>Collection</strong>：要分发的数组或对象（基于 collection）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    仅在并行内部可用：
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<parallel.index>"}</strong>：实例编号（从 0 开始）
+      </li>
+      <li>
+        <strong>{"<parallel.currentItem>"}</strong>：该实例对应的项（仅限 collection 模式）
+      </li>
+      <li>
+        <strong>{"<parallel.items>"}</strong>：完整集合（仅限 collection 模式）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>：所有实例结果的数组（通过区块名访问）
+      </li>
+      <li>
+        <strong>访问</strong>：并行执行完成后可在后续区块中访问
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+- **仅限独立操作**：确保各操作之间互不依赖
+- **处理速率限制**：对于大量 API 操作的流程，添加延迟或限流
+- **错误处理**：每个实例应能优雅地处理自身错误

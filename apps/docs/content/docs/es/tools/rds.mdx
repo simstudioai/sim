@@ -166,3 +166,25 @@ Ejecutar SQL sin procesar en Amazon RDS usando la API de datos
 
 - Categoría: `tools`
 - Tipo: `rds`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `accessKeyId` | string | Sí | ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Clave de acceso secreta de AWS |
+| `resourceArn` | string | Sí | ARN del clúster de Aurora DB (p. ej., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+| `secretArn` | string | Sí | ARN del secreto de Secrets Manager que contiene las credenciales de la base de datos |
+| `database` | string | No | Nombre de la base de datos a la que conectarse (p. ej., mydb, production_db) |
+| `schema` | string | No | Esquema a introspeccionar (predeterminado: public para PostgreSQL, nombre de base de datos para MySQL) |
+| `engine` | string | No | Motor de base de datos (aurora-postgresql o aurora-mysql). Se detecta automáticamente si no se proporciona. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `engine` | string | Tipo de motor de base de datos detectado |
+| `tables` | array | Array de esquemas de tablas con columnas, claves e índices |
+| `schemas` | array | Lista de esquemas disponibles en la base de datos |

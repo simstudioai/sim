@@ -159,3 +159,17 @@ Fälle auflisten oder einen bestimmten Fall abrufen, wenn matterId angegeben ist
 
 - Kategorie: `tools`
 - Typ: `google_vault`
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | Nein | Anzahl der Angelegenheiten, die pro Seite zurückgegeben werden sollen |
+| `pageToken` | string | Nein | Token für Paginierung |
+| `matterId` | string | Nein | Optionale Angelegenheits-ID zum Abrufen einer bestimmten Angelegenheit \(z. B. "12345678901234567890"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `matters` | json | Array von Angelegenheitsobjekten |
+| `matter` | json | Einzelnes Angelegenheitsobjekt \(wenn matterId angegeben ist\) |
+| `nextPageToken` | string | Token zum Abrufen der nächsten Ergebnisseite |

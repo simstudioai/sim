@@ -1,0 +1,56 @@
+---
+title: Pulse
+description: 使用 Pulse OCR 从文档中提取文本
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pulse_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ Pulse ](https://www.runpulse.com) 工具利用最先进的 OCR（光学字符识别）技术，实现从各种文档（包括 PDF、图片和 Office 文件）中无缝提取文本和结构化内容。Pulse Parser 专为自动化智能代理工作流设计，帮助您轻松解锁隐藏在非结构化文档中的有价值信息，并将提取的内容直接集成到您的工作流中。
+
+使用 Pulse，您可以：
+
+- **从文档中提取文本**：快速将扫描版 PDF、图片和 Office 文档转换为可用的文本、Markdown 或 JSON。
+- **通过 URL 或上传处理文档**：只需提供文件 URL 或上传本地文档，即可从本地或远程资源中提取文本。
+- **灵活的输出格式**：可选择 Markdown、纯文本或 JSON 格式，便于后续处理。
+- **选择性页面处理**：可指定需要处理的页面范围，仅处理所需部分，节省时间和成本。
+- **图表和表格提取**：可选提取图表和表格，并自动生成标题和描述，丰富上下文信息。
+- **获取处理洞察**：每个任务都能获得详细元数据，包括文件类型、页数、处理时间等。
+- **集成就绪的响应**：可将提取内容集成到科研、工作流自动化或数据分析流程中。
+
+Pulse Parser 非常适合自动化繁琐的文档审查、内容摘要、科研等场景，让真实世界的文档无缝融入数字化工作流时代。
+
+如果您需要跨格式、跨语言、跨版式的高精度、可扩展、开发者友好的文档解析能力，Pulse 能让您的智能代理“读懂世界”。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Pulse 集成到工作流程中。通过上传或文件引用，从 PDF 文档、图片和 Office 文件中提取文本。
+
+## 工具
+
+### `pulse_parser`
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | 否 | 要处理的文档 URL |
+| `file` | file | 否 | 要处理的文档文件 |
+| `fileUpload` | object | 否 | 来自文件上传组件的文件上传数据 |
+| `pages` | string | 否 | 要处理的页码范围（从 1 开始，例如 "1-2, 5"） |
+| `extractFigure` | boolean | 否 | 启用文档中的图像提取 |
+| `figureDescription` | boolean | 否 | 为提取的图像生成描述/标题 |
+| `returnHtml` | boolean | 否 | 在响应中包含 HTML |
+| `chunking` | string | 否 | 分块策略（用逗号分隔：semantic、header、page、recursive） |
+| `chunkSize` | number | 否 | 启用分块时每块的最大字符数 |
+| `apiKey` | string | 是 | Pulse API key |
+
+#### 输出
+
+此工具不产生任何输出。

@@ -1,0 +1,50 @@
+---
+title: Reducto
+description: Extrae texto de documentos PDF
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="reducto_v2"
+  color="#5c0c5c"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [Reducto](https://reducto.ai/) permite la extracción rápida y precisa de texto y datos de documentos PDF mediante OCR (reconocimiento óptico de caracteres). Reducto está diseñado para flujos de trabajo de agentes, facilitando el procesamiento de PDF cargados o enlazados y transformando su contenido en información lista para usar.
+
+Con la herramienta Reducto, puedes:
+
+- **Extraer texto y tablas de PDF**: convierte rápidamente PDF escaneados o digitales a texto, markdown o JSON estructurado.
+- **Analizar PDF desde cargas o URL**: procesa documentos cargando un PDF o especificando una URL directa.
+- **Personalizar el formato de salida**: elige tu formato de salida preferido (markdown, texto plano o JSON) y especifica formatos de tabla como markdown o HTML.
+- **Seleccionar páginas específicas**: opcionalmente extrae contenido de páginas particulares para optimizar el procesamiento y enfocarte en lo que importa.
+- **Recibir metadatos detallados de procesamiento**: junto con el contenido extraído, obtén detalles del trabajo, tiempos de procesamiento, información del archivo fuente, recuentos de páginas y estadísticas de uso de OCR para auditoría y automatización.
+
+Ya sea que estés automatizando pasos de flujo de trabajo, extrayendo información crítica para el negocio o desbloqueando documentos de archivo para búsqueda y análisis, el analizador OCR de Reducto te proporciona datos estructurados y accionables incluso de los PDF más complejos.
+
+¿Buscas análisis de PDF confiable y escalable? Reducto está optimizado para uso de desarrolladores y agentes, proporcionando precisión, velocidad y flexibilidad para la comprensión moderna de documentos.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Reducto Parse en el flujo de trabajo. Puede extraer texto de documentos PDF cargados o referencias de archivos.
+
+## Herramientas
+
+### `reducto_parser`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | No | URL a un documento PDF para ser procesado |
+| `file` | file | No | Archivo de documento para ser procesado |
+| `fileUpload` | object | No | Datos de carga de archivo del componente file-upload |
+| `pages` | array | No | Páginas específicas para procesar \(números de página indexados desde 1\) |
+| `tableOutputFormat` | string | No | Formato de salida de tabla \(html o markdown\). Por defecto es markdown. |
+| `apiKey` | string | Sí | Clave API de Reducto \(REDUCTO_API_KEY\) |
+
+#### Salida
+
+Esta herramienta no produce ninguna salida.

@@ -555,3 +555,32 @@ Jira 的主要功能包括：
 
 - 分类：`tools`
 - 类型：`jira`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | 字符串 | 是 | 您的 Jira 域名 \(例如：yourcompany.atlassian.net\) |
+| `accountId` | 字符串 | 否 | 可选账户 ID，用于获取特定用户。如果未提供，则返回所有用户。 |
+| `startAt` | 数字 | 否 | 要返回的第一个用户的索引 \(用于分页，默认值：0\) |
+| `maxResults` | 数字 | 否 | 要返回的最大用户数 \(默认值：50\) |
+| `cloudId` | 字符串 | 否 | 实例的 Jira Cloud ID。如果未提供，将使用域名获取。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作的 ISO 8601 时间戳 |
+| `users` | array | Jira 用户数组 |
+|   ↳ `accountId` | string | 用户的 Atlassian 账户 ID |
+|   ↳ `displayName` | string | 用户显示名称 |
+|   ↳ `active` | boolean | 用户账户是否激活 |
+|   ↳ `emailAddress` | string | 用户邮箱地址 |
+|   ↳ `accountType` | string | 账户类型 \(如 atlassian、app、customer\) |
+|   ↳ `avatarUrl` | string | 用户头像 URL \(48x48\) |
+|   ↳ `timeZone` | string | 用户时区 |
+|   ↳ `avatarUrls` | json | 多尺寸用户头像 URL \(16x16、24x24、32x32、48x48\) |
+|   ↳ `self` | string | 此用户的 REST API URL |
+| `total` | number | 返回的用户总数 |
+| `startAt` | number | 分页起始索引 |
+| `maxResults` | number | 每页最大结果数 |

@@ -124,3 +124,270 @@ Listar archivos y carpetas en Google Drive
 
 - Categoría: `tools`
 - Tipo: `google_drive`
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | file | Archivo descargado almacenado en archivos de ejecución |
+| `metadata` | object | Metadatos completos del archivo desde Google Drive |
+|   ↳ `id` | string | ID del archivo de Google Drive |
+|   ↳ `kind` | string | Identificador del tipo de recurso |
+|   ↳ `name` | string | Nombre del archivo |
+|   ↳ `mimeType` | string | Tipo MIME |
+|   ↳ `description` | string | Descripción del archivo |
+|   ↳ `originalFilename` | string | Nombre del archivo original subido |
+|   ↳ `fullFileExtension` | string | Extensión completa del archivo |
+|   ↳ `fileExtension` | string | Extensión del archivo |
+|   ↳ `owners` | json | Lista de propietarios del archivo |
+|   ↳ `permissions` | json | Permisos del archivo |
+|   ↳ `permissionIds` | json | IDs de permisos |
+|   ↳ `shared` | boolean | Si el archivo está compartido |
+|   ↳ `ownedByMe` | boolean | Si es propiedad del usuario actual |
+|   ↳ `writersCanShare` | boolean | Si los editores pueden compartir |
+|   ↳ `viewersCanCopyContent` | boolean | Si los lectores pueden copiar |
+|   ↳ `copyRequiresWriterPermission` | boolean | Si copiar requiere permiso de editor |
+|   ↳ `sharingUser` | json | Usuario que compartió el archivo |
+|   ↳ `starred` | boolean | Si el archivo está destacado |
+|   ↳ `trashed` | boolean | Si el archivo está en la papelera |
+|   ↳ `explicitlyTrashed` | boolean | Si fue eliminado explícitamente |
+|   ↳ `appProperties` | json | Propiedades específicas de la aplicación |
+|   ↳ `createdTime` | string | Hora de creación del archivo |
+|   ↳ `modifiedTime` | string | Hora de última modificación |
+|   ↳ `modifiedByMeTime` | string | Cuándo fue modificado por el usuario actual |
+|   ↳ `viewedByMeTime` | string | Cuándo fue visto por última vez por el usuario actual |
+|   ↳ `sharedWithMeTime` | string | Cuándo fue compartido con el usuario actual |
+|   ↳ `lastModifyingUser` | json | Usuario que modificó el archivo por última vez |
+|   ↳ `viewedByMe` | boolean | Si fue visto por el usuario actual |
+|   ↳ `modifiedByMe` | boolean | Si fue modificado por el usuario actual |
+|   ↳ `webViewLink` | string | URL para ver en el navegador |
+|   ↳ `webContentLink` | string | URL de descarga directa |
+|   ↳ `iconLink` | string | URL del icono del archivo |
+|   ↳ `thumbnailLink` | string | URL de la miniatura |
+|   ↳ `exportLinks` | json | Enlaces de formatos de exportación |
+|   ↳ `size` | string | Tamaño del archivo en bytes |
+|   ↳ `quotaBytesUsed` | string | Cuota de almacenamiento utilizada |
+|   ↳ `md5Checksum` | string | Hash MD5 |
+|   ↳ `sha1Checksum` | string | Hash SHA-1 |
+|   ↳ `sha256Checksum` | string | Hash SHA-256 |
+|   ↳ `parents` | json | IDs de carpetas principales |
+|   ↳ `spaces` | json | Espacios que contienen el archivo |
+|   ↳ `driveId` | string | ID de unidad compartida |
+|   ↳ `capabilities` | json | Capacidades del usuario sobre el archivo |
+|   ↳ `version` | string | Número de versión |
+|   ↳ `headRevisionId` | string | ID de revisión principal |
+|   ↳ `hasThumbnail` | boolean | Si tiene miniatura |
+|   ↳ `thumbnailVersion` | string | Versión de la miniatura |
+|   ↳ `imageMediaMetadata` | json | Metadatos específicos de imagen |
+|   ↳ `videoMediaMetadata` | json | Metadatos específicos de video |
+|   ↳ `isAppAuthorized` | boolean | Si fue creado por la aplicación solicitante |
+|   ↳ `contentRestrictions` | json | Restricciones de contenido |
+|   ↳ `linkShareMetadata` | json | Metadatos de enlace compartido |
+|   ↳ `revisions` | json | Historial de revisiones del archivo \(solo las primeras 100 revisiones\) |
+
+### `google_drive_copy`
+
+Crear una copia de un archivo en Google Drive
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a copiar |
+| `newName` | string | No | Nombre para el archivo copiado \(por defecto "Copia de \[nombre original\]"\) |
+| `destinationFolderId` | string | No | ID de la carpeta donde colocar la copia \(por defecto la misma ubicación que el original\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | json | Los metadatos del archivo copiado |
+|   ↳ `id` | string | ID del archivo de Google Drive de la copia |
+|   ↳ `kind` | string | Identificador del tipo de recurso |
+|   ↳ `name` | string | Nombre del archivo |
+|   ↳ `mimeType` | string | Tipo MIME |
+|   ↳ `webViewLink` | string | URL para ver en el navegador |
+|   ↳ `parents` | json | IDs de carpetas principales |
+|   ↳ `createdTime` | string | Hora de creación del archivo |
+|   ↳ `modifiedTime` | string | Hora de última modificación |
+|   ↳ `owners` | json | Lista de propietarios del archivo |
+|   ↳ `size` | string | Tamaño del archivo en bytes |
+
+### `google_drive_update`
+
+Actualizar metadatos de archivo en Google Drive (renombrar, mover, marcar, añadir descripción)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a actualizar |
+| `name` | string | No | Nuevo nombre para el archivo |
+| `description` | string | No | Nueva descripción para el archivo |
+| `addParents` | string | No | Lista separada por comas de IDs de carpetas principales a añadir \(mueve el archivo a estas carpetas\) |
+| `removeParents` | string | No | Lista separada por comas de IDs de carpetas principales a eliminar |
+| `starred` | boolean | No | Si marcar o desmarcar el archivo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | json | Los metadatos del archivo actualizado |
+|   ↳ `id` | string | ID del archivo de Google Drive |
+|   ↳ `kind` | string | Identificador del tipo de recurso |
+|   ↳ `name` | string | Nombre del archivo |
+|   ↳ `mimeType` | string | Tipo MIME |
+|   ↳ `description` | string | Descripción del archivo |
+|   ↳ `starred` | boolean | Si el archivo está marcado con estrella |
+|   ↳ `webViewLink` | string | URL para ver en el navegador |
+|   ↳ `parents` | json | IDs de carpetas principales |
+|   ↳ `modifiedTime` | string | Hora de la última modificación |
+
+### `google_drive_trash`
+
+Mover un archivo a la papelera en Google Drive (se puede restaurar más tarde)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a mover a la papelera |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `file` | json | Los metadatos del archivo en la papelera |
+|   ↳ `id` | string | ID del archivo de Google Drive |
+|   ↳ `kind` | string | Identificador del tipo de recurso |
+|   ↳ `name` | string | Nombre del archivo |
+|   ↳ `mimeType` | string | Tipo MIME |
+|   ↳ `trashed` | boolean | Si el archivo está en la papelera \(debería ser true\) |
+|   ↳ `trashedTime` | string | Cuándo se movió el archivo a la papelera |
+|   ↳ `webViewLink` | string | URL para ver en el navegador |
+
+### `google_drive_delete`
+
+Eliminar permanentemente un archivo de Google Drive (omite la papelera)
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a eliminar permanentemente |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si el archivo se eliminó correctamente |
+| `fileId` | string | El ID del archivo eliminado |
+
+### `google_drive_share`
+
+Compartir un archivo con un usuario, grupo, dominio o hacerlo público
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo a compartir |
+| `type` | string | Sí | Tipo de destinatario: user, group, domain o anyone |
+| `role` | string | Sí | Rol de permiso: owner \(transferir propiedad\), organizer \(solo unidad compartida\), fileOrganizer \(solo unidad compartida\), writer \(editar\), commenter \(ver y comentar\), reader \(solo ver\) |
+| `email` | string | No | Dirección de correo electrónico del usuario o grupo \(requerido para type=user o type=group\) |
+| `domain` | string | No | Dominio con el que compartir \(requerido para type=domain\) |
+| `transferOwnership` | boolean | No | Requerido cuando el rol es owner. Transfiere la propiedad al usuario especificado. |
+| `moveToNewOwnersRoot` | boolean | No | Al transferir la propiedad, mover el archivo a la carpeta raíz de Mi unidad del nuevo propietario. |
+| `sendNotification` | boolean | No | Si se debe enviar una notificación por correo electrónico \(predeterminado: true\) |
+| `emailMessage` | string | No | Mensaje personalizado para incluir en el correo electrónico de notificación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `permission` | json | Los detalles del permiso creado |
+|   ↳ `id` | string | ID del permiso |
+|   ↳ `type` | string | Tipo de beneficiario \(user, group, domain, anyone\) |
+|   ↳ `role` | string | Rol del permiso |
+|   ↳ `emailAddress` | string | Correo electrónico del beneficiario |
+|   ↳ `displayName` | string | Nombre para mostrar del beneficiario |
+|   ↳ `domain` | string | Dominio del beneficiario |
+|   ↳ `expirationTime` | string | Fecha de expiración |
+|   ↳ `deleted` | boolean | Si el beneficiario está eliminado |
+
+### `google_drive_unshare`
+
+Eliminar un permiso de un archivo (revocar acceso)
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo para modificar permisos |
+| `permissionId` | string | Sí | El ID del permiso a eliminar \(usa list_permissions para encontrarlo\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Si el permiso fue eliminado exitosamente |
+| `fileId` | string | El ID del archivo |
+| `permissionId` | string | El ID del permiso eliminado |
+
+### `google_drive_list_permissions`
+
+Listar todos los permisos (quién tiene acceso) de un archivo en Google Drive
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Sí | El ID del archivo para listar permisos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `permissions` | array | Lista de permisos del archivo |
+|   ↳ `id` | string | ID del permiso \(usar para eliminar permiso\) |
+|   ↳ `type` | string | Tipo de beneficiario \(user, group, domain, anyone\) |
+|   ↳ `role` | string | Rol del permiso \(owner, organizer, fileOrganizer, writer, commenter, reader\) |
+|   ↳ `emailAddress` | string | Correo electrónico del beneficiario |
+|   ↳ `displayName` | string | Nombre para mostrar del beneficiario |
+|   ↳ `photoLink` | string | URL de la foto del beneficiario |
+|   ↳ `domain` | string | Dominio del beneficiario |
+|   ↳ `expirationTime` | string | Cuándo expira el permiso |
+|   ↳ `deleted` | boolean | Si la cuenta del beneficiario está eliminada |
+|   ↳ `allowFileDiscovery` | boolean | Si el archivo es detectable por el beneficiario |
+|   ↳ `pendingOwner` | boolean | Si la transferencia de propiedad está pendiente |
+|   ↳ `permissionDetails` | json | Detalles sobre permisos heredados |
+| `nextPageToken` | string | Token para obtener la siguiente página de permisos |
+
+### `google_drive_get_about`
+
+Obtener información sobre el usuario y su Google Drive \(cuota de almacenamiento, capacidades\)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `user` | json | Información sobre el usuario autenticado |
+|   ↳ `displayName` | string | Nombre para mostrar del usuario |
+|   ↳ `emailAddress` | string | Dirección de correo electrónico del usuario |
+|   ↳ `photoLink` | string | URL de la foto de perfil del usuario |
+|   ↳ `permissionId` | string | ID de permiso del usuario |
+|   ↳ `me` | boolean | Si este es el usuario autenticado |
+| `storageQuota` | json | Información de cuota de almacenamiento en bytes |
+|   ↳ `limit` | string | Límite total de almacenamiento en bytes \(null para ilimitado\) |
+|   ↳ `usage` | string | Almacenamiento total usado en bytes |
+|   ↳ `usageInDrive` | string | Almacenamiento usado por archivos de Drive en bytes |
+|   ↳ `usageInDriveTrash` | string | Almacenamiento usado por archivos en la papelera en bytes |
+| `canCreateDrives` | boolean | Si el usuario puede crear unidades compartidas |
+| `importFormats` | json | Mapa de tipos MIME que se pueden importar y sus formatos de destino |
+| `exportFormats` | json | Mapa de tipos MIME de Google Workspace y sus formatos exportables |
+| `maxUploadSize` | string | Tamaño máximo de carga en bytes |

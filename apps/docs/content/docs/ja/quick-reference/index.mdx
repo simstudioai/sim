@@ -1,0 +1,394 @@
+---
+title: クイックリファレンス
+description: Simワークフローエディタのナビゲーションと使用に必要な基本操作
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { ActionImage, ActionVideo } from '@/components/ui/action-media'
+
+Simワークフローエディタの日常的な操作のクイックルックアップです。キーボードショートカットについては、[キーボードショートカット](/keyboard-shortcuts)を参照してください。
+
+<Callout type="info">
+  **Mod**は、macOSでは`Cmd`、Windows/Linuxでは`Ctrl`を指します。
+</Callout>
+
+## ワークスペース
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ワークスペースを作成</td>
+      <td>ワークスペースドロップダウンをクリック → **新規ワークスペース**</td>
+      <td><ActionVideo src="quick-reference/create-workspace.mp4" alt="ワークスペースを作成" /></td>
+    </tr>
+    <tr>
+      <td>ワークスペースを切り替え</td>
+      <td>ワークスペースドロップダウンをクリック → ワークスペースを選択</td>
+      <td><ActionVideo src="quick-reference/switch-workspace.mp4" alt="ワークスペースを切り替え" /></td>
+    </tr>
+    <tr>
+      <td>チームメンバーを招待</td>
+      <td>サイドバー → **招待**</td>
+      <td><ActionVideo src="quick-reference/invite.mp4" alt="チームメンバーを招待" /></td>
+    </tr>
+    <tr>
+      <td>ワークスペースの名前を変更</td>
+      <td>ワークスペースを右クリック → **名前を変更**</td>
+      <td rowSpan={4}><ActionImage src="/static/quick-reference/workspace-context-menu.png" alt="ワークスペースのコンテキストメニュー" /></td>
+    </tr>
+    <tr>
+      <td>ワークスペースを複製</td>
+      <td>ワークスペースを右クリック → **複製**</td>
+    </tr>
+    <tr>
+      <td>ワークスペースをエクスポート</td>
+      <td>ワークスペースを右クリック → **エクスポート**</td>
+    </tr>
+    <tr>
+      <td>ワークスペースを削除</td>
+      <td>ワークスペースを右クリック → **削除**</td>
+    </tr>
+  </tbody>
+</table>
+
+## ワークフロー
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ワークフローを作成</td>
+      <td>サイドバーの**+**ボタンをクリック</td>
+      <td><ActionImage src="/static/quick-reference/create-workflow.png" alt="ワークフローを作成" /></td>
+    </tr>
+    <tr>
+      <td>ワークフローを並べ替え/移動</td>
+      <td>ワークフローを上下にドラッグ、またはフォルダにドラッグ</td>
+      <td><ActionVideo src="quick-reference/reordering.mp4" alt="ワークフローを並べ替え" /></td>
+    </tr>
+    <tr>
+      <td>ワークフローをインポート</td>
+      <td>サイドバーのインポートボタンをクリック → ファイルを選択</td>
+      <td><ActionImage src="/static/quick-reference/import-workflow.png" alt="ワークフローをインポート" /></td>
+    </tr>
+    <tr>
+      <td>ワークフローを複数選択</td>
+      <td>サイドバーで`Mod+Click`または`Shift+Click`でワークフローを選択</td>
+      <td><ActionVideo src="quick-reference/multiselect.mp4" alt="ワークフローを複数選択" /></td>
+    </tr>
+    <tr>
+      <td>新しいタブで開く</td>
+      <td>ワークフローを右クリック → **新しいタブで開く**</td>
+      <td rowSpan={6}><ActionImage src="/static/quick-reference/workflow-context-menu.png" alt="ワークフローのコンテキストメニュー" /></td>
+    </tr>
+    <tr>
+      <td>ワークフローの名前を変更</td>
+      <td>ワークフローを右クリック → **名前を変更**</td>
+    </tr>
+    <tr>
+      <td>ワークフローの色を設定</td>
+      <td>ワークフローを右クリック → **色を変更**</td>
+    </tr>
+    <tr>
+      <td>ワークフローを複製</td>
+      <td>ワークフローを右クリック → **複製**</td>
+    </tr>
+    <tr>
+      <td>ワークフローをエクスポート</td>
+      <td>ワークフローを右クリック → **エクスポート**</td>
+    </tr>
+    <tr>
+      <td>ワークフローを削除</td>
+      <td>ワークフローを右クリック → **削除**</td>
+    </tr>
+    <tr>
+      <td>フォルダの名前を変更</td>
+      <td>フォルダを右クリック → **名前を変更**</td>
+      <td rowSpan={6}><ActionImage src="/static/quick-reference/folder-context-menu.png" alt="フォルダのコンテキストメニュー" /></td>
+    </tr>
+    <tr>
+      <td>フォルダ内にワークフローを作成</td>
+      <td>フォルダを右クリック → **ワークフローを作成**</td>
+    </tr>
+    <tr>
+      <td>フォルダ内にフォルダを作成</td>
+      <td>フォルダを右クリック → **フォルダを作成**</td>
+    </tr>
+    <tr>
+      <td>フォルダを複製</td>
+      <td>フォルダを右クリック → **複製**</td>
+    </tr>
+    <tr>
+      <td>フォルダをエクスポート</td>
+      <td>フォルダを右クリック → **エクスポート**</td>
+    </tr>
+    <tr>
+      <td>フォルダを削除</td>
+      <td>フォルダを右クリック → **削除**</td>
+    </tr>
+  </tbody>
+</table>
+
+## ブロック
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ブロックを追加</td>
+      <td>ツールバーパネルからドラッグ、またはキャンバスを右クリック → **ブロックを追加**</td>
+      <td><ActionVideo src="quick-reference/add-block.mp4" alt="ブロックを追加" /></td>
+    </tr>
+    <tr>
+      <td>ブロックを複数選択</td>
+      <td>`Mod+Click` 追加のブロック、またはShiftキーを押しながらドラッグして選択ボックスを描画</td>
+      <td><ActionVideo src="quick-reference/multiselect-blocks.mp4" alt="ブロックを複数選択" /></td>
+    </tr>
+    <tr>
+      <td>ブロックをコピー</td>
+      <td>ブロックを選択した状態で `Mod+C`</td>
+      <td rowSpan={2}><ActionVideo src="quick-reference/copy-paste.mp4" alt="ブロックをコピー&ペースト" /></td>
+    </tr>
+    <tr>
+      <td>ブロックを貼り付け</td>
+      <td>`Mod+V` でコピーしたブロックを貼り付け</td>
+    </tr>
+    <tr>
+      <td>ブロックを複製</td>
+      <td>右クリック → **複製**</td>
+      <td><ActionVideo src="quick-reference/duplicate-block.mp4" alt="ブロックを複製" /></td>
+    </tr>
+    <tr>
+      <td>ブロックを削除</td>
+      <td>`Delete` または `Backspace` キー、または右クリック → **削除**</td>
+      <td><ActionImage src="/static/quick-reference/delete-block.png" alt="ブロックを削除" /></td>
+    </tr>
+    <tr>
+      <td>ブロック名を変更</td>
+      <td>ヘッダーのブロック名をクリック、またはエディターパネルで編集</td>
+      <td><ActionVideo src="quick-reference/rename-block.mp4" alt="ブロック名を変更" /></td>
+    </tr>
+    <tr>
+      <td>ブロックを有効化/無効化</td>
+      <td>右クリック → **有効化/無効化**</td>
+      <td><ActionImage src="/static/quick-reference/disable-block.png" alt="ブロックを無効化" /></td>
+    </tr>
+    <tr>
+      <td>ブロックをロック/ロック解除</td>
+      <td>ブロックにカーソルを合わせる → ロックアイコンをクリック(管理者のみ)</td>
+      <td><ActionImage src="/static/quick-reference/lock-block.png" alt="ブロックをロック" /></td>
+    </tr>
+    <tr>
+      <td>ハンドルの向きを切り替え</td>
+      <td>右クリック → **ハンドルを切り替え**</td>
+      <td><ActionVideo src="quick-reference/toggle-handles.mp4" alt="ハンドルの向きを切り替え" /></td>
+    </tr>
+    <tr>
+      <td>ブロックを設定</td>
+      <td>ブロックを選択 → 右側のエディターパネルを使用</td>
+      <td><ActionVideo src="quick-reference/configure-block.mp4" alt="ブロックを設定" /></td>
+    </tr>
+  </tbody>
+</table>
+
+## 接続
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>接続を作成</td>
+      <td>出力ハンドルから入力ハンドルへドラッグ</td>
+      <td><ActionVideo src="quick-reference/connect-blocks.mp4" alt="ブロックを接続" /></td>
+    </tr>
+    <tr>
+      <td>接続を削除</td>
+      <td>エッジをクリックして選択 → `Delete` キー</td>
+      <td><ActionVideo src="quick-reference/delete-connection.mp4" alt="接続を削除" /></td>
+    </tr>
+    <tr>
+      <td>別のブロックで出力を使用</td>
+      <td>接続タグを入力フィールドにドラッグ</td>
+      <td><ActionVideo src="quick-reference/connection-tag.mp4" alt="接続タグを使用" /></td>
+    </tr>
+  </tbody>
+</table>
+
+## パネルとビュー
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ツールバーを検索</td>
+      <td>`Mod+F`</td>
+      <td><ActionVideo src="quick-reference/search-toolbar.mp4" alt="ツールバーを検索" /></td>
+    </tr>
+    <tr>
+      <td>すべてを検索</td>
+      <td>`Mod+K`</td>
+      <td><ActionImage src="/static/quick-reference/search-everything.png" alt="すべてを検索" /></td>
+    </tr>
+    <tr>
+      <td>手動モードを切り替え</td>
+      <td>トグルボタンをクリックして手動モードとセレクターを切り替え</td>
+      <td><ActionImage src="/static/quick-reference/toggle-manual-mode.png" alt="手動モードを切り替え" /></td>
+    </tr>
+    <tr>
+      <td>サイドバーを折りたたむ/展開</td>
+      <td>サイドバーの折りたたみボタンをクリック</td>
+      <td><ActionVideo src="quick-reference/collapse-sidebar.mp4" alt="サイドバーを折りたたむ" /></td>
+    </tr>
+  </tbody>
+</table>
+
+## 実行とテスト
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ワークフローを実行</td>
+      <td>ワークフローを実行ボタンをクリック、または`Mod+Enter`</td>
+      <td><ActionImage src="/static/quick-reference/run-workflow.png" alt="ワークフローを実行" /></td>
+    </tr>
+    <tr>
+      <td>ワークフローを停止</td>
+      <td>停止ボタンをクリック、または実行中に`Mod+Enter`</td>
+      <td><ActionImage src="/static/quick-reference/stop-workflow.png" alt="ワークフローを停止" /></td>
+    </tr>
+    <tr>
+      <td>チャットでテスト</td>
+      <td>右側のチャットパネルを使用</td>
+      <td><ActionImage src="/static/quick-reference/test-chat.png" alt="チャットでテスト" /></td>
+    </tr>
+    <tr>
+      <td>表示する出力を選択</td>
+      <td>チャットパネルのドロップダウンをクリック → ブロック出力を選択</td>
+      <td><ActionImage src="/static/quick-reference/output-select.png" alt="表示する出力を選択" /></td>
+    </tr>
+    <tr>
+      <td>チャット履歴をクリア</td>
+      <td>チャットパネルのクリアボタンをクリック</td>
+      <td><ActionImage src="/static/quick-reference/clear-chat.png" alt="チャット履歴をクリア" /></td>
+    </tr>
+    <tr>
+      <td>ブロックから実行</td>
+      <td>ブロックにカーソルを合わせて再生ボタンをクリック、または右クリック → **ブロックから実行**</td>
+      <td><ActionImage src="/static/quick-reference/run-from-block.png" alt="ブロックから実行" /></td>
+    </tr>
+    <tr>
+      <td>ブロックまで実行</td>
+      <td>ブロックを右クリック → **ブロックまで実行**</td>
+      <td><ActionImage src="/static/quick-reference/run-until-block.png" alt="ブロックまで実行" /></td>
+    </tr>
+    <tr>
+      <td>実行ログを表示</td>
+      <td>下部のターミナルパネルを開く、または`Mod+L`</td>
+      <td><ActionImage src="/static/quick-reference/terminal.png" alt="実行ログターミナル" /></td>
+    </tr>
+    <tr>
+      <td>ログをフィルター</td>
+      <td>ターミナルのフィルターアイコンをクリック → ブロックまたはステータスでフィルター</td>
+      <td><ActionImage src="/static/quick-reference/filter-block.png" alt="ブロックでログをフィルター" /></td>
+    </tr>
+    <tr>
+      <td>ログを検索</td>
+      <td>ターミナルの検索フィールドを使用、またはログエントリーを右クリック → **検索**</td>
+      <td><ActionImage src="/static/quick-reference/terminal-search.png" alt="ログを検索" /></td>
+    </tr>
+    <tr>
+      <td>ログエントリーをコピー</td>
+      <td>クリップボードアイコン、またはログエントリーを右クリック → **コピー**</td>
+      <td><ActionImage src="/static/quick-reference/copy-log.png" alt="ログエントリーをコピー" /></td>
+    </tr>
+    <tr>
+      <td>ターミナルをクリア</td>
+      <td>ゴミ箱アイコン、または`Mod+D`</td>
+      <td><ActionImage src="/static/quick-reference/clear-terminal.png" alt="ターミナルをクリア" /></td>
+    </tr>
+  </tbody>
+</table>
+
+## デプロイ
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ワークフローをデプロイする</td>
+      <td>パネルの**デプロイ**ボタンをクリック</td>
+      <td><ActionImage src="/static/quick-reference/deploy.png" alt="ワークフローをデプロイ" /></td>
+    </tr>
+    <tr>
+      <td>デプロイを更新する</td>
+      <td>変更が検出されたら**更新**をクリック</td>
+      <td><ActionImage src="/static/quick-reference/update-deployment.png" alt="デプロイを更新" /></td>
+    </tr>
+    <tr>
+      <td>デプロイステータスを表示する</td>
+      <td>デプロイタブでステータスインジケーター(Live/Update/Deploy)を確認</td>
+      <td><ActionImage src="/static/quick-reference/view-deployment.png" alt="デプロイステータスを表示" /></td>
+    </tr>
+    <tr>
+      <td>デプロイを元に戻す</td>
+      <td>デプロイタブで以前のバージョンにアクセス → **本番環境に昇格**</td>
+      <td><ActionImage src="/static/quick-reference/promote-deployment.png" alt="デプロイを本番環境に昇格" /></td>
+    </tr>
+    <tr>
+      <td>バージョン説明を追加する</td>
+      <td>デプロイタブ → 説明アイコンをクリック → 説明を追加または生成</td>
+      <td><ActionVideo src="quick-reference/deployment-description.mp4" alt="デプロイバージョンの説明を追加" /></td>
+    </tr>
+    <tr>
+      <td>APIエンドポイントをコピーする</td>
+      <td>デプロイタブ → API → API cURLをコピー</td>
+      <td><ActionImage src="/static/quick-reference/copy-api.png" alt="APIエンドポイントをコピー" /></td>
+    </tr>
+  </tbody>
+</table>
+
+## 変数
+
+<table>
+  <thead>
+    <tr><th>操作</th><th>方法</th><th>プレビュー</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ワークフロー変数を追加/編集/削除する</td>
+      <td>パネル -> 変数 -> **変数を追加**、クリックして編集、または削除アイコン</td>
+      <td><ActionImage src="/static/quick-reference/variables.png" alt="変数パネル" /></td>
+    </tr>
+    <tr>
+      <td>環境変数を追加する</td>
+      <td>設定 → **環境変数** → **追加**</td>
+      <td><ActionImage src="/static/quick-reference/add-env-variable.png" alt="環境変数を追加" /></td>
+    </tr>
+    <tr>
+      <td>ワークフロー変数を参照する</td>
+      <td>ブロック入力で`<blockName.itemName>`構文を使用</td>
+      <td><ActionImage src="/static/quick-reference/variable-reference.png" alt="ワークフロー変数を参照" /></td>
+    </tr>
+    <tr>
+      <td>環境変数を参照する</td>
+      <td>ブロック入力で`{{ENV_VAR}}`構文を使用</td>
+      <td><ActionImage src="/static/quick-reference/env-variable-reference.png" alt="環境変数を参照" /></td>
+    </tr>
+  </tbody>
+</table>

@@ -176,3 +176,151 @@ Daten am Ende einer Google Sheets-Tabelle anhängen
 
 - Kategorie: `tools`
 - Typ: `google_sheets`
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Google Sheets-Tabellenkalkulations-ID |
+| `includeGridData` | boolean | Nein | Ob Rasterdaten \(Zellwerte\) einbezogen werden sollen. Standardmäßig false. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Die Tabellenkalkulations-ID |
+| `title` | string | Der Titel der Tabellenkalkulation |
+| `locale` | string | Das Gebietsschema der Tabellenkalkulation |
+| `timeZone` | string | Die Zeitzone der Tabellenkalkulation |
+| `spreadsheetUrl` | string | URL zur Tabellenkalkulation |
+| `sheets` | array | Liste der Tabellenblätter in der Tabellenkalkulation |
+|   ↳ `sheetId` | number | Die Tabellenblatt-ID |
+|   ↳ `title` | string | Der Titel/Name des Tabellenblatts |
+|   ↳ `index` | number | Der Tabellenblatt-Index \(Position\) |
+|   ↳ `rowCount` | number | Anzahl der Zeilen im Tabellenblatt |
+|   ↳ `columnCount` | number | Anzahl der Spalten im Tabellenblatt |
+|   ↳ `hidden` | boolean | Ob das Tabellenblatt ausgeblendet ist |
+
+### `google_sheets_create_spreadsheet`
+
+Erstellt eine neue Google Sheets-Tabellenkalkulation
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Titel der neuen Tabellenkalkulation |
+| `sheetTitles` | json | Nein | Array von Tabellenblattnamen, die erstellt werden sollen \(z. B. \["Tabelle1", "Daten", "Zusammenfassung"\]\). Standardmäßig ein einzelnes "Tabelle1". |
+| `locale` | string | Nein | Das Gebietsschema der Tabellenkalkulation \(z. B. "de_DE"\) |
+| `timeZone` | string | Nein | Die Zeitzone der Tabellenkalkulation \(z. B. "Europe/Berlin"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Die ID der erstellten Tabellenkalkulation |
+| `title` | string | Der Titel der erstellten Tabellenkalkulation |
+| `spreadsheetUrl` | string | URL zur erstellten Tabellenkalkulation |
+| `sheets` | array | Liste der in der Tabellenkalkulation erstellten Tabellenblätter |
+|   ↳ `sheetId` | number | Die Tabellenblatt-ID |
+|   ↳ `title` | string | Der Tabellenblatt-Titel/-Name |
+|   ↳ `index` | number | Der Tabellenblatt-Index \(Position\) |
+
+### `google_sheets_batch_get`
+
+Liest mehrere Bereiche aus einer Google Sheets-Tabellenkalkulation in einer einzigen Anfrage
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Google Sheets-Tabellenkalkulationskennung |
+| `ranges` | json | Ja | Array von zu lesenden Bereichen \(z. B. \["Tabelle1!A1:D10", "Tabelle2!A1:B5"\]\). Jeder Bereich sollte den Tabellenblattnamen enthalten. |
+| `majorDimension` | string | Nein | Die Hauptdimension der Werte: "ROWS" \(Standard\) oder "COLUMNS" |
+| `valueRenderOption` | string | Nein | Wie Werte dargestellt werden sollen: "FORMATTED_VALUE" \(Standard\), "UNFORMATTED_VALUE" oder "FORMULA" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Die Tabellenkalkulationskennung |
+| `valueRanges` | array | Array von Wertebereichen, die aus der Tabellenkalkulation gelesen wurden |
+|   ↳ `range` | string | Der Bereich, der gelesen wurde |
+|   ↳ `majorDimension` | string | Hauptdimension \(ROWS oder COLUMNS\) |
+|   ↳ `values` | array | Die Zellwerte als 2D-Array |
+| `metadata` | json | Tabellenkalkulationsmetadaten einschließlich ID und URL |
+|   ↳ `spreadsheetId` | string | Google Sheets-Tabellenkalkulationskennung |
+|   ↳ `spreadsheetUrl` | string | Tabellenkalkulations-URL |
+
+### `google_sheets_batch_update`
+
+Mehrere Bereiche in einer Google Sheets-Tabelle in einer einzigen Anfrage aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Google Sheets-Tabellen-ID |
+| `data` | json | Ja | Array von Wertebereichen, die aktualisiert werden sollen. Jedes Element sollte "range" \(z. B. "Sheet1!A1:D10"\) und "values" \(2D-Array\) enthalten. |
+| `valueInputOption` | string | Nein | Wie Eingabedaten interpretiert werden sollen: "RAW" oder "USER_ENTERED" \(Standard\). USER_ENTERED analysiert Formeln. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | Die Tabellen-ID |
+| `totalUpdatedRows` | number | Gesamtanzahl der aktualisierten Zeilen |
+| `totalUpdatedColumns` | number | Gesamtanzahl der aktualisierten Spalten |
+| `totalUpdatedCells` | number | Gesamtanzahl der aktualisierten Zellen |
+| `totalUpdatedSheets` | number | Gesamtanzahl der aktualisierten Tabellenblätter |
+| `responses` | array | Array von Aktualisierungsantworten für jeden Bereich |
+|   ↳ `spreadsheetId` | string | Die Tabellen-ID |
+|   ↳ `updatedRange` | string | Der Bereich, der aktualisiert wurde |
+|   ↳ `updatedRows` | number | Anzahl der in diesem Bereich aktualisierten Zeilen |
+|   ↳ `updatedColumns` | number | Anzahl der in diesem Bereich aktualisierten Spalten |
+|   ↳ `updatedCells` | number | Anzahl der in diesem Bereich aktualisierten Zellen |
+| `metadata` | json | Tabellenmetadaten einschließlich ID und URL |
+|   ↳ `spreadsheetId` | string | Google Sheets-Tabellen-ID |
+|   ↳ `spreadsheetUrl` | string | Tabellen-URL |
+
+### `google_sheets_batch_clear`
+
+Mehrere Bereiche in einer Google Sheets-Tabelle mit einer einzigen Anfrage löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | ----------- | ------------- |
+| `spreadsheetId` | string | Ja | Google Sheets-Tabellen-ID |
+| `ranges` | json | Ja | Array der zu löschenden Bereiche (z. B. ["Sheet1!A1:D10", "Sheet2!A1:B5"]). Jeder Bereich muss den Blattnamen enthalten. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ------------- |
+| `spreadsheetId` | string | Die Tabellen-ID |
+| `clearedRanges` | array | Array der gelöschten Bereiche |
+| `metadata` | json | Tabellenmetadaten einschließlich ID und URL |
+|   ↳ `spreadsheetId` | string | Google Sheets-Tabellen-ID |
+|   ↳ `spreadsheetUrl` | string | Tabellen-URL |
+
+### `google_sheets_copy_sheet`
+
+Ein Blatt von einer Tabelle in eine andere kopieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | ----------- | ------------- |
+| `sourceSpreadsheetId` | string | Ja | Quell-Google-Sheets-Tabellen-ID |
+| `sheetId` | number | Ja | Die ID des zu kopierenden Blatts (numerische ID, nicht der Blattname). Verwenden Sie "Get Spreadsheet", um Blatt-IDs zu finden. |
+| `destinationSpreadsheetId` | string | Ja | Die ID der Zieltabelle, in die das Blatt kopiert wird |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ------------- |
+| `sheetId` | number | Die ID des neu erstellten Blatts in der Zieltabelle |
+| `title` | string | Der Titel des kopierten Blatts |
+| `index` | number | Der Index (Position) des kopierten Blatts |
+| `sheetType` | string | Der Typ des Blatts (GRID, CHART usw.) |
+| `destinationSpreadsheetId` | string | Die ID der Zieltabelle |
+| `destinationSpreadsheetUrl` | string | URL zur Zieltabelle |

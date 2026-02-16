@@ -358,3 +358,370 @@ Intercomで管理者が開始した新しいメッセージを作成して送信
 
 - カテゴリー: `tools`
 - タイプ: `intercom`
+
+Intercomで新しい管理者主導のメッセージを作成して送信します。API準拠のフィールドのみを返します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | はい | メッセージタイプ:アプリ内メッセージの場合は「inapp」、メールメッセージの場合は「email」 |
+| `template` | string | はい | メッセージテンプレートスタイル:プレーンテキストの場合は「plain」、パーソナライズスタイルの場合は「personal」 |
+| `subject` | string | いいえ | メッセージの件名(メールタイプの場合) |
+| `body` | string | はい | メッセージの本文 |
+| `from_type` | string | はい | 送信者タイプ:「admin」 |
+| `from_id` | string | はい | メッセージを送信する管理者のID |
+| `to_type` | string | はい | 受信者タイプ:「contact」 |
+| `to_id` | string | はい | メッセージを受信する連絡先のID |
+| `created_at` | number | いいえ | メッセージが作成された時刻(Unixタイムスタンプ)。未指定の場合は現在時刻が使用されます |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | object | 作成されたメッセージオブジェクト |
+|   ↳ `id` | string | メッセージの一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(message) |
+|   ↳ `created_at` | number | メッセージが作成された時刻(Unixタイムスタンプ) |
+|   ↳ `body` | string | メッセージの本文 |
+|   ↳ `message_type` | string | メッセージのタイプ(in_appまたはemail) |
+|   ↳ `conversation_id` | string | 作成された会話のID |
+|   ↳ `owner` | object | メッセージの所有者 |
+| `messageId` | string | 作成されたメッセージのID |
+| `success` | boolean | 操作の成功ステータス |
+
+### `intercom_list_admins`
+
+ワークスペースのすべての管理者のリストを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `admins` | array | 管理者オブジェクトの配列 |
+|   ↳ `id` | string | 管理者の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(admin) |
+|   ↳ `name` | string | 管理者の名前 |
+|   ↳ `email` | string | 管理者のメールアドレス |
+|   ↳ `job_title` | string | 管理者の役職 |
+|   ↳ `away_mode_enabled` | boolean | 管理者が離席モードかどうか |
+|   ↳ `away_mode_reassign` | boolean | 離席時に会話を再割り当てするかどうか |
+|   ↳ `has_inbox_seat` | boolean | 管理者が有料の受信トレイシートを持っているかどうか |
+|   ↳ `team_ids` | array | 管理者が所属するチームIDのリスト |
+|   ↳ `avatar` | object | アバター情報 |
+|   ↳ `email_verified` | boolean | メールアドレスが確認済みかどうか |
+| `type` | string | オブジェクトタイプ(admin.list) |
+
+### `intercom_close_conversation`
+
+Intercomで会話をクローズする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | クローズする会話のID |
+| `admin_id` | string | はい | アクションを実行する管理者のID |
+| `body` | string | いいえ | 会話に追加するオプションのクローズメッセージ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `conversation` | object | クローズされた会話オブジェクト |
+|   ↳ `id` | string | 会話の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(conversation) |
+|   ↳ `state` | string | 会話の状態(closed) |
+|   ↳ `open` | boolean | 会話がオープンかどうか(false) |
+|   ↳ `read` | boolean | 会話が既読かどうか |
+|   ↳ `created_at` | number | 会話が作成されたUnixタイムスタンプ |
+|   ↳ `updated_at` | number | 会話が最後に更新されたUnixタイムスタンプ |
+| `conversationId` | string | クローズされた会話のID |
+| `state` | string | 会話の状態(closed) |
+
+### `intercom_open_conversation`
+
+Intercomでクローズまたはスヌーズされた会話をオープンする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | オープンする会話のID |
+| `admin_id` | string | はい | アクションを実行する管理者のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `conversation` | object | オープンされた会話オブジェクト |
+|   ↳ `id` | string | 会話の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(conversation) |
+|   ↳ `state` | string | 会話の状態(open) |
+|   ↳ `open` | boolean | 会話がオープンかどうか(true) |
+|   ↳ `read` | boolean | 会話が既読かどうか |
+|   ↳ `created_at` | number | 会話が作成されたUnixタイムスタンプ |
+|   ↳ `updated_at` | number | 会話が最後に更新されたUnixタイムスタンプ |
+| `conversationId` | string | オープンされた会話のID |
+| `state` | string | 会話の状態(open) |
+
+### `intercom_snooze_conversation`
+
+会話をスヌーズして将来の時刻に再開する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | スヌーズする会話のID |
+| `admin_id` | string | はい | アクションを実行する管理者のID |
+| `snoozed_until` | number | はい | 会話が再開される時刻のUnixタイムスタンプ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `conversation` | object | スヌーズされた会話オブジェクト |
+|   ↳ `id` | string | 会話の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(conversation) |
+|   ↳ `state` | string | 会話の状態(snoozed) |
+|   ↳ `open` | boolean | 会話が開いているかどうか |
+|   ↳ `snoozed_until` | number | 会話が再開されるUnixタイムスタンプ |
+|   ↳ `created_at` | number | 会話が作成された時刻のUnixタイムスタンプ |
+|   ↳ `updated_at` | number | 会話が最後に更新された時刻のUnixタイムスタンプ |
+| `conversationId` | string | スヌーズされた会話のID |
+| `state` | string | 会話の状態(snoozed) |
+| `snoozed_until` | number | 会話が再開されるUnixタイムスタンプ |
+
+### `intercom_assign_conversation`
+
+Intercomで会話を管理者またはチームに割り当てる
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | 割り当てる会話のID |
+| `admin_id` | string | はい | 割り当てを実行する管理者のID |
+| `assignee_id` | string | はい | 会話を割り当てる管理者またはチームのID。割り当てを解除するには「0」を設定 |
+| `body` | string | いいえ | 割り当て時に追加するオプションのメッセージ(例:「サポートチームに引き継ぎます」) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 割り当てられた会話オブジェクト |
+|   ↳ `id` | string | 会話の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(conversation) |
+|   ↳ `state` | string | 会話の状態 |
+|   ↳ `open` | boolean | 会話がオープンかどうか |
+|   ↳ `admin_assignee_id` | number | 割り当てられた管理者のID |
+|   ↳ `team_assignee_id` | string | 割り当てられたチームのID |
+|   ↳ `created_at` | number | 会話が作成された時刻(Unixタイムスタンプ) |
+|   ↳ `updated_at` | number | 会話が最後に更新された時刻(Unixタイムスタンプ) |
+| `conversationId` | string | 割り当てられた会話のID |
+| `admin_assignee_id` | number | 割り当てられた管理者のID |
+| `team_assignee_id` | string | 割り当てられたチームのID |
+
+### `intercom_list_tags`
+
+ワークスペース内のすべてのタグのリストを取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tags` | array | タグオブジェクトの配列 |
+|   ↳ `id` | string | タグの一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(tag) |
+|   ↳ `name` | string | タグの名前 |
+| `type` | string | オブジェクトタイプ(list) |
+
+### `intercom_create_tag`
+
+新しいタグを作成するか、既存のタグ名を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | はい | タグの名前。見つからない場合は新しいタグを作成し、IDが指定されている場合は名前を更新します。 |
+| `id` | string | いいえ | 更新する既存のタグのID。新しいタグを作成する場合は省略します。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | タグの一意の識別子 |
+| `name` | string | タグの名前 |
+| `type` | string | オブジェクトタイプ \(tag\) |
+
+### `intercom_tag_contact`
+
+特定の連絡先にタグを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | タグを付ける連絡先のID |
+| `tagId` | string | はい | 適用するタグのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | タグの一意の識別子 |
+| `name` | string | タグの名前 |
+| `type` | string | オブジェクトタイプ \(tag\) |
+
+### `intercom_untag_contact`
+
+特定の連絡先からタグを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | タグを削除する連絡先のID |
+| `tagId` | string | はい | 削除するタグのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | 削除されたタグの一意の識別子 |
+| `name` | string | 削除されたタグの名前 |
+| `type` | string | オブジェクトタイプ（tag） |
+
+### `intercom_tag_conversation`
+
+特定の会話にタグを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | はい | タグを付ける会話のID |
+| `tagId` | string | はい | 適用するタグのID |
+| `admin_id` | string | はい | タグを適用する管理者のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | タグの一意の識別子 |
+| `name` | string | タグの名前 |
+| `type` | string | オブジェクトタイプ（tag） |
+
+### `intercom_create_note`
+
+特定の連絡先にメモを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | メモを追加する連絡先のID |
+| `body` | string | はい | メモのテキスト内容 |
+| `admin_id` | string | いいえ | メモを作成する管理者のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ノートの一意の識別子 |
+| `body` | string | ノートのテキストコンテンツ |
+| `created_at` | number | ノートが作成された時刻(Unixタイムスタンプ) |
+| `type` | string | オブジェクトタイプ\(note\) |
+| `author` | object | ノートを作成した管理者 |
+|   ↳ `type` | string | 作成者タイプ\(admin\) |
+|   ↳ `id` | string | 作成者ID |
+|   ↳ `name` | string | 作成者名 |
+|   ↳ `email` | string | 作成者のメールアドレス |
+| `contact` | object | ノートが作成された連絡先 |
+|   ↳ `type` | string | 連絡先タイプ |
+|   ↳ `id` | string | 連絡先ID |
+
+### `intercom_create_event`
+
+Intercomで連絡先のカスタムイベントを追跡する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | はい | イベントの名前(例:「order-completed」)。可読性のため過去形の動詞-名詞形式を使用してください。 |
+| `created_at` | number | いいえ | イベントが発生した時刻のUnixタイムスタンプ。一意性のため強く推奨されます。 |
+| `user_id` | string | いいえ | ユーザーの識別子\(external_id\) |
+| `email` | string | いいえ | ユーザーのメールアドレス。アプリがメールを使用してユーザーを一意に識別する場合のみ使用してください。 |
+| `id` | string | いいえ | Intercomの連絡先ID |
+| `metadata` | string | いいえ | イベントに関する最大10個のメタデータキーと値のペアを含むJSONオブジェクト(例:\{"order_value": 99.99\}) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | イベントが受け入れられたかどうか(202 Accepted) |
+
+### `intercom_attach_contact_to_company`
+
+Intercomで連絡先を会社に関連付ける
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | 会社に関連付ける連絡先のID |
+| `companyId` | string | はい | 連絡先を関連付ける会社のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `company` | object | 連絡先が関連付けられた会社オブジェクト |
+|   ↳ `id` | string | 会社の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(company) |
+|   ↳ `company_id` | string | 定義した会社ID |
+|   ↳ `name` | string | 会社名 |
+|   ↳ `created_at` | number | 会社が作成されたUnixタイムスタンプ |
+|   ↳ `updated_at` | number | 会社が更新されたUnixタイムスタンプ |
+|   ↳ `user_count` | number | 会社内のユーザー数 |
+|   ↳ `session_count` | number | セッション数 |
+|   ↳ `monthly_spend` | number | 月間支出額 |
+|   ↳ `plan` | object | 会社のプラン詳細 |
+| `companyId` | string | 会社のID |
+| `name` | string | 会社名 |
+
+### `intercom_detach_contact_from_company`
+
+Intercomで連絡先を企業から削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | はい | 企業から切り離す連絡先のID |
+| `companyId` | string | はい | 連絡先を切り離す企業のID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `company` | object | 連絡先が切り離された企業オブジェクト |
+|   ↳ `id` | string | 企業の一意の識別子 |
+|   ↳ `type` | string | オブジェクトタイプ(company) |
+|   ↳ `company_id` | string | 定義した企業ID |
+|   ↳ `name` | string | 企業名 |
+| `companyId` | string | 企業のID |
+| `name` | string | 企業名 |

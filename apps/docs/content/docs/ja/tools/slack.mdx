@@ -283,3 +283,126 @@ Slackメッセージに絵文字リアクションを追加する
 
 - カテゴリー: `tools`
 - タイプ: `slack`
+
+Slackでボットが以前送信したメッセージを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | いいえ | 認証方法：oauth または bot_token |
+| `botToken` | string | いいえ | カスタムボット用のボットトークン |
+| `channel` | string | はい | メッセージが投稿されたチャンネルID（例：C1234567890） |
+| `timestamp` | string | はい | 更新するメッセージのタイムスタンプ（例：1405894322.002768） |
+| `text` | string | はい | 新しいメッセージテキスト（Slack mrkdwn形式をサポート） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | object | Slackから返される全プロパティを含む完全な更新済みメッセージオブジェクト |
+|   ↳ `type` | string | メッセージタイプ（通常は「message」） |
+|   ↳ `ts` | string | メッセージタイムスタンプ（一意の識別子） |
+|   ↳ `text` | string | メッセージテキストコンテンツ |
+|   ↳ `user` | string | メッセージを送信したユーザーID |
+|   ↳ `bot_id` | string | ボットが送信した場合のボットID |
+|   ↳ `username` | string | 表示ユーザー名 |
+|   ↳ `channel` | string | チャンネルID |
+|   ↳ `team` | string | チーム/ワークスペースID |
+|   ↳ `thread_ts` | string | 親メッセージタイムスタンプ（スレッド返信の場合） |
+|   ↳ `parent_user_id` | string | スレッド親メッセージ作成者のユーザーID |
+|   ↳ `reply_count` | number | スレッド内の返信総数 |
+|   ↳ `reply_users_count` | number | 返信したユニークユーザー数 |
+|   ↳ `latest_reply` | string | 最新の返信のタイムスタンプ |
+|   ↳ `subscribed` | boolean | ユーザーがスレッドを購読しているかどうか |
+|   ↳ `last_read` | string | 最後に読んだメッセージのタイムスタンプ |
+|   ↳ `unread_count` | number | スレッド内の未読メッセージ数 |
+|   ↳ `subtype` | string | メッセージサブタイプ（bot_message、file_shareなど） |
+|   ↳ `is_starred` | boolean | ユーザーがメッセージにスターを付けているかどうか |
+|   ↳ `pinned_to` | array | メッセージがピン留めされているチャンネルID |
+|   ↳ `permalink` | string | メッセージへの永続的URL |
+|   ↳ `reactions` | array | このメッセージへのリアクション |
+|     ↳ `name` | string | 絵文字名（コロンなし） |
+|     ↳ `count` | number | このリアクションが追加された回数 |
+|     ↳ `users` | array | リアクションしたユーザーIDの配列 |
+|   ↳ `files` | array | メッセージに添付されたファイル |
+|     ↳ `id` | string | 一意のファイル識別子 |
+|     ↳ `name` | string | ファイル名 |
+|     ↳ `mimetype` | string | ファイルのMIMEタイプ |
+|     ↳ `size` | number | ファイルサイズ（バイト） |
+|     ↳ `url_private` | string | プライベートダウンロードURL（認証が必要） |
+|     ↳ `permalink` | string | ファイルへの永続的リンク |
+|     ↳ `mode` | string | ファイルモード（hosted、externalなど） |
+|   ↳ `attachments` | array | メッセージのレガシー添付ファイル |
+|     ↳ `id` | number | 添付ファイルID |
+|     ↳ `fallback` | string | プレーンテキストの要約 |
+|     ↳ `text` | string | メインの添付ファイルテキスト |
+|     ↳ `pretext` | string | 添付ファイルの前に表示されるテキスト |
+|     ↳ `color` | string | カラーバーの16進コードまたはプリセット |
+|     ↳ `author_name` | string | 作成者の表示名 |
+|     ↳ `author_link` | string | 作成者のリンクURL |
+|     ↳ `author_icon` | string | 作成者のアイコンURL |
+|     ↳ `title` | string | 添付ファイルのタイトル |
+|     ↳ `title_link` | string | タイトルのリンクURL |
+|     ↳ `image_url` | string | 画像URL |
+|     ↳ `thumb_url` | string | サムネイルURL |
+|     ↳ `footer` | string | フッターテキスト |
+|     ↳ `footer_icon` | string | フッターアイコンURL |
+|     ↳ `ts` | string | フッターに表示されるタイムスタンプ |
+|   ↳ `blocks` | array | メッセージ内のBlock Kitブロック |
+|     ↳ `type` | string | ブロックタイプ（section、divider、image、actionsなど） |
+|     ↳ `block_id` | string | 一意のブロック識別子 |
+|   ↳ `edited` | object | メッセージが編集された場合の編集情報 |
+|     ↳ `user` | string | メッセージを編集したユーザーID |
+|     ↳ `ts` | string | 編集のタイムスタンプ |
+| `content` | string | 成功メッセージ |
+| `metadata` | object | 更新されたメッセージのメタデータ |
+|   ↳ `channel` | string | チャンネルID |
+|   ↳ `timestamp` | string | メッセージタイムスタンプ |
+|   ↳ `text` | string | 更新されたメッセージテキスト |
+
+### `slack_delete_message`
+
+Slackでボットが以前に送信したメッセージを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | いいえ | 認証方法：oauth または bot_token |
+| `botToken` | string | いいえ | カスタムボット用のボットトークン |
+| `channel` | string | はい | メッセージが投稿されたチャンネルID（例：C1234567890） |
+| `timestamp` | string | はい | 削除するメッセージのタイムスタンプ（例：1405894322.002768） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功メッセージ |
+| `metadata` | object | 削除されたメッセージのメタデータ |
+|   ↳ `channel` | string | チャンネルID |
+|   ↳ `timestamp` | string | メッセージのタイムスタンプ |
+
+### `slack_add_reaction`
+
+Slackメッセージに絵文字リアクションを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | いいえ | 認証方法：oauth または bot_token |
+| `botToken` | string | いいえ | カスタムボット用のボットトークン |
+| `channel` | string | はい | メッセージが投稿されたチャンネルID（例：C1234567890） |
+| `timestamp` | string | はい | リアクションを追加するメッセージのタイムスタンプ（例：1405894322.002768） |
+| `name` | string | はい | 絵文字リアクションの名前（コロンなし、例：thumbsup、heart、eyes） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功メッセージ |
+| `metadata` | object | リアクションのメタデータ |
+|   ↳ `channel` | string | チャンネルID |
+|   ↳ `timestamp` | string | メッセージのタイムスタンプ |
+|   ↳ `reaction` | string | 絵文字リアクション名 |

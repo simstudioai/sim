@@ -212,3 +212,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`zep`
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | 是 | 要获取线程的用户 ID（例如，"user_123"） |
+| `limit` | number | 否 | 返回的最大线程数（例如，10，25，50） |
+| `apiKey` | string | 是 | 您的 Zep API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `threads` | array | 线程对象数组 |
+|   ↳ `threadId` | string | 线程标识符 |
+|   ↳ `userId` | string | 关联的用户 ID |
+|   ↳ `uuid` | string | 内部 UUID |
+|   ↳ `createdAt` | string | 创建时间戳（ISO 8601） |
+|   ↳ `updatedAt` | string | 最后更新时间戳（ISO 8601） |
+|   ↳ `projectUuid` | string | 项目 UUID |
+|   ↳ `metadata` | object | 自定义元数据（动态键值对） |
+| `totalCount` | number | 可用项目总数 |

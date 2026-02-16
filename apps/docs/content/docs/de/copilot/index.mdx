@@ -169,3 +169,175 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 <Callout type="info">
   Modellpreise werden pro Million Tokens angegeben. Die Berechnung teilt durch 1.000.000, um die tatsächlichen Kosten zu ermitteln. Siehe <a href="/execution/costs">die Seite zur Kostenberechnung</a> für Hintergründe und Beispiele.
 </Callout>
+
+Fahre mit der Maus über eine deiner Nachrichten und klicke auf **Bearbeiten**, um sie zu ändern und erneut zu senden. Dies ist nützlich, um deine Eingaben zu verfeinern.
+
+### Nachrichtenwarteschlange
+
+Wenn du eine Nachricht sendest, während Copilot noch antwortet, wird sie in die Warteschlange gestellt. Du kannst:
+- Warteschlangennachrichten im erweiterbaren Warteschlangenpanel anzeigen
+- Eine Nachricht aus der Warteschlange sofort senden (bricht die aktuelle Antwort ab)
+- Nachrichten aus der Warteschlange entfernen
+
+## Dateianhänge
+
+Klicke auf das Anhang-Symbol, um Dateien mit deiner Nachricht hochzuladen. Unterstützte Dateitypen umfassen:
+- Bilder (Vorschau-Thumbnails werden angezeigt)
+- PDFs
+- Textdateien, JSON, XML
+- Andere Dokumentformate
+
+Dateien werden als anklickbare Thumbnails angezeigt, die in einem neuen Tab geöffnet werden.
+
+## Checkpoints & Änderungen
+
+Wenn Copilot Änderungen an deinem Workflow vornimmt, speichert es Checkpoints, damit du bei Bedarf zurückkehren kannst.
+
+### Checkpoints anzeigen
+
+Fahre mit der Maus über eine Copilot-Nachricht und klicke auf das Checkpoints-Symbol, um gespeicherte Workflow-Zustände für diese Nachricht anzuzeigen.
+
+### Änderungen rückgängig machen
+
+Klicke bei jedem Checkpoint auf **Rückgängig machen**, um deinen Workflow auf diesen Zustand zurückzusetzen. Ein Bestätigungsdialog warnt dich, dass diese Aktion nicht rückgängig gemacht werden kann.
+
+### Änderungen akzeptieren
+
+Wenn Copilot Änderungen vorschlägt, kannst du:
+- **Akzeptieren**: Die vorgeschlagenen Änderungen anwenden (`Mod+Shift+Enter`)
+- **Ablehnen**: Die Änderungen verwerfen und deinen aktuellen Workflow beibehalten
+
+## Denkblöcke
+
+Bei komplexen Anfragen kann Copilot seinen Denkprozess in erweiterbaren Denkblöcken anzeigen:
+
+- Blöcke werden automatisch erweitert, während Copilot denkt
+- Klicken zum manuellen Erweitern/Reduzieren
+- Zeigt die Dauer des Denkprozesses an
+- Hilft dir zu verstehen, wie Copilot zu seiner Lösung gekommen ist
+
+## Optionsauswahl
+
+Wenn Copilot mehrere Optionen präsentiert, kannst du auswählen mit:
+
+| Steuerung | Aktion |
+|---------|--------|
+| **1-9** | Option nach Nummer auswählen |
+| **Pfeiltaste auf/ab** | Zwischen Optionen navigieren |
+| **Eingabetaste** | Hervorgehobene Option auswählen |
+
+Ausgewählte Optionen sind hervorgehoben; nicht ausgewählte Optionen erscheinen durchgestrichen.
+
+## Tastenkombinationen
+
+| Tastenkombination | Aktion |
+|----------|--------|
+| `@` | Kontextmenü öffnen |
+| `/` | Slash-Befehle öffnen |
+| `Arrow Up/Down` | Menüelemente navigieren |
+| `Enter` | Menüelement auswählen |
+| `Esc` | Menüs schließen |
+| `Mod+Shift+Enter` | Copilot-Änderungen akzeptieren |
+
+## Nutzungslimits
+
+Die Copilot-Nutzung wird pro Token des zugrunde liegenden LLM abgerechnet. Wenn Sie Ihr Nutzungslimit erreichen, fordert Copilot Sie auf, Ihr Limit zu erhöhen. Sie können die Nutzung in Schritten (50 $, 100 $) von Ihrer aktuellen Basis aus hinzufügen.
+
+<Callout type="info">
+  Siehe die [Seite zur Kostenberechnung](/execution/costs) für Abrechnungsdetails.
+</Callout>
+## Copilot MCP
+
+Sie können Copilot als MCP-Server in Ihrem bevorzugten Editor oder AI-Client verwenden. Damit können Sie Sim-Workflows direkt aus Tools wie Cursor, Claude Code, Claude Desktop und VS Code erstellen, testen, bereitstellen und verwalten.
+
+### Generieren eines Copilot-API-Schlüssels
+
+Um sich mit dem Copilot-MCP-Server zu verbinden, benötigen Sie einen **Copilot-API-Schlüssel**:
+
+1. Gehen Sie zu [sim.ai](https://sim.ai) und melden Sie sich an
+2. Navigieren Sie zu **Einstellungen** → **Copilot**
+3. Klicken Sie auf **API-Schlüssel generieren**
+4. Kopieren Sie den Schlüssel – er wird nur einmal angezeigt
+
+Der Schlüssel sieht aus wie `sk-sim-copilot-...`. Sie werden ihn in der folgenden Konfiguration verwenden.
+
+### Cursor
+
+Fügen Sie Folgendes zu Ihrer `.cursor/mcp.json` (Projektebene) oder den globalen Cursor-MCP-Einstellungen hinzu:
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Ersetzen Sie `YOUR_COPILOT_API_KEY` durch den oben generierten Schlüssel.
+
+### Claude Code
+
+Führen Sie den folgenden Befehl aus, um den Copilot MCP-Server hinzuzufügen:
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+Ersetzen Sie `YOUR_COPILOT_API_KEY` durch Ihren Schlüssel.
+
+### Claude Desktop
+
+Claude Desktop benötigt [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), um sich mit HTTP-basierten MCP-Servern zu verbinden. Fügen Sie Folgendes zu Ihrer Claude Desktop-Konfigurationsdatei hinzu (`~/Library/Application Support/Claude/claude_desktop_config.json` unter macOS):
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+Ersetzen Sie `YOUR_COPILOT_API_KEY` durch Ihren Schlüssel.
+
+### VS Code
+
+Fügen Sie Folgendes zu Ihrer VS Code `settings.json` oder Workspace `.vscode/settings.json` hinzu:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+Ersetzen Sie `YOUR_COPILOT_API_KEY` durch Ihren Schlüssel.
+
+<Callout type="info">
+  Für selbst gehostete Deployments ersetzen Sie `https://www.sim.ai` durch Ihre selbst gehostete Sim-URL.
+</Callout>

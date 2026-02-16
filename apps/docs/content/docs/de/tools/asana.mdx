@@ -163,3 +163,16 @@ Einen Kommentar (Story) zu einer Asana-Aufgabe hinzufügen
 
 - Kategorie: `tools`
 - Typ: `asana`
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `ts` | string | Zeitstempel der Antwort |
+| `gid` | string | Global eindeutige Kennung des Kommentars |
+| `text` | string | Textinhalt des Kommentars |
+| `created_at` | string | Erstellungszeitstempel des Kommentars |
+| `created_by` | object | Details zum Kommentarautor |
+|   ↳ `gid` | string | Autor-GID |
+|   ↳ `name` | string | Name des Autors |

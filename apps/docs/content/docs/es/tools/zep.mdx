@@ -212,3 +212,23 @@ Listar todos los hilos de conversación para un usuario específico
 
 - Categoría: `tools`
 - Tipo: `zep`
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `userId` | string | Sí | ID de usuario para obtener hilos \(p. ej., "user_123"\) |
+| `limit` | number | No | Número máximo de hilos a devolver \(p. ej., 10, 25, 50\) |
+| `apiKey` | string | Sí | Tu clave API de Zep |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `threads` | array | Array de objetos de hilo |
+|   ↳ `threadId` | string | Identificador de hilo |
+|   ↳ `userId` | string | ID de usuario asociado |
+|   ↳ `uuid` | string | UUID interno |
+|   ↳ `createdAt` | string | Marca de tiempo de creación \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Marca de tiempo de última actualización \(ISO 8601\) |
+|   ↳ `projectUuid` | string | UUID del proyecto |
+|   ↳ `metadata` | object | Metadatos personalizados \(pares clave-valor dinámicos\) |
+| `totalCount` | number | Número total de elementos disponibles |

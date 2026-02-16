@@ -359,3 +359,370 @@ Créer et envoyer un nouveau message initié par l'administrateur dans Intercom
 
 - Catégorie : `tools`
 - Type : `intercom`
+
+Créer et envoyer un nouveau message initié par un administrateur dans Intercom. Renvoie uniquement les champs alignés sur l'API.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `message_type` | string | Oui | Type de message : « inapp » pour les messages in-app ou « email » pour les messages e-mail |
+| `template` | string | Oui | Style du modèle de message : « plain » pour texte brut ou « personal » pour style personnalisé |
+| `subject` | string | Non | L'objet du message (pour le type e-mail) |
+| `body` | string | Oui | Le corps du message |
+| `from_type` | string | Oui | Type d'expéditeur : « admin » |
+| `from_id` | string | Oui | L'identifiant de l'administrateur envoyant le message |
+| `to_type` | string | Oui | Type de destinataire : « contact » |
+| `to_id` | string | Oui | L'identifiant du contact recevant le message |
+| `created_at` | number | Non | Horodatage Unix indiquant quand le message a été créé. Si non fourni, l'heure actuelle est utilisée. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | Objet message créé |
+|   ↳ `id` | string | Identifiant unique du message |
+|   ↳ `type` | string | Type d'objet (message) |
+|   ↳ `created_at` | number | Horodatage Unix de création du message |
+|   ↳ `body` | string | Corps du message |
+|   ↳ `message_type` | string | Type du message (in_app ou email) |
+|   ↳ `conversation_id` | string | Identifiant de la conversation créée |
+|   ↳ `owner` | object | Propriétaire du message |
+| `messageId` | string | Identifiant du message créé |
+| `success` | boolean | Statut de réussite de l'opération |
+
+### `intercom_list_admins`
+
+Récupérer une liste de tous les administrateurs de l'espace de travail
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `admins` | array | Tableau d'objets administrateur |
+|   ↳ `id` | string | Identifiant unique de l'administrateur |
+|   ↳ `type` | string | Type d'objet \(admin\) |
+|   ↳ `name` | string | Nom de l'administrateur |
+|   ↳ `email` | string | E-mail de l'administrateur |
+|   ↳ `job_title` | string | Titre du poste de l'administrateur |
+|   ↳ `away_mode_enabled` | boolean | Indique si l'administrateur est en mode absent |
+|   ↳ `away_mode_reassign` | boolean | Indique s'il faut réattribuer les conversations en cas d'absence |
+|   ↳ `has_inbox_seat` | boolean | Indique si l'administrateur dispose d'un siège de boîte de réception payant |
+|   ↳ `team_ids` | array | Liste des ID d'équipe auxquelles appartient l'administrateur |
+|   ↳ `avatar` | object | Informations sur l'avatar |
+|   ↳ `email_verified` | boolean | Indique si l'e-mail est vérifié |
+| `type` | string | Type d'objet \(admin.list\) |
+
+### `intercom_close_conversation`
+
+Fermer une conversation dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `conversationId` | string | Oui | L'ID de la conversation à fermer |
+| `admin_id` | string | Oui | L'ID de l'administrateur effectuant l'action |
+| `body` | string | Non | Message de clôture optionnel à ajouter à la conversation |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | L'objet conversation fermée |
+|   ↳ `id` | string | Identifiant unique de la conversation |
+|   ↳ `type` | string | Type d'objet \(conversation\) |
+|   ↳ `state` | string | État de la conversation \(fermée\) |
+|   ↳ `open` | boolean | Indique si la conversation est ouverte \(false\) |
+|   ↳ `read` | boolean | Indique si la conversation a été lue |
+|   ↳ `created_at` | number | Horodatage Unix de création de la conversation |
+|   ↳ `updated_at` | number | Horodatage Unix de dernière mise à jour de la conversation |
+| `conversationId` | string | ID de la conversation fermée |
+| `state` | string | État de la conversation \(fermée\) |
+
+### `intercom_open_conversation`
+
+Ouvrir une conversation fermée ou en veille dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `conversationId` | string | Oui | L'ID de la conversation à ouvrir |
+| `admin_id` | string | Oui | L'ID de l'administrateur effectuant l'action |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | L'objet conversation ouverte |
+|   ↳ `id` | string | Identifiant unique de la conversation |
+|   ↳ `type` | string | Type d'objet \(conversation\) |
+|   ↳ `state` | string | État de la conversation \(ouverte\) |
+|   ↳ `open` | boolean | Indique si la conversation est ouverte \(true\) |
+|   ↳ `read` | boolean | Indique si la conversation a été lue |
+|   ↳ `created_at` | number | Horodatage Unix de création de la conversation |
+|   ↳ `updated_at` | number | Horodatage Unix de dernière mise à jour de la conversation |
+| `conversationId` | string | ID de la conversation ouverte |
+| `state` | string | État de la conversation \(ouverte\) |
+
+### `intercom_snooze_conversation`
+
+Mettre en veille une conversation pour la rouvrir ultérieurement
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `conversationId` | string | Oui | L'ID de la conversation à mettre en veille |
+| `admin_id` | string | Oui | L'ID de l'administrateur effectuant l'action |
+| `snoozed_until` | number | Oui | Horodatage Unix indiquant quand la conversation doit se rouvrir |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | L'objet conversation mise en veille |
+|   ↳ `id` | string | Identifiant unique de la conversation |
+|   ↳ `type` | string | Type d'objet \(conversation\) |
+|   ↳ `state` | string | État de la conversation \(snoozed\) |
+|   ↳ `open` | boolean | Indique si la conversation est ouverte |
+|   ↳ `snoozed_until` | number | Horodatage Unix indiquant quand la conversation se rouvrira |
+|   ↳ `created_at` | number | Horodatage Unix de création de la conversation |
+|   ↳ `updated_at` | number | Horodatage Unix de dernière mise à jour de la conversation |
+| `conversationId` | string | ID de la conversation mise en veille |
+| `state` | string | État de la conversation \(snoozed\) |
+| `snoozed_until` | number | Horodatage Unix indiquant quand la conversation se rouvrira |
+
+### `intercom_assign_conversation`
+
+Attribuer une conversation à un administrateur ou une équipe dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `conversationId` | string | Oui | L'ID de la conversation à attribuer |
+| `admin_id` | string | Oui | L'ID de l'administrateur effectuant l'attribution |
+| `assignee_id` | string | Oui | L'ID de l'administrateur ou de l'équipe à qui attribuer la conversation. Définir sur « 0 » pour désattribuer. |
+| `body` | string | Non | Message optionnel à ajouter lors de l'attribution (par ex., « Transmission à l'équipe support ») |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | L'objet conversation assigné |
+|   ↳ `id` | string | Identifiant unique de la conversation |
+|   ↳ `type` | string | Type d'objet \(conversation\) |
+|   ↳ `state` | string | État de la conversation |
+|   ↳ `open` | boolean | Indique si la conversation est ouverte |
+|   ↳ `admin_assignee_id` | number | ID de l'administrateur assigné |
+|   ↳ `team_assignee_id` | string | ID de l'équipe assignée |
+|   ↳ `created_at` | number | Horodatage Unix de création de la conversation |
+|   ↳ `updated_at` | number | Horodatage Unix de dernière mise à jour de la conversation |
+| `conversationId` | string | ID de la conversation assignée |
+| `admin_assignee_id` | number | ID de l'administrateur assigné |
+| `team_assignee_id` | string | ID de l'équipe assignée |
+
+### `intercom_list_tags`
+
+Récupérer une liste de tous les tags dans l'espace de travail
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tableau d'objets tag |
+|   ↳ `id` | string | Identifiant unique du tag |
+|   ↳ `type` | string | Type d'objet \(tag\) |
+|   ↳ `name` | string | Nom du tag |
+| `type` | string | Type d'objet \(list\) |
+
+### `intercom_create_tag`
+
+Créer une nouvelle étiquette ou mettre à jour le nom d'une étiquette existante
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `name` | string | Oui | Le nom de l'étiquette. Créera une nouvelle étiquette si elle n'est pas trouvée, ou mettra à jour le nom si l'id est fourni. |
+| `id` | string | Non | L'ID d'une étiquette existante à mettre à jour. Omettre pour créer une nouvelle étiquette. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique de l'étiquette |
+| `name` | string | Nom de l'étiquette |
+| `type` | string | Type d'objet \(tag\) |
+
+### `intercom_tag_contact`
+
+Ajouter une étiquette à un contact spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | L'ID du contact à étiqueter |
+| `tagId` | string | Oui | L'ID de l'étiquette à appliquer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique de l'étiquette |
+| `name` | string | Nom de l'étiquette |
+| `type` | string | Type d'objet \(tag\) |
+
+### `intercom_untag_contact`
+
+Retirer une étiquette d'un contact spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | L'ID du contact dont retirer l'étiquette |
+| `tagId` | string | Oui | L'ID de l'étiquette à retirer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique du tag qui a été supprimé |
+| `name` | string | Nom du tag qui a été supprimé |
+| `type` | string | Type d'objet \(tag\) |
+
+### `intercom_tag_conversation`
+
+Ajouter un tag à une conversation spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `conversationId` | string | Oui | L'ID de la conversation à taguer |
+| `tagId` | string | Oui | L'ID du tag à appliquer |
+| `admin_id` | string | Oui | L'ID de l'administrateur appliquant le tag |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique du tag |
+| `name` | string | Nom du tag |
+| `type` | string | Type d'objet \(tag\) |
+
+### `intercom_create_note`
+
+Ajouter une note à un contact spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | L'ID du contact auquel ajouter la note |
+| `body` | string | Oui | Le contenu textuel de la note |
+| `admin_id` | string | Non | L'ID de l'administrateur créant la note |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique de la note |
+| `body` | string | Le contenu texte de la note |
+| `created_at` | number | Horodatage Unix de création de la note |
+| `type` | string | Type d'objet \(note\) |
+| `author` | object | L'administrateur qui a créé la note |
+|   ↳ `type` | string | Type d'auteur \(admin\) |
+|   ↳ `id` | string | ID de l'auteur |
+|   ↳ `name` | string | Nom de l'auteur |
+|   ↳ `email` | string | E-mail de l'auteur |
+| `contact` | object | Le contact pour lequel la note a été créée |
+|   ↳ `type` | string | Type de contact |
+|   ↳ `id` | string | ID du contact |
+
+### `intercom_create_event`
+
+Suivre un événement personnalisé pour un contact dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `event_name` | string | Oui | Le nom de l'événement \(par ex., « commande-terminée »\). Utilisez le format verbe-nom au passé pour une meilleure lisibilité. |
+| `created_at` | number | Non | Horodatage Unix du moment où l'événement s'est produit. Fortement recommandé pour l'unicité. |
+| `user_id` | string | Non | Votre identifiant pour l'utilisateur \(external_id\) |
+| `email` | string | Non | Adresse e-mail de l'utilisateur. À utiliser uniquement si votre application utilise l'e-mail pour identifier de manière unique les utilisateurs. |
+| `id` | string | Non | L'ID de contact Intercom |
+| `metadata` | string | Non | Objet JSON avec jusqu'à 10 paires clé-valeur de métadonnées sur l'événement \(par ex., \{"valeur_commande": 99.99\}\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Indique si l'événement a été accepté (202 Accepted) |
+
+### `intercom_attach_contact_to_company`
+
+Associer un contact à une entreprise dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | L'identifiant du contact à associer à l'entreprise |
+| `companyId` | string | Oui | L'identifiant de l'entreprise à laquelle associer le contact |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | L'objet entreprise auquel le contact a été associé |
+|   ↳ `id` | string | Identifiant unique de l'entreprise |
+|   ↳ `type` | string | Type d'objet (company) |
+|   ↳ `company_id` | string | Le company_id que vous avez défini |
+|   ↳ `name` | string | Nom de l'entreprise |
+|   ↳ `created_at` | number | Horodatage Unix de création de l'entreprise |
+|   ↳ `updated_at` | number | Horodatage Unix de mise à jour de l'entreprise |
+|   ↳ `user_count` | number | Nombre d'utilisateurs dans l'entreprise |
+|   ↳ `session_count` | number | Nombre de sessions |
+|   ↳ `monthly_spend` | number | Montant des dépenses mensuelles |
+|   ↳ `plan` | object | Détails du plan de l'entreprise |
+| `companyId` | string | Identifiant de l'entreprise |
+| `name` | string | Nom de l'entreprise |
+
+### `intercom_detach_contact_from_company`
+
+Retirer un contact d'une entreprise dans Intercom
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `contactId` | string | Oui | L'ID du contact à détacher de l'entreprise |
+| `companyId` | string | Oui | L'ID de l'entreprise dont détacher le contact |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | L'objet entreprise dont le contact a été détaché |
+|   ↳ `id` | string | Identifiant unique de l'entreprise |
+|   ↳ `type` | string | Type d'objet \(company\) |
+|   ↳ `company_id` | string | Le company_id que vous avez défini |
+|   ↳ `name` | string | Nom de l'entreprise |
+| `companyId` | string | ID de l'entreprise |
+| `name` | string | Nom de l'entreprise |

@@ -495,3 +495,21 @@ Supabaseストレージバケット内のファイルの一時署名付きURLを
 
 - カテゴリ: `tools`
 - タイプ: `supabase`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `bucket` | string | はい | ストレージバケットの名前 |
+| `path` | string | はい | ファイルへのパス（例："folder/file.jpg"） |
+| `expiresIn` | number | はい | URLの有効期限までの秒数（例：1時間の場合は3600） |
+| `download` | boolean | いいえ | trueの場合、インライン表示ではなくダウンロードを強制（デフォルト：false） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `signedUrl` | string | ファイルにアクセスするための一時署名付きURL |

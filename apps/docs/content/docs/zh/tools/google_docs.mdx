@@ -102,27 +102,3 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `updatedContent` | boolean | 表示文档内容是否成功更新 |
 | `metadata` | json | 更新后的文档元数据，包括 ID、标题和 URL |
-
-### `google_docs_create`
-
-创建一个新的 Google Docs 文档
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `title` | string | 是 | 要创建的文档标题 |
-| `content` | string | 否 | 要创建的文档内容 |
-| `folderSelector` | string | 否 | 选择创建文档的文件夹 |
-| `folderId` | string | 否 | 创建文档的文件夹 ID（内部使用） |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `metadata` | json | 创建的文档元数据，包括 ID、标题和 URL |
-
-## 注意事项
-
-- 类别：`tools`
-- 类型：`google_docs`

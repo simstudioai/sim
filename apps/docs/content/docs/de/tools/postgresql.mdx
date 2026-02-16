@@ -158,3 +158,44 @@ Rohe SQL-Abfrage auf PostgreSQL-Datenbank ausführen
 
 - Kategorie: `tools`
 - Typ: `postgresql`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Ja | PostgreSQL-Server-Hostname oder IP-Adresse |
+| `port` | number | Ja | PostgreSQL-Server-Port \(Standard: 5432\) |
+| `database` | string | Ja | Name der Datenbank, zu der eine Verbindung hergestellt werden soll |
+| `username` | string | Ja | Datenbank-Benutzername |
+| `password` | string | Ja | Datenbank-Passwort |
+| `ssl` | string | Nein | SSL-Verbindungsmodus \(disabled, required, preferred\) |
+| `schema` | string | Nein | Zu untersuchendes Schema \(Standard: public\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `tables` | array | Array von Tabellenschemata mit Spalten, Schlüsseln und Indizes |
+|   ↳ `name` | string | Tabellenname |
+|   ↳ `schema` | string | Schemaname \(z. B. public\) |
+|   ↳ `columns` | array | Tabellenspalten |
+|     ↳ `name` | string | Spaltenname |
+|     ↳ `type` | string | Datentyp \(z. B. integer, varchar, timestamp\) |
+|     ↳ `nullable` | boolean | Ob die Spalte NULL-Werte zulässt |
+|     ↳ `default` | string | Standardwert-Ausdruck |
+|     ↳ `isPrimaryKey` | boolean | Ob die Spalte Teil des Primärschlüssels ist |
+|     ↳ `isForeignKey` | boolean | Ob die Spalte ein Fremdschlüssel ist |
+|     ↳ `references` | object | Informationen zur Fremdschlüssel-Referenz |
+|       ↳ `table` | string | Name der referenzierten Tabelle |
+|       ↳ `column` | string | Name der referenzierten Spalte |
+|   ↳ `primaryKey` | array | Spaltennamen des Primärschlüssels |
+|   ↳ `foreignKeys` | array | Fremdschlüssel-Constraints |
+|     ↳ `column` | string | Lokaler Spaltenname |
+|     ↳ `referencesTable` | string | Name der referenzierten Tabelle |
+|     ↳ `referencesColumn` | string | Name der referenzierten Spalte |
+|   ↳ `indexes` | array | Tabellenindizes |
+|     ↳ `name` | string | Indexname |
+|     ↳ `columns` | array | Im Index enthaltene Spalten |
+|     ↳ `unique` | boolean | Ob der Index Eindeutigkeit erzwingt |
+| `schemas` | array | Liste der verfügbaren Schemata in der Datenbank |

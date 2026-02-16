@@ -1170,3 +1170,1373 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`github`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 带有可选限定符的搜索查询 \(repo:, language:, path:, extension:, user:, org:\) |
+| `sort` | string | 否 | 按索引日期排序 \(默认：最佳匹配\) |
+| `order` | string | 否 | 排序顺序：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认：30\) |
+| `page` | number | 否 | 页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 匹配结果总数 |
+| `incomplete_results` | boolean | 结果是否不完整 |
+| `items` | array | GitHub API 返回的代码匹配项数组 |
+|   ↳ `name` | string | 文件名 |
+|   ↳ `path` | string | 文件路径 |
+|   ↳ `sha` | string | Blob SHA |
+|   ↳ `url` | string | API URL |
+|   ↳ `git_url` | string | Git blob URL |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `score` | number | 搜索相关性分数 |
+|   ↳ `repository` | object | 包含代码的仓库 |
+|     ↳ `id` | number | 仓库 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `name` | string | 仓库名称 |
+|     ↳ `full_name` | string | 全名 \(owner/repo\) |
+|     ↳ `private` | boolean | 仓库是否为私有 |
+|     ↳ `html_url` | string | GitHub 网页 URL |
+|     ↳ `description` | string | 仓库描述 |
+|     ↳ `fork` | boolean | 是否为分支仓库 |
+|     ↳ `url` | string | API URL |
+|     ↳ `owner` | object | 仓库所有者 |
+|       ↳ `login` | string | 用户名 |
+|       ↳ `id` | number | 用户 ID |
+|       ↳ `node_id` | string | GraphQL 节点 ID |
+|       ↳ `avatar_url` | string | 头像图片 URL |
+|       ↳ `url` | string | API URL |
+|       ↳ `html_url` | string | 个人主页 URL |
+|       ↳ `type` | string | 用户或组织 |
+|       ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+|   ↳ `text_matches` | array | 展示上下文的文本匹配 |
+|     ↳ `object_url` | string | 对象 URL |
+|     ↳ `object_type` | string | 对象类型 |
+|     ↳ `property` | string | 匹配的属性 |
+|     ↳ `fragment` | string | 包含匹配的文本片段 |
+|     ↳ `matches` | array | 匹配索引 |
+|       ↳ `text` | string | 匹配文本 |
+|       ↳ `indices` | array | 起止索引 |
+
+### `github_search_commits`
+
+在 GitHub 上搜索提交。可使用限定符，如 repo:owner/name、author:user、committer:user、author-date:>2023-01-01
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 搜索查询，可选限定符 \(repo:, author:, committer:, author-date:, committer-date:, merge:true/false\) |
+| `sort` | string | 否 | 排序方式：author-date 或 committer-date \(默认：最佳匹配\) |
+| `order` | string | 否 | 排序顺序：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认 30\) |
+| `page` | number | 否 | 页码 \(默认 1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 匹配结果总数 |
+| `incomplete_results` | boolean | 结果是否不完整 |
+| `items` | array | GitHub API 返回的提交对象数组 |
+|   ↳ `sha` | string | 提交 SHA |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `html_url` | string | 网页 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `comments_url` | string | 评论 API URL |
+|   ↳ `score` | number | 搜索相关性分数 |
+|   ↳ `commit` | object | 核心提交数据 |
+|     ↳ `url` | string | 提交 API URL |
+|     ↳ `message` | string | 提交信息 |
+|     ↳ `comment_count` | number | 评论数量 |
+|     ↳ `author` | object | Git 作者 |
+|       ↳ `name` | string | 作者姓名 |
+|       ↳ `email` | string | 作者邮箱 |
+|       ↳ `date` | string | 作者日期 \(ISO 8601\) |
+|     ↳ `committer` | object | Git 提交者 |
+|       ↳ `name` | string | 提交者姓名 |
+|       ↳ `email` | string | 提交者邮箱 |
+|       ↳ `date` | string | 提交日期 \(ISO 8601\) |
+|     ↳ `tree` | object | 树对象 |
+|       ↳ `sha` | string | 树 SHA |
+|       ↳ `url` | string | 树 API URL |
+|   ↳ `author` | object | GitHub 用户（作者） |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人资料 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `committer` | object | GitHub 用户（提交者） |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人资料 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `repository` | object | 包含该提交的仓库 |
+|     ↳ `id` | number | 仓库 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `name` | string | 仓库名称 |
+|     ↳ `full_name` | string | 完整名称（owner/repo） |
+|     ↳ `private` | boolean | 仓库是否为私有 |
+|     ↳ `html_url` | string | GitHub 网页 URL |
+|     ↳ `description` | string | 仓库描述 |
+|     ↳ `owner` | object | 仓库所有者 |
+|       ↳ `login` | string | 用户名 |
+|       ↳ `id` | number | 用户 ID |
+|       ↳ `node_id` | string | GraphQL 节点 ID |
+|       ↳ `avatar_url` | string | 头像图片 URL |
+|       ↳ `url` | string | API URL |
+|       ↳ `html_url` | string | 个人主页 URL |
+|       ↳ `type` | string | 用户或组织 |
+|       ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `parents` | array | 父提交 |
+|     ↳ `sha` | string | 父 SHA |
+|     ↳ `url` | string | 父 API URL |
+|     ↳ `html_url` | string | 父网页 URL |
+
+### `github_search_issues`
+
+在 GitHub 上搜索 issue 和 pull request。可使用限定符，如 repo:owner/name、is:issue、is:pr、state:open、label:bug、author:user
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 包含可选限定符的搜索查询 \(repo:, is:issue, is:pr, state:, label:, author:, assignee:\) |
+| `sort` | string | 否 | 排序方式：comments、reactions、created、updated、interactions \(默认：best match\) |
+| `order` | string | 否 | 排序顺序：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认：30\) |
+| `page` | number | 否 | 页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 匹配结果总数 |
+| `incomplete_results` | boolean | 结果是否不完整 |
+| `items` | array | GitHub API 返回的 issue/PR 对象数组 |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `number` | number | Issue 编号 |
+|   ↳ `title` | string | 标题 |
+|   ↳ `state` | string | 状态（open 或 closed） |
+|   ↳ `locked` | boolean | 是否锁定 issue |
+|   ↳ `html_url` | string | 网页 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `repository_url` | string | 所属仓库 API URL |
+|   ↳ `comments_url` | string | 评论 API URL |
+|   ↳ `body` | string | 正文内容 |
+|   ↳ `comments` | number | 评论数 |
+|   ↳ `score` | number | 搜索相关性分数 |
+|   ↳ `created_at` | string | 创建时间戳 |
+|   ↳ `updated_at` | string | 最后更新时间戳 |
+|   ↳ `closed_at` | string | 关闭时间戳 |
+|   ↳ `user` | object | Issue 作者 |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+|   ↳ `labels` | array | Issue 标签 |
+|     ↳ `id` | number | 标签 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `url` | string | API URL |
+|     ↳ `name` | string | 标签名称 |
+|     ↳ `description` | string | 标签描述 |
+|     ↳ `color` | string | 十六进制颜色代码 |
+|     ↳ `default` | boolean | 是否为默认标签 |
+|   ↳ `assignee` | object | 主要负责人 |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+|   ↳ `assignees` | array | 所有负责人 |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+|   ↳ `milestone` | object | 关联的里程碑 |
+|     ↳ `id` | number | 里程碑 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `number` | number | 里程碑编号 |
+|     ↳ `title` | string | 里程碑标题 |
+|     ↳ `description` | string | 里程碑描述 |
+|     ↳ `state` | string | 状态（open 或 closed） |
+|     ↳ `html_url` | string | 网页 URL |
+|     ↳ `due_on` | string | 截止日期 |
+|   ↳ `pull_request` | object | Pull request 详情（如为 PR） |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 网页 URL |
+|     ↳ `diff_url` | string | Diff URL |
+|     ↳ `patch_url` | string | Patch URL |
+
+### `github_search_repos`
+
+在 GitHub 上搜索仓库。可使用限定符，如 language:python、stars:>1000、topic:react、user:owner、org:name
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 带有可选限定符的搜索查询 \(language:, stars:, forks:, topic:, user:, org:, in:name,description,readme\) |
+| `sort` | string | 否 | 排序方式：stars、forks、help-wanted-issues、updated \(默认：best match\) |
+| `order` | string | 否 | 排序顺序：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认：30\) |
+| `page` | number | 否 | 页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 匹配结果总数 |
+| `incomplete_results` | boolean | 结果是否不完整 |
+| `items` | array | GitHub API 返回的仓库对象数组 |
+|   ↳ `id` | number | 仓库 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `name` | string | 仓库名称 |
+|   ↳ `full_name` | string | 全名（owner/repo） |
+|   ↳ `private` | boolean | 仓库是否为私有 |
+|   ↳ `description` | string | 仓库描述 |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `fork` | boolean | 是否为 fork 仓库 |
+|   ↳ `created_at` | string | 创建时间戳 |
+|   ↳ `updated_at` | string | 最后更新时间戳 |
+|   ↳ `pushed_at` | string | 最后推送时间戳 |
+|   ↳ `size` | number | 仓库大小（KB） |
+|   ↳ `stargazers_count` | number | star 数量 |
+|   ↳ `watchers_count` | number | 关注者数量 |
+|   ↳ `forks_count` | number | fork 数量 |
+|   ↳ `open_issues_count` | number | 未关闭 issue 数量 |
+|   ↳ `language` | string | 主要编程语言 |
+|   ↳ `default_branch` | string | 默认分支名称 |
+|   ↳ `visibility` | string | 仓库可见性 |
+|   ↳ `archived` | boolean | 仓库是否已归档 |
+|   ↳ `disabled` | boolean | 仓库是否已禁用 |
+|   ↳ `score` | number | 搜索相关性分数 |
+|   ↳ `topics` | array | 仓库主题 |
+|   ↳ `license` | object | 许可证信息 |
+|     ↳ `key` | string | 许可证 key（如 mit） |
+|     ↳ `name` | string | 许可证名称 |
+|     ↳ `spdx_id` | string | SPDX 标识符 |
+|   ↳ `owner` | object | 仓库所有者 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+
+### `github_search_users`
+
+在 GitHub 上搜索用户和组织。可使用限定符，如 type:user、type:org、followers:>1000、repos:>10、location:city
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | 是 | 带有可选限定符的搜索查询 \(type:user/org，followers:，repos:，location:，language:，created:\) |
+| `sort` | string | 否 | 排序方式：followers、repositories、joined \(默认：best match\) |
+| `order` | string | 否 | 排序顺序：asc 或 desc \(默认：desc\) |
+| `per_page` | number | 否 | 每页结果数 \(最大 100，默认：30\) |
+| `page` | number | 否 | 页码 \(默认：1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_count` | number | 匹配结果总数 |
+| `incomplete_results` | boolean | 结果是否不完整 |
+| `items` | array | GitHub API 返回的用户对象数组 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `gravatar_id` | string | Gravatar ID |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人资料页 URL |
+|   ↳ `followers_url` | string | 粉丝 API URL |
+|   ↳ `following_url` | string | 关注 API URL |
+|   ↳ `gists_url` | string | Gists API URL |
+|   ↳ `starred_url` | string | Starred API URL |
+|   ↳ `repos_url` | string | 仓库 API URL |
+|   ↳ `organizations_url` | string | 组织 API URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `score` | number | 搜索相关性得分 |
+
+### `github_list_commits`
+
+在仓库中列出提交记录，可选按 SHA、路径、作者、提交者或日期范围进行筛选
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `sha` | string | 否 | 开始列出提交的 SHA 或分支 |
+| `path` | string | 否 | 仅包含此文件路径的提交 |
+| `author` | string | 否 | 按作者的 GitHub 登录名或邮箱筛选 |
+| `committer` | string | 否 | 按提交者的 GitHub 登录名或邮箱筛选 |
+| `since` | string | 否 | 仅显示此日期（ISO 8601 格式）之后的提交 |
+| `until` | string | 否 | 仅显示此日期（ISO 8601 格式）之前的提交 |
+| `per_page` | number | 否 | 每页结果数（最大 100，默认：30） |
+| `page` | number | 否 | 页码（默认：1） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub API 返回的提交对象数组 |
+|   ↳ `commit` | object | 核心提交数据 |
+|     ↳ `url` | string | 提交 API URL |
+|     ↳ `message` | string | 提交信息 |
+|     ↳ `comment_count` | number | 评论数 |
+|     ↳ `author` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `committer` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `tree` | object | 树对象 |
+|       ↳ `sha` | string | 树 SHA |
+|       ↳ `url` | string | 树 API URL |
+|     ↳ `verification` | object | 签名验证 |
+|       ↳ `verified` | boolean | 签名是否已验证 |
+|       ↳ `reason` | string | 验证原因 |
+|       ↳ `signature` | string | GPG 签名 |
+|       ↳ `payload` | string | 已签名内容 |
+|   ↳ `author` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `committer` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `sha` | string | 提交 SHA |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `comments_url` | string | 评论 API URL |
+|   ↳ `parents` | array | 父提交 |
+|     ↳ `sha` | string | 父 SHA |
+|     ↳ `url` | string | 父 API URL |
+|     ↳ `html_url` | string | 父网页 URL |
+| `count` | number | 返回的提交数量 |
+
+### `github_get_commit`
+
+获取关于特定提交的详细信息，包括更改的文件和统计数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `ref` | string | 是 | 提交 SHA、分支名或标签名 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `commit` | object | 核心提交数据 |
+|   ↳ `url` | string | 提交 API URL |
+|   ↳ `message` | string | 提交信息 |
+|   ↳ `comment_count` | number | 评论数量 |
+|   ↳ `author` | object | Git 行为者（作者/提交者） |
+|     ↳ `name` | string | 姓名 |
+|     ↳ `email` | string | 邮箱地址 |
+|     ↳ `date` | string | 时间戳（ISO 8601） |
+|   ↳ `committer` | object | Git 行为者（作者/提交者） |
+|     ↳ `name` | string | 姓名 |
+|     ↳ `email` | string | 邮箱地址 |
+|     ↳ `date` | string | 时间戳（ISO 8601） |
+|   ↳ `tree` | object | 树对象 |
+|     ↳ `sha` | string | 树 SHA |
+|     ↳ `url` | string | 树 API URL |
+|   ↳ `verification` | object | 签名验证 |
+|     ↳ `verified` | boolean | 签名是否已验证 |
+|     ↳ `reason` | string | 验证原因 |
+|     ↳ `signature` | string | GPG 签名 |
+|     ↳ `payload` | string | 已签名内容 |
+| `author` | object | GitHub 用户对象 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `committer` | object | GitHub 用户对象 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `stats` | object | 变更统计 |
+|   ↳ `additions` | number | 新增行数 |
+|   ↳ `deletions` | number | 删除行数 |
+|   ↳ `total` | number | 总变更数 |
+| `sha` | string | 提交 SHA |
+| `node_id` | string | GraphQL 节点 ID |
+| `html_url` | string | GitHub 网页 URL |
+| `url` | string | API URL |
+| `comments_url` | string | 评论 API URL |
+| `files` | array | 更改的文件（差异项） |
+|   ↳ `sha` | string | Blob SHA |
+|   ↳ `filename` | string | 文件路径 |
+|   ↳ `status` | string | 变更状态（added、removed、modified、renamed、copied、changed、unchanged） |
+|   ↳ `additions` | number | 新增行数 |
+|   ↳ `deletions` | number | 删除行数 |
+|   ↳ `changes` | number | 总变更数 |
+|   ↳ `blob_url` | string | Blob URL |
+|   ↳ `raw_url` | string | 原始文件 URL |
+|   ↳ `contents_url` | string | 内容 API URL |
+|   ↳ `patch` | string | 差异补丁 |
+|   ↳ `previous_filename` | string | 之前的文件名（重命名时） |
+| `parents` | array | 父提交 |
+|   ↳ `sha` | string | 父 SHA |
+|   ↳ `url` | string | 父 API URL |
+|   ↳ `html_url` | string | 父网页 URL |
+
+### `github_compare_commits`
+
+比较两个提交或分支，以查看差异、它们之间的提交以及更改的文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `base` | string | 是 | 用于比较的基准分支/tag/SHA |
+| `head` | string | 是 | 用于比较的目标分支/tag/SHA |
+| `per_page` | number | 否 | 文件每页结果数 \(最大 100，默认 30\) |
+| `page` | number | 否 | 文件页码 \(默认 1\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `url` | string | API URL |
+| `html_url` | string | GitHub 网页 URL |
+| `permalink_url` | string | 永久链接 URL |
+| `diff_url` | string | 差异下载 URL |
+| `patch_url` | string | 补丁下载 URL |
+| `status` | string | 比较状态（ahead，behind，identical，diverged） |
+| `ahead_by` | number | head 比 base 超前的提交数 |
+| `behind_by` | number | head 比 base 落后的提交数 |
+| `total_commits` | number | 比较中的总提交数 |
+| `base_commit` | object | 基准提交对象 |
+|   ↳ `commit` | object | 核心提交数据 |
+|     ↳ `url` | string | 提交 API URL |
+|     ↳ `message` | string | 提交信息 |
+|     ↳ `comment_count` | number | 评论数 |
+|     ↳ `author` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `committer` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `tree` | object | 树对象 |
+|       ↳ `sha` | string | 树 SHA |
+|       ↳ `url` | string | 树 API URL |
+|     ↳ `verification` | object | 签名验证 |
+|       ↳ `verified` | boolean | 签名是否已验证 |
+|       ↳ `reason` | string | 验证原因 |
+|       ↳ `signature` | string | GPG 签名 |
+|       ↳ `payload` | string | 已签名内容 |
+|   ↳ `author` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `committer` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `sha` | string | 提交 SHA |
+|   ↳ `html_url` | string | 网页 URL |
+| `merge_base_commit` | object | 合并基准提交对象 |
+|   ↳ `sha` | string | 提交 SHA |
+|   ↳ `html_url` | string | 网页 URL |
+| `commits` | array | base 和 head 之间的提交 |
+|   ↳ `commit` | object | 核心提交数据 |
+|     ↳ `url` | string | 提交 API URL |
+|     ↳ `message` | string | 提交信息 |
+|     ↳ `comment_count` | number | 评论数 |
+|     ↳ `author` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `committer` | object | Git 行为者（作者/提交者） |
+|       ↳ `name` | string | 姓名 |
+|       ↳ `email` | string | 邮箱地址 |
+|       ↳ `date` | string | 时间戳（ISO 8601） |
+|     ↳ `tree` | object | 树对象 |
+|       ↳ `sha` | string | 树 SHA |
+|       ↳ `url` | string | 树 API URL |
+|     ↳ `verification` | object | 签名验证 |
+|       ↳ `verified` | boolean | 签名是否已验证 |
+|       ↳ `reason` | string | 验证原因 |
+|       ↳ `signature` | string | GPG 签名 |
+|       ↳ `payload` | string | 已签名内容 |
+|   ↳ `author` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `committer` | object | GitHub 用户对象 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `sha` | string | 提交 SHA |
+|   ↳ `html_url` | string | 网页 URL |
+| `files` | array | 更改的文件（差异项） |
+|   ↳ `sha` | string | Blob SHA |
+|   ↳ `filename` | string | 文件路径 |
+|   ↳ `status` | string | 更改状态（added、removed、modified、renamed、copied、changed、unchanged） |
+|   ↳ `additions` | number | 添加的行数 |
+|   ↳ `deletions` | number | 删除的行数 |
+|   ↳ `changes` | number | 总更改数 |
+|   ↳ `blob_url` | string | Blob URL |
+|   ↳ `raw_url` | string | 原始文件 URL |
+|   ↳ `contents_url` | string | 内容 API URL |
+|   ↳ `patch` | string | 差异补丁 |
+|   ↳ `previous_filename` | string | 之前的文件名（用于重命名） |
+
+### `github_create_gist`
+
+创建一个包含一个或多个文件的新 gist
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `description` | string | 否 | gist 的描述 |
+| `files` | json | 是 | 以文件名为键、内容为值的 JSON 对象。例如：\{"file.txt": \{"content": "Hello"\}\} |
+| `public` | boolean | 否 | gist 是否为公开（默认：false） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | gist ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `url` | string | API URL |
+| `html_url` | string | 网页 URL |
+| `forks_url` | string | Forks API URL |
+| `commits_url` | string | Commits API URL |
+| `git_pull_url` | string | Git pull URL |
+| `git_push_url` | string | Git push URL |
+| `description` | string | gist 描述 |
+| `public` | boolean | gist 是否为公开 |
+| `truncated` | boolean | 文件是否被截断 |
+| `comments` | number | 评论数 |
+| `comments_url` | string | 评论 API URL |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `files` | object | gist 中的文件（以文件名为键的对象，每个包含文件名、类型、语言、raw_url、大小、truncated、content） |
+| `owner` | object | gist 所有者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人资料页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+
+### `github_get_gist`
+
+根据 ID 获取 gist，包括其文件内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | gist ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `files` | object | gist 中的文件（以文件名为键） |
+|   ↳ `filename` | string | 文件名 |
+|   ↳ `type` | string | MIME 类型 |
+|   ↳ `language` | string | 编程语言 |
+|   ↳ `raw_url` | string | 原始文件 URL |
+|   ↳ `size` | number | 文件大小（字节） |
+|   ↳ `truncated` | boolean | 内容是否被截断 |
+|   ↳ `content` | string | 文件内容 |
+| `owner` | object | gist 所有者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人资料页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `id` | string | gist ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `url` | string | API URL |
+| `html_url` | string | GitHub 网页 URL |
+| `forks_url` | string | 派生 API URL |
+| `commits_url` | string | 提交 API URL |
+| `git_pull_url` | string | Git 克隆 URL |
+| `git_push_url` | string | Git 推送 URL |
+| `description` | string | gist 描述 |
+| `public` | boolean | gist 是否公开 |
+| `truncated` | boolean | 内容是否被截断 |
+| `comments` | number | 评论数 |
+| `comments_url` | string | 评论 API URL |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+
+### `github_list_gists`
+
+列出某个用户或已认证用户的 gist
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | 否 | GitHub 用户名（如为已认证用户的 gist 可省略） |
+| `since` | string | 否 | 仅显示此时间（ISO 8601）后更新的 gist |
+| `per_page` | number | 否 | 每页结果数（最大 100，默认：30） |
+| `page` | number | 否 | 页码（默认：1） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub API 返回的 gist 对象数组 |
+|   ↳ `files` | object | gist 中的文件（以文件名为键） |
+|     ↳ `filename` | string | 文件名 |
+|     ↳ `type` | string | MIME 类型 |
+|     ↳ `language` | string | 编程语言 |
+|     ↳ `raw_url` | string | 原始文件 URL |
+|     ↳ `size` | number | 文件大小（字节） |
+|     ↳ `truncated` | boolean | 内容是否被截断 |
+|     ↳ `content` | string | 文件内容 |
+|   ↳ `owner` | object | gist 所有者 |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人资料页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `id` | string | gist ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `forks_url` | string | Forks API URL |
+|   ↳ `commits_url` | string | Commits API URL |
+|   ↳ `git_pull_url` | string | Git 克隆 URL |
+|   ↳ `git_push_url` | string | Git 推送 URL |
+|   ↳ `description` | string | gist 描述 |
+|   ↳ `public` | boolean | gist 是否公开 |
+|   ↳ `truncated` | boolean | 内容是否被截断 |
+|   ↳ `comments` | number | 评论数 |
+|   ↳ `comments_url` | string | 评论 API URL |
+|   ↳ `created_at` | string | 创建时间戳 |
+|   ↳ `updated_at` | string | 最后更新时间戳 |
+| `count` | number | 返回的 gist 数量 |
+
+### `github_update_gist`
+
+更新 gist 描述或文件。要删除文件，请在 files 对象中将其值设为 null
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | 要更新的 gist ID |
+| `description` | string | 否 | gist 的新描述 |
+| `files` | json | 否 | 以文件名为键的 JSON 对象。设为 null 可删除，或提供内容以更新/添加 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | gist ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `url` | string | API URL |
+| `html_url` | string | 网页 URL |
+| `forks_url` | string | Forks API URL |
+| `commits_url` | string | Commits API URL |
+| `git_pull_url` | string | Git pull URL |
+| `git_push_url` | string | Git push URL |
+| `description` | string | gist 描述 |
+| `public` | boolean | gist 是否为公开 |
+| `truncated` | boolean | 文件是否被截断 |
+| `comments` | number | 评论数 |
+| `comments_url` | string | 评论 API URL |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `files` | object | gist 中的文件（以文件名为键的对象，每个包含文件名、类型、语言、raw_url、大小、是否截断、内容） |
+| `owner` | object | gist 所有者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人资料页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+
+### `github_delete_gist`
+
+根据 ID 删除 Gist
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | 要删除的 Gist ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 删除是否成功 |
+| `gist_id` | string | 已删除的 Gist ID |
+
+### `github_fork_gist`
+
+派生 Gist 以创建你自己的副本
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | 要派生的 Gist ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 新的 Gist ID |
+| `html_url` | string | 网页 URL |
+| `description` | string | 描述 |
+| `public` | boolean | 是否公开 |
+| `created_at` | string | 创建日期 |
+| `owner` | object | 所有者信息 |
+| `files` | object | 文件 |
+
+### `github_star_gist`
+
+为 Gist 加星标
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | 要加星标的 Gist ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | 是否加星成功 |
+| `gist_id` | string | Gist ID |
+
+### `github_unstar_gist`
+
+取消为 gist 加星
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | 是 | 要取消加星的 gist ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | 是否取消加星成功 |
+| `gist_id` | string | Gist ID |
+
+### `github_fork_repo`
+
+将仓库 Fork 到你的账户或组织
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 要 fork 的仓库所有者 |
+| `repo` | string | 是 | 要 fork 的仓库名称 |
+| `organization` | string | 否 | 要 fork 到的组织（省略则 fork 到你的账户） |
+| `name` | string | 否 | fork 后仓库的自定义名称 |
+| `default_branch_only` | boolean | 否 | 仅 fork 默认分支（默认值：false） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 仓库 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `name` | string | 仓库名称 |
+| `full_name` | string | 完整名称（所有者/仓库） |
+| `private` | boolean | 仓库是否为私有 |
+| `description` | string | 仓库描述 |
+| `html_url` | string | GitHub 网页 URL |
+| `url` | string | API URL |
+| `clone_url` | string | HTTPS 克隆 URL |
+| `ssh_url` | string | SSH 克隆 URL |
+| `git_url` | string | Git 协议 URL |
+| `default_branch` | string | 默认分支名称 |
+| `fork` | boolean | 是否为 fork |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `pushed_at` | string | 最后推送时间戳 |
+| `owner` | object | fork 所有者 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `parent` | object | 父仓库（fork 来源） |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+| `source` | object | 源仓库（最终来源） |
+|   ↳ `id` | number | 仓库 ID |
+|   ↳ `full_name` | string | 完整名称 |
+|   ↳ `html_url` | string | 网页 URL |
+
+### `github_list_forks`
+
+列出仓库的 fork
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `sort` | string | 否 | 排序方式：newest、oldest、stargazers、watchers（默认：newest） |
+| `per_page` | number | 否 | 每页结果数（最大 100，默认 30） |
+| `page` | number | 否 | 页码（默认 1） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | GitHub API 返回的 fork 仓库对象数组 |
+|   ↳ `id` | number | 仓库 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `name` | string | 仓库名称 |
+|   ↳ `full_name` | string | 完整名称（owner/repo） |
+|   ↳ `private` | boolean | 仓库是否为私有 |
+|   ↳ `description` | string | 仓库描述 |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `fork` | boolean | 是否为 fork |
+|   ↳ `created_at` | string | 创建时间戳 |
+|   ↳ `updated_at` | string | 最后更新时间戳 |
+|   ↳ `pushed_at` | string | 最后推送时间戳 |
+|   ↳ `size` | number | 仓库大小（KB） |
+|   ↳ `stargazers_count` | number | star 数量 |
+|   ↳ `watchers_count` | number | 关注者数量 |
+|   ↳ `forks_count` | number | fork 数量 |
+|   ↳ `open_issues_count` | number | 未关闭 issue 数量 |
+|   ↳ `language` | string | 主要编程语言 |
+|   ↳ `default_branch` | string | 默认分支名称 |
+|   ↳ `visibility` | string | 仓库可见性 |
+|   ↳ `archived` | boolean | 仓库是否已归档 |
+|   ↳ `disabled` | boolean | 仓库是否已禁用 |
+|   ↳ `owner` | object | fork 所有者 |
+|     ↳ `login` | string | GitHub 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人主页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `count` | number | 返回的 fork 数量 |
+
+### `github_create_milestone`
+
+在仓库中创建一个里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `title` | string | 是 | 里程碑标题 |
+| `state` | string | 否 | 状态：open 或 closed（默认：open） |
+| `description` | string | 否 | 里程碑描述 |
+| `due_on` | string | 否 | 截止日期（ ISO 8601 格式，例如：2024-12-31T23:59:59Z） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `creator` | object | 里程碑创建者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `id` | number | 里程碑 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `number` | number | 里程碑编号 |
+| `title` | string | 里程碑标题 |
+| `description` | string | 里程碑描述 |
+| `state` | string | 状态（open 或 closed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub 网页 URL |
+| `labels_url` | string | 标签 API URL |
+| `due_on` | string | 截止日期（ ISO 8601 ） |
+| `open_issues` | number | 未关闭问题数 |
+| `closed_issues` | number | 已关闭问题数 |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `closed_at` | string | 关闭时间戳 |
+
+### `github_get_milestone`
+
+根据编号获取指定的里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `milestone_number` | number | 是 | 里程碑编号 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `creator` | object | 里程碑创建者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+| `id` | number | 里程碑 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `number` | number | 里程碑编号 |
+| `title` | string | 里程碑标题 |
+| `description` | string | 里程碑描述 |
+| `state` | string | 状态（open 或 closed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub 网页 URL |
+| `labels_url` | string | 标签 API URL |
+| `due_on` | string | 截止日期（ISO 8601） |
+| `open_issues` | number | 未关闭问题数 |
+| `closed_issues` | number | 已关闭问题数 |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `closed_at` | string | 关闭时间戳 |
+
+### `github_list_milestones`
+
+列出仓库中的里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `state` | string | 否 | 按状态筛选：open、closed、all（默认：open） |
+| `sort` | string | 否 | 排序方式：due_on 或 completeness（默认：due_on） |
+| `direction` | string | 否 | 排序方向：asc 或 desc（默认：asc） |
+| `per_page` | number | 否 | 每页结果数（最大 100，默认：30） |
+| `page` | number | 否 | 页码（默认：1） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | 来自 GitHub API 的里程碑对象数组 |
+|   ↳ `creator` | object | 里程碑创建者 |
+|     ↳ `login` | string | 用户名 |
+|     ↳ `id` | number | 用户 ID |
+|     ↳ `node_id` | string | GraphQL 节点 ID |
+|     ↳ `avatar_url` | string | 头像图片 URL |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | 个人资料页 URL |
+|     ↳ `type` | string | 用户或组织 |
+|     ↳ `site_admin` | boolean | GitHub 工作人员标识 |
+|   ↳ `id` | number | 里程碑 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `number` | number | 里程碑编号 |
+|   ↳ `title` | string | 里程碑标题 |
+|   ↳ `description` | string | 里程碑描述 |
+|   ↳ `state` | string | 状态（open 或 closed） |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | GitHub 网页 URL |
+|   ↳ `labels_url` | string | 标签 API URL |
+|   ↳ `due_on` | string | 截止日期（ISO 8601） |
+|   ↳ `open_issues` | number | 未关闭问题数 |
+|   ↳ `closed_issues` | number | 已关闭问题数 |
+|   ↳ `created_at` | string | 创建时间戳 |
+|   ↳ `updated_at` | string | 最后更新时间戳 |
+|   ↳ `closed_at` | string | 关闭时间戳 |
+| `count` | number | 返回的里程碑数量 |
+
+### `github_update_milestone`
+
+更新仓库中的里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `milestone_number` | number | 是 | 要更新的里程碑编号 |
+| `title` | string | 否 | 新的里程碑标题 |
+| `state` | string | 否 | 新状态：open 或 closed |
+| `description` | string | 否 | 新的描述 |
+| `due_on` | string | 否 | 新的截止日期 \(ISO 8601 格式\) |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 里程碑 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `number` | number | 里程碑编号 |
+| `title` | string | 里程碑标题 |
+| `description` | string | 里程碑描述 |
+| `state` | string | 状态（open 或 closed） |
+| `url` | string | API URL |
+| `html_url` | string | GitHub 网页 URL |
+| `labels_url` | string | 标签 API URL |
+| `due_on` | string | 截止日期（ISO 8601） |
+| `open_issues` | number | 未关闭问题数 |
+| `closed_issues` | number | 已关闭问题数 |
+| `created_at` | string | 创建时间戳 |
+| `updated_at` | string | 最后更新时间戳 |
+| `closed_at` | string | 关闭时间戳 |
+| `creator` | object | 里程碑创建者 |
+|   ↳ `login` | string | 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+
+### `github_delete_milestone`
+
+从仓库中删除一个里程碑
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `milestone_number` | number | 是 | 要删除的里程碑编号 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 是否删除成功 |
+| `milestone_number` | number | 被删除的里程碑编号 |
+
+### `github_create_issue_reaction`
+
+为议题添加一个表情反应
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `content` | string | 是 | 表情类型：+1（点赞）、-1（点踩）、laugh（笑）、confused（困惑）、heart（心）、hooray（欢呼）、rocket（火箭）、eyes（关注） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 表情反应 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `content` | string | 表情类型（+1、-1、laugh、confused、heart、hooray、rocket、eyes） |
+| `created_at` | string | 创建时间戳 |
+| `user` | object | GitHub 用户对象 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `html_url` | string | 个人资料 URL |
+|   ↳ `type` | string | 账户类型（User 或 Organization） |
+
+### `github_delete_issue_reaction`
+
+从议题中移除一个表态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `issue_number` | number | 是 | 问题编号 |
+| `reaction_id` | number | 是 | 要删除的表态 ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 是否删除成功 |
+| `reaction_id` | number | 被删除的表态 ID |
+
+### `github_create_comment_reaction`
+
+为议题评论添加表态
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `comment_id` | number | 是 | 评论 ID |
+| `content` | string | 是 | 表态类型：+1（点赞）、-1（点踩）、laugh（笑）、confused（困惑）、heart（心）、hooray（欢呼）、rocket（火箭）、eyes（关注） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | number | 表态 ID |
+| `node_id` | string | GraphQL 节点 ID |
+| `content` | string | 表态类型（+1、-1、laugh、confused、heart、hooray、rocket、eyes） |
+| `created_at` | string | 创建时间戳 |
+| `user` | object | GitHub 用户对象 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `html_url` | string | 个人资料 URL |
+|   ↳ `type` | string | 账户类型（User 或 Organization） |
+
+### `github_delete_comment_reaction`
+
+从议题评论中移除表情反应
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `comment_id` | number | 是 | 评论 ID |
+| `reaction_id` | number | 是 | 要删除的表情反应 ID |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 是否删除成功 |
+| `reaction_id` | number | 被删除的表情反应 ID |
+
+### `github_star_repo`
+
+为仓库加星标
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | 加星是否成功 |
+| `owner` | string | 仓库所有者 |
+| `repo` | string | 仓库名称 |
+
+### `github_unstar_repo`
+
+取消为仓库加星标
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | 取消标星是否成功 |
+| `owner` | string | 仓库所有者 |
+| `repo` | string | 仓库名称 |
+
+### `github_check_star`
+
+检查你是否已为某仓库加星
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `starred` | boolean | 你是否已为该仓库加星 |
+| `owner` | string | 仓库所有者 |
+| `repo` | string | 仓库名称 |
+
+### `github_list_stargazers`
+
+列出为仓库加星的用户
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | 是 | 仓库所有者 |
+| `repo` | string | 是 | 仓库名称 |
+| `per_page` | number | 否 | 每页结果数（最大 100，默认 30） |
+| `page` | number | 否 | 页码（默认 1） |
+| `apiKey` | string | 是 | GitHub API 令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | array | 来自 GitHub API 的用户对象数组 |
+|   ↳ `login` | string | GitHub 用户名 |
+|   ↳ `id` | number | 用户 ID |
+|   ↳ `node_id` | string | GraphQL 节点 ID |
+|   ↳ `avatar_url` | string | 头像图片 URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | 个人主页 URL |
+|   ↳ `type` | string | 用户或组织 |
+|   ↳ `site_admin` | boolean | GitHub 员工标识 |
+|   ↳ `gravatar_id` | string | Gravatar ID |
+|   ↳ `followers_url` | string | 粉丝 API URL |
+|   ↳ `following_url` | string | 关注 API URL |
+|   ↳ `gists_url` | string | Gists API URL |
+|   ↳ `starred_url` | string | Starred API URL |
+|   ↳ `repos_url` | string | Repos API URL |
+| `count` | number | 返回的加星用户数 |

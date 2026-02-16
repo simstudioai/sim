@@ -102,27 +102,3 @@ Lire le contenu d'un document Google Docs
 | --------- | ---- | ----------- |
 | `updatedContent` | booléen | Indique si le contenu du document a été mis à jour avec succès |
 | `metadata` | json | Métadonnées du document mis à jour incluant l'ID, le titre et l'URL |
-
-### `google_docs_create`
-
-Créer un nouveau document Google Docs
-
-#### Entrée
-
-| Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `title` | chaîne | Oui | Le titre du document à créer |
-| `content` | chaîne | Non | Le contenu du document à créer |
-| `folderSelector` | chaîne | Non | Sélectionner le dossier dans lequel créer le document |
-| `folderId` | chaîne | Non | L'ID du dossier dans lequel créer le document \(usage interne\) |
-
-#### Sortie
-
-| Paramètre | Type | Description |
-| --------- | ---- | ----------- |
-| `metadata` | json | Métadonnées du document créé incluant l'ID, le titre et l'URL |
-
-## Notes
-
-- Catégorie : `tools`
-- Type : `google_docs`

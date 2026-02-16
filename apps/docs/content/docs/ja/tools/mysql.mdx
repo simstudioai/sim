@@ -158,3 +158,22 @@ MySQLデータベースで生のSQLクエリを実行する
 
 - カテゴリ: `tools`
 - タイプ: `mysql`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | MySQLサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | MySQLサーバーのポート（デフォルト：3306） |
+| `database` | string | はい | 接続先のデータベース名 |
+| `username` | string | はい | データベースのユーザー名 |
+| `password` | string | はい | データベースのパスワード |
+| `ssl` | string | いいえ | SSL接続モード（disabled、required、preferred） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作のステータスメッセージ |
+| `tables` | array | カラム、キー、インデックスを含むテーブルスキーマの配列 |
+| `databases` | array | サーバー上の利用可能なデータベースのリスト |

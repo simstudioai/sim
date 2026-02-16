@@ -7,10 +7,10 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Das offizielle Python SDK für Sim ermöglicht es Ihnen, Workflows programmatisch aus Ihren Python-Anwendungen mithilfe des offiziellen Python SDKs auszuführen.
+Das offizielle Python SDK für Sim ermöglicht es Ihnen, Workflows programmatisch aus Ihren Python-Anwendungen heraus mit dem offiziellen Python SDK auszuführen.
 
 <Callout type="info">
-  Das Python SDK unterstützt Python 3.8+ mit asynchroner Ausführungsunterstützung, automatischer Ratenbegrenzung mit exponentiellem Backoff und Nutzungsverfolgung.
+  Das Python SDK unterstützt Python 3.8+ mit Unterstützung für asynchrone Ausführung, automatischer Ratenbegrenzung mit exponentiellem Backoff und Nutzungsverfolgung.
 </Callout>
 
 ## Installation
@@ -75,16 +75,16 @@ result = client.execute_workflow(
 - `input_data` (dict, optional): Eingabedaten, die an den Workflow übergeben werden
 - `timeout` (float, optional): Timeout in Sekunden (Standard: 30.0)
 - `stream` (bool, optional): Streaming-Antworten aktivieren (Standard: False)
-- `selected_outputs` (list[str], optional): Block-Ausgaben, die im `blockName.attribute`Format gestreamt werden sollen (z.B. `["agent1.content"]`)
+- `selected_outputs` (list[str], optional): Block-Ausgaben zum Streamen im Format `blockName.attribute` (z. B. `["agent1.content"]`)
 - `async_execution` (bool, optional): Asynchron ausführen (Standard: False)
 
-**Rückgabe:** `WorkflowExecutionResult | AsyncExecutionResult`
+**Rückgabewert:** `WorkflowExecutionResult | AsyncExecutionResult`
 
-Wenn `async_execution=True`, wird sofort mit einer Task-ID zum Abfragen zurückgegeben. Andernfalls wird auf den Abschluss gewartet.
+Wenn `async_execution=True`, wird sofort mit einer Task-ID zum Polling zurückgegeben. Andernfalls wird auf die Fertigstellung gewartet.
 
 ##### get_workflow_status()
 
-Den Status eines Workflows abrufen (Bereitstellungsstatus usw.).
+Ruft den Status eines Workflows ab (Deployment-Status usw.).
 
 ```python
 status = client.get_workflow_status("workflow-id")
@@ -98,7 +98,7 @@ print("Is deployed:", status.is_deployed)
 
 ##### validate_workflow()
 
-Überprüfen, ob ein Workflow für die Ausführung bereit ist.
+Überprüft, ob ein Workflow zur Ausführung bereit ist.
 
 ```python
 is_ready = client.validate_workflow("workflow-id")
@@ -114,7 +114,7 @@ if is_ready:
 
 ##### get_job_status()
 
-Den Status einer asynchronen Job-Ausführung abrufen.
+Ruft den Status einer asynchronen Job-Ausführung ab.
 
 ```python
 status = client.get_job_status("task-id-from-async-execution")
@@ -131,7 +131,7 @@ if status["status"] == "completed":
 **Antwortfelder:**
 - `success` (bool): Ob die Anfrage erfolgreich war
 - `taskId` (str): Die Task-ID
-- `status` (str): Einer der Werte `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
+- `status` (str): Einer von `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
 - `metadata` (dict): Enthält `startedAt`, `completedAt` und `duration`
 - `output` (any, optional): Die Workflow-Ausgabe (wenn abgeschlossen)
 - `error` (any, optional): Fehlerdetails (wenn fehlgeschlagen)
@@ -139,7 +139,7 @@ if status["status"] == "completed":
 
 ##### execute_with_retry()
 
-Einen Workflow mit automatischer Wiederholung bei Ratenbegrenzungsfehlern unter Verwendung von exponentiellem Backoff ausführen.
+Führt einen Workflow mit automatischer Wiederholung bei Rate-Limit-Fehlern unter Verwendung von exponentiellem Backoff aus.
 
 ```python
 result = client.execute_with_retry(
@@ -161,13 +161,13 @@ result = client.execute_with_retry(
 - `selected_outputs` (list, optional): Block-Ausgaben zum Streamen
 - `async_execution` (bool, optional): Asynchron ausführen
 - `max_retries` (int, optional): Maximale Anzahl von Wiederholungen (Standard: 3)
-- `initial_delay` (float, optional): Anfängliche Verzögerung in Sekunden (Standard: 1.0)
+- `initial_delay` (float, optional): Anfangsverzögerung in Sekunden (Standard: 1.0)
 - `max_delay` (float, optional): Maximale Verzögerung in Sekunden (Standard: 30.0)
 - `backoff_multiplier` (float, optional): Backoff-Multiplikator (Standard: 2.0)
 
-**Rückgabewert:** `WorkflowExecutionResult | AsyncExecutionResult`
+**Rückgabe:** `WorkflowExecutionResult | AsyncExecutionResult`
 
-Die Wiederholungslogik verwendet exponentielles Backoff (1s → 2s → 4s → 8s...) mit ±25% Jitter, um den Thundering-Herd-Effekt zu vermeiden. Wenn die API einen `retry-after` Header bereitstellt, wird dieser stattdessen verwendet.
+Die Wiederholungslogik verwendet exponentielles Backoff (1s → 2s → 4s → 8s...) mit ±25% Jitter, um Thundering Herd zu verhindern. Wenn die API einen `retry-after`-Header bereitstellt, wird dieser stattdessen verwendet.
 
 ##### get_rate_limit_info()
 
@@ -185,7 +185,7 @@ if rate_limit_info:
 
 ##### get_usage_limits()
 
-Ruft aktuelle Nutzungslimits und Kontingentinformationen für dein Konto ab.
+Ruft aktuelle Nutzungslimits und Kontingentinformationen für Ihr Konto ab.
 
 ```python
 limits = client.get_usage_limits()
@@ -320,9 +320,9 @@ class SimStudioError(Exception):
 
 **Häufige Fehlercodes:**
 - `UNAUTHORIZED`: Ungültiger API-Schlüssel
-- `TIMEOUT`: Zeitüberschreitung bei der Anfrage
-- `RATE_LIMIT_EXCEEDED`: Ratengrenze überschritten
-- `USAGE_LIMIT_EXCEEDED`: Nutzungsgrenze überschritten
+- `TIMEOUT`: Zeitüberschreitung der Anfrage
+- `RATE_LIMIT_EXCEEDED`: Ratenlimit überschritten
+- `USAGE_LIMIT_EXCEEDED`: Nutzungslimit überschritten
 - `EXECUTION_ERROR`: Workflow-Ausführung fehlgeschlagen
 
 ## Beispiele
@@ -334,7 +334,7 @@ class SimStudioError(Exception):
     Richten Sie den SimStudioClient mit Ihrem API-Schlüssel ein.
   </Step>
   <Step title="Workflow validieren">
-    Prüfen Sie, ob der Workflow bereitgestellt und für die Ausführung bereit ist.
+    Prüfen Sie, ob der Workflow bereitgestellt und zur Ausführung bereit ist.
   </Step>
   <Step title="Workflow ausführen">
     Führen Sie den Workflow mit Ihren Eingabedaten aus.
@@ -386,7 +386,7 @@ Behandeln Sie verschiedene Fehlertypen, die während der Workflow-Ausführung au
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -409,11 +409,20 @@ def execute_with_error_handling():
         raise
 ```
 
-### Verwendung des Kontextmanagers
+### Verwendung des Context-Managers
 
-Verwenden Sie den Client als Kontextmanager, um die Ressourcenbereinigung automatisch zu handhaben:
+Verwenden Sie den Client als Context-Manager, um die Ressourcenbereinigung automatisch zu handhaben:
 
----CODE-PLACEHOLDER-ef99d3dd509e04865d5b6b0e0e03d3f8---
+```python
+from simstudio import SimStudioClient
+import os
+
+# Using context manager to automatically close the session
+with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
+    result = client.execute_workflow("workflow-id")
+    print("Result:", result)
+# Session is automatically closed here
+```
 
 ### Batch-Workflow-Ausführung
 
@@ -466,7 +475,7 @@ for result in results:
 
 ### Asynchrone Workflow-Ausführung
 
-Führen Sie Workflows asynchron für lang laufende Aufgaben aus:
+Führen Sie Workflows asynchron für langwierige Aufgaben aus:
 
 ```python
 import os
@@ -510,9 +519,9 @@ def execute_async():
 execute_async()
 ```
 
-### Rate-Limiting und Wiederholungsversuche
+### Ratenlimitierung und Wiederholung
 
-Behandle Rate-Limits automatisch mit exponentiellem Backoff:
+Behandeln Sie Ratenbegrenzungen automatisch mit exponentiellem Backoff:
 
 ```python
 import os
@@ -549,7 +558,7 @@ execute_with_retry_handling()
 
 ### Nutzungsüberwachung
 
-Überwache deine Kontonutzung und -limits:
+Überwachen Sie die Nutzung und Limits Ihres Kontos:
 
 ```python
 import os
@@ -593,13 +602,13 @@ check_usage()
 
 ### Streaming-Workflow-Ausführung
 
-Führe Workflows mit Echtzeit-Streaming-Antworten aus:
+Führen Sie Workflows mit Echtzeit-Streaming-Antworten aus:
 
 ```python
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_streaming():
     """Execute workflow with streaming enabled."""
@@ -619,7 +628,7 @@ def execute_with_streaming():
 execute_with_streaming()
 ```
 
-Die Streaming-Antwort folgt dem Server-Sent Events (SSE) Format:
+Die Streaming-Antwort folgt dem Server-Sent-Events- (SSE-) Format:
 
 ```
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
@@ -688,9 +697,9 @@ if __name__ == '__main__':
     app.run(debug=True)
 ```
 
-### Umgebungskonfiguration
+### Umgebungs­konfiguration
 
-Konfiguriere den Client mit Umgebungsvariablen:
+Konfigurieren Sie den Client mit Umgebungsvariablen:
 
 <Tabs items={['Development', 'Production']}>
   <Tab value="Development">
@@ -727,27 +736,27 @@ Konfiguriere den Client mit Umgebungsvariablen:
   </Tab>
 </Tabs>
 
-## API-Schlüssel erhalten
+## Ihren API-Schlüssel erhalten
 
 <Steps>
   <Step title="Bei Sim anmelden">
-    Navigiere zu [Sim](https://sim.ai) und melde dich bei deinem Konto an.
+    Navigieren Sie zu [Sim](https://sim.ai) und melden Sie sich in Ihrem Konto an.
   </Step>
-  <Step title="Öffne deinen Workflow">
-    Navigiere zu dem Workflow, den du programmatisch ausführen möchtest.
+  <Step title="Workflow öffnen">
+    Navigieren Sie zu dem Workflow, den Sie programmatisch ausführen möchten.
   </Step>
-  <Step title="Deploye deinen Workflow">
-    Klicke auf "Deploy", um deinen Workflow zu deployen, falls dies noch nicht geschehen ist.
+  <Step title="Workflow bereitstellen">
+    Klicken Sie auf "Bereitstellen", um Ihren Workflow bereitzustellen, falls dies noch nicht geschehen ist.
   </Step>
-  <Step title="Erstelle oder wähle einen API-Schlüssel">
-    Wähle während des Deployment-Prozesses einen API-Schlüssel aus oder erstelle einen neuen.
+  <Step title="API-Schlüssel erstellen oder auswählen">
+    Wählen oder erstellen Sie während des Bereitstellungsprozesses einen API-Schlüssel.
   </Step>
-  <Step title="Kopiere den API-Schlüssel">
-    Kopiere den API-Schlüssel zur Verwendung in deiner Python-Anwendung.
+  <Step title="API-Schlüssel kopieren">
+    Kopieren Sie den API-Schlüssel, um ihn in Ihrer Python-Anwendung zu verwenden.
   </Step>
 </Steps>
 
-## Anforderungen
+## Voraussetzungen
 
 - Python 3.8+
 - requests >= 2.25.0
