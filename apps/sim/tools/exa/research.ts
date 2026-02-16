@@ -34,6 +34,26 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
+        }
+
+        // Fallback to estimate if cost not available
+        logger.warn('Exa research response missing costDollars, using fallback pricing')
+        const model = params.model || 'exa-research'
+        return model === 'exa-research-pro' ? 0.055 : 0.03
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/research/v1',
@@ -111,6 +131,8 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
                 score: 1.0,
               },
             ],
+            // Include cost breakdown for pricing calculation (internal field, stripped from final output)
+            _costDollars: taskData.costDollars,
           }
           return result
         }

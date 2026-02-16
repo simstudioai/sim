@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaGetContentsParams, ExaGetContentsResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaGetContentsTool')
 
 export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsResponse> = {
   id: 'exa_get_contents',
@@ -59,6 +62,25 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       required: true,
       visibility: 'user-only',
       description: 'Exa AI API Key',
+    },
+  },
+  hosting: {
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
+        }
+        // Fallback: $1/1000 pages
+        logger.warn('Exa get_contents response missing costDollars, using fallback pricing')
+        const results = output.results as unknown[] | undefined
+        return (results?.length || 0) * 0.001
+      },
     },
   },
 
@@ -132,6 +154,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
           summary: result.summary || '',
           highlights: result.highlights,
         })),
+        _costDollars: data.costDollars,
       },
     }
   },

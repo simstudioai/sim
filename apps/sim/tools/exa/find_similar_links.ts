@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaFindSimilarLinksTool')
 
 export const findSimilarLinksTool: ToolConfig<
   ExaFindSimilarLinksParams,
@@ -76,6 +79,26 @@ export const findSimilarLinksTool: ToolConfig<
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
+        }
+        // Fallback: $5/1000 (1-25 results) or $25/1000 (26-100 results)
+        logger.warn('Exa find_similar_links response missing costDollars, using fallback pricing')
+        const similarLinks = output.similarLinks as unknown[] | undefined
+        const resultCount = similarLinks?.length || 0
+        return resultCount <= 25 ? 0.005 : 0.025
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/findSimilar',
@@ -140,6 +163,7 @@ export const findSimilarLinksTool: ToolConfig<
           highlights: result.highlights,
           score: result.score || 0,
         })),
+        _costDollars: data.costDollars,
       },
     }
   },

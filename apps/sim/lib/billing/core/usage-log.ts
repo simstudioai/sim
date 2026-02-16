@@ -25,9 +25,9 @@ export interface ModelUsageMetadata {
 }
 
 /**
- * Metadata for 'fixed' category charges (currently empty, extensible)
+ * Metadata for 'fixed' category charges (e.g., tool cost breakdown)
  */
-export type FixedUsageMetadata = Record<string, never>
+export type FixedUsageMetadata = Record<string, unknown>
 
 /**
  * Union type for all metadata types
@@ -60,6 +60,8 @@ export interface LogFixedUsageParams {
   workspaceId?: string
   workflowId?: string
   executionId?: string
+  /** Optional metadata (e.g., tool cost breakdown from API) */
+  metadata?: FixedUsageMetadata
 }
 
 /**
@@ -119,7 +121,7 @@ export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> 
       category: 'fixed',
       source: params.source,
       description: params.description,
-      metadata: null,
+      metadata: params.metadata ?? null,
       cost: params.cost.toString(),
       workspaceId: params.workspaceId ?? null,
       workflowId: params.workflowId ?? null,

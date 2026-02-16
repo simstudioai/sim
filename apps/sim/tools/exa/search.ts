@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaSearchParams, ExaSearchResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaSearchTool')
 
 export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   id: 'exa_search',
@@ -86,6 +89,31 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
+        }
+
+        // Fallback: estimate based on search type and result count
+        logger.warn('Exa search response missing costDollars, using fallback pricing')
+        const isDeepSearch = params.type === 'neural'
+        if (isDeepSearch) {
+          return 0.015
+        }
+        const results = output.results as unknown[] | undefined
+        const resultCount = results?.length || 0
+        return resultCount <= 25 ? 0.005 : 0.025
+      },
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/search',
@@ -167,6 +195,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           highlights: result.highlights,
           score: result.score,
         })),
+        _costDollars: data.costDollars,
       },
     }
   },

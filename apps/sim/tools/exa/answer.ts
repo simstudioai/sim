@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ExaAnswerParams, ExaAnswerResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ExaAnswerTool')
 
 export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   id: 'exa_answer',
@@ -25,6 +28,24 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'Exa AI API Key',
+    },
+  },
+  hosting: {
+    envKeys: ['EXA_API_KEY_1', 'EXA_API_KEY_2', 'EXA_API_KEY_3'],
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        // Use _costDollars from Exa API response (internal field, stripped from final output)
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
+        }
+        // Fallback: $5/1000 requests
+        logger.warn('Exa answer response missing costDollars, using fallback pricing')
+        return 0.005
+      },
     },
   },
 
@@ -61,6 +82,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
             url: citation.url,
             text: citation.text || '',
           })) || [],
+        _costDollars: data.costDollars,
       },
     }
   },
