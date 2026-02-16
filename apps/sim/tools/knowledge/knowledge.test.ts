@@ -50,9 +50,7 @@ describe('Knowledge Tools', () => {
           },
         }
 
-        const result = await knowledgeSearchTool.transformResponse!(
-          createMockResponse(apiResponse)
-        )
+        const result = await knowledgeSearchTool.transformResponse!(createMockResponse(apiResponse))
 
         expect(result.success).toBe(true)
         expect(result.output).toEqual({
@@ -82,9 +80,7 @@ describe('Knowledge Tools', () => {
           },
         }
 
-        const result = await knowledgeSearchTool.transformResponse!(
-          createMockResponse(apiResponse)
-        )
+        const result = await knowledgeSearchTool.transformResponse!(createMockResponse(apiResponse))
 
         expect(result.success).toBe(true)
         expect(result.output).toEqual({
@@ -112,9 +108,7 @@ describe('Knowledge Tools', () => {
           },
         }
 
-        const result = await knowledgeSearchTool.transformResponse!(
-          createMockResponse(apiResponse)
-        )
+        const result = await knowledgeSearchTool.transformResponse!(createMockResponse(apiResponse))
 
         expect(result.success).toBe(true)
         expect(result.output.cost).toEqual({

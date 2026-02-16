@@ -147,5 +147,4 @@ describe('GenericBlockHandler', () => {
       'Block execution of Some Custom Tool failed with no error message'
     )
   })
-
 })
