@@ -178,3 +178,168 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`google_slides`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `pageObjectId` | string | 是 | 要检索的幻灯片/页面的对象 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `objectId` | string | 页面对象 ID |
+| `pageType` | string | 页面类型（SLIDE、MASTER、LAYOUT、NOTES、NOTES_MASTER） |
+| `pageElements` | array | 此页面上的页面元素数组（形状、图片、表格等） |
+| `slideProperties` | object | 幻灯片特有属性（布局、母版、备注） |
+|   ↳ `layoutObjectId` | string | 此幻灯片所基于布局的对象 ID |
+|   ↳ `masterObjectId` | string | 此幻灯片所基于母版的对象 ID |
+|   ↳ `notesPage` | json | 与幻灯片关联的备注页 |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和 URL |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `url` | string | 演示文稿的 URL |
+
+### `google_slides_delete_object`
+
+从 Google Slides 演示文稿中删除页面元素（形状、图片、表格等）或整个幻灯片
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `objectId` | string | 是 | 要删除的元素或幻灯片的对象 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 对象是否已成功删除 |
+| `objectId` | string | 被删除的对象 ID |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和 URL |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `url` | string | 演示文稿的 URL |
+
+### `google_slides_duplicate_object`
+
+在 Google Slides 演示文稿中复制对象（幻灯片、形状、图片、表格等）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `objectId` | string | 是 | 要复制的元素或幻灯片的对象 ID |
+| `objectIds` | string | 否 | 可选的 JSON 对象，将被复制幻灯片内的源对象 ID 映射为新对象 ID。格式：\{"sourceId1":"newId1","sourceId2":"newId2"\} |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `duplicatedObjectId` | string | 新创建副本的对象 ID |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和源对象 ID |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `sourceObjectId` | string | 被复制的原始对象 ID |
+|   ↳ `url` | string | 演示文稿的 URL |
+
+### `google_slides_update_slides_position`
+
+将一个或多个幻灯片移动到 Google Slides 演示文稿中的新位置
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `slideObjectIds` | string | 是 | 逗号分隔的幻灯片对象 ID 列表，幻灯片将保持相对顺序。 |
+| `insertionIndex` | number | 是 | 幻灯片应移动到的从零开始的索引，所有索引大于或等于该值的幻灯片将向右移动。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `moved` | boolean | 幻灯片是否成功移动 |
+| `slideObjectIds` | array | 被移动的幻灯片对象 ID |
+| `insertionIndex` | number | 幻灯片被移动到的索引 |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和 URL |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `url` | string | 演示文稿的 URL |
+
+### `google_slides_create_table`
+
+在 Google Slides 演示文稿的幻灯片上创建新表格
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `pageObjectId` | string | 是 | 要添加表格的幻灯片/页面对象 ID |
+| `rows` | number | 是 | 表格的行数（最少 1 行） |
+| `columns` | number | 是 | 表格的列数（最少 1 列） |
+| `width` | number | 否 | 表格宽度（单位：点，默认值：400） |
+| `height` | number | 否 | 表格高度（单位：点，默认值：200） |
+| `positionX` | number | 否 | 距离左边缘的 X 位置（单位：点，默认值：100） |
+| `positionY` | number | 否 | 距离顶部边缘的 Y 位置（单位：点，默认值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tableId` | string | 新建表格的对象 ID |
+| `rows` | number | 表格的行数 |
+| `columns` | number | 表格的列数 |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和页面对象 ID |
+
+### `google_slides_create_shape`
+
+在 Google Slides 演示文稿的幻灯片上创建形状（矩形、椭圆、文本框、箭头等）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `pageObjectId` | string | 是 | 要添加形状的幻灯片/页面对象 ID |
+| `shapeType` | string | 是 | 要创建的形状类型。常见类型：TEXT_BOX、RECTANGLE、ROUND_RECTANGLE、ELLIPSE、TRIANGLE、DIAMOND、STAR_5、ARROW_EAST、HEART、CLOUD |
+| `width` | number | 否 | 形状的宽度（单位：点，默认值：200） |
+| `height` | number | 否 | 形状的高度（单位：点，默认值：100） |
+| `positionX` | number | 否 | 距离左边缘的 X 位置（单位：点，默认值：100） |
+| `positionY` | number | 否 | 距离顶部边缘的 Y 位置（单位：点，默认值：100） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `shapeId` | string | 新创建形状的对象 ID |
+| `shapeType` | string | 创建的形状类型 |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和页面对象 ID |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `pageObjectId` | string | 创建形状的页面对象 ID |
+|   ↳ `url` | string | 演示文稿的 URL |
+
+### `google_slides_insert_text`
+
+在 Google Slides 演示文稿中的形状或表格单元格插入文本。可用于向文本框、形状或表格单元格添加文本。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | 是 | Google Slides 演示文稿 ID |
+| `objectId` | string | 是 | 要插入文本的形状或表格单元格的对象 ID。对于表格单元格，请使用单元格对象 ID。 |
+| `text` | string | 是 | 要插入的文本 |
+| `insertionIndex` | number | 否 | 插入文本的起始索引（从零开始）。如果未指定，则文本插入到开头（索引 0）。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | 文本是否插入成功 |
+| `objectId` | string | 插入文本的对象 ID |
+| `text` | string | 插入的文本内容 |
+| `metadata` | object | 操作元数据，包括演示文稿 ID 和 URL |
+|   ↳ `presentationId` | string | 演示文稿 ID |
+|   ↳ `url` | string | 演示文稿的 URL |

@@ -104,3 +104,9 @@ Référencez les valeurs structurées en aval avec des expressions telles que <c
 - Traitez le bloc Start comme le point d'entrée unique lorsque vous souhaitez prendre en charge à la fois les appelants API et chat.
 - Préférez les champs de format d'entrée nommés plutôt que d'analyser du JSON brut dans les nœuds en aval ; la conversion de type se fait automatiquement.
 - Ajoutez une validation ou un routage immédiatement après Start si certains champs sont nécessaires pour que votre flux de travail réussisse.
+
+## Bonnes pratiques
+
+- Traitez le bloc Start comme le point d'entrée unique lorsque vous souhaitez prendre en charge à la fois les appelants API et chat.
+- Privilégiez les champs Input Format nommés plutôt que l'analyse de JSON brut dans les nœuds en aval ; la coercition de type se produit automatiquement.
+- Ajoutez une validation ou un routage immédiatement après Start si certains champs sont requis pour que votre workflow réussisse.

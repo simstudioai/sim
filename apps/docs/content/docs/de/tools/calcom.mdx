@@ -1,0 +1,785 @@
+---
+title: Cal Com
+description: Verwalten Sie Cal.com-Buchungen, Veranstaltungstypen, Zeitpläne und
+  Verfügbarkeiten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cal.com](https://cal.com/) ist eine flexible und quelloffene Planungsplattform, die es einfach macht, Termine, Buchungen, Veranstaltungstypen und Teamverfügbarkeiten zu verwalten.
+
+Mit Cal.com können Sie:
+
+- **Planung automatisieren**: Ermöglichen Sie Nutzern, Ihre verfügbaren Zeitfenster einzusehen und Meetings automatisch zu buchen, ohne E-Mail-Pingpong.
+- **Veranstaltungen verwalten**: Erstellen und passen Sie Veranstaltungstypen, Dauern und Regeln für Einzel- oder Gruppenmeetings an.
+- **Kalender integrieren**: Verbinden Sie sich nahtlos mit Google, Outlook, Apple oder anderen Kalenderanbietern, um Doppelbuchungen zu vermeiden.
+- **Teilnehmer und Gäste verwalten**: Erfassen Sie Teilnehmerinformationen, verwalten Sie Gäste und versenden Sie Einladungen oder Erinnerungen.
+- **Verfügbarkeit steuern**: Definieren Sie individuelle Arbeitszeiten, Pufferzeiten und Storno-/Umbuchungsregeln.
+- **Workflows automatisieren**: Lösen Sie benutzerdefinierte Aktionen über Webhooks aus, wenn eine Buchung erstellt, storniert oder umgebucht wird.
+
+In Sim ermöglicht die Cal.com-Integration Ihren Agenten, Meetings zu buchen, Verfügbarkeiten zu prüfen, Veranstaltungstypen zu verwalten und Planungsaufgaben programmatisch zu automatisieren. Dies hilft Agenten, Meetings zu koordinieren, Buchungen im Namen von Nutzern zu versenden, Zeitpläne zu prüfen oder auf Buchungsereignisse zu reagieren – alles ohne manuelle Eingriffe. Durch die Verbindung von Sim mit Cal.com erschließen Sie hochautomatisierte und intelligente Planungs-Workflows, die sich nahtlos in Ihre umfassenderen Automatisierungsanforderungen integrieren lassen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Cal.com in Ihren Workflow. Erstellen und verwalten Sie Buchungen, Veranstaltungstypen, Zeitpläne und prüfen Sie Verfügbarkeitsfenster. Unterstützt das Erstellen, Auflisten, Umbuchen und Stornieren von Buchungen sowie die Verwaltung von Veranstaltungstypen und Zeitplänen. Kann auch Workflows basierend auf Cal.com-Webhook-Ereignissen auslösen (Buchung erstellt, storniert, umgebucht). Verbinden Sie Ihr Cal.com-Konto über OAuth.
+
+## Tools
+
+### `calcom_create_booking`
+
+Eine neue Buchung auf Cal.com erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Ja | Die ID des zu buchenden Ereignistyps |
+| `start` | string | Ja | Startzeit im UTC ISO 8601-Format \(z. B. 2024-01-15T09:00:00Z\) |
+| `attendee` | object | Ja | Teilnehmerinformationsobjekt mit Name, E-Mail, Zeitzone und optionaler Telefonnummer \(zusammengestellt aus einzelnen Teilnehmerfeldern\) |
+| `guests` | array | Nein | Array von Gast-E-Mail-Adressen |
+| `items` | string | Nein | Gast-E-Mail-Adresse |
+| `lengthInMinutes` | number | Nein | Dauer der Buchung in Minuten \(überschreibt die Standardeinstellung des Ereignistyps\) |
+| `metadata` | object | Nein | Benutzerdefinierte Metadaten, die an die Buchung angehängt werden |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details der erstellten Buchung |
+|   ↳ `eventType` | object | Details des Ereignistyps |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(z. B. akzeptiert, ausstehend, storniert\) |
+|   ↳ `start` | string | Startzeit im ISO 8601-Format |
+|   ↳ `end` | string | Endzeit im ISO 8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `meetingUrl` | string | URL zum Beitritt zum Meeting |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `absentHost` | boolean | Ob der Gastgeber abwesend war |
+|   ↳ `guests` | array | Gast-E-Mail-Adressen |
+|   ↳ `bookingFieldsResponses` | json | Benutzerdefinierte Buchungsfeldantworten \(dynamische Schlüssel basierend auf der Ereignistyp-Konfiguration\) |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die an die Buchung angehängt sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `icsUid` | string | ICS-Kalender-UID |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+
+### `calcom_get_booking`
+
+Details einer bestimmten Buchung anhand ihrer UID abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Ja | Eindeutige Kennung \(UID\) der Buchung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Buchungsdetails |
+|   ↳ `eventType` | object | Details zum Ereignistyp |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `description` | string | Beschreibung der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(z. B. akzeptiert, ausstehend, storniert\) |
+|   ↳ `start` | string | Startzeit im ISO-8601-Format |
+|   ↳ `end` | string | Endzeit im ISO-8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `meetingUrl` | string | URL zum Beitritt zum Meeting |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `absentHost` | boolean | Ob der Gastgeber abwesend war |
+|   ↳ `guests` | array | E-Mail-Adressen der Gäste |
+|   ↳ `bookingFieldsResponses` | json | Benutzerdefinierte Buchungsfeld-Antworten \(dynamische Schlüssel basierend auf der Ereignistyp-Konfiguration\) |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die der Buchung angehängt sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `rating` | number | Buchungsbewertung |
+|   ↳ `icsUid` | string | ICS-Kalender-UID |
+|   ↳ `cancellationReason` | string | Grund für die Stornierung, falls storniert |
+|   ↳ `reschedulingReason` | string | Grund für die Umbuchung, falls umgebucht |
+|   ↳ `rescheduledFromUid` | string | Ursprüngliche Buchungs-UID, falls diese Buchung umgebucht wurde |
+|   ↳ `rescheduledToUid` | string | Neue Buchungs-UID nach Umbuchung |
+|   ↳ `cancelledByEmail` | string | E-Mail der Person, die die Buchung storniert hat |
+|   ↳ `rescheduledByEmail` | string | E-Mail der Person, die die Buchung umgebucht hat |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `updatedAt` | string | Zeitpunkt der letzten Aktualisierung der Buchung |
+
+### `calcom_list_bookings`
+
+Alle Buchungen mit optionalem Statusfilter auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | Nein | Buchungen nach Status filtern: upcoming, recurring, past, cancelled oder unconfirmed |
+| `take` | number | Nein | Anzahl der zurückzugebenden Buchungen \(Paginierungslimit\) |
+| `skip` | number | Nein | Anzahl der zu überspringenden Buchungen \(Paginierungsoffset\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | array | Array von Buchungen |
+|   ↳ `eventType` | object | Details zum Ereignistyp |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `description` | string | Beschreibung der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(z. B. accepted, pending, cancelled\) |
+|   ↳ `start` | string | Startzeit im ISO-8601-Format |
+|   ↳ `end` | string | Endzeit im ISO-8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `meetingUrl` | string | URL zum Beitritt zum Meeting |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `absentHost` | boolean | Ob der Gastgeber abwesend war |
+|   ↳ `guests` | array | E-Mail-Adressen der Gäste |
+|   ↳ `bookingFieldsResponses` | json | Antworten auf benutzerdefinierte Buchungsfelder \(dynamische Schlüssel basierend auf der Ereignistyp-Konfiguration\) |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die der Buchung zugeordnet sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `rating` | number | Buchungsbewertung |
+|   ↳ `icsUid` | string | ICS-Kalender-UID |
+|   ↳ `cancellationReason` | string | Grund für die Stornierung, falls storniert |
+|   ↳ `cancelledByEmail` | string | E-Mail der Person, die die Buchung storniert hat |
+|   ↳ `reschedulingReason` | string | Grund für die Umbuchung, falls umgebucht |
+|   ↳ `rescheduledByEmail` | string | E-Mail der Person, die die Buchung umgebucht hat |
+|   ↳ `rescheduledFromUid` | string | Ursprüngliche Buchungs-UID, falls diese Buchung umgebucht wurde |
+|   ↳ `rescheduledToUid` | string | Neue Buchungs-UID nach Umbuchung |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `updatedAt` | string | Zeitpunkt der letzten Aktualisierung der Buchung |
+| `pagination` | object | Paginierungs-Metadaten |
+|   ↳ `totalItems` | number | Gesamtanzahl der Elemente |
+|   ↳ `remainingItems` | number | Verbleibende Elemente nach der aktuellen Seite |
+|   ↳ `returnedItems` | number | Anzahl der in dieser Antwort zurückgegebenen Elemente |
+|   ↳ `itemsPerPage` | number | Elemente pro Seite |
+|   ↳ `currentPage` | number | Aktuelle Seitennummer |
+|   ↳ `totalPages` | number | Gesamtanzahl der Seiten |
+|   ↳ `hasNextPage` | boolean | Ob es eine nächste Seite gibt |
+|   ↳ `hasPreviousPage` | boolean | Ob es eine vorherige Seite gibt |
+
+### `calcom_cancel_booking`
+
+Eine bestehende Buchung stornieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Ja | Eindeutige Kennung \(UID\) der zu stornierenden Buchung |
+| `cancellationReason` | string | Nein | Grund für die Stornierung der Buchung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details der stornierten Buchung |
+|   ↳ `eventType` | object | Details des Ereignistyps |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `cancellationReason` | string | Grund für die Stornierung, falls storniert |
+|   ↳ `cancelledByEmail` | string | E-Mail der Person, die die Buchung storniert hat |
+|   ↳ `start` | string | Startzeit im ISO-8601-Format |
+|   ↳ `end` | string | Endzeit im ISO-8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die der Buchung zugeordnet sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(sollte storniert sein\) |
+
+### `calcom_reschedule_booking`
+
+Eine bestehende Buchung auf einen neuen Zeitpunkt verschieben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Ja | Eindeutige Kennung \(UID\) der zu verschiebenden Buchung |
+| `start` | string | Ja | Neue Startzeit im UTC ISO 8601-Format \(z. B. 2024-01-15T09:00:00Z\) |
+| `reschedulingReason` | string | Nein | Grund für die Verschiebung der Buchung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details der verschobenen Buchung |
+|   ↳ `eventType` | object | Details des Ereignistyps |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(z. B. akzeptiert, ausstehend, storniert\) |
+|   ↳ `reschedulingReason` | string | Grund für die Verschiebung, falls verschoben |
+|   ↳ `rescheduledFromUid` | string | Ursprüngliche Buchungs-UID, falls diese Buchung verschoben wurde |
+|   ↳ `rescheduledByEmail` | string | E-Mail der Person, die die Buchung verschoben hat |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `meetingUrl` | string | URL zum Beitreten des Meetings |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `guests` | array | E-Mail-Adressen der Gäste |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die an die Buchung angehängt sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `icsUid` | string | ICS-Kalender-UID |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `uid` | string | Eindeutige Kennung für die neue Buchung |
+|   ↳ `start` | string | Neue Startzeit im ISO 8601-Format |
+|   ↳ `end` | string | Neue Endzeit im ISO 8601-Format |
+
+### `calcom_confirm_booking`
+
+Eine ausstehende Buchung bestätigen, die eine Bestätigung erfordert
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Ja | Eindeutige Kennung \(UID\) der zu bestätigenden Buchung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details der bestätigten Buchung |
+|   ↳ `eventType` | object | Details des Ereignistyps |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers \(IANA-Format\) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers \(ISO-Code\) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail \(kann von der tatsächlichen E-Mail abweichen\) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers \(IANA-Format\) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `start` | string | Startzeit im ISO-8601-Format |
+|   ↳ `end` | string | Endzeit im ISO-8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `meetingUrl` | string | URL zum Beitreten des Meetings |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `guests` | array | E-Mail-Adressen der Gäste |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die der Buchung angehängt sind \(dynamische Schlüssel-Wert-Paare\) |
+|   ↳ `icsUid` | string | ICS-Kalender-UID |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `status` | string | Buchungsstatus \(sollte akzeptiert/bestätigt sein\) |
+
+### `calcom_decline_booking`
+
+Eine ausstehende Buchungsanfrage ablehnen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | Ja | Eindeutige Kennung (UID) der abzulehnenden Buchung |
+| `reason` | string | Nein | Grund für die Ablehnung der Buchung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details der abgelehnten Buchung |
+|   ↳ `eventType` | object | Details des Ereignistyps |
+|     ↳ `id` | number | Ereignistyp-ID |
+|     ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `attendees` | array | Liste der Teilnehmer |
+|     ↳ `name` | string | Name des Teilnehmers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Teilnehmers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail (kann von der tatsächlichen E-Mail abweichen) |
+|     ↳ `timeZone` | string | Zeitzone des Teilnehmers (IANA-Format) |
+|     ↳ `phoneNumber` | string | Telefonnummer des Teilnehmers |
+|     ↳ `language` | string | Sprachpräferenz des Teilnehmers (ISO-Code) |
+|     ↳ `absent` | boolean | Ob der Teilnehmer abwesend war |
+|   ↳ `hosts` | array | Liste der Gastgeber |
+|     ↳ `id` | number | Benutzer-ID des Gastgebers |
+|     ↳ `name` | string | Anzeigename des Gastgebers |
+|     ↳ `email` | string | Tatsächliche E-Mail-Adresse des Gastgebers |
+|     ↳ `displayEmail` | string | Öffentlich angezeigte E-Mail (kann von der tatsächlichen E-Mail abweichen) |
+|     ↳ `username` | string | Cal.com-Benutzername des Gastgebers |
+|     ↳ `timeZone` | string | Zeitzone des Gastgebers (IANA-Format) |
+|   ↳ `id` | number | Numerische Buchungs-ID |
+|   ↳ `uid` | string | Eindeutige Kennung für die Buchung |
+|   ↳ `title` | string | Titel der Buchung |
+|   ↳ `cancellationReason` | string | Grund für die Stornierung, falls storniert |
+|   ↳ `start` | string | Startzeit im ISO-8601-Format |
+|   ↳ `end` | string | Endzeit im ISO-8601-Format |
+|   ↳ `duration` | number | Dauer in Minuten |
+|   ↳ `eventTypeId` | number | Ereignistyp-ID |
+|   ↳ `location` | string | Ort der Buchung |
+|   ↳ `metadata` | json | Benutzerdefinierte Metadaten, die der Buchung angehängt sind (dynamische Schlüssel-Wert-Paare) |
+|   ↳ `createdAt` | string | Zeitpunkt der Erstellung der Buchung |
+|   ↳ `status` | string | Buchungsstatus (sollte storniert/abgelehnt sein) |
+
+### `calcom_create_event_type`
+
+Einen neuen Ereignistyp in Cal.com erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Titel des Ereignistyps |
+| `slug` | string | Ja | Eindeutiger Slug für die Ereignistyp-URL |
+| `lengthInMinutes` | number | Ja | Dauer des Ereignisses in Minuten |
+| `description` | string | Nein | Beschreibung des Ereignistyps |
+| `slotInterval` | number | Nein | Intervall zwischen verfügbaren Buchungsslots in Minuten |
+| `minimumBookingNotice` | number | Nein | Erforderliche Mindestvorlaufzeit vor der Buchung in Minuten |
+| `beforeEventBuffer` | number | Nein | Pufferzeit vor dem Ereignis in Minuten |
+| `afterEventBuffer` | number | Nein | Pufferzeit nach dem Ereignis in Minuten |
+| `scheduleId` | number | Nein | ID des Zeitplans für die Verfügbarkeit |
+| `disableGuests` | boolean | Nein | Ob das Hinzufügen von Gästen zu Buchungen deaktiviert ist |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details des erstellten Ereignistyps |
+|   ↳ `id` | number | Ereignistyp-ID |
+|   ↳ `title` | string | Ereignistyp-Titel |
+|   ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `description` | string | Ereignistyp-Beschreibung |
+|   ↳ `lengthInMinutes` | number | Dauer in Minuten |
+|   ↳ `slotInterval` | number | Slot-Intervall in Minuten |
+|   ↳ `minimumBookingNotice` | number | Mindestvorlaufzeit für Buchung in Minuten |
+|   ↳ `beforeEventBuffer` | number | Puffer vor Ereignis in Minuten |
+|   ↳ `afterEventBuffer` | number | Puffer nach Ereignis in Minuten |
+|   ↳ `scheduleId` | number | Zeitplan-ID |
+|   ↳ `disableGuests` | boolean | Ob Gäste deaktiviert sind |
+|   ↳ `createdAt` | string | ISO-Zeitstempel der Erstellung |
+|   ↳ `updatedAt` | string | ISO-Zeitstempel der letzten Aktualisierung |
+
+### `calcom_get_event_type`
+
+Detaillierte Informationen über einen bestimmten Ereignistyp abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Ja | Ereignistyp-ID zum Abrufen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details zum Ereignistyp |
+|   ↳ `id` | number | Ereignistyp-ID |
+|   ↳ `title` | string | Titel des Ereignistyps |
+|   ↳ `slug` | string | Slug des Ereignistyps |
+|   ↳ `description` | string | Beschreibung des Ereignistyps |
+|   ↳ `lengthInMinutes` | number | Dauer in Minuten |
+|   ↳ `slotInterval` | number | Zeitfensterintervall in Minuten |
+|   ↳ `minimumBookingNotice` | number | Mindestvorlaufzeit für Buchungen in Minuten |
+|   ↳ `beforeEventBuffer` | number | Puffer vor dem Ereignis in Minuten |
+|   ↳ `afterEventBuffer` | number | Puffer nach dem Ereignis in Minuten |
+|   ↳ `scheduleId` | number | Zeitplan-ID |
+|   ↳ `disableGuests` | boolean | Ob Gäste deaktiviert sind |
+|   ↳ `createdAt` | string | ISO-Zeitstempel der Erstellung |
+|   ↳ `updatedAt` | string | ISO-Zeitstempel der letzten Aktualisierung |
+
+### `calcom_list_event_types`
+
+Eine Liste aller Ereignistypen abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `sortCreatedAt` | string | Nein | Sortierung nach Erstellungsdatum: "asc" oder "desc" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | array | Array von Ereignistypen |
+|   ↳ `id` | number | Ereignistyp-ID |
+|   ↳ `title` | string | Ereignistyp-Titel |
+|   ↳ `slug` | string | Ereignistyp-Slug |
+|   ↳ `description` | string | Ereignistyp-Beschreibung |
+|   ↳ `lengthInMinutes` | number | Dauer in Minuten |
+|   ↳ `slotInterval` | number | Zeitfensterintervall in Minuten |
+|   ↳ `minimumBookingNotice` | number | Mindestvorlaufzeit für Buchungen in Minuten |
+|   ↳ `beforeEventBuffer` | number | Pufferzeit vor dem Ereignis in Minuten |
+|   ↳ `afterEventBuffer` | number | Pufferzeit nach dem Ereignis in Minuten |
+|   ↳ `scheduleId` | number | Zeitplan-ID |
+|   ↳ `disableGuests` | boolean | Ob Gäste deaktiviert sind |
+|   ↳ `createdAt` | string | ISO-Zeitstempel der Erstellung |
+|   ↳ `updatedAt` | string | ISO-Zeitstempel der letzten Aktualisierung |
+
+### `calcom_update_event_type`
+
+Einen bestehenden Ereignistyp in Cal.com aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Ja | Zu aktualisierende Ereignistyp-ID \(z. B. 12345\) |
+| `title` | string | Nein | Titel des Ereignistyps |
+| `slug` | string | Nein | Eindeutiger Slug für die Ereignistyp-URL |
+| `lengthInMinutes` | number | Nein | Dauer des Ereignisses in Minuten |
+| `description` | string | Nein | Beschreibung des Ereignistyps |
+| `slotInterval` | number | Nein | Intervall zwischen verfügbaren Buchungszeitfenstern in Minuten |
+| `minimumBookingNotice` | number | Nein | Erforderliche Mindestvorlaufzeit vor der Buchung in Minuten |
+| `beforeEventBuffer` | number | Nein | Pufferzeit vor dem Ereignis in Minuten |
+| `afterEventBuffer` | number | Nein | Pufferzeit nach dem Ereignis in Minuten |
+| `scheduleId` | number | Nein | ID des Zeitplans für die Verfügbarkeit |
+| `disableGuests` | boolean | Nein | Ob das Hinzufügen von Gästen zu Buchungen deaktiviert werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Aktualisierte Details des Ereignistyps |
+|   ↳ `id` | number | Ereignistyp-ID |
+|   ↳ `title` | string | Titel des Ereignistyps |
+|   ↳ `slug` | string | Slug des Ereignistyps |
+|   ↳ `description` | string | Beschreibung des Ereignistyps |
+|   ↳ `lengthInMinutes` | number | Dauer in Minuten |
+|   ↳ `slotInterval` | number | Zeitfensterintervall in Minuten |
+|   ↳ `minimumBookingNotice` | number | Mindestvorlaufzeit für Buchungen in Minuten |
+|   ↳ `beforeEventBuffer` | number | Puffer vor dem Ereignis in Minuten |
+|   ↳ `afterEventBuffer` | number | Puffer nach dem Ereignis in Minuten |
+|   ↳ `scheduleId` | number | Zeitplan-ID |
+|   ↳ `disableGuests` | boolean | Ob Gäste deaktiviert sind |
+|   ↳ `createdAt` | string | ISO-Zeitstempel der Erstellung |
+|   ↳ `updatedAt` | string | ISO-Zeitstempel der letzten Aktualisierung |
+
+### `calcom_delete_event_type`
+
+Einen Ereignistyp aus Cal.com löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | Ja | Zu löschende Ereignistyp-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Details des gelöschten Ereignistyps |
+|   ↳ `id` | number | Ereignistyp-ID |
+|   ↳ `lengthInMinutes` | number | Dauer in Minuten |
+|   ↳ `title` | string | Titel des Ereignistyps |
+|   ↳ `slug` | string | Slug des Ereignistyps |
+
+### `calcom_create_schedule`
+
+Einen neuen Verfügbarkeitsplan in Cal.com erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Ja | Name des Plans |
+| `timeZone` | string | Ja | Zeitzone für den Plan \(z. B. America/New_York\) |
+| `isDefault` | boolean | Ja | Ob dieser Plan als Standard festgelegt werden soll |
+| `availability` | array | Nein | Verfügbarkeitsintervalle für den Plan |
+| `items` | object | Nein | Verfügbarkeitsintervall |
+| `properties` | array | Nein | Wochentage \(Montag, Dienstag, Mittwoch, Donnerstag, Freitag, Samstag, Sonntag\) |
+| `days` | array | Nein | Wochentage \(Montag, Dienstag, Mittwoch, Donnerstag, Freitag, Samstag, Sonntag\) |
+| `startTime` | string | Nein | Startzeit im Format HH:MM |
+| `endTime` | string | Nein | Endzeit im Format HH:MM |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Erstellte Plandaten |
+|   ↳ `id` | number | Plan-ID |
+|   ↳ `ownerId` | number | Benutzer-ID des Eigentümers |
+|   ↳ `name` | string | Planname |
+|   ↳ `timeZone` | string | Zeitzone \(z. B. America/New_York\) |
+|   ↳ `isDefault` | boolean | Ob dies der Standardplan ist |
+|   ↳ `availability` | array | Verfügbarkeitsfenster |
+|     ↳ `days` | array | Wochentage \(Montag, Dienstag usw.\) |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+|   ↳ `overrides` | array | Datumsspezifische Verfügbarkeitsüberschreibungen |
+|     ↳ `date` | string | Datum im Format JJJJ-MM-TT |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+
+### `calcom_get_schedule`
+
+Einen bestimmten Zeitplan anhand der ID von Cal.com abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Ja | ID des abzurufenden Zeitplans |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Zeitplandaten |
+|   ↳ `id` | number | Zeitplan-ID |
+|   ↳ `ownerId` | number | Benutzer-ID des Eigentümers |
+|   ↳ `name` | string | Zeitplanname |
+|   ↳ `timeZone` | string | Zeitzone \(z. B. America/New_York\) |
+|   ↳ `isDefault` | boolean | Ob dies der Standardzeitplan ist |
+|   ↳ `availability` | array | Verfügbarkeitsfenster |
+|     ↳ `days` | array | Wochentage \(Montag, Dienstag usw.\) |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+|   ↳ `overrides` | array | Datumsspezifische Verfügbarkeitsüberschreibungen |
+|     ↳ `date` | string | Datum im Format JJJJ-MM-TT |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+
+### `calcom_list_schedules`
+
+Alle Verfügbarkeitszeitpläne von Cal.com auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | array | Array von Zeitplanobjekten |
+|   ↳ `id` | number | Zeitplan-ID |
+|   ↳ `ownerId` | number | Benutzer-ID des Eigentümers |
+|   ↳ `name` | string | Zeitplanname |
+|   ↳ `timeZone` | string | Zeitzone \(z. B. America/New_York\) |
+|   ↳ `isDefault` | boolean | Ob dies der Standardzeitplan ist |
+|   ↳ `availability` | array | Verfügbarkeitsfenster |
+|     ↳ `days` | array | Wochentage \(Montag, Dienstag usw.\) |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+|   ↳ `overrides` | array | Datumsspezifische Verfügbarkeitsüberschreibungen |
+|     ↳ `date` | string | Datum im Format JJJJ-MM-TT |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+
+### `calcom_update_schedule`
+
+Einen bestehenden Zeitplan in Cal.com aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Ja | ID des zu aktualisierenden Zeitplans |
+| `name` | string | Nein | Neuer Name für den Zeitplan |
+| `timeZone` | string | Nein | Neue Zeitzone für den Zeitplan \(z. B. America/New_York\) |
+| `isDefault` | boolean | Nein | Ob dieser Zeitplan als Standard festgelegt werden soll |
+| `availability` | array | Nein | Neue Verfügbarkeitsintervalle für den Zeitplan |
+| `items` | object | Nein | Verfügbarkeitsintervall |
+| `properties` | array | Nein | Wochentage \(Montag, Dienstag, Mittwoch, Donnerstag, Freitag, Samstag, Sonntag\) |
+| `days` | array | Nein | Wochentage \(Montag, Dienstag, Mittwoch, Donnerstag, Freitag, Samstag, Sonntag\) |
+| `startTime` | string | Nein | Startzeit im Format HH:MM |
+| `endTime` | string | Nein | Endzeit im Format HH:MM |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Aktualisierte Zeitplandaten |
+|   ↳ `id` | number | Zeitplan-ID |
+|   ↳ `ownerId` | number | Benutzer-ID des Eigentümers |
+|   ↳ `name` | string | Zeitplanname |
+|   ↳ `timeZone` | string | Zeitzone \(z. B. America/New_York\) |
+|   ↳ `isDefault` | boolean | Ob dies der Standardzeitplan ist |
+|   ↳ `availability` | array | Verfügbarkeitsfenster |
+|     ↳ `days` | array | Wochentage \(Montag, Dienstag usw.\) |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+|   ↳ `overrides` | array | Datumsspezifische Verfügbarkeitsüberschreibungen |
+|     ↳ `date` | string | Datum im Format JJJJ-MM-TT |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+
+### `calcom_delete_schedule`
+
+Einen Zeitplan aus Cal.com löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | Ja | ID des zu löschenden Zeitplans |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus \(Erfolg oder Fehler\) |
+
+### `calcom_get_default_schedule`
+
+Den Standard-Verfügbarkeitszeitplan aus Cal.com abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | object | Standard-Zeitplandaten |
+|   ↳ `id` | number | Zeitplan-ID |
+|   ↳ `ownerId` | number | Benutzer-ID des Eigentümers |
+|   ↳ `name` | string | Zeitplanname |
+|   ↳ `timeZone` | string | Zeitzone \(z. B. America/New_York\) |
+|   ↳ `isDefault` | boolean | Ob dies der Standardzeitplan ist |
+|   ↳ `availability` | array | Verfügbarkeitsfenster |
+|     ↳ `days` | array | Wochentage \(Montag, Dienstag usw.\) |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+|   ↳ `overrides` | array | Datumsspezifische Verfügbarkeitsüberschreibungen |
+|     ↳ `date` | string | Datum im Format JJJJ-MM-TT |
+|     ↳ `startTime` | string | Startzeit im Format HH:MM |
+|     ↳ `endTime` | string | Endzeit im Format HH:MM |
+
+### `calcom_get_slots`
+
+Verfügbare Buchungsslots für einen Cal.com-Ereignistyp innerhalb eines Zeitraums abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `start` | string | Ja | Beginn des Zeitraums im UTC ISO 8601-Format \(z. B. 2024-01-15T00:00:00Z\) |
+| `end` | string | Ja | Ende des Zeitraums im UTC ISO 8601-Format \(z. B. 2024-01-22T00:00:00Z\) |
+| `eventTypeId` | number | Nein | Ereignistyp-ID für direkte Suche |
+| `eventTypeSlug` | string | Nein | Ereignistyp-Slug \(erfordert, dass der Benutzername gesetzt ist\) |
+| `username` | string | Nein | Benutzername für persönliche Ereignistypen \(erforderlich bei Verwendung von eventTypeSlug\) |
+| `timeZone` | string | Nein | Zeitzone für zurückgegebene Slots \(Standard ist UTC\) |
+| `duration` | number | Nein | Slot-Länge in Minuten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `status` | string | Antwortstatus |
+| `data` | json | Verfügbare Zeitslots gruppiert nach Datum \(Schlüssel im Format JJJJ-MM-TT\). Jedes Datum ist einem Array von Slot-Objekten mit Startzeit, optionaler Endzeit und Informationen zu Sitzplatz-Events zugeordnet. |

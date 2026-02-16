@@ -163,3 +163,16 @@ Añadir un comentario (historia) a una tarea de Asana
 
 - Categoría: `tools`
 - Tipo: `asana`
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `ts` | string | Marca de tiempo de la respuesta |
+| `gid` | string | Identificador único global del comentario |
+| `text` | string | Contenido de texto del comentario |
+| `created_at` | string | Marca de tiempo de creación del comentario |
+| `created_by` | object | Detalles del autor del comentario |
+|   ↳ `gid` | string | GID del autor |
+|   ↳ `name` | string | Nombre del autor |

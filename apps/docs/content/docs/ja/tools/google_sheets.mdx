@@ -176,3 +176,151 @@ Google Sheetsスプレッドシートの末尾にデータを追加する
 
 - カテゴリー: `tools`
 - タイプ: `google_sheets`
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | グーグルシートのスプレッドシートID |
+| `includeGridData` | boolean | いいえ | グリッドデータ（セル値）を含めるかどうか。デフォルトはfalse。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | スプレッドシートID |
+| `title` | string | スプレッドシートのタイトル |
+| `locale` | string | スプレッドシートのロケール |
+| `timeZone` | string | スプレッドシートのタイムゾーン |
+| `spreadsheetUrl` | string | スプレッドシートのURL |
+| `sheets` | array | スプレッドシート内のシートのリスト |
+|   ↳ `sheetId` | number | シートID |
+|   ↳ `title` | string | シートのタイトル/名前 |
+|   ↳ `index` | number | シートのインデックス（位置） |
+|   ↳ `rowCount` | number | シート内の行数 |
+|   ↳ `columnCount` | number | シート内の列数 |
+|   ↳ `hidden` | boolean | シートが非表示かどうか |
+
+### `google_sheets_create_spreadsheet`
+
+新しいグーグルシートのスプレッドシートを作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | はい | 新しいスプレッドシートのタイトル |
+| `sheetTitles` | json | いいえ | 作成するシート名の配列（例：["Sheet1", "Data", "Summary"]）。デフォルトは単一の「Sheet1」。 |
+| `locale` | string | いいえ | スプレッドシートのロケール（例："en_US"） |
+| `timeZone` | string | いいえ | スプレッドシートのタイムゾーン（例："America/New_York"） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | 作成されたスプレッドシートのID |
+| `title` | string | 作成されたスプレッドシートのタイトル |
+| `spreadsheetUrl` | string | 作成されたスプレッドシートのURL |
+| `sheets` | array | スプレッドシートに作成されたシートのリスト |
+|   ↳ `sheetId` | number | シートID |
+|   ↳ `title` | string | シートのタイトル/名前 |
+|   ↳ `index` | number | シートのインデックス(位置) |
+
+### `google_sheets_batch_get`
+
+1回のリクエストでグーグルシートスプレッドシートから複数の範囲を読み取ります
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | グーグルシートスプレッドシートID |
+| `ranges` | json | はい | 読み取る範囲の配列(例:[["Sheet1!A1:D10", "Sheet2!A1:B5"]])。各範囲にはシート名を含める必要があります。 |
+| `majorDimension` | string | いいえ | 値の主要な次元:「ROWS」(デフォルト)または「COLUMNS」 |
+| `valueRenderOption` | string | いいえ | 値のレンダリング方法:「FORMATTED_VALUE」(デフォルト)、「UNFORMATTED_VALUE」、または「FORMULA」 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | スプレッドシートID |
+| `valueRanges` | array | スプレッドシートから読み取られた値範囲の配列 |
+|   ↳ `range` | string | 読み取られた範囲 |
+|   ↳ `majorDimension` | string | 主要な次元(ROWSまたはCOLUMNS) |
+|   ↳ `values` | array | 2次元配列としてのセル値 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+|   ↳ `spreadsheetId` | string | グーグルシートスプレッドシートID |
+|   ↳ `spreadsheetUrl` | string | スプレッドシートURL |
+
+### `google_sheets_batch_update`
+
+1回のリクエストでグーグルシートスプレッドシートの複数の範囲を更新
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | グーグルシートスプレッドシートID |
+| `data` | json | はい | 更新する値範囲の配列。各項目には「range」（例：「Sheet1!A1:D10」）と「values」（2次元配列）が必要です。 |
+| `valueInputOption` | string | いいえ | 入力データの解釈方法：「RAW」または「USER_ENTERED」（デフォルト）。USER_ENTEREDは数式を解析します。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | スプレッドシートID |
+| `totalUpdatedRows` | number | 更新された行の合計数 |
+| `totalUpdatedColumns` | number | 更新された列の合計数 |
+| `totalUpdatedCells` | number | 更新されたセルの合計数 |
+| `totalUpdatedSheets` | number | 更新されたシートの合計数 |
+| `responses` | array | 各範囲の更新レスポンスの配列 |
+|   ↳ `spreadsheetId` | string | スプレッドシートID |
+|   ↳ `updatedRange` | string | 更新された範囲 |
+|   ↳ `updatedRows` | number | この範囲で更新された行数 |
+|   ↳ `updatedColumns` | number | この範囲で更新された列数 |
+|   ↳ `updatedCells` | number | この範囲で更新されたセル数 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+|   ↳ `spreadsheetId` | string | グーグルシートスプレッドシートID |
+|   ↳ `spreadsheetUrl` | string | スプレッドシートURL |
+
+### `google_sheets_batch_clear`
+
+1回のリクエストでGoogle Sheetsスプレッドシート内の複数範囲をクリアします
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | ---- | ----------- |
+| `spreadsheetId` | string | はい | Google SheetsスプレッドシートID |
+| `ranges` | json | はい | クリアする範囲の配列（例: ["Sheet1!A1:D10", "Sheet2!A1:B5"]）。各範囲にはシート名を含めてください。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `spreadsheetId` | string | スプレッドシートID |
+| `clearedRanges` | array | クリアされた範囲の配列 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+|   ↳ `spreadsheetId` | string | Google SheetsスプレッドシートID |
+|   ↳ `spreadsheetUrl` | string | スプレッドシートURL |
+
+### `google_sheets_copy_sheet`
+
+シートを別のスプレッドシートにコピーします
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | ---- | ----------- |
+| `sourceSpreadsheetId` | string | はい | コピー元のGoogle SheetsスプレッドシートID |
+| `sheetId` | number | はい | コピーするシートのID（数値ID、シート名ではありません）。シートIDは「Get Spreadsheet」で確認できます。 |
+| `destinationSpreadsheetId` | string | はい | コピー先のスプレッドシートID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `sheetId` | number | コピー先で新しく作成されたシートのID |
+| `title` | string | コピーされたシートのタイトル |
+| `index` | number | コピーされたシートのインデックス（位置） |
+| `sheetType` | string | シートの種類（GRID、CHARTなど） |
+| `destinationSpreadsheetId` | string | コピー先のスプレッドシートID |
+| `destinationSpreadsheetUrl` | string | コピー先スプレッドシートのURL |

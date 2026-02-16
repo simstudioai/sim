@@ -282,3 +282,126 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`slack`
+
+更新 Slack 中由机器人之前发送的消息
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | 否 | 认证方式：oauth 或 bot_token |
+| `botToken` | string | 否 | 自定义 Bot 的令牌 |
+| `channel` | string | 是 | 消息发布的频道 ID（例如：C1234567890） |
+| `timestamp` | string | 是 | 要更新的消息时间戳（例如：1405894322.002768） |
+| `text` | string | 是 | 新的消息文本（支持 Slack mrkdwn 格式） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | object | 完整的已更新消息对象，包含 Slack 返回的所有属性 |
+|   ↳ `type` | string | 消息类型（通常为 "message"） |
+|   ↳ `ts` | string | 消息时间戳（唯一标识符） |
+|   ↳ `text` | string | 消息文本内容 |
+|   ↳ `user` | string | 发送消息的用户 ID |
+|   ↳ `bot_id` | string | 如果由机器人发送则为 Bot ID |
+|   ↳ `username` | string | 显示用户名 |
+|   ↳ `channel` | string | 频道 ID |
+|   ↳ `team` | string | 团队/工作区 ID |
+|   ↳ `thread_ts` | string | 父消息时间戳（用于线程回复） |
+|   ↳ `parent_user_id` | string | 线程父消息作者的用户 ID |
+|   ↳ `reply_count` | number | 线程中的回复总数 |
+|   ↳ `reply_users_count` | number | 回复的唯一用户数 |
+|   ↳ `latest_reply` | string | 最近一次回复的时间戳 |
+|   ↳ `subscribed` | boolean | 用户是否订阅了该线程 |
+|   ↳ `last_read` | string | 最后读取消息的时间戳 |
+|   ↳ `unread_count` | number | 线程中未读消息数 |
+|   ↳ `subtype` | string | 消息子类型（bot_message、file_share 等） |
+|   ↳ `is_starred` | boolean | 用户是否已加星标 |
+|   ↳ `pinned_to` | array | 消息被固定的频道 ID |
+|   ↳ `permalink` | string | 消息的永久 URL |
+|   ↳ `reactions` | array | 此消息的表情反应 |
+|     ↳ `name` | string | 表情名称（不含冒号） |
+|     ↳ `count` | number | 此表情被添加的次数 |
+|     ↳ `users` | array | 添加此表情的用户 ID 数组 |
+|   ↳ `files` | array | 附加到消息的文件 |
+|     ↳ `id` | string | 文件唯一标识符 |
+|     ↳ `name` | string | 文件名 |
+|     ↳ `mimetype` | string | 文件 MIME 类型 |
+|     ↳ `size` | number | 文件大小（字节） |
+|     ↳ `url_private` | string | 私有下载 URL（需认证） |
+|     ↳ `permalink` | string | 文件的永久链接 |
+|     ↳ `mode` | string | 文件模式（hosted、external 等） |
+|   ↳ `attachments` | array | 消息上的旧版附件 |
+|     ↳ `id` | number | 附件 ID |
+|     ↳ `fallback` | string | 纯文本摘要 |
+|     ↳ `text` | string | 主要附件文本 |
+|     ↳ `pretext` | string | 附件前显示的文本 |
+|     ↳ `color` | string | 颜色条十六进制代码或预设 |
+|     ↳ `author_name` | string | 作者显示名 |
+|     ↳ `author_link` | string | 作者链接 URL |
+|     ↳ `author_icon` | string | 作者头像 URL |
+|     ↳ `title` | string | 附件标题 |
+|     ↳ `title_link` | string | 标题链接 URL |
+|     ↳ `image_url` | string | 图片 URL |
+|     ↳ `thumb_url` | string | 缩略图 URL |
+|     ↳ `footer` | string | 页脚文本 |
+|     ↳ `footer_icon` | string | 页脚图标 URL |
+|     ↳ `ts` | string | 页脚显示的时间戳 |
+|   ↳ `blocks` | array | 消息中的 Block Kit 区块 |
+|     ↳ `type` | string | 区块类型（section、divider、image、actions 等） |
+|     ↳ `block_id` | string | 区块唯一标识符 |
+|   ↳ `edited` | object | 消息被编辑时的编辑信息 |
+|     ↳ `user` | string | 编辑消息的用户 ID |
+|     ↳ `ts` | string | 编辑的时间戳 |
+| `content` | string | 成功消息 |
+| `metadata` | object | 已更新消息的元数据 |
+|   ↳ `channel` | string | 频道 ID |
+|   ↳ `timestamp` | string | 消息时间戳 |
+|   ↳ `text` | string | 已更新的消息文本 |
+
+### `slack_delete_message`
+
+删除机器人之前在 Slack 发送的消息
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | 否 | 认证方式：oauth 或 bot_token |
+| `botToken` | string | 否 | 自定义 Bot 的令牌 |
+| `channel` | string | 是 | 消息发布的频道 ID（例如，C1234567890） |
+| `timestamp` | string | 是 | 要删除的消息时间戳（例如，1405894322.002768） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功消息 |
+| `metadata` | object | 已删除消息的元数据 |
+|   ↳ `channel` | string | 频道 ID |
+|   ↳ `timestamp` | string | 消息时间戳 |
+
+### `slack_add_reaction`
+
+为 Slack 消息添加表情符号反应
+
+#### 输入
+
+| 参数 | 类型 | 是否必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | 否 | 认证方式：oauth 或 bot_token |
+| `botToken` | string | 否 | 自定义 Bot 的令牌 |
+| `channel` | string | 是 | 消息发布的频道 ID（例如，C1234567890） |
+| `timestamp` | string | 是 | 要添加反应的消息时间戳（例如，1405894322.002768） |
+| `name` | string | 是 | 表情符号名称（不带冒号，例如 thumbsup、heart、eyes） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 成功消息 |
+| `metadata` | object | 表情反馈元数据 |
+|   ↳ `channel` | string | 频道 ID |
+|   ↳ `timestamp` | string | 消息时间戳 |
+|   ↳ `reaction` | string | 表情名称 |

@@ -257,3 +257,57 @@ while (counter < items.length && !foundTarget) {
     </ul>
   </Tab>
 </Tabs>
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>ループタイプ</strong>: 'for'、'forEach'、'while'、または'doWhile'から選択
+      </li>
+      <li>
+        <strong>反復回数</strong>: 実行する回数(forループ)
+      </li>
+      <li>
+        <strong>コレクション</strong>: 反復処理する配列またはオブジェクト(forEachループ)
+      </li>
+      <li>
+        <strong>条件</strong>: 評価するブール式(while/do-whileループ)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    ループ**内**でのみ利用可能:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<loop.index>"}</strong>: 現在の反復番号(0始まり)
+      </li>
+      <li>
+        <strong>{"<loop.currentItem>"}</strong>: 処理中の現在のアイテム(forEachのみ)
+      </li>
+      <li>
+        <strong>{"<loop.items>"}</strong>: 完全なコレクション(forEachのみ)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: すべての反復結果の配列(ブロック名経由でアクセス)
+      </li>
+      <li>
+        <strong>構造</strong>: 結果は反復順序を維持
+      </li>
+      <li>
+        <strong>アクセス</strong>: ループ完了後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## ベストプラクティス
+
+- **適切な制限を設定**: 実行時間が長くならないよう、反復回数を適切に保つ
+- **コレクションにはForEachを使用**: 配列やオブジェクトを処理する場合は、Forループの代わりにForEachを使用
+- **エラーを適切に処理**: 堅牢なワークフローのため、ループ内にエラー処理の追加を検討

@@ -52,3 +52,193 @@ Integra Google Forms en tu flujo de trabajo. Proporciona un ID de formulario par
 
 - Categoría: `tools`
 - Tipo: `google_forms`
+
+Recuperar la estructura de un formulario incluyendo sus elementos, configuración y metadatos
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms a recuperar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formId` | string | El ID del formulario |
+| `title` | string | El título del formulario visible para los encuestados |
+| `description` | string | La descripción del formulario |
+| `documentTitle` | string | El título del documento visible en Drive |
+| `responderUri` | string | La URI para compartir con los encuestados |
+| `linkedSheetId` | string | El ID de la hoja de cálculo de Google vinculada |
+| `revisionId` | string | El ID de revisión del formulario |
+| `items` | array | Los elementos del formulario \(preguntas, secciones, etc.\) |
+|   ↳ `itemId` | string | ID del elemento |
+|   ↳ `title` | string | Título del elemento |
+|   ↳ `description` | string | Descripción del elemento |
+| `settings` | json | Configuración del formulario |
+| `publishSettings` | json | Configuración de publicación del formulario |
+
+### `google_forms_create_form`
+
+Crear un nuevo formulario de Google con un título
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `title` | string | Sí | El título del formulario visible para los encuestados |
+| `documentTitle` | string | No | El título del documento visible en Drive \(por defecto es el título del formulario\) |
+| `unpublished` | boolean | No | Si es verdadero, crea un formulario no publicado que no acepta respuestas |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formId` | string | El ID del formulario creado |
+| `title` | string | El título del formulario |
+| `documentTitle` | string | El título del documento en Drive |
+| `responderUri` | string | La URI para compartir con los encuestados |
+| `revisionId` | string | El ID de revisión del formulario |
+
+### `google_forms_batch_update`
+
+Aplica múltiples actualizaciones a un formulario (agregar elementos, actualizar información, cambiar configuración, etc.)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms |
+| `requests` | json | Sí | Array de solicitudes de actualización (updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem) |
+| `includeFormInResponse` | boolean | No | Si se debe devolver el formulario actualizado en la respuesta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `replies` | array | Las respuestas de cada solicitud de actualización |
+| `writeControl` | object | Información de control de escritura con IDs de revisión |
+|   ↳ `requiredRevisionId` | string | ID de revisión requerido para detección de conflictos |
+|   ↳ `targetRevisionId` | string | ID de revisión objetivo |
+| `form` | object | El formulario actualizado (si includeFormInResponse era true) |
+|   ↳ `formId` | string | El ID del formulario |
+|   ↳ `info` | object | Información del formulario que contiene título y descripción |
+|     ↳ `title` | string | El título del formulario visible para los encuestados |
+|     ↳ `description` | string | La descripción del formulario |
+|     ↳ `documentTitle` | string | El título del documento visible en Drive |
+|   ↳ `settings` | object | Configuración del formulario |
+|     ↳ `quizSettings` | object | Configuración de cuestionario |
+|       ↳ `isQuiz` | boolean | Si el formulario es un cuestionario |
+|     ↳ `emailCollectionType` | string | Tipo de recopilación de correo electrónico |
+|   ↳ `revisionId` | string | El ID de revisión del formulario |
+|   ↳ `responderUri` | string | La URI para compartir con los encuestados |
+|   ↳ `linkedSheetId` | string | El ID de la hoja de cálculo de Google vinculada |
+|   ↳ `publishSettings` | object | Configuración de publicación del formulario |
+|     ↳ `publishState` | object | Estado de publicación actual |
+|       ↳ `isPublished` | boolean | Si el formulario está publicado |
+|       ↳ `isAcceptingResponses` | boolean | Si el formulario está aceptando respuestas |
+
+### `google_forms_set_publish_settings`
+
+Actualiza la configuración de publicación de un formulario (publicar/despublicar, aceptar respuestas)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms |
+| `isPublished` | boolean | Sí | Si el formulario está publicado y visible para otros |
+| `isAcceptingResponses` | boolean | No | Si el formulario acepta respuestas \(forzado a false si isPublished es false\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formId` | string | El ID del formulario |
+| `publishSettings` | json | La configuración de publicación actualizada |
+|   ↳ `publishState` | object | El estado de publicación |
+|     ↳ `isPublished` | boolean | Si el formulario está publicado |
+|     ↳ `isAcceptingResponses` | boolean | Si el formulario acepta respuestas |
+
+### `google_forms_create_watch`
+
+Crea una notificación de seguimiento para cambios en el formulario (cambios de esquema o nuevas respuestas)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms a seguir |
+| `eventType` | string | Sí | Tipo de evento a seguir: SCHEMA \(cambios en el formulario\) o RESPONSES \(nuevos envíos\) |
+| `topicName` | string | Sí | El nombre del tema de Cloud Pub/Sub \(formato: projects/\{project\}/topics/\{topic\}\) |
+| `watchId` | string | No | ID de seguimiento personalizado \(4-63 caracteres, letras minúsculas, números, guiones\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | El ID de la vigilancia |
+| `eventType` | string | El tipo de evento que se está vigilando |
+| `topicName` | string | El tema de Cloud Pub/Sub |
+| `createTime` | string | Cuándo se creó la vigilancia |
+| `expireTime` | string | Cuándo expira la vigilancia \(7 días después de la creación\) |
+| `state` | string | El estado de la vigilancia \(ACTIVE, SUSPENDED\) |
+
+### `google_forms_list_watches`
+
+Listar todas las vigilancias de notificación para un formulario
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `watches` | array | Lista de vigilancias para el formulario |
+|   ↳ `id` | string | ID de vigilancia |
+|   ↳ `eventType` | string | Tipo de evento \(SCHEMA o RESPONSES\) |
+|   ↳ `createTime` | string | Cuándo se creó la vigilancia |
+|   ↳ `expireTime` | string | Cuándo expira la vigilancia |
+|   ↳ `state` | string | Estado de la vigilancia |
+
+### `google_forms_delete_watch`
+
+Eliminar una vigilancia de notificación de un formulario
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ------------ | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms |
+| `watchId` | string | Sí | ID de vigilancia a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si la vigilancia se eliminó correctamente |
+
+### `google_forms_renew_watch`
+
+Renovar una vigilancia de notificaciones por 7 días más
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Sí | ID del formulario de Google Forms |
+| `watchId` | string | Sí | ID de vigilancia a renovar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | El ID de vigilancia |
+| `eventType` | string | El tipo de evento vigilado |
+| `expireTime` | string | La nueva hora de expiración |
+| `state` | string | El estado de la vigilancia |

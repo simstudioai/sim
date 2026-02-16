@@ -1,0 +1,56 @@
+---
+title: AWS Textract
+description: Extrahieren Sie Text, Tabellen und Formulare aus Dokumenten
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="textract_v2"
+  color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Textract](https://aws.amazon.com/textract/) ist ein leistungsstarker KI-Service von Amazon Web Services, der entwickelt wurde, um automatisch gedruckten Text, Handschrift, Tabellen, Formulare, Schlüssel-Wert-Paare und andere strukturierte Daten aus gescannten Dokumenten und Bildern zu extrahieren. Textract nutzt fortschrittliche optische Zeichenerkennung (OCR) und Dokumentenanalyse, um Dokumente in verwertbare Daten zu verwandeln und so Automatisierung, Analysen, Compliance und mehr zu ermöglichen.
+
+Mit AWS Textract können Sie:
+
+- **Text aus Bildern und Dokumenten extrahieren**: Gedruckten Text und Handschrift in Formaten wie PDF, JPEG, PNG oder TIFF erkennen
+- **Tabellen erkennen und extrahieren**: Tabellen automatisch finden und deren strukturierte Inhalte ausgeben
+- **Formulare und Schlüssel-Wert-Paare auslesen**: Strukturierte Daten aus Formularen extrahieren, einschließlich Feldern und zugehörigen Werten
+- **Unterschriften und Layout-Merkmale identifizieren**: Unterschriften, geometrisches Layout und Beziehungen zwischen Dokumentelementen erkennen
+- **Extraktion mit Abfragen anpassen**: Bestimmte Felder und Antworten mithilfe abfragebasierter Extraktion extrahieren (z. B. "Wie lautet die Rechnungsnummer?")
+
+In Sim ermöglicht die AWS Textract-Integration Ihren Agent:innen, Dokumente intelligent im Rahmen ihrer Workflows zu verarbeiten. Dadurch werden Automatisierungsszenarien wie die Datenerfassung aus Rechnungen, Onboarding-Dokumenten, Verträgen, Quittungen und mehr möglich. Ihre Agent:innen können relevante Daten extrahieren, strukturierte Formulare analysieren und direkt aus Dokument-Uploads oder URLs Zusammenfassungen oder Berichte erstellen. Durch die Verbindung von Sim mit AWS Textract können Sie manuellen Aufwand reduzieren, die Datenqualität verbessern und Ihre Geschäftsprozesse mit robuster Dokumentenverarbeitung optimieren.
+{/* MANUAL-CONTENT-END */}
+
+## Anleitung zur Nutzung
+
+Integrieren Sie AWS Textract in Ihren Workflow, um Text, Tabellen, Formulare und Schlüssel-Wert-Paare aus Dokumenten zu extrahieren. Der Einzelseiten-Modus unterstützt JPEG, PNG und einseitige PDF. Der Mehrseiten-Modus unterstützt mehrseitige PDF und TIFF.
+
+## Tools
+
+### `textract_parser`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | AWS Access Key ID |
+| `secretAccessKey` | string | Ja | AWS Secret Access Key |
+| `region` | string | Ja | AWS-Region für Textract-Service \(z. B. us-east-1\) |
+| `processingMode` | string | Nein | Dokumenttyp: single-page oder multi-page. Standard ist single-page. |
+| `filePath` | string | Nein | URL zu einem zu verarbeitenden Dokument \(JPEG, PNG oder einseitige PDF\). |
+| `file` | file | Nein | Zu verarbeitende Dokumentdatei \(JPEG, PNG oder einseitige PDF\). |
+| `s3Uri` | string | Nein | S3-URI für Mehrseitenverarbeitung \(s3://bucket/key\). |
+| `featureTypes` | array | Nein | Zu erkennende Feature-Typen: TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. Wenn nicht angegeben, wird nur Texterkennung durchgeführt. |
+| `items` | string | Nein | Feature-Typ |
+| `queries` | array | Nein | Benutzerdefinierte Abfragen zur Extraktion spezifischer Informationen. Wird nur verwendet, wenn featureTypes QUERIES enthält. |
+| `items` | object | Nein | Abfragekonfiguration |
+| `properties` | string | Nein | Der Abfragetext |
+| `Text` | string | Nein | Keine Beschreibung |
+| `Alias` | string | Nein | Keine Beschreibung |
+
+#### Ausgabe
+
+Dieses Tool erzeugt keine Ausgaben.

@@ -173,3 +173,34 @@ Erstelle eine neue Datenbank in Notion mit benutzerdefinierten Eigenschaften
 
 - Kategorie: `tools`
 - Typ: `notion`
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Datenbank-UUID |
+| `url` | string | Notion-Datenbank-URL |
+| `created_time` | string | ISO 8601 Erstellungszeitstempel |
+| `properties` | object | Datenbank-Eigenschaften-Schema |
+| `title` | string | Datenbanktitel |
+
+### `notion_add_database_row`
+
+Eine neue Zeile zu einer Notion-Datenbank mit angegebenen Eigenschaften hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Ja | ID der Datenbank, zu der die Zeile hinzugefügt werden soll |
+| `properties` | json | Ja | Zeileneigenschaften als JSON-Objekt, das dem Datenbankschema entspricht \(z. B. \{"Name": \{"title": \[\{"text": \{"content": "Aufgabe 1"\}\}\]\}, "Status": \{"select": \{"name": "Erledigt"\}\}\}\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Seiten-UUID |
+| `url` | string | Notion-Seiten-URL |
+| `created_time` | string | ISO 8601 Erstellungszeitstempel |
+| `last_edited_time` | string | ISO 8601 Zeitstempel der letzten Bearbeitung |
+| `title` | string | Zeilentitel |

@@ -1,0 +1,89 @@
+---
+title: LangSmith
+description: Transférez les exécutions de workflow vers LangSmith pour l'observabilité
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Débloquez une visibilité et une compréhension approfondies de vos workflows IA avec [LangSmith](https://www.langchain.com/langsmith) – une plateforme puissante pour tracer, déboguer et surveiller les applications et automatisations basées sur les LLM. Intégrez LangSmith dans vos processus pour capturer des traces d'exécution détaillées, enregistrer les données d'entrée/sortie, joindre des métadonnées et optimiser vos workflows grâce à une observabilité basée sur les données.
+
+Avec l'intégration LangSmith, vous pouvez :
+
+- **Tracer et déboguer les exécutions** : transférez les exécutions de workflow, d'outil ou de modèle vers LangSmith, enregistrez les détails d'exécution hiérarchiques et identifiez rapidement les goulots d'étranglement ou les échecs.
+- **Joindre des métadonnées riches** : enrichissez vos traces en enregistrant les entrées, sorties, tags, métadonnées personnalisées, raisons d'échec, et plus encore pour des analyses et insights approfondis.
+- **Surveiller les performances des workflows** : visualisez les exécutions, surveillez les taux d'erreur, les durées et les métriques de succès au fil du temps pour améliorer la fiabilité et l'efficacité.
+- **Collaborer et auditer** : activez le débogage en équipe et suivez les modifications, permettant un audit transparent et une itération rapide sur les workflows LLM chaînés.
+- **Automatiser l'observabilité** : connectez de manière transparente les traces LangSmith à vos automatisations de workflow pour une surveillance permanente et sans effort, sans instrumentation manuelle.
+
+LangSmith permet aux ingénieurs, data scientists et équipes produit d'itérer plus rapidement, de détecter les problèmes plus tôt et de créer des applications basées sur les LLM plus robustes—que vous orchestriez des agents, des chaînes ou des workflows de bout en bout.
+
+Améliorez l'observabilité, obtenez des insights actionnables et augmentez la qualité de vos produits en intégrant LangSmith dans vos processus automatisés dès aujourd'hui.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Envoyez les données d'exécution vers LangSmith pour tracer les exécutions, joindre des métadonnées et surveiller les performances des workflows.
+
+## Outils
+
+### `langsmith_create_run`
+
+Transférez une seule exécution vers LangSmith pour ingestion.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API LangSmith |
+| `id` | string | Non | Identifiant unique d'exécution |
+| `name` | string | Oui | Nom de l'exécution |
+| `run_type` | string | Oui | Type d'exécution \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `start_time` | string | Non | Heure de début de l'exécution au format ISO-8601 |
+| `end_time` | string | Non | Heure de fin de l'exécution au format ISO-8601 |
+| `inputs` | json | Non | Charge utile des entrées |
+| `run_outputs` | json | Non | Charge utile des sorties |
+| `extra` | json | Non | Métadonnées supplémentaires \(extra\) |
+| `tags` | json | Non | Tableau de chaînes de tags |
+| `parent_run_id` | string | Non | ID de l'exécution parente |
+| `trace_id` | string | Non | ID de trace |
+| `session_id` | string | Non | ID de session |
+| `session_name` | string | Non | Nom de session |
+| `status` | string | Non | Statut de l'exécution |
+| `error` | string | Non | Détails de l'erreur |
+| `dotted_order` | string | Non | Chaîne d'ordre pointée |
+| `events` | json | Non | Tableau d'événements structurés |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Indique si l'exécution a été acceptée pour ingestion |
+| `runId` | string | Identifiant d'exécution fourni dans la requête |
+| `message` | string | Message de réponse de LangSmith |
+
+### `langsmith_create_runs_batch`
+
+Transférer plusieurs exécutions vers LangSmith en un seul lot.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API LangSmith |
+| `post` | json | Non | Tableau de nouvelles exécutions à ingérer |
+| `patch` | json | Non | Tableau d'exécutions à mettre à jour/corriger |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Indique si le lot a été accepté pour ingestion |
+| `runIds` | array | Identifiants d'exécution fournis dans la requête |
+| `message` | string | Message de réponse de LangSmith |
+| `messages` | array | Messages de réponse par exécution, lorsque fournis |

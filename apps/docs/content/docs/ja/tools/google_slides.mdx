@@ -178,3 +178,171 @@ Google Slidesプレゼンテーションの特定のスライドのサムネイ�
 
 - カテゴリ: `tools`
 - タイプ: `google_slides`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | プレゼンテーションのID |
+| `pageObjectId` | string | はい | 取得するスライド/ページのオブジェクトID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `objectId` | string | ページのオブジェクトID |
+| `pageType` | string | ページのタイプ（SLIDE、MASTER、LAYOUT、NOTES、NOTES_MASTER） |
+| `pageElements` | array | このページ上のページ要素（図形、画像、表など）の配列 |
+| `slideProperties` | object | スライド固有のプロパティ（レイアウト、マスター、ノート） |
+|   ↳ `layoutObjectId` | string | このスライドの基になっているレイアウトのオブジェクトID |
+|   ↳ `masterObjectId` | string | このスライドの基になっているマスターのオブジェクトID |
+|   ↳ `notesPage` | json | スライドに関連付けられたノートページ |
+| `metadata` | object | プレゼンテーションIDとURLを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションのID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_delete_object`
+
+プレゼンテーションからページ要素（図形、画像、表など）またはスライド全体を削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | プレゼンテーションのID |
+| `objectId` | string | はい | 削除する要素またはスライドのオブジェクトID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | オブジェクトが正常に削除されたかどうか |
+| `objectId` | string | 削除されたオブジェクトのID |
+| `metadata` | object | プレゼンテーションIDとURLを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_duplicate_object`
+
+Google Slidesプレゼンテーション内のオブジェクト(スライド、図形、画像、表など)を複製する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | Google SlidesプレゼンテーションID |
+| `objectId` | string | はい | 複製する要素またはスライドのオブジェクトID |
+| `objectIds` | string | いいえ | 複製されるスライド内のソースオブジェクトIDを複製の新しいオブジェクトIDにマッピングするオプションのJSONオブジェクト。形式：\{"sourceId1":"newId1","sourceId2":"newId2"\} |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `duplicatedObjectId` | string | 新しく作成された複製のオブジェクトID |
+| `metadata` | object | プレゼンテーションIDとソースオブジェクトIDを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションID |
+|   ↳ `sourceObjectId` | string | 複製された元のオブジェクトID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_update_slides_position`
+
+Google Slidesプレゼンテーション内の1つ以上のスライドを新しい位置に移動する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | Google SlidesプレゼンテーションID |
+| `slideObjectIds` | string | はい | 移動するスライドオブジェクトIDのカンマ区切りリスト。スライドは相対的な順序を維持します。 |
+| `insertionIndex` | number | はい | スライドを移動する先のゼロベースのインデックス。このインデックス以上のすべてのスライドは右にシフトされます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `moved` | boolean | スライドが正常に移動されたかどうか |
+| `slideObjectIds` | array | 移動されたスライドオブジェクトID |
+| `insertionIndex` | number | スライドが移動された先のインデックス |
+| `metadata` | object | プレゼンテーションIDとURLを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_create_table`
+
+Google Slidesプレゼンテーションのスライドに新しいテーブルを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | Google SlidesプレゼンテーションID |
+| `pageObjectId` | string | はい | テーブルを追加するスライド/ページのオブジェクトID |
+| `rows` | number | はい | テーブルの行数（最小1） |
+| `columns` | number | はい | テーブルの列数（最小1） |
+| `width` | number | いいえ | ポイント単位のテーブルの幅（デフォルト：400） |
+| `height` | number | いいえ | ポイント単位のテーブルの高さ（デフォルト：200） |
+| `positionX` | number | いいえ | 左端からのX位置（ポイント単位）（デフォルト：100） |
+| `positionY` | number | いいえ | 上端からのY位置（ポイント単位）（デフォルト：100） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tableId` | string | 新しく作成された表のオブジェクトID |
+| `rows` | number | 表の行数 |
+| `columns` | number | 表の列数 |
+| `metadata` | object | プレゼンテーションIDとページオブジェクトIDを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションのID |
+|   ↳ `pageObjectId` | string | 表が作成されたページのオブジェクトID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_create_shape`
+
+Google Slidesプレゼンテーションのスライドに図形(長方形、楕円、テキストボックス、矢印など)を作成します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | プレゼンテーションのID |
+| `pageObjectId` | string | はい | 図形を追加するスライド/ページのオブジェクトID |
+| `shapeType` | string | はい | 作成する図形のタイプ。一般的なタイプ：TEXT_BOX、RECTANGLE、ROUND_RECTANGLE、ELLIPSE、TRIANGLE、DIAMOND、STAR_5、ARROW_EAST、HEART、CLOUD |
+| `width` | number | いいえ | ポイント単位の図形の幅(デフォルト：200) |
+| `height` | number | いいえ | ポイント単位の図形の高さ(デフォルト：100) |
+| `positionX` | number | いいえ | 左端からのX位置(ポイント単位)(デフォルト：100) |
+| `positionY` | number | いいえ | 上端からのY位置(ポイント単位)(デフォルト：100) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `shapeId` | string | 新しく作成された図形のオブジェクトID |
+| `shapeType` | string | 作成された図形の種類 |
+| `metadata` | object | プレゼンテーションIDとページオブジェクトIDを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションID |
+|   ↳ `pageObjectId` | string | 図形が作成されたページのオブジェクトID |
+|   ↳ `url` | string | プレゼンテーションへのURL |
+
+### `google_slides_insert_text`
+
+Google Slidesプレゼンテーションの図形またはテーブルセルにテキストを挿入します。テキストボックス、図形、またはテーブルセルにテキストを追加する場合に使用します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `presentationId` | string | はい | Google SlidesプレゼンテーションID |
+| `objectId` | string | はい | テキストを挿入する図形またはテーブルセルのオブジェクトID。テーブルセルの場合は、セルのオブジェクトIDを使用します。 |
+| `text` | string | はい | 挿入するテキスト |
+| `insertionIndex` | number | いいえ | テキストを挿入するゼロベースのインデックス。指定されていない場合、テキストは先頭（インデックス0）に挿入されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `inserted` | boolean | テキストが正常に挿入されたかどうか |
+| `objectId` | string | テキストが挿入されたオブジェクトID |
+| `text` | string | 挿入されたテキスト |
+| `metadata` | object | プレゼンテーションIDとURLを含む操作メタデータ |
+|   ↳ `presentationId` | string | プレゼンテーションID |
+|   ↳ `url` | string | プレゼンテーションへのURL |

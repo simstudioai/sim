@@ -1,0 +1,445 @@
+---
+title: Google Maps
+description: Geocodificación, direcciones, lugares y cálculos de distancia
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_maps"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Maps](https://maps.google.com) es una plataforma integral que ofrece una amplia gama de APIs para mapas, geocodificación, enrutamiento, lugares, datos ambientales y más. A través de Sim, tus agentes pueden aprovechar las APIs clave de Google Maps Platform para automatizar una variedad de flujos de trabajo basados en ubicación.
+
+**Las siguientes APIs de Google Maps están incluidas en esta integración:**
+
+- **API de geocodificación:** Convierte direcciones en coordenadas de latitud/longitud y realiza geocodificación inversa.
+- **API de direcciones:** Calcula direcciones y rutas en automóvil, a pie, en bicicleta o en transporte público entre ubicaciones.
+- **API de matriz de distancias:** Calcula distancias de viaje y tiempos para múltiples combinaciones de origen y destino.
+- **API de lugares:** Busca lugares (negocios, puntos de referencia, establecimientos) por nombre, tipo o proximidad.
+- **API de detalles de lugar:** Obtiene información detallada de un lugar específico, como dirección, calificaciones, horarios e información de contacto.
+- **API de elevación:** Obtiene datos de elevación (altura sobre el nivel del mar) para cualquier conjunto de ubicaciones a nivel mundial.
+- **API de zona horaria:** Consulta información de zona horaria para cualquier ubicación geográfica.
+- **API de calidad del aire:** Obtiene datos de calidad del aire en tiempo real para coordenadas específicas.
+
+Con estas APIs, tus agentes de Sim pueden automatizar la búsqueda y enriquecimiento de ubicaciones, planificar rutas y entregas óptimas, estimar tiempos y distancias, analizar datos de lugares, enriquecer registros con contexto geográfico, obtener condiciones ambientales y más, todo sin trabajo manual ni herramientas externas.
+
+Si necesitas capacidades más allá de lo que se enumera aquí o deseas solicitar soporte para APIs adicionales de Google Maps, ¡háznoslo saber!
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra las API de Google Maps Platform en tu flujo de trabajo. Admite geocodificación de direcciones a coordenadas, geocodificación inversa, obtención de direcciones entre ubicaciones, cálculo de matrices de distancia, búsqueda de lugares, recuperación de detalles de lugares, datos de elevación e información de zona horaria.
+
+## Herramientas
+
+### `google_maps_air_quality`
+
+Obtener datos actuales de calidad del aire para una ubicación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps con la API de calidad del aire habilitada |
+| `lat` | number | Sí | Coordenada de latitud |
+| `lng` | number | Sí | Coordenada de longitud |
+| `languageCode` | string | No | Código de idioma para la respuesta \(p. ej., "en", "es"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `dateTime` | string | Marca de tiempo de los datos de calidad del aire |
+| `regionCode` | string | Código de región para la ubicación |
+| `indexes` | array | Matriz de índices de calidad del aire |
+|   ↳ `code` | string | Código de índice \(p. ej., "uaqi", "usa_epa"\) |
+|   ↳ `displayName` | string | Nombre para mostrar del índice |
+|   ↳ `aqi` | number | Valor del índice de calidad del aire |
+|   ↳ `aqiDisplay` | string | Cadena de visualización del ICA formateada |
+|   ↳ `color` | object | Color RGB para el nivel de ICA |
+|   ↳ `category` | string | Descripción de categoría \(p. ej., "Bueno", "Moderado"\) |
+|   ↳ `dominantPollutant` | string | El contaminante dominante |
+| `pollutants` | array | Matriz de concentraciones de contaminantes |
+|   ↳ `code` | string | Código de contaminante \(p. ej., "pm25", "o3"\) |
+|   ↳ `displayName` | string | Nombre para mostrar |
+|   ↳ `fullName` | string | Nombre completo del contaminante |
+|   ↳ `concentration` | object | Información de concentración |
+|     ↳ `value` | number | Valor de concentración |
+|     ↳ `units` | string | Unidades \(p. ej., "PARTS_PER_BILLION"\) |
+|   ↳ `additionalInfo` | object | Información adicional sobre fuentes y efectos |
+| `healthRecommendations` | object | Recomendaciones de salud para diferentes poblaciones |
+
+### `google_maps_directions`
+
+Obtener direcciones e información de ruta entre dos ubicaciones
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `origin` | string | Sí | Ubicación de origen \(dirección o lat,lng\) |
+| `destination` | string | Sí | Ubicación de destino \(dirección o lat,lng\) |
+| `mode` | string | No | Modo de viaje: driving, walking, bicycling o transit |
+| `avoid` | string | No | Características a evitar: tolls, highways o ferries |
+| `waypoints` | json | No | Array de puntos intermedios |
+| `units` | string | No | Sistema de unidades: metric o imperial |
+| `language` | string | No | Código de idioma para los resultados \(p. ej., en, es, fr\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `routes` | array | Todas las rutas disponibles |
+|   ↳ `summary` | string | Resumen de la ruta \(nombres de carreteras principales\) |
+|   ↳ `legs` | array | Tramos de la ruta \(segmentos entre puntos intermedios\) |
+|   ↳ `overviewPolyline` | string | Polilínea codificada para toda la ruta |
+|   ↳ `warnings` | array | Advertencias de la ruta |
+|   ↳ `waypointOrder` | array | Orden optimizado de puntos intermedios \(si se solicitó\) |
+| `distanceText` | string | Distancia total como texto legible \(p. ej., "5,2 km"\) |
+| `distanceMeters` | number | Distancia total en metros |
+| `durationText` | string | Duración total como texto legible \(p. ej., "15 min"\) |
+| `durationSeconds` | number | Duración total en segundos |
+| `startAddress` | string | Dirección de origen resuelta |
+| `endAddress` | string | Dirección de destino resuelta |
+| `steps` | array | Instrucciones de navegación paso a paso |
+|   ↳ `instruction` | string | Instrucción de navegación \(HTML eliminado\) |
+|   ↳ `distanceText` | string | Distancia del paso como texto |
+|   ↳ `distanceMeters` | number | Distancia del paso en metros |
+|   ↳ `durationText` | string | Duración del paso como texto |
+|   ↳ `durationSeconds` | number | Duración del paso en segundos |
+|   ↳ `startLocation` | object | Coordenadas de inicio del paso |
+|   ↳ `endLocation` | object | Coordenadas de fin del paso |
+|   ↳ `travelMode` | string | Modo de viaje para este paso |
+|   ↳ `maneuver` | string | Tipo de maniobra \(turn-left, etc.\) |
+| `polyline` | string | Polilínea codificada para la ruta principal |
+
+### `google_maps_distance_matrix`
+
+Calcula la distancia y el tiempo de viaje entre múltiples orígenes y destinos
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `origin` | string | Sí | Ubicación de origen \(dirección o lat,lng\) |
+| `destinations` | json | Sí | Array de ubicaciones de destino |
+| `mode` | string | No | Modo de viaje: driving, walking, bicycling o transit |
+| `avoid` | string | No | Características a evitar: tolls, highways o ferries |
+| `units` | string | No | Sistema de unidades: metric o imperial |
+| `language` | string | No | Código de idioma para los resultados \(p. ej., en, es, fr\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `originAddresses` | array | Direcciones de origen resueltas |
+| `destinationAddresses` | array | Direcciones de destino resueltas |
+| `rows` | array | Filas de la matriz de distancias \(una por origen\) |
+|   ↳ `elements` | array | Elementos \(uno por destino\) |
+|     ↳ `distanceText` | string | Distancia como texto \(p. ej., "5,2 km"\) |
+|     ↳ `distanceMeters` | number | Distancia en metros |
+|     ↳ `durationText` | string | Duración como texto \(p. ej., "15 min"\) |
+|     ↳ `durationSeconds` | number | Duración en segundos |
+|     ↳ `durationInTrafficText` | string | Duración en tráfico como texto |
+|     ↳ `durationInTrafficSeconds` | number | Duración en tráfico en segundos |
+|     ↳ `status` | string | Estado del elemento \(OK, NOT_FOUND, ZERO_RESULTS\) |
+
+### `google_maps_elevation`
+
+Obtener datos de elevación para una ubicación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `lat` | number | Sí | Coordenada de latitud |
+| `lng` | number | Sí | Coordenada de longitud |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `elevation` | number | Elevación en metros sobre el nivel del mar \(negativo para debajo\) |
+| `lat` | number | Latitud de la muestra de elevación |
+| `lng` | number | Longitud de la muestra de elevación |
+| `resolution` | number | Distancia máxima entre puntos de datos \(metros\) desde los cuales se interpoló la elevación |
+
+### `google_maps_geocode`
+
+Convertir una dirección en coordenadas geográficas (latitud y longitud)
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `address` | string | Sí | La dirección a geocodificar |
+| `language` | string | No | Código de idioma para los resultados \(p. ej., en, es, fr\) |
+| `region` | string | No | Sesgo regional como código ccTLD \(p. ej., us, uk\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | La cadena de dirección formateada |
+| `lat` | number | Coordenada de latitud |
+| `lng` | number | Coordenada de longitud |
+| `location` | json | Objeto de ubicación con lat y lng |
+| `placeId` | string | ID de lugar de Google para esta ubicación |
+| `addressComponents` | array | Componentes de dirección detallados |
+|   ↳ `longName` | string | Nombre completo del componente |
+|   ↳ `shortName` | string | Nombre abreviado |
+|   ↳ `types` | array | Tipos de componente |
+| `locationType` | string | Tipo de precisión de ubicación \(ROOFTOP, RANGE_INTERPOLATED, etc.\) |
+
+### `google_maps_geolocate`
+
+Geolocaliza un dispositivo usando puntos de acceso WiFi, torres de telefonía celular o dirección IP
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps con Geolocation API habilitada |
+| `homeMobileCountryCode` | number | No | Código de país móvil de origen \(MCC\) |
+| `homeMobileNetworkCode` | number | No | Código de red móvil de origen \(MNC\) |
+| `radioType` | string | No | Tipo de radio: lte, gsm, cdma, wcdma o nr |
+| `carrier` | string | No | Nombre del operador |
+| `considerIp` | boolean | No | Si se debe usar la dirección IP para geolocalización \(predeterminado: true\) |
+| `cellTowers` | array | No | Array de objetos de torres celulares con cellId, locationAreaCode, mobileCountryCode, mobileNetworkCode |
+| `wifiAccessPoints` | array | No | Array de objetos de puntos de acceso WiFi con macAddress \(requerido\), signalStrength, etc. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `lat` | number | Coordenada de latitud |
+| `lng` | number | Coordenada de longitud |
+| `accuracy` | number | Radio de precisión en metros |
+
+### `google_maps_place_details`
+
+Obtiene información detallada sobre un lugar específico
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `placeId` | string | Sí | ID de lugar de Google |
+| `fields` | string | No | Lista separada por comas de campos a devolver |
+| `language` | string | No | Código de idioma para los resultados \(p. ej., en, es, fr\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `placeId` | string | ID de lugar de Google |
+| `name` | string | Nombre del lugar |
+| `formattedAddress` | string | Dirección postal formateada |
+| `lat` | number | Coordenada de latitud |
+| `lng` | number | Coordenada de longitud |
+| `types` | array | Tipos de lugar \(ej., restaurante, cafetería\) |
+| `rating` | number | Valoración promedio \(1.0 a 5.0\) |
+| `userRatingsTotal` | number | Número total de valoraciones de usuarios |
+| `priceLevel` | number | Nivel de precio \(0=Gratis, 1=Económico, 2=Moderado, 3=Caro, 4=Muy caro\) |
+| `website` | string | URL del sitio web del lugar |
+| `phoneNumber` | string | Número de teléfono formateado local |
+| `internationalPhoneNumber` | string | Número de teléfono formateado internacional |
+| `openNow` | boolean | Si el lugar está actualmente abierto |
+| `weekdayText` | array | Horario de apertura formateado por día de la semana |
+| `reviews` | array | Reseñas de usuarios \(hasta 5 más relevantes\) |
+|   ↳ `authorName` | string | Nombre del reseñador |
+|   ↳ `authorUrl` | string | URL del perfil del reseñador |
+|   ↳ `profilePhotoUrl` | string | URL de la foto del reseñador |
+|   ↳ `rating` | number | Valoración otorgada \(1-5\) |
+|   ↳ `text` | string | Texto de la reseña |
+|   ↳ `time` | number | Marca de tiempo de la reseña \(Unix epoch\) |
+|   ↳ `relativeTimeDescription` | string | Tiempo relativo \(ej., "hace un mes"\) |
+| `photos` | array | Fotos del lugar |
+|   ↳ `photoReference` | string | Referencia de foto para la API de fotos de lugares |
+|   ↳ `height` | number | Altura de la foto en píxeles |
+|   ↳ `width` | number | Ancho de la foto en píxeles |
+|   ↳ `htmlAttributions` | array | Atribuciones requeridas |
+| `url` | string | URL de Google Maps para el lugar |
+| `utcOffset` | number | Desplazamiento UTC en minutos |
+| `vicinity` | string | Dirección simplificada \(barrio/calle\) |
+| `businessStatus` | string | Estado del negocio \(OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY\) |
+
+### `google_maps_places_search`
+
+Buscar lugares usando una consulta de texto
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `query` | string | Sí | Consulta de búsqueda \(ej., "restaurantes en Times Square"\) |
+| `location` | json | No | Ubicación para sesgar los resultados hacia \(\{lat, lng\}\) |
+| `radius` | number | No | Radio de búsqueda en metros |
+| `type` | string | No | Filtro de tipo de lugar \(ej., restaurant, cafe, hotel\) |
+| `language` | string | No | Código de idioma para los resultados \(ej., en, es, fr\) |
+| `region` | string | No | Sesgo de región como código ccTLD \(ej., us, uk\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `places` | array | Lista de lugares encontrados |
+|   ↳ `placeId` | string | ID de lugar de Google |
+|   ↳ `name` | string | Nombre del lugar |
+|   ↳ `formattedAddress` | string | Dirección formateada |
+|   ↳ `lat` | number | Latitud |
+|   ↳ `lng` | number | Longitud |
+|   ↳ `types` | array | Tipos de lugar |
+|   ↳ `rating` | number | Calificación promedio \(1-5\) |
+|   ↳ `userRatingsTotal` | number | Número de calificaciones |
+|   ↳ `priceLevel` | number | Nivel de precio \(0-4\) |
+|   ↳ `openNow` | boolean | Si está abierto actualmente |
+|   ↳ `photoReference` | string | Referencia de foto para la API de fotos |
+|   ↳ `businessStatus` | string | Estado del negocio |
+| `nextPageToken` | string | Token para obtener la siguiente página de resultados |
+
+### `google_maps_reverse_geocode`
+
+Convierte coordenadas geográficas (latitud y longitud) en una dirección legible
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `lat` | number | Sí | Coordenada de latitud |
+| `lng` | number | Sí | Coordenada de longitud |
+| `language` | string | No | Código de idioma para los resultados \(ej., en, es, fr\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | La cadena de dirección formateada |
+| `placeId` | string | ID de lugar de Google para esta ubicación |
+| `addressComponents` | array | Componentes de dirección detallados |
+|   ↳ `longName` | string | Nombre completo del componente |
+|   ↳ `shortName` | string | Nombre abreviado |
+|   ↳ `types` | array | Tipos de componente |
+| `types` | array | Tipos de dirección \(ej., street_address, route\) |
+
+### `google_maps_snap_to_roads`
+
+Ajusta coordenadas GPS al segmento de carretera más cercano
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps con Roads API habilitada |
+| `path` | string | Sí | Lista de coordenadas lat,lng separadas por barras verticales \(ej., "60.170880,24.942795\|60.170879,24.942796"\) |
+| `interpolate` | boolean | No | Si se deben interpolar puntos adicionales a lo largo de la carretera |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `snappedPoints` | array | Array de puntos ajustados en carreteras |
+|   ↳ `location` | object | Coordenadas de ubicación ajustadas |
+|     ↳ `lat` | number | Latitud |
+|     ↳ `lng` | number | Longitud |
+|   ↳ `originalIndex` | number | Índice en la ruta original \(si no está interpolado\) |
+|   ↳ `placeId` | string | ID de lugar para este segmento de carretera |
+| `warningMessage` | string | Mensaje de advertencia si lo hay \(ej., si los puntos no pudieron ajustarse\) |
+
+### `google_maps_speed_limits`
+
+Obtiene los límites de velocidad para segmentos de carretera. Requiere coordenadas de ruta o placeIds.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps con Roads API habilitada |
+| `path` | string | No | Lista separada por barras verticales de coordenadas lat,lng \(requerido si no se proporcionan placeIds\) |
+| `placeIds` | array | No | Array de Place IDs para segmentos de carretera \(requerido si no se proporciona path\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `speedLimits` | array | Array de límites de velocidad para segmentos de carretera |
+|   ↳ `placeId` | string | Place ID para el segmento de carretera |
+|   ↳ `speedLimit` | number | Valor del límite de velocidad |
+|   ↳ `units` | string | Unidades del límite de velocidad \(KPH o MPH\) |
+| `snappedPoints` | array | Array de puntos ajustados correspondientes a los límites de velocidad |
+|   ↳ `location` | object | Coordenadas de ubicación ajustadas |
+|     ↳ `lat` | number | Latitud |
+|     ↳ `lng` | number | Longitud |
+|   ↳ `originalIndex` | number | Índice en la ruta original |
+|   ↳ `placeId` | string | Place ID para este segmento de carretera |
+
+### `google_maps_timezone`
+
+Obtiene información de zona horaria para una ubicación
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps |
+| `lat` | number | Sí | Coordenada de latitud |
+| `lng` | number | Sí | Coordenada de longitud |
+| `timestamp` | number | No | Marca de tiempo Unix para determinar el desplazamiento DST \(por defecto, hora actual\) |
+| `language` | string | No | Código de idioma para el nombre de la zona horaria \(p. ej., en, es, fr\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `timeZoneId` | string | ID de zona horaria IANA \(p. ej., "America/New_York", "Europe/London"\) |
+| `timeZoneName` | string | Nombre de zona horaria localizado \(p. ej., "Hora de verano del este"\) |
+| `rawOffset` | number | Desplazamiento UTC en segundos \(sin horario de verano\) |
+| `dstOffset` | number | Desplazamiento de horario de verano en segundos \(0 si no está en horario de verano\) |
+| `totalOffsetSeconds` | number | Desplazamiento UTC total en segundos \(rawOffset + dstOffset\) |
+| `totalOffsetHours` | number | Desplazamiento UTC total en horas \(p. ej., -5 para EST, -4 para EDT\) |
+
+### `google_maps_validate_address`
+
+Validar y estandarizar una dirección postal
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Sí | Clave de API de Google Maps con la API de validación de direcciones habilitada |
+| `address` | string | Sí | La dirección a validar \(como una sola cadena\) |
+| `regionCode` | string | No | Código de país ISO 3166-1 alfa-2 \(p. ej., "US", "CA"\) |
+| `locality` | string | No | Nombre de ciudad o localidad |
+| `enableUspsCass` | boolean | No | Habilitar validación USPS CASS para direcciones de EE. UU. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | La dirección formateada estandarizada |
+| `lat` | number | Coordenada de latitud |
+| `lng` | number | Coordenada de longitud |
+| `placeId` | string | ID de lugar de Google para esta dirección |
+| `addressComplete` | boolean | Si la dirección está completa y es entregable |
+| `hasUnconfirmedComponents` | boolean | Si algunos componentes de la dirección no pudieron confirmarse |
+| `hasInferredComponents` | boolean | Si algunos componentes fueron inferidos \(no en la entrada\) |
+| `hasReplacedComponents` | boolean | Si algunos componentes fueron reemplazados con valores canónicos |
+| `validationGranularity` | string | Granularidad de la validación \(PREMISE, SUB_PREMISE, ROUTE, etc.\) |
+| `geocodeGranularity` | string | Granularidad del resultado de geocodificación |
+| `addressComponents` | array | Componentes de dirección detallados |
+|   ↳ `longName` | string | Nombre completo del componente |
+|   ↳ `shortName` | string | Nombre abreviado |
+|   ↳ `types` | array | Tipos de componente |
+| `missingComponentTypes` | array | Tipos de componentes de dirección que faltan |
+| `unconfirmedComponentTypes` | array | Tipos de componentes que no pudieron confirmarse |
+| `unresolvedTokens` | array | Tokens de entrada que no pudieron resolverse |

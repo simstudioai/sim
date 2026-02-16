@@ -189,3 +189,51 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
 - **独立した操作のみ**：操作が互いに依存しないようにする
 - **レート制限の処理**：API使用が多いワークフローには遅延やスロットリングを追加
 - **エラー処理**：各インスタンスは自身のエラーを適切に処理すべき
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>並列タイプ</strong>: 'count'または'collection'を選択
+      </li>
+      <li>
+        <strong>カウント</strong>: 実行するインスタンスの数(カウントベース)
+      </li>
+      <li>
+        <strong>コレクション</strong>: 分散する配列またはオブジェクト(コレクションベース)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    並列処理の**内部**でのみ利用可能:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<parallel.index>"}</strong>: インスタンス番号(0始まり)
+      </li>
+      <li>
+        <strong>{"<parallel.currentItem>"}</strong>: このインスタンスのアイテム(コレクションベースのみ)
+      </li>
+      <li>
+        <strong>{"<parallel.items>"}</strong>: 完全なコレクション(コレクションベースのみ)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: すべてのインスタンス結果の配列(ブロック名経由でアクセス)
+      </li>
+      <li>
+        <strong>アクセス</strong>: 並列処理完了後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## ベストプラクティス
+
+- **独立した操作のみ**: 操作が相互に依存しないことを確認
+- **レート制限への対処**: API負荷の高いワークフローには遅延やスロットリングを追加
+- **エラーハンドリング**: 各インスタンスは独自のエラーを適切に処理する必要がある

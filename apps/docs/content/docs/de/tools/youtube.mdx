@@ -194,3 +194,64 @@ Kommentare von einem YouTube-Video abrufen.
 
 - Kategorie: `tools`
 - Typ: `youtube`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `regionCode` | string | Nein | ISO 3166-1 alpha-2 Ländercode, um Kategorien für ein bestimmtes Land abzurufen \(z.B. "US", "GB", "JP"\). Standard ist US. |
+| `hl` | string | Nein | Sprache für Kategorietitel \(ISO 639-1 Code, z.B. "en", "es", "fr"\). Standard ist Englisch. |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videokategorien, die in der angegebenen Region verfügbar sind |
+|   ↳ `categoryId` | string | Kategorie-ID zur Verwendung in Such-/Trendfiltern \(z.B. "10" für Musik\) |
+|   ↳ `title` | string | Lesbarer Kategoriename |
+|   ↳ `assignable` | boolean | Ob Videos mit dieser Kategorie getaggt werden können |
+| `totalResults` | number | Gesamtanzahl der verfügbaren Kategorien |
+
+### `youtube_video_details`
+
+Detaillierte Informationen zu einem bestimmten YouTube-Video abrufen, einschließlich Statistiken, Inhaltsdetails, Live-Streaming-Informationen und Metadaten.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID \(11-stellige Zeichenfolge, z.B. "dQw4w9WgXcQ"\) |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube-Video-ID |
+| `title` | string | Videotitel |
+| `description` | string | Videobeschreibung |
+| `channelId` | string | Kanal-ID |
+| `channelTitle` | string | Kanalname |
+| `publishedAt` | string | Veröffentlichungsdatum und -uhrzeit |
+| `duration` | string | Videodauer im ISO 8601-Format \(z.B. "PT4M13S" für 4 Min. 13 Sek.\) |
+| `viewCount` | number | Anzahl der Aufrufe |
+| `likeCount` | number | Anzahl der Likes |
+| `commentCount` | number | Anzahl der Kommentare |
+| `favoriteCount` | number | Anzahl der Hinzufügungen zu Favoriten |
+| `thumbnail` | string | URL des Video-Thumbnails |
+| `tags` | array | Video-Tags |
+| `categoryId` | string | YouTube-Videokategorie-ID |
+| `definition` | string | Videodefinition: "hd" oder "sd" |
+| `caption` | string | Ob Untertitel verfügbar sind: "true" oder "false" |
+| `licensedContent` | boolean | Ob das Video lizenzierter Inhalt ist |
+| `privacyStatus` | string | Datenschutzstatus des Videos: "public", "private" oder "unlisted" |
+| `liveBroadcastContent` | string | Live-Übertragungsstatus: "live", "upcoming" oder "none" |
+| `defaultLanguage` | string | Standardsprache der Video-Metadaten |
+| `defaultAudioLanguage` | string | Standard-Audiosprache des Videos |
+| `isLiveContent` | boolean | Ob dieses Video ein Live-Stream ist oder war |
+| `scheduledStartTime` | string | Geplante Startzeit für bevorstehende Live-Streams \(ISO 8601\) |
+| `actualStartTime` | string | Wann der Live-Stream tatsächlich gestartet ist \(ISO 8601\) |
+| `actualEndTime` | string | Wann der Live-Stream beendet wurde \(ISO 8601\) |
+| `concurrentViewers` | number | Aktuelle Anzahl der Zuschauer \(nur für aktive Live-Streams\) |
+| `activeLiveChatId` | string | Live-Chat-ID für den Stream \(nur für aktive Live-Streams\) |

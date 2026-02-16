@@ -194,3 +194,64 @@ Obtenir les commentaires d'une vidéo YouTube.
 
 - Catégorie : `tools`
 - Type : `youtube`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `regionCode` | chaîne | Non | Code pays ISO 3166-1 alpha-2 pour obtenir les catégories \(ex. : "US", "GB", "FR"\). Par défaut : US. |
+| `hl` | chaîne | Non | Langue pour les titres de catégories \(code ISO 639-1, ex. : "en", "es", "fr"\). Par défaut : anglais. |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau des catégories de vidéos disponibles dans la région spécifiée |
+|   ↳ `categoryId` | chaîne | ID de catégorie à utiliser dans les filtres de recherche/tendances \(ex. : "10" pour Musique\) |
+|   ↳ `title` | chaîne | Nom de catégorie lisible |
+|   ↳ `assignable` | booléen | Indique si les vidéos peuvent être étiquetées avec cette catégorie |
+| `totalResults` | nombre | Nombre total de catégories disponibles |
+
+### `youtube_video_details`
+
+Obtenez des informations détaillées sur une vidéo YouTube spécifique, incluant les statistiques, les détails du contenu, les informations de diffusion en direct et les métadonnées.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube \(chaîne de 11 caractères, ex. : "dQw4w9WgXcQ"\) |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | chaîne | ID de la vidéo YouTube |
+| `title` | chaîne | Titre de la vidéo |
+| `description` | chaîne | Description de la vidéo |
+| `channelId` | chaîne | ID de la chaîne |
+| `channelTitle` | chaîne | Nom de la chaîne |
+| `publishedAt` | chaîne | Date et heure de publication |
+| `duration` | chaîne | Durée de la vidéo au format ISO 8601 \(ex. : "PT4M13S" pour 4 min 13 s\) |
+| `viewCount` | nombre | Nombre de vues |
+| `likeCount` | nombre | Nombre de mentions j'aime |
+| `commentCount` | nombre | Nombre de commentaires |
+| `favoriteCount` | nombre | Nombre de fois ajoutée aux favoris |
+| `thumbnail` | chaîne | URL de la miniature de la vidéo |
+| `tags` | tableau | Tags de la vidéo |
+| `categoryId` | chaîne | ID de catégorie de la vidéo YouTube |
+| `definition` | chaîne | Définition de la vidéo : "hd" ou "sd" |
+| `caption` | chaîne | Indique si les sous-titres sont disponibles : "true" ou "false" |
+| `licensedContent` | booléen | Indique si la vidéo est un contenu sous licence |
+| `privacyStatus` | chaîne | Statut de confidentialité de la vidéo : "public", "private" ou "unlisted" |
+| `liveBroadcastContent` | chaîne | Statut de diffusion en direct : "live", "upcoming" ou "none" |
+| `defaultLanguage` | chaîne | Langue par défaut des métadonnées de la vidéo |
+| `defaultAudioLanguage` | chaîne | Langue audio par défaut de la vidéo |
+| `isLiveContent` | booléen | Indique si cette vidéo est ou a été une diffusion en direct |
+| `scheduledStartTime` | chaîne | Heure de début prévue pour les diffusions en direct à venir \(ISO 8601\) |
+| `actualStartTime` | chaîne | Moment où la diffusion en direct a réellement commencé \(ISO 8601\) |
+| `actualEndTime` | chaîne | Moment où la diffusion en direct s'est terminée \(ISO 8601\) |
+| `concurrentViewers` | nombre | Nombre actuel de spectateurs \(uniquement pour les diffusions en direct actives\) |
+| `activeLiveChatId` | chaîne | ID du chat en direct pour la diffusion \(uniquement pour les diffusions en direct actives\) |

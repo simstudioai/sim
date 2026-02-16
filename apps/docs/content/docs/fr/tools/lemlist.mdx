@@ -1,0 +1,115 @@
+---
+title: Lemlist
+description: Gérez les activités de prospection, les leads et envoyez des emails via Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Boostez votre prospection commerciale et votre engagement avec [Lemlist](https://lemlist.com) – la plateforme d'automatisation de prospection personnalisée utilisée par des milliers d'équipes commerciales. Avec Lemlist, vous pouvez automatiser des campagnes multicanales, nourrir vos leads et augmenter vos taux de réponse, tout en gardant votre communication hautement personnalisée et authentique.
+
+Avec l'intégration Lemlist, vous pouvez :
+
+- **Automatiser les séquences de prospection :** lancez des campagnes personnalisées par email, LinkedIn et appels téléphoniques à grande échelle, adaptées à chaque destinataire.
+- **Suivre l'activité des campagnes :** surveillez instantanément les ouvertures, clics, réponses, rebonds et chaque interaction avec les leads pour des insights granulaires sur vos campagnes.
+- **Centraliser les données d'engagement :** récupérez l'activité et les réponses en temps réel pour chaque campagne ou lead, et synchronisez-les directement dans votre automatisation de workflow.
+- **Obtenir automatiquement les détails des leads :** récupérez les informations enrichies des leads par email ou ID pour maintenir votre CRM et vos processus à jour sans saisie manuelle.
+- **Envoyer des emails ciblés depuis votre boîte de réception :** déclenchez des emails personnalisés aux leads directement depuis le workflow, en utilisant des modèles et données à jour.
+- **Améliorer la collaboration d'équipe et le suivi :** assignez des leads, suivez les résultats et assurez-vous qu'aucun prospect n'est perdu grâce aux outils intégrés de Lemlist—tous accessibles via l'automatisation.
+
+Lemlist permet aux équipes commerciales, marketing et de prospection sortante de gagner du temps, de personnaliser à grande échelle et de convertir plus de prospects. Automatisez et optimisez vos campagnes, intégrez-les à votre stack et ne manquez jamais une opportunité précieuse.
+
+Générez plus de réponses, planifiez plus de rendez-vous et développez votre pipeline en connectant Lemlist à vos workflows automatisés dès aujourd'hui !
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Lemlist dans votre flux de travail. Récupérez les activités de campagne et les réponses, obtenez les informations sur les prospects et envoyez des e-mails via la boîte de réception Lemlist.
+
+## Outils
+
+### `lemlist_get_activities`
+
+Récupère les activités et étapes de campagne effectuées, y compris les ouvertures d'e-mails, les clics, les réponses et autres événements.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Lemlist |
+| `type` | string | Non | Filtrer par type d'activité \(par ex., emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | Non | Filtrer par ID de campagne \(par ex., "cam_abc123def456"\) |
+| `leadId` | string | Non | Filtrer par ID de prospect \(par ex., "lea_abc123def456"\) |
+| `isFirst` | boolean | Non | Filtrer pour la première activité uniquement |
+| `limit` | number | Non | Nombre de résultats par requête \(par ex., 50\). Max 100, par défaut 100 |
+| `offset` | number | Non | Nombre d'enregistrements à ignorer pour la pagination \(par ex., 0, 100, 200\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | Liste des activités |
+|   ↳ `_id` | string | ID de l'activité |
+|   ↳ `type` | string | Type d'activité |
+|   ↳ `leadId` | string | ID du prospect associé |
+|   ↳ `campaignId` | string | ID de la campagne |
+|   ↳ `sequenceId` | string | ID de la séquence |
+|   ↳ `stepId` | string | ID de l'étape |
+|   ↳ `createdAt` | string | Quand l'activité s'est produite |
+| `count` | number | Nombre d'activités retournées |
+
+### `lemlist_get_lead`
+
+Récupère les informations d'un lead par adresse e-mail ou identifiant de lead.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Lemlist |
+| `leadIdentifier` | string | Oui | Adresse e-mail du lead \(par ex., "john@example.com"\) ou identifiant du lead \(par ex., "lea_abc123def456"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `_id` | string | Identifiant du lead |
+| `email` | string | Adresse e-mail du lead |
+| `firstName` | string | Prénom du lead |
+| `lastName` | string | Nom de famille du lead |
+| `companyName` | string | Nom de l'entreprise |
+| `jobTitle` | string | Intitulé du poste |
+| `companyDomain` | string | Domaine de l'entreprise |
+| `isPaused` | boolean | Indique si le lead est en pause |
+| `campaignId` | string | Identifiant de la campagne à laquelle appartient le lead |
+| `contactId` | string | Identifiant du contact |
+| `emailStatus` | string | Statut de délivrabilité de l'e-mail |
+
+### `lemlist_send_email`
+
+Envoie un e-mail à un contact via la boîte de réception Lemlist.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Lemlist |
+| `sendUserId` | string | Oui | Identifiant de l'utilisateur envoyant le message \(par ex., "usr_abc123def456"\) |
+| `sendUserEmail` | string | Oui | Adresse e-mail de l'expéditeur \(par ex., "sales@company.com"\) |
+| `sendUserMailboxId` | string | Oui | Identifiant de la boîte mail de l'expéditeur \(par ex., "mbx_abc123def456"\) |
+| `contactId` | string | Oui | Identifiant du contact destinataire \(par ex., "con_abc123def456"\) |
+| `leadId` | string | Oui | Identifiant du lead associé \(par ex., "lea_abc123def456"\) |
+| `subject` | string | Oui | Objet de l'e-mail |
+| `message` | string | Oui | Corps du message e-mail au format HTML |
+| `cc` | json | Non | Tableau des adresses e-mail en copie |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Indique si l'e-mail a été envoyé avec succès |

@@ -484,3 +484,68 @@ Approuver ou refuser une demande d'approbation dans Jira Service Management
 
 - Catégorie : `tools`
 - Type : `jira_service_management`
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(par exemple, votreentreprise.atlassian.net\) |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance |
+| `issueIdOrKey` | string | Oui | ID ou clé du ticket \(par exemple, SD-123\) |
+| `approvalId` | string | Oui | ID de l'approbation à répondre |
+| `decision` | string | Oui | Décision : "approve" ou "decline" |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `issueIdOrKey` | string | ID ou clé du ticket |
+| `approvalId` | string | ID de l'approbation |
+| `decision` | string | Décision prise \(approve/decline\) |
+| `id` | string | ID de l'approbation depuis la réponse |
+| `name` | string | Description de l'approbation |
+| `finalDecision` | string | Décision finale de l'approbation : pending, approved ou declined |
+| `canAnswerApproval` | boolean | Si l'utilisateur actuel peut encore répondre |
+| `approvers` | array | Liste mise à jour des approbateurs avec leurs décisions |
+|   ↳ `approver` | object | Détails de l'utilisateur approbateur |
+|     ↳ `accountId` | string | ID du compte de l'approbateur |
+|     ↳ `displayName` | string | Nom d'affichage de l'approbateur |
+|     ↳ `emailAddress` | string | E-mail de l'approbateur |
+|     ↳ `active` | boolean | Si le compte est actif |
+|   ↳ `approverDecision` | string | Décision individuelle de l'approbateur |
+| `createdDate` | json | Date de création de l'approbation |
+| `completedDate` | json | Date de finalisation de l'approbation |
+| `approval` | json | L'objet d'approbation |
+| `success` | boolean | Si l'opération a réussi |
+
+### `jsm_get_request_type_fields`
+
+Obtenir les champs requis pour créer une demande d'un type spécifique dans Jira Service Management
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira \(par exemple, votreentreprise.atlassian.net\) |
+| `cloudId` | string | Non | ID Cloud Jira pour l'instance |
+| `serviceDeskId` | string | Oui | ID du Service Desk \(par exemple, "1", "2"\) |
+| `requestTypeId` | string | Oui | ID du type de demande \(par exemple, "10", "15"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Horodatage de l'opération |
+| `serviceDeskId` | string | ID du Service Desk |
+| `requestTypeId` | string | ID du type de demande |
+| `canAddRequestParticipants` | boolean | Indique si des participants peuvent être ajoutés aux demandes de ce type |
+| `canRaiseOnBehalfOf` | boolean | Indique si des demandes peuvent être créées au nom d'un autre utilisateur |
+| `requestTypeFields` | array | Liste des champs pour ce type de demande |
+|   ↳ `fieldId` | string | Identifiant du champ \(par exemple, summary, description, customfield_10010\) |
+|   ↳ `name` | string | Nom lisible du champ |
+|   ↳ `description` | string | Texte d'aide pour le champ |
+|   ↳ `required` | boolean | Indique si le champ est obligatoire |
+|   ↳ `visible` | boolean | Indique si le champ est visible |
+|   ↳ `validValues` | json | Valeurs autorisées pour les champs de sélection |
+|   ↳ `presetValues` | json | Valeurs pré-remplies |
+|   ↳ `defaultValues` | json | Valeurs par défaut pour le champ |
+|   ↳ `jiraSchema` | json | Schéma du champ Jira avec type, system, custom, customId |

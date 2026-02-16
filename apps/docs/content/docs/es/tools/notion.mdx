@@ -173,3 +173,34 @@ Crear una nueva base de datos en Notion con propiedades personalizadas
 
 - Categoría: `tools`
 - Tipo: `notion`
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | UUID de la base de datos |
+| `url` | string | URL de la base de datos de Notion |
+| `created_time` | string | Marca de tiempo de creación ISO 8601 |
+| `properties` | object | Esquema de propiedades de la base de datos |
+| `title` | string | Título de la base de datos |
+
+### `notion_add_database_row`
+
+Añadir una nueva fila a una base de datos de Notion con propiedades especificadas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Sí | ID de la base de datos a la que añadir la fila |
+| `properties` | json | Sí | Propiedades de la fila como objeto JSON que coincida con el esquema de la base de datos \(ej., \{"Name": \{"title": \[\{"text": \{"content": "Tarea 1"\}\}\]\}, "Status": \{"select": \{"name": "Hecho"\}\}\}\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | UUID de la página |
+| `url` | string | URL de la página de Notion |
+| `created_time` | string | Marca de tiempo de creación ISO 8601 |
+| `last_edited_time` | string | Marca de tiempo de última edición ISO 8601 |
+| `title` | string | Título de la fila |

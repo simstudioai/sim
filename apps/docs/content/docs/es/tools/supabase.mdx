@@ -495,3 +495,21 @@ Crear una URL firmada temporal para un archivo en un bucket de almacenamiento de
 
 - Categoría: `tools`
 - Tipo: `supabase`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Sí | El nombre del bucket de almacenamiento |
+| `path` | string | Sí | La ruta al archivo \(p. ej., "carpeta/archivo.jpg"\) |
+| `expiresIn` | number | Sí | Número de segundos hasta que expire la URL \(p. ej., 3600 para 1 hora\) |
+| `download` | boolean | No | Si es verdadero, fuerza la descarga en lugar de mostrar en línea \(predeterminado: false\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `signedUrl` | string | La URL firmada temporal para acceder al archivo |

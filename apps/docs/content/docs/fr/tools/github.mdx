@@ -1171,3 +1171,1373 @@ Supprimer un projet GitHub V2. Cette action est permanente et ne peut pas être 
 
 - Catégorie : `tools`
 - Type : `github`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Oui | Requête de recherche avec qualificateurs optionnels \(repo:, language:, path:, extension:, user:, org:\) |
+| `sort` | string | Non | Trier par date d'indexation \(par défaut : meilleure correspondance\) |
+| `order` | string | Non | Ordre de tri : asc ou desc \(par défaut : desc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Total des résultats correspondants |
+| `incomplete_results` | boolean | Si les résultats sont incomplets |
+| `items` | array | Tableau des correspondances de code de l'API GitHub |
+|   ↳ `name` | string | Nom du fichier |
+|   ↳ `path` | string | Chemin du fichier |
+|   ↳ `sha` | string | SHA du blob |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `git_url` | string | URL du blob Git |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `score` | number | Score de pertinence de la recherche |
+|   ↳ `repository` | object | Dépôt contenant le code |
+|     ↳ `id` | number | ID du dépôt |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `name` | string | Nom du dépôt |
+|     ↳ `full_name` | string | Nom complet \(propriétaire/dépôt\) |
+|     ↳ `private` | boolean | Si le dépôt est privé |
+|     ↳ `html_url` | string | URL web GitHub |
+|     ↳ `description` | string | Description du dépôt |
+|     ↳ `fork` | boolean | Si c'est un fork |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `owner` | object | Propriétaire du dépôt |
+|       ↳ `login` | string | Nom d'utilisateur |
+|       ↳ `id` | number | ID de l'utilisateur |
+|       ↳ `node_id` | string | ID de nœud GraphQL |
+|       ↳ `avatar_url` | string | URL de l'image d'avatar |
+|       ↳ `url` | string | URL de l'API |
+|       ↳ `html_url` | string | URL de la page de profil |
+|       ↳ `type` | string | Utilisateur ou organisation |
+|       ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `text_matches` | array | Correspondances de texte montrant le contexte |
+|     ↳ `object_url` | string | URL de l'objet |
+|     ↳ `object_type` | string | Type d'objet |
+|     ↳ `property` | string | Propriété correspondante |
+|     ↳ `fragment` | string | Fragment de texte avec correspondance |
+|     ↳ `matches` | array | Indices de correspondance |
+|       ↳ `text` | string | Texte correspondant |
+|       ↳ `indices` | array | Indices de début et de fin |
+
+### `github_search_commits`
+
+Rechercher des commits sur GitHub. Utilisez des qualificateurs comme repo:owner/name, author:user, committer:user, author-date:>2023-01-01
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `q` | string | Oui | Requête de recherche avec qualificateurs optionnels \(repo:, author:, committer:, author-date:, committer-date:, merge:true/false\) |
+| `sort` | string | Non | Trier par : author-date ou committer-date \(par défaut : meilleure correspondance\) |
+| `order` | string | Non | Ordre de tri : asc ou desc \(par défaut : desc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Nombre total de résultats correspondants |
+| `incomplete_results` | boolean | Si les résultats sont incomplets |
+| `items` | array | Tableau d'objets commit de l'API GitHub |
+|   ↳ `sha` | string | SHA du commit |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `html_url` | string | URL web |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `comments_url` | string | URL de l'API des commentaires |
+|   ↳ `score` | number | Score de pertinence de la recherche |
+|   ↳ `commit` | object | Données principales du commit |
+|     ↳ `url` | string | URL de l'API du commit |
+|     ↳ `message` | string | Message du commit |
+|     ↳ `comment_count` | number | Nombre de commentaires |
+|     ↳ `author` | object | Auteur Git |
+|       ↳ `name` | string | Nom de l'auteur |
+|       ↳ `email` | string | Email de l'auteur |
+|       ↳ `date` | string | Date de l'auteur \(ISO 8601\) |
+|     ↳ `committer` | object | Committer Git |
+|       ↳ `name` | string | Nom du committer |
+|       ↳ `email` | string | Email du committer |
+|       ↳ `date` | string | Date du commit \(ISO 8601\) |
+|     ↳ `tree` | object | Objet arbre |
+|       ↳ `sha` | string | SHA de l'arbre |
+|       ↳ `url` | string | URL de l'API de l'arbre |
+|   ↳ `author` | object | Utilisateur GitHub \(auteur\) |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL du profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `committer` | object | Utilisateur GitHub \(committer\) |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL du profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `repository` | object | Dépôt contenant le commit |
+|     ↳ `id` | number | ID du dépôt |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `name` | string | Nom du dépôt |
+|     ↳ `full_name` | string | Nom complet \(owner/repo\) |
+|     ↳ `private` | boolean | Si le dépôt est privé |
+|     ↳ `html_url` | string | URL web GitHub |
+|     ↳ `description` | string | Description du dépôt |
+|     ↳ `owner` | object | Propriétaire du dépôt |
+|       ↳ `login` | string | Nom d'utilisateur |
+|       ↳ `id` | number | ID utilisateur |
+|       ↳ `node_id` | string | ID de nœud GraphQL |
+|       ↳ `avatar_url` | string | URL de l'image d'avatar |
+|       ↳ `url` | string | URL de l'API |
+|       ↳ `html_url` | string | URL de la page de profil |
+|       ↳ `type` | string | User ou Organization |
+|       ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `parents` | array | Commits parents |
+|     ↳ `sha` | string | SHA du parent |
+|     ↳ `url` | string | URL de l'API du parent |
+|     ↳ `html_url` | string | URL web du parent |
+
+### `github_search_issues`
+
+Rechercher des problèmes et des pull requests sur GitHub. Utilisez des qualificateurs comme repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `q` | string | Oui | Requête de recherche avec qualificateurs optionnels \(repo:, is:issue, is:pr, state:, label:, author:, assignee:\) |
+| `sort` | string | Non | Trier par : comments, reactions, created, updated, interactions \(par défaut : meilleure correspondance\) |
+| `order` | string | Non | Ordre de tri : asc ou desc \(par défaut : desc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Nombre total de résultats correspondants |
+| `incomplete_results` | boolean | Indique si les résultats sont incomplets |
+| `items` | array | Tableau d'objets issue/PR de l'API GitHub |
+|   ↳ `id` | number | ID du problème |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `number` | number | Numéro du problème |
+|   ↳ `title` | string | Titre |
+|   ↳ `state` | string | État \(open ou closed\) |
+|   ↳ `locked` | boolean | Indique si le problème est verrouillé |
+|   ↳ `html_url` | string | URL web |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `repository_url` | string | URL de l'API du dépôt |
+|   ↳ `comments_url` | string | URL de l'API des commentaires |
+|   ↳ `body` | string | Texte du corps |
+|   ↳ `comments` | number | Nombre de commentaires |
+|   ↳ `score` | number | Score de pertinence de la recherche |
+|   ↳ `created_at` | string | Horodatage de création |
+|   ↳ `updated_at` | string | Horodatage de dernière mise à jour |
+|   ↳ `closed_at` | string | Horodatage de fermeture |
+|   ↳ `user` | object | Auteur du problème |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `labels` | array | Étiquettes du problème |
+|     ↳ `id` | number | ID de l'étiquette |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `name` | string | Nom de l'étiquette |
+|     ↳ `description` | string | Description de l'étiquette |
+|     ↳ `color` | string | Code couleur hexadécimal |
+|     ↳ `default` | boolean | Indique s'il s'agit d'une étiquette par défaut |
+|   ↳ `assignee` | object | Assigné principal |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `assignees` | array | Tous les assignés |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `milestone` | object | Jalon associé |
+|     ↳ `id` | number | ID du jalon |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `number` | number | Numéro du jalon |
+|     ↳ `title` | string | Titre du jalon |
+|     ↳ `description` | string | Description du jalon |
+|     ↳ `state` | string | État \(open ou closed\) |
+|     ↳ `html_url` | string | URL web |
+|     ↳ `due_on` | string | Date d'échéance |
+|   ↳ `pull_request` | object | Détails de la pull request \(si c'est une PR\) |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL web |
+|     ↳ `diff_url` | string | URL du diff |
+|     ↳ `patch_url` | string | URL du patch |
+
+### `github_search_repos`
+
+Rechercher des dépôts sur GitHub. Utilisez des qualificateurs comme language:python, stars:>1000, topic:react, user:owner, org:name
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `q` | string | Oui | Requête de recherche avec qualificateurs optionnels \(language:, stars:, forks:, topic:, user:, org:, in:name,description,readme\) |
+| `sort` | string | Non | Trier par : stars, forks, help-wanted-issues, updated \(par défaut : meilleure correspondance\) |
+| `order` | string | Non | Ordre de tri : asc ou desc \(par défaut : desc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Nombre total de résultats correspondants |
+| `incomplete_results` | boolean | Si les résultats sont incomplets |
+| `items` | array | Tableau d'objets de dépôts de l'API GitHub |
+|   ↳ `id` | number | ID du dépôt |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `name` | string | Nom du dépôt |
+|   ↳ `full_name` | string | Nom complet \(propriétaire/dépôt\) |
+|   ↳ `private` | boolean | Si le dépôt est privé |
+|   ↳ `description` | string | Description du dépôt |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `fork` | boolean | Si c'est un fork |
+|   ↳ `created_at` | string | Horodatage de création |
+|   ↳ `updated_at` | string | Horodatage de dernière mise à jour |
+|   ↳ `pushed_at` | string | Horodatage du dernier push |
+|   ↳ `size` | number | Taille du dépôt en Ko |
+|   ↳ `stargazers_count` | number | Nombre d'étoiles |
+|   ↳ `watchers_count` | number | Nombre de watchers |
+|   ↳ `forks_count` | number | Nombre de forks |
+|   ↳ `open_issues_count` | number | Nombre de problèmes ouverts |
+|   ↳ `language` | string | Langage de programmation principal |
+|   ↳ `default_branch` | string | Nom de la branche par défaut |
+|   ↳ `visibility` | string | Visibilité du dépôt |
+|   ↳ `archived` | boolean | Si le dépôt est archivé |
+|   ↳ `disabled` | boolean | Si le dépôt est désactivé |
+|   ↳ `score` | number | Score de pertinence de la recherche |
+|   ↳ `topics` | array | Sujets du dépôt |
+|   ↳ `license` | object | Informations sur la licence |
+|     ↳ `key` | string | Clé de licence \(par exemple, mit\) |
+|     ↳ `name` | string | Nom de la licence |
+|     ↳ `spdx_id` | string | Identifiant SPDX |
+|   ↳ `owner` | object | Propriétaire du dépôt |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID de l'utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+
+### `github_search_users`
+
+Rechercher des utilisateurs et des organisations sur GitHub. Utilisez des qualificateurs comme type:user, type:org, followers:>1000, repos:>10, location:ville
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `q` | string | Oui | Requête de recherche avec qualificateurs optionnels \(type:user/org, followers:, repos:, location:, language:, created:\) |
+| `sort` | string | Non | Trier par : followers, repositories, joined \(par défaut : meilleure correspondance\) |
+| `order` | string | Non | Ordre de tri : asc ou desc \(par défaut : desc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_count` | number | Nombre total de résultats correspondants |
+| `incomplete_results` | boolean | Indique si les résultats sont incomplets |
+| `items` | array | Tableau d'objets utilisateur de l'API GitHub |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `gravatar_id` | string | ID Gravatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `followers_url` | string | URL de l'API des abonnés |
+|   ↳ `following_url` | string | URL de l'API des abonnements |
+|   ↳ `gists_url` | string | URL de l'API des gists |
+|   ↳ `starred_url` | string | URL de l'API des éléments suivis |
+|   ↳ `repos_url` | string | URL de l'API des dépôts |
+|   ↳ `organizations_url` | string | URL de l'API des organisations |
+|   ↳ `type` | string | User ou Organization |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `score` | number | Score de pertinence de recherche |
+
+### `github_list_commits`
+
+Lister les commits d'un dépôt avec filtrage optionnel par SHA, chemin, auteur, committer ou plage de dates
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `sha` | string | Non | SHA ou branche à partir de laquelle lister les commits |
+| `path` | string | Non | Uniquement les commits contenant ce chemin de fichier |
+| `author` | string | Non | Identifiant GitHub ou adresse e-mail pour filtrer par auteur |
+| `committer` | string | Non | Identifiant GitHub ou adresse e-mail pour filtrer par committer |
+| `since` | string | Non | Uniquement les commits après cette date \(format ISO 8601\) |
+| `until` | string | Non | Uniquement les commits avant cette date \(format ISO 8601\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Tableau d'objets commit de l'API GitHub |
+|   ↳ `commit` | object | Données principales du commit |
+|     ↳ `url` | string | URL de l'API du commit |
+|     ↳ `message` | string | Message du commit |
+|     ↳ `comment_count` | number | Nombre de commentaires |
+|     ↳ `author` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `committer` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `tree` | object | Objet arbre |
+|       ↳ `sha` | string | SHA de l'arbre |
+|       ↳ `url` | string | URL de l'API de l'arbre |
+|     ↳ `verification` | object | Vérification de signature |
+|       ↳ `verified` | boolean | Si la signature est vérifiée |
+|       ↳ `reason` | string | Raison de la vérification |
+|       ↳ `signature` | string | Signature GPG |
+|       ↳ `payload` | string | Charge utile signée |
+|   ↳ `author` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `committer` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `sha` | string | SHA du commit |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `comments_url` | string | URL de l'API des commentaires |
+|   ↳ `parents` | array | Commits parents |
+|     ↳ `sha` | string | SHA du parent |
+|     ↳ `url` | string | URL de l'API du parent |
+|     ↳ `html_url` | string | URL web du parent |
+| `count` | number | Nombre de commits retournés |
+
+### `github_get_commit`
+
+Obtenir des informations détaillées sur un commit spécifique, y compris les fichiers modifiés et les statistiques
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `ref` | string | Oui | SHA du commit, nom de branche ou nom de tag |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `commit` | object | Données principales du commit |
+|   ↳ `url` | string | URL de l'API du commit |
+|   ↳ `message` | string | Message du commit |
+|   ↳ `comment_count` | number | Nombre de commentaires |
+|   ↳ `author` | object | Acteur Git \(auteur/commiteur\) |
+|     ↳ `name` | string | Nom |
+|     ↳ `email` | string | Adresse e-mail |
+|     ↳ `date` | string | Horodatage \(ISO 8601\) |
+|   ↳ `committer` | object | Acteur Git \(auteur/commiteur\) |
+|     ↳ `name` | string | Nom |
+|     ↳ `email` | string | Adresse e-mail |
+|     ↳ `date` | string | Horodatage \(ISO 8601\) |
+|   ↳ `tree` | object | Objet arbre |
+|     ↳ `sha` | string | SHA de l'arbre |
+|     ↳ `url` | string | URL de l'API de l'arbre |
+|   ↳ `verification` | object | Vérification de signature |
+|     ↳ `verified` | boolean | Si la signature est vérifiée |
+|     ↳ `reason` | string | Raison de la vérification |
+|     ↳ `signature` | string | Signature GPG |
+|     ↳ `payload` | string | Charge utile signée |
+| `author` | object | Objet utilisateur GitHub |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `committer` | object | Objet utilisateur GitHub |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `stats` | object | Statistiques de modifications |
+|   ↳ `additions` | number | Lignes ajoutées |
+|   ↳ `deletions` | number | Lignes supprimées |
+|   ↳ `total` | number | Total des modifications |
+| `sha` | string | SHA du commit |
+| `node_id` | string | ID de nœud GraphQL |
+| `html_url` | string | URL web GitHub |
+| `url` | string | URL de l'API |
+| `comments_url` | string | URL de l'API des commentaires |
+| `files` | array | Fichiers modifiés \(entrées de diff\) |
+|   ↳ `sha` | string | SHA du blob |
+|   ↳ `filename` | string | Chemin du fichier |
+|   ↳ `status` | string | Statut de modification \(added, removed, modified, renamed, copied, changed, unchanged\) |
+|   ↳ `additions` | number | Lignes ajoutées |
+|   ↳ `deletions` | number | Lignes supprimées |
+|   ↳ `changes` | number | Total des modifications |
+|   ↳ `blob_url` | string | URL du blob |
+|   ↳ `raw_url` | string | URL du fichier brut |
+|   ↳ `contents_url` | string | URL de l'API des contenus |
+|   ↳ `patch` | string | Patch de diff |
+|   ↳ `previous_filename` | string | Nom de fichier précédent \(pour les renommages\) |
+| `parents` | array | Commits parents |
+|   ↳ `sha` | string | SHA du parent |
+|   ↳ `url` | string | URL de l'API du parent |
+|   ↳ `html_url` | string | URL web du parent |
+
+### `github_compare_commits`
+
+Comparer deux commits ou branches pour voir la différence, les commits entre eux et les fichiers modifiés
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `base` | string | Oui | Branche/tag/SHA de base pour la comparaison |
+| `head` | string | Oui | Branche/tag/SHA head pour la comparaison |
+| `per_page` | number | Non | Résultats par page pour les fichiers \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page pour les fichiers \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web GitHub |
+| `permalink_url` | string | URL de lien permanent |
+| `diff_url` | string | URL de téléchargement de la différence |
+| `patch_url` | string | URL de téléchargement du patch |
+| `status` | string | Statut de la comparaison \(ahead, behind, identical, diverged\) |
+| `ahead_by` | number | Commits dont head est en avance sur base |
+| `behind_by` | number | Commits dont head est en retard sur base |
+| `total_commits` | number | Total des commits dans la comparaison |
+| `base_commit` | object | Objet commit de base |
+|   ↳ `commit` | object | Données principales du commit |
+|     ↳ `url` | string | URL de l'API du commit |
+|     ↳ `message` | string | Message du commit |
+|     ↳ `comment_count` | number | Nombre de commentaires |
+|     ↳ `author` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `committer` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `tree` | object | Objet arborescence |
+|       ↳ `sha` | string | SHA de l'arborescence |
+|       ↳ `url` | string | URL de l'API de l'arborescence |
+|     ↳ `verification` | object | Vérification de signature |
+|       ↳ `verified` | boolean | Si la signature est vérifiée |
+|       ↳ `reason` | string | Raison de la vérification |
+|       ↳ `signature` | string | Signature GPG |
+|       ↳ `payload` | string | Charge utile signée |
+|   ↳ `author` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `committer` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `sha` | string | SHA du commit |
+|   ↳ `html_url` | string | URL web |
+| `merge_base_commit` | object | Objet commit de base de fusion |
+|   ↳ `sha` | string | SHA du commit |
+|   ↳ `html_url` | string | URL web |
+| `commits` | array | Commits entre base et head |
+|   ↳ `commit` | object | Données principales du commit |
+|     ↳ `url` | string | URL de l'API du commit |
+|     ↳ `message` | string | Message du commit |
+|     ↳ `comment_count` | number | Nombre de commentaires |
+|     ↳ `author` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `committer` | object | Acteur Git \(auteur/committer\) |
+|       ↳ `name` | string | Nom |
+|       ↳ `email` | string | Adresse e-mail |
+|       ↳ `date` | string | Horodatage \(ISO 8601\) |
+|     ↳ `tree` | object | Objet arborescence |
+|       ↳ `sha` | string | SHA de l'arborescence |
+|       ↳ `url` | string | URL de l'API de l'arborescence |
+|     ↳ `verification` | object | Vérification de signature |
+|       ↳ `verified` | boolean | Si la signature est vérifiée |
+|       ↳ `reason` | string | Raison de la vérification |
+|       ↳ `signature` | string | Signature GPG |
+|       ↳ `payload` | string | Charge utile signée |
+|   ↳ `author` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `committer` | object | Objet utilisateur GitHub |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `sha` | string | SHA du commit |
+|   ↳ `html_url` | string | URL web |
+| `files` | array | Fichiers modifiés \(entrées de différence\) |
+|   ↳ `sha` | string | SHA du blob |
+|   ↳ `filename` | string | Chemin du fichier |
+|   ↳ `status` | string | Statut de modification \(added, removed, modified, renamed, copied, changed, unchanged\) |
+|   ↳ `additions` | number | Lignes ajoutées |
+|   ↳ `deletions` | number | Lignes supprimées |
+|   ↳ `changes` | number | Total des modifications |
+|   ↳ `blob_url` | string | URL du blob |
+|   ↳ `raw_url` | string | URL du fichier brut |
+|   ↳ `contents_url` | string | URL de l'API des contenus |
+|   ↳ `patch` | string | Patch de différence |
+|   ↳ `previous_filename` | string | Nom de fichier précédent \(pour les renommages\) |
+
+### `github_create_gist`
+
+Créer un nouveau gist avec un ou plusieurs fichiers
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `description` | string | Non | Description du gist |
+| `files` | json | Oui | Objet JSON avec les noms de fichiers comme clés et le contenu comme valeurs. Exemple : \{"fichier.txt": \{"content": "Bonjour"\}\} |
+| `public` | boolean | Non | Si le gist est public \(par défaut : false\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID du gist |
+| `node_id` | string | ID de nœud GraphQL |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web |
+| `forks_url` | string | URL de l'API des forks |
+| `commits_url` | string | URL de l'API des commits |
+| `git_pull_url` | string | URL de pull Git |
+| `git_push_url` | string | URL de push Git |
+| `description` | string | Description du gist |
+| `public` | boolean | Si le gist est public |
+| `truncated` | boolean | Si les fichiers sont tronqués |
+| `comments` | number | Nombre de commentaires |
+| `comments_url` | string | URL de l'API des commentaires |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `files` | object | Fichiers dans le gist \(objet avec les noms de fichiers comme clés, chacun contenant filename, type, language, raw_url, size, truncated, content\) |
+| `owner` | object | Propriétaire du gist |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | User ou Organization |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+
+### `github_get_gist`
+
+Récupérer un gist par ID incluant le contenu de ses fichiers
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | object | Fichiers dans le gist \(indexés par nom de fichier\) |
+|   ↳ `filename` | string | Nom du fichier |
+|   ↳ `type` | string | Type MIME |
+|   ↳ `language` | string | Langage de programmation |
+|   ↳ `raw_url` | string | URL du fichier brut |
+|   ↳ `size` | number | Taille du fichier en octets |
+|   ↳ `truncated` | boolean | Si le contenu est tronqué |
+|   ↳ `content` | string | Contenu du fichier |
+| `owner` | object | Propriétaire du gist |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `id` | string | ID du gist |
+| `node_id` | string | ID de nœud GraphQL |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web GitHub |
+| `forks_url` | string | URL de l'API des forks |
+| `commits_url` | string | URL de l'API des commits |
+| `git_pull_url` | string | URL de clonage Git |
+| `git_push_url` | string | URL de push Git |
+| `description` | string | Description du gist |
+| `public` | boolean | Si le gist est public |
+| `truncated` | boolean | Si le contenu est tronqué |
+| `comments` | number | Nombre de commentaires |
+| `comments_url` | string | URL de l'API des commentaires |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+
+### `github_list_gists`
+
+Lister les gists d'un utilisateur ou de l'utilisateur authentifié
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `username` | string | Non | Nom d'utilisateur GitHub \(omettre pour les gists de l'utilisateur authentifié\) |
+| `since` | string | Non | Uniquement les gists mis à jour après cette date \(ISO 8601\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Tableau d'objets gist de l'API GitHub |
+|   ↳ `files` | object | Fichiers dans le gist \(indexés par nom de fichier\) |
+|     ↳ `filename` | string | Nom du fichier |
+|     ↳ `type` | string | Type MIME |
+|     ↳ `language` | string | Langage de programmation |
+|     ↳ `raw_url` | string | URL du fichier brut |
+|     ↳ `size` | number | Taille du fichier en octets |
+|     ↳ `truncated` | boolean | Si le contenu est tronqué |
+|     ↳ `content` | string | Contenu du fichier |
+|   ↳ `owner` | object | Propriétaire du gist |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | User ou Organization |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `id` | string | ID du gist |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `forks_url` | string | URL de l'API des forks |
+|   ↳ `commits_url` | string | URL de l'API des commits |
+|   ↳ `git_pull_url` | string | URL de clone Git |
+|   ↳ `git_push_url` | string | URL de push Git |
+|   ↳ `description` | string | Description du gist |
+|   ↳ `public` | boolean | Si le gist est public |
+|   ↳ `truncated` | boolean | Si le contenu est tronqué |
+|   ↳ `comments` | number | Nombre de commentaires |
+|   ↳ `comments_url` | string | URL de l'API des commentaires |
+|   ↳ `created_at` | string | Horodatage de création |
+|   ↳ `updated_at` | string | Horodatage de dernière mise à jour |
+| `count` | number | Nombre de gists retournés |
+
+### `github_update_gist`
+
+Mettre à jour la description ou les fichiers d'un gist. Pour supprimer un fichier, définissez sa valeur sur null dans l'objet files
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist à mettre à jour |
+| `description` | string | Non | Nouvelle description pour le gist |
+| `files` | json | Non | Objet JSON avec les noms de fichiers comme clés. Définir sur null pour supprimer, ou fournir le contenu pour mettre à jour/ajouter |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID du gist |
+| `node_id` | string | ID de nœud GraphQL |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web |
+| `forks_url` | string | URL de l'API des forks |
+| `commits_url` | string | URL de l'API des commits |
+| `git_pull_url` | string | URL de pull Git |
+| `git_push_url` | string | URL de push Git |
+| `description` | string | Description du gist |
+| `public` | boolean | Si le gist est public |
+| `truncated` | boolean | Si les fichiers sont tronqués |
+| `comments` | number | Nombre de commentaires |
+| `comments_url` | string | URL de l'API des commentaires |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `files` | object | Fichiers dans le gist \(objet avec les noms de fichiers comme clés, chacun contenant filename, type, language, raw_url, size, truncated, content\) |
+| `owner` | object | Propriétaire du gist |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+
+### `github_delete_gist`
+
+Supprimer un gist par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist à supprimer |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si la suppression a réussi |
+| `gist_id` | string | L'ID du gist supprimé |
+
+### `github_fork_gist`
+
+Dupliquer un gist pour créer votre propre copie
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist à dupliquer |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID du nouveau gist |
+| `html_url` | string | URL web |
+| `description` | string | Description |
+| `public` | boolean | Est public |
+| `created_at` | string | Date de création |
+| `owner` | object | Informations sur le propriétaire |
+| `files` | object | Fichiers |
+
+### `github_star_gist`
+
+Ajouter un gist aux favoris
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist à ajouter aux favoris |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Si l'ajout aux favoris a réussi |
+| `gist_id` | string | L'ID du gist |
+
+### `github_unstar_gist`
+
+Retirer un gist des favoris
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Oui | L'ID du gist à retirer des favoris |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Si le retrait des favoris a réussi |
+| `gist_id` | string | L'ID du gist |
+
+### `github_fork_repo`
+
+Forker un dépôt vers votre compte ou une organisation
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt à forker |
+| `repo` | string | Oui | Nom du dépôt à forker |
+| `organization` | string | Non | Organisation dans laquelle forker \(omettre pour forker vers votre compte\) |
+| `name` | string | Non | Nom personnalisé pour le dépôt forké |
+| `default_branch_only` | boolean | Non | Forker uniquement la branche par défaut \(par défaut : false\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID du dépôt |
+| `node_id` | string | ID de nœud GraphQL |
+| `name` | string | Nom du dépôt |
+| `full_name` | string | Nom complet \(propriétaire/dépôt\) |
+| `private` | boolean | Si le dépôt est privé |
+| `description` | string | Description du dépôt |
+| `html_url` | string | URL web GitHub |
+| `url` | string | URL de l'API |
+| `clone_url` | string | URL de clone HTTPS |
+| `ssh_url` | string | URL de clone SSH |
+| `git_url` | string | URL du protocole Git |
+| `default_branch` | string | Nom de la branche par défaut |
+| `fork` | boolean | Si c'est un fork |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `pushed_at` | string | Horodatage du dernier push |
+| `owner` | object | Propriétaire du fork |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `parent` | object | Dépôt parent \(source du fork\) |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+| `source` | object | Dépôt source \(origine ultime\) |
+|   ↳ `id` | number | ID du dépôt |
+|   ↳ `full_name` | string | Nom complet |
+|   ↳ `html_url` | string | URL web |
+
+### `github_list_forks`
+
+Lister les forks d'un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `sort` | string | Non | Trier par : newest, oldest, stargazers, watchers \(par défaut : newest\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Tableau d'objets de dépôts forkés provenant de l'API GitHub |
+|   ↳ `id` | number | ID du dépôt |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `name` | string | Nom du dépôt |
+|   ↳ `full_name` | string | Nom complet \(propriétaire/dépôt\) |
+|   ↳ `private` | boolean | Si le dépôt est privé |
+|   ↳ `description` | string | Description du dépôt |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `fork` | boolean | Si c'est un fork |
+|   ↳ `created_at` | string | Horodatage de création |
+|   ↳ `updated_at` | string | Horodatage de dernière mise à jour |
+|   ↳ `pushed_at` | string | Horodatage du dernier push |
+|   ↳ `size` | number | Taille du dépôt en Ko |
+|   ↳ `stargazers_count` | number | Nombre d'étoiles |
+|   ↳ `watchers_count` | number | Nombre de watchers |
+|   ↳ `forks_count` | number | Nombre de forks |
+|   ↳ `open_issues_count` | number | Nombre de problèmes ouverts |
+|   ↳ `language` | string | Langage de programmation principal |
+|   ↳ `default_branch` | string | Nom de la branche par défaut |
+|   ↳ `visibility` | string | Visibilité du dépôt |
+|   ↳ `archived` | boolean | Si le dépôt est archivé |
+|   ↳ `disabled` | boolean | Si le dépôt est désactivé |
+|   ↳ `owner` | object | Propriétaire du fork |
+|     ↳ `login` | string | Nom d'utilisateur GitHub |
+|     ↳ `id` | number | ID de l'utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `count` | number | Nombre de forks retournés |
+
+### `github_create_milestone`
+
+Créer un jalon dans un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `title` | string | Oui | Titre du jalon |
+| `state` | string | Non | État : open ou closed \(par défaut : open\) |
+| `description` | string | Non | Description du jalon |
+| `due_on` | string | Non | Date d'échéance \(format ISO 8601, ex. : 2024-12-31T23:59:59Z\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `creator` | object | Créateur du jalon |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `id` | number | ID du jalon |
+| `node_id` | string | ID de nœud GraphQL |
+| `number` | number | Numéro du jalon |
+| `title` | string | Titre du jalon |
+| `description` | string | Description du jalon |
+| `state` | string | État \(open ou closed\) |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web GitHub |
+| `labels_url` | string | URL de l'API des étiquettes |
+| `due_on` | string | Date d'échéance \(ISO 8601\) |
+| `open_issues` | number | Nombre de problèmes ouverts |
+| `closed_issues` | number | Nombre de problèmes fermés |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `closed_at` | string | Horodatage de fermeture |
+
+### `github_get_milestone`
+
+Obtenir un jalon spécifique par numéro
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `milestone_number` | number | Oui | Numéro du jalon |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `creator` | object | Créateur du jalon |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+| `id` | number | ID du jalon |
+| `node_id` | string | ID de nœud GraphQL |
+| `number` | number | Numéro du jalon |
+| `title` | string | Titre du jalon |
+| `description` | string | Description du jalon |
+| `state` | string | État \(open ou closed\) |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web GitHub |
+| `labels_url` | string | URL de l'API des étiquettes |
+| `due_on` | string | Date d'échéance \(ISO 8601\) |
+| `open_issues` | number | Nombre de problèmes ouverts |
+| `closed_issues` | number | Nombre de problèmes fermés |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `closed_at` | string | Horodatage de fermeture |
+
+### `github_list_milestones`
+
+Lister les jalons d'un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `state` | string | Non | Filtrer par état : open, closed, all \(par défaut : open\) |
+| `sort` | string | Non | Trier par : due_on ou completeness \(par défaut : due_on\) |
+| `direction` | string | Non | Direction de tri : asc ou desc \(par défaut : asc\) |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Tableau d'objets jalons de l'API GitHub |
+|   ↳ `creator` | object | Créateur du jalon |
+|     ↳ `login` | string | Nom d'utilisateur |
+|     ↳ `id` | number | ID utilisateur |
+|     ↳ `node_id` | string | ID de nœud GraphQL |
+|     ↳ `avatar_url` | string | URL de l'image d'avatar |
+|     ↳ `url` | string | URL de l'API |
+|     ↳ `html_url` | string | URL de la page de profil |
+|     ↳ `type` | string | Utilisateur ou organisation |
+|     ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `id` | number | ID du jalon |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `number` | number | Numéro du jalon |
+|   ↳ `title` | string | Titre du jalon |
+|   ↳ `description` | string | Description du jalon |
+|   ↳ `state` | string | État \(open ou closed\) |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL web GitHub |
+|   ↳ `labels_url` | string | URL de l'API des étiquettes |
+|   ↳ `due_on` | string | Date d'échéance \(ISO 8601\) |
+|   ↳ `open_issues` | number | Nombre de problèmes ouverts |
+|   ↳ `closed_issues` | number | Nombre de problèmes fermés |
+|   ↳ `created_at` | string | Horodatage de création |
+|   ↳ `updated_at` | string | Horodatage de dernière mise à jour |
+|   ↳ `closed_at` | string | Horodatage de fermeture |
+| `count` | number | Nombre de jalons retournés |
+
+### `github_update_milestone`
+
+Mettre à jour un jalon dans un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `milestone_number` | number | Oui | Numéro du jalon à mettre à jour |
+| `title` | string | Non | Nouveau titre du jalon |
+| `state` | string | Non | Nouvel état : open ou closed |
+| `description` | string | Non | Nouvelle description |
+| `due_on` | string | Non | Nouvelle date d'échéance \(format ISO 8601\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID du jalon |
+| `node_id` | string | ID de nœud GraphQL |
+| `number` | number | Numéro du jalon |
+| `title` | string | Titre du jalon |
+| `description` | string | Description du jalon |
+| `state` | string | État \(open ou closed\) |
+| `url` | string | URL de l'API |
+| `html_url` | string | URL web GitHub |
+| `labels_url` | string | URL de l'API des étiquettes |
+| `due_on` | string | Date d'échéance \(ISO 8601\) |
+| `open_issues` | number | Nombre de problèmes ouverts |
+| `closed_issues` | number | Nombre de problèmes fermés |
+| `created_at` | string | Horodatage de création |
+| `updated_at` | string | Horodatage de dernière mise à jour |
+| `closed_at` | string | Horodatage de fermeture |
+| `creator` | object | Créateur du jalon |
+|   ↳ `login` | string | Nom d'utilisateur |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | Utilisateur ou organisation |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+
+### `github_delete_milestone`
+
+Supprimer un jalon d'un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `milestone_number` | number | Oui | Numéro du jalon à supprimer |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si la suppression a réussi |
+| `milestone_number` | number | Le numéro du jalon supprimé |
+
+### `github_create_issue_reaction`
+
+Ajouter une réaction à un problème
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `issue_number` | number | Oui | Numéro du problème |
+| `content` | string | Oui | Type de réaction : +1 \(pouce levé\), -1 \(pouce baissé\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID de la réaction |
+| `node_id` | string | ID de nœud GraphQL |
+| `content` | string | Type de réaction \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
+| `created_at` | string | Horodatage de création |
+| `user` | object | Objet utilisateur GitHub |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `html_url` | string | URL du profil |
+|   ↳ `type` | string | Type de compte \(User ou Organization\) |
+
+### `github_delete_issue_reaction`
+
+Supprimer une réaction d'un problème
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `issue_number` | number | Oui | Numéro du problème |
+| `reaction_id` | number | Oui | ID de la réaction à supprimer |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si la suppression a réussi |
+| `reaction_id` | number | L'ID de la réaction supprimée |
+
+### `github_create_comment_reaction`
+
+Ajouter une réaction à un commentaire de problème
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `comment_id` | number | Oui | ID du commentaire |
+| `content` | string | Oui | Type de réaction : +1 \(pouce levé\), -1 \(pouce baissé\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID de la réaction |
+| `node_id` | string | ID de nœud GraphQL |
+| `content` | string | Type de réaction \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
+| `created_at` | string | Horodatage de création |
+| `user` | object | Objet utilisateur GitHub |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `html_url` | string | URL du profil |
+|   ↳ `type` | string | Type de compte \(User ou Organization\) |
+
+### `github_delete_comment_reaction`
+
+Supprimer une réaction d'un commentaire d'issue
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `comment_id` | number | Oui | ID du commentaire |
+| `reaction_id` | number | Oui | ID de la réaction à supprimer |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Si la suppression a réussi |
+| `reaction_id` | number | L'ID de la réaction supprimée |
+
+### `github_star_repo`
+
+Ajouter un dépôt aux favoris
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Si l'ajout aux favoris a réussi |
+| `owner` | string | Propriétaire du dépôt |
+| `repo` | string | Nom du dépôt |
+
+### `github_unstar_repo`
+
+Retirer un dépôt des favoris
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Si le retrait de l'étoile a réussi |
+| `owner` | string | Propriétaire du dépôt |
+| `repo` | string | Nom du dépôt |
+
+### `github_check_star`
+
+Vérifier si vous avez ajouté une étoile à un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Si vous avez ajouté une étoile au dépôt |
+| `owner` | string | Propriétaire du dépôt |
+| `repo` | string | Nom du dépôt |
+
+### `github_list_stargazers`
+
+Lister les utilisateurs qui ont ajouté une étoile à un dépôt
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `per_page` | number | Non | Résultats par page \(max 100, par défaut : 30\) |
+| `page` | number | Non | Numéro de page \(par défaut : 1\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Tableau d'objets utilisateur de l'API GitHub |
+|   ↳ `login` | string | Nom d'utilisateur GitHub |
+|   ↳ `id` | number | ID de l'utilisateur |
+|   ↳ `node_id` | string | ID de nœud GraphQL |
+|   ↳ `avatar_url` | string | URL de l'image d'avatar |
+|   ↳ `url` | string | URL de l'API |
+|   ↳ `html_url` | string | URL de la page de profil |
+|   ↳ `type` | string | User ou Organization |
+|   ↳ `site_admin` | boolean | Indicateur de personnel GitHub |
+|   ↳ `gravatar_id` | string | ID Gravatar |
+|   ↳ `followers_url` | string | URL de l'API des abonnés |
+|   ↳ `following_url` | string | URL de l'API des abonnements |
+|   ↳ `gists_url` | string | URL de l'API des gists |
+|   ↳ `starred_url` | string | URL de l'API des étoiles |
+|   ↳ `repos_url` | string | URL de l'API des dépôts |
+| `count` | number | Nombre d'utilisateurs ayant ajouté une étoile retournés |

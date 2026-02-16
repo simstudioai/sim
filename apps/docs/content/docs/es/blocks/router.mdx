@@ -100,3 +100,18 @@ Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
 - **Probar con entradas diversas**: Asegúrate de que el Router maneja varios tipos de entrada, casos extremos y contenido inesperado
 - **Monitorear el rendimiento del enrutamiento**: Revisa las decisiones de enrutamiento regularmente y refina los criterios basándote en patrones de uso reales
 - **Elegir modelos apropiados**: Usa modelos con fuertes capacidades de razonamiento para decisiones de enrutamiento complejas
+
+Cuando el Router no puede determinar una ruta apropiada para el contexto dado, enrutará a la **ruta de error** en lugar de seleccionar una ruta arbitrariamente. Esto sucede cuando:
+
+- El contexto no coincide claramente con ninguna de las descripciones de ruta definidas
+- La IA determina que ninguna de las rutas disponibles es apropiada
+
+## Mejores prácticas
+
+- **Escribe descripciones de ruta claras**: cada descripción de ruta debe explicar claramente cuándo debe seleccionarse esa ruta. Sé específico sobre los criterios.
+- **Haz que las rutas sean mutuamente excluyentes**: cuando sea posible, asegúrate de que las descripciones de ruta no se superpongan para evitar decisiones de enrutamiento ambiguas.
+- **Conecta una ruta de error**: maneja los casos en los que ninguna ruta coincida conectando un manejador de errores para un comportamiento de respaldo elegante.
+- **Usa títulos de ruta descriptivos**: los títulos de ruta aparecen en el lienzo del flujo de trabajo, así que hazlos significativos para mejorar la legibilidad.
+- **Prueba con entradas diversas**: asegúrate de que el Router maneje varios tipos de entrada, casos extremos y contenido inesperado.
+- **Monitorea el rendimiento del enrutamiento**: revisa las decisiones de enrutamiento regularmente y refina las descripciones de ruta según los patrones de uso reales.
+- **Elige modelos apropiados**: usa modelos con capacidades de razonamiento sólidas para decisiones de enrutamiento complejas.

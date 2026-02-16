@@ -186,3 +186,20 @@ Ein Element aus einer DynamoDB-Tabelle löschen
 
 - Kategorie: `tools`
 - Typ: `dynamodb`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | AWS-Geheimzugriffsschlüssel |
+| `tableName` | string | Nein | Optionaler Tabellenname, um ein detailliertes Schema zu erhalten (z.B. "Users", "Orders"). Wenn nicht angegeben, werden alle Tabellen aufgelistet. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `tables` | array | Liste der Tabellennamen in der Region |
+| `tableDetails` | object | Detaillierte Schemainformationen für eine bestimmte Tabelle |

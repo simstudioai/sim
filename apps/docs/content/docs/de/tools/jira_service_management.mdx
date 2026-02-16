@@ -484,3 +484,68 @@ Eine Genehmigungsanfrage in Jira Service Management genehmigen oder ablehnen
 
 - Kategorie: `tools`
 - Typ: `jira_service_management`
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z. B. ihrfirma.atlassian.net\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz |
+| `issueIdOrKey` | string | Ja | Issue-ID oder -Schlüssel \(z. B. SD-123\) |
+| `approvalId` | string | Ja | Genehmigungs-ID, die beantwortet werden soll |
+| `decision` | string | Ja | Entscheidung: "approve" oder "decline" |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `issueIdOrKey` | string | Issue-ID oder -Schlüssel |
+| `approvalId` | string | Genehmigungs-ID |
+| `decision` | string | Getroffene Entscheidung \(approve/decline\) |
+| `id` | string | Genehmigungs-ID aus der Antwort |
+| `name` | string | Genehmigungsbeschreibung |
+| `finalDecision` | string | Endgültige Genehmigungsentscheidung: pending, approved oder declined |
+| `canAnswerApproval` | boolean | Ob der aktuelle Benutzer noch antworten kann |
+| `approvers` | array | Aktualisierte Liste der Genehmiger mit Entscheidungen |
+|   ↳ `approver` | object | Details des genehmigenden Benutzers |
+|     ↳ `accountId` | string | Konto-ID des Genehmigers |
+|     ↳ `displayName` | string | Anzeigename des Genehmigers |
+|     ↳ `emailAddress` | string | E-Mail-Adresse des Genehmigers |
+|     ↳ `active` | boolean | Ob das Konto aktiv ist |
+|   ↳ `approverDecision` | string | Individuelle Entscheidung des Genehmigers |
+| `createdDate` | json | Erstellungsdatum der Genehmigung |
+| `completedDate` | json | Abschlussdatum der Genehmigung |
+| `approval` | json | Das Genehmigungsobjekt |
+| `success` | boolean | Ob die Operation erfolgreich war |
+
+### `jsm_get_request_type_fields`
+
+Die Felder abrufen, die zum Erstellen einer Anfrage eines bestimmten Typs in Jira Service Management erforderlich sind
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z. B. ihrfirma.atlassian.net\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz |
+| `serviceDeskId` | string | Ja | Service Desk ID \(z. B. "1", "2"\) |
+| `requestTypeId` | string | Ja | Anfragetyp-ID \(z. B. "10", "15"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `ts` | string | Zeitstempel der Operation |
+| `serviceDeskId` | string | Service-Desk-ID |
+| `requestTypeId` | string | Anfragetyp-ID |
+| `canAddRequestParticipants` | boolean | Ob Teilnehmer zu Anfragen dieses Typs hinzugefügt werden können |
+| `canRaiseOnBehalfOf` | boolean | Ob Anfragen im Namen eines anderen Benutzers erstellt werden können |
+| `requestTypeFields` | array | Liste der Felder für diesen Anfragetyp |
+|   ↳ `fieldId` | string | Feldbezeichner \(z. B. summary, description, customfield_10010\) |
+|   ↳ `name` | string | Lesbarer Feldname |
+|   ↳ `description` | string | Hilfetext für das Feld |
+|   ↳ `required` | boolean | Ob das Feld erforderlich ist |
+|   ↳ `visible` | boolean | Ob das Feld sichtbar ist |
+|   ↳ `validValues` | json | Zulässige Werte für Auswahlfelder |
+|   ↳ `presetValues` | json | Vorab ausgefüllte Werte |
+|   ↳ `defaultValues` | json | Standardwerte für das Feld |
+|   ↳ `jiraSchema` | json | Jira-Feldschema mit type, system, custom, customId |

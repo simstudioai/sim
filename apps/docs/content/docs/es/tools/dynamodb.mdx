@@ -186,3 +186,20 @@ Eliminar un elemento de una tabla de DynamoDB
 
 - Categoría: `tools`
 - Tipo: `dynamodb`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Sí | Región de AWS \(p. ej., us-east-1\) |
+| `accessKeyId` | string | Sí | ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Clave de acceso secreta de AWS |
+| `tableName` | string | No | Nombre de tabla opcional para obtener el esquema detallado \(p. ej., "Users", "Orders"\). Si no se proporciona, lista todas las tablas. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `tables` | array | Lista de nombres de tablas en la región |
+| `tableDetails` | object | Información detallada del esquema para una tabla específica |

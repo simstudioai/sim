@@ -1,0 +1,172 @@
+---
+title: 传递文件
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Sim 让你可以在整个工作流中轻松处理文件。各个区块可以接收文件、处理文件，并无缝地将其传递给其他区块。
+
+## 文件对象
+
+当区块输出文件（如 Gmail 附件、生成的图片或解析后的文档）时，会返回一个标准化的文件对象：
+
+```json
+{
+  "name": "report.pdf",
+  "url": "https://...",
+  "base64": "JVBERi0xLjQK...",
+  "type": "application/pdf",
+  "size": 245678
+}
+```
+
+引用前面区块的文件时，你可以访问这些属性中的任意一个。
+
+## 文件区块
+
+**文件区块** 是你工作流中文件的通用入口。它可以接收来自任何来源的文件，并输出适用于所有集成的标准化文件对象。
+
+**输入：**
+- **上传的文件** - 直接拖拽或选择文件
+- **外部 URL** - 任何可公开访问的文件 URL
+- **来自其他区块的文件** - 传递 Gmail 附件、Slack 下载等文件
+
+**输出：**
+- 一组结构一致的 `UserFile` 对象（`name`、`url`、`base64`、`type`、`size`）
+- `combinedContent` - 从所有文件中提取的文本内容（适用于文档）
+
+**用法示例：**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+文件区块会自动：
+- 根据 URL 和扩展名检测文件类型
+- 从 PDF、CSV 和文档中提取文本
+- 为二进制文件生成 base64 编码
+- 创建预签名 URL 以实现安全访问
+
+当你需要在将文件传递给 Vision、STT 或邮件集成等其他区块之前，对来自不同来源的文件进行标准化时，请使用文件区块。
+
+## 区块间传递文件
+
+通过标签下拉菜单引用前面区块的文件。在任意文件输入框中点击并输入 `<`，即可查看可用输出。
+
+**常见模式：**
+
+```
+// Single file from a block
+<gmail.attachments[0]>
+
+// Pass the whole file object
+<file_parser.files[0]>
+
+// Access specific properties
+<gmail.attachments[0].name>
+<gmail.attachments[0].base64>
+```
+
+大多数区块都可以接收完整的文件对象，并自动提取所需内容。大多数情况下，你无需手动提取 `base64` 或 `url`。
+
+## 通过文件触发工作流
+
+通过 API 调用需要文件输入的工作流时，请在请求中包含文件：
+
+<Tabs items={['Base64', 'URL']}>
+  <Tab value="Base64">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "base64": "JVBERi0xLjQK...",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+  <Tab value="URL">
+
+    ```bash
+    curl -X POST "https://sim.ai/api/workflows/YOUR_WORKFLOW_ID/execute" \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "document": {
+          "name": "report.pdf",
+          "url": "https://example.com/report.pdf",
+          "type": "application/pdf"
+        }
+      }'
+    ```
+
+  </Tab>
+</Tabs>
+
+工作流的 Start 区块应配置输入字段以接收文件参数。
+
+## 在 API 响应中接收文件
+
+当工作流输出文件时，这些文件会包含在响应中：
+
+```json
+{
+  "success": true,
+  "output": {
+    "generatedFile": {
+      "name": "output.png",
+      "url": "https://...",
+      "base64": "iVBORw0KGgo...",
+      "type": "image/png",
+      "size": 34567
+    }
+  }
+}
+```
+
+使用 `url` 进行直接下载，或使用 `base64` 进行内联处理。
+
+## 支持文件操作的区块
+
+**文件输入：**
+- **File** - 解析文档、图片和文本文件
+- **Vision** - 使用 AI 模型分析图片
+- **Mistral Parser** - 从 PDF 中提取文本
+
+**文件输出：**
+- **Gmail** - 邮件附件
+- **Slack** - 下载的文件
+- **TTS** - 生成的音频文件
+- **Video Generator** - 生成的视频
+- **Image Generator** - 生成的图片
+
+**文件存储：**
+- **Supabase** - 存储上传/下载
+- **S3** - AWS S3 操作
+- **Google Drive** - Drive 文件操作
+- **Dropbox** - Dropbox 文件操作
+
+<Callout type="info">
+  文件会自动传递给下游区块。执行引擎会处理所有文件传输和格式转换。
+</Callout>
+
+## 最佳实践
+
+1. **直接使用文件对象** - 传递完整的文件对象，而不是单独提取属性。区块会自动处理转换。
+
+2. **检查文件类型** - 确保文件类型与接收区块的要求一致。Vision 区块需要图片，File 区块处理文档。
+
+3. **考虑文件大小** — 大文件会增加执行时间。对于非常大的文件，建议使用存储块（如 S3、Supabase）进行中间存储。

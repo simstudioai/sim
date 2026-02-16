@@ -1,0 +1,445 @@
+---
+title: Google Maps
+description: 地理编码、路线规划、地点查询和距离计算
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_maps"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Maps](https://maps.google.com) 是一个功能全面的平台，提供丰富的 API，涵盖地图、地理编码、路径规划、地点、环境数据等多种服务。通过 Sim，您的代理可以利用 Google Maps Platform 的核心 API，自动化各种基于位置的工作流程。
+
+**本集成包含以下 Google Maps API：**
+
+- **Geocoding API：** 将地址转换为经纬度坐标，并支持逆地理编码。
+- **Directions API：** 计算驾车、步行、骑行或公共交通的路线和导航。
+- **Distance Matrix API：** 计算多个起点和终点之间的行程距离和时间。
+- **Places API：** 按名称、类型或距离搜索地点（如商家、地标、机构等）。
+- **Place Details API：** 获取特定地点的详细信息，如地址、评分、营业时间和联系方式。
+- **Elevation API：** 获取全球任意地点的海拔高度数据。
+- **Time Zone API：** 查询任意地理位置的时区信息。
+- **Air Quality API：** 获取指定坐标的实时空气质量数据。
+
+借助这些 API，您的 Sim 代理可以自动完成位置查询与数据丰富、规划最优路线与配送、估算时间与距离、分析地点数据、为记录添加地理信息、获取环境状况等，无需手动操作或外部工具。
+
+如果您需要上述未列出的功能，或希望支持更多 Google Maps API，请随时联系我们！
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google Maps Platform API 集成到您的工作流程中。支持地址地理编码为坐标、逆地理编码、获取地点间路线、计算距离矩阵、地点搜索、获取地点详情、高程数据和时区信息。
+
+## 工具
+
+### `google_maps_air_quality`
+
+获取某地的当前空气质量数据
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 启用 Air Quality API 的 Google Maps API 密钥 |
+| `lat` | number | 是 | 纬度坐标 |
+| `lng` | number | 是 | 经度坐标 |
+| `languageCode` | string | 否 | 响应的语言代码（如 "en"、"es"） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `dateTime` | string | 空气质量数据的时间戳 |
+| `regionCode` | string | 该位置的区域代码 |
+| `indexes` | array | 空气质量指数数组 |
+|   ↳ `code` | string | 指数代码（如 "uaqi"、"usa_epa"） |
+|   ↳ `displayName` | string | 指数显示名称 |
+|   ↳ `aqi` | number | 空气质量指数值 |
+|   ↳ `aqiDisplay` | string | 格式化 AQI 显示字符串 |
+|   ↳ `color` | object | AQI 等级的 RGB 颜色 |
+|   ↳ `category` | string | 类别描述（如 "Good"、"Moderate"） |
+|   ↳ `dominantPollutant` | string | 主要污染物 |
+| `pollutants` | array | 污染物浓度数组 |
+|   ↳ `code` | string | 污染物代码（如 "pm25"、"o3"） |
+|   ↳ `displayName` | string | 显示名称 |
+|   ↳ `fullName` | string | 污染物全名 |
+|   ↳ `concentration` | object | 浓度信息 |
+|     ↳ `value` | number | 浓度值 |
+|     ↳ `units` | string | 单位（如 "PARTS_PER_BILLION"） |
+|   ↳ `additionalInfo` | object | 关于来源和影响的附加信息 |
+| `healthRecommendations` | object | 针对不同人群的健康建议 |
+
+### `google_maps_directions`
+
+获取两个地点之间的路线和导航信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `origin` | string | 是 | 起始位置（地址或经纬度） |
+| `destination` | string | 是 | 目的地位置（地址或经纬度） |
+| `mode` | string | 否 | 出行方式：driving、walking、bicycling 或 transit |
+| `avoid` | string | 否 | 规避选项：tolls、highways 或 ferries |
+| `waypoints` | json | 否 | 中间途经点数组 |
+| `units` | string | 否 | 单位系统：metric 或 imperial |
+| `language` | string | 否 | 结果语言代码（如 en、es、fr） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `routes` | array | 所有可用路线 |
+|   ↳ `summary` | string | 路线摘要（主要道路名称） |
+|   ↳ `legs` | array | 路线分段（途经点之间的区段） |
+|   ↳ `overviewPolyline` | string | 整条路线的编码折线 |
+|   ↳ `warnings` | array | 路线警告信息 |
+|   ↳ `waypointOrder` | array | 优化后的途经点顺序（如有请求） |
+| `distanceText` | string | 总距离（人类可读文本，如 "5.2 km"） |
+| `distanceMeters` | number | 总距离（米） |
+| `durationText` | string | 总时长（人类可读文本，如 "15 mins"） |
+| `durationSeconds` | number | 总时长（秒） |
+| `startAddress` | string | 解析后的起始地址 |
+| `endAddress` | string | 解析后的目的地地址 |
+| `steps` | array | 分步导航指令 |
+|   ↳ `instruction` | string | 导航指令（去除 HTML） |
+|   ↳ `distanceText` | string | 步骤距离（文本） |
+|   ↳ `distanceMeters` | number | 步骤距离（米） |
+|   ↳ `durationText` | string | 步骤时长（文本） |
+|   ↳ `durationSeconds` | number | 步骤时长（秒） |
+|   ↳ `startLocation` | object | 步骤起点坐标 |
+|   ↳ `endLocation` | object | 步骤终点坐标 |
+|   ↳ `travelMode` | string | 此步骤的出行方式 |
+|   ↳ `maneuver` | string | 操作类型（如 turn-left 等） |
+| `polyline` | string | 主路线的编码折线 |
+
+### `google_maps_distance_matrix`
+
+计算多个起点和终点之间的行驶距离和时间
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `origin` | string | 是 | 起点位置（地址或 lat,lng）|
+| `destinations` | json | 是 | 终点位置数组 |
+| `mode` | string | 否 | 出行方式：driving、walking、bicycling 或 transit |
+| `avoid` | string | 否 | 规避特性：tolls、highways 或 ferries |
+| `units` | string | 否 | 单位系统：metric 或 imperial |
+| `language` | string | 否 | 结果语言代码（如 en、es、fr）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `originAddresses` | array | 解析后的起点地址 |
+| `destinationAddresses` | array | 解析后的终点地址 |
+| `rows` | array | 距离矩阵行（每个起点一行）|
+|   ↳ `elements` | array | 元素（每个终点一个）|
+|     ↳ `distanceText` | string | 距离文本（如 "5.2 km"）|
+|     ↳ `distanceMeters` | number | 距离（米）|
+|     ↳ `durationText` | string | 时长文本（如 "15 mins"）|
+|     ↳ `durationSeconds` | number | 时长（秒）|
+|     ↳ `durationInTrafficText` | string | 路况下时长文本 |
+|     ↳ `durationInTrafficSeconds` | number | 路况下时长（秒）|
+|     ↳ `status` | string | 元素状态（OK、NOT_FOUND、ZERO_RESULTS）|
+
+### `google_maps_elevation`
+
+获取某地的海拔数据
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `lat` | number | 是 | 纬度坐标 |
+| `lng` | number | 是 | 经度坐标 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `elevation` | number | 海拔高度（米），高于海平面为正，低于为负 |
+| `lat` | number | 采样点的纬度 |
+| `lng` | number | 采样点的经度 |
+| `resolution` | number | 插值所用数据点之间的最大距离（米） |
+
+### `google_maps_geocode`
+
+将地址转换为地理坐标（纬度和经度）
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `address` | string | 是 | 需要地理编码的地址 |
+| `language` | string | 否 | 结果的语言代码（如 en、es、fr） |
+| `region` | string | 否 | 区域偏好 ccTLD 代码（如 us、uk） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | 格式化后的地址字符串 |
+| `lat` | number | 纬度坐标 |
+| `lng` | number | 经度坐标 |
+| `location` | json | 包含 lat 和 lng 的位置对象 |
+| `placeId` | string | 此位置的 Google Place ID |
+| `addressComponents` | array | 详细地址组成部分 |
+|   ↳ `longName` | string | 组成部分全名 |
+|   ↳ `shortName` | string | 缩写名称 |
+|   ↳ `types` | array | 组成部分类型 |
+| `locationType` | string | 位置精度类型（ROOFTOP、RANGE_INTERPOLATED 等） |
+
+### `google_maps_geolocate`
+
+使用 WiFi 接入点、蜂窝基站或 IP 地址对设备进行地理定位
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 已启用 Geolocation API 的 Google Maps API 密钥 |
+| `homeMobileCountryCode` | number | 否 | 本国移动国家码（MCC） |
+| `homeMobileNetworkCode` | number | 否 | 本国移动网络码（MNC） |
+| `radioType` | string | 否 | 无线电类型：lte、gsm、cdma、wcdma 或 nr |
+| `carrier` | string | 否 | 运营商名称 |
+| `considerIp` | boolean | 否 | 是否使用 IP 地址进行地理定位（默认：true） |
+| `cellTowers` | array | 否 | 包含 cellId、locationAreaCode、mobileCountryCode、mobileNetworkCode 的基站对象数组 |
+| `wifiAccessPoints` | array | 否 | 包含 macAddress（必填）、signalStrength 等信息的 WiFi 接入点对象数组 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `lat` | number | 纬度坐标 |
+| `lng` | number | 经度坐标 |
+| `accuracy` | number | 精度半径（米） |
+
+### `google_maps_place_details`
+
+获取特定地点的详细信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API 密钥 |
+| `placeId` | string | 是 | Google Place ID |
+| `fields` | string | 否 | 以逗号分隔的返回字段列表 |
+| `language` | string | 否 | 结果的语言代码（如 en、es、fr） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `placeId` | string | Google Place ID |
+| `name` | string | 地点名称 |
+| `formattedAddress` | string | 格式化街道地址 |
+| `lat` | number | 纬度坐标 |
+| `lng` | number | 经度坐标 |
+| `types` | array | 地点类型（如 restaurant、cafe） |
+| `rating` | number | 平均评分（1.0 到 5.0） |
+| `userRatingsTotal` | number | 用户评分总数 |
+| `priceLevel` | number | 价格等级（0=免费，1=便宜，2=适中，3=昂贵，4=非常昂贵） |
+| `website` | string | 地点网站 URL |
+| `phoneNumber` | string | 本地格式化电话号码 |
+| `internationalPhoneNumber` | string | 国际格式化电话号码 |
+| `openNow` | boolean | 该地点当前是否营业 |
+| `weekdayText` | array | 按星期格式化的营业时间 |
+| `reviews` | array | 用户评论（最多 5 条最相关） |
+|   ↳ `authorName` | string | 评论者姓名 |
+|   ↳ `authorUrl` | string | 评论者个人资料 URL |
+|   ↳ `profilePhotoUrl` | string | 评论者照片 URL |
+|   ↳ `rating` | number | 给出的评分（1-5） |
+|   ↳ `text` | string | 评论内容 |
+|   ↳ `time` | number | 评论时间戳（Unix epoch） |
+|   ↳ `relativeTimeDescription` | string | 相对时间（如 “1 个月前”） |
+| `photos` | array | 地点照片 |
+|   ↳ `photoReference` | string | Place Photos API 的照片引用 |
+|   ↳ `height` | number | 照片高度（像素） |
+|   ↳ `width` | number | 照片宽度（像素） |
+|   ↳ `htmlAttributions` | array | 必需的归属信息 |
+| `url` | string | 该地点的 Google Maps URL |
+| `utcOffset` | number | UTC 偏移量（分钟） |
+| `vicinity` | string | 简化地址（社区/街道） |
+| `businessStatus` | string | 经营状态（OPERATIONAL、CLOSED_TEMPORARILY、CLOSED_PERMANENTLY） |
+
+### `google_maps_places_search`
+
+使用文本查询搜索地点
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `query` | string | 是 | 搜索查询（例如，"Times Square 附近的餐厅"） |
+| `location` | json | 否 | 用于结果偏向的地理位置（{lat, lng}） |
+| `radius` | number | 否 | 搜索半径（米） |
+| `type` | string | 否 | 地点类型筛选（例如，restaurant、cafe、hotel） |
+| `language` | string | 否 | 结果的语言代码（例如，en、es、fr） |
+| `region` | string | 否 | 区域偏向的 ccTLD 代码（例如，us、uk） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `places` | array | 找到的地点列表 |
+|   ↳ `placeId` | string | Google Place ID |
+|   ↳ `name` | string | 地点名称 |
+|   ↳ `formattedAddress` | string | 格式化地址 |
+|   ↳ `lat` | number | 纬度 |
+|   ↳ `lng` | number | 经度 |
+|   ↳ `types` | array | 地点类型 |
+|   ↳ `rating` | number | 平均评分（1-5） |
+|   ↳ `userRatingsTotal` | number | 评分数量 |
+|   ↳ `priceLevel` | number | 价格等级（0-4） |
+|   ↳ `openNow` | boolean | 当前是否营业 |
+|   ↳ `photoReference` | string | 用于 Photos API 的照片引用 |
+|   ↳ `businessStatus` | string | 营业状态 |
+| `nextPageToken` | string | 用于获取下一页结果的令牌 |
+
+### `google_maps_reverse_geocode`
+
+将地理坐标（纬度和经度）转换为可读的地址
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API key |
+| `lat` | number | 是 | 纬度坐标 |
+| `lng` | number | 是 | 经度坐标 |
+| `language` | string | 否 | 结果的语言代码（例如 en、es、fr） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | 格式化后的地址字符串 |
+| `placeId` | string | 此位置的 Google Place ID |
+| `addressComponents` | array | 详细地址组成部分 |
+|   ↳ `longName` | string | 组成部分全名 |
+|   ↳ `shortName` | string | 缩写名称 |
+|   ↳ `types` | array | 组成部分类型 |
+| `types` | array | 地址类型（如 street_address、route） |
+
+### `google_maps_snap_to_roads`
+
+将 GPS 坐标点匹配到最近的道路段
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 启用 Roads API 的 Google Maps API key |
+| `path` | string | 是 | 以管道符分隔的纬度、经度坐标列表（例如 "60.170880,24.942795|60.170879,24.942796"） |
+| `interpolate` | boolean | 否 | 是否在道路上插值额外点位 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `snappedPoints` | array | 匹配到道路上的点数组 |
+|   ↳ `location` | object | 匹配点的坐标 |
+|     ↳ `lat` | number | 纬度 |
+|     ↳ `lng` | number | 经度 |
+|   ↳ `originalIndex` | number | 在原始路径中的索引（如果未插值） |
+|   ↳ `placeId` | string | 此道路段的 Place ID |
+| `warningMessage` | string | 警告信息（如有，例如无法匹配点时） |
+
+### `google_maps_speed_limits`
+
+获取道路路段的限速信息。需要提供路径坐标或 placeId。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | 已启用 Roads API 的 Google Maps API 密钥 |
+| `path` | string | 否 | 以管道符分隔的纬度、经度坐标列表（如果未提供 placeIds，则必填） |
+| `placeIds` | array | 否 | 道路路段的 Place ID 数组（如果未提供 path，则必填） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `speedLimits` | array | 道路路段的限速数组 |
+|   ↳ `placeId` | string | 该路段的 Place ID |
+|   ↳ `speedLimit` | number | 限速值 |
+|   ↳ `units` | string | 限速单位（KPH 或 MPH） |
+| `snappedPoints` | array | 与限速对应的捕捉点数组 |
+|   ↳ `location` | object | 捕捉到的位置坐标 |
+|     ↳ `lat` | number | 纬度 |
+|     ↳ `lng` | number | 经度 |
+|   ↳ `originalIndex` | number | 在原始路径中的索引 |
+|   ↳ `placeId` | string | 此路段的 Place ID |
+
+### `google_maps_timezone`
+
+获取某地的时区信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Google Maps API 密钥 |
+| `lat` | number | 是 | 纬度坐标 |
+| `lng` | number | 是 | 经度坐标 |
+| `timestamp` | number | 否 | 用于确定夏令时偏移的 Unix 时间戳（默认为当前时间） |
+| `language` | string | 否 | 时区名称的语言代码（如 en、es、fr） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `timeZoneId` | string | IANA 时区 ID（例如，"America/New_York"，"Europe/London"） |
+| `timeZoneName` | string | 本地化时区名称（例如，"Eastern Daylight Time"） |
+| `rawOffset` | number | UTC 偏移秒数（不含夏令时） |
+| `dstOffset` | number | 夏令时偏移秒数（如果不在夏令时则为 0） |
+| `totalOffsetSeconds` | number | 总 UTC 偏移秒数（rawOffset + dstOffset） |
+| `totalOffsetHours` | number | 总 UTC 偏移小时数（例如，EST 为 -5，EDT 为 -4） |
+
+### `google_maps_validate_address`
+
+验证并标准化邮政地址
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | 启用 Address Validation API 的 Google Maps API 密钥 |
+| `address` | string | 是 | 需要验证的地址（作为单个字符串） |
+| `regionCode` | string | 否 | ISO 3166-1 alpha-2 国家代码（例如，"US"，"CA"） |
+| `locality` | string | 否 | 城市或地区名称 |
+| `enableUspsCass` | boolean | 否 | 针对美国地址启用 USPS CASS 验证 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `formattedAddress` | string | 标准化格式地址 |
+| `lat` | number | 纬度坐标 |
+| `lng` | number | 经度坐标 |
+| `placeId` | string | 此地址的 Google Place ID |
+| `addressComplete` | boolean | 地址是否完整且可投递 |
+| `hasUnconfirmedComponents` | boolean | 是否有部分地址组件无法确认 |
+| `hasInferredComponents` | boolean | 是否有部分组件为推断得出（非输入中提供） |
+| `hasReplacedComponents` | boolean | 是否有部分组件被替换为规范值 |
+| `validationGranularity` | string | 验证粒度（PREMISE、SUB_PREMISE、ROUTE 等） |
+| `geocodeGranularity` | string | 地理编码结果的粒度 |
+| `addressComponents` | array | 详细地址组件 |
+|   ↳ `longName` | string | 组件全名 |
+|   ↳ `shortName` | string | 缩写名称 |
+|   ↳ `types` | array | 组件类型 |
+| `missingComponentTypes` | array | 缺失的地址组件类型 |
+| `unconfirmedComponentTypes` | array | 无法确认的组件类型 |
+| `unresolvedTokens` | array | 无法解析的输入标记 |

@@ -189,3 +189,51 @@ Entendiendo cuándo usar cada uno:
 - **Solo operaciones independientes**: Asegúrate de que las operaciones no dependan entre sí
 - **Gestionar límites de tasa**: Añade retrasos o limitaciones para flujos de trabajo con uso intensivo de API
 - **Manejo de errores**: Cada instancia debe manejar sus propios errores correctamente
+
+## Entradas y salidas
+
+<Tabs items={['Configuración', 'Variables', 'Resultados']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Tipo paralelo</strong>: elige entre 'count' o 'collection'
+      </li>
+      <li>
+        <strong>Count</strong>: número de instancias a ejecutar (basado en recuento)
+      </li>
+      <li>
+        <strong>Collection</strong>: array u objeto a distribuir (basado en colección)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Disponible **dentro** del paralelo únicamente:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<parallel.index>"}</strong>: número de instancia (basado en 0)
+      </li>
+      <li>
+        <strong>{"<parallel.currentItem>"}</strong>: elemento para esta instancia (solo basado en colección)
+      </li>
+      <li>
+        <strong>{"<parallel.items>"}</strong>: colección completa (solo basado en colección)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: array de todos los resultados de instancia (accedido mediante el nombre del bloque)
+      </li>
+      <li>
+        <strong>Acceso</strong>: disponible en bloques después de que se complete el paralelo
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Buenas prácticas
+
+- **Solo operaciones independientes**: asegúrate de que las operaciones no dependan unas de otras
+- **Gestiona los límites de tasa**: añade retrasos o limitación para flujos de trabajo con uso intensivo de API
+- **Gestión de errores**: cada instancia debe gestionar sus propios errores de forma elegante

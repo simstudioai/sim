@@ -1,0 +1,134 @@
+---
+title: Habilidades del agente
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Las habilidades del agente son paquetes reutilizables de instrucciones que otorgan capacidades especializadas a tus agentes de IA. Basadas en el formato abierto [Agent Skills](https://agentskills.io), las habilidades te permiten capturar experiencia de dominio, flujos de trabajo y mejores prácticas que los agentes pueden cargar bajo demanda.
+
+## Cómo funcionan las habilidades
+
+Las habilidades utilizan **divulgación progresiva** para mantener el contexto del agente ligero:
+
+1. **Descubrimiento** — Solo los nombres y descripciones de las habilidades se incluyen en el prompt del sistema del agente (~50-100 tokens cada uno)
+2. **Activación** — Cuando el agente decide que una habilidad es relevante, llama a la herramienta `load_skill` para cargar las instrucciones completas en el contexto
+3. **Ejecución** — El agente sigue las instrucciones cargadas para completar la tarea
+
+Esto significa que puedes adjuntar muchas habilidades a un agente sin saturar su ventana de contexto. El agente solo carga lo que necesita.
+
+## Crear habilidades
+
+Ve a **Configuración** y selecciona **Habilidades** en la sección Herramientas.
+
+![Gestionar habilidades](/static/skills/manage-skills.png)
+
+Haz clic en **Añadir** para crear una nueva habilidad con tres campos:
+
+| Campo | Descripción |
+|-------|-------------|
+| **Nombre** | Un identificador en formato kebab-case (p. ej. `sql-expert`, `code-reviewer`). Máximo 64 caracteres. |
+| **Descripción** | Una breve explicación de qué hace la habilidad y cuándo usarla. Esto es lo que el agente lee para decidir si activar la habilidad. Máximo 1024 caracteres. |
+| **Contenido** | Las instrucciones completas de la habilidad en markdown. Esto se carga cuando el agente activa la habilidad. |
+
+<Callout type="info">
+  La descripción es fundamental — es lo único que el agente ve antes de decidir cargar una habilidad. Sé específico sobre cuándo y por qué debe usarse la habilidad.
+</Callout>
+
+### Escribir buen contenido de habilidades
+
+El contenido de habilidades sigue las mismas convenciones que los [archivos SKILL.md](https://agentskills.io/specification):
+
+```markdown
+# SQL Expert
+
+## When to use this skill
+Use when the user asks you to write, optimize, or debug SQL queries.
+
+## Instructions
+1. Always ask which database engine (PostgreSQL, MySQL, SQLite)
+2. Use CTEs over subqueries for readability
+3. Add index recommendations when relevant
+4. Explain query plans for optimization requests
+
+## Common Patterns
+...
+```
+
+**Estructura recomendada:**
+- **Cuándo usar** — Disparadores y escenarios específicos
+- **Instrucciones** — Guía paso a paso con listas numeradas
+- **Ejemplos** — Muestras de entrada/salida que muestran el comportamiento esperado
+- **Patrones comunes** — Enfoques reutilizables para tareas frecuentes
+- **Casos especiales** — Detalles importantes y consideraciones especiales
+
+Mantén las habilidades enfocadas y con menos de 500 líneas. Si una habilidad crece demasiado, divídela en múltiples habilidades especializadas.
+
+## Añadir habilidades a un agente
+
+Abre cualquier bloque de **Agente** y encuentra el menú desplegable **Habilidades** debajo de la sección de herramientas. Selecciona las habilidades a las que quieres que el agente tenga acceso.
+
+![Añadir habilidad](/static/skills/add-skill.png)
+
+Las habilidades seleccionadas aparecen como tarjetas en las que puedes hacer clic para editar o eliminar.
+
+### Qué sucede en tiempo de ejecución
+
+Cuando se ejecuta el flujo de trabajo:
+
+1. El prompt del sistema del agente incluye una sección `<available_skills>` que enumera el nombre y la descripción de cada habilidad
+2. Una herramienta `load_skill` se añade automáticamente a las herramientas disponibles del agente
+3. Cuando el agente determina que una habilidad es relevante para la tarea actual, llama a `load_skill` con el nombre de la habilidad
+4. El contenido completo de la habilidad se devuelve como respuesta de herramienta, proporcionando al agente instrucciones detalladas
+
+Esto funciona en todos los proveedores de LLM compatibles: la herramienta `load_skill` utiliza llamadas de herramientas estándar, por lo que no se necesita configuración específica del proveedor.
+
+## Casos de uso comunes
+
+Las habilidades son más valiosas cuando los agentes necesitan conocimientos especializados o flujos de trabajo de múltiples pasos:
+
+**Experiencia de dominio**
+- `api-integration-expert` — Mejores prácticas para llamar a APIs específicas (autenticación, limitación de velocidad, manejo de errores)
+- `data-transformation` — Patrones ETL, limpieza de datos y reglas de validación
+- `code-reviewer` — Directrices de revisión de código específicas para los estándares de tu equipo
+
+**Plantillas de flujo de trabajo**
+- `bug-investigation` — Metodología de depuración paso a paso (reproducir → aislar → probar → corregir)
+- `feature-implementation` — Flujo de trabajo de desarrollo desde requisitos hasta despliegue
+- `document-generator` — Plantillas y reglas de formato para documentación técnica
+
+**Conocimiento específico de la empresa**
+- `our-architecture` — Diagramas de arquitectura del sistema, dependencias de servicios y procesos de despliegue
+- `style-guide` — Guías de marca, tono de escritura, patrones de UI/UX
+- `customer-onboarding` — Procedimientos estándar y preguntas frecuentes de clientes
+
+**Cuándo usar habilidades vs. instrucciones de agente:**
+- Usa **habilidades** para conocimiento que se aplica a múltiples flujos de trabajo o cambia frecuentemente
+- Usa **instrucciones de agente** para contexto específico de tareas que es único para un solo agente
+
+## Mejores prácticas
+
+**Escribir descripciones efectivas**
+- **Sé específico y rico en palabras clave** — En lugar de "Ayuda con SQL", escribe "Escribe consultas SQL optimizadas para PostgreSQL, MySQL y SQLite, incluyendo recomendaciones de índices y análisis de planes de consulta"
+- **Incluye disparadores de activación** — Menciona palabras o frases específicas que deberían activar la habilidad (ej., "Usar cuando el usuario mencione PDFs, formularios o extracción de documentos")
+- **Mantenlo bajo 200 palabras** — Los agentes escanean descripciones rápidamente; haz que cada palabra cuente
+
+**Alcance y organización de habilidades**
+- **Una habilidad por dominio** — Una habilidad enfocada en `sql-expert` funciona mejor que una habilidad amplia de `database-everything`
+- **Limita a 5-10 habilidades por agente** — Más habilidades = más sobrecarga de decisión; comienza pequeño y añade según sea necesario
+- **Divide habilidades grandes** — Si una habilidad supera las 500 líneas, divídela en sub-habilidades enfocadas
+
+**Estructura de contenido**
+- **Usa formato markdown** — Encabezados, listas y bloques de código ayudan a los agentes a analizar y seguir instrucciones
+- **Proporciona ejemplos** — Muestra pares de entrada/salida para que los agentes entiendan el comportamiento esperado
+- **Sé explícito sobre casos extremos** — No asumas que los agentes inferirán manejo especial
+
+**Pruebas e iteración**
+- **Prueba de activación** — Ejecuta tu flujo de trabajo y verifica que el agente cargue la habilidad cuando se espera
+- **Verifica falsos positivos** — Asegúrate de que las habilidades no se activen cuando no deberían
+- **Refina las descripciones** — Si una habilidad no se carga cuando es necesario, añade más palabras clave a la descripción
+
+## Más información
+
+- [Especificación de Agent Skills](https://agentskills.io) — El formato abierto para habilidades de agentes portátiles
+- [Ejemplos de habilidades](https://github.com/anthropics/skills) — Explora ejemplos de habilidades de la comunidad
+- [Mejores prácticas](https://agentskills.io/what-are-skills) — Cómo escribir habilidades efectivas

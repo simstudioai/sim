@@ -170,3 +170,39 @@ Exécuter des requêtes Cypher arbitraires sur la base de données graphique Neo
 
 - Catégorie : `tools`
 - Type : `neo4j`
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message de statut de l'opération |
+| `records` | array | Tableau des enregistrements retournés par la requête |
+| `recordCount` | number | Nombre d'enregistrements retournés |
+| `summary` | json | Résumé de l'exécution avec timing et compteurs |
+
+### `neo4j_introspect`
+
+Inspecter une base de données Neo4j pour découvrir son schéma, incluant les labels de nœuds, les types de relations, les propriétés, les contraintes et les index.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Oui | Nom d'hôte ou adresse IP du serveur Neo4j |
+| `port` | number | Oui | Port du serveur Neo4j \(par défaut : 7687 pour le protocole Bolt\) |
+| `database` | string | Oui | Nom de la base de données à laquelle se connecter \(par exemple, "neo4j", "movies", "social"\) |
+| `username` | string | Oui | Nom d'utilisateur Neo4j |
+| `password` | string | Oui | Mot de passe Neo4j |
+| `encryption` | string | Non | Mode de chiffrement de connexion \(enabled, disabled\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message de statut de l'opération |
+| `labels` | array | Tableau des labels de nœuds dans la base de données |
+| `relationshipTypes` | array | Tableau des types de relations dans la base de données |
+| `nodeSchemas` | array | Tableau des schémas de nœuds avec leurs propriétés |
+| `relationshipSchemas` | array | Tableau des schémas de relations avec leurs propriétés |
+| `constraints` | array | Tableau des contraintes de la base de données |
+| `indexes` | array | Tableau des index de la base de données |

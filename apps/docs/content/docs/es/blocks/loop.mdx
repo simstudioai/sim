@@ -248,3 +248,57 @@ while (count < items.length) {
 - **Establece límites razonables**: Mantén el número de iteraciones en un nivel razonable para evitar tiempos de ejecución prolongados
 - **Usa ForEach para colecciones**: Cuando proceses arrays u objetos, utiliza bucles ForEach en lugar de bucles For
 - **Maneja los errores con elegancia**: Considera añadir manejo de errores dentro de los bucles para flujos de trabajo robustos
+
+## Entradas y salidas
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Tipo de bucle</strong>: elige entre 'for', 'forEach', 'while' o 'doWhile'
+      </li>
+      <li>
+        <strong>Iteraciones</strong>: número de veces a ejecutar (bucles for)
+      </li>
+      <li>
+        <strong>Colección</strong>: array u objeto sobre el que iterar (bucles forEach)
+      </li>
+      <li>
+        <strong>Condición</strong>: expresión booleana a evaluar (bucles while/do-while)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Disponible **dentro** del bucle únicamente:
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<loop.index>"}</strong>: número de iteración actual (basado en 0)
+      </li>
+      <li>
+        <strong>{"<loop.currentItem>"}</strong>: elemento actual siendo procesado (solo forEach)
+      </li>
+      <li>
+        <strong>{"<loop.items>"}</strong>: colección completa (solo forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>: array de todos los resultados de iteración (accedido mediante el nombre del bloque)
+      </li>
+      <li>
+        <strong>Estructura</strong>: los resultados mantienen el orden de iteración
+      </li>
+      <li>
+        <strong>Acceso</strong>: disponible en bloques después de que el bucle se complete
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Buenas prácticas
+
+- **Establece límites razonables**: mantén los conteos de iteración razonables para evitar tiempos de ejecución largos
+- **Usa ForEach para colecciones**: cuando proceses arrays u objetos, usa ForEach en lugar de bucles For
+- **Maneja errores con elegancia**: considera añadir manejo de errores dentro de los bucles para flujos de trabajo robustos

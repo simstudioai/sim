@@ -358,3 +358,369 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`intercom`
+
+在 Intercom 中创建并发送一条新的管理员发起消息。仅返回与 API 对齐的字段。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | 是 | 消息类型："inapp" 表示应用内消息，"email" 表示邮件消息 |
+| `template` | string | 是 | 消息模板样式："plain" 表示纯文本，"personal" 表示个性化样式 |
+| `subject` | string | 否 | 消息主题（仅适用于邮件类型） |
+| `body` | string | 是 | 消息正文 |
+| `from_type` | string | 是 | 发送者类型："admin" |
+| `from_id` | string | 是 | 发送消息的管理员 ID |
+| `to_type` | string | 是 | 接收者类型："contact" |
+| `to_id` | string | 是 | 接收消息的联系人的 ID |
+| `created_at` | number | 否 | 消息创建时间的 Unix 时间戳。如未提供，则使用当前时间。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | object | 创建的消息对象 |
+|   ↳ `id` | string | 消息的唯一标识符 |
+|   ↳ `type` | string | 对象类型（message） |
+|   ↳ `created_at` | number | 消息创建时的 Unix 时间戳 |
+|   ↳ `body` | string | 消息正文 |
+|   ↳ `message_type` | string | 消息类型（in_app 或 email） |
+|   ↳ `conversation_id` | string | 创建的会话 ID |
+|   ↳ `owner` | object | 消息所有者 |
+| `messageId` | string | 创建的消息 ID |
+| `success` | boolean | 操作成功状态 |
+
+获取工作区所有管理员的列表
+
+获取工作区所有管理员的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `admins` | array | 管理员对象数组 |
+|   ↳ `id` | string | 管理员的唯一标识符 |
+|   ↳ `type` | string | 对象类型（admin） |
+|   ↳ `name` | string | 管理员姓名 |
+|   ↳ `email` | string | 管理员邮箱 |
+|   ↳ `job_title` | string | 管理员职位 |
+|   ↳ `away_mode_enabled` | boolean | 管理员是否处于离开模式 |
+|   ↳ `away_mode_reassign` | boolean | 离开时是否重新分配会话 |
+|   ↳ `has_inbox_seat` | boolean | 管理员是否拥有付费收件箱席位 |
+|   ↳ `team_ids` | array | 管理员所属团队 ID 列表 |
+|   ↳ `avatar` | object | 头像信息 |
+|   ↳ `email_verified` | boolean | 邮箱是否已验证 |
+| `type` | string | 对象类型（admin.list） |
+
+关闭 Intercom 中的会话
+
+关闭 Intercom 中的会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要关闭的会话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+| `body` | string | 否 | 可选的关闭消息，将添加到会话中 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已关闭的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态（closed） |
+|   ↳ `open` | boolean | 会话是否为开启状态（false） |
+|   ↳ `read` | boolean | 会话是否已读 |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已关闭会话的 ID |
+| `state` | string | 会话状态（closed） |
+
+### `intercom_open_conversation`
+
+在 Intercom 中打开已关闭或已暂停的会话
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 要打开的会话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已打开的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态（open） |
+|   ↳ `open` | boolean | 会话是否为开启状态（true） |
+|   ↳ `read` | boolean | 会话是否已读 |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已打开会话的 ID |
+| `state` | string | 会话状态（open） |
+
+### `intercom_snooze_conversation`
+
+将对话暂时搁置，稍后自动重新开启
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 是 | 要搁置的对话 ID |
+| `admin_id` | string | 是 | 执行操作的管理员 ID |
+| `snoozed_until` | number | 是 | 对话应重新开启的 Unix 时间戳 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已搁置的对话对象 |
+|   ↳ `id` | string | 对话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 对话状态（已搁置） |
+|   ↳ `open` | boolean | 对话是否处于开启状态 |
+|   ↳ `snoozed_until` | number | 对话将重新开启的 Unix 时间戳 |
+|   ↳ `created_at` | number | 对话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 对话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 已搁置对话的 ID |
+| `state` | string | 对话状态（已搁置） |
+| `snoozed_until` | number | 对话将重新开启的 Unix 时间戳 |
+
+### `intercom_assign_conversation`
+
+将对话分配给 Intercom 中的管理员或团队
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | ---- | ----------- |
+| `conversationId` | string | 是 | 要分配的对话 ID |
+| `admin_id` | string | 是 | 执行分配操作的管理员 ID |
+| `assignee_id` | string | 是 | 要分配给的管理员或团队 ID。设置为 "0" 表示取消分配。|
+| `body` | string | 否 | 分配时可选的附加消息（如："转交给支持团队"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `conversation` | object | 已分配的会话对象 |
+|   ↳ `id` | string | 会话的唯一标识符 |
+|   ↳ `type` | string | 对象类型（conversation） |
+|   ↳ `state` | string | 会话状态 |
+|   ↳ `open` | boolean | 会话是否为开启状态 |
+|   ↳ `admin_assignee_id` | number | 分配的管理员 ID |
+|   ↳ `team_assignee_id` | string | 分配的团队 ID |
+|   ↳ `created_at` | number | 会话创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 会话最后更新时间的 Unix 时间戳 |
+| `conversationId` | string | 分配的会话 ID |
+| `admin_assignee_id` | number | 分配的管理员 ID |
+| `team_assignee_id` | string | 分配的团队 ID |
+
+### `intercom_list_tags`
+
+获取工作区内所有标签的列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `tags` | array | 标签对象数组 |
+|   ↳ `id` | string | 标签的唯一标识符 |
+|   ↳ `type` | string | 对象类型（tag） |
+|   ↳ `name` | string | 标签名称 |
+| `type` | string | 对象类型（list） |
+
+### `intercom_create_tag`
+
+创建新标签或更新现有标签名称
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | 是 | 标签名称。如果未找到则创建新标签，如果提供了 id 则更新名称。|
+| `id` | string | 否 | 要更新的现有标签 ID。不填写则创建新标签。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag）|
+
+### `intercom_tag_contact`
+
+为指定联系人添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要打标签的联系人 ID |
+| `tagId` | string | 是 | 要应用的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag）|
+
+### `intercom_untag_contact`
+
+为指定联系人移除标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要移除标签的联系人 ID |
+| `tagId` | string | 是 | 要移除的标签 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 被移除标签的唯一标识符 |
+| `name` | string | 被移除标签的名称 |
+| `type` | string | 对象类型（tag） |
+
+### `intercom_tag_conversation`
+
+为指定会话添加标签
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | 是 | 需要打标签的会话 ID |
+| `tagId` | string | 是 | 要应用的标签 ID |
+| `admin_id` | string | 是 | 应用标签的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 标签的唯一标识符 |
+| `name` | string | 标签名称 |
+| `type` | string | 对象类型（tag） |
+
+### `intercom_create_note`
+
+为指定联系人添加备注
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 需要添加备注的联系人 ID |
+| `body` | string | 是 | 备注的文本内容 |
+| `admin_id` | string | 否 | 创建备注的管理员 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 笔记的唯一标识符 |
+| `body` | string | 笔记的文本内容 |
+| `created_at` | number | 笔记创建时的 Unix 时间戳 |
+| `type` | string | 对象类型（note） |
+| `author` | object | 创建该笔记的管理员 |
+|   ↳ `type` | string | 作者类型（admin） |
+|   ↳ `id` | string | 作者 ID |
+|   ↳ `name` | string | 作者姓名 |
+|   ↳ `email` | string | 作者邮箱 |
+| `contact` | object | 笔记所关联的联系人 |
+|   ↳ `type` | string | 联系人类型 |
+|   ↳ `id` | string | 联系人 ID |
+
+### `intercom_create_event`
+
+为 Intercom 中的联系人跟踪自定义事件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | 是 | 事件名称（例如："order-completed"）。为便于阅读，请使用动词过去式-名词格式。 |
+| `created_at` | number | 否 | 事件发生时的 Unix 时间戳。强烈建议用于保证唯一性。 |
+| `user_id` | string | 否 | 用户的标识符（external_id） |
+| `email` | string | 否 | 用户的邮箱地址。仅当您的应用使用邮箱唯一标识用户时使用。 |
+| `id` | string | 否 | Intercom 联系人 ID |
+| `metadata` | string | 否 | 包含最多 10 个事件元数据键值对的 JSON 对象（例如：\{"order_value": 99.99\}） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | 事件是否被接受（202 Accepted） |
+
+### `intercom_attach_contact_to_company`
+
+在 Intercom 中将联系人关联到公司
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要关联到公司的联系人 ID |
+| `companyId` | string | 是 | 要关联联系人的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 联系人已关联的公司对象 |
+|   ↳ `id` | string | 公司的唯一标识符 |
+|   ↳ `type` | string | 对象类型（company） |
+|   ↳ `company_id` | string | 你定义的 company_id |
+|   ↳ `name` | string | 公司名称 |
+|   ↳ `created_at` | number | 公司创建时的 Unix 时间戳 |
+|   ↳ `updated_at` | number | 公司更新时间的 Unix 时间戳 |
+|   ↳ `user_count` | number | 公司用户数量 |
+|   ↳ `session_count` | number | 会话数量 |
+|   ↳ `monthly_spend` | number | 每月支出金额 |
+|   ↳ `plan` | object | 公司套餐详情 |
+| `companyId` | string | 公司 ID |
+| `name` | string | 公司名称 |
+
+### `intercom_detach_contact_from_company`
+
+在 Intercom 中将联系人从公司中移除
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | 是 | 要从公司中移除的联系人 ID |
+| `companyId` | string | 是 | 要移除联系人的公司 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `company` | object | 联系人被移除的公司对象 |
+|   ↳ `id` | string | 公司的唯一标识符 |
+|   ↳ `type` | string | 对象类型（company） |
+|   ↳ `company_id` | string | 你定义的 company_id |
+|   ↳ `name` | string | 公司名称 |
+| `companyId` | string | 公司 ID |
+| `name` | string | 公司名称 |

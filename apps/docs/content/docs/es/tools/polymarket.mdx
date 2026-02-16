@@ -343,3 +343,106 @@ Recuperar historial de operaciones de Polymarket
 
 - Categoría: `tools`
 - Tipo: `polymarket`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Sí | Dirección de la cartera del usuario \(con prefijo 0x\) |
+| `limit` | string | No | Máximo de resultados a devolver \(p. ej., "50"\). Por defecto: 100, máx: 500. |
+| `offset` | string | No | Número de resultados a omitir para paginación \(p. ej., "100"\). Por defecto: 0, máx: 10000. |
+| `market` | string | No | ID de condiciones separados por comas \(p. ej., "0x1234...abcd,0x5678...efgh"\). Mutuamente excluyente con eventId. |
+| `eventId` | string | No | ID de eventos separados por comas \(p. ej., "12345,67890"\). Mutuamente excluyente con market. |
+| `type` | string | No | Filtro de tipo de actividad: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE |
+| `start` | number | No | Marca de tiempo de inicio \(segundos Unix\) |
+| `end` | number | No | Marca de tiempo de fin \(segundos Unix\) |
+| `sortBy` | string | No | Campo de ordenación: TIMESTAMP, TOKENS o CASH \(por defecto: TIMESTAMP\) |
+| `sortDirection` | string | No | Dirección de ordenación: ASC o DESC \(por defecto: DESC\) |
+| `side` | string | No | Filtro de lado de operación: BUY o SELL \(solo aplica a operaciones\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `activity` | array | Array de entradas de actividad |
+|   ↳ `proxyWallet` | string | Dirección de la cartera proxy del usuario |
+|   ↳ `timestamp` | number | Marca de tiempo Unix de la actividad |
+|   ↳ `conditionId` | string | ID de condición del mercado |
+|   ↳ `type` | string | Tipo de actividad \(TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION\) |
+|   ↳ `size` | number | Tamaño en tokens |
+|   ↳ `usdcSize` | number | Tamaño en USDC |
+|   ↳ `transactionHash` | string | Hash de transacción de blockchain |
+|   ↳ `price` | number | Precio \(para operaciones\) |
+|   ↳ `asset` | string | ID de activo/token |
+|   ↳ `side` | string | Lado de operación \(BUY/SELL\) |
+|   ↳ `outcomeIndex` | number | Índice de resultado |
+|   ↳ `title` | string | Título del mercado |
+|   ↳ `slug` | string | Slug del mercado |
+|   ↳ `icon` | string | URL del icono del mercado |
+|   ↳ `eventSlug` | string | Slug del evento |
+|   ↳ `outcome` | string | Nombre del resultado |
+|   ↳ `name` | string | Nombre para mostrar del usuario |
+|   ↳ `pseudonym` | string | Seudónimo del usuario |
+|   ↳ `bio` | string | Biografía del usuario |
+|   ↳ `profileImage` | string | URL de imagen de perfil del usuario |
+|   ↳ `profileImageOptimized` | string | URL de imagen de perfil optimizada |
+
+### `polymarket_get_leaderboard`
+
+Obtener clasificación de traders por ganancias/pérdidas o volumen
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | No | Filtro de categoría: OVERALL, POLITICS, SPORTS, CRYPTO, CULTURE, MENTIONS, WEATHER, ECONOMICS, TECH, FINANCE \(predeterminado: OVERALL\) |
+| `timePeriod` | string | No | Período de tiempo: DAY, WEEK, MONTH, ALL \(predeterminado: DAY\) |
+| `orderBy` | string | No | Ordenar por: PNL o VOL \(predeterminado: PNL\) |
+| `limit` | string | No | Número de resultados a devolver \(p. ej., "10"\). Rango: 1-50, predeterminado: 25. |
+| `offset` | string | No | Número de resultados a omitir para paginación \(p. ej., "25"\). Rango: 0-1000, predeterminado: 0. |
+| `user` | string | No | Filtrar por dirección de cartera específica del usuario |
+| `userName` | string | No | Filtrar por nombre de usuario |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `leaderboard` | array | Array de entradas de la clasificación |
+|   ↳ `rank` | string | Posición en la clasificación |
+|   ↳ `proxyWallet` | string | Dirección de cartera proxy del usuario |
+|   ↳ `userName` | string | Nombre de usuario |
+|   ↳ `vol` | number | Volumen de operaciones |
+|   ↳ `pnl` | number | Ganancias y pérdidas |
+|   ↳ `profileImage` | string | URL de imagen de perfil del usuario |
+|   ↳ `xUsername` | string | Nombre de usuario de Twitter/X |
+|   ↳ `verifiedBadge` | boolean | Si el usuario tiene insignia verificada |
+
+### `polymarket_get_holders`
+
+Recuperar los principales tenedores de un token de mercado específico
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | Sí | Lista de IDs de condición separados por comas \(ej., "0x1234...abcd" o "0x1234...abcd,0x5678...efgh"\). |
+| `limit` | string | No | Número de tenedores a devolver \(ej., "10"\). Rango: 0-20, predeterminado: 20. |
+| `minBalance` | string | No | Umbral mínimo de saldo \(predeterminado: 1\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `holders` | array | Array de grupos de tenedores de mercado por token |
+|   ↳ `token` | string | ID de token/activo |
+|   ↳ `holders` | array | Array de tenedores para este token |
+|     ↳ `proxyWallet` | string | Dirección de billetera del tenedor |
+|     ↳ `bio` | string | Biografía del tenedor |
+|     ↳ `asset` | string | ID de activo |
+|     ↳ `pseudonym` | string | Seudónimo del tenedor |
+|     ↳ `amount` | number | Cantidad poseída |
+|     ↳ `displayUsernamePublic` | boolean | Si el nombre de usuario se muestra públicamente |
+|     ↳ `outcomeIndex` | number | Índice de resultado |
+|     ↳ `name` | string | Nombre para mostrar del tenedor |
+|     ↳ `profileImage` | string | URL de imagen de perfil |
+|     ↳ `profileImageOptimized` | string | URL de imagen de perfil optimizada |

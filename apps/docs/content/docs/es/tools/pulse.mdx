@@ -1,0 +1,56 @@
+---
+title: Pulse
+description: Extrae texto de documentos usando Pulse OCR
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pulse_v2"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La herramienta [Pulse](https://www.runpulse.com) permite la extracción fluida de texto y contenido estructurado de una amplia variedad de documentos—incluyendo PDFs, imágenes y archivos de Office—utilizando OCR (reconocimiento óptico de caracteres) de última generación impulsado por Pulse. Diseñado para flujos de trabajo agénticos automatizados, Pulse Parser facilita desbloquear información valiosa atrapada en documentos no estructurados e integrar el contenido extraído directamente en tu flujo de trabajo.
+
+Con Pulse, puedes:
+
+- **Extraer texto de documentos**: Convierte rápidamente PDFs escaneados, imágenes y documentos de Office en texto utilizable, markdown o JSON.
+- **Procesar documentos por URL o carga**: Simplemente proporciona una URL de archivo o usa la carga para extraer texto de documentos locales o recursos remotos.
+- **Formatos de salida flexibles**: Elige entre markdown, texto plano o representaciones JSON del contenido extraído para procesamiento posterior.
+- **Procesamiento selectivo de páginas**: Especifica un rango de páginas a procesar, reduciendo el tiempo de procesamiento y el costo cuando solo necesitas parte de un documento.
+- **Extracción de figuras y tablas**: Opcionalmente extrae figuras y tablas, con generación automática de títulos y descripciones para contexto poblado.
+- **Obtén información del procesamiento**: Recibe metadatos detallados de cada trabajo, incluyendo tipo de archivo, número de páginas, tiempo de procesamiento y más.
+- **Respuestas listas para integración**: Incorpora contenido extraído en investigación, automatización de flujos de trabajo o pipelines de análisis de datos.
+
+Ideal para automatizar la revisión tediosa de documentos, permitiendo la resumición de contenido, investigación y más, Pulse Parser lleva documentos del mundo real a la era del flujo de trabajo digital.
+
+Si necesitas capacidades de análisis de documentos precisas, escalables y amigables para desarrolladores—a través de formatos, idiomas y diseños—Pulse empodera a tus agentes para leer el mundo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Pulse en el flujo de trabajo. Extrae texto de documentos PDF, imágenes y archivos de Office mediante carga o referencias de archivo.
+
+## Herramientas
+
+### `pulse_parser`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | No | URL a un documento a procesar |
+| `file` | file | No | Archivo de documento a procesar |
+| `fileUpload` | object | No | Datos de carga de archivo del componente file-upload |
+| `pages` | string | No | Rango de páginas a procesar \(indexado desde 1, ej., "1-2,5"\) |
+| `extractFigure` | boolean | No | Habilitar extracción de figuras del documento |
+| `figureDescription` | boolean | No | Generar descripciones/leyendas para las figuras extraídas |
+| `returnHtml` | boolean | No | Incluir HTML en la respuesta |
+| `chunking` | string | No | Estrategias de fragmentación \(separadas por comas: semantic, header, page, recursive\) |
+| `chunkSize` | number | No | Máximo de caracteres por fragmento cuando la fragmentación está habilitada |
+| `apiKey` | string | Sí | Clave API de Pulse |
+
+#### Salida
+
+Esta herramienta no produce ninguna salida.

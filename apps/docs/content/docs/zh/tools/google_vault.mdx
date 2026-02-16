@@ -158,3 +158,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别: `tools`
 - 类型: `google_vault`
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | 数字 | 否 | 每页返回的事项数量 |
+| `pageToken` | 字符串 | 否 | 分页用的令牌 |
+| `matterId` | 字符串 | 否 | 可选的事项 ID，用于获取特定事项（例如，"12345678901234567890"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `matters` | json | 事项对象数组 |
+| `matter` | json | 单个事项对象（当提供 matterId 时） |
+| `nextPageToken` | 字符串 | 用于获取下一页结果的令牌 |

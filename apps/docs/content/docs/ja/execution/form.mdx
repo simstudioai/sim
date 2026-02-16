@@ -1,0 +1,142 @@
+---
+title: フォームデプロイメント
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+ワークフローを埋め込み可能なフォームとしてデプロイし、ユーザーがウェブサイト上で入力したり、リンク経由で共有したりできます。フォーム送信は、`form`トリガータイプでワークフローを起動します。
+
+## 概要
+
+フォームデプロイメントは、ワークフローの入力フォーマットをレスポンシブなフォームに変換します。このフォームは次のように利用できます:
+- 直接リンクで共有(例: `https://sim.ai/form/my-survey`)
+- iframeを使用して任意のウェブサイトに埋め込み
+
+ユーザーがフォームを送信すると、フォームデータを使用してワークフローが起動されます。
+
+<Callout type="info">
+フォームのフィールドは、ワークフローのStartブロックの入力フォーマットから派生します。各フィールドは、適切なタイプのフォーム入力になります。
+</Callout>
+
+## フォームの作成
+
+1. ワークフローを開き、**Deploy**をクリックします
+2. **Form**タブを選択します
+3. 設定:
+   - **URL**: 一意の識別子(例: `contact-form` → `sim.ai/form/contact-form`)
+   - **Title**: フォームの見出し
+   - **Description**: オプションのサブタイトル
+   - **Form Fields**: 各フィールドのラベルと説明をカスタマイズ
+   - **Authentication**: 公開、パスワード保護、またはメールホワイトリスト
+   - **Thank You Message**: 送信後に表示されるメッセージ
+4. **Launch**をクリックします
+
+## フィールドタイプのマッピング
+
+| 入力フォーマットタイプ | フォームフィールド |
+|------------------|------------|
+| `string` | テキスト入力 |
+| `number` | 数値入力 |
+| `boolean` | トグルスイッチ |
+| `object` | JSONエディタ |
+| `array` | JSON配列エディタ |
+| `files` | ファイルアップロード |
+
+## アクセス制御
+
+| モード | 説明 |
+|------|-------------|
+| **Public** | リンクを持つ誰でも送信可能 |
+| **Password** | ユーザーはパスワードを入力する必要があります |
+| **Email Whitelist** | 指定されたメール/ドメインのみ送信可能 |
+
+メールホワイトリストの場合：
+- 完全一致：`user@example.com`
+- ドメイン：`@example.com`（ドメインからのすべてのメール）
+
+## 埋め込み
+
+### 直接リンク
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## API送信
+
+プログラムでフォームを送信：
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+
+  </Tab>
+  <Tab value="TypeScript">
+
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+
+  </Tab>
+</Tabs>
+
+### 保護されたフォーム
+
+パスワード保護されたフォームの場合：
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+メール保護されたフォームの場合：
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## トラブルシューティング
+
+**「入力フィールドが設定されていません」** - スタートブロックに入力フォーマットフィールドを追加してください。
+
+**iframeでフォームが読み込まれない** - サイトのCSPが`sim.ai`からのiframeを許可しているか確認してください。
+
+**送信が失敗する** - 識別子が正しく、必須フィールドが入力されているか確認してください。

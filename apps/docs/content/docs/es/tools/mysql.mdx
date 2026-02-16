@@ -158,3 +158,22 @@ Ejecutar consulta SQL en bruto en base de datos MySQL
 
 - Categoría: `tools`
 - Tipo: `mysql`
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor MySQL |
+| `port` | number | Sí | Puerto del servidor MySQL \(predeterminado: 3306\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse |
+| `username` | string | Sí | Nombre de usuario de la base de datos |
+| `password` | string | Sí | Contraseña de la base de datos |
+| `ssl` | string | No | Modo de conexión SSL \(disabled, required, preferred\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `tables` | array | Array de esquemas de tablas con columnas, claves e índices |
+| `databases` | array | Lista de bases de datos disponibles en el servidor |

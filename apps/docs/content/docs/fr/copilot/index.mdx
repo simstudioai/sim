@@ -169,3 +169,175 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 <Callout type="info">
   Les prix des modèles sont par million de tokens. Le calcul divise par 1 000 000 pour obtenir le coût réel. Consultez <a href="/execution/costs">la page de calcul des coûts</a> pour plus d'informations et des exemples.
 </Callout>
+
+Survolez n'importe lequel de vos messages et cliquez sur **Modifier** pour le modifier et le renvoyer. Ceci est utile pour affiner vos prompts.
+
+### File de messages
+
+Si vous envoyez un message pendant que Copilot répond encore, il est mis en file d'attente. Vous pouvez :
+- Voir les messages en attente dans le panneau de file d'attente extensible
+- Envoyer immédiatement un message en attente (interrompt la réponse actuelle)
+- Supprimer des messages de la file d'attente
+
+## Pièces jointes
+
+Cliquez sur l'icône de pièce jointe pour télécharger des fichiers avec votre message. Les types de fichiers pris en charge incluent :
+- Images (miniatures d'aperçu affichées)
+- PDF
+- Fichiers texte, JSON, XML
+- Autres formats de documents
+
+Les fichiers sont affichés sous forme de miniatures cliquables qui s'ouvrent dans un nouvel onglet.
+
+## Points de contrôle et modifications
+
+Lorsque Copilot apporte des modifications à votre workflow, il enregistre des points de contrôle afin que vous puissiez revenir en arrière si nécessaire.
+
+### Affichage des points de contrôle
+
+Survolez un message de Copilot et cliquez sur l'icône des points de contrôle pour voir les états de workflow enregistrés pour ce message.
+
+### Annulation des modifications
+
+Cliquez sur **Annuler** sur n'importe quel point de contrôle pour restaurer votre workflow à cet état. Une boîte de dialogue de confirmation vous avertira que cette action ne peut pas être annulée.
+
+### Acceptation des modifications
+
+Lorsque Copilot propose des modifications, vous pouvez :
+- **Accepter** : appliquer les modifications proposées (`Mod+Shift+Enter`)
+- **Rejeter** : ignorer les modifications et conserver votre workflow actuel
+
+## Blocs de réflexion
+
+Pour les demandes complexes, Copilot peut afficher son processus de raisonnement dans des blocs de réflexion extensibles :
+
+- Les blocs se développent automatiquement pendant que Copilot réfléchit
+- Cliquez pour développer/réduire manuellement
+- Affiche la durée du processus de réflexion
+- Vous aide à comprendre comment Copilot est arrivé à sa solution
+
+## Sélection d'options
+
+Lorsque Copilot présente plusieurs options, vous pouvez sélectionner en utilisant :
+
+| Contrôle | Action |
+|---------|--------|
+| **1-9** | Sélectionner l'option par numéro |
+| **Flèche haut/bas** | Naviguer entre les options |
+| **Entrée** | Sélectionner l'option en surbrillance |
+
+Les options sélectionnées sont en surbrillance ; les options non sélectionnées apparaissent barrées.
+
+## Raccourcis clavier
+
+| Raccourci | Action |
+|----------|--------|
+| `@` | Ouvrir le menu contextuel |
+| `/` | Ouvrir les commandes slash |
+| `Arrow Up/Down` | Naviguer dans les éléments du menu |
+| `Enter` | Sélectionner l'élément du menu |
+| `Esc` | Fermer les menus |
+| `Mod+Shift+Enter` | Accepter les modifications de Copilot |
+
+## Limites d'utilisation
+
+L'utilisation de Copilot est facturée par jeton du LLM sous-jacent. Si vous atteignez votre limite d'utilisation, Copilot vous invitera à augmenter votre limite. Vous pouvez ajouter de l'utilisation par incréments (50 $, 100 $) à partir de votre base actuelle.
+
+<Callout type="info">
+  Consultez la [page de calcul des coûts](/execution/costs) pour les détails de facturation.
+</Callout>
+## Copilot MCP
+
+Vous pouvez utiliser Copilot comme serveur MCP dans votre éditeur ou client IA préféré. Cela vous permet de créer, tester, déployer et gérer des workflows Sim directement depuis des outils comme Cursor, Claude Code, Claude Desktop et VS Code.
+
+### Générer une clé API Copilot
+
+Pour vous connecter au serveur MCP Copilot, vous avez besoin d'une **clé API Copilot** :
+
+1. Rendez-vous sur [sim.ai](https://sim.ai) et connectez-vous
+2. Accédez à **Paramètres** → **Copilot**
+3. Cliquez sur **Générer une clé API**
+4. Copiez la clé — elle n'est affichée qu'une seule fois
+
+La clé ressemblera à `sk-sim-copilot-...`. Vous l'utiliserez dans la configuration ci-dessous.
+
+### Cursor
+
+Ajoutez ce qui suit à votre `.cursor/mcp.json` (niveau projet) ou aux paramètres MCP globaux de Cursor :
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Remplacez `YOUR_COPILOT_API_KEY` par la clé que vous avez générée ci-dessus.
+
+### Claude Code
+
+Exécutez la commande suivante pour ajouter le serveur MCP Copilot :
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+Remplacez `YOUR_COPILOT_API_KEY` par votre clé.
+
+### Claude Desktop
+
+Claude Desktop nécessite [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) pour se connecter aux serveurs MCP basés sur HTTP. Ajoutez ce qui suit à votre fichier de configuration Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json` sur macOS) :
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+Remplacez `YOUR_COPILOT_API_KEY` par votre clé.
+
+### VS Code
+
+Ajoutez ce qui suit à votre `settings.json` VS Code ou à votre `.vscode/settings.json` d'espace de travail :
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+Remplacez `YOUR_COPILOT_API_KEY` par votre clé.
+
+<Callout type="info">
+  Pour les déploiements auto-hébergés, remplacez `https://www.sim.ai` par votre URL Sim auto-hébergée.
+</Callout>

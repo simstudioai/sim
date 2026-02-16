@@ -1,0 +1,437 @@
+---
+title: Clerk
+description: Gestiona usuarios, organizaciones y sesiones en Clerk
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clerk"
+  color="#131316"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Clerk](https://clerk.com/) es una plataforma integral de infraestructura de identidad que te ayuda a gestionar usuarios, autenticación y sesiones para tus aplicaciones.
+
+En Sim, la integración de Clerk permite que tus agentes automaticen la gestión de usuarios y sesiones mediante herramientas basadas en API fáciles de usar. Los agentes pueden listar usuarios de forma segura, actualizar perfiles de usuario, gestionar organizaciones, monitorear sesiones y revocar accesos directamente en tu flujo de trabajo.
+
+Con Clerk, puedes:
+
+- **Autenticar usuarios y gestionar sesiones**: controla sin problemas el inicio de sesión, registro y ciclo de vida de las sesiones de tus usuarios.
+- **Listar y actualizar usuarios**: extrae automáticamente listas de usuarios, actualiza atributos de usuario o visualiza detalles de perfil como parte de las tareas de tu agente.
+- **Gestionar organizaciones y membresías**: añade o actualiza organizaciones y administra membresías de usuarios con claridad.
+- **Monitorear y revocar sesiones**: visualiza sesiones activas o pasadas de usuarios, y revoca el acceso inmediatamente si es necesario por seguridad.
+
+La integración permite una gestión auditable y en tiempo real de tu base de usuarios, todo desde Sim. Los agentes conectados pueden automatizar la incorporación, aplicar políticas, mantener directorios actualizados y reaccionar a eventos de autenticación o cambios organizacionales, ayudándote a ejecutar procesos seguros y flexibles usando Clerk como tu motor de identidad.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra la autenticación y gestión de usuarios de Clerk en tu flujo de trabajo. Crea, actualiza, elimina y lista usuarios. Gestiona organizaciones y sus membresías. Monitorea y controla sesiones de usuarios.
+
+## Herramientas
+
+### `clerk_list_users`
+
+Lista todos los usuarios en tu aplicación de Clerk con filtrado y paginación opcionales
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `limit` | number | No | Número de resultados por página \(ej., 10, 50, 100; rango: 1-500, predeterminado: 10\) |
+| `offset` | number | No | Número de resultados a omitir para paginación \(ej., 0, 10, 20\) |
+| `orderBy` | string | No | Campo de ordenación con prefijo +/- opcional para dirección \(predeterminado: -created_at\) |
+| `emailAddress` | string | No | Filtrar por dirección de correo electrónico \(ej., usuario@ejemplo.com o usuario1@ejemplo.com,usuario2@ejemplo.com\) |
+| `phoneNumber` | string | No | Filtrar por número de teléfono \(separado por comas para múltiples\) |
+| `externalId` | string | No | Filtrar por ID externo \(separado por comas para múltiples\) |
+| `username` | string | No | Filtrar por nombre de usuario \(separado por comas para múltiples\) |
+| `userId` | string | No | Filtrar por ID de usuario \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC o separado por comas para múltiples\) |
+| `query` | string | No | Consulta de búsqueda para coincidir en correo electrónico, teléfono, nombre de usuario y nombres \(ej., juan o juan@ejemplo.com\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `users` | array | Array de objetos de usuario de Clerk |
+|   ↳ `id` | string | ID de usuario |
+|   ↳ `username` | string | Nombre de usuario |
+|   ↳ `firstName` | string | Nombre |
+|   ↳ `lastName` | string | Apellido |
+|   ↳ `imageUrl` | string | URL de imagen de perfil |
+|   ↳ `hasImage` | boolean | Si el usuario tiene imagen de perfil |
+|   ↳ `primaryEmailAddressId` | string | ID de dirección de correo electrónico principal |
+|   ↳ `primaryPhoneNumberId` | string | ID de número de teléfono principal |
+|   ↳ `emailAddresses` | array | Direcciones de correo electrónico del usuario |
+|     ↳ `id` | string | ID de dirección de correo electrónico |
+|     ↳ `emailAddress` | string | Dirección de correo electrónico |
+|   ↳ `phoneNumbers` | array | Números de teléfono del usuario |
+|     ↳ `id` | string | ID de número de teléfono |
+|     ↳ `phoneNumber` | string | Número de teléfono |
+|   ↳ `externalId` | string | ID de sistema externo |
+|   ↳ `passwordEnabled` | boolean | Si la contraseña está habilitada |
+|   ↳ `twoFactorEnabled` | boolean | Si la autenticación de dos factores está habilitada |
+|   ↳ `banned` | boolean | Si el usuario está bloqueado |
+|   ↳ `locked` | boolean | Si el usuario está bloqueado |
+|   ↳ `lastSignInAt` | number | Marca de tiempo del último inicio de sesión |
+|   ↳ `lastActiveAt` | number | Marca de tiempo de la última actividad |
+|   ↳ `createdAt` | number | Marca de tiempo de creación |
+|   ↳ `updatedAt` | number | Marca de tiempo de la última actualización |
+|   ↳ `publicMetadata` | json | Metadatos públicos |
+| `totalCount` | number | Número total de usuarios que coinciden con la consulta |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_get_user`
+
+Recuperar un único usuario por su ID desde Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `userId` | string | Sí | El ID del usuario a recuperar \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID de usuario |
+| `username` | string | Nombre de usuario |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `imageUrl` | string | URL de imagen de perfil |
+| `hasImage` | boolean | Si el usuario tiene imagen de perfil |
+| `primaryEmailAddressId` | string | ID de dirección de correo electrónico principal |
+| `primaryPhoneNumberId` | string | ID de número de teléfono principal |
+| `primaryWeb3WalletId` | string | ID de billetera Web3 principal |
+| `emailAddresses` | array | Direcciones de correo electrónico del usuario |
+|   ↳ `id` | string | ID de dirección de correo electrónico |
+|   ↳ `emailAddress` | string | Dirección de correo electrónico |
+|   ↳ `verified` | boolean | Si el correo electrónico está verificado |
+| `phoneNumbers` | array | Números de teléfono del usuario |
+|   ↳ `id` | string | ID de número de teléfono |
+|   ↳ `phoneNumber` | string | Número de teléfono |
+|   ↳ `verified` | boolean | Si el teléfono está verificado |
+| `externalId` | string | ID de sistema externo |
+| `passwordEnabled` | boolean | Si la contraseña está habilitada |
+| `twoFactorEnabled` | boolean | Si 2FA está habilitado |
+| `totpEnabled` | boolean | Si TOTP está habilitado |
+| `backupCodeEnabled` | boolean | Si los códigos de respaldo están habilitados |
+| `banned` | boolean | Si el usuario está bloqueado |
+| `locked` | boolean | Si el usuario está bloqueado |
+| `deleteSelfEnabled` | boolean | Si el usuario puede eliminarse a sí mismo |
+| `createOrganizationEnabled` | boolean | Si el usuario puede crear organizaciones |
+| `lastSignInAt` | number | Marca de tiempo del último inicio de sesión |
+| `lastActiveAt` | number | Marca de tiempo de última actividad |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `publicMetadata` | json | Metadatos públicos \(legibles desde el frontend\) |
+| `privateMetadata` | json | Metadatos privados \(solo backend\) |
+| `unsafeMetadata` | json | Metadatos no seguros \(modificables desde el frontend\) |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_create_user`
+
+Crear un nuevo usuario en tu aplicación de Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `emailAddress` | string | No | Direcciones de correo electrónico para el usuario \(separadas por comas para múltiples\) |
+| `phoneNumber` | string | No | Números de teléfono para el usuario \(separados por comas para múltiples\) |
+| `username` | string | No | Nombre de usuario para el usuario \(debe ser único\) |
+| `password` | string | No | Contraseña para el usuario \(mínimo 8 caracteres\) |
+| `firstName` | string | No | Nombre del usuario |
+| `lastName` | string | No | Apellido del usuario |
+| `externalId` | string | No | Identificador del sistema externo \(debe ser único\) |
+| `publicMetadata` | json | No | Metadatos públicos \(objeto JSON, legible desde el frontend\) |
+| `privateMetadata` | json | No | Metadatos privados \(objeto JSON, solo backend\) |
+| `unsafeMetadata` | json | No | Metadatos no seguros \(objeto JSON, modificable desde el frontend\) |
+| `skipPasswordChecks` | boolean | No | Omitir comprobaciones de validación de contraseña |
+| `skipPasswordRequirement` | boolean | No | Hacer la contraseña opcional |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del usuario creado |
+| `username` | string | Nombre de usuario |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `imageUrl` | string | URL de la imagen de perfil |
+| `primaryEmailAddressId` | string | ID de la dirección de correo electrónico principal |
+| `primaryPhoneNumberId` | string | ID del número de teléfono principal |
+| `emailAddresses` | array | Direcciones de correo electrónico del usuario |
+|   ↳ `id` | string | ID de la dirección de correo electrónico |
+|   ↳ `emailAddress` | string | Dirección de correo electrónico |
+|   ↳ `verified` | boolean | Si el correo electrónico está verificado |
+| `phoneNumbers` | array | Números de teléfono del usuario |
+|   ↳ `id` | string | ID del número de teléfono |
+|   ↳ `phoneNumber` | string | Número de teléfono |
+|   ↳ `verified` | boolean | Si el teléfono está verificado |
+| `externalId` | string | ID del sistema externo |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `publicMetadata` | json | Metadatos públicos |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_update_user`
+
+Actualizar un usuario existente en tu aplicación Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación API |
+| `userId` | string | Sí | El ID del usuario a actualizar \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `firstName` | string | No | Nombre del usuario |
+| `lastName` | string | No | Apellido del usuario |
+| `username` | string | No | Nombre de usuario \(debe ser único\) |
+| `password` | string | No | Nueva contraseña \(mínimo 8 caracteres\) |
+| `externalId` | string | No | Identificador del sistema externo |
+| `primaryEmailAddressId` | string | No | ID del correo electrónico verificado para establecer como principal |
+| `primaryPhoneNumberId` | string | No | ID del teléfono verificado para establecer como principal |
+| `publicMetadata` | json | No | Metadatos públicos \(objeto JSON\) |
+| `privateMetadata` | json | No | Metadatos privados \(objeto JSON\) |
+| `unsafeMetadata` | json | No | Metadatos no seguros \(objeto JSON\) |
+| `skipPasswordChecks` | boolean | No | Omitir comprobaciones de validación de contraseña |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del usuario actualizado |
+| `username` | string | Nombre de usuario |
+| `firstName` | string | Nombre |
+| `lastName` | string | Apellido |
+| `imageUrl` | string | URL de la imagen de perfil |
+| `primaryEmailAddressId` | string | ID de la dirección de correo electrónico principal |
+| `primaryPhoneNumberId` | string | ID del número de teléfono principal |
+| `emailAddresses` | array | Direcciones de correo electrónico del usuario |
+|   ↳ `id` | string | ID de la dirección de correo electrónico |
+|   ↳ `emailAddress` | string | Dirección de correo electrónico |
+|   ↳ `verified` | boolean | Si el correo electrónico está verificado |
+| `phoneNumbers` | array | Números de teléfono del usuario |
+|   ↳ `id` | string | ID del número de teléfono |
+|   ↳ `phoneNumber` | string | Número de teléfono |
+|   ↳ `verified` | boolean | Si el teléfono está verificado |
+| `externalId` | string | ID del sistema externo |
+| `banned` | boolean | Si el usuario está bloqueado |
+| `locked` | boolean | Si el usuario está bloqueado |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `publicMetadata` | json | Metadatos públicos |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_delete_user`
+
+Eliminar un usuario de tu aplicación Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `userId` | string | Sí | El ID del usuario a eliminar \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID del usuario eliminado |
+| `object` | string | Tipo de objeto \(user\) |
+| `deleted` | boolean | Si el usuario fue eliminado |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_list_organizations`
+
+Listar todas las organizaciones en tu aplicación Clerk con filtrado opcional
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `limit` | number | No | Número de resultados por página \(ej., 10, 50, 100; rango: 1-500, predeterminado: 10\) |
+| `offset` | number | No | Número de resultados a omitir para paginación \(ej., 0, 10, 20\) |
+| `includeMembersCount` | boolean | No | Incluir recuento de miembros para cada organización |
+| `query` | string | No | Buscar por ID de organización, nombre o slug \(ej., Acme Corp o acme-corp\) |
+| `orderBy` | string | No | Campo de ordenamiento \(name, created_at, members_count\) con prefijo +/- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `organizations` | array | Array de objetos de organización de Clerk |
+|   ↳ `id` | string | ID de organización |
+|   ↳ `name` | string | Nombre de organización |
+|   ↳ `slug` | string | Slug de organización |
+|   ↳ `imageUrl` | string | URL de imagen de organización |
+|   ↳ `hasImage` | boolean | Si la organización tiene una imagen |
+|   ↳ `membersCount` | number | Número de miembros |
+|   ↳ `pendingInvitationsCount` | number | Número de invitaciones pendientes |
+|   ↳ `maxAllowedMemberships` | number | Máximo de membresías permitidas |
+|   ↳ `adminDeleteEnabled` | boolean | Si la eliminación por administrador está habilitada |
+|   ↳ `createdBy` | string | ID de usuario creador |
+|   ↳ `createdAt` | number | Marca de tiempo de creación |
+|   ↳ `updatedAt` | number | Marca de tiempo de última actualización |
+|   ↳ `publicMetadata` | json | Metadatos públicos |
+| `totalCount` | number | Número total de organizaciones |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_get_organization`
+
+Recuperar una única organización por ID o slug desde Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `organizationId` | string | Sí | El ID o slug de la organización a recuperar \(ej., org_2NNEqL2nrIRdJ194ndJqAHwEfxC o my-org-slug\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID de organización |
+| `name` | string | Nombre de organización |
+| `slug` | string | Slug de organización |
+| `imageUrl` | string | URL de imagen de organización |
+| `hasImage` | boolean | Si la organización tiene una imagen |
+| `membersCount` | number | Número de miembros |
+| `pendingInvitationsCount` | number | Número de invitaciones pendientes |
+| `maxAllowedMemberships` | number | Máximo de membresías permitidas |
+| `adminDeleteEnabled` | boolean | Si la eliminación por administrador está habilitada |
+| `createdBy` | string | ID de usuario creador |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `publicMetadata` | json | Metadatos públicos |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_create_organization`
+
+Crear una nueva organización en tu aplicación de Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `name` | string | Sí | Nombre de la organización |
+| `createdBy` | string | Sí | ID de usuario del creador que se convertirá en administrador \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+| `slug` | string | No | Identificador slug para la organización |
+| `maxAllowedMemberships` | number | No | Capacidad máxima de miembros \(0 para ilimitado\) |
+| `publicMetadata` | json | No | Metadatos públicos \(objeto JSON\) |
+| `privateMetadata` | json | No | Metadatos privados \(objeto JSON\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID de la organización creada |
+| `name` | string | Nombre de la organización |
+| `slug` | string | Slug de la organización |
+| `imageUrl` | string | URL de la imagen de la organización |
+| `hasImage` | boolean | Si la organización tiene una imagen |
+| `membersCount` | number | Número de miembros |
+| `pendingInvitationsCount` | number | Número de invitaciones pendientes |
+| `maxAllowedMemberships` | number | Máximo de membresías permitidas |
+| `adminDeleteEnabled` | boolean | Si la eliminación por administrador está habilitada |
+| `createdBy` | string | ID de usuario del creador |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `publicMetadata` | json | Metadatos públicos |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_list_sessions`
+
+Listar sesiones para un usuario o cliente en tu aplicación Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación API |
+| `userId` | string | No | ID de usuario para listar sesiones \(ej., user_2NNEqL2nrIRdJ194ndJqAHwEfxC; requerido si no se proporciona clientId\) |
+| `clientId` | string | No | ID de cliente para listar sesiones \(requerido si no se proporciona userId\) |
+| `status` | string | No | Filtrar por estado de sesión \(abandoned, active, ended, expired, pending, removed, replaced, revoked\) |
+| `limit` | number | No | Número de resultados por página \(ej., 10, 50, 100; rango: 1-500, predeterminado: 10\) |
+| `offset` | number | No | Número de resultados a omitir para paginación \(ej., 0, 10, 20\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `sessions` | array | Array de objetos de sesión de Clerk |
+|   ↳ `id` | string | ID de sesión |
+|   ↳ `userId` | string | ID de usuario |
+|   ↳ `clientId` | string | ID de cliente |
+|   ↳ `status` | string | Estado de sesión |
+|   ↳ `lastActiveAt` | number | Marca de tiempo de última actividad |
+|   ↳ `lastActiveOrganizationId` | string | ID de última organización activa |
+|   ↳ `expireAt` | number | Marca de tiempo de expiración |
+|   ↳ `abandonAt` | number | Marca de tiempo de abandono |
+|   ↳ `createdAt` | number | Marca de tiempo de creación |
+|   ↳ `updatedAt` | number | Marca de tiempo de última actualización |
+| `totalCount` | number | Número total de sesiones |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_get_session`
+
+Recuperar una única sesión por ID desde Clerk
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `sessionId` | string | Sí | El ID de la sesión a recuperar \(ej., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID de sesión |
+| `userId` | string | ID de usuario |
+| `clientId` | string | ID de cliente |
+| `status` | string | Estado de la sesión |
+| `lastActiveAt` | number | Marca de tiempo de última actividad |
+| `lastActiveOrganizationId` | string | ID de última organización activa |
+| `expireAt` | number | Marca de tiempo de expiración |
+| `abandonAt` | number | Marca de tiempo de abandono |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `success` | boolean | Estado de éxito de la operación |
+
+### `clerk_revoke_session`
+
+Revocar una sesión para invalidarla inmediatamente
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Sí | La clave secreta de Clerk para autenticación de API |
+| `sessionId` | string | Sí | El ID de la sesión a revocar \(ej., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | ID de sesión |
+| `userId` | string | ID de usuario |
+| `clientId` | string | ID de cliente |
+| `status` | string | Estado de la sesión \(debería estar revocada\) |
+| `lastActiveAt` | number | Marca de tiempo de última actividad |
+| `lastActiveOrganizationId` | string | ID de última organización activa |
+| `expireAt` | number | Marca de tiempo de expiración |
+| `abandonAt` | number | Marca de tiempo de abandono |
+| `createdAt` | number | Marca de tiempo de creación |
+| `updatedAt` | number | Marca de tiempo de última actualización |
+| `success` | boolean | Estado de éxito de la operación |

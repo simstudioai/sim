@@ -165,33 +165,3 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `summary` | string | 自动生成的摘要 |
 
 ### `stt_gemini`
-
-使用具有多模态功能的 Google Gemini 将音频转录为文本
-
-#### 输入
-
-| 参数 | 类型 | 必需 | 描述 |
-| --------- | ---- | -------- | ----------- |
-| `provider` | string | 是 | STT 提供商 \(gemini\) |
-| `apiKey` | string | 是 | Google API 密钥 |
-| `model` | string | 否 | 要使用的 Gemini 模型 \(默认值：gemini-2.5-flash\) |
-| `audioFile` | file | 否 | 要转录的音频或视频文件 |
-| `audioFileReference` | file | 否 | 来自前面模块的音频/视频文件引用 |
-| `audioUrl` | string | 否 | 音频或视频文件的 URL |
-| `language` | string | 否 | 语言代码 \(例如："en", "es", "fr"\) 或 "auto" 进行自动检测 |
-| `timestamps` | string | 否 | 时间戳粒度：无、句子或单词 |
-
-#### 输出
-
-| 参数 | 类型 | 描述 |
-| --------- | ---- | ----------- |
-| `transcript` | string | 完整的转录文本 |
-| `segments` | array | 带时间戳的片段 |
-| `language` | string | 检测到或指定的语言 |
-| `duration` | number | 音频时长（秒） |
-| `confidence` | number | 总体置信度评分 |
-
-## 注意
-
-- 类别：`tools`
-- 类型：`stt`
