@@ -103,7 +103,7 @@ export function getPlaceholderForFieldType(fieldType: string): string {
     case 'number':
       return 'Enter number'
     case 'date':
-      return 'YYYY-MM-DD'
+      return 'YYYY-MM-DD or YYYY-MM-DD HH:mm'
     default:
       return 'Enter value'
   }

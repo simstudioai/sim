@@ -49,6 +49,7 @@ import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowl
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
   AddDocumentsModal,
@@ -367,6 +368,8 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
+  const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
+  const [documentForTags, setDocumentForTags] = useState<DocumentData | null>(null)
 
   const {
     isOpen: isContextMenuOpen,
@@ -525,7 +528,6 @@ export function KnowledgeBase({
 
     const newEnabled = !document.enabled
 
-    // Optimistic update
     updateDocument(docId, { enabled: newEnabled })
 
     updateDocumentMutation(
@@ -536,7 +538,6 @@ export function KnowledgeBase({
       },
       {
         onError: () => {
-          // Rollback on error
           updateDocument(docId, { enabled: !newEnabled })
         },
       }
@@ -547,7 +548,6 @@ export function KnowledgeBase({
    * Handles retrying a failed document processing
    */
   const handleRetryDocument = (docId: string) => {
-    // Optimistic update
     updateDocument(docId, {
       processingStatus: 'pending',
       processingError: null,
@@ -593,7 +593,6 @@ export function KnowledgeBase({
     const currentDoc = documents.find((doc) => doc.id === documentId)
     const previousName = currentDoc?.filename
 
-    // Optimistic update
     updateDocument(documentId, { filename: newName })
 
     return new Promise<void>((resolve, reject) => {
@@ -609,7 +608,6 @@ export function KnowledgeBase({
             resolve()
           },
           onError: (err) => {
-            // Rollback on error
             if (previousName !== undefined) {
               updateDocument(documentId, { filename: previousName })
             }
@@ -973,7 +971,7 @@ export function KnowledgeBase({
                   variant='default'
                   className='h-[32px] rounded-[6px]'
                 >
-                  Tags
+                  Tag definitions
                 </Button>
               )}
               <Tooltip.Root>
@@ -1221,17 +1219,9 @@ export function KnowledgeBase({
                               const IconComponent = getDocumentIcon(doc.mimeType, doc.filename)
                               return <IconComponent className='h-6 w-5 flex-shrink-0' />
                             })()}
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <span
-                                  className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                                  title={doc.filename}
-                                >
-                                  <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
-                                </span>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
-                            </Tooltip.Root>
+                            <span className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'>
+                              <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
@@ -1556,6 +1546,22 @@ export function KnowledgeBase({
         />
       )}
 
+      {/* Document Tags Modal */}
+      {documentForTags && (
+        <DocumentTagsModal
+          open={showDocumentTagsModal}
+          onOpenChange={setShowDocumentTagsModal}
+          knowledgeBaseId={id}
+          documentId={documentForTags.id}
+          documentData={documentForTags}
+          onDocumentUpdate={(updates) => {
+            Object.entries(updates).forEach(([key, value]) => {
+              updateDocument(documentForTags.id, { [key]: value })
+            })
+          }}
+        />
+      )}
+
       <ActionBar
         selectedCount={selectedDocuments.size}
         onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
@@ -1624,13 +1630,8 @@ export function KnowledgeBase({
         onViewTags={
           contextMenuDocument && selectedDocuments.size === 1
             ? () => {
-                const urlParams = new URLSearchParams({
-                  kbName: knowledgeBaseName,
-                  docName: contextMenuDocument.filename || 'Document',
-                })
-                router.push(
-                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`
-                )
+                setDocumentForTags(contextMenuDocument)
+                setShowDocumentTagsModal(true)
               }
             : undefined
         }

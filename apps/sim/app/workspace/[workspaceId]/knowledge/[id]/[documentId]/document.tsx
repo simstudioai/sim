@@ -641,7 +641,7 @@ export function Document({
                   variant='default'
                   className='h-[32px] rounded-[6px]'
                 >
-                  Tags
+                  Document tags
                 </Button>
               )}
               <Tooltip.Root>
@@ -864,10 +864,7 @@ export function Document({
                             {chunk.chunkIndex}
                           </TableCell>
                           <TableCell className='px-[12px] py-[8px]'>
-                            <span
-                              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                              title={chunk.content}
-                            >
+                            <span className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'>
                               <SearchHighlight
                                 text={truncateContent(chunk.content, 150, searchQuery)}
                                 searchQuery={searchQuery}
@@ -1152,6 +1149,7 @@ export function Document({
             ? () => setIsCreateChunkModalOpen(true)
             : undefined
         }
+        onViewTags={() => setShowTagsModal(true)}
         disableToggleEnabled={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
         disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}

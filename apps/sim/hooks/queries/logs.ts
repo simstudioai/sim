@@ -21,6 +21,8 @@ export const logKeys = {
   lists: () => [...logKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined, filters: Omit<LogFilters, 'page'>) =>
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
+  recent: (workspaceId: string | undefined, limit: number) =>
+    [...logKeys.all, 'recent', workspaceId ?? '', limit] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
   stats: (workspaceId: string | undefined, filters: object) =>
@@ -280,5 +282,59 @@ export function useExecutionSnapshot(executionId: string | undefined) {
     queryFn: () => fetchExecutionSnapshot(executionId as string),
     enabled: Boolean(executionId),
     staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
+  })
+}
+
+/**
+ * Simple recent logs data for lightweight use cases (e.g., mention suggestions)
+ */
+export interface RecentLog {
+  id: string
+  executionId?: string
+  level: string
+  trigger: string | null
+  createdAt: string
+  workflow?: {
+    name?: string
+    title?: string
+  }
+  workflowName?: string
+}
+
+async function fetchRecentLogs(workspaceId: string, limit: number): Promise<RecentLog[]> {
+  const params = new URLSearchParams()
+  params.set('workspaceId', workspaceId)
+  params.set('limit', limit.toString())
+  params.set('details', 'full')
+
+  const response = await fetch(`/api/logs?${params.toString()}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch recent logs')
+  }
+
+  const data = await response.json()
+  return Array.isArray(data?.data) ? data.data : []
+}
+
+interface UseRecentLogsOptions {
+  enabled?: boolean
+}
+
+/**
+ * Hook for fetching recent logs with minimal filtering.
+ * Useful for lightweight use cases like mention suggestions.
+ */
+export function useRecentLogs(
+  workspaceId: string | undefined,
+  limit = 50,
+  options?: UseRecentLogsOptions
+) {
+  return useQuery({
+    queryKey: logKeys.recent(workspaceId, limit),
+    queryFn: () => fetchRecentLogs(workspaceId as string, limit),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }

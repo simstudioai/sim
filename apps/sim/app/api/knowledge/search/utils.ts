@@ -203,39 +203,74 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle date operators - expects YYYY-MM-DD format from frontend
+  // Handle date operators - accepts YYYY-MM-DD or ISO 8601 timestamp
   if (fieldType === 'date') {
     const dateStr = String(value)
-    // Validate YYYY-MM-DD format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      logger.debug(`[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD`)
+    const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/
+    const datetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/
+
+    // Validate format - accept date-only or timestamp
+    const isDateOnly = dateOnlyRegex.test(dateStr)
+    const isTimestamp = datetimeRegex.test(dateStr)
+
+    if (!isDateOnly && !isTimestamp) {
+      logger.debug(
+        `[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss`
+      )
       return null
     }
 
+    // Use date comparison for date-only values, timestamp comparison for timestamps
+    const castType = isDateOnly ? '::date' : '::timestamp'
+
     switch (operator) {
       case 'eq':
-        return sql`${column}::date = ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date = ${dateStr}::date`
+          : sql`${column}::timestamp = ${dateStr}::timestamp`
       case 'neq':
-        return sql`${column}::date != ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date != ${dateStr}::date`
+          : sql`${column}::timestamp != ${dateStr}::timestamp`
       case 'gt':
-        return sql`${column}::date > ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date > ${dateStr}::date`
+          : sql`${column}::timestamp > ${dateStr}::timestamp`
       case 'gte':
-        return sql`${column}::date >= ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date >= ${dateStr}::date`
+          : sql`${column}::timestamp >= ${dateStr}::timestamp`
       case 'lt':
-        return sql`${column}::date < ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date < ${dateStr}::date`
+          : sql`${column}::timestamp < ${dateStr}::timestamp`
       case 'lte':
-        return sql`${column}::date <= ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date <= ${dateStr}::date`
+          : sql`${column}::timestamp <= ${dateStr}::timestamp`
       case 'between':
         if (valueTo !== undefined) {
           const dateStrTo = String(valueTo)
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
-            return sql`${column}::date = ${dateStr}::date`
+          const isToDateOnly = dateOnlyRegex.test(dateStrTo)
+          const isToTimestamp = datetimeRegex.test(dateStrTo)
+          if (!isToDateOnly && !isToTimestamp) {
+            return isDateOnly
+              ? sql`${column}::date = ${dateStr}::date`
+              : sql`${column}::timestamp = ${dateStr}::timestamp`
           }
-          return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
+          // Use date comparison if both are date-only, otherwise use timestamp
+          if (isDateOnly && isToDateOnly) {
+            return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
+          }
+          return sql`${column}::timestamp >= ${dateStr}::timestamp AND ${column}::timestamp <= ${dateStrTo}::timestamp`
         }
-        return sql`${column}::date = ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date = ${dateStr}::date`
+          : sql`${column}::timestamp = ${dateStr}::timestamp`
       default:
-        return sql`${column}::date = ${dateStr}::date`
+        return isDateOnly
+          ? sql`${column}::date = ${dateStr}::date`
+          : sql`${column}::timestamp = ${dateStr}::timestamp`
     }
   }
 

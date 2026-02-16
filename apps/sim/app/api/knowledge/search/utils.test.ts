@@ -198,7 +198,6 @@ describe('Knowledge Search Utils', () => {
       )
       expect(result).toEqual([0.1, 0.2, 0.3])
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -229,7 +228,6 @@ describe('Knowledge Search Utils', () => {
       )
       expect(result).toEqual([0.1, 0.2, 0.3])
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -258,7 +256,6 @@ describe('Knowledge Search Utils', () => {
         expect.any(Object)
       )
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -288,7 +285,6 @@ describe('Knowledge Search Utils', () => {
         expect.any(Object)
       )
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -321,7 +317,6 @@ describe('Knowledge Search Utils', () => {
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -342,7 +337,6 @@ describe('Knowledge Search Utils', () => {
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -376,7 +370,6 @@ describe('Knowledge Search Utils', () => {
         })
       )
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
@@ -409,7 +402,6 @@ describe('Knowledge Search Utils', () => {
         })
       )
 
-      // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
   })
@@ -421,6 +413,99 @@ describe('Knowledge Search Utils', () => {
       const result = await getDocumentNamesByIds([])
 
       expect(result).toEqual({})
+    })
+  })
+
+  describe('Date Filter Format Handling', () => {
+    it('should accept date-only format (YYYY-MM-DD) in structured filters', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'eq',
+        value: '2024-01-15',
+      }
+
+      expect(filter.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(filter.fieldType).toBe('date')
+    })
+
+    it('should accept ISO 8601 timestamp format in structured filters', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'eq',
+        value: '2024-01-15T14:30:00',
+      }
+
+      expect(filter.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
+      expect(filter.fieldType).toBe('date')
+    })
+
+    it('should accept ISO 8601 timestamp with UTC timezone in structured filters', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'gte',
+        value: '2024-01-15T14:30:00Z',
+      }
+
+      expect(filter.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+      expect(filter.fieldType).toBe('date')
+    })
+
+    it('should accept ISO 8601 timestamp with timezone offset in structured filters', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'lt',
+        value: '2024-01-15T14:30:00+05:00',
+      }
+
+      expect(filter.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/)
+      expect(filter.fieldType).toBe('date')
+    })
+
+    it('should support all date comparison operators', () => {
+      const operators = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between']
+      const validDateValue = '2024-01-15'
+
+      for (const operator of operators) {
+        const filter = {
+          tagSlot: 'date1',
+          fieldType: 'date',
+          operator,
+          value: validDateValue,
+        }
+        expect(filter.operator).toBe(operator)
+      }
+    })
+
+    it('should support between operator with date range', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'between',
+        value: '2024-01-01',
+        valueTo: '2024-12-31',
+      }
+
+      expect(filter.operator).toBe('between')
+      expect(filter.value).toBe('2024-01-01')
+      expect(filter.valueTo).toBe('2024-12-31')
+    })
+
+    it('should support between operator with timestamp range', () => {
+      const filter = {
+        tagSlot: 'date1',
+        fieldType: 'date',
+        operator: 'between',
+        value: '2024-01-01T00:00:00',
+        valueTo: '2024-12-31T23:59:59',
+      }
+
+      expect(filter.operator).toBe('between')
+      expect(filter.value).toMatch(/T\d{2}:\d{2}:\d{2}$/)
+      expect(filter.valueTo).toMatch(/T\d{2}:\d{2}:\d{2}$/)
     })
   })
 })
