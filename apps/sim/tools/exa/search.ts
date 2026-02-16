@@ -97,8 +97,9 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       type: 'custom',
       getCost: (params, output) => {
         // Use _costDollars from Exa API response (internal field, stripped from final output)
-        if (output._costDollars?.total) {
-          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
         }
 
         // Fallback: estimate based on search type and result count
@@ -107,7 +108,8 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
         if (isDeepSearch) {
           return 0.015
         }
-        const resultCount = output.results?.length || 0
+        const results = output.results as unknown[] | undefined
+        const resultCount = results?.length || 0
         return resultCount <= 25 ? 0.005 : 0.025
       },
     },

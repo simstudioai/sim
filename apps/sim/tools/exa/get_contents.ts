@@ -72,12 +72,14 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       type: 'custom',
       getCost: (_params, output) => {
         // Use _costDollars from Exa API response (internal field, stripped from final output)
-        if (output._costDollars?.total) {
-          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
         }
         // Fallback: $1/1000 pages
         logger.warn('Exa get_contents response missing costDollars, using fallback pricing')
-        return (output.results?.length || 0) * 0.001
+        const results = output.results as unknown[] | undefined
+        return (results?.length || 0) * 0.001
       },
     },
   },

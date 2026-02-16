@@ -42,8 +42,9 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       type: 'custom',
       getCost: (params, output) => {
         // Use _costDollars from Exa API response (internal field, stripped from final output)
-        if (output._costDollars?.total) {
-          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
         }
 
         // Fallback to estimate if cost not available

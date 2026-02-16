@@ -38,8 +38,9 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
       type: 'custom',
       getCost: (_params, output) => {
         // Use _costDollars from Exa API response (internal field, stripped from final output)
-        if (output._costDollars?.total) {
-          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
         }
         // Fallback: $5/1000 requests
         logger.warn('Exa answer response missing costDollars, using fallback pricing')

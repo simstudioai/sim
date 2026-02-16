@@ -87,12 +87,14 @@ export const findSimilarLinksTool: ToolConfig<
       type: 'custom',
       getCost: (_params, output) => {
         // Use _costDollars from Exa API response (internal field, stripped from final output)
-        if (output._costDollars?.total) {
-          return { cost: output._costDollars.total, metadata: { costDollars: output._costDollars } }
+        const costDollars = output._costDollars as { total?: number } | undefined
+        if (costDollars?.total) {
+          return { cost: costDollars.total, metadata: { costDollars } }
         }
         // Fallback: $5/1000 (1-25 results) or $25/1000 (26-100 results)
         logger.warn('Exa find_similar_links response missing costDollars, using fallback pricing')
-        const resultCount = output.similarLinks?.length || 0
+        const similarLinks = output.similarLinks as unknown[] | undefined
+        const resultCount = similarLinks?.length || 0
         return resultCount <= 25 ? 0.005 : 0.025
       },
     },
