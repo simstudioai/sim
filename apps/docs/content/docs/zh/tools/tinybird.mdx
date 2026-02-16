@@ -41,9 +41,9 @@ Tinybird 让工程、分析和产品团队能够以极低的运维成本，交�
 
 | 参数 | 类型 | 必填 | 说明 |
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | 是 | Tinybird API 基础 URL（例如：https://api.tinybird.co 或 https://api.us-east.tinybird.co） |
+| `base_url` | string | 是 | Tinybird API 基础 URL（例如：`https://api.tinybird.co` 或 `https://api.us-east.tinybird.co`） |
 | `datasource` | string | 是 | 要发送事件的 Tinybird 数据源名称。例如："events_raw"、"user_analytics" |
-| `data` | string | 是 | 作为 NDJSON（换行分隔的 JSON）或 JSON 字符串发送的数据。每个事件应为有效的 JSON 对象。NDJSON 示例：{"user_id": 1, "event": "click"}\n{"user_id": 2, "event": "view"} |
+| `data` | string | 是 | 作为 NDJSON（换行分隔的 JSON）或 JSON 字符串发送的数据。每个事件应为有效的 JSON 对象。NDJSON 示例：`{"user_id": 1, "event": "click"}\n{"user_id": 2, "event": "view"}` |
 | `wait` | boolean | 否 | 在响应前等待数据库确认。可实现更安全的重试，但会增加延迟。默认值为 false。 |
 | `format` | string | 否 | 事件数据格式："ndjson"（默认）或 "json" |
 | `compression` | string | 否 | 压缩格式："none"（默认）或 "gzip" |
