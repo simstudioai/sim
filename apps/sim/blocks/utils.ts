@@ -1,7 +1,31 @@
 import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
-import { getHostedModels, getProviderFromModel, providers } from '@/providers/utils'
+import {
+  getHostedModels,
+  getProviderFromModel,
+  getProviderIcon,
+  providers,
+} from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+
+/**
+ * Returns model options for combobox subblocks, combining all provider sources.
+ */
+export function getModelOptions() {
+  const providersState = useProvidersStore.getState()
+  const baseModels = providersState.providers.base.models
+  const ollamaModels = providersState.providers.ollama.models
+  const vllmModels = providersState.providers.vllm.models
+  const openrouterModels = providersState.providers.openrouter.models
+  const allModels = Array.from(
+    new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+  )
+
+  return allModels.map((model) => {
+    const icon = getProviderIcon(model)
+    return { label: model, id: model, ...(icon && { icon }) }
+  })
+}
 
 /**
  * Checks if a field is included in the dependsOn config.

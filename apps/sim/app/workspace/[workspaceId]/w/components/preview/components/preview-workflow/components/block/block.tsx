@@ -223,7 +223,12 @@ function resolveToolsDisplay(
  * - Resolves tool names from block registry
  * - Shows '-' for other selector types that need hydration
  */
-function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
+const SubBlockRow = memo(function SubBlockRow({
+  title,
+  value,
+  subBlock,
+  rawValue,
+}: SubBlockRowProps) {
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
@@ -255,7 +260,7 @@ function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
       )}
     </div>
   )
-}
+})
 
 /**
  * Preview block component for workflow visualization.

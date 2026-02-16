@@ -8,7 +8,7 @@ export interface StatusBarSegment {
   timestamp: string
 }
 
-export function StatusBar({
+function StatusBarInner({
   segments,
   selectedSegmentIndices,
   onSegmentClick,
@@ -127,4 +127,45 @@ export function StatusBar({
   )
 }
 
-export default memo(StatusBar)
+/**
+ * Custom equality function for StatusBar memo.
+ * Performs structural comparison of segments array to avoid re-renders
+ * when poll data returns new object references with identical content.
+ */
+function areStatusBarPropsEqual(
+  prev: Parameters<typeof StatusBarInner>[0],
+  next: Parameters<typeof StatusBarInner>[0]
+): boolean {
+  if (prev.workflowId !== next.workflowId) return false
+  if (prev.segmentDurationMs !== next.segmentDurationMs) return false
+  if (prev.preferBelow !== next.preferBelow) return false
+
+  if (prev.selectedSegmentIndices !== next.selectedSegmentIndices) {
+    if (!prev.selectedSegmentIndices || !next.selectedSegmentIndices) return false
+    if (prev.selectedSegmentIndices.length !== next.selectedSegmentIndices.length) return false
+    for (let i = 0; i < prev.selectedSegmentIndices.length; i++) {
+      if (prev.selectedSegmentIndices[i] !== next.selectedSegmentIndices[i]) return false
+    }
+  }
+
+  if (prev.segments !== next.segments) {
+    if (prev.segments.length !== next.segments.length) return false
+    for (let i = 0; i < prev.segments.length; i++) {
+      const ps = prev.segments[i]
+      const ns = next.segments[i]
+      if (
+        ps.successRate !== ns.successRate ||
+        ps.hasExecutions !== ns.hasExecutions ||
+        ps.totalExecutions !== ns.totalExecutions ||
+        ps.successfulExecutions !== ns.successfulExecutions ||
+        ps.timestamp !== ns.timestamp
+      ) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
+export const StatusBar = memo(StatusBarInner, areStatusBarPropsEqual)

@@ -1,8 +1,10 @@
 import { ShieldCheckIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
-import { getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import {
+  getModelOptions,
+  getProviderCredentialSubBlocks,
+  PROVIDER_CREDENTIAL_INPUTS,
+} from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
 export interface GuardrailsResponse extends ToolResponse {
@@ -111,21 +113,7 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      options: () => {
-        const providersState = useProvidersStore.getState()
-        const baseModels = providersState.providers.base.models
-        const ollamaModels = providersState.providers.ollama.models
-        const vllmModels = providersState.providers.vllm.models
-        const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(
-          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
-        )
-
-        return allModels.map((model) => {
-          const icon = getProviderIcon(model)
-          return { label: model, id: model, ...(icon && { icon }) }
-        })
-      },
+      options: getModelOptions,
       condition: {
         field: 'validationType',
         value: ['hallucination'],

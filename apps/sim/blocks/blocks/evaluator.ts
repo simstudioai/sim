@@ -1,10 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { ChartBarIcon } from '@/components/icons'
 import type { BlockConfig, ParamType } from '@/blocks/types'
-import { getProviderCredentialSubBlocks, PROVIDER_CREDENTIAL_INPUTS } from '@/blocks/utils'
+import {
+  getModelOptions,
+  getProviderCredentialSubBlocks,
+  PROVIDER_CREDENTIAL_INPUTS,
+} from '@/blocks/utils'
 import type { ProviderId } from '@/providers/types'
-import { getBaseModelProviders, getProviderIcon } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { getBaseModelProviders } from '@/providers/utils'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
@@ -175,21 +178,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-4-5',
-      options: () => {
-        const providersState = useProvidersStore.getState()
-        const baseModels = providersState.providers.base.models
-        const ollamaModels = providersState.providers.ollama.models
-        const vllmModels = providersState.providers.vllm.models
-        const openrouterModels = providersState.providers.openrouter.models
-        const allModels = Array.from(
-          new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
-        )
-
-        return allModels.map((model) => {
-          const icon = getProviderIcon(model)
-          return { label: model, id: model, ...(icon && { icon }) }
-        })
-      },
+      options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
     {

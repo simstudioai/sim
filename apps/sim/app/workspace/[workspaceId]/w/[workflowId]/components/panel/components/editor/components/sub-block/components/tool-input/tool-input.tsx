@@ -1741,36 +1741,97 @@ export const ToolInput = memo(function ToolInput({
                     ) : null
                   })()}
 
-                  {requiresOAuth && oauthConfig && (
-                    <div className='relative min-w-0 space-y-[6px]'>
-                      <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Account <span className='ml-0.5'>*</span>
-                      </div>
-                      <div className='w-full min-w-0'>
-                        <ToolCredentialSelector
-                          value={tool.params?.credential || ''}
-                          onChange={(value: string) =>
-                            handleParamChange(toolIndex, 'credential', value)
-                          }
-                          provider={oauthConfig.provider as OAuthProvider}
-                          requiredScopes={
-                            toolBlock?.subBlocks?.find((sb) => sb.id === 'credential')
-                              ?.requiredScopes ||
-                            getCanonicalScopesForProvider(oauthConfig.provider)
-                          }
-                          serviceId={oauthConfig.provider}
-                          disabled={disabled}
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   {(() => {
                     const renderedElements: React.ReactNode[] = []
 
+                    const showOAuth =
+                      requiresOAuth && oauthConfig && tool.params?.authMethod !== 'bot_token'
+
+                    const renderOAuthAccount = (): React.ReactNode => {
+                      if (!showOAuth || !oauthConfig) return null
+                      const credentialSubBlock = toolBlock?.subBlocks?.find(
+                        (s) => s.type === 'oauth-input'
+                      )
+                      return (
+                        <div key='oauth-account' className='relative min-w-0 space-y-[6px]'>
+                          <div className='font-medium text-[13px] text-[var(--text-primary)]'>
+                            {credentialSubBlock?.title || 'Account'}{' '}
+                            <span className='ml-0.5'>*</span>
+                          </div>
+                          <div className='w-full min-w-0'>
+                            <ToolCredentialSelector
+                              value={tool.params?.credential || ''}
+                              onChange={(value: string) =>
+                                handleParamChange(toolIndex, 'credential', value)
+                              }
+                              provider={oauthConfig.provider as OAuthProvider}
+                              requiredScopes={
+                                credentialSubBlock?.requiredScopes ||
+                                getCanonicalScopesForProvider(oauthConfig.provider)
+                              }
+                              serviceId={oauthConfig.provider}
+                              disabled={disabled}
+                            />
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    const renderSubBlock = (sb: BlockSubBlockConfig): React.ReactNode => {
+                      const effectiveParamId = sb.id
+                      const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
+                      const canonicalGroup = canonicalId
+                        ? toolCanonicalIndex?.groupsById[canonicalId]
+                        : undefined
+                      const hasCanonicalPair = isCanonicalPair(canonicalGroup)
+                      const canonicalMode =
+                        canonicalGroup && hasCanonicalPair
+                          ? resolveCanonicalMode(
+                              canonicalGroup,
+                              { operation: tool.operation, ...tool.params },
+                              toolScopedOverrides
+                            )
+                          : undefined
+
+                      const canonicalToggleProp =
+                        hasCanonicalPair && canonicalMode && canonicalId
+                          ? {
+                              mode: canonicalMode,
+                              onToggle: () => {
+                                const nextMode = canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                collaborativeSetBlockCanonicalMode(
+                                  blockId,
+                                  `${tool.type}:${canonicalId}`,
+                                  nextMode
+                                )
+                              },
+                            }
+                          : undefined
+
+                      const sbWithTitle = sb.title
+                        ? sb
+                        : { ...sb, title: formatParameterLabel(effectiveParamId) }
+
+                      return (
+                        <ToolSubBlockRenderer
+                          key={sb.id}
+                          blockId={blockId}
+                          subBlockId={subBlockId}
+                          toolIndex={toolIndex}
+                          subBlock={sbWithTitle}
+                          effectiveParamId={effectiveParamId}
+                          toolParams={tool.params}
+                          onParamChange={handleParamChange}
+                          disabled={disabled}
+                          canonicalToggle={canonicalToggleProp}
+                        />
+                      )
+                    }
+
                     if (useSubBlocks && displaySubBlocks.length > 0) {
+                      const allBlockSubBlocks = toolBlock?.subBlocks || []
                       const coveredParamIds = new Set(
-                        displaySubBlocks.flatMap((sb) => {
+                        allBlockSubBlocks.flatMap((sb) => {
                           const ids = [sb.id]
                           if (sb.canonicalParamId) ids.push(sb.canonicalParamId)
                           const cId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
@@ -1785,57 +1846,45 @@ export const ToolInput = memo(function ToolInput({
                         })
                       )
 
-                      displaySubBlocks.forEach((sb) => {
-                        const effectiveParamId = sb.id
-                        const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
-                        const canonicalGroup = canonicalId
-                          ? toolCanonicalIndex?.groupsById[canonicalId]
-                          : undefined
-                        const hasCanonicalPair = isCanonicalPair(canonicalGroup)
-                        const canonicalMode =
-                          canonicalGroup && hasCanonicalPair
-                            ? resolveCanonicalMode(
-                                canonicalGroup,
-                                { operation: tool.operation, ...tool.params },
-                                toolScopedOverrides
-                              )
-                            : undefined
+                      type RenderItem =
+                        | { kind: 'subblock'; sb: BlockSubBlockConfig }
+                        | { kind: 'oauth' }
 
-                        const canonicalToggleProp =
-                          hasCanonicalPair && canonicalMode && canonicalId
-                            ? {
-                                mode: canonicalMode,
-                                onToggle: () => {
-                                  const nextMode =
-                                    canonicalMode === 'advanced' ? 'basic' : 'advanced'
-                                  collaborativeSetBlockCanonicalMode(
-                                    blockId,
-                                    `${tool.type}:${canonicalId}`,
-                                    nextMode
-                                  )
-                                },
-                              }
-                            : undefined
+                      const renderOrder: RenderItem[] = displaySubBlocks.map((sb) => ({
+                        kind: 'subblock' as const,
+                        sb,
+                      }))
 
-                        const sbWithTitle = sb.title
-                          ? sb
-                          : { ...sb, title: formatParameterLabel(effectiveParamId) }
-
-                        renderedElements.push(
-                          <ToolSubBlockRenderer
-                            key={sb.id}
-                            blockId={blockId}
-                            subBlockId={subBlockId}
-                            toolIndex={toolIndex}
-                            subBlock={sbWithTitle}
-                            effectiveParamId={effectiveParamId}
-                            toolParams={tool.params}
-                            onParamChange={handleParamChange}
-                            disabled={disabled}
-                            canonicalToggle={canonicalToggleProp}
-                          />
+                      if (showOAuth) {
+                        const credentialIdx = allBlockSubBlocks.findIndex(
+                          (sb) => sb.type === 'oauth-input'
                         )
-                      })
+                        if (credentialIdx >= 0) {
+                          const sbPositions = new Map(allBlockSubBlocks.map((sb, i) => [sb.id, i]))
+                          const insertAt = renderOrder.findIndex(
+                            (item) =>
+                              item.kind === 'subblock' &&
+                              (sbPositions.get(item.sb.id) ?? Number.POSITIVE_INFINITY) >
+                                credentialIdx
+                          )
+                          if (insertAt === -1) {
+                            renderOrder.push({ kind: 'oauth' })
+                          } else {
+                            renderOrder.splice(insertAt, 0, { kind: 'oauth' })
+                          }
+                        } else {
+                          renderOrder.unshift({ kind: 'oauth' })
+                        }
+                      }
+
+                      for (const item of renderOrder) {
+                        if (item.kind === 'oauth') {
+                          const el = renderOAuthAccount()
+                          if (el) renderedElements.push(el)
+                        } else {
+                          renderedElements.push(renderSubBlock(item.sb))
+                        }
+                      }
 
                       const uncoveredParams = displayParams.filter(
                         (param) =>
@@ -1871,6 +1920,11 @@ export const ToolInput = memo(function ToolInput({
                       return (
                         <div className='flex flex-col gap-[14px] pt-[4px]'>{renderedElements}</div>
                       )
+                    }
+
+                    {
+                      const el = renderOAuthAccount()
+                      if (el) renderedElements.push(el)
                     }
 
                     const filteredParams = displayParams.filter((param) =>

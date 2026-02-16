@@ -827,11 +827,10 @@ export function formatParameterLabel(paramId: string): string {
 }
 
 /**
- * SubBlock IDs that are "structural" — they control tool routing or auth,
- * not user-facing parameters. These are excluded from tool-input rendering
- * unless they have an explicit paramVisibility set.
+ * SubBlock IDs that control tool routing, not user-facing parameters.
+ * Excluded from tool-input rendering unless they have an explicit paramVisibility set.
  */
-const STRUCTURAL_SUBBLOCK_IDS = new Set(['operation', 'authMethod', 'destinationType'])
+const STRUCTURAL_SUBBLOCK_IDS = new Set(['operation'])
 
 /**
  * SubBlock types that represent auth/credential inputs handled separately
@@ -955,12 +954,8 @@ export function getSubBlocksForToolInput(
         } else if (sb.id in toolParamVisibility) {
           visibility = toolParamVisibility[sb.id]
         } else if (sb.canonicalParamId) {
-          // SubBlock has a canonicalParamId that doesn't directly match a tool param.
-          // This means the block's params() function transforms it before sending to the tool
-          // (e.g. listFolderId → folderId). These are user-facing inputs, default to user-or-llm.
           visibility = 'user-or-llm'
         } else {
-          // SubBlock has no corresponding tool param — skip it
           continue
         }
       }

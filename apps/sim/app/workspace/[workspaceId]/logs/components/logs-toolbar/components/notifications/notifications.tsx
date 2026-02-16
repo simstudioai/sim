@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, X } from 'lucide-react'
 import {
@@ -113,7 +113,7 @@ function formatAlertConfigLabel(config: {
   }
 }
 
-export function NotificationSettings({
+export const NotificationSettings = memo(function NotificationSettings({
   workspaceId,
   open,
   onOpenChange,
@@ -144,7 +144,7 @@ export function NotificationSettings({
     slackChannelId: '',
     slackChannelName: '',
     slackAccountId: '',
-    useAlertRule: false,
+
     alertRule: 'none' as AlertRule,
     consecutiveFailures: 3,
     failureRatePercent: 50,
@@ -212,7 +212,7 @@ export function NotificationSettings({
       slackChannelId: '',
       slackChannelName: '',
       slackAccountId: '',
-      useAlertRule: false,
+
       alertRule: 'none',
       consecutiveFailures: 3,
       failureRatePercent: 50,
@@ -484,7 +484,6 @@ export function NotificationSettings({
       slackChannelId: subscription.slackConfig?.channelId || '',
       slackChannelName: subscription.slackConfig?.channelName || '',
       slackAccountId: subscription.slackConfig?.accountId || '',
-      useAlertRule: !!subscription.alertConfig,
       alertRule: subscription.alertConfig?.rule || 'none',
       consecutiveFailures: subscription.alertConfig?.consecutiveFailures || 3,
       failureRatePercent: subscription.alertConfig?.failureRatePercent || 50,
@@ -1289,4 +1288,4 @@ export function NotificationSettings({
       </Modal>
     </>
   )
-}
+})

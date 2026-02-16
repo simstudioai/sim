@@ -122,6 +122,25 @@ export const ScheduleBlock: BlockConfig = {
       required: true,
       mode: 'trigger',
       condition: { field: 'scheduleType', value: 'custom' },
+      wandConfig: {
+        enabled: true,
+        prompt: `You are an expert at writing cron expressions. Generate a valid cron expression based on the user's description.
+
+Cron format: minute hour day-of-month month day-of-week
+- minute: 0-59
+- hour: 0-23
+- day-of-month: 1-31
+- month: 1-12
+- day-of-week: 0-7 (0 and 7 are Sunday)
+
+Special characters: * (any), , (list), - (range), / (step)
+
+{context}
+
+Return ONLY the cron expression, nothing else. No explanation, no backticks, no quotes.`,
+        placeholder: 'Describe your schedule (e.g., "every weekday at 9am")',
+        generationType: 'cron-expression',
+      },
     },
 
     {

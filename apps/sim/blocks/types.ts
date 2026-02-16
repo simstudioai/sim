@@ -40,6 +40,7 @@ export type GenerationType =
   | 'neo4j-parameters'
   | 'timestamp'
   | 'timezone'
+  | 'cron-expression'
 
 export type SubBlockType =
   | 'short-input' // Single line input
