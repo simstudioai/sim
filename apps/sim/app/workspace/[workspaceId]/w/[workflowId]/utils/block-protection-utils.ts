@@ -36,17 +36,18 @@ export function isBlockProtected(blockId: string, blocks: Record<string, BlockSt
 
 /**
  * Checks if an edge is protected from modification.
- * An edge is protected if either its source or target block is protected.
+ * An edge is protected only if its target block is protected.
+ * Outbound connections from locked blocks are allowed to be modified.
  *
  * @param edge - The edge to check (must have source and target)
  * @param blocks - Record of all blocks in the workflow
- * @returns True if the edge is protected
+ * @returns True if the edge is protected (target is locked)
  */
 export function isEdgeProtected(
   edge: { source: string; target: string },
   blocks: Record<string, BlockState>
 ): boolean {
-  return isBlockProtected(edge.source, blocks) || isBlockProtected(edge.target, blocks)
+  return isBlockProtected(edge.target, blocks)
 }
 
 /**
