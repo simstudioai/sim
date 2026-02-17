@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, MessageSquare, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
@@ -248,6 +248,12 @@ export const Sidebar = memo(function Sidebar() {
   const footerNavigationItems = useMemo(
     () =>
       [
+        {
+          id: 'chat',
+          label: 'Chat',
+          icon: MessageSquare,
+          href: `/workspace/${workspaceId}/chat`,
+        },
         {
           id: 'logs',
           label: 'Logs',

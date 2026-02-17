@@ -1499,9 +1499,8 @@ export const copilotChats = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     title: text('title'),
     messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
@@ -1517,6 +1516,12 @@ export const copilotChats = pgTable(
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
     userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
+
+    // Workspace access pattern
+    userWorkspaceIdx2: index('copilot_chats_user_workspace_idx').on(
+      table.userId,
+      table.workspaceId
+    ),
 
     // Ordering indexes
     createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),

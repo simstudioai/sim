@@ -1,15 +1,21 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
-import type { OrchestratorOptions, OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import type {
+  ExecutionContext,
+  OrchestratorOptions,
+  OrchestratorResult,
+} from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream-core'
 
 const logger = createLogger('CopilotOrchestrator')
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
   userId: string
-  workflowId: string
+  workflowId?: string
+  workspaceId?: string
   chatId?: string
 }
 
@@ -17,8 +23,20 @@ export async function orchestrateCopilotStream(
   requestPayload: Record<string, unknown>,
   options: OrchestrateStreamOptions
 ): Promise<OrchestratorResult> {
-  const { userId, workflowId, chatId } = options
-  const execContext = await prepareExecutionContext(userId, workflowId)
+  const { userId, workflowId, workspaceId, chatId } = options
+
+  let execContext: ExecutionContext
+  if (workflowId) {
+    execContext = await prepareExecutionContext(userId, workflowId)
+  } else {
+    const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+    execContext = {
+      userId,
+      workflowId: '',
+      workspaceId,
+      decryptedEnvVars,
+    }
+  }
 
   const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({
