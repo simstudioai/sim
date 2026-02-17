@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
-import { getSlotsForFieldType } from '@/lib/knowledge/constants'
+import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { getCredential } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -130,19 +130,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
       const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
+      const { mapping, skipped: skippedTags } = allocateTagSlots(enabledDefs, usedSlots)
+      Object.assign(tagSlotMapping, mapping)
 
-      const skippedTags: string[] = []
-      for (const td of enabledDefs) {
-        const slots = getSlotsForFieldType(td.fieldType)
-        const available = slots.find((s) => !usedSlots.has(s))
-
-        if (!available) {
-          skippedTags.push(td.displayName)
-          logger.warn(`[${requestId}] No available ${td.fieldType} slots for "${td.displayName}"`)
-          continue
-        }
-        usedSlots.add(available)
-        tagSlotMapping[td.id] = available
+      for (const name of skippedTags) {
+        logger.warn(`[${requestId}] No available slots for "${name}"`)
       }
 
       if (skippedTags.length > 0 && Object.keys(tagSlotMapping).length === 0) {

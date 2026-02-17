@@ -9,7 +9,7 @@ const logger = createLogger('ConfluenceConnector')
 /**
  * Escapes a value for use inside CQL double-quoted strings.
  */
-function escapeCql(value: string): string {
+export function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 

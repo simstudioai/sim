@@ -22,7 +22,7 @@ const logger = createLogger('ConnectorSyncEngine')
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
  */
-function resolveTagMapping(
+export function resolveTagMapping(
   connectorType: string,
   metadata: Record<string, unknown>,
   sourceConfig?: Record<string, unknown>
