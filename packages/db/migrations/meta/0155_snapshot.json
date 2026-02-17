@@ -1,5 +1,5 @@
 {
-  "id": "4209f841-3ebf-469f-ad98-2df8a84766a1",
+  "id": "0c80d49c-beb2-4792-a9c1-91ce6ef7eb11",
   "prevId": "49f580f7-7eba-4431-bdf4-61db0e606546",
   "version": "7",
   "dialect": "postgresql",
@@ -4292,7 +4292,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'incremental'"
+          "default": "'full'"
         },
         "sync_interval_minutes": {
           "name": "sync_interval_minutes",

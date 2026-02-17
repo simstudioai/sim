@@ -4,7 +4,7 @@ CREATE TABLE "knowledge_connector" (
 	"connector_type" text NOT NULL,
 	"credential_id" text NOT NULL,
 	"source_config" json NOT NULL,
-	"sync_mode" text DEFAULT 'incremental' NOT NULL,
+	"sync_mode" text DEFAULT 'full' NOT NULL,
 	"sync_interval_minutes" integer DEFAULT 1440 NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"last_sync_at" timestamp,

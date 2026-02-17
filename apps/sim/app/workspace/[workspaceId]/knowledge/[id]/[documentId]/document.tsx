@@ -745,6 +745,7 @@ export function Document({
                         setEnabledFilter('all')
                         setIsFilterPopoverOpen(false)
                         setSelectedChunks(new Set())
+                        goToPage(1)
                       }}
                     >
                       All
@@ -755,6 +756,7 @@ export function Document({
                         setEnabledFilter('enabled')
                         setIsFilterPopoverOpen(false)
                         setSelectedChunks(new Set())
+                        goToPage(1)
                       }}
                     >
                       Enabled
@@ -765,6 +767,7 @@ export function Document({
                         setEnabledFilter('disabled')
                         setIsFilterPopoverOpen(false)
                         setSelectedChunks(new Set())
+                        goToPage(1)
                       }}
                     >
                       Disabled

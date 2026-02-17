@@ -117,11 +117,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     let finalSourceConfig: Record<string, unknown> = sourceConfig
+    const tagSlotMapping: Record<string, string> = {}
+
     if (connectorConfig.tagDefinitions?.length) {
       const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
       const enabledDefs = connectorConfig.tagDefinitions.filter((td) => !disabledIds.has(td.id))
 
-      const tagSlotMapping: Record<string, string> = {}
       const skippedTags: string[] = []
       for (const td of enabledDefs) {
         const slot = await getNextAvailableSlot(knowledgeBaseId, td.fieldType)
@@ -130,15 +131,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           logger.warn(`[${requestId}] No available ${td.fieldType} slots for "${td.displayName}"`)
           continue
         }
-        await createTagDefinition(
-          {
-            knowledgeBaseId,
-            tagSlot: slot,
-            displayName: td.displayName,
-            fieldType: td.fieldType,
-          },
-          requestId
-        )
         tagSlotMapping[td.id] = slot
       }
 
@@ -157,17 +149,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const nextSyncAt =
       syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60 * 1000) : null
 
-    await db.insert(knowledgeConnector).values({
-      id: connectorId,
-      knowledgeBaseId,
-      connectorType,
-      credentialId,
-      sourceConfig: finalSourceConfig,
-      syncIntervalMinutes,
-      status: 'active',
-      nextSyncAt,
-      createdAt: now,
-      updatedAt: now,
+    await db.transaction(async (tx) => {
+      for (const [semanticId, slot] of Object.entries(tagSlotMapping)) {
+        const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
+        await createTagDefinition(
+          {
+            knowledgeBaseId,
+            tagSlot: slot,
+            displayName: td.displayName,
+            fieldType: td.fieldType,
+          },
+          requestId,
+          tx
+        )
+      }
+
+      await tx.insert(knowledgeConnector).values({
+        id: connectorId,
+        knowledgeBaseId,
+        connectorType,
+        credentialId,
+        sourceConfig: finalSourceConfig,
+        syncIntervalMinutes,
+        status: 'active',
+        nextSyncAt,
+        createdAt: now,
+        updatedAt: now,
+      })
     })
 
     logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)

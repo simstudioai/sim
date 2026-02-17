@@ -2270,7 +2270,7 @@ export const knowledgeConnector = pgTable(
     connectorType: text('connector_type').notNull(),
     credentialId: text('credential_id').notNull(),
     sourceConfig: json('source_config').notNull(),
-    syncMode: text('sync_mode').notNull().default('incremental'),
+    syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),

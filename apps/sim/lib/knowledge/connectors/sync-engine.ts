@@ -275,7 +275,7 @@ export async function executeSync(
       }
     }
 
-    if (options?.fullSync || connector.syncMode === 'incremental') {
+    if (options?.fullSync || connector.syncMode === 'full') {
       for (const existing of existingDocs) {
         if (existing.externalId && !seenExternalIds.has(existing.externalId)) {
           await db
