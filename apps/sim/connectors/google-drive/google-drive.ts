@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { GoogleDriveIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('GoogleDriveConnector')
@@ -61,7 +62,7 @@ async function exportGoogleWorkspaceFile(
 
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -76,7 +77,7 @@ async function exportGoogleWorkspaceFile(
 async function downloadTextFile(accessToken: string, fileId: string): Promise<string> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -266,7 +267,7 @@ export const googleDriveConnector: ConnectorConfig = {
 
     logger.info('Listing Google Drive files', { query, cursor: cursor ?? 'initial' })
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -310,7 +311,7 @@ export const googleDriveConnector: ConnectorConfig = {
       'id,name,mimeType,modifiedTime,createdTime,webViewLink,parents,owners,size,starred,trashed'
     const url = `https://www.googleapis.com/drive/v3/files/${externalId}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -346,13 +347,17 @@ export const googleDriveConnector: ConnectorConfig = {
       if (folderId?.trim()) {
         // Verify the folder exists and is accessible
         const url = `https://www.googleapis.com/drive/v3/files/${folderId.trim()}?fields=id,name,mimeType&supportsAllDrives=true`
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
+        const response = await fetchWithRetry(
+          url,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/json',
+            },
           },
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -368,13 +373,17 @@ export const googleDriveConnector: ConnectorConfig = {
       } else {
         // Verify basic Drive access by listing one file
         const url = 'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)'
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
+        const response = await fetchWithRetry(
+          url,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/json',
+            },
           },
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
 
         if (!response.ok) {
           return { valid: false, error: `Failed to access Google Drive: ${response.status}` }

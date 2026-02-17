@@ -1795,22 +1795,24 @@ export async function deleteDocument(
   documentId: string,
   requestId: string
 ): Promise<{ success: boolean; message: string }> {
-  const doc = await db
+  const docs = await db
     .select({ connectorId: document.connectorId })
     .from(document)
     .where(eq(document.id, documentId))
     .limit(1)
 
+  const isConnectorDoc = docs.length > 0 && docs[0].connectorId !== null
+
   await db
     .update(document)
     .set({
       deletedAt: new Date(),
-      ...(doc[0]?.connectorId ? { userExcluded: true } : {}),
+      ...(isConnectorDoc ? { userExcluded: true } : {}),
     })
     .where(eq(document.id, documentId))
 
   logger.info(`[${requestId}] Document deleted: ${documentId}`, {
-    userExcluded: Boolean(doc[0]?.connectorId),
+    userExcluded: isConnectorDoc,
   })
 
   return {

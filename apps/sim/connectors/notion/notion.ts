@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NotionIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('NotionConnector')
@@ -97,7 +98,7 @@ async function fetchAllBlocks(
     const params = new URLSearchParams({ page_size: '100' })
     if (cursor) params.append('start_cursor', cursor)
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${NOTION_BASE_URL}/blocks/${pageId}/children?${params.toString()}`,
       {
         method: 'GET',
@@ -262,7 +263,7 @@ export const notionConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const response = await fetch(`${NOTION_BASE_URL}/pages/${externalId}`, {
+    const response = await fetchWithRetry(`${NOTION_BASE_URL}/pages/${externalId}`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -304,39 +305,51 @@ export const notionConnector: ConnectorConfig = {
       // Verify the token works
       if (scope === 'database' && databaseId) {
         // Verify database is accessible
-        const response = await fetch(`${NOTION_BASE_URL}/databases/${databaseId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': NOTION_API_VERSION,
+        const response = await fetchWithRetry(
+          `${NOTION_BASE_URL}/databases/${databaseId}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Notion-Version': NOTION_API_VERSION,
+            },
           },
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
         if (!response.ok) {
           return { valid: false, error: `Cannot access database: ${response.status}` }
         }
       } else if (scope === 'page' && rootPageId) {
         // Verify page is accessible
-        const response = await fetch(`${NOTION_BASE_URL}/pages/${rootPageId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': NOTION_API_VERSION,
+        const response = await fetchWithRetry(
+          `${NOTION_BASE_URL}/pages/${rootPageId}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Notion-Version': NOTION_API_VERSION,
+            },
           },
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
         if (!response.ok) {
           return { valid: false, error: `Cannot access page: ${response.status}` }
         }
       } else {
         // Workspace scope — just verify token works
-        const response = await fetch(`${NOTION_BASE_URL}/search`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': NOTION_API_VERSION,
-            'Content-Type': 'application/json',
+        const response = await fetchWithRetry(
+          `${NOTION_BASE_URL}/search`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Notion-Version': NOTION_API_VERSION,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 1 }),
           },
-          body: JSON.stringify({ page_size: 1 }),
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
         if (!response.ok) {
           const errorText = await response.text()
           return { valid: false, error: `Cannot access Notion workspace: ${errorText}` }
@@ -401,7 +414,7 @@ async function listFromWorkspace(
 
   logger.info('Listing Notion pages from workspace', { searchQuery, cursor })
 
-  const response = await fetch(`${NOTION_BASE_URL}/search`, {
+  const response = await fetchWithRetry(`${NOTION_BASE_URL}/search`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -450,7 +463,7 @@ async function listFromDatabase(
 
   logger.info('Querying Notion database', { databaseId, cursor })
 
-  const response = await fetch(`${NOTION_BASE_URL}/databases/${databaseId}/query`, {
+  const response = await fetchWithRetry(`${NOTION_BASE_URL}/databases/${databaseId}/query`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -497,7 +510,7 @@ async function listFromParentPage(
 
   logger.info('Listing child pages under root page', { rootPageId, cursor })
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${NOTION_BASE_URL}/blocks/${rootPageId}/children?${params.toString()}`,
     {
       method: 'GET',
@@ -531,7 +544,7 @@ async function listFromParentPage(
     if (maxPages > 0 && documents.length >= maxPages) break
 
     try {
-      const pageResponse = await fetch(`${NOTION_BASE_URL}/pages/${pageId}`, {
+      const pageResponse = await fetchWithRetry(`${NOTION_BASE_URL}/pages/${pageId}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { AirtableIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('AirtableConnector')
@@ -162,7 +163,7 @@ export const airtableConnector: ConnectorConfig = {
       view: viewId ?? 'default',
     })
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -211,7 +212,7 @@ export const airtableConnector: ConnectorConfig = {
     const encodedTable = encodeURIComponent(tableIdOrName)
     const url = `${AIRTABLE_API}/${baseId}/${encodedTable}/${externalId}`
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -251,12 +252,16 @@ export const airtableConnector: ConnectorConfig = {
       // Verify base and table are accessible by fetching 1 record
       const encodedTable = encodeURIComponent(tableIdOrName)
       const url = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1`
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+      const response = await fetchWithRetry(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      })
+        VALIDATE_RETRY_OPTIONS
+      )
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -273,12 +278,16 @@ export const airtableConnector: ConnectorConfig = {
       const viewId = sourceConfig.viewId as string | undefined
       if (viewId) {
         const viewUrl = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1&view=${encodeURIComponent(viewId)}`
-        const viewResponse = await fetch(viewUrl, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+        const viewResponse = await fetchWithRetry(
+          viewUrl,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
           },
-        })
+          VALIDATE_RETRY_OPTIONS
+        )
         if (!viewResponse.ok) {
           return { valid: false, error: `View "${viewId}" not found in table "${tableIdOrName}"` }
         }
@@ -354,7 +363,7 @@ async function fetchFieldNames(
 
   try {
     const url = `${AIRTABLE_API}/meta/bases/${baseId}/tables`
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,

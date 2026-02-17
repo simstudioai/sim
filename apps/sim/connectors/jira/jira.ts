@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { JiraIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
@@ -159,7 +160,7 @@ export const jiraConnector: ConnectorConfig = {
 
     logger.info(`Listing Jira issues for project ${projectKey}`, { startAt })
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -210,7 +211,7 @@ export const jiraConnector: ConnectorConfig = {
 
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${externalId}?${params.toString()}`
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -259,13 +260,17 @@ export const jiraConnector: ConnectorConfig = {
       params.append('maxResults', '0')
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+      const response = await fetchWithRetry(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      })
+        VALIDATE_RETRY_OPTIONS
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

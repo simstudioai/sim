@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { LinearIcon } from '@/components/icons'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('LinearConnector')
@@ -46,7 +47,7 @@ async function linearGraphQL(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  const response = await fetch(LINEAR_API, {
+  const response = await fetchWithRetry(LINEAR_API, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

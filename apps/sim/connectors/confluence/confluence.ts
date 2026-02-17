@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ConfluenceIcon } from '@/components/icons'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -45,7 +46,7 @@ async function fetchLabelsForPages(
     pageIds.map(async (pageId) => {
       try {
         const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/labels`
-        const response = await fetch(url, {
+        const response = await fetchWithRetry(url, {
           method: 'GET',
           headers: {
             Accept: 'application/json',
@@ -226,7 +227,7 @@ export const confluenceConnector: ConnectorConfig = {
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${externalId}?body-format=storage`
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -342,7 +343,7 @@ async function listDocumentsV2(
 
   logger.info(`Listing ${endpoint} in space ${spaceKey} (ID: ${spaceId})`)
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -543,7 +544,7 @@ async function listDocumentsViaCql(
 
   logger.info(`Searching Confluence via CQL: ${cql}`, { start, limit })
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -588,7 +589,7 @@ async function resolveSpaceId(
 ): Promise<string> {
   const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&limit=1`
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',

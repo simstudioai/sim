@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { GithubIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('GitHubConnector')
@@ -73,7 +74,7 @@ async function fetchTree(
 ): Promise<TreeItem[]> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
@@ -108,7 +109,7 @@ async function fetchBlobContent(
 ): Promise<string> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${sha}`
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
@@ -282,7 +283,7 @@ export const githubConnector: ConnectorConfig = {
 
     try {
       const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`
-      const response = await fetch(url, {
+      const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
           Accept: 'application/vnd.github+json',
@@ -358,14 +359,18 @@ export const githubConnector: ConnectorConfig = {
     try {
       // Verify repo and branch are accessible
       const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
+      const response = await fetchWithRetry(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${accessToken}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
         },
-      })
+        VALIDATE_RETRY_OPTIONS
+      )
 
       if (response.status === 404) {
         return {

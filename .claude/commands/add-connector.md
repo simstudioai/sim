@@ -28,6 +28,7 @@ connectors/{service}/
 ```typescript
 import { createLogger } from '@sim/logger'
 import { {Service}Icon } from '@/components/icons'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const logger = createLogger('{Service}Connector')
@@ -179,6 +180,25 @@ mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
 }
 ```
 
+## External API Calls — Use `fetchWithRetry`
+
+All external API calls must use `fetchWithRetry` from `@/lib/knowledge/documents/utils` instead of raw `fetch()`. This provides exponential backoff with retries on 429/502/503/504 errors. It returns a standard `Response` — all `.ok`, `.json()`, `.text()` checks work unchanged.
+
+For `validateConfig` (user-facing, called on save), pass `VALIDATE_RETRY_OPTIONS` to cap wait time at ~7s. Background operations (`listDocuments`, `getDocument`) use the built-in defaults (5 retries, ~31s max).
+
+```typescript
+import { VALIDATE_RETRY_OPTIONS, fetchWithRetry } from '@/lib/knowledge/documents/utils'
+
+// Background sync — use defaults
+const response = await fetchWithRetry(url, {
+  method: 'GET',
+  headers: { Authorization: `Bearer ${accessToken}` },
+})
+
+// validateConfig — tighter retry budget
+const response = await fetchWithRetry(url, { ... }, VALIDATE_RETRY_OPTIONS)
+```
+
 ## sourceUrl
 
 If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the document record. Always construct the full URL (not a relative path).
@@ -235,6 +255,7 @@ See `apps/sim/connectors/confluence/confluence.ts` for a complete example with:
 - [ ] `tagDefinitions` declared for each semantic key returned by `mapTags`
 - [ ] `mapTags` implemented if source has useful metadata (labels, dates, versions)
 - [ ] `validateConfig` verifies the source is accessible
+- [ ] All external API calls use `fetchWithRetry` (not raw `fetch`)
 - [ ] All optional config fields validated in `validateConfig`
 - [ ] Icon exists in `components/icons.tsx` (or asked user to provide SVG)
 - [ ] Registered in `connectors/registry.ts`
