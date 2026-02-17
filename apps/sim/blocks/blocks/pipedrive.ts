@@ -216,6 +216,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: { field: 'operation', value: ['update_deal'] },
     },
     {
+      id: 'sort',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'ID', id: 'id' },
+        { label: 'Update Time', id: 'update_time' },
+      ],
+      value: () => 'id',
+      condition: { field: 'operation', value: ['get_files'] },
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
