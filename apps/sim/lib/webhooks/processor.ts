@@ -964,7 +964,13 @@ export async function queueWebhookExecution(
       if (triggerId && triggerId !== 'jsm_webhook') {
         const webhookEvent = body.webhookEvent as string | undefined
 
-        if (!isJsmEventMatch(triggerId, webhookEvent || '', body)) {
+        if (
+          !isJsmEventMatch(
+            triggerId,
+            webhookEvent || '',
+            body.issue_event_type_name as string | undefined
+          )
+        ) {
           logger.debug(
             `[${options.requestId}] JSM event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
             {

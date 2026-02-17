@@ -385,6 +385,7 @@ export async function PUT(request: NextRequest) {
       },
       status: status || currentPost.status || 'current',
       title: title || currentPost.title,
+      spaceId: currentPost.spaceId,
     }
 
     if (content) {
