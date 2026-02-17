@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import {
@@ -21,12 +22,39 @@ export interface PermissionConfigResult {
   isInvitationsDisabled: boolean
 }
 
+interface AllowedIntegrationsResponse {
+  allowedIntegrations: string[] | null
+}
+
+function useAllowedIntegrationsFromEnv() {
+  return useQuery<AllowedIntegrationsResponse>({
+    queryKey: ['allowedIntegrations', 'env'],
+    queryFn: async () => {
+      const response = await fetch('/api/settings/allowed-integrations')
+      if (!response.ok) return { allowedIntegrations: null }
+      return response.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Intersects two allowlists. If either is null (unrestricted), returns the other.
+ * If both are set, returns only items present in both.
+ */
+function intersectAllowlists(a: string[] | null, b: string[] | null): string[] | null {
+  if (a === null) return b
+  if (b === null) return a
+  return a.filter((i) => b.includes(i))
+}
+
 export function usePermissionConfig(): PermissionConfigResult {
   const accessControlDisabled = !isHosted && !isAccessControlEnabled
   const { data: organizationsData } = useOrganizations()
   const activeOrganization = organizationsData?.activeOrganization
 
   const { data: permissionData, isLoading } = useUserPermissionConfig(activeOrganization?.id)
+  const { data: envAllowlistData } = useAllowedIntegrationsFromEnv()
 
   const config = useMemo(() => {
     if (accessControlDisabled) {
@@ -40,13 +68,18 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const isInPermissionGroup = !accessControlDisabled && !!permissionData?.permissionGroupId
 
+  const mergedAllowedIntegrations = useMemo(() => {
+    const envAllowlist = envAllowlistData?.allowedIntegrations ?? null
+    return intersectAllowlists(config.allowedIntegrations, envAllowlist)
+  }, [config.allowedIntegrations, envAllowlistData])
+
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
       if (blockType === 'start_trigger') return true
-      if (config.allowedIntegrations === null) return true
-      return config.allowedIntegrations.includes(blockType)
+      if (mergedAllowedIntegrations === null) return true
+      return mergedAllowedIntegrations.includes(blockType)
     }
-  }, [config.allowedIntegrations])
+  }, [mergedAllowedIntegrations])
 
   const isProviderAllowed = useMemo(() => {
     return (providerId: string) => {
@@ -57,13 +90,12 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
-      if (config.allowedIntegrations === null) return blocks
+      if (mergedAllowedIntegrations === null) return blocks
       return blocks.filter(
-        (block) =>
-          block.type === 'start_trigger' || config.allowedIntegrations!.includes(block.type)
+        (block) => block.type === 'start_trigger' || mergedAllowedIntegrations.includes(block.type)
       )
     }
-  }, [config.allowedIntegrations])
+  }, [mergedAllowedIntegrations])
 
   const filterProviders = useMemo(() => {
     return (providerIds: string[]): string[] => {

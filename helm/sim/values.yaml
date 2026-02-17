@@ -195,6 +195,9 @@ app:
     BLACKLISTED_MODELS: ""                               # Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
     ALLOWED_MCP_DOMAINS: ""                              # Comma-separated domains for MCP servers (e.g., "internal.company.com,mcp.example.org"). Empty = all allowed.
 
+    # Integration/Block Restrictions (leave empty if not restricting)
+    ALLOWED_INTEGRATIONS: ""                             # Comma-separated block types to allow (e.g., "slack,github,agent"). Empty = all allowed.
+
     # Invitation Control
     DISABLE_INVITATIONS: ""                              # Set to "true" to disable workspace invitations globally
     NEXT_PUBLIC_DISABLE_INVITATIONS: ""                  # Set to "true" to hide invitation UI elements

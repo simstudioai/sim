@@ -3,7 +3,11 @@ import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flags'
+import {
+  getAllowedIntegrationsFromEnv,
+  isAccessControlEnabled,
+  isHosted,
+} from '@/lib/core/config/feature-flags'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
@@ -150,6 +154,12 @@ export async function validateBlockType(
 ): Promise<void> {
   if (blockType === 'start_trigger') {
     return
+  }
+
+  const envAllowlist = getAllowedIntegrationsFromEnv()
+  if (envAllowlist !== null && !envAllowlist.includes(blockType)) {
+    logger.warn('Integration blocked by env allowlist', { blockType })
+    throw new IntegrationNotAllowedError(blockType)
   }
 
   if (!userId) {
