@@ -23,6 +23,7 @@ export interface ZendeskAutocompleteOrganizationsResponse {
     paging?: {
       after_cursor: string | null
       has_more: boolean
+      next_page?: string | null
     }
     metadata: {
       total_returned: number
