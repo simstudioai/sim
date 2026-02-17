@@ -6,11 +6,13 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
+  Message,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   prepareToolExecution,
@@ -98,7 +100,7 @@ export const vllmProvider: ProviderConfig = {
       baseURL: `${baseUrl}/v1`,
     })
 
-    const allMessages = [] as any[]
+    const allMessages: Message[] = []
 
     if (request.systemPrompt) {
       allMessages.push({
@@ -635,23 +637,11 @@ export const vllmProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      const enhancedError = new Error(errorMessage)
-      // @ts-ignore
-      enhancedError.timing = {
+      throw new ProviderError(errorMessage, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
-      }
-      if (errorType) {
-        // @ts-ignore
-        enhancedError.vllmErrorType = errorType
-      }
-      if (errorCode) {
-        // @ts-ignore
-        enhancedError.vllmErrorCode = errorCode
-      }
-
-      throw enhancedError
+      })
     }
   },
 }
