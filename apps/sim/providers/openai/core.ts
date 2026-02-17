@@ -3,6 +3,7 @@ import type OpenAI from 'openai'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   prepareToolExecution,
@@ -806,14 +807,10 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
-    const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-    // @ts-ignore - Adding timing property to the error
-    enhancedError.timing = {
+    throw new ProviderError(error instanceof Error ? error.message : String(error), {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
-    }
-
-    throw enhancedError
+    })
   }
 }

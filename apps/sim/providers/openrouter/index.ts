@@ -10,11 +10,14 @@ import {
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
 import type {
+  FunctionCallResponse,
+  Message,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
@@ -90,7 +93,7 @@ export const openRouterProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    const allMessages = [] as any[]
+    const allMessages: Message[] = []
 
     if (request.systemPrompt) {
       allMessages.push({ role: 'system', content: request.systemPrompt })
@@ -237,8 +240,8 @@ export const openRouterProvider: ProviderConfig = {
         output: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      const toolCalls = [] as any[]
-      const toolResults = [] as any[]
+      const toolCalls: FunctionCallResponse[] = []
+      const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
@@ -352,7 +355,7 @@ export const openRouterProvider: ProviderConfig = {
 
           let resultContent: any
           if (result.success) {
-            toolResults.push(result.output)
+            toolResults.push(result.output!)
             resultContent = result.output
           } else {
             resultContent = {
@@ -593,14 +596,11 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       logger.error('Error in OpenRouter request:', errorDetails)
-      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore
-      enhancedError.timing = {
+      throw new ProviderError(error instanceof Error ? error.message : String(error), {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
-      }
-      throw enhancedError
+      })
     }
   },
 }

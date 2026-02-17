@@ -22,11 +22,13 @@ import {
 } from '@/providers/bedrock/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
+  FunctionCallResponse,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   prepareToolExecution,
@@ -419,8 +421,8 @@ export const bedrockProvider: ProviderConfig = {
         pricing: initialCost.pricing,
       }
 
-      const toolCalls: any[] = []
-      const toolResults: any[] = []
+      const toolCalls: FunctionCallResponse[] = []
+      const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...messages]
       let iterationCount = 0
       let hasUsedForcedTool = false
@@ -561,7 +563,7 @@ export const bedrockProvider: ProviderConfig = {
 
           let resultContent: any
           if (result.success) {
-            toolResults.push(result.output)
+            toolResults.push(result.output!)
             resultContent = result.output
           } else {
             resultContent = {
@@ -903,15 +905,11 @@ export const bedrockProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore
-      enhancedError.timing = {
+      throw new ProviderError(error instanceof Error ? error.message : String(error), {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
-      }
-
-      throw enhancedError
+      })
     }
   },
 }

@@ -12,6 +12,7 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import { calculateCost, prepareToolExecution } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
@@ -554,15 +555,11 @@ export const ollamaProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore
-      enhancedError.timing = {
+      throw new ProviderError(error instanceof Error ? error.message : String(error), {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
-      }
-
-      throw enhancedError
+      })
     }
   },
 }
