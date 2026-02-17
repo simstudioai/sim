@@ -9,6 +9,13 @@ const logger = createLogger('JiraConnector')
 const PAGE_SIZE = 50
 
 /**
+ * Escapes a value for use inside JQL double-quoted strings.
+ */
+function escapeJql(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
  * Computes a SHA-256 hash of the given content.
  */
 async function computeContentHash(content: string): Promise<string> {
@@ -140,9 +147,9 @@ export const jiraConnector: ConnectorConfig = {
 
     const cloudId = await getJiraCloudId(domain, accessToken)
 
-    let jql = `project = "${projectKey}" ORDER BY updated DESC`
+    let jql = `project = "${escapeJql(projectKey)}" ORDER BY updated DESC`
     if (jqlFilter.trim()) {
-      jql = `project = "${projectKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
+      jql = `project = "${escapeJql(projectKey)}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
     const startAt = cursor ? Number(cursor) : 0
@@ -256,7 +263,7 @@ export const jiraConnector: ConnectorConfig = {
 
       // Verify the project exists by running a minimal search
       const params = new URLSearchParams()
-      params.append('jql', `project = "${projectKey}"`)
+      params.append('jql', `project = "${escapeJql(projectKey)}"`)
       params.append('maxResults', '0')
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`

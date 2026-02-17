@@ -66,7 +66,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   )
 
   const { data: credentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
-    connectorConfig?.oauth.provider,
+    connectorProviderId ?? undefined,
     Boolean(connectorConfig)
   )
 

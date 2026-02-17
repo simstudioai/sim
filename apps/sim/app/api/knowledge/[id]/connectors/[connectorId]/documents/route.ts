@@ -84,7 +84,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             processingStatus: document.processingStatus,
           })
           .from(document)
-          .where(and(eq(document.connectorId, connectorId), eq(document.userExcluded, true)))
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              eq(document.userExcluded, true),
+              isNull(document.deletedAt)
+            )
+          )
           .orderBy(document.filename)
       : []
 
@@ -128,6 +134,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!writeCheck.hasAccess) {
       const status = 'notFound' in writeCheck && writeCheck.notFound ? 404 : 401
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
+    }
+
+    const connectorRows = await db
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (connectorRows.length === 0) {
+      return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
     const body = await request.json()

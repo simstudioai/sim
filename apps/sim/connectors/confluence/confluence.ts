@@ -7,6 +7,13 @@ import { getConfluenceCloudId } from '@/tools/confluence/utils'
 const logger = createLogger('ConfluenceConnector')
 
 /**
+ * Escapes a value for use inside CQL double-quoted strings.
+ */
+function escapeCql(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
  * Strips HTML tags from content and decodes HTML entities.
  */
 function htmlToPlainText(html: string): string {
@@ -515,7 +522,7 @@ async function listDocumentsViaCql(
     .filter(Boolean)
 
   // Build CQL query
-  let cql = `space="${spaceKey}"`
+  let cql = `space="${escapeCql(spaceKey)}"`
 
   if (contentType === 'blogpost') {
     cql += ' AND type="blogpost"'
@@ -525,9 +532,9 @@ async function listDocumentsViaCql(
   // contentType === 'all' — no type filter
 
   if (labels.length === 1) {
-    cql += ` AND label="${labels[0]}"`
+    cql += ` AND label="${escapeCql(labels[0])}"`
   } else if (labels.length > 1) {
-    const labelList = labels.map((l) => `"${l}"`).join(',')
+    const labelList = labels.map((l) => `"${escapeCql(l)}"`).join(',')
     cql += ` AND label in (${labelList})`
   }
 
