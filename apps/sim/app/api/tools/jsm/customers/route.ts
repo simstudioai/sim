@@ -59,23 +59,26 @@ export async function POST(request: NextRequest) {
 
     const { action: customerAction } = body
 
-    const rawIds = accountIds || emails
-    const parsedAccountIds = rawIds
-      ? typeof rawIds === 'string'
-        ? rawIds
-            .split(',')
-            .map((id: string) => id.trim())
-            .filter((id: string) => id)
-        : Array.isArray(rawIds)
-          ? rawIds
-          : []
-      : []
+    const parseList = (raw: unknown): string[] => {
+      if (!raw) return []
+      if (typeof raw === 'string') {
+        return raw
+          .split(',')
+          .map((id: string) => id.trim())
+          .filter((id: string) => id)
+      }
+      return Array.isArray(raw) ? raw : []
+    }
+
+    const parsedAccountIds = parseList(accountIds)
+    const parsedEmails = parseList(emails)
 
     const isRemoveOperation = customerAction === 'remove'
-    const isAddOperation = !isRemoveOperation && parsedAccountIds.length > 0
+    const isAddOperation =
+      !isRemoveOperation && (parsedAccountIds.length > 0 || parsedEmails.length > 0)
 
     if (isRemoveOperation) {
-      if (parsedAccountIds.length === 0) {
+      if (parsedAccountIds.length === 0 && parsedEmails.length === 0) {
         return NextResponse.json(
           { error: 'Account IDs or emails are required for removal' },
           { status: 400 }
@@ -84,12 +87,16 @@ export async function POST(request: NextRequest) {
 
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
 
-      logger.info('Removing customers from:', url, { accountIds: parsedAccountIds })
+      const removeBody: Record<string, string[]> = {}
+      if (parsedAccountIds.length > 0) removeBody.accountIds = parsedAccountIds
+      if (parsedEmails.length > 0) removeBody.usernames = parsedEmails
+
+      logger.info('Removing customers from:', url, removeBody)
 
       const response = await fetch(url, {
         method: 'DELETE',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify({ accountIds: parsedAccountIds }),
+        body: JSON.stringify(removeBody),
       })
 
       if (response.status === 204 || response.ok) {
@@ -119,11 +126,14 @@ export async function POST(request: NextRequest) {
     if (isAddOperation) {
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
 
-      logger.info('Adding customers to:', url, { accountIds: parsedAccountIds })
-
-      const requestBody: Record<string, unknown> = {
+      logger.info('Adding customers to:', url, {
         accountIds: parsedAccountIds,
-      }
+        usernames: parsedEmails,
+      })
+
+      const requestBody: Record<string, unknown> = {}
+      if (parsedAccountIds.length > 0) requestBody.accountIds = parsedAccountIds
+      if (parsedEmails.length > 0) requestBody.usernames = parsedEmails
 
       const response = await fetch(url, {
         method: 'POST',
