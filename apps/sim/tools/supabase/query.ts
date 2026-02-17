@@ -51,6 +51,12 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       visibility: 'user-or-llm',
       description: 'Maximum number of rows to return',
     },
+    offset: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of rows to skip (for pagination)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -91,8 +97,13 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       }
 
       // Add limit if provided
-      if (params.limit) {
+      if (params.limit !== undefined && params.limit !== null) {
         url += `&limit=${Number(params.limit)}`
+      }
+
+      // Add offset if provided
+      if (params.offset !== undefined && params.offset !== null) {
+        url += `&offset=${Number(params.offset)}`
       }
 
       return url

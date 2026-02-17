@@ -43,6 +43,8 @@ Retrieve form responses from Typeform
 | `formId` | string | Yes | Typeform form ID \(e.g., "abc123XYZ"\) |
 | `apiKey` | string | Yes | Typeform Personal Access Token |
 | `pageSize` | number | No | Number of responses to retrieve \(e.g., 10, 25, 50\) |
+| `before` | string | No | Cursor token for fetching the next page of older responses |
+| `after` | string | No | Cursor token for fetching the next page of newer responses |
 | `since` | string | No | Retrieve responses submitted after this date \(e.g., "2024-01-01T00:00:00Z"\) |
 | `until` | string | No | Retrieve responses submitted before this date \(e.g., "2024-12-31T23:59:59Z"\) |
 | `completed` | string | No | Filter by completion status \(e.g., "true", "false", "all"\) |

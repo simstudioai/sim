@@ -1,6 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
 import {
+  appendCursorPaginationParams,
   buildZendeskUrl,
+  extractCursorPagingInfo,
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
@@ -11,10 +13,9 @@ export interface ZendeskSearchParams {
   apiToken: string
   subdomain: string
   query: string
-  sortBy?: string
-  sortOrder?: string
+  filterType: string
   perPage?: string
-  page?: string
+  pageAfter?: string
 }
 
 export interface ZendeskSearchResponse {
@@ -22,9 +23,8 @@ export interface ZendeskSearchResponse {
   output: {
     results: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -66,18 +66,11 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       description:
         'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
     },
-    sortBy: {
+    filterType: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description:
-        'Sort field: "relevance", "created_at", "updated_at", "priority", "status", or "ticket_type"',
-    },
-    sortOrder: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort order: "asc" or "desc"',
+      description: 'Resource type to search for: "ticket", "user", "organization", or "group"',
     },
     perPage: {
       type: 'string',
@@ -85,11 +78,11 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       visibility: 'user-or-llm',
       description: 'Results per page as a number string (default: "100", max: "100")',
     },
-    page: {
+    pageAfter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Cursor from a previous response to fetch the next page of results',
     },
   },
 
@@ -97,13 +90,11 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
     url: (params) => {
       const queryParams = new URLSearchParams()
       queryParams.append('query', params.query)
-      if (params.sortBy) queryParams.append('sort_by', params.sortBy)
-      if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
-      if (params.page) queryParams.append('page', params.page)
-      if (params.perPage) queryParams.append('per_page', params.perPage)
+      queryParams.append('filter[type]', params.filterType)
+      appendCursorPaginationParams(queryParams, params)
 
       const query = queryParams.toString()
-      const url = buildZendeskUrl(params.subdomain, '/search')
+      const url = buildZendeskUrl(params.subdomain, '/search/export')
       return `${url}?${query}`
     },
     method: 'GET',
@@ -125,19 +116,16 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
 
     const data = await response.json()
     const results = data.results || []
+    const paging = extractCursorPagingInfo(data)
 
     return {
       success: true,
       output: {
         results,
-        paging: {
-          next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || results.length,
-        },
+        paging,
         metadata: {
           total_returned: results.length,
-          has_more: !!data.next_page,
+          has_more: paging.has_more,
         },
         success: true,
       },

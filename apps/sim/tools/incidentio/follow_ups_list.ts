@@ -26,12 +26,6 @@ export const followUpsListTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter follow-ups by incident ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
-    page_size: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of follow-ups to return per page (e.g., 10, 25, 50)',
-    },
   },
 
   request: {
@@ -40,10 +34,6 @@ export const followUpsListTool: ToolConfig<
 
       if (params.incident_id) {
         url.searchParams.append('incident_id', params.incident_id)
-      }
-
-      if (params.page_size) {
-        url.searchParams.append('page_size', params.page_size.toString())
       }
 
       return url.toString()

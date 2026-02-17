@@ -67,6 +67,20 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       condition: { field: 'operation', value: 'typeform_responses' },
     },
     {
+      id: 'before',
+      title: 'Before (Cursor)',
+      type: 'short-input',
+      placeholder: 'Cursor token from previous response for pagination',
+      condition: { field: 'operation', value: 'typeform_responses' },
+    },
+    {
+      id: 'after',
+      title: 'After (Cursor)',
+      type: 'short-input',
+      placeholder: 'Cursor token from previous response for newer results',
+      condition: { field: 'operation', value: 'typeform_responses' },
+    },
+    {
       id: 'since',
       title: 'Since',
       type: 'short-input',
@@ -380,6 +394,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
     apiKey: { type: 'string', description: 'Personal access token' },
     // Response operation params
     pageSize: { type: 'number', description: 'Responses per page' },
+    before: { type: 'string', description: 'Cursor token for fetching the next page' },
+    after: { type: 'string', description: 'Cursor token for fetching newer results' },
     since: { type: 'string', description: 'Start date filter' },
     until: { type: 'string', description: 'End date filter' },
     completed: { type: 'string', description: 'Completion status filter' },
