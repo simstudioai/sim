@@ -770,10 +770,6 @@ input[type="search"]::-ms-clear {
   }
 }
 
-/* ============================================================
- * Component styles extracted from styled-jsx blocks
- * ============================================================ */
-
 /* WandPromptBar status indicator */
 @keyframes smoke-pulse {
   0%,
