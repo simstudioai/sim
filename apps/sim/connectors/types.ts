@@ -84,11 +84,17 @@ export interface ConnectorConfig {
   /** Source configuration fields rendered in the add-connector UI */
   configFields: ConnectorConfigField[]
 
-  /** List all documents from the configured source (handles pagination via cursor) */
+  /**
+   * List all documents from the configured source (handles pagination via cursor).
+   * syncContext is a mutable object shared across all pages of a single sync run —
+   * connectors can use it to cache expensive lookups (e.g. schema fetches) without
+   * leaking state into module-level globals.
+   */
   listDocuments: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ) => Promise<ExternalDocumentList>
 
   /** Fetch a single document by its external ID */

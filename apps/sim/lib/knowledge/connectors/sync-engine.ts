@@ -152,9 +152,15 @@ export async function executeSync(
     let cursor: string | undefined
     let hasMore = true
     const MAX_PAGES = 500
+    const syncContext: Record<string, unknown> = {}
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
-      const page = await connectorConfig.listDocuments(accessToken, sourceConfig, cursor)
+      const page = await connectorConfig.listDocuments(
+        accessToken,
+        sourceConfig,
+        cursor,
+        syncContext
+      )
       externalDocs.push(...page.documents)
 
       if (page.hasMore && !page.nextCursor) {

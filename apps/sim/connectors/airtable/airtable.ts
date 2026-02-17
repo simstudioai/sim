@@ -64,7 +64,6 @@ function extractTitle(fields: Record<string, unknown>, titleField?: string): str
       return String(fields[candidate])
     }
   }
-  // Fall back to first non-null string field
   for (const value of Object.values(fields)) {
     if (typeof value === 'string' && value.trim()) {
       return value.length > 80 ? `${value.slice(0, 80)}…` : value
@@ -136,7 +135,8 @@ export const airtableConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const baseId = sourceConfig.baseId as string
     const tableIdOrName = sourceConfig.tableIdOrName as string
@@ -144,8 +144,7 @@ export const airtableConnector: ConnectorConfig = {
     const titleField = sourceConfig.titleField as string | undefined
     const maxRecords = sourceConfig.maxRecords ? Number(sourceConfig.maxRecords) : 0
 
-    // Fetch table schema for field name mapping
-    const fieldNames = await fetchFieldNames(accessToken, baseId, tableIdOrName)
+    const fieldNames = await fetchFieldNames(accessToken, baseId, tableIdOrName, syncContext)
 
     const params = new URLSearchParams()
     params.append('pageSize', String(PAGE_SIZE))
@@ -249,7 +248,6 @@ export const airtableConnector: ConnectorConfig = {
     }
 
     try {
-      // Verify base and table are accessible by fetching 1 record
       const encodedTable = encodeURIComponent(tableIdOrName)
       const url = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1`
       const response = await fetchWithRetry(
@@ -274,7 +272,6 @@ export const airtableConnector: ConnectorConfig = {
         return { valid: false, error: `Airtable API error: ${response.status} - ${errorText}` }
       }
 
-      // If a view is specified, verify it exists
       const viewId = sourceConfig.viewId as string | undefined
       if (viewId) {
         const viewUrl = `${AIRTABLE_API}/${baseId}/${encodedTable}?pageSize=1&view=${encodeURIComponent(viewId)}`
@@ -352,13 +349,16 @@ async function recordToDocument(
 
 /**
  * Fetches the table schema to build a field ID → field name mapping.
- * Falls back to an empty map if the schema endpoint is unavailable.
  */
 async function fetchFieldNames(
   accessToken: string,
   baseId: string,
-  tableIdOrName: string
+  tableIdOrName: string,
+  syncContext?: Record<string, unknown>
 ): Promise<Map<string, string>> {
+  const cacheKey = `fieldNames:${baseId}/${tableIdOrName}`
+  if (syncContext?.[cacheKey]) return syncContext[cacheKey] as Map<string, string>
+
   const fieldNames = new Map<string, string>()
 
   try {
@@ -395,5 +395,6 @@ async function fetchFieldNames(
     })
   }
 
+  if (syncContext) syncContext[cacheKey] = fieldNames
   return fieldNames
 }
