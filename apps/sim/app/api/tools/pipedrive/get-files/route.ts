@@ -31,6 +31,7 @@ const PipedriveGetFilesSchema = z.object({
   person_id: z.string().optional().nullable(),
   org_id: z.string().optional().nullable(),
   limit: z.string().optional().nullable(),
+  start: z.string().optional().nullable(),
   downloadFiles: z.boolean().optional().default(false),
 })
 
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = PipedriveGetFilesSchema.parse(body)
 
-    const { accessToken, deal_id, person_id, org_id, limit, downloadFiles } = validatedData
+    const { accessToken, deal_id, person_id, org_id, limit, start, downloadFiles } = validatedData
 
     const baseUrl = 'https://api.pipedrive.com/v1/files'
     const queryParams = new URLSearchParams()
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
     if (person_id) queryParams.append('person_id', person_id)
     if (org_id) queryParams.append('org_id', org_id)
     if (limit) queryParams.append('limit', limit)
+    if (start) queryParams.append('start', start)
 
     const queryString = queryParams.toString()
     const apiUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl

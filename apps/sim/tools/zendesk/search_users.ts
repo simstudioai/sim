@@ -22,9 +22,8 @@ export interface ZendeskSearchUsersResponse {
   output: {
     users: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -84,7 +83,7 @@ export const zendeskSearchUsersTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Page number for pagination (1-based)',
     },
   },
 
@@ -93,8 +92,8 @@ export const zendeskSearchUsersTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.query) queryParams.append('query', params.query)
       if (params.externalId) queryParams.append('external_id', params.externalId)
-      if (params.page) queryParams.append('page', params.page)
       if (params.perPage) queryParams.append('per_page', params.perPage)
+      if (params.page) queryParams.append('page', params.page)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/users/search')
@@ -119,19 +118,20 @@ export const zendeskSearchUsersTool: ToolConfig<
 
     const data = await response.json()
     const users = data.users || []
+    const hasMore = data.next_page !== null && data.next_page !== undefined
 
     return {
       success: true,
       output: {
         users,
         paging: {
+          after_cursor: null,
+          has_more: hasMore,
           next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || users.length,
         },
         metadata: {
           total_returned: users.length,
-          has_more: !!data.next_page,
+          has_more: hasMore,
         },
         success: true,
       },

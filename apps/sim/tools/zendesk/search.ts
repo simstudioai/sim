@@ -11,10 +11,11 @@ export interface ZendeskSearchParams {
   apiToken: string
   subdomain: string
   query: string
+  filterType: string
   sortBy?: string
   sortOrder?: string
   perPage?: string
-  page?: string
+  pageAfter?: string
 }
 
 export interface ZendeskSearchResponse {
@@ -22,9 +23,8 @@ export interface ZendeskSearchResponse {
   output: {
     results: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -66,6 +66,12 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       description:
         'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
     },
+    filterType: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Resource type to search for: "ticket", "user", "organization", or "group"',
+    },
     sortBy: {
       type: 'string',
       required: false,
@@ -85,11 +91,11 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       visibility: 'user-or-llm',
       description: 'Results per page as a number string (default: "100", max: "100")',
     },
-    page: {
+    pageAfter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Cursor from a previous response to fetch the next page of results',
     },
   },
 
@@ -97,13 +103,14 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
     url: (params) => {
       const queryParams = new URLSearchParams()
       queryParams.append('query', params.query)
+      queryParams.append('filter[type]', params.filterType)
       if (params.sortBy) queryParams.append('sort_by', params.sortBy)
       if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
-      if (params.page) queryParams.append('page', params.page)
-      if (params.perPage) queryParams.append('per_page', params.perPage)
+      if (params.perPage) queryParams.append('page[size]', params.perPage)
+      if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
 
       const query = queryParams.toString()
-      const url = buildZendeskUrl(params.subdomain, '/search')
+      const url = buildZendeskUrl(params.subdomain, '/search/export')
       return `${url}?${query}`
     },
     method: 'GET',
@@ -125,19 +132,20 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
 
     const data = await response.json()
     const results = data.results || []
+    const afterCursor = data.meta?.after_cursor ?? null
+    const hasMore = data.meta?.has_more ?? false
 
     return {
       success: true,
       output: {
         results,
         paging: {
-          next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || results.length,
+          after_cursor: afterCursor,
+          has_more: hasMore,
         },
         metadata: {
           total_returned: results.length,
-          has_more: !!data.next_page,
+          has_more: hasMore,
         },
         success: true,
       },

@@ -40,6 +40,12 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         visibility: 'user-or-llm',
         description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
       },
+      start: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Pagination start offset (0-based index of the first item to return)',
+      },
       downloadFiles: {
         type: 'boolean',
         required: false,
@@ -60,6 +66,7 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         person_id: params.person_id,
         org_id: params.org_id,
         limit: params.limit,
+        start: params.start,
         downloadFiles: params.downloadFiles,
       }),
     },

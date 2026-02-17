@@ -42,11 +42,11 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
-    cursor: {
+    start: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'For pagination, the marker representing the first item on the next page',
+      description: 'Pagination start offset (0-based index of the first item to return)',
     },
   },
 
@@ -58,7 +58,7 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       if (params.sort_by) queryParams.append('sort_by', params.sort_by)
       if (params.sort_direction) queryParams.append('sort_direction', params.sort_direction)
       if (params.limit) queryParams.append('limit', params.limit)
-      if (params.cursor) queryParams.append('cursor', params.cursor)
+      if (params.start) queryParams.append('start', params.start)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -85,12 +85,16 @@ export const pipedriveGetPipelinesTool: ToolConfig<
     }
 
     const pipelines = data.data || []
+    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextStart = data.additional_data?.pagination?.next_start ?? null
 
     return {
       success: true,
       output: {
         pipelines,
         total_items: pipelines.length,
+        has_more: hasMore,
+        next_start: nextStart,
         success: true,
       },
     }

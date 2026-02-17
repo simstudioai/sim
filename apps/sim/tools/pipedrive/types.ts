@@ -239,6 +239,16 @@ export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT: OutputProperty = {
 export const PIPEDRIVE_METADATA_OUTPUT_PROPERTIES = {
   total_items: { type: 'number', description: 'Total number of items' },
   has_more: { type: 'boolean', description: 'Whether more items are available', optional: true },
+  next_cursor: {
+    type: 'string',
+    description: 'Cursor for fetching the next page (v2 endpoints)',
+    optional: true,
+  },
+  next_start: {
+    type: 'number',
+    description: 'Offset for fetching the next page (v1 endpoints)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 // Common Pipedrive types
@@ -355,6 +365,7 @@ export interface PipedriveGetAllDealsParams {
   pipeline_id?: string
   updated_since?: string
   limit?: string
+  cursor?: string
 }
 
 export interface PipedriveGetAllDealsOutput {
@@ -435,6 +446,7 @@ export interface PipedriveGetFilesParams {
   person_id?: string
   org_id?: string
   limit?: string
+  start?: string
   downloadFiles?: boolean
 }
 
@@ -453,6 +465,7 @@ export interface PipedriveGetMailMessagesParams {
   accessToken: string
   folder?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetMailMessagesOutput {
@@ -490,7 +503,7 @@ export interface PipedriveGetPipelinesParams {
   sort_by?: string
   sort_direction?: string
   limit?: string
-  cursor?: string
+  start?: string
 }
 
 export interface PipedriveGetPipelinesOutput {
@@ -510,6 +523,7 @@ export interface PipedriveGetPipelineDealsParams {
   stage_id?: string
   status?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetPipelineDealsOutput {
@@ -531,6 +545,7 @@ export interface PipedriveGetProjectsParams {
   project_id?: string
   status?: string
   limit?: string
+  cursor?: string
 }
 
 export interface PipedriveGetProjectsOutput {
@@ -571,6 +586,7 @@ export interface PipedriveGetActivitiesParams {
   type?: string
   done?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetActivitiesOutput {
@@ -636,6 +652,7 @@ export interface PipedriveGetLeadsParams {
   person_id?: string
   organization_id?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetLeadsOutput {

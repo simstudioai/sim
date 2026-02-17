@@ -19,7 +19,7 @@ export interface ZendeskGetTicketsParams {
   sortBy?: string
   sortOrder?: string
   perPage?: string
-  page?: string
+  pageAfter?: string
 }
 
 export interface ZendeskGetTicketsResponse {
@@ -27,9 +27,8 @@ export interface ZendeskGetTicketsResponse {
   output: {
     tickets: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -113,11 +112,11 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
         visibility: 'user-or-llm',
         description: 'Results per page as a number string (default: "100", max: "100")',
       },
-      page: {
+      pageAfter: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Page number as a string (e.g., "1", "2")',
+        description: 'Cursor from a previous response to fetch the next page of results',
       },
     },
 
@@ -142,20 +141,21 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
 
           const queryParams = new URLSearchParams()
           queryParams.append('query', searchTerms.join(' '))
+          queryParams.append('filter[type]', 'ticket')
           if (params.sortBy) queryParams.append('sort_by', params.sortBy)
           if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
-          if (params.page) queryParams.append('page', params.page)
-          if (params.perPage) queryParams.append('per_page', params.perPage)
+          if (params.perPage) queryParams.append('page[size]', params.perPage)
+          if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
 
-          return `${buildZendeskUrl(params.subdomain, '/search')}?${queryParams.toString()}`
+          return `${buildZendeskUrl(params.subdomain, '/search/export')}?${queryParams.toString()}`
         }
 
         // No filters - use the simple /tickets endpoint
         const queryParams = new URLSearchParams()
         if (params.sortBy) queryParams.append('sort_by', params.sortBy)
         if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
-        if (params.page) queryParams.append('page', params.page)
-        if (params.perPage) queryParams.append('per_page', params.perPage)
+        if (params.perPage) queryParams.append('page[size]', params.perPage)
+        if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
 
         const query = queryParams.toString()
         const url = buildZendeskUrl(params.subdomain, '/tickets')
@@ -182,19 +182,20 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
       const data = await response.json()
       // Handle both /tickets response (data.tickets) and /search response (data.results)
       const tickets = data.tickets || data.results || []
+      const afterCursor = data.meta?.after_cursor ?? null
+      const hasMore = data.meta?.has_more ?? false
 
       return {
         success: true,
         output: {
           tickets,
           paging: {
-            next_page: data.next_page ?? null,
-            previous_page: data.previous_page ?? null,
-            count: data.count || tickets.length,
+            after_cursor: afterCursor,
+            has_more: hasMore,
           },
           metadata: {
             total_returned: tickets.length,
-            has_more: !!data.next_page,
+            has_more: hasMore,
           },
           success: true,
         },

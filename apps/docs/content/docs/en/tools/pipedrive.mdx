@@ -49,6 +49,7 @@ Retrieve all deals from Pipedrive with optional filters
 | `pipeline_id` | string | No | If supplied, only deals in the specified pipeline are returned \(e.g., "1"\) |
 | `updated_since` | string | No | If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
 #### Output
 
@@ -74,6 +75,8 @@ Retrieve all deals from Pipedrive with optional filters
 | `metadata` | object | Pagination metadata for the response |
 |   ↳ `total_items` | number | Total number of items |
 |   ↳ `has_more` | boolean | Whether more items are available |
+|   ↳ `next_cursor` | string | Cursor for fetching the next page \(v2 endpoints\) |
+|   ↳ `next_start` | number | Offset for fetching the next page \(v1 endpoints\) |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_deal`
@@ -152,6 +155,7 @@ Retrieve files from Pipedrive with optional filters
 | `person_id` | string | No | Filter files by person ID \(e.g., "456"\) |
 | `org_id` | string | No | Filter files by organization ID \(e.g., "789"\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 | `downloadFiles` | boolean | No | Download file contents into file outputs |
 
 #### Output
@@ -183,6 +187,7 @@ Retrieve mail threads from Pipedrive mailbox
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | No | Filter by folder: inbox, drafts, sent, archive \(default: inbox\) |
 | `limit` | string | No | Number of results to return \(e.g., "25", default: 50\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
 #### Output
 
@@ -221,7 +226,7 @@ Retrieve all pipelines from Pipedrive
 | `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
 | `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
-| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
 #### Output
 
@@ -251,6 +256,7 @@ Retrieve all deals in a specific pipeline
 | `stage_id` | string | No | Filter by specific stage within the pipeline \(e.g., "2"\) |
 | `status` | string | No | Filter by deal status: open, won, lost |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
 #### Output
 
@@ -271,6 +277,7 @@ Retrieve all projects or a specific project from Pipedrive
 | `project_id` | string | No | Optional: ID of a specific project to retrieve \(e.g., "123"\) |
 | `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500, only for listing all\) |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
 #### Output
 
@@ -315,6 +322,7 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 | `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
 | `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
 #### Output
 
@@ -399,6 +407,7 @@ Retrieve all leads or a specific lead from Pipedrive
 | `person_id` | string | No | Filter by person ID \(e.g., "456"\) |
 | `organization_id` | string | No | Filter by organization ID \(e.g., "789"\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
 #### Output
 

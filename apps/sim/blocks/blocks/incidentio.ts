@@ -92,12 +92,9 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         field: 'operation',
         value: [
           'incidentio_incidents_list',
-          'incidentio_actions_list',
-          'incidentio_follow_ups_list',
           'incidentio_users_list',
           'incidentio_workflows_list',
           'incidentio_schedules_list',
-          'incidentio_escalations_list',
           'incidentio_incident_updates_list',
           'incidentio_schedule_entries_list',
         ],
@@ -113,6 +110,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         field: 'operation',
         value: [
           'incidentio_incidents_list',
+          'incidentio_users_list',
           'incidentio_workflows_list',
           'incidentio_schedules_list',
           'incidentio_incident_updates_list',

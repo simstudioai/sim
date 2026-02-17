@@ -396,7 +396,6 @@ export interface IncidentioIncidentsUpdateResponse extends ToolResponse {
 // Action types
 export interface IncidentioActionsListParams extends IncidentioBaseParams {
   incident_id?: string
-  page_size?: number
 }
 
 export interface IncidentioAction {
@@ -446,7 +445,6 @@ export interface IncidentioActionsShowResponse extends ToolResponse {
 // Follow-up types
 export interface IncidentioFollowUpsListParams extends IncidentioBaseParams {
   incident_id?: string
-  page_size?: number
 }
 
 export interface IncidentioFollowUp {
@@ -664,6 +662,7 @@ export interface CustomFieldsDeleteResponse extends ToolResponse {
 // Users list tool types
 export interface IncidentioUsersListParams extends IncidentioBaseParams {
   page_size?: number
+  after?: string
 }
 
 export interface IncidentioUser {
@@ -676,6 +675,11 @@ export interface IncidentioUser {
 export interface IncidentioUsersListResponse extends ToolResponse {
   output: {
     users: IncidentioUser[]
+    pagination_meta?: {
+      after: string
+      page_size: number
+      total_record_count?: number
+    }
   }
 }
 
@@ -786,9 +790,7 @@ export type IncidentioResponse =
   | IncidentioEscalationPathsDeleteResponse
 
 // Escalations types
-export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
-  page_size?: number
-}
+export interface IncidentioEscalationsListParams extends IncidentioBaseParams {}
 
 export interface IncidentioEscalation {
   id: string

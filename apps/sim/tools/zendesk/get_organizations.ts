@@ -12,7 +12,7 @@ export interface ZendeskGetOrganizationsParams {
   apiToken: string
   subdomain: string
   perPage?: string
-  page?: string
+  pageAfter?: string
 }
 
 export interface ZendeskGetOrganizationsResponse {
@@ -20,9 +20,8 @@ export interface ZendeskGetOrganizationsResponse {
   output: {
     organizations: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -66,19 +65,19 @@ export const zendeskGetOrganizationsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Results per page as a number string (default: "100", max: "100")',
     },
-    page: {
+    pageAfter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Cursor from a previous response to fetch the next page of results',
     },
   },
 
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.page) queryParams.append('page', params.page)
-      if (params.perPage) queryParams.append('per_page', params.perPage)
+      if (params.perPage) queryParams.append('page[size]', params.perPage)
+      if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/organizations')
@@ -103,19 +102,20 @@ export const zendeskGetOrganizationsTool: ToolConfig<
 
     const data = await response.json()
     const organizations = data.organizations || []
+    const afterCursor = data.meta?.after_cursor ?? null
+    const hasMore = data.meta?.has_more ?? false
 
     return {
       success: true,
       output: {
         organizations,
         paging: {
-          next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || organizations.length,
+          after_cursor: afterCursor,
+          has_more: hasMore,
         },
         metadata: {
           total_returned: organizations.length,
-          has_more: !!data.next_page,
+          has_more: hasMore,
         },
         success: true,
       },

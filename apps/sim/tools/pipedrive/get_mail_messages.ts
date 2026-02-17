@@ -40,6 +40,12 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (e.g., "25", default: 50)',
     },
+    start: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination start offset (0-based index of the first item to return)',
+    },
   },
 
   request: {
@@ -49,6 +55,7 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
 
       if (params.folder) queryParams.append('folder', params.folder)
       if (params.limit) queryParams.append('limit', params.limit)
+      if (params.start) queryParams.append('start', params.start)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -75,12 +82,16 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
     }
 
     const threads = data.data || []
+    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextStart = data.additional_data?.pagination?.next_start ?? null
 
     return {
       success: true,
       output: {
         messages: threads,
         total_items: threads.length,
+        has_more: hasMore,
+        next_start: nextStart,
         success: true,
       },
     }

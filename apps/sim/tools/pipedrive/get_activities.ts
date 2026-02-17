@@ -60,6 +60,12 @@ export const pipedriveGetActivitiesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
+    start: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination start offset (0-based index of the first item to return)',
+    },
   },
 
   request: {
@@ -73,6 +79,7 @@ export const pipedriveGetActivitiesTool: ToolConfig<
       if (params.type) queryParams.append('type', params.type)
       if (params.done) queryParams.append('done', params.done)
       if (params.limit) queryParams.append('limit', params.limit)
+      if (params.start) queryParams.append('start', params.start)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -99,12 +106,16 @@ export const pipedriveGetActivitiesTool: ToolConfig<
     }
 
     const activities = data.data || []
+    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextStart = data.additional_data?.pagination?.next_start ?? null
 
     return {
       success: true,
       output: {
         activities,
         total_items: activities.length,
+        has_more: hasMore,
+        next_start: nextStart,
         success: true,
       },
     }
