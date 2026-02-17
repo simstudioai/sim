@@ -140,9 +140,10 @@ export const jiraConnector: ConnectorConfig = {
 
     const cloudId = await getJiraCloudId(domain, accessToken)
 
-    let jql = `project = ${projectKey} ORDER BY updated DESC`
+    const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    let jql = `project = "${safeKey}" ORDER BY updated DESC`
     if (jqlFilter.trim()) {
-      jql = `project = ${projectKey} AND (${jqlFilter.trim()}) ORDER BY updated DESC`
+      jql = `project = "${safeKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
     const startAt = cursor ? Number(cursor) : 0
@@ -250,7 +251,8 @@ export const jiraConnector: ConnectorConfig = {
       const cloudId = await getJiraCloudId(domain, accessToken)
 
       const params = new URLSearchParams()
-      params.append('jql', `project = ${projectKey}`)
+      const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      params.append('jql', `project = "${safeKey}"`)
       params.append('maxResults', '0')
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`

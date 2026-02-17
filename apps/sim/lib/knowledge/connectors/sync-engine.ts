@@ -192,7 +192,13 @@ export async function executeSync(
     const excludedDocs = await db
       .select({ externalId: document.externalId })
       .from(document)
-      .where(and(eq(document.connectorId, connectorId), eq(document.userExcluded, true)))
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          eq(document.userExcluded, true),
+          isNull(document.deletedAt)
+        )
+      )
 
     const excludedExternalIds = new Set(excludedDocs.map((d) => d.externalId).filter(Boolean))
 
