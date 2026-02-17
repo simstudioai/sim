@@ -514,6 +514,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                               alt={`Preview ${index + 1}`}
                               fill
                               unoptimized
+                              sizes='(max-width: 768px) 100vw, 50vw'
                               className='object-contain'
                             />
                             <button

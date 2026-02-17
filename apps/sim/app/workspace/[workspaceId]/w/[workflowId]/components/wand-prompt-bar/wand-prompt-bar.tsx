@@ -134,57 +134,6 @@ export function WandPromptBar({
           </Button>
         )}
       </div>
-
-      <style jsx global>{`
-
-        @keyframes smoke-pulse {
-          0%,
-          100% {
-            transform: scale(0.8);
-            opacity: 0.4;
-          }
-          50% {
-            transform: scale(1.1);
-            opacity: 0.8;
-          }
-        }
-
-        .status-indicator {
-          position: relative;
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          overflow: hidden;
-          background-color: hsl(var(--muted-foreground) / 0.5);
-          transition: background-color 0.3s ease;
-        }
-
-        .status-indicator.streaming {
-          background-color: transparent;
-        }
-
-        .status-indicator.streaming::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 50%;
-          background: radial-gradient(
-            circle,
-            hsl(var(--primary) / 0.9) 0%,
-            hsl(var(--primary) / 0.4) 60%,
-            transparent 80%
-          );
-          animation: smoke-pulse 1.8s ease-in-out infinite;
-          opacity: 0.9;
-        }
-
-        .dark .status-indicator.streaming::before {
-          background: #6b7280;
-          opacity: 0.9;
-          animation: smoke-pulse 1.8s ease-in-out infinite;
-        }
-
-      `}</style>
     </div>
   )
 }

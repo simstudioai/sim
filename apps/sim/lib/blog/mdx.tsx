@@ -16,26 +16,32 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       unoptimized
     />
   ),
-  h2: (props: any) => (
+  h2: ({ children, className, ...props }: any) => (
     <h2
       {...props}
       style={{ fontSize: '30px', marginTop: '3rem', marginBottom: '1.5rem' }}
-      className={clsx('font-medium text-black leading-tight', props.className)}
-    />
+      className={clsx('font-medium text-black leading-tight', className)}
+    >
+      {children}
+    </h2>
   ),
-  h3: (props: any) => (
+  h3: ({ children, className, ...props }: any) => (
     <h3
       {...props}
       style={{ fontSize: '24px', marginTop: '1.5rem', marginBottom: '0.75rem' }}
-      className={clsx('font-medium leading-tight', props.className)}
-    />
+      className={clsx('font-medium leading-tight', className)}
+    >
+      {children}
+    </h3>
   ),
-  h4: (props: any) => (
+  h4: ({ children, className, ...props }: any) => (
     <h4
       {...props}
       style={{ fontSize: '19px', marginTop: '1.5rem', marginBottom: '0.75rem' }}
-      className={clsx('font-medium leading-tight', props.className)}
-    />
+      className={clsx('font-medium leading-tight', className)}
+    >
+      {children}
+    </h4>
   ),
   p: (props: any) => (
     <p

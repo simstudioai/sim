@@ -71,7 +71,7 @@ export function VoiceInterface({
   const [state, setState] = useState<'idle' | 'listening' | 'agent_speaking'>('idle')
   const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
-  const [audioLevels, setAudioLevels] = useState<number[]>(new Array(200).fill(0))
+  const [audioLevels, setAudioLevels] = useState<number[]>(() => new Array(200).fill(0))
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>(
     'prompt'
   )
