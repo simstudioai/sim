@@ -80,6 +80,7 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
       // Map search types to PostgREST operators
+      // plfts = plainto_tsquery (natural language), phfts = phraseto_tsquery, wfts = websearch_to_tsquery
       const operatorMap: Record<string, string> = {
         plain: 'plfts',
         phrase: 'phfts',
