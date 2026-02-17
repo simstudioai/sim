@@ -443,6 +443,7 @@ export interface PipedriveUpdateDealResponse extends ToolResponse {
 // GET Files
 export interface PipedriveGetFilesParams {
   accessToken: string
+  sort?: string
   limit?: string
   start?: string
   downloadFiles?: boolean

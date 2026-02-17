@@ -33,6 +33,7 @@ interface PipedriveApiResponse {
 
 const PipedriveGetFilesSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
+  sort: z.string().optional().nullable(),
   limit: z.string().optional().nullable(),
   start: z.string().optional().nullable(),
   downloadFiles: z.boolean().optional().default(false),
@@ -58,11 +59,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = PipedriveGetFilesSchema.parse(body)
 
-    const { accessToken, limit, start, downloadFiles } = validatedData
+    const { accessToken, sort, limit, start, downloadFiles } = validatedData
 
     const baseUrl = 'https://api.pipedrive.com/v1/files'
     const queryParams = new URLSearchParams()
 
+    if (sort) queryParams.append('sort', sort)
     if (limit) queryParams.append('limit', limit)
     if (start) queryParams.append('start', start)
 

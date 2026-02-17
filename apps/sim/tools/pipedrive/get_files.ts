@@ -16,6 +16,12 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         visibility: 'hidden',
         description: 'The access token for the Pipedrive API',
       },
+      sort: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Sort files by field (supported: "id", "update_time")',
+      },
       limit: {
         type: 'string',
         required: false,
@@ -44,6 +50,7 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
       }),
       body: (params) => ({
         accessToken: params.accessToken,
+        sort: params.sort,
         limit: params.limit,
         start: params.start,
         downloadFiles: params.downloadFiles,
