@@ -186,7 +186,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const updated = await db
       .update(document)
-      .set({ userExcluded: true, deletedAt: new Date() })
+      .set({ userExcluded: true })
       .where(
         and(
           eq(document.connectorId, connectorId),

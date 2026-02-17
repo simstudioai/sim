@@ -278,7 +278,7 @@ export const jiraConnector: ConnectorConfig = {
 
       if (jqlFilter) {
         const filterParams = new URLSearchParams()
-        filterParams.append('jql', `project = ${projectKey} AND (${jqlFilter})`)
+        filterParams.append('jql', `project = "${safeKey}" AND (${jqlFilter})`)
         filterParams.append('maxResults', '0')
 
         const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${filterParams.toString()}`
