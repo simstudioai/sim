@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import {
+  appendCursorPaginationParams,
   buildZendeskUrl,
   extractCursorPagingInfo,
   handleZendeskError,
@@ -90,8 +91,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       const queryParams = new URLSearchParams()
       queryParams.append('query', params.query)
       queryParams.append('filter[type]', params.filterType)
-      if (params.perPage) queryParams.append('page[size]', params.perPage)
-      if (params.pageAfter) queryParams.append('after_cursor', params.pageAfter)
+      appendCursorPaginationParams(queryParams, params)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/search/export')

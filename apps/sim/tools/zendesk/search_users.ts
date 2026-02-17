@@ -124,6 +124,8 @@ export const zendeskSearchUsersTool: ToolConfig<
       success: true,
       output: {
         users,
+        // /users/search uses offset pagination (page/per_page), not cursor pagination.
+        // after_cursor is always null; use next_page URL or page param for subsequent pages.
         paging: {
           after_cursor: null,
           has_more: hasMore,

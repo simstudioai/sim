@@ -138,8 +138,7 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
           const queryParams = new URLSearchParams()
           queryParams.append('query', searchTerms.join(' '))
           queryParams.append('filter[type]', 'ticket')
-          if (params.perPage) queryParams.append('page[size]', params.perPage)
-          if (params.pageAfter) queryParams.append('after_cursor', params.pageAfter)
+          appendCursorPaginationParams(queryParams, params)
 
           return `${buildZendeskUrl(params.subdomain, '/search/export')}?${queryParams.toString()}`
         }
