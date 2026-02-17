@@ -11,40 +11,6 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
- * Global styles for subflow nodes (loop and parallel containers).
- * Includes animations for drag-over states and hover effects.
- *
- * @returns Style component with global CSS
- */
-const SubflowNodeStyles: React.FC = () => {
-  return (
-    <style jsx global>{`
-      /* Z-index management for subflow nodes - default behind blocks */
-      .workflow-container .react-flow__node-subflowNode {
-        z-index: -1 !important;
-      }
-
-      /* Selected subflows appear above other subflows but below blocks (z-21) */
-      .workflow-container .react-flow__node-subflowNode:has([data-subflow-selected='true']) {
-        z-index: 10 !important;
-      }
-
-      /* Drag-over states */
-      .loop-node-drag-over,
-      .parallel-node-drag-over {
-        box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;
-        border-radius: 8px !important;
-      }
-
-      /* Handle z-index for nested nodes */
-      .react-flow__node[data-parent-node-id] .react-flow__handle {
-        z-index: 30;
-      }
-    `}</style>
-  )
-}
-
-/**
  * Data structure for subflow nodes (loop and parallel containers)
  */
 export interface SubflowNodeData {
@@ -151,133 +117,130 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   )
 
   return (
-    <>
-      <SubflowNodeStyles />
-      <div className='group relative'>
+    <div className='group relative'>
+      <div
+        ref={blockRef}
+        onClick={() => setCurrentBlockId(id)}
+        className={cn(
+          'workflow-drag-handle relative cursor-grab select-none rounded-[8px] border border-[var(--border-1)] [&:active]:cursor-grabbing',
+          'transition-block-bg transition-ring',
+          'z-[20]'
+        )}
+        style={{
+          width: data.width || 500,
+          height: data.height || 300,
+          position: 'relative',
+          overflow: 'visible',
+          pointerEvents: isPreview ? 'none' : 'all',
+        }}
+        data-node-id={id}
+        data-type='subflowNode'
+        data-nesting-level={nestingLevel}
+        data-subflow-selected={isFocused || isSelected || isPreviewSelected}
+      >
+        {!isPreview && (
+          <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
+        )}
+
+        {/* Header Section */}
         <div
-          ref={blockRef}
-          onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'workflow-drag-handle relative cursor-grab select-none rounded-[8px] border border-[var(--border-1)] [&:active]:cursor-grabbing',
-            'transition-block-bg transition-ring',
-            'z-[20]'
+            'flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'
           )}
-          style={{
-            width: data.width || 500,
-            height: data.height || 300,
-            position: 'relative',
-            overflow: 'visible',
-            pointerEvents: isPreview ? 'none' : 'all',
-          }}
-          data-node-id={id}
-          data-type='subflowNode'
-          data-nesting-level={nestingLevel}
-          data-subflow-selected={isFocused || isSelected || isPreviewSelected}
         >
-          {!isPreview && (
-            <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
-          )}
-
-          {/* Header Section */}
-          <div
-            className={cn(
-              'flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'
-            )}
-          >
-            <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
-              <div
-                className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-                style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
-              >
-                <BlockIcon className='h-[16px] w-[16px] text-white' />
-              </div>
-              <span
-                className={cn(
-                  'truncate font-medium text-[16px]',
-                  !isEnabled && 'text-[var(--text-muted)]'
-                )}
-                title={blockName}
-              >
-                {blockName}
-              </span>
-            </div>
-            <div className='flex items-center gap-1'>
-              {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
-              {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
-            </div>
-          </div>
-
-          {!isPreview && (
+          <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
             <div
-              className='absolute right-[8px] bottom-[8px] z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
-              style={{ pointerEvents: 'auto' }}
-            />
-          )}
-
-          <div
-            className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
-            data-dragarea='true'
-            style={{
-              position: 'relative',
-              pointerEvents: isPreview ? 'none' : 'auto',
-            }}
-          >
-            {/* Subflow Start */}
-            <div
-              className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'
-              style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
-              data-parent-id={id}
-              data-node-role={`${data.kind}-start`}
-              data-extent='parent'
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+              style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
             >
-              <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
-
-              <Handle
-                type='source'
-                position={Position.Right}
-                id={startHandleId}
-                className={getHandleClasses('right')}
-                style={{
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'auto',
-                }}
-                data-parent-id={id}
-              />
+              <BlockIcon className='h-[16px] w-[16px] text-white' />
             </div>
+            <span
+              className={cn(
+                'truncate font-medium text-[16px]',
+                !isEnabled && 'text-[var(--text-muted)]'
+              )}
+              title={blockName}
+            >
+              {blockName}
+            </span>
           </div>
-
-          {/* Input handle on left middle */}
-          <Handle
-            type='target'
-            position={Position.Left}
-            className={getHandleClasses('left')}
-            style={{
-              ...getHandleStyle(),
-              pointerEvents: 'auto',
-            }}
-          />
-
-          {/* Output handle on right middle */}
-          <Handle
-            type='source'
-            position={Position.Right}
-            className={getHandleClasses('right')}
-            style={{
-              ...getHandleStyle(),
-              pointerEvents: 'auto',
-            }}
-            id={endHandleId}
-          />
-
-          {hasRing && (
-            <div
-              className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
-            />
-          )}
+          <div className='flex items-center gap-1'>
+            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
+            {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
+          </div>
         </div>
+
+        {!isPreview && (
+          <div
+            className='absolute right-[8px] bottom-[8px] z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
+            style={{ pointerEvents: 'auto' }}
+          />
+        )}
+
+        <div
+          className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
+          data-dragarea='true'
+          style={{
+            position: 'relative',
+            pointerEvents: isPreview ? 'none' : 'auto',
+          }}
+        >
+          {/* Subflow Start */}
+          <div
+            className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'
+            style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
+            data-parent-id={id}
+            data-node-role={`${data.kind}-start`}
+            data-extent='parent'
+          >
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
+
+            <Handle
+              type='source'
+              position={Position.Right}
+              id={startHandleId}
+              className={getHandleClasses('right')}
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'auto',
+              }}
+              data-parent-id={id}
+            />
+          </div>
+        </div>
+
+        {/* Input handle on left middle */}
+        <Handle
+          type='target'
+          position={Position.Left}
+          className={getHandleClasses('left')}
+          style={{
+            ...getHandleStyle(),
+            pointerEvents: 'auto',
+          }}
+        />
+
+        {/* Output handle on right middle */}
+        <Handle
+          type='source'
+          position={Position.Right}
+          className={getHandleClasses('right')}
+          style={{
+            ...getHandleStyle(),
+            pointerEvents: 'auto',
+          }}
+          id={endHandleId}
+        />
+
+        {hasRing && (
+          <div
+            className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
+          />
+        )}
       </div>
-    </>
+    </div>
   )
 })
 

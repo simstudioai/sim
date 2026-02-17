@@ -165,12 +165,16 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         logger.info('Subscription restored successfully', result)
       }
 
-      await queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
-      if (activeOrgId) {
-        await queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId) })
-        await queryClient.invalidateQueries({ queryKey: organizationKeys.billing(activeOrgId) })
-        await queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
+        ...(activeOrgId
+          ? [
+              queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId) }),
+              queryClient.invalidateQueries({ queryKey: organizationKeys.billing(activeOrgId) }),
+              queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
+            ]
+          : []),
+      ])
 
       setIsDialogOpen(false)
     } catch (err) {

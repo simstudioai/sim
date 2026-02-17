@@ -59,12 +59,6 @@ body {
   --content-gap: 1.75rem;
 }
 
-/* Remove custom layout variable overrides to fallback to fumadocs defaults */
-
-/* ============================================
-   Navbar Light Mode Styling
-   ============================================ */
-
 /* Light mode navbar and search styling */
 :root:not(.dark) nav {
   background-color: hsla(0, 0%, 96%, 0.85) !important;
@@ -87,10 +81,6 @@ body {
   backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
   -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
 }
-
-/* ============================================
-   Custom Sidebar Styling (Turborepo-inspired)
-   ============================================ */
 
 /* Floating sidebar appearance - remove background */
 [data-sidebar-container],
@@ -468,10 +458,6 @@ aside[data-sidebar],
   writing-mode: horizontal-tb !important;
 }
 
-/* ============================================
-   Code Block Styling (Improved)
-   ============================================ */
-
 /* Apply Geist Mono to code elements */
 code,
 pre,
@@ -532,10 +518,6 @@ pre code .line {
   color: var(--color-fd-primary);
 }
 
-/* ============================================
-   TOC (Table of Contents) Styling
-   ============================================ */
-
 /* Remove the thin border-left on nested TOC items (keeps main indicator only) */
 #nd-toc a[style*="padding-inline-start"] {
   border-left: none !important;
@@ -553,10 +535,6 @@ main article,
   padding-top: 1.5rem !important;
   padding-bottom: 4rem;
 }
-
-/* ============================================
-   Center and Constrain Main Content Width
-   ============================================ */
 
 /* Main content area - center and constrain like turborepo/raindrop */
 /* Note: --sidebar-offset and --toc-offset are now applied at #nd-docs-layout level */
