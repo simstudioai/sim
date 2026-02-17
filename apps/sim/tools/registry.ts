@@ -225,6 +225,7 @@ import {
 } from '@/tools/dropbox'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
+import {bochaSearchTool} from "@/tools/bocha"
 import {
   dynamodbDeleteTool,
   dynamodbGetTool,
@@ -2242,6 +2243,7 @@ export const tools: Record<string, ToolConfig> = {
   dropbox_create_shared_link: dropboxCreateSharedLinkTool,
   dropbox_search: dropboxSearchTool,
   duckduckgo_search: duckduckgoSearchTool,
+  bocha_search: bochaSearchTool,
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,
   dspy_react: reactTool,
