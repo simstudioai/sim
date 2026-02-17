@@ -57,6 +57,12 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       visibility: 'user-or-llm',
       description: 'Maximum number of rows to return',
     },
+    offset: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of rows to skip (for pagination)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -74,8 +80,9 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
       // Map search types to PostgREST operators
+      // plfts = plainto_tsquery (natural language), phfts = phraseto_tsquery, wfts = websearch_to_tsquery
       const operatorMap: Record<string, string> = {
-        plain: 'fts',
+        plain: 'plfts',
         phrase: 'phfts',
         websearch: 'wfts',
       }
@@ -86,8 +93,13 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       url += `&${params.column}=${operator}(${language}).${encodeURIComponent(params.query)}`
 
       // Add limit if provided
-      if (params.limit) {
+      if (params.limit !== undefined && params.limit !== null) {
         url += `&limit=${Number(params.limit)}`
+      }
+
+      // Add offset if provided
+      if (params.offset !== undefined && params.offset !== null) {
+        url += `&offset=${Number(params.offset)}`
       }
 
       return url

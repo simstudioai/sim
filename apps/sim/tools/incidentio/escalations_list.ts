@@ -20,22 +20,10 @@ export const escalationsListTool: ToolConfig<
       visibility: 'user-only',
       description: 'incident.io API Key',
     },
-    page_size: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results per page (e.g., 10, 25, 50). Default: 25',
-    },
   },
 
   request: {
-    url: (params) => {
-      const url = new URL('https://api.incident.io/v2/escalations')
-      if (params.page_size) {
-        url.searchParams.append('page_size', params.page_size.toString())
-      }
-      return url.toString()
-    },
+    url: () => 'https://api.incident.io/v2/escalations',
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

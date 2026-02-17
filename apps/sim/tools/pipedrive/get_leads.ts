@@ -60,6 +60,12 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
         visibility: 'user-or-llm',
         description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
       },
+      start: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Pagination start offset (0-based index of the first item to return)',
+      },
     },
 
     request: {
@@ -81,6 +87,7 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
         if (params.person_id) queryParams.append('person_id', params.person_id)
         if (params.organization_id) queryParams.append('organization_id', params.organization_id)
         if (params.limit) queryParams.append('limit', params.limit)
+        if (params.start) queryParams.append('start', params.start)
 
         const queryString = queryParams.toString()
         return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -119,12 +126,19 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
 
       // Otherwise, return list of leads
       const leads = data.data || []
+      // Leads endpoint puts pagination fields directly on additional_data (no .pagination wrapper)
+      const hasMore = data.additional_data?.more_items_in_collection || false
+      const currentStart = data.additional_data?.start ?? 0
+      const currentLimit = data.additional_data?.limit ?? leads.length
+      const nextStart = hasMore ? currentStart + currentLimit : null
 
       return {
         success: true,
         output: {
           leads,
           total_items: leads.length,
+          has_more: hasMore,
+          next_start: nextStart,
           success: true,
         },
       }
@@ -149,6 +163,16 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
       total_items: {
         type: 'number',
         description: 'Total number of leads returned',
+        optional: true,
+      },
+      has_more: {
+        type: 'boolean',
+        description: 'Whether more leads are available',
+        optional: true,
+      },
+      next_start: {
+        type: 'number',
+        description: 'Offset for fetching the next page',
         optional: true,
       },
       success: { type: 'boolean', description: 'Operation success status' },

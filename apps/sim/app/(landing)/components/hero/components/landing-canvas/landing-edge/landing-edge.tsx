@@ -67,7 +67,6 @@ export const LandingEdge = React.memo(function LandingEdge(props: EdgeProps) {
           strokeLinejoin: 'round',
           pointerEvents: 'none',
           animation: `landing-edge-dash-${id} 1s linear infinite`,
-          willChange: 'stroke-dashoffset',
           ...style,
         }}
       />

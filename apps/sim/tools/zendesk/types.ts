@@ -11,14 +11,14 @@ export interface ZendeskBaseParams {
 }
 
 export interface ZendeskPaginationParams {
-  page?: string
   perPage?: string
+  pageAfter?: string
 }
 
 export interface ZendeskPagingInfo {
+  after_cursor: string | null
+  has_more: boolean
   next_page?: string | null
-  previous_page?: string | null
-  count: number
 }
 
 export interface ZendeskListMetadata {
@@ -48,6 +48,32 @@ export function handleZendeskError(data: any, status: number, operation: string)
 
   const errorMessage = data.error || data.description || data.message || 'Unknown error'
   throw new Error(`Zendesk ${operation} failed: ${errorMessage}`)
+}
+
+/**
+ * Appends cursor-based pagination query params.
+ * Zendesk uses bracket notation: `page[size]` and `page[after]`.
+ */
+export function appendCursorPaginationParams(
+  queryParams: URLSearchParams,
+  params: ZendeskPaginationParams
+): void {
+  if (params.perPage) queryParams.append('page[size]', params.perPage)
+  if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+}
+
+/**
+ * Extracts cursor-based pagination info from Zendesk API response.
+ * Zendesk cursor-based responses include `meta.after_cursor`, `meta.has_more`, and `links.next`.
+ */
+export function extractCursorPagingInfo(data: Record<string, unknown>): ZendeskPagingInfo {
+  const meta = (data.meta as Record<string, unknown>) || {}
+  const links = (data.links as Record<string, unknown>) || {}
+  return {
+    after_cursor: (meta.after_cursor as string) ?? null,
+    has_more: Boolean(meta.has_more),
+    next_page: (links.next as string) ?? null,
+  }
 }
 
 /**
@@ -377,13 +403,13 @@ export const ORGANIZATION_OUTPUT_PROPERTIES = {
  * Pagination output properties for list endpoints
  */
 export const PAGING_OUTPUT_PROPERTIES = {
-  next_page: { type: 'string', description: 'URL for next page of results', optional: true },
-  previous_page: {
+  after_cursor: {
     type: 'string',
-    description: 'URL for previous page of results',
+    description: 'Cursor for fetching the next page of results',
     optional: true,
   },
-  count: { type: 'number', description: 'Total count of items' },
+  has_more: { type: 'boolean', description: 'Whether more results are available' },
+  next_page: { type: 'string', description: 'URL for next page of results', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -391,7 +417,7 @@ export const PAGING_OUTPUT_PROPERTIES = {
  */
 export const PAGING_OUTPUT: OutputProperty = {
   type: 'object',
-  description: 'Pagination information',
+  description: 'Cursor-based pagination information',
   properties: PAGING_OUTPUT_PROPERTIES,
 }
 

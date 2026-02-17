@@ -26,6 +26,18 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       visibility: 'user-or-llm',
       description: 'Number of responses to retrieve (e.g., 10, 25, 50)',
     },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor token for fetching the next page of older responses',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor token for fetching the next page of newer responses',
+    },
     since: {
       type: 'string',
       required: false,
@@ -54,6 +66,14 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
 
       if (params.pageSize) {
         queryParams.push(`page_size=${Number(params.pageSize)}`)
+      }
+
+      if (params.before) {
+        queryParams.push(`before=${encodeURIComponent(params.before)}`)
+      }
+
+      if (params.after) {
+        queryParams.push(`after=${encodeURIComponent(params.after)}`)
       }
 
       if (params.since) {

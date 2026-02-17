@@ -67,6 +67,12 @@ export const pipedriveGetAllDealsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'For pagination, the marker representing the first item on the next page',
+    },
   },
 
   request: {
@@ -81,6 +87,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
       if (params.pipeline_id) queryParams.append('pipeline_id', params.pipeline_id)
       if (params.updated_since) queryParams.append('updated_since', params.updated_since)
       if (params.limit) queryParams.append('limit', params.limit)
+      if (params.cursor) queryParams.append('cursor', params.cursor)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -107,7 +114,8 @@ export const pipedriveGetAllDealsTool: ToolConfig<
     }
 
     const deals = data.data || []
-    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextCursor = data.additional_data?.next_cursor ?? null
+    const hasMore = nextCursor !== null
 
     return {
       success: true,
@@ -116,6 +124,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
         metadata: {
           total_items: deals.length,
           has_more: hasMore,
+          next_cursor: nextCursor,
         },
         success: true,
       },

@@ -5,11 +5,13 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
+  Message,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   prepareToolExecution,
@@ -52,7 +54,7 @@ export const xAIProvider: ProviderConfig = {
       streaming: !!request.stream,
     })
 
-    const allMessages: any[] = []
+    const allMessages: Message[] = []
 
     if (request.systemPrompt) {
       allMessages.push({
@@ -587,15 +589,11 @@ export const xAIProvider: ProviderConfig = {
         hasResponseFormat: !!request.responseFormat,
       })
 
-      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-      // @ts-ignore - Adding timing property to error for debugging
-      enhancedError.timing = {
+      throw new ProviderError(error instanceof Error ? error.message : String(error), {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
-      }
-
-      throw enhancedError
+      })
     }
   },
 }

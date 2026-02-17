@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'

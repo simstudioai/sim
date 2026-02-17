@@ -9,6 +9,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -170,6 +171,7 @@ const Combobox = memo(
       },
       ref
     ) => {
+      const listboxId = useId()
       const [open, setOpen] = useState(false)
       const [highlightedIndex, setHighlightedIndex] = useState(-1)
       const [searchQuery, setSearchQuery] = useState('')
@@ -513,6 +515,7 @@ const Combobox = memo(
                     role='combobox'
                     aria-expanded={open}
                     aria-haspopup='listbox'
+                    aria-controls={listboxId}
                     aria-disabled={disabled}
                     tabIndex={disabled ? -1 : 0}
                     className={cn(
@@ -616,7 +619,7 @@ const Combobox = memo(
                   }
                 }}
               >
-                <div ref={dropdownRef} role='listbox'>
+                <div ref={dropdownRef} role='listbox' id={listboxId}>
                   {isLoading ? (
                     <div className='flex items-center justify-center py-[14px]'>
                       <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />

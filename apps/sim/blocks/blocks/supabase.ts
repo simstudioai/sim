@@ -445,6 +445,13 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '100',
       condition: { field: 'operation', value: 'query' },
     },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'query' },
+    },
     // Vector search operation fields
     {
       id: 'functionName',
@@ -541,6 +548,13 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
+      condition: { field: 'operation', value: 'text_search' },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: 'text_search' },
     },
     // Count operation fields

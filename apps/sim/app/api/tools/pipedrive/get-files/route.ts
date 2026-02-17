@@ -22,15 +22,20 @@ interface PipedriveFile {
 interface PipedriveApiResponse {
   success: boolean
   data?: PipedriveFile[]
+  additional_data?: {
+    pagination?: {
+      more_items_in_collection: boolean
+      next_start: number
+    }
+  }
   error?: string
 }
 
 const PipedriveGetFilesSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  deal_id: z.string().optional().nullable(),
-  person_id: z.string().optional().nullable(),
-  org_id: z.string().optional().nullable(),
+  sort: z.enum(['id', 'update_time']).optional().nullable(),
   limit: z.string().optional().nullable(),
+  start: z.string().optional().nullable(),
   downloadFiles: z.boolean().optional().default(false),
 })
 
@@ -54,20 +59,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = PipedriveGetFilesSchema.parse(body)
 
-    const { accessToken, deal_id, person_id, org_id, limit, downloadFiles } = validatedData
+    const { accessToken, sort, limit, start, downloadFiles } = validatedData
 
     const baseUrl = 'https://api.pipedrive.com/v1/files'
     const queryParams = new URLSearchParams()
 
-    if (deal_id) queryParams.append('deal_id', deal_id)
-    if (person_id) queryParams.append('person_id', person_id)
-    if (org_id) queryParams.append('org_id', org_id)
+    if (sort) queryParams.append('sort', sort)
     if (limit) queryParams.append('limit', limit)
+    if (start) queryParams.append('start', start)
 
     const queryString = queryParams.toString()
     const apiUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl
 
-    logger.info(`[${requestId}] Fetching files from Pipedrive`, { deal_id, person_id, org_id })
+    logger.info(`[${requestId}] Fetching files from Pipedrive`)
 
     const urlValidation = await validateUrlWithDNS(apiUrl, 'apiUrl')
     if (!urlValidation.isValid) {
@@ -93,6 +97,8 @@ export async function POST(request: NextRequest) {
     }
 
     const files = data.data || []
+    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextStart = data.additional_data?.pagination?.next_start ?? null
     const downloadedFiles: Array<{
       name: string
       mimeType: string
@@ -149,6 +155,8 @@ export async function POST(request: NextRequest) {
         files,
         downloadedFiles: downloadedFiles.length > 0 ? downloadedFiles : undefined,
         total_items: files.length,
+        has_more: hasMore,
+        next_start: nextStart,
         success: true,
       },
     })

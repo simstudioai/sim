@@ -234,7 +234,6 @@ List actions from incident.io. Optionally filter by incident ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter actions by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `page_size` | number | No | Number of actions to return per page \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -309,7 +308,6 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter follow-ups by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `page_size` | number | No | Number of follow-ups to return per page \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -396,6 +394,7 @@ List all users in your Incident.io workspace. Returns user details including id,
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Incident.io API Key |
 | `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
 
@@ -406,6 +405,10 @@ List all users in your Incident.io workspace. Returns user details including id,
 |   ↳ `name` | string | Full name of the user |
 |   ↳ `email` | string | Email address of the user |
 |   ↳ `role` | string | Role of the user in the workspace |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of items per page |
+|   ↳ `total_record_count` | number | Total number of records |
 
 ### `incidentio_users_show`
 
@@ -644,7 +647,6 @@ List all escalation policies in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
 
 #### Output
 
