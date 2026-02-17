@@ -804,9 +804,28 @@ export interface TagFilterCondition {
 /**
  * Builds a Drizzle SQL condition from a tag filter.
  */
+const ALLOWED_TAG_SLOTS = new Set([
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'date1',
+  'date2',
+  'boolean1',
+  'boolean2',
+  'boolean3',
+])
+
 function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
-  const column = document[filter.tagSlot as keyof typeof document.$inferSelect]
-  if (!column) return undefined
+  if (!ALLOWED_TAG_SLOTS.has(filter.tagSlot)) return undefined
 
   const col = document[filter.tagSlot as keyof typeof document]
 

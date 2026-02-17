@@ -282,7 +282,8 @@ export const githubConnector: ConnectorConfig = {
     const path = externalId
 
     try {
-      const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`
+      const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+      const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {

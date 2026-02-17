@@ -34,7 +34,6 @@ import {
 } from '@/lib/oauth'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { CONNECTOR_META } from '@/connectors/icons'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -265,15 +264,14 @@ function ConnectorCard({
   const [expanded, setExpanded] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
-  const meta = CONNECTOR_META[connector.connectorType]
-  const Icon = meta?.icon
+  const connectorDef = CONNECTOR_REGISTRY[connector.connectorType]
+  const Icon = connectorDef?.icon
   const statusConfig =
     STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
-  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
-  const serviceId = connectorConfig?.oauth.provider
+  const serviceId = connectorDef?.oauth.provider
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes = connectorConfig?.oauth.requiredScopes ?? []
+  const requiredScopes = connectorDef?.oauth.requiredScopes ?? []
 
   const { data: credentials } = useOAuthCredentials(providerId)
 
@@ -297,7 +295,7 @@ function ConnectorCard({
           <div className='flex flex-col gap-[2px]'>
             <div className='flex items-center gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                {meta?.name || connector.connectorType}
+                {connectorDef?.name || connector.connectorType}
               </span>
               <Badge variant={statusConfig.variant} className='text-[10px]'>
                 {connector.status === 'syncing' && (
@@ -444,7 +442,7 @@ function ConnectorCard({
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={providerId as OAuthProvider}
-          toolName={connectorConfig?.name ?? connector.connectorType}
+          toolName={connectorDef?.name ?? connector.connectorType}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
           newScopes={missingScopes}
           serviceId={serviceId}
