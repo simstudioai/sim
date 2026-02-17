@@ -20,8 +20,11 @@ import {
 } from '@/tools/ahrefs'
 import {
   airtableCreateRecordsTool,
+  airtableGetBaseSchemaTool,
   airtableGetRecordTool,
+  airtableListBasesTool,
   airtableListRecordsTool,
+  airtableUpdateMultipleRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { airweaveSearchTool } from '@/tools/airweave'
@@ -899,7 +902,13 @@ import {
 } from '@/tools/kalshi'
 import {
   knowledgeCreateDocumentTool,
+  knowledgeDeleteChunkTool,
+  knowledgeDeleteDocumentTool,
+  knowledgeListChunksTool,
+  knowledgeListDocumentsTool,
+  knowledgeListTagsTool,
   knowledgeSearchTool,
+  knowledgeUpdateChunkTool,
   knowledgeUploadChunkTool,
 } from '@/tools/knowledge'
 import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
@@ -2705,8 +2714,11 @@ export const tools: Record<string, ToolConfig> = {
   twilio_voice_list_calls: listCallsTool,
   twilio_voice_get_recording: getRecordingTool,
   airtable_create_records: airtableCreateRecordsTool,
+  airtable_get_base_schema: airtableGetBaseSchemaTool,
   airtable_get_record: airtableGetRecordTool,
+  airtable_list_bases: airtableListBasesTool,
   airtable_list_records: airtableListRecordsTool,
+  airtable_update_multiple_records: airtableUpdateMultipleRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
   ahrefs_domain_rating: ahrefsDomainRatingTool,
   ahrefs_backlinks: ahrefsBacklinksTool,
@@ -2774,6 +2786,12 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_search: knowledgeSearchTool,
   knowledge_upload_chunk: knowledgeUploadChunkTool,
   knowledge_create_document: knowledgeCreateDocumentTool,
+  knowledge_list_tags: knowledgeListTagsTool,
+  knowledge_list_documents: knowledgeListDocumentsTool,
+  knowledge_delete_document: knowledgeDeleteDocumentTool,
+  knowledge_list_chunks: knowledgeListChunksTool,
+  knowledge_update_chunk: knowledgeUpdateChunkTool,
+  knowledge_delete_chunk: knowledgeDeleteChunkTool,
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
   stt_whisper: whisperSttTool,

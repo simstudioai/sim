@@ -21,7 +21,7 @@ import {
   useConnectOAuthService,
   useDisconnectOAuthService,
   useOAuthConnections,
-} from '@/hooks/queries/oauth-connections'
+} from '@/hooks/queries/oauth/oauth-connections'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Integrations')

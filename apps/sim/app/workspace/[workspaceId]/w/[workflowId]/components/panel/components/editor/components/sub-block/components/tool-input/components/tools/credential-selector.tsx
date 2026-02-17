@@ -12,7 +12,10 @@ import {
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { CREDENTIAL } from '@/executor/constants'
-import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
+import {
+  useOAuthCredentialDetail,
+  useOAuthCredentials,
+} from '@/hooks/queries/oauth/oauth-credentials'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 

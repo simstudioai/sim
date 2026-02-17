@@ -32,7 +32,7 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
-import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Knowledge')
@@ -153,6 +153,7 @@ export function Knowledge() {
     description: kb.description || 'No description provided',
     createdAt: kb.createdAt,
     updatedAt: kb.updatedAt,
+    connectorTypes: kb.connectorTypes ?? [],
   })
 
   /**
@@ -283,6 +284,7 @@ export function Knowledge() {
                       title={displayData.title}
                       docCount={displayData.docCount}
                       description={displayData.description}
+                      connectorTypes={displayData.connectorTypes}
                       createdAt={displayData.createdAt}
                       updatedAt={displayData.updatedAt}
                       onUpdate={handleUpdateKnowledgeBase}

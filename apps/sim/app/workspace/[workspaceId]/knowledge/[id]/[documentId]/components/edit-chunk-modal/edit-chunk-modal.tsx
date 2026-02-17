@@ -18,7 +18,7 @@ import {
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useUpdateChunk } from '@/hooks/queries/knowledge'
+import { useUpdateChunk } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('EditChunkModal')
 

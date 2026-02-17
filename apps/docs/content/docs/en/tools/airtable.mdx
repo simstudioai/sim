@@ -130,4 +130,37 @@ Update multiple existing records in an Airtable table
 | `records` | json | Array of updated Airtable records |
 | `metadata` | json | Operation metadata including record count and updated record IDs |
 
+### `airtable_list_bases`
+
+List all bases the authenticated user has access to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bases` | json | Array of Airtable bases with id, name, and permissionLevel |
+| `metadata` | json | Operation metadata including total bases count |
+
+### `airtable_get_base_schema`
+
+Get the schema of all tables, fields, and views in an Airtable base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | json | Array of table schemas with fields and views |
+| `metadata` | json | Operation metadata including total tables count |
+
 

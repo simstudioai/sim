@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
@@ -485,8 +486,10 @@ export async function deleteTagDefinition(
  */
 export async function createTagDefinition(
   data: CreateTagDefinitionData,
-  requestId: string
+  requestId: string,
+  txDb?: DbOrTx
 ): Promise<TagDefinition> {
+  const dbInstance = txDb ?? db
   const tagDefinitionId = randomUUID()
   const now = new Date()
 
@@ -500,7 +503,7 @@ export async function createTagDefinition(
     updatedAt: now,
   }
 
-  await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
+  await dbInstance.insert(knowledgeBaseTagDefinitions).values(newDefinition)
 
   logger.info(
     `[${requestId}] Created tag definition: ${data.displayName} -> ${data.tagSlot} in KB ${data.knowledgeBaseId}`

@@ -22,7 +22,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('CreateBaseModal')
 

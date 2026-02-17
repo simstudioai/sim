@@ -2,7 +2,7 @@
 
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
-import { useDeleteChunk } from '@/hooks/queries/knowledge'
+import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
 interface DeleteChunkModalProps {
   chunk: ChunkData | null

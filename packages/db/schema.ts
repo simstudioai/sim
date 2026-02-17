@@ -1215,6 +1215,7 @@ export const document = pgTable(
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
     deletedAt: timestamp('deleted_at'), // Soft delete
+    userExcluded: boolean('user_excluded').notNull().default(false), // User explicitly excluded — skip on sync
 
     // Document tags for filtering (inherited by all chunks)
     // Text tags (7 slots)
@@ -1239,6 +1240,14 @@ export const document = pgTable(
     boolean2: boolean('boolean2'),
     boolean3: boolean('boolean3'),
 
+    // Connector-sourced document fields
+    connectorId: text('connector_id').references(() => knowledgeConnector.id, {
+      onDelete: 'set null',
+    }),
+    externalId: text('external_id'),
+    contentHash: text('content_hash'),
+    sourceUrl: text('source_url'),
+
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
@@ -1252,6 +1261,12 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    // Connector document uniqueness (partial — only non-deleted rows)
+    connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
+      .on(table.connectorId, table.externalId)
+      .where(sql`${table.deletedAt} IS NULL`),
+    // Sync engine: load all active docs for a connector
+    connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
     // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
@@ -2238,5 +2253,62 @@ export const asyncJobs = pgTable(
       table.status,
       table.completedAt
     ),
+  })
+)
+
+/**
+ * Knowledge Connector - persistent link to an external source (Confluence, Google Drive, etc.)
+ * that syncs documents into a knowledge base.
+ */
+export const knowledgeConnector = pgTable(
+  'knowledge_connector',
+  {
+    id: text('id').primaryKey(),
+    knowledgeBaseId: text('knowledge_base_id')
+      .notNull()
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+    connectorType: text('connector_type').notNull(),
+    credentialId: text('credential_id').notNull(),
+    sourceConfig: json('source_config').notNull(),
+    syncMode: text('sync_mode').notNull().default('full'),
+    syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    status: text('status').notNull().default('active'),
+    lastSyncAt: timestamp('last_sync_at'),
+    lastSyncError: text('last_sync_error'),
+    lastSyncDocCount: integer('last_sync_doc_count'),
+    nextSyncAt: timestamp('next_sync_at'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => ({
+    knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
+    // Cron scheduler: WHERE status='active' AND nextSyncAt <= now AND deletedAt IS NULL
+    statusNextSyncIdx: index('kc_status_next_sync_idx').on(table.status, table.nextSyncAt),
+  })
+)
+
+/**
+ * Knowledge Connector Sync Log - audit trail for connector sync operations.
+ */
+export const knowledgeConnectorSyncLog = pgTable(
+  'knowledge_connector_sync_log',
+  {
+    id: text('id').primaryKey(),
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    docsAdded: integer('docs_added').notNull().default(0),
+    docsUpdated: integer('docs_updated').notNull().default(0),
+    docsDeleted: integer('docs_deleted').notNull().default(0),
+    docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    errorMessage: text('error_message'),
+  },
+  (table) => ({
+    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
   })
 )

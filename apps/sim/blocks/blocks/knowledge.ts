@@ -6,9 +6,11 @@ export const KnowledgeBlock: BlockConfig = {
   name: 'Knowledge',
   description: 'Use vector search',
   longDescription:
-    'Integrate Knowledge into the workflow. Can search, upload chunks, and create documents.',
+    'Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.',
   bestPractices: `
   - Clarify which tags are available for the knowledge base to understand whether to use tag filters on a search.
+  - Use List Documents to enumerate documents before operating on them.
+  - Use List Chunks to inspect a document's contents before updating or deleting chunks.
   `,
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
@@ -21,20 +23,41 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Search', id: 'search' },
-        { label: 'Upload Chunk', id: 'upload_chunk' },
+        { label: 'List Documents', id: 'list_documents' },
         { label: 'Create Document', id: 'create_document' },
+        { label: 'Delete Document', id: 'delete_document' },
+        { label: 'List Chunks', id: 'list_chunks' },
+        { label: 'Upload Chunk', id: 'upload_chunk' },
+        { label: 'Update Chunk', id: 'update_chunk' },
+        { label: 'Delete Chunk', id: 'delete_chunk' },
+        { label: 'List Tags', id: 'list_tags' },
       ],
       value: () => 'search',
     },
+
+    // Knowledge Base selector — basic mode (visual selector)
     {
-      id: 'knowledgeBaseId',
+      id: 'knowledgeBaseSelector',
       title: 'Knowledge Base',
       type: 'knowledge-base-selector',
+      canonicalParamId: 'knowledgeBaseId',
       placeholder: 'Select knowledge base',
       multiSelect: false,
       required: true,
-      condition: { field: 'operation', value: ['search', 'upload_chunk', 'create_document'] },
+      mode: 'basic',
     },
+    // Knowledge Base selector — advanced mode (manual ID input)
+    {
+      id: 'manualKnowledgeBaseId',
+      title: 'Knowledge Base ID',
+      type: 'short-input',
+      canonicalParamId: 'knowledgeBaseId',
+      placeholder: 'Enter knowledge base ID',
+      required: true,
+      mode: 'advanced',
+    },
+
+    // --- Search ---
     {
       id: 'query',
       title: 'Search Query',
@@ -57,15 +80,72 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Add tag filters',
       condition: { field: 'operation', value: 'search' },
     },
+
+    // --- List Documents ---
     {
-      id: 'documentId',
+      id: 'search',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Filter documents by filename',
+      condition: { field: 'operation', value: 'list_documents' },
+    },
+    {
+      id: 'enabledFilter',
+      title: 'Status Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Enabled', id: 'enabled' },
+        { label: 'Disabled', id: 'disabled' },
+      ],
+      condition: { field: 'operation', value: 'list_documents' },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Max items to return (default: 50)',
+      condition: { field: 'operation', value: ['list_documents', 'list_chunks'] },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Number of items to skip (default: 0)',
+      condition: { field: 'operation', value: ['list_documents', 'list_chunks'] },
+    },
+
+    // Document selector — basic mode (visual selector)
+    {
+      id: 'documentSelector',
       title: 'Document',
       type: 'document-selector',
+      canonicalParamId: 'documentId',
       placeholder: 'Select document',
       dependsOn: ['knowledgeBaseId'],
       required: true,
-      condition: { field: 'operation', value: 'upload_chunk' },
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['upload_chunk', 'delete_document', 'list_chunks', 'update_chunk', 'delete_chunk'],
+      },
     },
+    // Document selector — advanced mode (manual ID input)
+    {
+      id: 'manualDocumentId',
+      title: 'Document ID',
+      type: 'short-input',
+      canonicalParamId: 'documentId',
+      placeholder: 'Enter document ID',
+      required: true,
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['upload_chunk', 'delete_document', 'list_chunks', 'update_chunk', 'delete_chunk'],
+      },
+    },
+
+    // --- Upload Chunk ---
     {
       id: 'content',
       title: 'Chunk Content',
@@ -75,13 +155,15 @@ export const KnowledgeBlock: BlockConfig = {
       required: true,
       condition: { field: 'operation', value: 'upload_chunk' },
     },
+
+    // --- Create Document ---
     {
       id: 'name',
       title: 'Document Name',
       type: 'short-input',
       placeholder: 'Enter document name',
       required: true,
-      condition: { field: 'operation', value: ['create_document'] },
+      condition: { field: 'operation', value: 'create_document' },
     },
     {
       id: 'content',
@@ -90,18 +172,75 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter the document content',
       rows: 6,
       required: true,
-      condition: { field: 'operation', value: ['create_document'] },
+      condition: { field: 'operation', value: 'create_document' },
     },
-    // Dynamic tag entry for Create Document
     {
       id: 'documentTags',
       title: 'Document Tags',
       type: 'document-tag-entry',
       condition: { field: 'operation', value: 'create_document' },
     },
+
+    // --- Update Chunk / Delete Chunk ---
+    {
+      id: 'chunkId',
+      title: 'Chunk ID',
+      type: 'short-input',
+      placeholder: 'Enter chunk ID',
+      required: true,
+      condition: { field: 'operation', value: ['update_chunk', 'delete_chunk'] },
+    },
+    {
+      id: 'content',
+      title: 'New Content',
+      type: 'long-input',
+      placeholder: 'Enter updated chunk content',
+      rows: 6,
+      condition: { field: 'operation', value: 'update_chunk' },
+    },
+    {
+      id: 'enabled',
+      title: 'Enabled',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      condition: { field: 'operation', value: 'update_chunk' },
+    },
+
+    // --- List Chunks ---
+    {
+      id: 'chunkSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Filter chunks by content',
+      condition: { field: 'operation', value: 'list_chunks' },
+    },
+    {
+      id: 'chunkEnabledFilter',
+      title: 'Status Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Enabled', id: 'true' },
+        { label: 'Disabled', id: 'false' },
+      ],
+      condition: { field: 'operation', value: 'list_chunks' },
+    },
   ],
   tools: {
-    access: ['knowledge_search', 'knowledge_upload_chunk', 'knowledge_create_document'],
+    access: [
+      'knowledge_search',
+      'knowledge_upload_chunk',
+      'knowledge_create_document',
+      'knowledge_list_tags',
+      'knowledge_list_documents',
+      'knowledge_delete_document',
+      'knowledge_list_chunks',
+      'knowledge_update_chunk',
+      'knowledge_delete_chunk',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -111,25 +250,62 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_upload_chunk'
           case 'create_document':
             return 'knowledge_create_document'
+          case 'list_tags':
+            return 'knowledge_list_tags'
+          case 'list_documents':
+            return 'knowledge_list_documents'
+          case 'delete_document':
+            return 'knowledge_delete_document'
+          case 'list_chunks':
+            return 'knowledge_list_chunks'
+          case 'update_chunk':
+            return 'knowledge_update_chunk'
+          case 'delete_chunk':
+            return 'knowledge_delete_chunk'
           default:
             return 'knowledge_search'
         }
       },
       params: (params) => {
-        // Validate required fields for each operation
-        if (params.operation === 'search' && !params.knowledgeBaseId) {
-          throw new Error('Knowledge base ID is required for search operation')
+        const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
+        if (!knowledgeBaseId) {
+          throw new Error('Knowledge base ID is required')
         }
-        if (
-          (params.operation === 'upload_chunk' || params.operation === 'create_document') &&
-          !params.knowledgeBaseId
-        ) {
-          throw new Error(
-            'Knowledge base ID is required for upload_chunk and create_document operations'
-          )
+        params.knowledgeBaseId = knowledgeBaseId
+
+        const docOps = [
+          'upload_chunk',
+          'delete_document',
+          'list_chunks',
+          'update_chunk',
+          'delete_chunk',
+        ]
+        if (docOps.includes(params.operation)) {
+          const documentId = params.documentId ? String(params.documentId).trim() : ''
+          if (!documentId) {
+            throw new Error(`Document ID is required for ${params.operation} operation`)
+          }
+          params.documentId = documentId
         }
-        if (params.operation === 'upload_chunk' && !params.documentId) {
-          throw new Error('Document ID is required for upload_chunk operation')
+
+        const chunkOps = ['update_chunk', 'delete_chunk']
+        if (chunkOps.includes(params.operation)) {
+          const chunkId = params.chunkId ? String(params.chunkId).trim() : ''
+          if (!chunkId) {
+            throw new Error(`Chunk ID is required for ${params.operation} operation`)
+          }
+          params.chunkId = chunkId
+        }
+
+        // Map list_chunks sub-block fields to tool params
+        if (params.operation === 'list_chunks') {
+          if (params.chunkSearch) params.search = params.chunkSearch
+          if (params.chunkEnabledFilter) params.enabled = params.chunkEnabledFilter
+        }
+
+        // Convert enabled dropdown string to boolean for update_chunk
+        if (params.operation === 'update_chunk' && typeof params.enabled === 'string') {
+          params.enabled = params.enabled === 'true'
         }
 
         return params
@@ -142,12 +318,18 @@ export const KnowledgeBlock: BlockConfig = {
     query: { type: 'string', description: 'Search query terms' },
     topK: { type: 'number', description: 'Number of results' },
     documentId: { type: 'string', description: 'Document identifier' },
+    chunkId: { type: 'string', description: 'Chunk identifier' },
     content: { type: 'string', description: 'Content data' },
     name: { type: 'string', description: 'Document name' },
-    // Dynamic tag filters for search
+    search: { type: 'string', description: 'Search filter for documents' },
+    enabledFilter: { type: 'string', description: 'Filter by enabled status' },
+    enabled: { type: 'string', description: 'Enable or disable a chunk' },
+    limit: { type: 'number', description: 'Max items to return' },
+    offset: { type: 'number', description: 'Pagination offset' },
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
-    // Document tags for create document (JSON string of tag objects)
     documentTags: { type: 'string', description: 'Document tags' },
+    chunkSearch: { type: 'string', description: 'Search filter for chunks' },
+    chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },
   },
   outputs: {
     results: { type: 'json', description: 'Search results' },
