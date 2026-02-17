@@ -391,7 +391,15 @@ export function OptionsSelector({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isInteractionDisabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect, activeTab])
+  }, [
+    isInteractionDisabled,
+    enableKeyboardNav,
+    isLocked,
+    sortedOptions,
+    hoveredIndex,
+    onSelect,
+    activeTab,
+  ])
 
   if (sortedOptions.length === 0) return null
 
