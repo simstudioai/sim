@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import {
@@ -11,7 +11,9 @@ import {
   ChevronUp,
   Circle,
   CircleOff,
+  Filter,
   Loader2,
+  Plus,
   RotateCcw,
   Search,
   X,
@@ -22,6 +24,11 @@ import {
   Breadcrumb,
   Button,
   Checkbox,
+  Combobox,
+  type ComboboxOption,
+  DatePicker,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -40,25 +47,28 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
 import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import {
   ActionBar,
+  AddConnectorModal,
   AddDocumentsModal,
   BaseTagsModal,
+  ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -68,12 +78,14 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useConnectorList } from '@/hooks/queries/kb/connectors'
+import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
   useBulkDocumentOperation,
   useDeleteDocument,
   useDeleteKnowledgeBase,
   useUpdateDocument,
-} from '@/hooks/queries/knowledge'
+} from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -345,6 +357,32 @@ export function KnowledgeBase({
   const [showTagsModal, setShowTagsModal] = useState(false)
   const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false)
+  const [isTagFilterPopoverOpen, setIsTagFilterPopoverOpen] = useState(false)
+  const [tagFilterEntries, setTagFilterEntries] = useState<
+    {
+      id: string
+      tagName: string
+      tagSlot: string
+      fieldType: FilterFieldType
+      operator: string
+      value: string
+      valueTo: string
+    }[]
+  >([])
+
+  const activeTagFilters: DocumentTagFilter[] = useMemo(
+    () =>
+      tagFilterEntries
+        .filter((f) => f.tagSlot && f.value.trim())
+        .map((f) => ({
+          tagSlot: f.tagSlot,
+          fieldType: f.fieldType,
+          operator: f.operator,
+          value: f.value,
+          ...(f.operator === 'between' && f.valueTo ? { valueTo: f.valueTo } : {}),
+        })),
+    [tagFilterEntries]
+  )
 
   /**
    * Memoize the search query setter to prevent unnecessary re-renders
@@ -367,6 +405,7 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
+  const [showAddConnectorModal, setShowAddConnectorModal] = useState(false)
 
   const {
     isOpen: isContextMenuOpen,
@@ -407,9 +446,22 @@ export function KnowledgeBase({
       return hasPending ? 3000 : false
     },
     enabledFilter,
+    tagFilters: activeTagFilters.length > 0 ? activeTagFilters : undefined,
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
+
+  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
+  const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
+
+  /** Refresh KB detail when connectors transition from syncing to done */
+  const prevHadSyncingRef = useRef(false)
+  useEffect(() => {
+    if (prevHadSyncingRef.current && !hasSyncingConnectors) {
+      refreshKnowledgeBase()
+    }
+    prevHadSyncingRef.current = hasSyncingConnectors
+  }, [hasSyncingConnectors, refreshKnowledgeBase])
 
   const router = useRouter()
 
@@ -1003,6 +1055,14 @@ export function KnowledgeBase({
             )}
           </div>
 
+          <ConnectorsSection
+            knowledgeBaseId={id}
+            connectors={connectors}
+            isLoading={isLoadingConnectors}
+            canEdit={userPermissions.canEdit}
+            onAddConnector={() => setShowAddConnectorModal(true)}
+          />
+
           <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
               {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
@@ -1049,7 +1109,7 @@ export function KnowledgeBase({
                 <PopoverTrigger asChild>
                   <Button variant='default' className='h-[32px] rounded-[6px]'>
                     {enabledFilter === 'all'
-                      ? 'All'
+                      ? 'Status'
                       : enabledFilter === 'enabled'
                         ? 'Enabled'
                         : 'Disabled'}
@@ -1098,6 +1158,19 @@ export function KnowledgeBase({
                 </PopoverContent>
               </Popover>
 
+              <TagFilterPopover
+                tagDefinitions={tagDefinitions}
+                entries={tagFilterEntries}
+                isOpen={isTagFilterPopoverOpen}
+                onOpenChange={setIsTagFilterPopoverOpen}
+                onChange={(entries) => {
+                  setTagFilterEntries(entries)
+                  setCurrentPage(1)
+                  setSelectedDocuments(new Set())
+                  setIsSelectAllMode(false)
+                }}
+              />
+
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
@@ -1138,14 +1211,14 @@ export function KnowledgeBase({
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
                     {searchQuery
                       ? 'No documents found'
-                      : enabledFilter !== 'all'
+                      : enabledFilter !== 'all' || activeTagFilters.length > 0
                         ? 'Nothing matches your filter'
                         : 'No documents yet'}
                   </p>
                   <p className='mt-1 text-[var(--text-muted)] text-xs'>
                     {searchQuery
                       ? 'Try a different search term'
-                      : enabledFilter !== 'all'
+                      : enabledFilter !== 'all' || activeTagFilters.length > 0
                         ? 'Try changing the filter'
                         : userPermissions.canEdit === true
                           ? 'Add documents to get started'
@@ -1218,6 +1291,12 @@ export function KnowledgeBase({
                         <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
                           <div className='flex min-w-0 items-center gap-[8px]'>
                             {(() => {
+                              const ConnectorIcon = doc.connectorType
+                                ? CONNECTOR_REGISTRY[doc.connectorType]?.icon
+                                : null
+                              if (ConnectorIcon) {
+                                return <ConnectorIcon className='h-5 w-5 flex-shrink-0' />
+                              }
                               const IconComponent = getDocumentIcon(doc.mimeType, doc.filename)
                               return <IconComponent className='h-6 w-5 flex-shrink-0' />
                             })()}
@@ -1489,13 +1568,26 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}
-              </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+            {(() => {
+              const docToDelete = documents.find((doc) => doc.id === documentToDelete)
+              return (
+                <p className='text-[12px] text-[var(--text-secondary)]'>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {docToDelete?.filename ?? 'this document'}
+                  </span>
+                  ?{' '}
+                  {docToDelete?.connectorId ? (
+                    <span className='text-[var(--text-error)]'>
+                      This document is synced from a connector. Deleting it will permanently exclude
+                      it from future syncs. To temporarily hide it from search, disable it instead.
+                    </span>
+                  ) : (
+                    <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+                  )}
+                </p>
+              )
+            })()}
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1544,6 +1636,11 @@ export function KnowledgeBase({
         knowledgeBaseId={id}
         chunkingConfig={knowledgeBase?.chunkingConfig}
       />
+
+      {/* Add Connector Modal — conditionally rendered so it remounts fresh each open */}
+      {showAddConnectorModal && (
+        <AddConnectorModal open onOpenChange={setShowAddConnectorModal} knowledgeBaseId={id} />
+      )}
 
       {/* Rename Document Modal */}
       {documentToRename && (
@@ -1603,6 +1700,11 @@ export function KnowledgeBase({
               }
             : undefined
         }
+        onOpenSource={
+          contextMenuDocument?.sourceUrl && selectedDocuments.size === 1
+            ? () => window.open(contextMenuDocument.sourceUrl!, '_blank', 'noopener,noreferrer')
+            : undefined
+        }
         onRename={
           contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
             ? () => handleRenameDocument(contextMenuDocument)
@@ -1653,5 +1755,226 @@ export function KnowledgeBase({
         disableAddDocument={!userPermissions.canEdit}
       />
     </div>
+  )
+}
+
+interface TagFilterEntry {
+  id: string
+  tagName: string
+  tagSlot: string
+  fieldType: FilterFieldType
+  operator: string
+  value: string
+  valueTo: string
+}
+
+const createEmptyEntry = (): TagFilterEntry => ({
+  id: crypto.randomUUID(),
+  tagName: '',
+  tagSlot: '',
+  fieldType: 'text',
+  operator: 'eq',
+  value: '',
+  valueTo: '',
+})
+
+interface TagFilterPopoverProps {
+  tagDefinitions: TagDefinition[]
+  entries: TagFilterEntry[]
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  onChange: (entries: TagFilterEntry[]) => void
+}
+
+function TagFilterPopover({
+  tagDefinitions,
+  entries,
+  isOpen,
+  onOpenChange,
+  onChange,
+}: TagFilterPopoverProps) {
+  const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length
+
+  const tagOptions: ComboboxOption[] = tagDefinitions.map((t) => ({
+    value: t.displayName,
+    label: t.displayName,
+  }))
+
+  const filtersToShow = useMemo(
+    () => (entries.length > 0 ? entries : [createEmptyEntry()]),
+    [entries]
+  )
+
+  const updateEntry = (id: string, patch: Partial<TagFilterEntry>) => {
+    const existing = filtersToShow.find((e) => e.id === id)
+    if (!existing) return
+    const updated = filtersToShow.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    onChange(updated)
+  }
+
+  const handleTagChange = (id: string, tagName: string) => {
+    const def = tagDefinitions.find((t) => t.displayName === tagName)
+    const fieldType = (def?.fieldType || 'text') as FilterFieldType
+    const operators = getOperatorsForFieldType(fieldType)
+    updateEntry(id, {
+      tagName,
+      tagSlot: def?.tagSlot || '',
+      fieldType,
+      operator: operators[0]?.value || 'eq',
+      value: '',
+      valueTo: '',
+    })
+  }
+
+  const addFilter = () => {
+    onChange([...filtersToShow, createEmptyEntry()])
+  }
+
+  const removeFilter = (id: string) => {
+    const remaining = filtersToShow.filter((e) => e.id !== id)
+    onChange(remaining.length > 0 ? remaining : [])
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button variant='default' className='h-[32px] rounded-[6px]'>
+          <Filter className='mr-1.5 h-3.5 w-3.5' />
+          Tags
+          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align='end' side='bottom' sideOffset={4} className='w-[320px] p-0'>
+        <div className='flex flex-col'>
+          <div className='flex items-center justify-between border-[var(--border-1)] border-b px-[12px] py-[8px]'>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+              Filter by tags
+            </span>
+            <div className='flex items-center gap-[4px]'>
+              {activeCount > 0 && (
+                <Button
+                  variant='ghost'
+                  className='h-auto px-[6px] py-[2px] text-[11px] text-[var(--text-muted)]'
+                  onClick={() => onChange([])}
+                >
+                  Clear all
+                </Button>
+              )}
+              <Button variant='ghost' className='h-auto p-0' onClick={addFilter}>
+                <Plus className='h-3.5 w-3.5' />
+              </Button>
+            </div>
+          </div>
+
+          <div className='flex max-h-[320px] flex-col gap-[8px] overflow-y-auto p-[12px]'>
+            {filtersToShow.map((entry) => {
+              const operators = getOperatorsForFieldType(entry.fieldType)
+              const operatorOptions: ComboboxOption[] = operators.map((op) => ({
+                value: op.value,
+                label: op.label,
+              }))
+              const isBetween = entry.operator === 'between'
+
+              return (
+                <div
+                  key={entry.id}
+                  className='flex flex-col gap-[6px] rounded-[6px] border border-[var(--border-1)] p-[8px]'
+                >
+                  <div className='flex items-center justify-between'>
+                    <Label className='text-[11px] text-[var(--text-muted)]'>Tag</Label>
+                    <button
+                      type='button'
+                      onClick={() => removeFilter(entry.id)}
+                      className='text-[var(--text-muted)] transition-colors hover:text-[var(--text-error)]'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </div>
+                  <Combobox
+                    options={tagOptions}
+                    value={entry.tagName}
+                    onChange={(v) => handleTagChange(entry.id, v)}
+                    placeholder='Select tag'
+                  />
+
+                  {entry.tagSlot && (
+                    <>
+                      <Label className='text-[11px] text-[var(--text-muted)]'>Operator</Label>
+                      <Combobox
+                        options={operatorOptions}
+                        value={entry.operator}
+                        onChange={(v) => updateEntry(entry.id, { operator: v, valueTo: '' })}
+                        placeholder='Select operator'
+                      />
+
+                      <Label className='text-[11px] text-[var(--text-muted)]'>Value</Label>
+                      {entry.fieldType === 'date' ? (
+                        isBetween ? (
+                          <div className='flex items-center gap-[6px]'>
+                            <DatePicker
+                              size='sm'
+                              value={entry.value || undefined}
+                              onChange={(v) => updateEntry(entry.id, { value: v })}
+                              placeholder='From'
+                            />
+                            <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                              to
+                            </span>
+                            <DatePicker
+                              size='sm'
+                              value={entry.valueTo || undefined}
+                              onChange={(v) => updateEntry(entry.id, { valueTo: v })}
+                              placeholder='To'
+                            />
+                          </div>
+                        ) : (
+                          <DatePicker
+                            size='sm'
+                            value={entry.value || undefined}
+                            onChange={(v) => updateEntry(entry.id, { value: v })}
+                            placeholder='Select date'
+                          />
+                        )
+                      ) : isBetween ? (
+                        <div className='flex items-center gap-[6px]'>
+                          <Input
+                            value={entry.value}
+                            onChange={(e) => updateEntry(entry.id, { value: e.target.value })}
+                            placeholder='From'
+                            className='h-[28px] text-[12px]'
+                          />
+                          <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                            to
+                          </span>
+                          <Input
+                            value={entry.valueTo}
+                            onChange={(e) => updateEntry(entry.id, { valueTo: e.target.value })}
+                            placeholder='To'
+                            className='h-[28px] text-[12px]'
+                          />
+                        </div>
+                      ) : (
+                        <Input
+                          value={entry.value}
+                          onChange={(e) => updateEntry(entry.id, { value: e.target.value })}
+                          placeholder={
+                            entry.fieldType === 'boolean'
+                              ? 'true or false'
+                              : entry.fieldType === 'number'
+                                ? 'Enter number'
+                                : 'Enter value'
+                          }
+                          className='h-[28px] text-[12px]'
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -94,3 +94,25 @@ export type AirtableResponse =
   | AirtableCreateResponse
   | AirtableUpdateResponse
   | AirtableUpdateMultipleResponse
+  | AirtableListBasesResponse
+  | AirtableGetBaseSchemaResponse
+
+export interface AirtableListBasesResponse extends ToolResponse {
+  output: {
+    bases: Array<{ id: string; name: string; permissionLevel: string }>
+    metadata: { totalBases: number }
+  }
+}
+
+export interface AirtableGetBaseSchemaResponse extends ToolResponse {
+  output: {
+    tables: Array<{
+      id: string
+      name: string
+      description?: string
+      fields: Array<{ id: string; name: string; type: string; description?: string }>
+      views: Array<{ id: string; name: string; type: string }>
+    }>
+    metadata: { totalTables: number }
+  }
+}

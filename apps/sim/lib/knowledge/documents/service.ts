@@ -1,9 +1,29 @@
 import crypto, { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
+import {
+  document,
+  embedding,
+  knowledgeBase,
+  knowledgeBaseTagDefinitions,
+  knowledgeConnector,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  ne,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -771,6 +791,117 @@ export async function createDocumentRecords(
 }
 
 /**
+ * A single tag filter condition passed from the API layer.
+ */
+export interface TagFilterCondition {
+  tagSlot: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  operator: string
+  value: string
+  valueTo?: string
+}
+
+/**
+ * Builds a Drizzle SQL condition from a tag filter.
+ */
+function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
+  const column = document[filter.tagSlot as keyof typeof document.$inferSelect]
+  if (!column) return undefined
+
+  const col = document[filter.tagSlot as keyof typeof document]
+
+  if (filter.fieldType === 'text') {
+    const v = filter.value
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.tag1, v)
+      case 'neq':
+        return ne(col as typeof document.tag1, v)
+      case 'contains':
+        return sql`LOWER(${col}) LIKE LOWER(${`%${v}%`})`
+      case 'not_contains':
+        return sql`LOWER(${col}) NOT LIKE LOWER(${`%${v}%`})`
+      case 'starts_with':
+        return sql`LOWER(${col}) LIKE LOWER(${`${v}%`})`
+      case 'ends_with':
+        return sql`LOWER(${col}) LIKE LOWER(${`%${v}`})`
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'number') {
+    const num = Number(filter.value)
+    if (Number.isNaN(num)) return undefined
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.number1, num)
+      case 'neq':
+        return ne(col as typeof document.number1, num)
+      case 'gt':
+        return gt(col as typeof document.number1, num)
+      case 'gte':
+        return gte(col as typeof document.number1, num)
+      case 'lt':
+        return lt(col as typeof document.number1, num)
+      case 'lte':
+        return lte(col as typeof document.number1, num)
+      case 'between': {
+        const numTo = Number(filter.valueTo)
+        if (Number.isNaN(numTo)) return undefined
+        return and(
+          gte(col as typeof document.number1, num),
+          lte(col as typeof document.number1, numTo)
+        )
+      }
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'date') {
+    const v = filter.value
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.date1, new Date(v))
+      case 'neq':
+        return ne(col as typeof document.date1, new Date(v))
+      case 'gt':
+        return gt(col as typeof document.date1, new Date(v))
+      case 'gte':
+        return gte(col as typeof document.date1, new Date(v))
+      case 'lt':
+        return lt(col as typeof document.date1, new Date(v))
+      case 'lte':
+        return lte(col as typeof document.date1, new Date(v))
+      case 'between': {
+        if (!filter.valueTo) return undefined
+        return and(
+          gte(col as typeof document.date1, new Date(v)),
+          lte(col as typeof document.date1, new Date(filter.valueTo))
+        )
+      }
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'boolean') {
+    const boolVal = filter.value === 'true'
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.boolean1, boolVal)
+      case 'neq':
+        return ne(col as typeof document.boolean1, boolVal)
+      default:
+        return undefined
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Get documents for a knowledge base with filtering and pagination
  */
 export async function getDocuments(
@@ -782,6 +913,7 @@ export async function getDocuments(
     offset?: number
     sortBy?: DocumentSortField
     sortOrder?: SortOrder
+    tagFilters?: TagFilterCondition[]
   },
   requestId: string
 ): Promise<{
@@ -821,6 +953,10 @@ export async function getDocuments(
     boolean1: boolean | null
     boolean2: boolean | null
     boolean3: boolean | null
+    // Connector fields
+    connectorId: string | null
+    connectorType: string | null
+    sourceUrl: string | null
   }>
   pagination: {
     total: number
@@ -836,9 +972,10 @@ export async function getDocuments(
     offset = 0,
     sortBy = 'filename',
     sortOrder = 'asc',
+    tagFilters,
   } = options
 
-  const whereConditions = [
+  const whereConditions: (SQL | undefined)[] = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
     isNull(document.deletedAt),
   ]
@@ -851,6 +988,15 @@ export async function getDocuments(
 
   if (search) {
     whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+  }
+
+  if (tagFilters && tagFilters.length > 0) {
+    for (const filter of tagFilters) {
+      const condition = buildTagFilterCondition(filter)
+      if (condition) {
+        whereConditions.push(condition)
+      }
+    }
   }
 
   const totalResult = await db
@@ -923,8 +1069,13 @@ export async function getDocuments(
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
+      // Connector fields
+      connectorId: document.connectorId,
+      connectorType: knowledgeConnector.connectorType,
+      sourceUrl: document.sourceUrl,
     })
     .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
     .where(and(...whereConditions))
     .orderBy(primaryOrderBy, secondaryOrderBy)
     .limit(limit)
@@ -971,6 +1122,10 @@ export async function getDocuments(
       boolean1: doc.boolean1,
       boolean2: doc.boolean2,
       boolean3: doc.boolean3,
+      // Connector fields
+      connectorId: doc.connectorId,
+      connectorType: doc.connectorType ?? null,
+      sourceUrl: doc.sourceUrl,
     })),
     pagination: {
       total,
@@ -1177,6 +1332,7 @@ export async function bulkDocumentOperation(
       .update(document)
       .set({
         deletedAt: new Date(),
+        userExcluded: sql`CASE WHEN ${document.connectorId} IS NOT NULL THEN true ELSE ${document.userExcluded} END`,
       })
       .where(
         and(
@@ -1260,6 +1416,7 @@ export async function bulkDocumentOperationByFilter(
       .update(document)
       .set({
         deletedAt: new Date(),
+        userExcluded: sql`CASE WHEN ${document.connectorId} IS NOT NULL THEN true ELSE ${document.userExcluded} END`,
       })
       .where(and(...whereConditions))
       .returning({ id: document.id, deletedAt: document.deletedAt })
@@ -1630,20 +1787,31 @@ export async function updateDocument(
 }
 
 /**
- * Soft delete a document
+ * Soft delete a document.
+ * For connector-sourced documents, also sets userExcluded so the sync engine
+ * will not re-import the document on future syncs.
  */
 export async function deleteDocument(
   documentId: string,
   requestId: string
 ): Promise<{ success: boolean; message: string }> {
+  const doc = await db
+    .select({ connectorId: document.connectorId })
+    .from(document)
+    .where(eq(document.id, documentId))
+    .limit(1)
+
   await db
     .update(document)
     .set({
       deletedAt: new Date(),
+      ...(doc[0]?.connectorId ? { userExcluded: true } : {}),
     })
     .where(eq(document.id, documentId))
 
-  logger.info(`[${requestId}] Document deleted: ${documentId}`)
+  logger.info(`[${requestId}] Document deleted: ${documentId}`, {
+    userExcluded: Boolean(doc[0]?.connectorId),
+  })
 
   return {
     success: true,

@@ -17,6 +17,7 @@ interface DocumentContextMenuProps {
    * Document-specific actions (shown when right-clicking on a document)
    */
   onOpenInNewTab?: () => void
+  onOpenSource?: () => void
   onRename?: () => void
   onToggleEnabled?: () => void
   onViewTags?: () => void
@@ -74,6 +75,7 @@ export function DocumentContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onOpenSource,
   onRename,
   onToggleEnabled,
   onViewTags,
@@ -129,7 +131,17 @@ export function DocumentContextMenu({
                 Open in new tab
               </PopoverItem>
             )}
-            {!isMultiSelect && onOpenInNewTab && <PopoverDivider />}
+            {!isMultiSelect && onOpenSource && (
+              <PopoverItem
+                onClick={() => {
+                  onOpenSource()
+                  onClose()
+                }}
+              >
+                Open source
+              </PopoverItem>
+            )}
+            {!isMultiSelect && (onOpenInNewTab || onOpenSource) && <PopoverDivider />}
 
             {/* Edit and view actions */}
             {!isMultiSelect && onRename && (
@@ -170,6 +182,7 @@ export function DocumentContextMenu({
             {/* Destructive action */}
             {onDelete &&
               ((!isMultiSelect && onOpenInNewTab) ||
+                (!isMultiSelect && onOpenSource) ||
                 (!isMultiSelect && onRename) ||
                 (!isMultiSelect && hasTags && onViewTags) ||
                 onToggleEnabled) && <PopoverDivider />}

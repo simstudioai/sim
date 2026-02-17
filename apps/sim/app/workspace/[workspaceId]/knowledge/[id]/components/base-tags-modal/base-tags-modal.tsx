@@ -22,7 +22,7 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useCreateTagDefinition, useDeleteTagDefinition } from '@/hooks/queries/knowledge'
+import { useCreateTagDefinition, useDeleteTagDefinition } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('BaseTagsModal')
 

@@ -14,7 +14,7 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
-import { useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('KnowledgeHeader')
 

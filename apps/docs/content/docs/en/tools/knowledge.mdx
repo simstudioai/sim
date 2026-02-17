@@ -29,7 +29,7 @@ In Sim, the Knowledge Base block enables your agents to perform intelligent sema
 
 ## Usage Instructions
 
-Integrate Knowledge into the workflow. Can search, upload chunks, and create documents.
+Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.
 
 
 
@@ -125,5 +125,162 @@ Create a new document in a knowledge base
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the created document |
+
+### `knowledge_list_tags`
+
+List all tag definitions for a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to list tags for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `tags` | array | Array of tag definitions for the knowledge base |
+|   ↳ `id` | string | Tag definition ID |
+|   ↳ `tagSlot` | string | Internal tag slot \(e.g. tag1, number1\) |
+|   ↳ `displayName` | string | Human-readable tag name |
+|   ↳ `fieldType` | string | Tag field type \(text, number, date, boolean\) |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalTags` | number | Total number of tag definitions |
+
+### `knowledge_list_documents`
+
+List documents in a knowledge base with optional filtering, search, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to list documents from |
+| `search` | string | No | Search query to filter documents by filename |
+| `enabledFilter` | string | No | Filter by enabled status: "all", "enabled", or "disabled" |
+| `limit` | number | No | Maximum number of documents to return \(default: 50\) |
+| `offset` | number | No | Number of documents to skip for pagination \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documents` | array | Array of documents in the knowledge base |
+|   ↳ `id` | string | Document ID |
+|   ↳ `filename` | string | Document filename |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `mimeType` | string | MIME type of the document |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `processingStatus` | string | Processing status \(pending, processing, completed, failed\) |
+|   ↳ `chunkCount` | number | Number of chunks in the document |
+|   ↳ `tokenCount` | number | Total token count across chunks |
+|   ↳ `uploadedAt` | string | Upload timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalDocuments` | number | Total number of documents matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_delete_document`
+
+Delete a document from a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `documentId` | string | Yes | ID of the document to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the deleted document |
+| `message` | string | Confirmation message |
+
+### `knowledge_list_chunks`
+
+List chunks for a document in a knowledge base with optional filtering and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document to list chunks from |
+| `search` | string | No | Search query to filter chunks by content |
+| `enabled` | string | No | Filter by enabled status: "true", "false", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of chunks to return \(1-100, default: 50\) |
+| `offset` | number | No | Number of chunks to skip for pagination \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documentId` | string | ID of the document |
+| `chunks` | array | Array of chunks in the document |
+|   ↳ `id` | string | Chunk ID |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `content` | string | Chunk text content |
+|   ↳ `contentLength` | number | Content length in characters |
+|   ↳ `tokenCount` | number | Token count for the chunk |
+|   ↳ `enabled` | boolean | Whether the chunk is enabled |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalChunks` | number | Total number of chunks matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_update_chunk`
+
+Update the content or enabled status of a chunk in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document containing the chunk |
+| `chunkId` | string | Yes | ID of the chunk to update |
+| `content` | string | No | New content for the chunk |
+| `enabled` | boolean | No | Whether the chunk should be enabled or disabled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the parent document |
+| `id` | string | Chunk ID |
+| `chunkIndex` | number | Index of the chunk within the document |
+| `content` | string | Updated chunk content |
+| `contentLength` | number | Content length in characters |
+| `tokenCount` | number | Token count for the chunk |
+| `enabled` | boolean | Whether the chunk is enabled |
+| `updatedAt` | string | Last update timestamp |
+
+### `knowledge_delete_chunk`
+
+Delete a chunk from a document in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document containing the chunk |
+| `chunkId` | string | Yes | ID of the chunk to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chunkId` | string | ID of the deleted chunk |
+| `documentId` | string | ID of the parent document |
+| `message` | string | Confirmation message |
 
 

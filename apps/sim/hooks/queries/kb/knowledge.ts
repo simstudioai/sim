@@ -79,6 +79,14 @@ export async function fetchDocument(
   return result.data
 }
 
+export interface DocumentTagFilter {
+  tagSlot: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  operator: string
+  value: string
+  valueTo?: string
+}
+
 export interface KnowledgeDocumentsParams {
   knowledgeBaseId: string
   search?: string
@@ -87,6 +95,7 @@ export interface KnowledgeDocumentsParams {
   sortBy?: string
   sortOrder?: string
   enabledFilter?: 'all' | 'enabled' | 'disabled'
+  tagFilters?: DocumentTagFilter[]
 }
 
 export interface KnowledgeDocumentsResponse {
@@ -102,6 +111,7 @@ export async function fetchKnowledgeDocuments({
   sortBy,
   sortOrder,
   enabledFilter,
+  tagFilters,
 }: KnowledgeDocumentsParams): Promise<KnowledgeDocumentsResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
@@ -110,6 +120,7 @@ export async function fetchKnowledgeDocuments({
   params.set('limit', limit.toString())
   params.set('offset', offset.toString())
   if (enabledFilter) params.set('enabledFilter', enabledFilter)
+  if (tagFilters && tagFilters.length > 0) params.set('tagFilters', JSON.stringify(tagFilters))
 
   const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
@@ -147,6 +158,7 @@ export interface KnowledgeChunksParams {
   knowledgeBaseId: string
   documentId: string
   search?: string
+  enabledFilter?: 'all' | 'enabled' | 'disabled'
   limit?: number
   offset?: number
 }
@@ -160,11 +172,15 @@ export async function fetchKnowledgeChunks({
   knowledgeBaseId,
   documentId,
   search,
+  enabledFilter,
   limit = 50,
   offset = 0,
 }: KnowledgeChunksParams): Promise<KnowledgeChunksResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
+  if (enabledFilter && enabledFilter !== 'all') {
+    params.set('enabled', enabledFilter === 'enabled' ? 'true' : 'false')
+  }
   if (limit) params.set('limit', limit.toString())
   if (offset) params.set('offset', offset.toString())
 
@@ -234,6 +250,7 @@ export const serializeDocumentParams = (params: KnowledgeDocumentsParams) =>
     sortBy: params.sortBy ?? '',
     sortOrder: params.sortOrder ?? '',
     enabledFilter: params.enabledFilter ?? 'all',
+    tagFilters: params.tagFilters ?? [],
   })
 
 export function useKnowledgeDocumentsQuery(
@@ -260,6 +277,7 @@ export function useKnowledgeDocumentsQuery(
 export const serializeChunkParams = (params: KnowledgeChunksParams) =>
   JSON.stringify({
     search: params.search ?? '',
+    enabledFilter: params.enabledFilter ?? 'all',
     limit: params.limit ?? 50,
     offset: params.offset ?? 0,
   })

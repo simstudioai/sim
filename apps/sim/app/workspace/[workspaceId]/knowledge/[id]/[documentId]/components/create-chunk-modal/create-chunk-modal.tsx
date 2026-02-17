@@ -13,7 +13,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import type { DocumentData } from '@/lib/knowledge/types'
-import { useCreateChunk } from '@/hooks/queries/knowledge'
+import { useCreateChunk } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('CreateChunkModal')
 
