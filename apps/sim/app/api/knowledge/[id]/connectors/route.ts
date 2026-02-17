@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBaseTagDefinitions, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,7 +7,8 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
-import { createTagDefinition, getNextAvailableSlot } from '@/lib/knowledge/tags/service'
+import { getSlotsForFieldType } from '@/lib/knowledge/constants'
+import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { getCredential } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -123,15 +124,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
       const enabledDefs = connectorConfig.tagDefinitions.filter((td) => !disabledIds.has(td.id))
 
+      const existingDefs = await db
+        .select({ tagSlot: knowledgeBaseTagDefinitions.tagSlot })
+        .from(knowledgeBaseTagDefinitions)
+        .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+
+      const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
+
       const skippedTags: string[] = []
       for (const td of enabledDefs) {
-        const slot = await getNextAvailableSlot(knowledgeBaseId, td.fieldType)
-        if (!slot) {
+        const slots = getSlotsForFieldType(td.fieldType)
+        const available = slots.find((s) => !usedSlots.has(s))
+
+        if (!available) {
           skippedTags.push(td.displayName)
           logger.warn(`[${requestId}] No available ${td.fieldType} slots for "${td.displayName}"`)
           continue
         }
-        tagSlotMapping[td.id] = slot
+        usedSlots.add(available)
+        tagSlotMapping[td.id] = available
       }
 
       if (skippedTags.length > 0 && Object.keys(tagSlotMapping).length === 0) {
