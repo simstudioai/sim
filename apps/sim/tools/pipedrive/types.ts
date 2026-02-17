@@ -373,6 +373,7 @@ export interface PipedriveGetAllDealsOutput {
   metadata: {
     total_items: number
     has_more: boolean
+    next_cursor?: string
   }
   success: boolean
 }
@@ -442,9 +443,6 @@ export interface PipedriveUpdateDealResponse extends ToolResponse {
 // GET Files
 export interface PipedriveGetFilesParams {
   accessToken: string
-  deal_id?: string
-  person_id?: string
-  org_id?: string
   limit?: string
   start?: string
   downloadFiles?: boolean
@@ -454,6 +452,8 @@ export interface PipedriveGetFilesOutput {
   files: PipedriveFile[]
   downloadedFiles?: ToolFileData[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -471,6 +471,8 @@ export interface PipedriveGetMailMessagesParams {
 export interface PipedriveGetMailMessagesOutput {
   messages: PipedriveMailMessage[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -509,6 +511,8 @@ export interface PipedriveGetPipelinesParams {
 export interface PipedriveGetPipelinesOutput {
   pipelines: PipedrivePipeline[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -521,7 +525,6 @@ export interface PipedriveGetPipelineDealsParams {
   accessToken: string
   pipeline_id: string
   stage_id?: string
-  status?: string
   limit?: string
   start?: string
 }
@@ -531,6 +534,8 @@ export interface PipedriveGetPipelineDealsOutput {
   metadata: {
     pipeline_id: string
     total_items: number
+    has_more?: boolean
+    next_start?: number
   }
   success: boolean
 }
@@ -552,6 +557,8 @@ export interface PipedriveGetProjectsOutput {
   projects?: PipedriveProject[]
   project?: PipedriveProject
   total_items?: number
+  has_more?: boolean
+  next_cursor?: string
   success: boolean
 }
 
@@ -580,9 +587,7 @@ export interface PipedriveCreateProjectResponse extends ToolResponse {
 // GET All Activities
 export interface PipedriveGetActivitiesParams {
   accessToken: string
-  deal_id?: string
-  person_id?: string
-  org_id?: string
+  user_id?: string
   type?: string
   done?: string
   limit?: string
@@ -592,6 +597,8 @@ export interface PipedriveGetActivitiesParams {
 export interface PipedriveGetActivitiesOutput {
   activities: PipedriveActivity[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -659,6 +666,8 @@ export interface PipedriveGetLeadsOutput {
   leads?: PipedriveLead[]
   lead?: PipedriveLead
   total_items?: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 

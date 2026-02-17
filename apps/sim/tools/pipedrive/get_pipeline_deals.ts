@@ -35,12 +35,6 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by specific stage within the pipeline (e.g., "2")',
     },
-    status: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by deal status: open, won, lost',
-    },
     limit: {
       type: 'string',
       required: false,
@@ -61,7 +55,6 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
       const queryParams = new URLSearchParams()
 
       if (params.stage_id) queryParams.append('stage_id', params.stage_id)
-      if (params.status) queryParams.append('status', params.status)
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.start) queryParams.append('start', params.start)
 

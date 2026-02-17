@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import {
   buildZendeskUrl,
+  extractCursorPagingInfo,
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
@@ -12,8 +13,6 @@ export interface ZendeskSearchParams {
   subdomain: string
   query: string
   filterType: string
-  sortBy?: string
-  sortOrder?: string
   perPage?: string
   pageAfter?: string
 }
@@ -72,19 +71,6 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       visibility: 'user-or-llm',
       description: 'Resource type to search for: "ticket", "user", "organization", or "group"',
     },
-    sortBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Sort field: "relevance", "created_at", "updated_at", "priority", "status", or "ticket_type"',
-    },
-    sortOrder: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort order: "asc" or "desc"',
-    },
     perPage: {
       type: 'string',
       required: false,
@@ -104,10 +90,8 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       const queryParams = new URLSearchParams()
       queryParams.append('query', params.query)
       queryParams.append('filter[type]', params.filterType)
-      if (params.sortBy) queryParams.append('sort_by', params.sortBy)
-      if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
       if (params.perPage) queryParams.append('page[size]', params.perPage)
-      if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+      if (params.pageAfter) queryParams.append('after_cursor', params.pageAfter)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/search/export')
@@ -132,20 +116,16 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
 
     const data = await response.json()
     const results = data.results || []
-    const afterCursor = data.meta?.after_cursor ?? null
-    const hasMore = data.meta?.has_more ?? false
+    const paging = extractCursorPagingInfo(data)
 
     return {
       success: true,
       output: {
         results,
-        paging: {
-          after_cursor: afterCursor,
-          has_more: hasMore,
-        },
+        paging,
         metadata: {
           total_returned: results.length,
-          has_more: hasMore,
+          has_more: paging.has_more,
         },
         success: true,
       },

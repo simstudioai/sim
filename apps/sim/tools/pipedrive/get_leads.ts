@@ -165,6 +165,16 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
         description: 'Total number of leads returned',
         optional: true,
       },
+      has_more: {
+        type: 'boolean',
+        description: 'Whether more leads are available',
+        optional: true,
+      },
+      next_start: {
+        type: 'number',
+        description: 'Offset for fetching the next page',
+        optional: true,
+      },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

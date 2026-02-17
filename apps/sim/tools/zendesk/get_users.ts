@@ -1,6 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
 import {
+  appendCursorPaginationParams,
   buildZendeskUrl,
+  extractCursorPagingInfo,
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
@@ -89,8 +91,7 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
       const queryParams = new URLSearchParams()
       if (params.role) queryParams.append('role', params.role)
       if (params.permissionSet) queryParams.append('permission_set', params.permissionSet)
-      if (params.perPage) queryParams.append('page[size]', params.perPage)
-      if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+      appendCursorPaginationParams(queryParams, params)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/users')
@@ -115,20 +116,16 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
 
     const data = await response.json()
     const users = data.users || []
-    const afterCursor = data.meta?.after_cursor ?? null
-    const hasMore = data.meta?.has_more ?? false
+    const paging = extractCursorPagingInfo(data)
 
     return {
       success: true,
       output: {
         users,
-        paging: {
-          after_cursor: afterCursor,
-          has_more: hasMore,
-        },
+        paging,
         metadata: {
           total_returned: users.length,
-          has_more: hasMore,
+          has_more: paging.has_more,
         },
         success: true,
       },

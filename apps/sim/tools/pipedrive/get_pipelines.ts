@@ -110,6 +110,16 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       },
     },
     total_items: { type: 'number', description: 'Total number of pipelines returned' },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more pipelines are available',
+      optional: true,
+    },
+    next_start: {
+      type: 'number',
+      description: 'Offset for fetching the next page',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

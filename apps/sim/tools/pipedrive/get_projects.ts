@@ -133,6 +133,16 @@ export const pipedriveGetProjectsTool: ToolConfig<
       description: 'Total number of projects returned',
       optional: true,
     },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more projects are available',
+      optional: true,
+    },
+    next_cursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

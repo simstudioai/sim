@@ -100,6 +100,16 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
   outputs: {
     messages: { type: 'array', description: 'Array of mail thread objects from Pipedrive mailbox' },
     total_items: { type: 'number', description: 'Total number of mail threads returned' },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more messages are available',
+      optional: true,
+    },
+    next_start: {
+      type: 'number',
+      description: 'Offset for fetching the next page',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

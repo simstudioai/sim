@@ -67,8 +67,7 @@ Retrieve a list of tickets from Zendesk with optional filtering
 | `type` | string | No | Filter by type: "problem", "incident", "question", or "task" |
 | `assigneeId` | string | No | Filter by assignee user ID as a numeric string \(e.g., "12345"\) |
 | `organizationId` | string | No | Filter by organization ID as a numeric string \(e.g., "67890"\) |
-| `sortBy` | string | No | Sort field: "created_at", "updated_at", "priority", or "status" |
-| `sortOrder` | string | No | Sort order: "asc" or "desc" |
+| `sort` | string | No | Sort field for ticket listing \(only applies without filters\): "updated_at", "id", or "status". Prefix with "-" for descending \(e.g., "-updated_at"\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
 | `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 
@@ -1250,8 +1249,6 @@ Unified search across tickets, users, and organizations in Zendesk
 | `subdomain` | string | Yes | Your Zendesk subdomain |
 | `query` | string | Yes | Search query string using Zendesk search syntax \(e.g., "type:ticket status:open"\) |
 | `filterType` | string | Yes | Resource type to search for: "ticket", "user", "organization", or "group" |
-| `sortBy` | string | No | Sort field: "relevance", "created_at", "updated_at", "priority", "status", or "ticket_type" |
-| `sortOrder` | string | No | Sort order: "asc" or "desc" |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
 | `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 

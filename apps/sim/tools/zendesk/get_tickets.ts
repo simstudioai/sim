@@ -1,6 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
 import {
+  appendCursorPaginationParams,
   buildZendeskUrl,
+  extractCursorPagingInfo,
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
@@ -16,8 +18,7 @@ export interface ZendeskGetTicketsParams {
   type?: string
   assigneeId?: string
   organizationId?: string
-  sortBy?: string
-  sortOrder?: string
+  sort?: string
   perPage?: string
   pageAfter?: string
 }
@@ -94,17 +95,12 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
         visibility: 'user-or-llm',
         description: 'Filter by organization ID as a numeric string (e.g., "67890")',
       },
-      sortBy: {
+      sort: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Sort field: "created_at", "updated_at", "priority", or "status"',
-      },
-      sortOrder: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Sort order: "asc" or "desc"',
+        description:
+          'Sort field for ticket listing (only applies without filters): "updated_at", "id", or "status". Prefix with "-" for descending (e.g., "-updated_at")',
       },
       perPage: {
         type: 'string',
@@ -142,20 +138,16 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
           const queryParams = new URLSearchParams()
           queryParams.append('query', searchTerms.join(' '))
           queryParams.append('filter[type]', 'ticket')
-          if (params.sortBy) queryParams.append('sort_by', params.sortBy)
-          if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
           if (params.perPage) queryParams.append('page[size]', params.perPage)
-          if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+          if (params.pageAfter) queryParams.append('after_cursor', params.pageAfter)
 
           return `${buildZendeskUrl(params.subdomain, '/search/export')}?${queryParams.toString()}`
         }
 
-        // No filters - use the simple /tickets endpoint
+        // No filters - use the simple /tickets endpoint with cursor-based pagination
         const queryParams = new URLSearchParams()
-        if (params.sortBy) queryParams.append('sort_by', params.sortBy)
-        if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
-        if (params.perPage) queryParams.append('page[size]', params.perPage)
-        if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+        if (params.sort) queryParams.append('sort', params.sort)
+        appendCursorPaginationParams(queryParams, params)
 
         const query = queryParams.toString()
         const url = buildZendeskUrl(params.subdomain, '/tickets')
@@ -182,20 +174,16 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
       const data = await response.json()
       // Handle both /tickets response (data.tickets) and /search response (data.results)
       const tickets = data.tickets || data.results || []
-      const afterCursor = data.meta?.after_cursor ?? null
-      const hasMore = data.meta?.has_more ?? false
+      const paging = extractCursorPagingInfo(data)
 
       return {
         success: true,
         output: {
           tickets,
-          paging: {
-            after_cursor: afterCursor,
-            has_more: hasMore,
-          },
+          paging,
           metadata: {
             total_returned: tickets.length,
-            has_more: hasMore,
+            has_more: paging.has_more,
           },
           success: true,
         },

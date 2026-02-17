@@ -151,10 +151,7 @@ Retrieve files from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | No | Filter files by deal ID \(e.g., "123"\) |
-| `person_id` | string | No | Filter files by person ID \(e.g., "456"\) |
-| `org_id` | string | No | Filter files by organization ID \(e.g., "789"\) |
-| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 100\) |
 | `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 | `downloadFiles` | boolean | No | Download file contents into file outputs |
 
@@ -175,6 +172,8 @@ Retrieve files from Pipedrive with optional filters
 |   ↳ `url` | string | File download URL |
 | `downloadedFiles` | file[] | Downloaded files from Pipedrive |
 | `total_items` | number | Total number of files returned |
+| `has_more` | boolean | Whether more files are available |
+| `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_mail_messages`
@@ -195,6 +194,8 @@ Retrieve mail threads from Pipedrive mailbox
 | --------- | ---- | ----------- |
 | `messages` | array | Array of mail thread objects from Pipedrive mailbox |
 | `total_items` | number | Total number of mail threads returned |
+| `has_more` | boolean | Whether more messages are available |
+| `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_mail_thread`
@@ -242,6 +243,8 @@ Retrieve all pipelines from Pipedrive
 |   ↳ `add_time` | string | When the pipeline was created |
 |   ↳ `update_time` | string | When the pipeline was last updated |
 | `total_items` | number | Total number of pipelines returned |
+| `has_more` | boolean | Whether more pipelines are available |
+| `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_pipeline_deals`
@@ -254,7 +257,6 @@ Retrieve all deals in a specific pipeline
 | --------- | ---- | -------- | ----------- |
 | `pipeline_id` | string | Yes | The ID of the pipeline \(e.g., "1"\) |
 | `stage_id` | string | No | Filter by specific stage within the pipeline \(e.g., "2"\) |
-| `status` | string | No | Filter by deal status: open, won, lost |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 | `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
 
@@ -286,6 +288,8 @@ Retrieve all projects or a specific project from Pipedrive
 | `projects` | array | Array of project objects \(when listing all\) |
 | `project` | object | Single project object \(when project_id is provided\) |
 | `total_items` | number | Total number of projects returned |
+| `has_more` | boolean | Whether more projects are available |
+| `next_cursor` | string | Cursor for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_project`
@@ -316,9 +320,7 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | No | Filter activities by deal ID \(e.g., "123"\) |
-| `person_id` | string | No | Filter activities by person ID \(e.g., "456"\) |
-| `org_id` | string | No | Filter activities by organization ID \(e.g., "789"\) |
+| `user_id` | string | No | Filter activities by user ID \(e.g., "123"\) |
 | `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
 | `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
@@ -343,6 +345,8 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 |   ↳ `add_time` | string | When the activity was created |
 |   ↳ `update_time` | string | When the activity was last updated |
 | `total_items` | number | Total number of activities returned |
+| `has_more` | boolean | Whether more activities are available |
+| `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_activity`
@@ -442,6 +446,8 @@ Retrieve all leads or a specific lead from Pipedrive
 |   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
 |   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
 | `total_items` | number | Total number of leads returned |
+| `has_more` | boolean | Whether more leads are available |
+| `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_create_lead`

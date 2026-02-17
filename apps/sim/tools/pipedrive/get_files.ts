@@ -16,29 +16,11 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         visibility: 'hidden',
         description: 'The access token for the Pipedrive API',
       },
-      deal_id: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Filter files by deal ID (e.g., "123")',
-      },
-      person_id: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Filter files by person ID (e.g., "456")',
-      },
-      org_id: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Filter files by organization ID (e.g., "789")',
-      },
       limit: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
+        description: 'Number of results to return (e.g., "50", default: 100, max: 100)',
       },
       start: {
         type: 'string',
@@ -62,9 +44,6 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
       }),
       body: (params) => ({
         accessToken: params.accessToken,
-        deal_id: params.deal_id,
-        person_id: params.person_id,
-        org_id: params.org_id,
         limit: params.limit,
         start: params.start,
         downloadFiles: params.downloadFiles,
@@ -86,6 +65,16 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
         optional: true,
       },
       total_items: { type: 'number', description: 'Total number of files returned' },
+      has_more: {
+        type: 'boolean',
+        description: 'Whether more files are available',
+        optional: true,
+      },
+      next_start: {
+        type: 'number',
+        description: 'Offset for fetching the next page',
+        optional: true,
+      },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

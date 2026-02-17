@@ -24,23 +24,11 @@ export const pipedriveGetActivitiesTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
     },
-    deal_id: {
+    user_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter activities by deal ID (e.g., "123")',
-    },
-    person_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter activities by person ID (e.g., "456")',
-    },
-    org_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter activities by organization ID (e.g., "789")',
+      description: 'Filter activities by user ID (e.g., "123")',
     },
     type: {
       type: 'string',
@@ -73,9 +61,7 @@ export const pipedriveGetActivitiesTool: ToolConfig<
       const baseUrl = 'https://api.pipedrive.com/v1/activities'
       const queryParams = new URLSearchParams()
 
-      if (params.deal_id) queryParams.append('deal_id', params.deal_id)
-      if (params.person_id) queryParams.append('person_id', params.person_id)
-      if (params.org_id) queryParams.append('org_id', params.org_id)
+      if (params.user_id) queryParams.append('user_id', params.user_id)
       if (params.type) queryParams.append('type', params.type)
       if (params.done) queryParams.append('done', params.done)
       if (params.limit) queryParams.append('limit', params.limit)
@@ -131,6 +117,16 @@ export const pipedriveGetActivitiesTool: ToolConfig<
       },
     },
     total_items: { type: 'number', description: 'Total number of activities returned' },
+    has_more: {
+      type: 'boolean',
+      description: 'Whether more activities are available',
+      optional: true,
+    },
+    next_start: {
+      type: 'number',
+      description: 'Offset for fetching the next page',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

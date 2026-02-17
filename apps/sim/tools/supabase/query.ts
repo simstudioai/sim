@@ -97,12 +97,12 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       }
 
       // Add limit if provided
-      if (params.limit) {
+      if (params.limit !== undefined && params.limit !== null) {
         url += `&limit=${Number(params.limit)}`
       }
 
       // Add offset if provided
-      if (params.offset) {
+      if (params.offset !== undefined && params.offset !== null) {
         url += `&offset=${Number(params.offset)}`
       }
 
