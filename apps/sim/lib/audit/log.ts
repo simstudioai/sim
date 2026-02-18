@@ -35,6 +35,7 @@ export const AuditAction = {
   CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
   CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
   CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
+  CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
   CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
 
   // Documents

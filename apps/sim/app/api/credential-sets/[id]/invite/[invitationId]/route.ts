@@ -153,12 +153,12 @@ export async function POST(
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: AuditAction.CREDENTIAL_SET_INVITATION_CREATED,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_RESENT,
       resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: id,
       resourceName: result.set.name,
       description: `Resent credential set invitation to ${invitation.email}`,
-      metadata: { invitationId, email: invitation.email, resend: true },
+      metadata: { invitationId, email: invitation.email },
       request: req,
     })
 

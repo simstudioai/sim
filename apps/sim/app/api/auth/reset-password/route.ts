@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { user, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -38,6 +41,30 @@ export async function POST(request: NextRequest) {
 
     const { token, newPassword } = validationResult.data
 
+    // Resolve the user from the reset token before consuming it
+    let actorId = 'unknown'
+    let actorName: string | null = null
+    let actorEmail: string | null = null
+    try {
+      const [verificationRecord] = await db
+        .select({ value: verification.value })
+        .from(verification)
+        .where(eq(verification.identifier, `reset-password:${token}`))
+        .limit(1)
+      if (verificationRecord?.value) {
+        actorId = verificationRecord.value
+        const [userRecord] = await db
+          .select({ name: user.name, email: user.email })
+          .from(user)
+          .where(eq(user.id, actorId))
+          .limit(1)
+        actorName = userRecord?.name ?? null
+        actorEmail = userRecord?.email ?? null
+      }
+    } catch {
+      logger.debug('Could not resolve user from reset token for audit')
+    }
+
     await auth.api.resetPassword({
       body: {
         newPassword,
@@ -47,7 +74,9 @@ export async function POST(request: NextRequest) {
     })
 
     recordAudit({
-      actorId: 'system',
+      actorId,
+      actorName,
+      actorEmail,
       action: AuditAction.PASSWORD_RESET,
       resourceType: AuditResourceType.PASSWORD,
       description: 'Password reset completed',
