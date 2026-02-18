@@ -44,7 +44,7 @@ function useAllowedIntegrationsFromEnv() {
  */
 function intersectAllowlists(a: string[] | null, b: string[] | null): string[] | null {
   if (a === null) return b
-  if (b === null) return a
+  if (b === null) return a.map((i) => i.toLowerCase())
   return a.map((i) => i.toLowerCase()).filter((i) => b.includes(i))
 }
 
