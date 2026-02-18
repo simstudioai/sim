@@ -106,6 +106,21 @@ interface McpServer {
 
 const logger = createLogger('McpSettings')
 
+/**
+ * Checks if a URL's hostname is in the allowed domains list.
+ * Returns true if no allowlist is configured (null) or the domain matches.
+ */
+function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
+  if (allowedDomains === null) return true
+  if (!url) return true
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return allowedDomains.includes(hostname)
+  } catch {
+    return true
+  }
+}
+
 const DEFAULT_FORM_DATA: McpServerFormData = {
   name: '',
   transport: 'streamable-http',
@@ -389,6 +404,15 @@ export function MCP({ initialServerId }: MCPProps) {
     clearTestResult: clearEditTestResult,
   } = useMcpServerTest()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
+
+  const [allowedMcpDomains, setAllowedMcpDomains] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    fetch('/api/settings/allowed-mcp-domains')
+      .then((res) => res.json())
+      .then((data) => setAllowedMcpDomains(data.allowedMcpDomains ?? null))
+      .catch(() => setAllowedMcpDomains(null))
+  }, [])
 
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -1006,10 +1030,12 @@ export function MCP({ initialServerId }: MCPProps) {
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
   const isFormValid = formData.name.trim() && formData.url?.trim()
-  const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
+  const isAddDomainBlocked = !isDomainAllowed(formData.url, allowedMcpDomains)
+  const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid || isAddDomainBlocked
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
   const isEditFormValid = editFormData.name.trim() && editFormData.url?.trim()
+  const isEditDomainBlocked = !isDomainAllowed(editFormData.url, allowedMcpDomains)
   const editTestButtonLabel = getTestButtonLabel(editTestResult, isEditTestingConnection)
   const hasEditChanges = useMemo(() => {
     if (editFormData.name !== editOriginalData.name) return true
@@ -1299,6 +1325,11 @@ export function MCP({ initialServerId }: MCPProps) {
                     onChange={(e) => handleEditInputChange('url', e.target.value)}
                     onScroll={setEditUrlScrollLeft}
                   />
+                  {isEditDomainBlocked && (
+                    <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>
+                      Domain not permitted by server policy
+                    </p>
+                  )}
                 </FormField>
 
                 <div className='flex flex-col gap-[8px]'>
@@ -1351,7 +1382,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 <Button
                   variant='default'
                   onClick={handleEditTestConnection}
-                  disabled={isEditTestingConnection || !isEditFormValid}
+                  disabled={isEditTestingConnection || !isEditFormValid || isEditDomainBlocked}
                 >
                   {editTestButtonLabel}
                 </Button>
@@ -1361,7 +1392,9 @@ export function MCP({ initialServerId }: MCPProps) {
                   </Button>
                   <Button
                     onClick={handleSaveEdit}
-                    disabled={!hasEditChanges || isUpdatingServer || !isEditFormValid}
+                    disabled={
+                      !hasEditChanges || isUpdatingServer || !isEditFormValid || isEditDomainBlocked
+                    }
                     variant='tertiary'
                   >
                     {isUpdatingServer ? 'Saving...' : 'Save'}
@@ -1434,6 +1467,11 @@ export function MCP({ initialServerId }: MCPProps) {
                   onChange={(e) => handleInputChange('url', e.target.value)}
                   onScroll={(scrollLeft) => handleUrlScroll(scrollLeft)}
                 />
+                {isAddDomainBlocked && (
+                  <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>
+                    Domain not permitted by server policy
+                  </p>
+                )}
               </FormField>
 
               <div className='flex flex-col gap-[8px]'>
@@ -1479,7 +1517,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 <Button
                   variant='default'
                   onClick={handleTestConnection}
-                  disabled={isTestingConnection || !isFormValid}
+                  disabled={isTestingConnection || !isFormValid || isAddDomainBlocked}
                 >
                   {testButtonLabel}
                 </Button>
@@ -1489,7 +1527,9 @@ export function MCP({ initialServerId }: MCPProps) {
                     Cancel
                   </Button>
                   <Button onClick={handleAddServer} disabled={isSubmitDisabled} variant='tertiary'>
-                    {isSubmitDisabled && isFormValid ? 'Adding...' : 'Add Server'}
+                    {isSubmitDisabled && isFormValid && !isAddDomainBlocked
+                      ? 'Adding...'
+                      : 'Add Server'}
                   </Button>
                 </div>
               </div>
