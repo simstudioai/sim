@@ -1650,7 +1650,7 @@ export const useCopilotStore = create<CopilotStore>()(
         map[id] = {
           ...current,
           state: norm,
-          display: resolveToolDisplay(current.name, norm, id, current.params),
+          display: resolveToolDisplay(current.name, norm, id, current.params, current.serverUI),
         }
         set({ toolCallsById: map })
       } catch (error) {
@@ -1671,7 +1671,7 @@ export const useCopilotStore = create<CopilotStore>()(
         map[toolCallId] = {
           ...current,
           params: updatedParams,
-          display: resolveToolDisplay(current.name, current.state, toolCallId, updatedParams),
+          display: resolveToolDisplay(current.name, current.state, toolCallId, updatedParams, current.serverUI),
         }
         set({ toolCallsById: map })
       } catch (error) {
@@ -1728,7 +1728,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update store map
       const updatedMap = { ...toolCallsById }
-      const updatedDisplay = resolveToolDisplay(current.name, targetState, id, current.params)
+      const updatedDisplay = resolveToolDisplay(current.name, targetState, id, current.params, current.serverUI)
       updatedMap[id] = {
         ...current,
         state: targetState,

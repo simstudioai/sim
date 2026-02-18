@@ -35,6 +35,8 @@ export interface SSEEvent {
   phase?: string
   /** Set on tool_result events */
   failedDependency?: boolean
+  /** UI metadata from copilot (title, icon, phaseLabel) */
+  ui?: Record<string, unknown>
 }
 
 export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'

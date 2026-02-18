@@ -269,7 +269,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          display: resolveToolDisplay(current.name, targetState, current.id, current.params, current.serverUI),
         }
         set({ toolCallsById: updatedMap })
 
@@ -469,7 +469,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                b.toolCall?.params
+                b.toolCall?.params,
+                b.toolCall?.serverUI
               ),
             },
           }
@@ -507,7 +508,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          display: resolveToolDisplay(current.name, targetState, current.id, current.params, current.serverUI),
         }
         set({ toolCallsById: updatedMap })
       }
@@ -532,7 +533,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                b.toolCall?.params
+                b.toolCall?.params,
+                b.toolCall?.serverUI
               ),
             },
           }
@@ -579,6 +581,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const isPartial = toolData.partial === true
     const { toolCallsById } = get()
 
+    // Extract copilot-provided UI metadata for fallback display
+    const rawUI = (toolData.ui || data?.ui) as Record<string, unknown> | undefined
+    const serverUI = rawUI
+      ? {
+          title: rawUI.title as string | undefined,
+          phaseLabel: rawUI.phaseLabel as string | undefined,
+          icon: rawUI.icon as string | undefined,
+        }
+      : undefined
+
     const existing = toolCallsById[id]
     const toolName = name || existing?.name || 'unknown_tool'
     const isAutoAllowed = get().isToolAutoAllowed(toolName)
@@ -592,20 +604,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
       initialState = ClientToolCallState.executing
     }
 
+    const effectiveServerUI = serverUI || existing?.serverUI
+
     const next: CopilotToolCall = existing
       ? {
           ...existing,
           name: toolName,
           state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args || existing.params),
+          ...(effectiveServerUI ? { serverUI: effectiveServerUI } : {}),
+          display: resolveToolDisplay(toolName, initialState, id, args || existing.params, effectiveServerUI),
         }
       : {
           id,
           name: toolName,
           state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args),
+          ...(serverUI ? { serverUI } : {}),
+          display: resolveToolDisplay(toolName, initialState, id, args, serverUI),
         }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })

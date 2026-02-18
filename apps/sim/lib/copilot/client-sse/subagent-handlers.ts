@@ -285,7 +285,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       const updatedSubAgentToolCall = {
         ...existing,
         state: targetState,
-        display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params),
+        display: resolveToolDisplay(existing.name, targetState, toolCallId, existing.params, existing.serverUI),
       }
       context.subAgentToolCalls[parentToolCallId][existingIndex] = updatedSubAgentToolCall
 

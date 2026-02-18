@@ -178,7 +178,7 @@ function setToolState(toolCallId: string, state: ClientToolCallState): void {
       [toolCallId]: {
         ...current,
         state,
-        display: resolveToolDisplay(current.name, state, toolCallId, current.params),
+        display: resolveToolDisplay(current.name, state, toolCallId, current.params, current.serverUI),
       },
     }
     useCopilotStore.setState({ toolCallsById: updated })

@@ -1,5 +1,28 @@
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  BookOpen,
+  Bug,
+  Cloud,
+  Code,
+  FileText,
+  Folder,
+  Globe,
+  HelpCircle,
+  Key,
+  Loader2,
+  Lock,
+  Pencil,
+  Play,
+  Plus,
+  Rocket,
+  Search,
+  Server,
+  Settings,
+  Terminal,
+  Wrench,
+  Zap,
+} from 'lucide-react'
 import {
   ClientToolCallState,
   type ClientToolDisplay,
@@ -16,16 +39,62 @@ type StoreSet = (
 /** Respond tools are internal to copilot subagents and should never be shown in the UI */
 const HIDDEN_TOOL_SUFFIX = '_respond'
 
+/** UI metadata sent by the copilot on SSE tool_call events. */
+export interface ServerToolUI {
+  title?: string
+  phaseLabel?: string
+  icon?: string
+}
+
+/** Maps copilot icon name strings to Lucide icon components. */
+const ICON_MAP: Record<string, LucideIcon> = {
+  search: Search,
+  globe: Globe,
+  hammer: Wrench,
+  rocket: Rocket,
+  lock: Lock,
+  book: BookOpen,
+  wrench: Wrench,
+  zap: Zap,
+  play: Play,
+  cloud: Cloud,
+  key: Key,
+  pencil: Pencil,
+  terminal: Terminal,
+  workflow: Settings,
+  settings: Settings,
+  server: Server,
+  bug: Bug,
+  brain: BookOpen,
+  code: Code,
+  help: HelpCircle,
+  plus: Plus,
+  file: FileText,
+  folder: Folder,
+}
+
+function resolveIcon(iconName: string | undefined): LucideIcon {
+  if (!iconName) return Loader2
+  return ICON_MAP[iconName] || Loader2
+}
+
 export function resolveToolDisplay(
   toolName: string | undefined,
   state: ClientToolCallState,
   _toolCallId?: string,
-  params?: Record<string, any>
+  params?: Record<string, unknown>,
+  serverUI?: ServerToolUI
 ): ClientToolDisplay | undefined {
   if (!toolName) return undefined
   if (toolName.endsWith(HIDDEN_TOOL_SUFFIX)) return undefined
   const entry = TOOL_DISPLAY_REGISTRY[toolName]
-  if (!entry) return humanizedFallback(toolName, state)
+  if (!entry) {
+    // Use copilot-provided UI as a better fallback than humanized name
+    if (serverUI?.title) {
+      return serverUIFallback(serverUI, state)
+    }
+    return humanizedFallback(toolName, state)
+  }
 
   if (entry.uiConfig?.dynamicText && params) {
     const dynamicText = entry.uiConfig.dynamicText(params, state)
@@ -49,6 +118,28 @@ export function resolveToolDisplay(
   }
 
   return humanizedFallback(toolName, state)
+}
+
+/** Generates display from copilot-provided UI metadata. */
+function serverUIFallback(
+  serverUI: ServerToolUI,
+  state: ClientToolCallState
+): ClientToolDisplay {
+  const icon = resolveIcon(serverUI.icon)
+  const title = serverUI.title!
+
+  switch (state) {
+    case ClientToolCallState.success:
+      return { text: `Completed ${title.toLowerCase()}`, icon }
+    case ClientToolCallState.error:
+      return { text: `Failed ${title.toLowerCase()}`, icon }
+    case ClientToolCallState.rejected:
+      return { text: `Skipped ${title.toLowerCase()}`, icon }
+    case ClientToolCallState.aborted:
+      return { text: `Aborted ${title.toLowerCase()}`, icon }
+    default:
+      return { text: title, icon: Loader2 }
+  }
 }
 
 export function humanizedFallback(
@@ -121,7 +212,7 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
           ...tc,
           state: resolved,
           subAgentStreaming: false,
-          display: resolveToolDisplay(tc.name, resolved, id, tc.params),
+          display: resolveToolDisplay(tc.name, resolved, id, tc.params, tc.serverUI),
         }
         hasUpdates = true
       } else if (tc.subAgentStreaming) {
@@ -150,7 +241,7 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
                 toolCall: {
                   ...prev,
                   state: resolved,
-                  display: resolveToolDisplay(prev?.name, resolved, prev?.id, prev?.params),
+                  display: resolveToolDisplay(prev?.name, resolved, prev?.id, prev?.params, prev?.serverUI),
                 },
               }
             }
