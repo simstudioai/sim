@@ -195,16 +195,17 @@ export async function validateBlockType(
   }
 
   if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
-    const isEnvOnly = !userId
+    const envAllowlist = getAllowedIntegrationsFromEnv()
+    const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())
     logger.warn(
-      isEnvOnly
+      blockedByEnv
         ? 'Integration blocked by env allowlist'
-        : 'Integration blocked by permission config',
+        : 'Integration blocked by permission group',
       { userId, blockType }
     )
     throw new IntegrationNotAllowedError(
       blockType,
-      isEnvOnly ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
+      blockedByEnv ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
     )
   }
 }

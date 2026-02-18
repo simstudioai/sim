@@ -4,30 +4,36 @@
 import { databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const DEFAULT_PERMISSION_GROUP_CONFIG = {
-  allowedIntegrations: null,
-  allowedModelProviders: null,
-  hideTraceSpans: false,
-  hideKnowledgeBaseTab: false,
-  hideCopilot: false,
-  hideApiKeysTab: false,
-  hideEnvironmentTab: false,
-  hideFilesTab: false,
-  disableMcpTools: false,
-  disableCustomTools: false,
-  disableSkills: false,
-  hideTemplates: false,
-  disableInvitations: false,
-  hideDeployApi: false,
-  hideDeployMcp: false,
-  hideDeployA2a: false,
-  hideDeployChatbot: false,
-  hideDeployTemplate: false,
-}
-
-const mockGetAllowedIntegrationsFromEnv = vi.fn<() => string[] | null>()
-const mockIsOrganizationOnEnterprisePlan = vi.fn<() => Promise<boolean>>()
-const mockGetProviderFromModel = vi.fn<(model: string) => string>()
+const {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
+  mockGetAllowedIntegrationsFromEnv,
+  mockIsOrganizationOnEnterprisePlan,
+  mockGetProviderFromModel,
+} = vi.hoisted(() => ({
+  DEFAULT_PERMISSION_GROUP_CONFIG: {
+    allowedIntegrations: null,
+    allowedModelProviders: null,
+    hideTraceSpans: false,
+    hideKnowledgeBaseTab: false,
+    hideCopilot: false,
+    hideApiKeysTab: false,
+    hideEnvironmentTab: false,
+    hideFilesTab: false,
+    disableMcpTools: false,
+    disableCustomTools: false,
+    disableSkills: false,
+    hideTemplates: false,
+    disableInvitations: false,
+    hideDeployApi: false,
+    hideDeployMcp: false,
+    hideDeployA2a: false,
+    hideDeployChatbot: false,
+    hideDeployTemplate: false,
+  },
+  mockGetAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(),
+  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+  mockGetProviderFromModel: vi.fn<(model: string) => string>(),
+}))
 
 vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/db/schema', () => ({}))
@@ -52,7 +58,6 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import {
   getUserPermissionConfig,
   IntegrationNotAllowedError,
@@ -112,13 +117,13 @@ describe('env allowlist fallback when userId is absent', () => {
     vi.clearAllMocks()
   })
 
-  it('returns null config when no userId and no env allowlist', async () => {
+  it('returns null allowlist when no userId and no env allowlist', async () => {
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
 
     const userId: string | undefined = undefined
     const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
     const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
 
     expect(allowedIntegrations).toBeNull()
   })
@@ -129,7 +134,7 @@ describe('env allowlist fallback when userId is absent', () => {
     const userId: string | undefined = undefined
     const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
     const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
 
     expect(allowedIntegrations).toEqual(['slack', 'gmail'])
   })
@@ -140,7 +145,7 @@ describe('env allowlist fallback when userId is absent', () => {
     const userId: string | undefined = undefined
     const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
     const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
 
     expect(allowedIntegrations).not.toBeNull()
     expect(allowedIntegrations!.includes('slack')).toBe(true)
@@ -210,14 +215,12 @@ describe('validateBlockType', () => {
       await validateBlockType(undefined, 'GOOGLE_DRIVE')
     })
 
-    it('includes reason in error for env-only enforcement', async () => {
+    it('includes env reason in error when env allowlist is the source', async () => {
       await expect(validateBlockType(undefined, 'discord')).rejects.toThrow(/ALLOWED_INTEGRATIONS/)
     })
 
-    it('does not include env reason when userId is provided', async () => {
-      await expect(validateBlockType('user-123', 'discord')).rejects.toThrow(
-        /permission group settings/
-      )
+    it('includes env reason even when userId is present if env is the source', async () => {
+      await expect(validateBlockType('user-123', 'discord')).rejects.toThrow(/ALLOWED_INTEGRATIONS/)
     })
   })
 })
