@@ -8,6 +8,7 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -159,39 +160,6 @@ interface DuplicateWorkflowResult {
   blocksCount: number
   edgesCount: number
   subflowsCount: number
-}
-
-/**
- * Calculates the insertion sort order for a workflow at the top of mixed siblings.
- * Siblings include both workflows and folders because they share one rendered list.
- */
-function getTopInsertionSortOrder(
-  workflows: Record<string, WorkflowMetadata>,
-  folders: ReturnType<typeof useFolderStore.getState>['folders'],
-  workspaceId: string,
-  folderId: string | null | undefined
-): number {
-  const normalizedFolderId = folderId ?? null
-
-  const siblingWorkflows = Object.values(workflows).filter(
-    (workflow) =>
-      workflow.workspaceId === workspaceId && (workflow.folderId ?? null) === normalizedFolderId
-  )
-  const siblingFolders = Object.values(folders).filter(
-    (folder) =>
-      folder.workspaceId === workspaceId && (folder.parentId ?? null) === normalizedFolderId
-  )
-
-  const siblingOrders = [
-    ...siblingWorkflows.map((workflow) => workflow.sortOrder ?? 0),
-    ...siblingFolders.map((folder) => folder.sortOrder),
-  ]
-
-  if (siblingOrders.length === 0) {
-    return 0
-  }
-
-  return Math.min(...siblingOrders) - 1
 }
 
 /**
