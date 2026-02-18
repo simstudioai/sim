@@ -7,6 +7,8 @@ import { vercelAddProjectDomainTool } from '@/tools/vercel/add_project_domain'
 import { vercelCancelDeploymentTool } from '@/tools/vercel/cancel_deployment'
 // Alias tools
 import { vercelCreateAliasTool } from '@/tools/vercel/create_alias'
+// Check tools
+import { vercelCreateCheckTool } from '@/tools/vercel/create_check'
 import { vercelCreateDeploymentTool } from '@/tools/vercel/create_deployment'
 // DNS tools
 import { vercelCreateDnsRecordTool } from '@/tools/vercel/create_dns_record'
@@ -15,13 +17,17 @@ import { vercelCreateEdgeConfigTool } from '@/tools/vercel/create_edge_config'
 // Environment variable tools
 import { vercelCreateEnvVarTool } from '@/tools/vercel/create_env_var'
 import { vercelCreateProjectTool } from '@/tools/vercel/create_project'
+// Webhook tools
+import { vercelCreateWebhookTool } from '@/tools/vercel/create_webhook'
 import { vercelDeleteAliasTool } from '@/tools/vercel/delete_alias'
 import { vercelDeleteDeploymentTool } from '@/tools/vercel/delete_deployment'
 import { vercelDeleteDnsRecordTool } from '@/tools/vercel/delete_dns_record'
 import { vercelDeleteDomainTool } from '@/tools/vercel/delete_domain'
 import { vercelDeleteEnvVarTool } from '@/tools/vercel/delete_env_var'
 import { vercelDeleteProjectTool } from '@/tools/vercel/delete_project'
+import { vercelDeleteWebhookTool } from '@/tools/vercel/delete_webhook'
 import { vercelGetAliasTool } from '@/tools/vercel/get_alias'
+import { vercelGetCheckTool } from '@/tools/vercel/get_check'
 import { vercelGetDeploymentTool } from '@/tools/vercel/get_deployment'
 import { vercelGetDeploymentEventsTool } from '@/tools/vercel/get_deployment_events'
 import { vercelGetDomainTool } from '@/tools/vercel/get_domain'
@@ -34,6 +40,7 @@ import { vercelGetProjectTool } from '@/tools/vercel/get_project'
 import { vercelGetTeamTool } from '@/tools/vercel/get_team'
 import { vercelGetUserTool } from '@/tools/vercel/get_user'
 import { vercelListAliasesTool } from '@/tools/vercel/list_aliases'
+import { vercelListChecksTool } from '@/tools/vercel/list_checks'
 import { vercelListDeploymentFilesTool } from '@/tools/vercel/list_deployment_files'
 import { vercelListDeploymentsTool } from '@/tools/vercel/list_deployments'
 import { vercelListDnsRecordsTool } from '@/tools/vercel/list_dns_records'
@@ -43,9 +50,12 @@ import { vercelListProjectDomainsTool } from '@/tools/vercel/list_project_domain
 import { vercelListProjectsTool } from '@/tools/vercel/list_projects'
 import { vercelListTeamMembersTool } from '@/tools/vercel/list_team_members'
 import { vercelListTeamsTool } from '@/tools/vercel/list_teams'
+import { vercelListWebhooksTool } from '@/tools/vercel/list_webhooks'
 import { vercelPauseProjectTool } from '@/tools/vercel/pause_project'
 import { vercelRemoveProjectDomainTool } from '@/tools/vercel/remove_project_domain'
+import { vercelRerequestCheckTool } from '@/tools/vercel/rerequest_check'
 import { vercelUnpauseProjectTool } from '@/tools/vercel/unpause_project'
+import { vercelUpdateCheckTool } from '@/tools/vercel/update_check'
 import { vercelUpdateEdgeConfigItemsTool } from '@/tools/vercel/update_edge_config_items'
 import { vercelUpdateEnvVarTool } from '@/tools/vercel/update_env_var'
 import { vercelUpdateProjectTool } from '@/tools/vercel/update_project'
@@ -101,6 +111,16 @@ export {
   vercelGetTeamTool,
   vercelListTeamMembersTool,
   vercelGetUserTool,
+  // Webhooks
+  vercelListWebhooksTool,
+  vercelCreateWebhookTool,
+  vercelDeleteWebhookTool,
+  // Checks
+  vercelCreateCheckTool,
+  vercelGetCheckTool,
+  vercelListChecksTool,
+  vercelUpdateCheckTool,
+  vercelRerequestCheckTool,
 }
 
 export * from './types'

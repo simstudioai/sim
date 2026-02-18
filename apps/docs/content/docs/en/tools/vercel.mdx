@@ -11,16 +11,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Vercel](https://vercel.com/) is a platform for developing, previewing, and shipping modern frontend applications, APIs, and Jamstack sites with ease. A Jamstack site is a web application built using JavaScript, APIs, and Markup—designed to serve pre-rendered static files, leverage dynamic backend services via APIs, and provide fast, secure, and scalable user experiences.
+[Vercel](https://vercel.com/) describes itself as **the AI Cloud**: a platform that provides developer tools and cloud infrastructure to build, scale, and secure faster, more personalized web experiences. It is widely used to build and ship modern web apps and agentic workloads, with built-in support for Git-based workflows, preview deployments, and production delivery.
 
 With Vercel, you can:
 
-- **Automate deployments**: Instantly deploy static sites and serverless functions for your front-end projects with zero configuration
-- **Manage projects and teams**: Organize deployments, domains, environment variables, and more across multiple projects and teams
-- **Control environments and domains**: Manage production, preview, and development environments and seamlessly handle custom domains and DNS settings
-- **Monitor and debug**: Observe deployment status, review build logs, and inspect environment settings and configuration in real time
+- **Automate deployments**: Deploy from Git and manage preview and production releases with minimal operational overhead
+- **Manage projects and teams**: Organize projects, team access, and settings across multiple environments
+- **Control infrastructure settings**: Configure domains, DNS, aliases, environment variables, and edge settings in one place
+- **Monitor and troubleshoot**: Track deployment status, inspect logs, and debug build or runtime issues
 
-In Sim, the Vercel integration enables your agents to programmatically manage deployments, projects, domains, DNS records, aliases, environment variables, edge configs, and teams directly from your workflows. Agents can automate the deployment process, access environment data, monitor build statuses, and perform infrastructure changes in response to triggers or as part of intelligent workflow automation. Combine Vercel's infrastructure automation with Sim's workflow capabilities to create modern, fully automated DevOps and product development pipelines.
+In Sim, the Vercel integration lets your agents programmatically manage deployments, projects, domains, DNS records, aliases, environment variables, edge configs, and teams directly from workflows. You can automate deployment operations, react to status changes, and run infrastructure tasks as part of reliable, end-to-end delivery workflows.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1005,6 +1005,241 @@ Create, update, upsert, or delete items in an Edge Config store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | string | Operation status |
+
+### `vercel_list_webhooks`
+
+List webhooks for a Vercel project or team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `projectId` | string | No | Filter webhooks by project ID |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | List of webhooks |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `url` | string | Webhook URL |
+|   ↳ `events` | array | Events the webhook listens to |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `projectIds` | array | Associated project IDs |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last updated timestamp |
+| `count` | number | Number of webhooks returned |
+
+### `vercel_create_webhook`
+
+Create a new webhook for a Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `url` | string | Yes | Webhook URL \(must be https\) |
+| `events` | string | Yes | Comma-separated event names to subscribe to |
+| `projectIds` | string | No | Comma-separated project IDs to scope the webhook to |
+| `teamId` | string | Yes | Team ID to create the webhook for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook ID |
+| `url` | string | Webhook URL |
+| `secret` | string | Webhook signing secret |
+| `events` | array | Events the webhook listens to |
+| `ownerId` | string | Owner ID |
+| `projectIds` | array | Associated project IDs |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last updated timestamp |
+
+### `vercel_delete_webhook`
+
+Delete a webhook from a Vercel team
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `webhookId` | string | Yes | The webhook ID to delete |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the webhook was successfully deleted |
+
+### `vercel_create_check`
+
+Create a new deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID to create the check for |
+| `name` | string | Yes | Name of the check \(max 100 characters\) |
+| `blocking` | boolean | Yes | Whether the check blocks the deployment |
+| `path` | string | No | Page path being checked |
+| `detailsUrl` | string | No | URL with details about the check |
+| `externalId` | string | No | External identifier for the check |
+| `rerequestable` | boolean | No | Whether the check can be rerequested |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_get_check`
+
+Get details of a specific deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to retrieve |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_list_checks`
+
+List all checks for a deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID to list checks for |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checks` | array | List of deployment checks |
+|   ↳ `id` | string | Check ID |
+|   ↳ `name` | string | Check name |
+|   ↳ `status` | string | Check status |
+|   ↳ `conclusion` | string | Check conclusion |
+|   ↳ `blocking` | boolean | Whether the check blocks the deployment |
+|   ↳ `deploymentId` | string | Associated deployment ID |
+|   ↳ `integrationId` | string | Associated integration ID |
+|   ↳ `externalId` | string | External identifier |
+|   ↳ `detailsUrl` | string | URL with details about the check |
+|   ↳ `path` | string | Page path being checked |
+|   ↳ `rerequestable` | boolean | Whether the check can be rerequested |
+|   ↳ `createdAt` | number | Creation timestamp |
+|   ↳ `updatedAt` | number | Last update timestamp |
+|   ↳ `startedAt` | number | Start timestamp |
+|   ↳ `completedAt` | number | Completion timestamp |
+| `count` | number | Total number of checks |
+
+### `vercel_update_check`
+
+Update an existing deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to update |
+| `name` | string | No | Updated name of the check |
+| `status` | string | No | Updated status: running or completed |
+| `conclusion` | string | No | Check conclusion: canceled, failed, neutral, succeeded, or skipped |
+| `detailsUrl` | string | No | URL with details about the check |
+| `externalId` | string | No | External identifier for the check |
+| `path` | string | No | Page path being checked |
+| `output` | string | No | JSON string with check output metrics |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Check ID |
+| `name` | string | Check name |
+| `status` | string | Check status: registered, running, or completed |
+| `conclusion` | string | Check conclusion: canceled, failed, neutral, succeeded, skipped, or stale |
+| `blocking` | boolean | Whether the check blocks the deployment |
+| `deploymentId` | string | Associated deployment ID |
+| `integrationId` | string | Associated integration ID |
+| `externalId` | string | External identifier |
+| `detailsUrl` | string | URL with details about the check |
+| `path` | string | Page path being checked |
+| `rerequestable` | boolean | Whether the check can be rerequested |
+| `createdAt` | number | Creation timestamp in milliseconds |
+| `updatedAt` | number | Last update timestamp in milliseconds |
+| `startedAt` | number | Start timestamp in milliseconds |
+| `completedAt` | number | Completion timestamp in milliseconds |
+
+### `vercel_rerequest_check`
+
+Rerequest a deployment check
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Vercel Access Token |
+| `deploymentId` | string | Yes | Deployment ID the check belongs to |
+| `checkId` | string | Yes | Check ID to rerequest |
+| `teamId` | string | No | Team ID to scope the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rerequested` | boolean | Whether the check was successfully rerequested |
 
 ### `vercel_list_teams`
 

@@ -65,6 +65,16 @@ export const VercelBlock: BlockConfig = {
         { label: 'Create Edge Config', id: 'create_edge_config' },
         { label: 'Get Edge Config Items', id: 'get_edge_config_items' },
         { label: 'Update Edge Config Items', id: 'update_edge_config_items' },
+        // Webhooks
+        { label: 'List Webhooks', id: 'list_webhooks' },
+        { label: 'Create Webhook', id: 'create_webhook' },
+        { label: 'Delete Webhook', id: 'delete_webhook' },
+        // Checks
+        { label: 'List Checks', id: 'list_checks' },
+        { label: 'Get Check', id: 'get_check' },
+        { label: 'Create Check', id: 'create_check' },
+        { label: 'Update Check', id: 'update_check' },
+        { label: 'Rerequest Check', id: 'rerequest_check' },
         // Teams & User
         { label: 'List Teams', id: 'list_teams' },
         { label: 'Get Team', id: 'get_team' },
@@ -456,6 +466,125 @@ export const VercelBlock: BlockConfig = {
       required: { field: 'operation', value: 'update_edge_config_items' },
     },
 
+    // === Webhook fields ===
+    {
+      id: 'webhookUrl',
+      title: 'Webhook URL',
+      type: 'short-input',
+      placeholder: 'https://example.com/webhook',
+      condition: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: 'create_webhook' },
+    },
+    {
+      id: 'webhookEvents',
+      title: 'Events',
+      type: 'short-input',
+      placeholder: 'deployment.created,deployment.succeeded',
+      condition: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: 'create_webhook' },
+    },
+    {
+      id: 'webhookProjectIds',
+      title: 'Project IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated project IDs (optional)',
+      condition: { field: 'operation', value: 'create_webhook' },
+    },
+    {
+      id: 'webhookId',
+      title: 'Webhook ID',
+      type: 'short-input',
+      placeholder: 'Webhook ID',
+      condition: { field: 'operation', value: 'delete_webhook' },
+      required: { field: 'operation', value: 'delete_webhook' },
+    },
+
+    // === Check fields ===
+    {
+      id: 'checkDeploymentId',
+      title: 'Deployment ID',
+      type: 'short-input',
+      placeholder: 'Deployment ID',
+      condition: {
+        field: 'operation',
+        value: ['create_check', 'get_check', 'list_checks', 'update_check', 'rerequest_check'],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_check', 'get_check', 'list_checks', 'update_check', 'rerequest_check'],
+      },
+    },
+    {
+      id: 'checkId',
+      title: 'Check ID',
+      type: 'short-input',
+      placeholder: 'Check ID',
+      condition: {
+        field: 'operation',
+        value: ['get_check', 'update_check', 'rerequest_check'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_check', 'update_check', 'rerequest_check'],
+      },
+    },
+    {
+      id: 'checkName',
+      title: 'Check Name',
+      type: 'short-input',
+      placeholder: 'Name of the check (max 100 chars)',
+      condition: { field: 'operation', value: ['create_check', 'update_check'] },
+      required: { field: 'operation', value: 'create_check' },
+    },
+    {
+      id: 'checkBlocking',
+      title: 'Blocking',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      condition: { field: 'operation', value: 'create_check' },
+      required: { field: 'operation', value: 'create_check' },
+    },
+    {
+      id: 'checkPath',
+      title: 'Path',
+      type: 'short-input',
+      placeholder: 'Page path being checked (optional)',
+      condition: { field: 'operation', value: ['create_check', 'update_check'] },
+    },
+    {
+      id: 'checkDetailsUrl',
+      title: 'Details URL',
+      type: 'short-input',
+      placeholder: 'URL for more details (optional)',
+      condition: { field: 'operation', value: ['create_check', 'update_check'] },
+    },
+    {
+      id: 'checkStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Running', id: 'running' },
+        { label: 'Completed', id: 'completed' },
+      ],
+      condition: { field: 'operation', value: 'update_check' },
+    },
+    {
+      id: 'checkConclusion',
+      title: 'Conclusion',
+      type: 'dropdown',
+      options: [
+        { label: 'Succeeded', id: 'succeeded' },
+        { label: 'Failed', id: 'failed' },
+        { label: 'Canceled', id: 'canceled' },
+        { label: 'Neutral', id: 'neutral' },
+        { label: 'Skipped', id: 'skipped' },
+      ],
+      condition: { field: 'operation', value: 'update_check' },
+    },
+
     // === Team fields ===
     {
       id: 'teamIdParam',
@@ -488,7 +617,16 @@ export const VercelBlock: BlockConfig = {
       placeholder: 'Team ID to scope request (optional)',
       condition: {
         field: 'operation',
-        value: ['get_team', 'list_team_members', 'get_user'],
+        value: [
+          'get_team',
+          'list_team_members',
+          'get_user',
+          'create_check',
+          'get_check',
+          'list_checks',
+          'update_check',
+          'rerequest_check',
+        ],
         not: true,
       },
     },
@@ -540,6 +678,16 @@ export const VercelBlock: BlockConfig = {
       'vercel_create_edge_config',
       'vercel_get_edge_config_items',
       'vercel_update_edge_config_items',
+      // Webhooks
+      'vercel_list_webhooks',
+      'vercel_create_webhook',
+      'vercel_delete_webhook',
+      // Checks
+      'vercel_create_check',
+      'vercel_get_check',
+      'vercel_list_checks',
+      'vercel_update_check',
+      'vercel_rerequest_check',
       // Teams & User
       'vercel_list_teams',
       'vercel_get_team',
@@ -570,6 +718,18 @@ export const VercelBlock: BlockConfig = {
           edgeConfigId,
           edgeConfigSlug,
           edgeConfigItems,
+          webhookId,
+          webhookUrl,
+          webhookEvents,
+          webhookProjectIds,
+          checkDeploymentId,
+          checkId,
+          checkName,
+          checkBlocking,
+          checkPath,
+          checkDetailsUrl,
+          checkStatus,
+          checkConclusion,
           teamIdParam,
           memberRole,
           ...rest
@@ -625,6 +785,40 @@ export const VercelBlock: BlockConfig = {
             return { ...base, slug: edgeConfigSlug }
           case 'update_edge_config_items':
             return { ...base, edgeConfigId, items: edgeConfigItems }
+          case 'create_webhook':
+            return {
+              ...base,
+              url: webhookUrl,
+              events: webhookEvents,
+              ...(webhookProjectIds ? { projectIds: webhookProjectIds } : {}),
+            }
+          case 'delete_webhook':
+            return { ...base, webhookId }
+          case 'create_check':
+            return {
+              ...base,
+              deploymentId: checkDeploymentId,
+              name: checkName,
+              blocking: checkBlocking === 'true',
+              ...(checkPath ? { path: checkPath } : {}),
+              ...(checkDetailsUrl ? { detailsUrl: checkDetailsUrl } : {}),
+            }
+          case 'get_check':
+          case 'rerequest_check':
+            return { ...base, deploymentId: checkDeploymentId, checkId }
+          case 'list_checks':
+            return { ...base, deploymentId: checkDeploymentId }
+          case 'update_check':
+            return {
+              ...base,
+              deploymentId: checkDeploymentId,
+              checkId,
+              ...(checkName ? { name: checkName } : {}),
+              ...(checkStatus ? { status: checkStatus } : {}),
+              ...(checkConclusion ? { conclusion: checkConclusion } : {}),
+              ...(checkPath ? { path: checkPath } : {}),
+              ...(checkDetailsUrl ? { detailsUrl: checkDetailsUrl } : {}),
+            }
           case 'get_team':
             return { ...base, teamId: teamIdParam }
           case 'list_team_members':
@@ -671,6 +865,18 @@ export const VercelBlock: BlockConfig = {
     teamId: { type: 'string', description: 'Team ID for scoping' },
     teamIdParam: { type: 'string', description: 'Team ID parameter' },
     memberRole: { type: 'string', description: 'Team member role filter' },
+    webhookId: { type: 'string', description: 'Webhook ID' },
+    webhookUrl: { type: 'string', description: 'Webhook URL' },
+    webhookEvents: { type: 'string', description: 'Comma-separated event names' },
+    webhookProjectIds: { type: 'string', description: 'Comma-separated project IDs' },
+    checkDeploymentId: { type: 'string', description: 'Deployment ID for checks' },
+    checkId: { type: 'string', description: 'Check ID' },
+    checkName: { type: 'string', description: 'Check name' },
+    checkBlocking: { type: 'string', description: 'Whether check blocks deployment' },
+    checkPath: { type: 'string', description: 'Page path being checked' },
+    checkDetailsUrl: { type: 'string', description: 'URL for check details' },
+    checkStatus: { type: 'string', description: 'Check status' },
+    checkConclusion: { type: 'string', description: 'Check conclusion' },
   },
   outputs: {
     // List results
@@ -737,6 +943,16 @@ export const VercelBlock: BlockConfig = {
       description: 'Deployment file tree',
       condition: { field: 'operation', value: 'list_deployment_files' },
     },
+    webhooks: {
+      type: 'array',
+      description: 'List of webhooks',
+      condition: { field: 'operation', value: 'list_webhooks' },
+    },
+    checks: {
+      type: 'array',
+      description: 'List of deployment checks',
+      condition: { field: 'operation', value: 'list_checks' },
+    },
     // Single resource outputs
     id: {
       type: 'string',
@@ -775,6 +991,7 @@ export const VercelBlock: BlockConfig = {
           'delete_dns_record',
           'delete_alias',
           'delete_env_var',
+          'delete_webhook',
         ],
       },
     },

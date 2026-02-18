@@ -874,3 +874,152 @@ export interface VercelUpdateEdgeConfigItemsResponse extends ToolResponse {
     status: string
   }
 }
+
+export interface VercelListWebhooksParams {
+  apiKey: string
+  projectId?: string
+  teamId?: string
+}
+
+export interface VercelListWebhooksResponse extends ToolResponse {
+  output: {
+    webhooks: Array<{
+      id: string
+      url: string
+      events: string[]
+      ownerId: string
+      projectIds: string[]
+      createdAt: number
+      updatedAt: number
+    }>
+    count: number
+  }
+}
+
+export interface VercelCreateWebhookParams {
+  apiKey: string
+  url: string
+  events: string
+  projectIds?: string
+  teamId: string
+}
+
+export interface VercelCreateWebhookResponse extends ToolResponse {
+  output: {
+    id: string
+    url: string
+    secret: string
+    events: string[]
+    ownerId: string
+    projectIds: string[]
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export interface VercelDeleteWebhookParams {
+  apiKey: string
+  webhookId: string
+  teamId?: string
+}
+
+export interface VercelDeleteWebhookResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+  }
+}
+
+export interface VercelCreateCheckParams {
+  apiKey: string
+  deploymentId: string
+  name: string
+  blocking: boolean
+  path?: string
+  detailsUrl?: string
+  externalId?: string
+  rerequestable?: boolean
+  teamId?: string
+}
+
+export interface VercelCheckResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    status: string
+    conclusion: string | null
+    blocking: boolean
+    deploymentId: string
+    integrationId: string | null
+    externalId: string | null
+    detailsUrl: string | null
+    path: string | null
+    rerequestable: boolean
+    createdAt: number
+    updatedAt: number
+    startedAt: number | null
+    completedAt: number | null
+  }
+}
+
+export interface VercelGetCheckParams {
+  apiKey: string
+  deploymentId: string
+  checkId: string
+  teamId?: string
+}
+
+export interface VercelListChecksParams {
+  apiKey: string
+  deploymentId: string
+  teamId?: string
+}
+
+export interface VercelListChecksResponse extends ToolResponse {
+  output: {
+    checks: Array<{
+      id: string
+      name: string
+      status: string
+      conclusion: string | null
+      blocking: boolean
+      deploymentId: string
+      integrationId: string | null
+      externalId: string | null
+      detailsUrl: string | null
+      path: string | null
+      rerequestable: boolean
+      createdAt: number
+      updatedAt: number
+      startedAt: number | null
+      completedAt: number | null
+    }>
+    count: number
+  }
+}
+
+export interface VercelUpdateCheckParams {
+  apiKey: string
+  deploymentId: string
+  checkId: string
+  name?: string
+  status?: string
+  conclusion?: string
+  detailsUrl?: string
+  externalId?: string
+  path?: string
+  output?: string
+  teamId?: string
+}
+
+export interface VercelRerequestCheckParams {
+  apiKey: string
+  deploymentId: string
+  checkId: string
+  teamId?: string
+}
+
+export interface VercelRerequestCheckResponse extends ToolResponse {
+  output: {
+    rerequested: boolean
+  }
+}
