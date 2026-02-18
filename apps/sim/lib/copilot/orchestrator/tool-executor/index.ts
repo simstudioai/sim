@@ -24,6 +24,12 @@ import {
   executeRedeploy,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
+import {
+  executeVfsGlob,
+  executeVfsGrep,
+  executeVfsList,
+  executeVfsRead,
+} from './vfs-tools'
 import type {
   CheckDeploymentStatusParams,
   CreateFolderParams,
@@ -36,11 +42,8 @@ import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
   GetDeployedWorkflowStateParams,
-  GetUserWorkflowParams,
   GetWorkflowDataParams,
-  GetWorkflowFromNameParams,
   ListFoldersParams,
-  ListUserWorkflowsParams,
   ListWorkspaceMcpServersParams,
   MoveFolderParams,
   MoveWorkflowParams,
@@ -59,11 +62,8 @@ import {
   executeGetBlockOutputs,
   executeGetBlockUpstreamReferences,
   executeGetDeployedWorkflowState,
-  executeGetUserWorkflow,
   executeGetWorkflowData,
-  executeGetWorkflowFromName,
   executeListFolders,
-  executeListUserWorkflows,
   executeListUserWorkspaces,
   executeMoveFolder,
   executeMoveWorkflow,
@@ -319,17 +319,13 @@ async function executeManageCustomTool(
 }
 
 const SERVER_TOOLS = new Set<string>([
-  'get_blocks_and_tools',
   'get_blocks_metadata',
-  'get_block_options',
-  'get_block_config',
   'get_trigger_blocks',
   'edit_workflow',
   'get_workflow_console',
   'search_documentation',
   'search_online',
   'set_environment_variables',
-  'get_credentials',
   'make_api_request',
   'knowledge_base',
 ])
@@ -338,9 +334,6 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   string,
   (params: Record<string, unknown>, context: ExecutionContext) => Promise<ToolCallResult>
 > = {
-  get_user_workflow: (p, c) => executeGetUserWorkflow(p as GetUserWorkflowParams, c),
-  get_workflow_from_name: (p, c) => executeGetWorkflowFromName(p as GetWorkflowFromNameParams, c),
-  list_user_workflows: (p, c) => executeListUserWorkflows(p as ListUserWorkflowsParams, c),
   list_user_workspaces: (_p, c) => executeListUserWorkspaces(c),
   list_folders: (p, c) => executeListFolders(p as ListFoldersParams, c),
   create_workflow: (p, c) => executeCreateWorkflow(p as CreateWorkflowParams, c),
@@ -416,6 +409,11 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     }
   },
   manage_custom_tool: (p, c) => executeManageCustomTool(p, c),
+  // VFS tools
+  grep: (p, c) => executeVfsGrep(p, c),
+  glob: (p, c) => executeVfsGlob(p, c),
+  read: (p, c) => executeVfsRead(p, c),
+  list: (p, c) => executeVfsList(p, c),
 }
 
 /**

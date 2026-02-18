@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Blocks,
   BookOpen,
   Bug,
   Check,
@@ -9,7 +8,6 @@ import {
   ClipboardCheck,
   Compass,
   Database,
-  FileCode,
   FileText,
   FlaskConical,
   GitBranch,
@@ -19,9 +17,7 @@ import {
   Grid2x2Check,
   Grid2x2X,
   Info,
-  Key,
   KeyRound,
-  ListChecks,
   ListFilter,
   ListTodo,
   Loader2,
@@ -41,13 +37,11 @@ import {
   Sparkles,
   Tag,
   TerminalSquare,
-  WorkflowIcon,
   Wrench,
   X,
   XCircle,
   Zap,
 } from 'lucide-react'
-import { getLatestBlock } from '@/blocks/registry'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -629,86 +623,6 @@ const META_evaluate: ToolMetadata = {
   },
 }
 
-const META_get_block_config: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Retrieved block config', icon: FileCode },
-    [ClientToolCallState.error]: { text: 'Failed to get block config', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted getting block config', icon: XCircle },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped getting block config',
-      icon: MinusCircle,
-    },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.blockType && typeof params.blockType === 'string') {
-      const blockConfig = getLatestBlock(params.blockType)
-      const blockName = (blockConfig?.name ?? params.blockType.replace(/_/g, ' ')).toLowerCase()
-      const opSuffix = params.operation ? ` (${params.operation})` : ''
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Retrieved ${blockName}${opSuffix} config`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Retrieving ${blockName}${opSuffix} config`
-        case ClientToolCallState.error:
-          return `Failed to retrieve ${blockName}${opSuffix} config`
-        case ClientToolCallState.aborted:
-          return `Aborted retrieving ${blockName}${opSuffix} config`
-        case ClientToolCallState.rejected:
-          return `Skipped retrieving ${blockName}${opSuffix} config`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_get_block_options: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Retrieved block operations', icon: ListFilter },
-    [ClientToolCallState.error]: { text: 'Failed to get block operations', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted getting block operations', icon: XCircle },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped getting block operations',
-      icon: MinusCircle,
-    },
-  },
-  getDynamicText: (params, state) => {
-    const blockId =
-      (params as any)?.blockId ||
-      (params as any)?.blockType ||
-      (params as any)?.block_id ||
-      (params as any)?.block_type
-    if (typeof blockId === 'string') {
-      const blockConfig = getLatestBlock(blockId)
-      const blockName = (blockConfig?.name ?? blockId.replace(/_/g, ' ')).toLowerCase()
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Retrieved ${blockName} operations`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Retrieving ${blockName} operations`
-        case ClientToolCallState.error:
-          return `Failed to retrieve ${blockName} operations`
-        case ClientToolCallState.aborted:
-          return `Aborted retrieving ${blockName} operations`
-        case ClientToolCallState.rejected:
-          return `Skipped retrieving ${blockName} operations`
-      }
-    }
-    return undefined
-  },
-}
-
 const META_get_block_outputs: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Getting block outputs', icon: Loader2 },
@@ -767,19 +681,6 @@ const META_get_block_upstream_references: ToolMetadata = {
   },
 }
 
-const META_get_blocks_and_tools: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Explored available options', icon: Blocks },
-    [ClientToolCallState.error]: { text: 'Failed to explore options', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted exploring options', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped exploring options', icon: MinusCircle },
-  },
-  interrupt: undefined,
-}
-
 const META_get_blocks_metadata: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Searching block choices', icon: Loader2 },
@@ -818,27 +719,6 @@ const META_get_blocks_metadata: ToolMetadata = {
       }
     }
     return undefined
-  },
-}
-
-const META_get_credentials: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Fetched connected integrations', icon: Key },
-    [ClientToolCallState.error]: {
-      text: 'Failed to fetch connected integrations',
-      icon: XCircle,
-    },
-    [ClientToolCallState.aborted]: {
-      text: 'Aborted fetching connected integrations',
-      icon: MinusCircle,
-    },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped fetching connected integrations',
-      icon: MinusCircle,
-    },
   },
 }
 
@@ -989,41 +869,6 @@ const META_get_trigger_examples: ToolMetadata = {
   interrupt: undefined,
 }
 
-const META_get_user_workflow: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Reading your workflow', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Reading your workflow', icon: WorkflowIcon },
-    [ClientToolCallState.executing]: { text: 'Reading your workflow', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted reading your workflow', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Read your workflow', icon: WorkflowIcon },
-    [ClientToolCallState.error]: { text: 'Failed to read your workflow', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped reading your workflow', icon: XCircle },
-  },
-  getDynamicText: (params, state) => {
-    const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
-    if (workflowId) {
-      const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
-      if (workflowName) {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Read ${workflowName}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Reading ${workflowName}`
-          case ClientToolCallState.error:
-            return `Failed to read ${workflowName}`
-          case ClientToolCallState.aborted:
-            return `Aborted reading ${workflowName}`
-          case ClientToolCallState.rejected:
-            return `Skipped reading ${workflowName}`
-        }
-      }
-    }
-    return undefined
-  },
-}
-
 const META_get_workflow_console: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Fetching execution logs', icon: Loader2 },
@@ -1101,39 +946,6 @@ const META_get_workflow_data: ToolMetadata = {
         return `Aborted fetching ${label}`
       case ClientToolCallState.rejected:
         return `Skipped fetching ${label}`
-    }
-    return undefined
-  },
-}
-
-const META_get_workflow_from_name: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Reading workflow', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Reading workflow', icon: FileText },
-    [ClientToolCallState.executing]: { text: 'Reading workflow', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted reading workflow', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Read workflow', icon: FileText },
-    [ClientToolCallState.error]: { text: 'Failed to read workflow', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped reading workflow', icon: XCircle },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.workflow_name && typeof params.workflow_name === 'string') {
-      const workflowName = params.workflow_name
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Read ${workflowName}`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Reading ${workflowName}`
-        case ClientToolCallState.error:
-          return `Failed to read ${workflowName}`
-        case ClientToolCallState.aborted:
-          return `Aborted reading ${workflowName}`
-        case ClientToolCallState.rejected:
-          return `Skipped reading ${workflowName}`
-      }
     }
     return undefined
   },
@@ -1227,18 +1039,6 @@ const META_knowledge_base: ToolMetadata = {
       return verb.active
     }
     return undefined
-  },
-}
-
-const META_list_user_workflows: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Listing your workflows', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Listing your workflows', icon: ListChecks },
-    [ClientToolCallState.executing]: { text: 'Listing your workflows', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted listing workflows', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Listed your workflows', icon: ListChecks },
-    [ClientToolCallState.error]: { text: 'Failed to list workflows', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped listing workflows', icon: XCircle },
   },
 }
 
@@ -2543,13 +2343,9 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   edit: META_edit,
   edit_workflow: META_edit_workflow,
   evaluate: META_evaluate,
-  get_block_config: META_get_block_config,
-  get_block_options: META_get_block_options,
   get_block_outputs: META_get_block_outputs,
   get_block_upstream_references: META_get_block_upstream_references,
-  get_blocks_and_tools: META_get_blocks_and_tools,
   get_blocks_metadata: META_get_blocks_metadata,
-  get_credentials: META_get_credentials,
   generate_api_key: META_generate_api_key,
   get_examples_rag: META_get_examples_rag,
   get_operations_examples: META_get_operations_examples,
@@ -2557,14 +2353,11 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   get_platform_actions: META_get_platform_actions,
   get_trigger_blocks: META_get_trigger_blocks,
   get_trigger_examples: META_get_trigger_examples,
-  get_user_workflow: META_get_user_workflow,
   get_workflow_console: META_get_workflow_console,
   get_workflow_data: META_get_workflow_data,
-  get_workflow_from_name: META_get_workflow_from_name,
   info: META_info,
   knowledge: META_knowledge,
   knowledge_base: META_knowledge_base,
-  list_user_workflows: META_list_user_workflows,
   list_workspace_mcp_servers: META_list_workspace_mcp_servers,
   make_api_request: META_make_api_request,
   manage_custom_tool: META_manage_custom_tool,

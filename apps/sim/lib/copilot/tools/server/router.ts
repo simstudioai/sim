@@ -1,8 +1,5 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import { getBlockConfigServerTool } from '@/lib/copilot/tools/server/blocks/get-block-config'
-import { getBlockOptionsServerTool } from '@/lib/copilot/tools/server/blocks/get-block-options'
-import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-and-tools'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
@@ -22,10 +19,7 @@ const logger = createLogger('ServerToolRouter')
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const serverToolRegistry: Record<string, BaseServerTool> = {
-  [getBlocksAndToolsServerTool.name]: getBlocksAndToolsServerTool,
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
-  [getBlockOptionsServerTool.name]: getBlockOptionsServerTool,
-  [getBlockConfigServerTool.name]: getBlockConfigServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [getWorkflowConsoleServerTool.name]: getWorkflowConsoleServerTool,

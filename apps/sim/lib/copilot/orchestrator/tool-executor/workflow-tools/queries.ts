@@ -2,10 +2,7 @@ import { db } from '@sim/db'
 import { customTools, permissions, workflow, workflowFolder, workspace } from '@sim/db/schema'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
-import {
-  formatNormalizedWorkflowForCopilot,
-  normalizeWorkflowName,
-} from '@/lib/copilot/tools/shared/workflow-utils'
+import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
@@ -22,115 +19,15 @@ import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
   ensureWorkflowAccess,
   ensureWorkspaceAccess,
-  getAccessibleWorkflowsForUser,
   getDefaultWorkspaceId,
 } from '../access'
 import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
   GetDeployedWorkflowStateParams,
-  GetUserWorkflowParams,
   GetWorkflowDataParams,
-  GetWorkflowFromNameParams,
   ListFoldersParams,
-  ListUserWorkflowsParams,
 } from '../param-types'
-
-export async function executeGetUserWorkflow(
-  params: GetUserWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-
-    const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId
-    )
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
-    if (!userWorkflow) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    return {
-      success: true,
-      output: {
-        workflowId,
-        workflowName: workflowRecord.name || '',
-        workspaceId,
-        userWorkflow,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeGetWorkflowFromName(
-  params: GetWorkflowFromNameParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowName = typeof params.workflow_name === 'string' ? params.workflow_name.trim() : ''
-    if (!workflowName) {
-      return { success: false, error: 'workflow_name is required' }
-    }
-
-    const workflows = await getAccessibleWorkflowsForUser(context.userId)
-
-    const targetName = normalizeWorkflowName(workflowName)
-    const match = workflows.find((w) => normalizeWorkflowName(w.name) === targetName)
-    if (!match) {
-      return { success: false, error: `Workflow not found: ${workflowName}` }
-    }
-
-    const normalized = await loadWorkflowFromNormalizedTables(match.id)
-    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
-    if (!userWorkflow) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    return {
-      success: true,
-      output: {
-        workflowId: match.id,
-        workflowName: match.name || '',
-        workspaceId: match.workspaceId,
-        userWorkflow,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeListUserWorkflows(
-  params: ListUserWorkflowsParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workspaceId = params?.workspaceId as string | undefined
-    const folderId = params?.folderId as string | undefined
-
-    const workflows = await getAccessibleWorkflowsForUser(context.userId, { workspaceId, folderId })
-
-    const workflowList = workflows.map((w) => ({
-      workflowId: w.id,
-      workflowName: w.name || '',
-      workspaceId: w.workspaceId,
-      folderId: w.folderId,
-    }))
-
-    return { success: true, output: { workflows: workflowList } }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
 
 export async function executeListUserWorkspaces(
   context: ExecutionContext

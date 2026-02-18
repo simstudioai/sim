@@ -62,7 +62,7 @@ describe('sse-handlers tool lifecycle', () => {
     await sseHandlers.tool_call(
       {
         type: 'tool_call',
-        data: { id: 'tool-1', name: 'get_user_workflow', arguments: { workflowId: 'workflow-1' } },
+        data: { id: 'tool-1', name: 'read', arguments: { workflowId: 'workflow-1' } },
       } as any,
       context,
       execContext,
@@ -90,7 +90,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     const event = {
       type: 'tool_call',
-      data: { id: 'tool-dup', name: 'get_user_workflow', arguments: { workflowId: 'workflow-1' } },
+      data: { id: 'tool-dup', name: 'read', arguments: { workflowId: 'workflow-1' } },
     }
 
     await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })

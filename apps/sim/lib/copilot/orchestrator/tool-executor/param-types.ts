@@ -5,19 +5,6 @@
 
 // === Workflow Query Params ===
 
-export interface GetUserWorkflowParams {
-  workflowId?: string
-}
-
-export interface GetWorkflowFromNameParams {
-  workflow_name?: string
-}
-
-export interface ListUserWorkflowsParams {
-  workspaceId?: string
-  folderId?: string
-}
-
 export interface GetWorkflowDataParams {
   workflowId?: string
   data_type?: string

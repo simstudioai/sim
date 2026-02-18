@@ -43,7 +43,6 @@ You have access to these specialized subagents. Call them by name to delegate ta
 
 ## Direct Tools
 
-- **get_user_workflow(workflowId)** — Get workflow structure and blocks. Requires the workflow ID.
 - **search_online** — Search the web for information.
 - **memory_file_read(file_path)** — Read a persistent memory file.
 - **memory_file_write(file_path, content)** — Write/update a persistent memory file.
