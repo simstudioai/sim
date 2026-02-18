@@ -657,7 +657,7 @@ export function isBlockTypeAllowed(
   if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
     return true
   }
-  return permissionConfig.allowedIntegrations.includes(blockType)
+  return permissionConfig.allowedIntegrations.includes(blockType.toLowerCase())
 }
 
 /**

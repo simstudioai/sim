@@ -3,6 +3,7 @@ import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -112,11 +113,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
-    const allowedIntegrations = permissionConfig?.allowedIntegrations
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
@@ -420,7 +422,6 @@ function extractInputs(metadata: CopilotBlockMetadata): {
     }
 
     if (schema.options && schema.options.length > 0) {
-      // Always return the id (actual value to use), not the display label
       input.options = schema.options.map((opt) => opt.id || opt.label)
     }
 

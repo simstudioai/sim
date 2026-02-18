@@ -124,6 +124,18 @@ export const isReactGrabEnabled = isDev && isTruthy(env.REACT_GRAB_ENABLED)
 export const isReactScanEnabled = isDev && isTruthy(env.REACT_SCAN_ENABLED)
 
 /**
+ * Returns the parsed allowlist of integration block types from the environment variable.
+ * If not set or empty, returns null (meaning all integrations are allowed).
+ */
+export function getAllowedIntegrationsFromEnv(): string[] | null {
+  if (!env.ALLOWED_INTEGRATIONS) return null
+  const parsed = env.ALLOWED_INTEGRATIONS.split(',')
+    .map((i) => i.trim().toLowerCase())
+    .filter(Boolean)
+  return parsed.length > 0 ? parsed : null
+}
+
+/**
  * Normalizes a domain entry from the ALLOWED_MCP_DOMAINS env var.
  * Accepts bare hostnames (e.g., "mcp.company.com") or full URLs (e.g., "https://mcp.company.com").
  * Extracts the hostname in either case.

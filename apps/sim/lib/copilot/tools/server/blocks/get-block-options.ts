@@ -6,6 +6,7 @@ import {
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,
 } from '@/lib/copilot/tools/shared/schemas'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -59,9 +60,10 @@ export const getBlockOptionsServerTool: BaseServerTool<
     }
 
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
-    const allowedIntegrations = permissionConfig?.allowedIntegrations
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
-    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
       throw new Error(`Block "${blockId}" is not available`)
     }
 
