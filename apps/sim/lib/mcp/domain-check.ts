@@ -30,19 +30,18 @@ function checkMcpDomain(url: string): string | null {
  * env vars in the path/query do NOT bypass the domain check.
  */
 function hasEnvVarInHostname(url: string): boolean {
-  const envVarPattern = createEnvVarPattern()
   // If the entire URL is an env var reference, hostname is unknown
-  if (url.trim().replace(envVarPattern, '').trim() === '') return true
+  if (url.trim().replace(createEnvVarPattern(), '').trim() === '') return true
   try {
-    // Extract the authority portion (between :// and the next /)
+    // Extract the authority portion (between :// and the first /, ?, or # per RFC 3986)
     const protocolEnd = url.indexOf('://')
-    if (protocolEnd === -1) return envVarPattern.test(url)
+    if (protocolEnd === -1) return createEnvVarPattern().test(url)
     const afterProtocol = url.substring(protocolEnd + 3)
-    const authorityEnd = afterProtocol.indexOf('/')
+    const authorityEnd = afterProtocol.search(/[/?#]/)
     const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
     return createEnvVarPattern().test(authority)
   } catch {
-    return envVarPattern.test(url)
+    return createEnvVarPattern().test(url)
   }
 }
 

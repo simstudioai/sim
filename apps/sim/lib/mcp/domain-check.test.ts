@@ -178,6 +178,14 @@ describe('isMcpDomainAllowed', () => {
           false
         )
       })
+
+      it('rejects disallowed domain with env var in query but no path', () => {
+        expect(isMcpDomainAllowed('https://evil.com?token={{SECRET}}')).toBe(false)
+      })
+
+      it('rejects disallowed domain with env var in fragment but no path', () => {
+        expect(isMcpDomainAllowed('https://evil.com#{{SECTION}}')).toBe(false)
+      })
     })
 
     describe('env var security edge cases', () => {
@@ -275,6 +283,18 @@ describe('validateMcpDomain', () => {
 
       it('does not throw for allowed URL with env var in path', () => {
         expect(() => validateMcpDomain('https://allowed.com/{{PATH}}')).not.toThrow()
+      })
+
+      it('throws for disallowed URL with env var in query but no path', () => {
+        expect(() => validateMcpDomain('https://evil.com?token={{SECRET}}')).toThrow(
+          McpDomainNotAllowedError
+        )
+      })
+
+      it('throws for disallowed URL with env var in fragment but no path', () => {
+        expect(() => validateMcpDomain('https://evil.com#{{SECTION}}')).toThrow(
+          McpDomainNotAllowedError
+        )
       })
     })
   })

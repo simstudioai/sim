@@ -113,17 +113,19 @@ const logger = createLogger('McpSettings')
  * can't be determined until resolution — but env vars only in the path/query
  * do NOT bypass the check.
  */
-const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/g
+const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
 
 function hasEnvVarInHostname(url: string): boolean {
   // If the entire URL is an env var, hostname is unknown
-  if (url.trim().replace(ENV_VAR_PATTERN, '').trim() === '') return true
+  const globalPattern = new RegExp(ENV_VAR_PATTERN.source, 'g')
+  if (url.trim().replace(globalPattern, '').trim() === '') return true
   const protocolEnd = url.indexOf('://')
   if (protocolEnd === -1) return ENV_VAR_PATTERN.test(url)
+  // Extract authority per RFC 3986 (terminated by /, ?, or #)
   const afterProtocol = url.substring(protocolEnd + 3)
-  const authorityEnd = afterProtocol.indexOf('/')
+  const authorityEnd = afterProtocol.search(/[/?#]/)
   const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
-  return new RegExp(ENV_VAR_PATTERN.source).test(authority)
+  return ENV_VAR_PATTERN.test(authority)
 }
 
 function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
