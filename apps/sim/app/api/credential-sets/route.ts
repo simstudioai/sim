@@ -167,7 +167,7 @@ export async function POST(req: Request) {
     })
 
     recordAudit({
-      workspaceId: organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_CREATED,
       resourceType: AuditResourceType.CREDENTIAL_SET,

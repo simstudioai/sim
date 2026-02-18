@@ -283,7 +283,7 @@ export async function DELETE(
     })
 
     recordAudit({
-      workspaceId,
+      workspaceId: null,
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,

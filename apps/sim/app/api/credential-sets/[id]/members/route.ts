@@ -179,7 +179,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     })
 
     recordAudit({
-      workspaceId: result.set.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_MEMBER_REMOVED,
       resourceType: AuditResourceType.CREDENTIAL_SET,

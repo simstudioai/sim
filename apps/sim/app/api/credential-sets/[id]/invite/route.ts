@@ -177,7 +177,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     recordAudit({
-      workspaceId: result.set.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_INVITATION_CREATED,
       resourceType: AuditResourceType.CREDENTIAL_SET,
@@ -250,7 +250,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       )
 
     recordAudit({
-      workspaceId: result.set.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_INVITATION_REVOKED,
       resourceType: AuditResourceType.CREDENTIAL_SET,

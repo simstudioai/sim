@@ -341,7 +341,7 @@ export async function DELETE(
 
     recordAudit({
       workspaceId: workflowData?.workspaceId || null,
-      actorId: session?.user?.id || '',
+      actorId: session!.user.id,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
       action: AuditAction.WORKFLOW_UNDEPLOYED,

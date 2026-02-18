@@ -18,7 +18,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
-import { AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -556,7 +556,10 @@ export async function PUT(
     recordAudit({
       workspaceId: null,
       actorId: session.user.id,
-      action: status === 'accepted' ? 'org_invitation.accepted' : 'org_invitation.updated',
+      action:
+        status === 'accepted'
+          ? AuditAction.ORG_INVITATION_ACCEPTED
+          : AuditAction.ORG_INVITATION_UPDATED,
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,

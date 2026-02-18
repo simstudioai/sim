@@ -133,7 +133,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const [updated] = await db.select().from(credentialSet).where(eq(credentialSet.id, id)).limit(1)
 
     recordAudit({
-      workspaceId: result.set.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_UPDATED,
       resourceType: AuditResourceType.CREDENTIAL_SET,
@@ -190,7 +190,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     logger.info('Deleted credential set', { credentialSetId: id, userId: session.user.id })
 
     recordAudit({
-      workspaceId: result.set.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
       action: AuditAction.CREDENTIAL_SET_DELETED,
       resourceType: AuditResourceType.CREDENTIAL_SET,
