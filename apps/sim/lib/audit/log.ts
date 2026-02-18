@@ -156,8 +156,8 @@ interface AuditLogParams {
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
-  actorName?: string
-  actorEmail?: string
+  actorName?: string | null
+  actorEmail?: string | null
   resourceName?: string
   description?: string
   metadata?: Record<string, unknown>
@@ -168,35 +168,39 @@ interface AuditLogParams {
  * Records an audit log entry. Fire-and-forget — never throws or blocks the caller.
  */
 export function recordAudit(params: AuditLogParams): void {
-  const ipAddress =
-    params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-    params.request?.headers.get('x-real-ip') ??
-    undefined
-  const userAgent = params.request?.headers.get('user-agent') ?? undefined
+  try {
+    const ipAddress =
+      params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+      params.request?.headers.get('x-real-ip') ??
+      undefined
+    const userAgent = params.request?.headers.get('user-agent') ?? undefined
 
-  db.insert(auditLog)
-    .values({
-      id: nanoid(),
-      workspaceId: params.workspaceId || null,
-      actorId: params.actorId,
-      action: params.action,
-      resourceType: params.resourceType,
-      resourceId: params.resourceId,
-      actorName: params.actorName,
-      actorEmail: params.actorEmail,
-      resourceName: params.resourceName,
-      description: params.description,
-      metadata: params.metadata ?? {},
-      ipAddress,
-      userAgent,
-    })
-    .then(() => {
-      logger.debug('Audit log recorded', {
+    db.insert(auditLog)
+      .values({
+        id: nanoid(),
+        workspaceId: params.workspaceId || null,
+        actorId: params.actorId,
         action: params.action,
         resourceType: params.resourceType,
+        resourceId: params.resourceId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        resourceName: params.resourceName,
+        description: params.description,
+        metadata: params.metadata ?? {},
+        ipAddress,
+        userAgent,
       })
-    })
-    .catch((error) => {
-      logger.error('Failed to record audit log', { error, action: params.action })
-    })
+      .then(() => {
+        logger.debug('Audit log recorded', {
+          action: params.action,
+          resourceType: params.resourceType,
+        })
+      })
+      .catch((error) => {
+        logger.error('Failed to record audit log', { error, action: params.action })
+      })
+  } catch (error) {
+    logger.error('Failed to initiate audit log', { error, action: params.action })
+  }
 }

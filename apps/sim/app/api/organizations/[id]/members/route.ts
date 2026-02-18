@@ -289,7 +289,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     recordAudit({
       workspaceId: null,
       actorId: session.user.id,
-      action: AuditAction.ORG_MEMBER_ADDED,
+      action: AuditAction.ORG_INVITATION_CREATED,
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
