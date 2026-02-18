@@ -114,9 +114,14 @@ export function usePermissionConfig(): PermissionConfigResult {
     return featureFlagDisabled || config.disableInvitations
   }, [config.disableInvitations])
 
+  const mergedConfig = useMemo(
+    () => ({ ...config, allowedIntegrations: mergedAllowedIntegrations }),
+    [config, mergedAllowedIntegrations]
+  )
+
   return useMemo(
     () => ({
-      config,
+      config: mergedConfig,
       isLoading,
       isInPermissionGroup,
       filterBlocks,
@@ -126,7 +131,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isInvitationsDisabled,
     }),
     [
-      config,
+      mergedConfig,
       isLoading,
       isInPermissionGroup,
       filterBlocks,
