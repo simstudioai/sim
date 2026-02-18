@@ -299,7 +299,7 @@ export async function PATCH(
       }
 
       recordAudit({
-        workspaceId: (workflowData as Record<string, unknown>)?.workspaceId as string | undefined,
+        workspaceId: workflowData?.workspaceId,
         actorId: actorUserId,
         actorName: session?.user?.name,
         actorEmail: session?.user?.email,
