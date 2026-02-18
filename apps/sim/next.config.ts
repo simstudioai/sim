@@ -306,14 +306,15 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Beluga campaign short link tracking (always registered — harmless for self-hosted)
-    redirects.push({
-      source: '/r/:shortCode',
-      destination: 'https://go.trybeluga.ai/:shortCode',
-      permanent: false,
-    })
-
     return redirects
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/r/:shortCode',
+        destination: 'https://go.trybeluga.ai/:shortCode',
+      },
+    ]
   },
 }
 
