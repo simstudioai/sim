@@ -6,6 +6,7 @@ import {
   GetBlockConfigResult,
   type GetBlockConfigResultType,
 } from '@/lib/copilot/tools/shared/schemas'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
 import { isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -439,7 +440,8 @@ export const getBlockConfigServerTool: BaseServerTool<
     }
 
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
-    const allowedIntegrations = permissionConfig?.allowedIntegrations
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
     if (allowedIntegrations != null && !allowedIntegrations.includes(blockType.toLowerCase())) {
       throw new Error(`Block "${blockType}" is not available`)

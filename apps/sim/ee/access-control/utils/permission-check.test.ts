@@ -29,32 +29,35 @@ const mockGetAllowedIntegrationsFromEnv = vi.fn<() => string[] | null>()
 const mockIsOrganizationOnEnterprisePlan = vi.fn<() => Promise<boolean>>()
 const mockGetProviderFromModel = vi.fn<(model: string) => string>()
 
-vi.doMock('@sim/db', () => databaseMock)
-vi.doMock('@sim/db/schema', () => ({}))
-vi.doMock('@sim/logger', () => loggerMock)
-vi.doMock('drizzle-orm', () => drizzleOrmMock)
-vi.doMock('@/lib/billing', () => ({
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/db/schema', () => ({}))
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))
-vi.doMock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/feature-flags', () => ({
   getAllowedIntegrationsFromEnv: mockGetAllowedIntegrationsFromEnv,
   isAccessControlEnabled: false,
   isHosted: false,
 }))
-vi.doMock('@/lib/permission-groups/types', () => ({
+vi.mock('@/lib/permission-groups/types', () => ({
   DEFAULT_PERMISSION_GROUP_CONFIG,
   parsePermissionGroupConfig: (config: unknown) => {
     if (!config || typeof config !== 'object') return DEFAULT_PERMISSION_GROUP_CONFIG
     return { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...config }
   },
 }))
-vi.doMock('@/providers/utils', () => ({
+vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
-const { IntegrationNotAllowedError, getUserPermissionConfig, validateBlockType } = await import(
-  './permission-check'
-)
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import {
+  getUserPermissionConfig,
+  IntegrationNotAllowedError,
+  validateBlockType,
+} from './permission-check'
 
 describe('IntegrationNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {
@@ -104,6 +107,56 @@ describe('getUserPermissionConfig', () => {
   })
 })
 
+describe('env allowlist fallback when userId is absent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns null config when no userId and no env allowlist', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+
+    const userId: string | undefined = undefined
+    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+
+    expect(allowedIntegrations).toBeNull()
+  })
+
+  it('falls back to env allowlist when no userId is provided', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
+
+    const userId: string | undefined = undefined
+    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+
+    expect(allowedIntegrations).toEqual(['slack', 'gmail'])
+  })
+
+  it('env allowlist filters block types when userId is absent', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
+
+    const userId: string | undefined = undefined
+    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+
+    expect(allowedIntegrations).not.toBeNull()
+    expect(allowedIntegrations!.includes('slack')).toBe(true)
+    expect(allowedIntegrations!.includes('discord')).toBe(false)
+  })
+
+  it('uses permission config when userId is present, ignoring env fallback', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
+
+    const config = await getUserPermissionConfig('user-123')
+
+    expect(config).not.toBeNull()
+    expect(config!.allowedIntegrations).toEqual(['slack', 'gmail'])
+  })
+})
+
 describe('validateBlockType', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -115,15 +168,15 @@ describe('validateBlockType', () => {
     })
 
     it('allows any block type', async () => {
-      await expect(validateBlockType(undefined, 'google_drive')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'google_drive')
     })
 
     it('allows multi-word block types', async () => {
-      await expect(validateBlockType(undefined, 'microsoft_excel')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'microsoft_excel')
     })
 
     it('always allows start_trigger', async () => {
-      await expect(validateBlockType(undefined, 'start_trigger')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'start_trigger')
     })
   })
 
@@ -137,9 +190,9 @@ describe('validateBlockType', () => {
     })
 
     it('allows block types on the allowlist', async () => {
-      await expect(validateBlockType(undefined, 'slack')).resolves.not.toThrow()
-      await expect(validateBlockType(undefined, 'google_drive')).resolves.not.toThrow()
-      await expect(validateBlockType(undefined, 'microsoft_excel')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'slack')
+      await validateBlockType(undefined, 'google_drive')
+      await validateBlockType(undefined, 'microsoft_excel')
     })
 
     it('rejects block types not on the allowlist', async () => {
@@ -149,12 +202,12 @@ describe('validateBlockType', () => {
     })
 
     it('always allows start_trigger regardless of allowlist', async () => {
-      await expect(validateBlockType(undefined, 'start_trigger')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'start_trigger')
     })
 
     it('matches case-insensitively', async () => {
-      await expect(validateBlockType(undefined, 'Slack')).resolves.not.toThrow()
-      await expect(validateBlockType(undefined, 'GOOGLE_DRIVE')).resolves.not.toThrow()
+      await validateBlockType(undefined, 'Slack')
+      await validateBlockType(undefined, 'GOOGLE_DRIVE')
     })
 
     it('includes reason in error for env-only enforcement', async () => {

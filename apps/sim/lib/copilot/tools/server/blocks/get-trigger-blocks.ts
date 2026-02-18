@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -22,7 +23,8 @@ export const getTriggerBlocksServerTool: BaseServerTool<
     logger.debug('Executing get_trigger_blocks')
 
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
-    const allowedIntegrations = permissionConfig?.allowedIntegrations
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
     const triggerBlockIds: string[] = []
 
