@@ -340,6 +340,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: workflowData.workspaceId || null,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_DELETED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,

@@ -139,6 +139,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       recordAudit({
         workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
         actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
         action: AuditAction.KNOWLEDGE_BASE_UPDATED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
         resourceId: id,
@@ -212,6 +214,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.KNOWLEDGE_BASE_DELETED,
       resourceType: AuditResourceType.KNOWLEDGE_BASE,
       resourceId: id,

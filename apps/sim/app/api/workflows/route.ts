@@ -192,6 +192,8 @@ export async function POST(req: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_CREATED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
