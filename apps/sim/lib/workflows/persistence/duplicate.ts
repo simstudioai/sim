@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
+import {
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowFolder,
+  workflowSubflows,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -132,15 +138,31 @@ export async function duplicateWorkflow(
       throw new Error('Write or admin access required for target workspace')
     }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
-    const folderCondition = targetFolderId
+    const workflowParentCondition = targetFolderId
       ? eq(workflow.folderId, targetFolderId)
       : isNull(workflow.folderId)
+    const folderParentCondition = targetFolderId
+      ? eq(workflowFolder.parentId, targetFolderId)
+      : isNull(workflowFolder.parentId)
 
-    const [minResult] = await tx
-      .select({ minOrder: min(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition))
-    const sortOrder = (minResult?.minOrder ?? 1) - 1
+    const [[workflowMinResult], [folderMinResult]] = await Promise.all([
+      tx
+        .select({ minOrder: min(workflow.sortOrder) })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
+      tx
+        .select({ minOrder: min(workflowFolder.sortOrder) })
+        .from(workflowFolder)
+        .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+    ])
+    const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
+      number | null
+    >((currentMin, candidate) => {
+      if (candidate == null) return currentMin
+      if (currentMin == null) return candidate
+      return Math.min(currentMin, candidate)
+    }, null)
+    const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
 
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()

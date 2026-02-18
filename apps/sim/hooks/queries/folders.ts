@@ -5,9 +5,11 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('FolderQueries')
 
@@ -133,40 +135,35 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
   })
 }
 
-/**
- * Calculates the next sort order for a folder in a given parent
- */
-function getNextSortOrder(
-  folders: Record<string, WorkflowFolder>,
-  workspaceId: string,
-  parentId: string | null | undefined
-): number {
-  const siblingFolders = Object.values(folders).filter(
-    (f) => f.workspaceId === workspaceId && f.parentId === (parentId || null)
-  )
-  return siblingFolders.reduce((max, f) => Math.max(max, f.sortOrder), -1) + 1
-}
-
 export function useCreateFolder() {
   const queryClient = useQueryClient()
 
   const handlers = createFolderMutationHandlers<CreateFolderVariables>(
     queryClient,
     'CreateFolder',
-    (variables, tempId, previousFolders) => ({
-      id: tempId,
-      name: variables.name,
-      userId: '',
-      workspaceId: variables.workspaceId,
-      parentId: variables.parentId || null,
-      color: variables.color || '#808080',
-      isExpanded: false,
-      sortOrder:
-        variables.sortOrder ??
-        getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    (variables, tempId, previousFolders) => {
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+
+      return {
+        id: tempId,
+        name: variables.name,
+        userId: '',
+        workspaceId: variables.workspaceId,
+        parentId: variables.parentId || null,
+        color: variables.color || '#808080',
+        isExpanded: false,
+        sortOrder:
+          variables.sortOrder ??
+          getTopInsertionSortOrder(
+            currentWorkflows,
+            previousFolders,
+            variables.workspaceId,
+            variables.parentId
+          ),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    }
   )
 
   return useMutation({
@@ -242,17 +239,25 @@ export function useDuplicateFolderMutation() {
     queryClient,
     'DuplicateFolder',
     (variables, tempId, previousFolders) => {
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+
       // Get source folder info if available
       const sourceFolder = previousFolders[variables.id]
+      const targetParentId = variables.parentId ?? sourceFolder?.parentId ?? null
       return {
         id: tempId,
         name: variables.name,
         userId: sourceFolder?.userId || '',
         workspaceId: variables.workspaceId,
-        parentId: variables.parentId ?? sourceFolder?.parentId ?? null,
+        parentId: targetParentId,
         color: variables.color || sourceFolder?.color || '#808080',
         isExpanded: false,
-        sortOrder: getNextSortOrder(previousFolders, variables.workspaceId, variables.parentId),
+        sortOrder: getTopInsertionSortOrder(
+          currentWorkflows,
+          previousFolders,
+          variables.workspaceId,
+          targetParentId
+        ),
         createdAt: new Date(),
         updatedAt: new Date(),
       }
