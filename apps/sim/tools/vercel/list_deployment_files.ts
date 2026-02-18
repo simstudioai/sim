@@ -94,6 +94,14 @@ export const vercelListDeploymentFilesTool: ToolConfig<
           children: {
             type: 'array',
             description: 'Child files of the directory (only valid for directory type)',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'File name' },
+                type: { type: 'string', description: 'Entry type' },
+                uid: { type: 'string', description: 'File identifier', optional: true },
+              },
+            },
           },
         },
       },

@@ -82,8 +82,16 @@ export const vercelGetTeamTool: ToolConfig<VercelGetTeamParams, VercelGetTeamRes
         created: { type: 'number', description: 'Membership creation timestamp' },
         createdAt: { type: 'number', description: 'Membership creation timestamp (milliseconds)' },
         accessRequestedAt: { type: 'number', description: 'When access was requested' },
-        teamRoles: { type: 'array', description: 'Team role assignments' },
-        teamPermissions: { type: 'array', description: 'Team permission assignments' },
+        teamRoles: {
+          type: 'array',
+          description: 'Team role assignments',
+          items: { type: 'string', description: 'Role name' },
+        },
+        teamPermissions: {
+          type: 'array',
+          description: 'Team permission assignments',
+          items: { type: 'string', description: 'Permission name' },
+        },
       },
     },
   },

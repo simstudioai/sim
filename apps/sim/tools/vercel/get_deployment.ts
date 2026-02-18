@@ -138,7 +138,39 @@ export const vercelGetDeploymentTool: ToolConfig<
         framework: { type: 'string', description: 'Project framework', optional: true },
       },
     },
-    meta: { type: 'object', description: 'Deployment metadata (key-value strings)' },
-    gitSource: { type: 'object', description: 'Git source information', optional: true },
+    meta: {
+      type: 'object',
+      description: 'Deployment metadata (key-value strings)',
+      properties: {
+        githubCommitSha: { type: 'string', description: 'GitHub commit SHA', optional: true },
+        githubCommitMessage: {
+          type: 'string',
+          description: 'GitHub commit message',
+          optional: true,
+        },
+        githubCommitRef: { type: 'string', description: 'GitHub branch/ref', optional: true },
+        githubRepo: { type: 'string', description: 'GitHub repository', optional: true },
+        githubOrg: { type: 'string', description: 'GitHub organization', optional: true },
+        githubCommitAuthorName: {
+          type: 'string',
+          description: 'Commit author name',
+          optional: true,
+        },
+      },
+    },
+    gitSource: {
+      type: 'object',
+      description: 'Git source information',
+      optional: true,
+      properties: {
+        type: {
+          type: 'string',
+          description: 'Git provider type (e.g., github, gitlab, bitbucket)',
+        },
+        ref: { type: 'string', description: 'Git ref (branch or tag)' },
+        sha: { type: 'string', description: 'Git commit SHA' },
+        repoId: { type: 'string', description: 'Repository ID', optional: true },
+      },
+    },
   },
 }
