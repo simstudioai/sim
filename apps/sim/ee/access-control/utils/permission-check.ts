@@ -86,7 +86,9 @@ function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGrou
   const merged =
     config.allowedIntegrations === null
       ? envAllowlist
-      : config.allowedIntegrations.filter((i) => envAllowlist.includes(i))
+      : config.allowedIntegrations
+          .map((i) => i.toLowerCase())
+          .filter((i) => envAllowlist.includes(i))
 
   return { ...config, allowedIntegrations: merged }
 }

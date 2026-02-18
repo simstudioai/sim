@@ -45,7 +45,7 @@ function useAllowedIntegrationsFromEnv() {
 function intersectAllowlists(a: string[] | null, b: string[] | null): string[] | null {
   if (a === null) return b
   if (b === null) return a
-  return a.filter((i) => b.includes(i))
+  return a.map((i) => i.toLowerCase()).filter((i) => b.includes(i))
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
@@ -82,7 +82,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     return (blockType: string) => {
       if (blockType === 'start_trigger') return true
       if (mergedAllowedIntegrations === null) return true
-      return mergedAllowedIntegrations.includes(blockType)
+      return mergedAllowedIntegrations.includes(blockType.toLowerCase())
     }
   }, [mergedAllowedIntegrations])
 
@@ -97,7 +97,9 @@ export function usePermissionConfig(): PermissionConfigResult {
     return <T extends { type: string }>(blocks: T[]): T[] => {
       if (mergedAllowedIntegrations === null) return blocks
       return blocks.filter(
-        (block) => block.type === 'start_trigger' || mergedAllowedIntegrations.includes(block.type)
+        (block) =>
+          block.type === 'start_trigger' ||
+          mergedAllowedIntegrations.includes(block.type.toLowerCase())
       )
     }
   }, [mergedAllowedIntegrations])
