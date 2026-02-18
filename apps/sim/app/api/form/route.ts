@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
       logger.info(`Form "${title}" deployed successfully at ${formUrl}`)
 
       recordAudit({
-        workspaceId: workflowRecord.workspaceId ?? '',
+        workspaceId: workflowRecord.workspaceId ?? null,
         actorId: session.user.id,
         action: AuditAction.FORM_CREATED,
         resourceType: AuditResourceType.FORM,

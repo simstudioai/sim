@@ -246,7 +246,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
 
         recordAudit({
-          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         recordAudit({
-          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,

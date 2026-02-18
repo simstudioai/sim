@@ -199,7 +199,7 @@ export async function PUT(
         )
 
         recordAudit({
-          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
           action: AuditAction.DOCUMENT_UPDATED,
           resourceType: AuditResourceType.DOCUMENT,
@@ -270,7 +270,7 @@ export async function DELETE(
     )
 
     recordAudit({
-      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
       actorId: userId,
       action: AuditAction.DOCUMENT_DELETED,
       resourceType: AuditResourceType.DOCUMENT,

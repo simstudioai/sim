@@ -137,7 +137,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
 
       recordAudit({
-        workspaceId: accessCheck.knowledgeBase.workspaceId ?? '',
+        workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
         actorId: userId,
         action: AuditAction.KNOWLEDGE_BASE_UPDATED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
@@ -210,7 +210,7 @@ export async function DELETE(
     logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${userId}`)
 
     recordAudit({
-      workspaceId: accessCheck.knowledgeBase.workspaceId ?? '',
+      workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
       actorId: userId,
       action: AuditAction.KNOWLEDGE_BASE_DELETED,
       resourceType: AuditResourceType.KNOWLEDGE_BASE,

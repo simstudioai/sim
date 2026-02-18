@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
 
     recordAudit({
-      workspaceId: authorization.workflow.workspaceId ?? '',
+      workspaceId: authorization.workflow.workspaceId ?? null,
       actorId: session.user.id,
       action: AuditAction.SCHEDULE_UPDATED,
       resourceType: AuditResourceType.SCHEDULE,

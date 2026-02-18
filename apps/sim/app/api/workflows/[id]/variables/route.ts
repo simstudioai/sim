@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .where(eq(workflow.id, workflowId))
 
       recordAudit({
-        workspaceId: workflowData.workspaceId ?? '',
+        workspaceId: workflowData.workspaceId ?? null,
         actorId: userId,
         action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
         resourceType: AuditResourceType.WORKFLOW,

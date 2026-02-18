@@ -113,7 +113,7 @@ export async function POST(
     }
 
     recordAudit({
-      workspaceId: workflowRecord?.workspaceId ?? '',
+      workspaceId: workflowRecord?.workspaceId ?? null,
       actorId: session!.user.id,
       action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
       resourceType: AuditResourceType.WORKFLOW,
