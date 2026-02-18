@@ -1,11 +1,11 @@
 interface SortableWorkflow {
-  workspaceId: string
+  workspaceId?: string
   folderId?: string | null
   sortOrder?: number
 }
 
 interface SortableFolder {
-  workspaceId: string
+  workspaceId?: string
   parentId?: string | null
   sortOrder: number
 }
