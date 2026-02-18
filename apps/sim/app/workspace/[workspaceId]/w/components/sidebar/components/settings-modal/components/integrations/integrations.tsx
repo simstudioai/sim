@@ -227,7 +227,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
     (acc, service) => {
       if (
         permissionConfig.allowedIntegrations !== null &&
-        !permissionConfig.allowedIntegrations.includes(service.id.replace(/-/g, '_'))
+        !permissionConfig.allowedIntegrations.includes(service.id.replace(/-/g, '_').toLowerCase())
       ) {
         return acc
       }
