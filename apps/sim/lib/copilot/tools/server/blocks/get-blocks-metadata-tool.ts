@@ -116,7 +116,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }

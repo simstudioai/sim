@@ -52,7 +52,57 @@ vi.doMock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
-const { IntegrationNotAllowedError, validateBlockType } = await import('./permission-check')
+const { IntegrationNotAllowedError, getUserPermissionConfig, validateBlockType } = await import(
+  './permission-check'
+)
+
+describe('IntegrationNotAllowedError', () => {
+  it.concurrent('creates error with correct name and message', () => {
+    const error = new IntegrationNotAllowedError('discord')
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('IntegrationNotAllowedError')
+    expect(error.message).toContain('discord')
+  })
+
+  it.concurrent('includes custom reason when provided', () => {
+    const error = new IntegrationNotAllowedError('discord', 'blocked by server policy')
+
+    expect(error.message).toContain('blocked by server policy')
+  })
+})
+
+describe('getUserPermissionConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns null when no env allowlist is configured', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+
+    const config = await getUserPermissionConfig('user-123')
+
+    expect(config).toBeNull()
+  })
+
+  it('returns config with env allowlist when configured', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
+
+    const config = await getUserPermissionConfig('user-123')
+
+    expect(config).not.toBeNull()
+    expect(config!.allowedIntegrations).toEqual(['slack', 'gmail'])
+  })
+
+  it('preserves default values for non-allowlist fields', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
+
+    const config = await getUserPermissionConfig('user-123')
+
+    expect(config!.disableMcpTools).toBe(false)
+    expect(config!.allowedModelProviders).toBeNull()
+  })
+})
 
 describe('validateBlockType', () => {
   beforeEach(() => {
@@ -110,18 +160,37 @@ describe('validateBlockType', () => {
     it('includes reason in error for env-only enforcement', async () => {
       await expect(validateBlockType(undefined, 'discord')).rejects.toThrow(/ALLOWED_INTEGRATIONS/)
     })
+
+    it('does not include env reason when userId is provided', async () => {
+      await expect(validateBlockType('user-123', 'discord')).rejects.toThrow(
+        /permission group settings/
+      )
+    })
   })
 })
 
 describe('service ID to block type normalization', () => {
-  it('hyphenated service IDs match underscore block types after normalization', () => {
+  it.concurrent('hyphenated service IDs match underscore block types after normalization', () => {
     const allowedBlockTypes = [
       'google_drive',
       'microsoft_excel',
       'microsoft_teams',
       'google_sheets',
+      'google_docs',
+      'google_calendar',
+      'google_forms',
+      'microsoft_planner',
     ]
-    const serviceIds = ['google-drive', 'microsoft-excel', 'microsoft-teams', 'google-sheets']
+    const serviceIds = [
+      'google-drive',
+      'microsoft-excel',
+      'microsoft-teams',
+      'google-sheets',
+      'google-docs',
+      'google-calendar',
+      'google-forms',
+      'microsoft-planner',
+    ]
 
     for (const serviceId of serviceIds) {
       const normalized = serviceId.replace(/-/g, '_')
@@ -129,8 +198,8 @@ describe('service ID to block type normalization', () => {
     }
   })
 
-  it('single-word service IDs are unaffected by normalization', () => {
-    const serviceIds = ['slack', 'gmail', 'notion', 'discord']
+  it.concurrent('single-word service IDs are unaffected by normalization', () => {
+    const serviceIds = ['slack', 'gmail', 'notion', 'discord', 'jira', 'trello']
 
     for (const serviceId of serviceIds) {
       const normalized = serviceId.replace(/-/g, '_')

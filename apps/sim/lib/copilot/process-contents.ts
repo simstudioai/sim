@@ -352,7 +352,7 @@ async function processBlockMetadata(
     if (userId) {
       const permissionConfig = await getUserPermissionConfig(userId)
       const allowedIntegrations = permissionConfig?.allowedIntegrations
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
         logger.debug('Block not allowed by permission group', { blockId, userId })
         return null
       }
