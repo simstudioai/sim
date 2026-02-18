@@ -215,7 +215,8 @@ export async function DELETE(
       action: AuditAction.KNOWLEDGE_BASE_DELETED,
       resourceType: AuditResourceType.KNOWLEDGE_BASE,
       resourceId: id,
-      description: `Deleted knowledge base "${id}"`,
+      resourceName: accessCheck.knowledgeBase.name,
+      description: `Deleted knowledge base "${accessCheck.knowledgeBase.name || id}"`,
       request: _request,
     })
 

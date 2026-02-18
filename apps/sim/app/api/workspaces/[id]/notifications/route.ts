@@ -263,6 +263,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       action: AuditAction.NOTIFICATION_CREATED,
       resourceType: AuditResourceType.NOTIFICATION,
       resourceId: subscription.id,
+      resourceName: data.notificationType,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Created ${data.notificationType} notification subscription`,

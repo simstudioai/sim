@@ -258,6 +258,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       action: AuditAction.NOTIFICATION_UPDATED,
       resourceType: AuditResourceType.NOTIFICATION,
       resourceId: notificationId,
+      resourceName: subscription.notificationType,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Updated ${subscription.notificationType} notification subscription`,
@@ -313,11 +314,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           eq(workspaceNotificationSubscription.workspaceId, workspaceId)
         )
       )
-      .returning({ id: workspaceNotificationSubscription.id })
+      .returning({
+        id: workspaceNotificationSubscription.id,
+        notificationType: workspaceNotificationSubscription.notificationType,
+      })
 
     if (deleted.length === 0) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
+
+    const deletedSubscription = deleted[0]
 
     logger.info('Deleted notification subscription', {
       workspaceId,
@@ -332,7 +338,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       resourceId: notificationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Deleted notification subscription`,
+      resourceName: deletedSubscription.notificationType,
+      description: `Deleted ${deletedSubscription.notificationType} notification subscription`,
       request,
     })
 

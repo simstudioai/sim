@@ -14,6 +14,7 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
   const [set] = await db
     .select({
       id: credentialSet.id,
+      name: credentialSet.name,
       organizationId: credentialSet.organizationId,
       providerId: credentialSet.providerId,
     })
@@ -186,7 +187,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Removed member "${memberId}" from credential set "${id}"`,
+      resourceName: result.set.name,
+      description: `Removed member from credential set "${result.set.name}"`,
       request: req,
     })
 

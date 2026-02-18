@@ -553,13 +553,16 @@ export async function PUT(
       email: orgInvitation.email,
     })
 
+    const auditActionMap = {
+      accepted: AuditAction.ORG_INVITATION_ACCEPTED,
+      rejected: AuditAction.ORG_INVITATION_REJECTED,
+      cancelled: AuditAction.ORG_INVITATION_CANCELLED,
+    } as const
+
     recordAudit({
       workspaceId: null,
       actorId: session.user.id,
-      action:
-        status === 'accepted'
-          ? AuditAction.ORG_INVITATION_ACCEPTED
-          : AuditAction.ORG_INVITATION_UPDATED,
+      action: auditActionMap[status],
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,

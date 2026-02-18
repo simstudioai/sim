@@ -137,11 +137,13 @@ export async function DELETE(
       .where(
         and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
       )
-      .returning({ id: apiKey.id })
+      .returning({ id: apiKey.id, name: apiKey.name })
 
     if (deletedRows.length === 0) {
       return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
+
+    const deletedKey = deletedRows[0]
 
     recordAudit({
       workspaceId,
@@ -151,7 +153,8 @@ export async function DELETE(
       resourceId: keyId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Revoked workspace API key: ${keyId}`,
+      resourceName: deletedKey.name,
+      description: `Revoked workspace API key: ${deletedKey.name}`,
       request,
     })
 

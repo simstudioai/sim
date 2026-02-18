@@ -229,6 +229,13 @@ export async function DELETE(
       `Deleting workspace ${workspaceId} for user ${session.user.id}, deleteTemplates: ${deleteTemplates}`
     )
 
+    // Fetch workspace name before deletion for audit logging
+    const [workspaceRecord] = await db
+      .select({ name: workspace.name })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
     // Delete workspace and all related data in a transaction
     await db.transaction(async (tx) => {
       // Get all workflows in this workspace before deletion
@@ -290,7 +297,8 @@ export async function DELETE(
       action: AuditAction.WORKSPACE_DELETED,
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
-      description: 'Deleted workspace',
+      resourceName: workspaceRecord?.name,
+      description: `Deleted workspace "${workspaceRecord?.name || workspaceId}"`,
       request,
     })
 

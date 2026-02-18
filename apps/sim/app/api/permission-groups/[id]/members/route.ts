@@ -14,6 +14,7 @@ async function getPermissionGroupWithAccess(groupId: string, userId: string) {
   const [group] = await db
     .select({
       id: permissionGroup.id,
+      name: permissionGroup.name,
       organizationId: permissionGroup.organizationId,
     })
     .from(permissionGroup)
@@ -158,9 +159,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       action: AuditAction.PERMISSION_GROUP_MEMBER_ADDED,
       resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
+      resourceName: result.group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Added member ${userId} to permission group`,
+      description: `Added member ${userId} to permission group "${result.group.name}"`,
       metadata: { targetUserId: userId, permissionGroupId: id },
       request: req,
     })
@@ -241,9 +243,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       action: AuditAction.PERMISSION_GROUP_MEMBER_REMOVED,
       resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
+      resourceName: result.group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Removed member ${memberToRemove.userId} from permission group`,
+      description: `Removed member ${memberToRemove.userId} from permission group "${result.group.name}"`,
       metadata: { targetUserId: memberToRemove.userId, memberId, permissionGroupId: id },
       request: req,
     })
