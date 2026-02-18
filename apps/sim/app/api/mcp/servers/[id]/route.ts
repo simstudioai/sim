@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -28,6 +29,17 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
 
       // Remove workspaceId from body to prevent it from being updated
       const { workspaceId: _, ...updateData } = body
+
+      if (updateData.url) {
+        try {
+          validateMcpDomain(updateData.url)
+        } catch (e) {
+          if (e instanceof McpDomainNotAllowedError) {
+            return createMcpErrorResponse(e, e.message, 403)
+          }
+          throw e
+        }
+      }
 
       // Get the current server to check if URL is changing
       const [currentServer] = await db

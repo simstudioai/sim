@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { McpClient } from '@/lib/mcp/client'
+import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import type { McpTransport } from '@/lib/mcp/types'
@@ -69,6 +70,15 @@ export const POST = withMcpAuth('write')(
           'Missing required URL',
           400
         )
+      }
+
+      try {
+        validateMcpDomain(body.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
       }
 
       // Build initial config for resolution

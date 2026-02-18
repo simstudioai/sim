@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import {
@@ -70,6 +71,15 @@ export const POST = withMcpAuth('write')(
           'Missing required fields',
           400
         )
+      }
+
+      try {
+        validateMcpDomain(body.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
       }
 
       const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : crypto.randomUUID()
