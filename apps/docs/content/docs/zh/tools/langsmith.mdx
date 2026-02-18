@@ -1,0 +1,89 @@
+---
+title: LangSmith
+description: 将工作流运行转发到 LangSmith 以实现可观测性
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+通过 [LangSmith](https://www.langchain.com/langsmith) ，为你的 AI 工作流解锁深度可见性与洞察力——这是一个强大的平台，可用于追踪、调试和监控基于 LLM 的应用和自动化流程。将 LangSmith 集成到你的流程中，可以捕获详细的执行轨迹、记录输入/输出数据、附加元数据，并通过数据驱动的可观测性优化你的工作流。
+
+通过集成 LangSmith，你可以：
+
+- **追踪与调试运行**：将工作流、工具或模型的运行转发到 LangSmith，记录分层执行细节，快速定位瓶颈或故障。
+- **附加丰富元数据**：通过记录输入、输出、标签、自定义元数据、失败原因等，丰富你的追踪数据，获得深入洞察与分析。
+- **监控工作流性能**：可视化执行过程，监控错误率、耗时和成功率等指标，持续提升可靠性与效率。
+- **协作与审计**：支持团队协作调试与变更追踪，实现链式 LLM 工作流的透明审计和快速迭代。
+- **自动化可观测性**：将 LangSmith 追踪无缝连接到你的工作流自动化，实现无需手动埋点的持续监控。
+
+LangSmith 赋能工程师、数据科学家和产品团队更快迭代，更早发现问题，构建更健壮的基于 LLM 的应用——无论你是在编排 agent、chain 还是端到端工作流。
+
+立即将 LangSmith 集成到你的自动化流程中，提升可观测性、获得可操作洞察，并提高产品质量。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将运行数据发送到 LangSmith，以追踪执行、附加元数据并监控工作流性能。
+
+## 工具
+
+### `langsmith_create_run`
+
+将单次运行转发到 LangSmith 进行采集。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | LangSmith API key |
+| `id` | string | 否 | 唯一运行标识符 |
+| `name` | string | 是 | 运行名称 |
+| `run_type` | string | 是 | 运行类型（tool、chain、llm、retriever、embedding、prompt、parser） |
+| `start_time` | string | 否 | 运行开始时间（ISO-8601 格式） |
+| `end_time` | string | 否 | 运行结束时间（ISO-8601 格式） |
+| `inputs` | json | 否 | 输入负载 |
+| `run_outputs` | json | 否 | 输出负载 |
+| `extra` | json | 否 | 附加元数据（extra） |
+| `tags` | json | 否 | 标签字符串数组 |
+| `parent_run_id` | string | 否 | 父运行 ID |
+| `trace_id` | string | 否 | Trace ID |
+| `session_id` | string | 否 | Session ID |
+| `session_name` | string | 否 | 会话名称 |
+| `status` | string | 否 | 运行状态 |
+| `error` | string | 否 | 错误详情 |
+| `dotted_order` | string | 否 | 点分顺序字符串 |
+| `events` | json | 否 | 结构化事件数组 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | 该运行是否被接受用于摄取 |
+| `runId` | string | 请求中提供的运行标识符 |
+| `message` | string | 来自 LangSmith 的响应消息 |
+
+### `langsmith_create_runs_batch`
+
+批量转发多个运行到 LangSmith。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | LangSmith API key |
+| `post` | json | 否 | 要导入的新运行数组 |
+| `patch` | json | 否 | 要更新/修补的运行数组 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | 批量是否被接受导入 |
+| `runIds` | array | 请求中提供的运行标识符 |
+| `message` | string | 来自 LangSmith 的响应消息 |
+| `messages` | array | 每个运行的响应消息（如有） |

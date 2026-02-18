@@ -23,7 +23,7 @@ import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
-import { useCopilotStore } from '@/stores/panel'
+import { useCopilotStore, usePanelStore } from '@/stores/panel'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -341,15 +341,19 @@ export function OptionsSelector({
   const [hoveredIndex, setHoveredIndex] = useState(-1)
   const [chosenKey, setChosenKey] = useState<string | null>(selectedOptionKey)
   const containerRef = useRef<HTMLDivElement>(null)
+  const activeTab = usePanelStore((s) => s.activeTab)
 
   const isLocked = chosenKey !== null
 
-  // Handle keyboard navigation - only for the active options selector
+  // Handle keyboard navigation - only for the active options selector when copilot is active
   useEffect(() => {
     if (isInteractionDisabled || !enableKeyboardNav || isLocked) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
+
+      // Only handle keyboard shortcuts when the copilot panel is active
+      if (activeTab !== 'copilot') return
 
       const activeElement = document.activeElement
       const isInputFocused =
@@ -387,7 +391,15 @@ export function OptionsSelector({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isInteractionDisabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect])
+  }, [
+    isInteractionDisabled,
+    enableKeyboardNav,
+    isLocked,
+    sortedOptions,
+    hoveredIndex,
+    onSelect,
+    activeTab,
+  ])
 
   if (sortedOptions.length === 0) return null
 

@@ -1,0 +1,134 @@
+---
+title: Agent Skills
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Agent Skills 是可复用的指令包，为你的 AI agent 提供专门的能力。基于开放的 [Agent Skills](https://agentskills.io) 格式，技能可以帮助你沉淀领域知识、工作流程和最佳实践，agent 可按需加载。
+
+## 技能如何工作
+
+技能采用**渐进式披露**，让 agent 的上下文保持精简：
+
+1. **发现** — 在 agent 的系统提示中只包含技能名称和描述（每项约 50-100 个 token）
+2. **激活** — 当 agent 判断某项技能相关时，会调用 `load_skill` 工具，将完整指令加载到上下文中
+3. **执行** — agent 按照加载的指令完成任务
+
+这意味着你可以为 agent 关联许多技能，而不会让上下文窗口膨胀。agent 只会加载所需内容。
+
+## 创建技能
+
+进入 **设置**，在工具部分选择 **技能**。
+
+![管理技能](/static/skills/manage-skills.png)
+
+点击 **添加**，创建一个包含三个字段的新技能：
+
+| 字段 | 描述 |
+|-------|-------------|
+| **名称** | 使用 kebab-case 的标识符（如 `sql-expert`、`code-reviewer`）。最多 64 个字符。 |
+| **描述** | 简要说明技能的作用及使用场景。agent 会根据此内容判断是否激活技能。最多 1024 个字符。 |
+| **内容** | 技能的完整 markdown 指令。agent 激活技能时加载。 |
+
+<Callout type="info">
+  描述非常关键——这是 agent 在决定是否加载技能前唯一可见的信息。请明确说明技能的使用时机和原因。
+</Callout>
+
+### 如何编写优质技能内容
+
+技能内容遵循与 [SKILL.md 文件](https://agentskills.io/specification) 相同的规范：
+
+```markdown
+# SQL Expert
+
+## When to use this skill
+Use when the user asks you to write, optimize, or debug SQL queries.
+
+## Instructions
+1. Always ask which database engine (PostgreSQL, MySQL, SQLite)
+2. Use CTEs over subqueries for readability
+3. Add index recommendations when relevant
+4. Explain query plans for optimization requests
+
+## Common Patterns
+...
+```
+
+**推荐结构：**
+- **使用时机** — 具体触发条件和场景
+- **操作指南** — 按步骤编号的详细指导
+- **示例** — 展示预期行为的输入/输出样例
+- **常见模式** — 适用于高频任务的可复用方法
+- **边界情况** — 注意事项和特殊情况
+
+技能应保持专注，且不超过 500 行。如果技能内容过大，请拆分为多个专用技能。
+
+## 向代理添加技能
+
+打开任意 **Agent** 区块，在工具部分下方找到 **Skills** 下拉菜单。选择你希望该代理具备的技能。
+
+![添加技能](/static/skills/add-skill.png)
+
+已选技能会以卡片形式显示，你可以点击进行编辑或移除。
+
+### 运行时会发生什么
+
+当工作流运行时：
+
+1. 代理的系统提示中会包含一个 `<available_skills>` 区域，列出每个技能的名称和描述
+2. 一个 `load_skill` 工具会自动添加到代理可用工具中
+3. 当代理判断某个技能与当前任务相关时，会用技能名称调用 `load_skill`
+4. 完整的技能内容会作为工具响应返回，向代理提供详细指令
+
+这适用于所有支持的 LLM 提供商 — `load_skill` 工具采用标准工具调用方式，无需针对不同提供商进行配置。
+
+## 常见用例
+
+当代理需要专业知识或多步骤工作流时，技能最具价值：
+
+**领域专长**
+- `api-integration-expert` — 调用特定 API 的最佳实践（认证、限流、错误处理）
+- `data-transformation` — ETL 模式、数据清洗与校验规则
+- `code-reviewer` — 针对你团队标准的代码评审指南
+
+**工作流模板**
+- `bug-investigation` — 步骤式调试方法（复现 → 定位 → 测试 → 修复）
+- `feature-implementation` — 从需求到部署的开发工作流
+- `document-generator` — 技术文档的模板与格式规范
+
+**公司专属知识**
+- `our-architecture` — 系统架构图、服务依赖和部署流程
+- `style-guide` — 品牌规范、写作风格、UI/UX 模式
+- `customer-onboarding` — 标准操作流程与常见客户问题
+
+**何时使用技能与代理指令：**
+- **技能** 适用于多个工作流通用或经常变动的知识
+- **代理指令** 适用于仅针对单一代理、任务专属的上下文
+
+## 最佳实践
+
+**撰写高效描述**
+- **具体且关键词丰富** — 不要只写“帮助 SQL”，而要写“为 PostgreSQL、MySQL 和 SQLite 编写优化的 SQL 查询，包括索引推荐和查询计划分析”
+- **包含激活触发词** — 明确指出应触发技能的具体词语或短语（如“当用户提到 PDF、表单或文档提取时使用”）
+- **控制在 200 字以内** — 代理会快速浏览描述，每个字都要有价值
+
+**技能范围与组织**
+- **每个领域一个技能** — 聚焦的 `sql-expert` 技能比宽泛的 `database-everything` 技能效果更好
+- **每个代理限 5-10 个技能** — 技能越多，决策负担越大；建议从少量开始，按需增加
+- **拆分大型技能** — 如果技能超过 500 行，建议拆分为更聚焦的子技能
+
+**内容结构**
+- **使用 markdown 格式** — 标题、列表和代码块有助于代理理解和执行指令
+- **提供示例** — 展示输入/输出对，帮助代理理解预期行为
+- **明确边界情况** — 不要假设代理会自行推断特殊处理
+
+**测试与迭代**
+- **测试激活** — 运行你的工作流，确认代理在预期时加载技能
+- **检查误报** — 确保技能不会在不该激活时被激活
+- **优化描述** — 如果技能未能在需要时加载，请在描述中添加更多关键词
+
+## 了解更多
+
+- [Agent Skills 规范](https://agentskills.io) — 便携式代理技能的开放格式
+- [示例技能](https://github.com/anthropics/skills) — 浏览社区技能示例
+- [最佳实践](https://agentskills.io/what-are-skills) — 编写高效技能

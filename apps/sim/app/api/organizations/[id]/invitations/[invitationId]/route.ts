@@ -19,6 +19,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -580,6 +581,25 @@ export async function PUT(
       invitationId,
       userId: session.user.id,
       email: orgInvitation.email,
+    })
+
+    const auditActionMap = {
+      accepted: AuditAction.ORG_INVITATION_ACCEPTED,
+      rejected: AuditAction.ORG_INVITATION_REJECTED,
+      cancelled: AuditAction.ORG_INVITATION_CANCELLED,
+    } as const
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: auditActionMap[status],
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Organization invitation ${status} for ${orgInvitation.email}`,
+      metadata: { invitationId, email: orgInvitation.email, status },
+      request: req,
     })
 
     return NextResponse.json({

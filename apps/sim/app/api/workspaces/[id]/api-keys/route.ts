@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -159,6 +160,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
 
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.API_KEY_CREATED,
+      resourceType: AuditResourceType.API_KEY,
+      resourceId: newKey.id,
+      resourceName: name,
+      description: `Created API key "${name}"`,
+      metadata: { keyName: name },
+      request,
+    })
+
     return NextResponse.json({
       key: {
         ...newKey,
@@ -222,6 +237,19 @@ export async function DELETE(
     logger.info(
       `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`
     )
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
+      description: `Revoked ${deletedCount} API key(s)`,
+      metadata: { keyIds: keys, deletedCount },
+      request,
+    })
+
     return NextResponse.json({ success: true, deletedCount })
   } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API key DELETE error`, error)

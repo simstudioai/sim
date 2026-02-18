@@ -212,3 +212,23 @@ Alle Konversations-Threads für einen bestimmten Benutzer auflisten
 
 - Kategorie: `tools`
 - Typ: `zep`
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Ja | Benutzer-ID, für die Threads abgerufen werden sollen \(z. B. "user_123"\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Threads \(z. B. 10, 25, 50\) |
+| `apiKey` | string | Ja | Dein Zep-API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `threads` | array | Array von Thread-Objekten |
+|   ↳ `threadId` | string | Thread-Kennung |
+|   ↳ `userId` | string | Zugehörige Benutzer-ID |
+|   ↳ `uuid` | string | Interne UUID |
+|   ↳ `createdAt` | string | Erstellungszeitstempel \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Zeitstempel der letzten Aktualisierung \(ISO 8601\) |
+|   ↳ `projectUuid` | string | Projekt-UUID |
+|   ↳ `metadata` | object | Benutzerdefinierte Metadaten \(dynamische Schlüssel-Wert-Paare\) |
+| `totalCount` | number | Gesamtanzahl der verfügbaren Elemente |

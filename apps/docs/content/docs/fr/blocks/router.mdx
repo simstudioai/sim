@@ -100,3 +100,18 @@ Input (Lead) → Router → Agent (Enterprise Sales) or Workflow (Self-serve)
 - **Tester avec diverses entrées** : Assurez-vous que le Routeur gère différents types d'entrées, cas limites et contenus inattendus
 - **Surveiller les performances de routage** : Examinez régulièrement les décisions de routage et affinez les critères en fonction des modèles d'utilisation réels
 - **Choisir des modèles appropriés** : Utilisez des modèles avec de fortes capacités de raisonnement pour les décisions de routage complexes
+
+Lorsque le routeur ne peut pas déterminer un itinéraire approprié pour le contexte donné, il redirigera vers le **chemin d'erreur** au lieu de sélectionner arbitrairement un itinéraire. Cela se produit lorsque :
+
+- Le contexte ne correspond clairement à aucune des descriptions d'itinéraire définies
+- L'IA détermine qu'aucun des itinéraires disponibles n'est approprié
+
+## Bonnes pratiques
+
+- **Rédigez des descriptions d'itinéraire claires** : chaque description d'itinéraire doit expliquer clairement quand cet itinéraire doit être sélectionné. Soyez précis sur les critères.
+- **Rendez les itinéraires mutuellement exclusifs** : dans la mesure du possible, assurez-vous que les descriptions d'itinéraire ne se chevauchent pas pour éviter les décisions de routage ambiguës.
+- **Connectez un chemin d'erreur** : gérez les cas où aucun itinéraire ne correspond en connectant un gestionnaire d'erreurs pour un comportement de repli élégant.
+- **Utilisez des titres d'itinéraire descriptifs** : les titres d'itinéraire apparaissent dans le canevas de workflow, rendez-les donc significatifs pour la lisibilité.
+- **Testez avec des entrées diverses** : assurez-vous que le routeur gère différents types d'entrée, cas limites et contenus inattendus.
+- **Surveillez les performances de routage** : examinez régulièrement les décisions de routage et affinez les descriptions d'itinéraire en fonction des modèles d'utilisation réels.
+- **Choisissez des modèles appropriés** : utilisez des modèles avec de solides capacités de raisonnement pour les décisions de routage complexes.

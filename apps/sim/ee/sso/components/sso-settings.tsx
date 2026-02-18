@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
+import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import { Button, Combobox, Input, Switch, Textarea } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -418,28 +418,28 @@ export function SSO() {
 
             {/* Callback URL */}
             <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Callback URL
-              </span>
-              <div className='relative'>
-                <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
-                  <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
-                    {providerCallbackUrl}
-                  </code>
-                </div>
+              <div className='flex items-center justify-between'>
+                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                  Callback URL
+                </span>
                 <Button
                   type='button'
                   variant='ghost'
                   onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='h-[22px] w-[22px] rounded-[4px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 >
                   {copied ? (
-                    <Check className='h-[14px] w-[14px]' />
+                    <Check className='h-[13px] w-[13px]' />
                   ) : (
-                    <Copy className='h-[14px] w-[14px]' />
+                    <Clipboard className='h-[13px] w-[13px]' />
                   )}
                   <span className='sr-only'>Copy callback URL</span>
                 </Button>
+              </div>
+              <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
+                <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
+                  {providerCallbackUrl}
+                </code>
               </div>
               <p className='text-[13px] text-[var(--text-muted)]'>
                 Configure this in your identity provider
@@ -852,28 +852,28 @@ export function SSO() {
 
           {/* Callback URL display */}
           <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-              Callback URL
-            </span>
-            <div className='relative'>
-              <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
-                <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
-                  {callbackUrl}
-                </code>
-              </div>
+            <div className='flex items-center justify-between'>
+              <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                Callback URL
+              </span>
               <Button
                 type='button'
                 variant='ghost'
                 onClick={() => copyToClipboard(callbackUrl)}
-                className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                className='h-[22px] w-[22px] rounded-[4px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               >
                 {copied ? (
-                  <Check className='h-[14px] w-[14px]' />
+                  <Check className='h-[13px] w-[13px]' />
                 ) : (
-                  <Copy className='h-[14px] w-[14px]' />
+                  <Clipboard className='h-[13px] w-[13px]' />
                 )}
                 <span className='sr-only'>Copy callback URL</span>
               </Button>
+            </div>
+            <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px]'>
+              <code className='flex-1 truncate font-mono text-[13px] text-[var(--text-primary)]'>
+                {callbackUrl}
+              </code>
             </div>
             <p className='text-[13px] text-[var(--text-muted)]'>
               Configure this in your identity provider

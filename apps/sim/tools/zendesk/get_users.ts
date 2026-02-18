@@ -1,6 +1,8 @@
 import type { ToolConfig } from '@/tools/types'
 import {
+  appendCursorPaginationParams,
   buildZendeskUrl,
+  extractCursorPagingInfo,
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
@@ -14,7 +16,7 @@ export interface ZendeskGetUsersParams {
   role?: string
   permissionSet?: string
   perPage?: string
-  page?: string
+  pageAfter?: string
 }
 
 export interface ZendeskGetUsersResponse {
@@ -22,9 +24,8 @@ export interface ZendeskGetUsersResponse {
   output: {
     users: any[]
     paging?: {
-      next_page?: string | null
-      previous_page?: string | null
-      count: number
+      after_cursor: string | null
+      has_more: boolean
     }
     metadata: {
       total_returned: number
@@ -77,11 +78,11 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
       visibility: 'user-or-llm',
       description: 'Results per page as a number string (default: "100", max: "100")',
     },
-    page: {
+    pageAfter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Cursor from a previous response to fetch the next page of results',
     },
   },
 
@@ -90,8 +91,7 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
       const queryParams = new URLSearchParams()
       if (params.role) queryParams.append('role', params.role)
       if (params.permissionSet) queryParams.append('permission_set', params.permissionSet)
-      if (params.page) queryParams.append('page', params.page)
-      if (params.perPage) queryParams.append('per_page', params.perPage)
+      appendCursorPaginationParams(queryParams, params)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/users')
@@ -116,19 +116,16 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
 
     const data = await response.json()
     const users = data.users || []
+    const paging = extractCursorPagingInfo(data)
 
     return {
       success: true,
       output: {
         users,
-        paging: {
-          next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || users.length,
-        },
+        paging,
         metadata: {
           total_returned: users.length,
-          has_more: !!data.next_page,
+          has_more: paging.has_more,
         },
         success: true,
       },

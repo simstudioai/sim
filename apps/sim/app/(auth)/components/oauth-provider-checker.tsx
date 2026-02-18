@@ -1,5 +1,3 @@
-'use server'
-
 import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 

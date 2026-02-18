@@ -555,3 +555,32 @@ Jiraユーザーを取得します。アカウントIDが提供された場合�
 
 - カテゴリ：`tools`
 - タイプ：`jira`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | はい | あなたのJiraドメイン（例：yourcompany.atlassian.net） |
+| `accountId` | string | いいえ | 特定のユーザーを取得するためのオプションのアカウントID。提供されない場合、すべてのユーザーを返します。 |
+| `startAt` | number | いいえ | 返す最初のユーザーのインデックス（ページネーション用、デフォルト：0） |
+| `maxResults` | number | いいえ | 返すユーザーの最大数（デフォルト：50） |
+| `cloudId` | string | いいえ | インスタンスのJira Cloud ID。提供されない場合、ドメインを使用して取得されます。 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `ts` | string | 操作のISO 8601タイムスタンプ |
+| `users` | array | Jiraユーザーの配列 |
+|   ↳ `accountId` | string | ユーザーのAtlassianアカウントID |
+|   ↳ `displayName` | string | ユーザーの表示名 |
+|   ↳ `active` | boolean | ユーザーアカウントがアクティブかどうか |
+|   ↳ `emailAddress` | string | ユーザーのメールアドレス |
+|   ↳ `accountType` | string | アカウントのタイプ（例：atlassian、app、customer） |
+|   ↳ `avatarUrl` | string | ユーザーアバターのURL（48x48） |
+|   ↳ `timeZone` | string | ユーザーのタイムゾーン |
+|   ↳ `avatarUrls` | json | 複数のサイズのユーザーアバターURL（16x16、24x24、32x32、48x48） |
+|   ↳ `self` | string | このユーザーのREST API URL |
+| `total` | number | 返されたユーザーの総数 |
+| `startAt` | number | ページネーション開始インデックス |
+| `maxResults` | number | ページあたりの最大結果数 |

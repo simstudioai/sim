@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksAndToolsInput, GetBlocksAndToolsResult } from '@/lib/copilot/tools/shared/schemas'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -17,7 +18,8 @@ export const getBlocksAndToolsServerTool: BaseServerTool<
     logger.debug('Executing get_blocks_and_tools')
 
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
-    const allowedIntegrations = permissionConfig?.allowedIntegrations
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
     type BlockListItem = {
       type: string
@@ -30,7 +32,8 @@ export const getBlocksAndToolsServerTool: BaseServerTool<
     Object.entries(blockRegistry)
       .filter(([blockType, blockConfig]: [string, BlockConfig]) => {
         if (blockConfig.hideFromToolbar) return false
-        if (allowedIntegrations != null && !allowedIntegrations.includes(blockType)) return false
+        if (allowedIntegrations != null && !allowedIntegrations.includes(blockType.toLowerCase()))
+          return false
         return true
       })
       .forEach(([blockType, blockConfig]: [string, BlockConfig]) => {

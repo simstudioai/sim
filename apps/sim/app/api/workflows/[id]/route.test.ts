@@ -5,7 +5,7 @@
  * @vitest-environment node
  */
 
-import { loggerMock, setupGlobalFetchMock } from '@sim/testing'
+import { auditMock, loggerMock, setupGlobalFetchMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +22,8 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: (workflowId: string) =>

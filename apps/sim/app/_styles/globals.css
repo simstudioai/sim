@@ -754,3 +754,100 @@ input[type="search"]::-ms-clear {
   text-decoration: none !important;
   color: inherit !important;
 }
+
+/**
+ * Respect user's prefers-reduced-motion setting (WCAG 2.3.3)
+ * Disables animations and transitions for users who prefer reduced motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* WandPromptBar status indicator */
+@keyframes smoke-pulse {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.status-indicator {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: hsl(var(--muted-foreground) / 0.5);
+  transition: background-color 0.3s ease;
+}
+
+.status-indicator.streaming {
+  background-color: transparent;
+}
+
+.status-indicator.streaming::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 0.9) 0%,
+    hsl(var(--primary) / 0.4) 60%,
+    transparent 80%
+  );
+  animation: smoke-pulse 1.8s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+.dark .status-indicator.streaming::before {
+  background: #6b7280;
+  opacity: 0.9;
+  animation: smoke-pulse 1.8s ease-in-out infinite;
+}
+
+/* MessageContainer loading dot */
+@keyframes growShrink {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.loading-dot {
+  animation: growShrink 1.5s infinite ease-in-out;
+}
+
+/* Subflow node z-index and drag-over styles */
+.workflow-container .react-flow__node-subflowNode {
+  z-index: -1 !important;
+}
+
+.workflow-container .react-flow__node-subflowNode:has([data-subflow-selected="true"]) {
+  z-index: 10 !important;
+}
+
+.loop-node-drag-over,
+.parallel-node-drag-over {
+  box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;
+  border-radius: 8px !important;
+}
+
+.react-flow__node[data-parent-node-id] .react-flow__handle {
+  z-index: 30;
+}

@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 import { AlertTriangle, ArrowLeftRight, ArrowUp, Check, Clipboard } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'

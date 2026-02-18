@@ -333,3 +333,94 @@ Polymarket 集成的主要功能包括：
 
 - 类别: `tools`
 - 类型: `polymarket`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | 是 | 用户钱包地址（以 0x 开头） |
+| `limit` | string | 否 | 返回的最大结果数（例如："50"）。默认值：100，最大值：500。 |
+| `offset` | string | 否 | 分页时跳过的结果数（例如："100"）。默认值：0，最大值：10000。 |
+| `market` | string | 否 | 以逗号分隔的条件 ID（例如："0x1234...abcd,0x5678...efgh"）。与 eventId 互斥。 |
+| `eventId` | string | 否 | 以逗号分隔的事件 ID（例如："12345,67890"）。与 market 互斥。 |
+| `type` | string | 否 | 活动类型筛选：TRADE、SPLIT、MERGE、REDEEM、REWARD、CONVERSION、MAKER_REBATE |
+| `start` | number | 否 | 起始时间戳（Unix 秒） |
+| `end` | number | 否 | 结束时间戳（Unix 秒） |
+| `sortBy` | string | 否 | 排序字段：TIMESTAMP、TOKENS 或 CASH（默认：TIMESTAMP） |
+| `sortDirection` | string | 否 | 排序方向：ASC 或 DESC（默认：DESC） |
+| `side` | string | 否 | 交易方向筛选：BUY 或 SELL（仅适用于交易） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `activity` | array | 活动条目数组 |
+|   ↳ `proxyWallet` | string | 用户代理钱包地址 |
+|   ↳ `timestamp` | number | 活动的 Unix 时间戳 |
+|   ↳ `conditionId` | string | 市场条件 ID |
+|   ↳ `type` | string | 活动类型（TRADE、SPLIT、MERGE、REDEEM、REWARD、CONVERSION） |
+|   ↳ `size` | number | 代币数量 |
+|   ↳ `usdcSize` | number | USDC 数量 |
+|   ↳ `transactionHash` | string | 区块链交易哈希 |
+|   ↳ `price` | number | 价格（仅限交易） |
+|   ↳ `asset` | string | 资产/代币 ID |
+|   ↳ `side` | string | 交易方向（BUY/SELL） |
+|   ↳ `outcomeIndex` | number | 结果索引 |
+|   ↳ `title` | string | 市场标题 |
+|   ↳ `slug` | string | 市场 slug |
+|   ↳ `icon` | string | 市场图标 URL |
+|   ↳ `eventSlug` | string | 事件 slug |
+|   ↳ `outcome` | string | 结果名称 |
+|   ↳ `name` | string | 用户显示名 |
+|   ↳ `pseudonym` | string | 用户昵称 |
+|   ↳ `bio` | string | 用户简介 |
+|   ↳ `profileImage` | string | 用户头像 URL |
+|   ↳ `profileImageOptimized` | string | 优化后的头像 URL |
+
+### `polymarket_get_leaderboard`
+
+按盈亏或成交量获取交易员排行榜排名
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | 否 | 分类筛选：OVERALL、POLITICS、SPORTS、CRYPTO、CULTURE、MENTIONS、WEATHER、ECONOMICS、TECH、FINANCE（默认：OVERALL） |
+| `timePeriod` | string | 否 | 时间周期：DAY、WEEK、MONTH、ALL（默认：DAY） |
+| `orderBy` | string | 否 | 排序方式：PNL 或 VOL（默认：PNL） |
+| `limit` | string | 否 | 返回结果数量（如 "10"）。范围：1-50，默认：25。 |
+| `offset` | string | 否 | 分页跳过的结果数量（如 "25"）。范围：0-1000，默认：0。 |
+| `user` | string | 否 | 按指定用户钱包地址筛选 |
+| `userName` | string | 否 | 按用户名筛选 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `leaderboard` | 数组 | 排行榜条目数组 |
+|   ↳ `rank` | string | 排行榜排名 |
+|   ↳ `proxyWallet` | string | 用户代理钱包地址 |
+|   ↳ `userName` | string | 用户显示名称 |
+|   ↳ `vol` | number | 交易量 |
+|   ↳ `pnl` | number | 盈亏 |
+|   ↳ `profileImage` | string | 用户头像 URL |
+|   ↳ `xUsername` | string | Twitter/X 用户名 |
+|   ↳ `verifiedBadge` | boolean | 用户是否有认证徽章 |
+
+### `polymarket_get_holders`
+
+获取特定市场代币的持有者排行榜
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | 是 | 以逗号分隔的条件 ID 列表（例如："0x1234...abcd" 或 "0x1234...abcd,0x5678...efgh"）。 |
+| `limit` | string | 否 | 返回的持有者数量（例如："10"）。范围：0-20，默认值：20。 |
+| `minBalance` | string | 否 | 最小持仓门槛（默认值：1） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `holders` | 数组 | 按代币分组的市场持有者数组 |

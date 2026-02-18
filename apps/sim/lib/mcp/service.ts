@@ -10,6 +10,7 @@ import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
+import { isMcpDomainAllowed, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -66,6 +67,7 @@ class McpService {
     const { config: resolvedConfig } = await resolveMcpConfigEnvVars(config, userId, workspaceId, {
       strict: true,
     })
+    validateMcpDomain(resolvedConfig.url)
     return resolvedConfig
   }
 
@@ -90,6 +92,10 @@ class McpService {
       .limit(1)
 
     if (!server) {
+      return null
+    }
+
+    if (!isMcpDomainAllowed(server.url || undefined)) {
       return null
     }
 
@@ -123,19 +129,21 @@ class McpService {
       .from(mcpServers)
       .where(and(...whereConditions))
 
-    return servers.map((server) => ({
-      id: server.id,
-      name: server.name,
-      description: server.description || undefined,
-      transport: server.transport as McpTransport,
-      url: server.url || undefined,
-      headers: (server.headers as Record<string, string>) || {},
-      timeout: server.timeout || 30000,
-      retries: server.retries || 3,
-      enabled: server.enabled,
-      createdAt: server.createdAt.toISOString(),
-      updatedAt: server.updatedAt.toISOString(),
-    }))
+    return servers
+      .map((server) => ({
+        id: server.id,
+        name: server.name,
+        description: server.description || undefined,
+        transport: server.transport as McpTransport,
+        url: server.url || undefined,
+        headers: (server.headers as Record<string, string>) || {},
+        timeout: server.timeout || 30000,
+        retries: server.retries || 3,
+        enabled: server.enabled,
+        createdAt: server.createdAt.toISOString(),
+        updatedAt: server.updatedAt.toISOString(),
+      }))
+      .filter((config) => isMcpDomainAllowed(config.url))
   }
 
   /**

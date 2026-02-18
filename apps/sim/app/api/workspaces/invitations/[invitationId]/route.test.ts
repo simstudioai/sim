@@ -1,4 +1,4 @@
-import { createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
+import { auditMock, createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,6 +70,8 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -103,7 +104,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     try {
       const validatedData = chatUpdateSchema.parse(body)
 
-      const { hasAccess, chat: existingChatRecord } = await checkChatAccess(chatId, session.user.id)
+      const {
+        hasAccess,
+        chat: existingChatRecord,
+        workspaceId: chatWorkspaceId,
+      } = await checkChatAccess(chatId, session.user.id)
 
       if (!hasAccess || !existingChatRecord) {
         return createErrorResponse('Chat not found or access denied', 404)
@@ -217,6 +222,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       logger.info(`Chat "${chatId}" updated successfully`)
 
+      recordAudit({
+        workspaceId: chatWorkspaceId || null,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CHAT_UPDATED,
+        resourceType: AuditResourceType.CHAT,
+        resourceId: chatId,
+        resourceName: title || existingChatRecord.title,
+        description: `Updated chat deployment "${title || existingChatRecord.title}"`,
+        request,
+      })
+
       return createSuccessResponse({
         id: chatId,
         chatUrl,
@@ -252,7 +270,11 @@ export async function DELETE(
       return createErrorResponse('Unauthorized', 401)
     }
 
-    const { hasAccess } = await checkChatAccess(chatId, session.user.id)
+    const {
+      hasAccess,
+      chat: chatRecord,
+      workspaceId: chatWorkspaceId,
+    } = await checkChatAccess(chatId, session.user.id)
 
     if (!hasAccess) {
       return createErrorResponse('Chat not found or access denied', 404)
@@ -261,6 +283,19 @@ export async function DELETE(
     await db.delete(chat).where(eq(chat.id, chatId))
 
     logger.info(`Chat "${chatId}" deleted successfully`)
+
+    recordAudit({
+      workspaceId: chatWorkspaceId || null,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CHAT_DELETED,
+      resourceType: AuditResourceType.CHAT,
+      resourceId: chatId,
+      resourceName: chatRecord?.title || chatId,
+      description: `Deleted chat deployment "${chatRecord?.title || chatId}"`,
+      request: _request,
+    })
 
     return createSuccessResponse({
       message: 'Chat deployment deleted successfully',

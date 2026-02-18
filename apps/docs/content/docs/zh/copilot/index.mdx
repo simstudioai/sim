@@ -169,3 +169,175 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 <Callout type="info">
   模型价格以每百万标记为单位。计算公式将其除以 1,000,000 以获得实际成本。请参阅<a href="/execution/costs">成本计算页面</a>了解背景和示例。
 </Callout>
+
+将鼠标悬停在任意消息上，点击 **编辑** 以修改并重新发送。这有助于优化你的提示。
+
+### 消息队列
+
+如果你在 Copilot 仍在回复时发送消息，该消息会被加入队列。你可以：
+- 在可展开的队列面板中查看排队的消息
+- 立即发送排队消息（会中止当前回复）
+- 从队列中移除消息
+
+## 文件附件
+
+点击附件图标即可随消息上传文件。支持的文件类型包括：
+- 图片（显示预览缩略图）
+- PDF
+- 文本文件、 JSON 、 XML
+- 其他文档格式
+
+文件会以可点击的缩略图形式展示，点击后将在新标签页中打开。
+
+## 检查点与更改
+
+当 Copilot 对你的工作流进行更改时，会保存检查点，方便你在需要时回退。
+
+### 查看检查点
+
+将鼠标悬停在 Copilot 消息上，点击检查点图标即可查看该消息保存的工作流状态。
+
+### 撤销更改
+
+点击任意检查点的 **撤销**，即可将工作流恢复到该状态。确认对话框会提示此操作无法撤销。
+
+### 接受更改
+
+当 Copilot 提出更改时，你可以：
+- **接受**：应用建议的更改（`Mod+Shift+Enter`）
+- **拒绝**：忽略更改，保留当前工作流
+
+## 思考块
+
+对于复杂请求， Copilot 可能会在可展开的思考块中展示其推理过程：
+
+- Copilot 思考时，思考块会自动展开
+- 点击可手动展开/收起
+- 显示思考过程的持续时间
+- 帮助你理解 Copilot 如何得出解决方案
+
+## 选项选择
+
+当 Copilot 提供多个选项时，你可以通过以下方式选择：
+
+| 控制键 | 操作 |
+|---------|--------|
+| **1-9** | 通过数字选择选项 |
+| **向上/向下箭头** | 在选项间导航 |
+| **Enter** | 选择高亮选项 |
+
+已选中的选项会高亮显示，未选中的选项会显示删除线。
+
+## 键盘快捷键
+
+| 快捷键 | 操作 |
+|----------|--------|
+| `@` | 打开上下文菜单 |
+| `/` | 打开斜杠命令 |
+| `Arrow Up/Down` | 菜单项导航 |
+| `Enter` | 选择菜单项 |
+| `Esc` | 关闭菜单 |
+| `Mod+Shift+Enter` | 接受 Copilot 更改 |
+
+## 使用限制
+
+Copilot 的使用按底层 LLM 的 token 计费。如果达到使用上限，Copilot 会提示你增加额度。你可以以 $50、$100 为增量，基于当前基础额度增加使用量。
+
+<Callout type="info">
+  计费详情请参见 [成本计算页面](/execution/costs)。
+</Callout>
+## Copilot MCP
+
+你可以在常用编辑器或 AI 客户端中将 Copilot 作为 MCP 服务器使用。这样可以直接在 Cursor、Claude Code、Claude Desktop 和 VS Code 等工具中构建、测试、部署和管理 Sim 工作流。
+
+### 生成 Copilot API 密钥
+
+要连接 Copilot MCP 服务器，你需要一个 **Copilot API 密钥**：
+
+1. 访问 [sim.ai](https://sim.ai) 并登录
+2. 进入 **设置** → **Copilot**
+3. 点击 **生成 API 密钥**
+4. 复制密钥 — 该密钥只显示一次
+
+密钥类似于 `sk-sim-copilot-...`。你将在下方配置中用到它。
+
+### Cursor
+
+将以下内容添加到你的 `.cursor/mcp.json`（项目级）或全局 Cursor MCP 设置中：
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+将 `YOUR_COPILOT_API_KEY` 替换为你上面生成的密钥。
+
+### Claude Code
+
+运行以下命令以添加 Copilot MCP 服务器：
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+将 `YOUR_COPILOT_API_KEY` 替换为你的密钥。
+
+### Claude Desktop
+
+Claude Desktop 需要 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 以连接基于 HTTP 的 MCP 服务器。请将以下内容添加到你的 Claude Desktop 配置文件（macOS 上为 `~/Library/Application Support/Claude/claude_desktop_config.json`）：
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+将 `YOUR_COPILOT_API_KEY` 替换为你的密钥。
+
+### VS Code
+
+请将以下内容添加到你的 VS Code `settings.json` 或工作区 `.vscode/settings.json`：
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+将 `YOUR_COPILOT_API_KEY` 替换为你的密钥。
+
+<Callout type="info">
+  对于自托管部署，请将 `https://www.sim.ai` 替换为你的自托管 Sim URL。
+</Callout>

@@ -3,6 +3,7 @@ import { account, credentialSet, credentialSetMember, member, user } from '@sim/
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
@@ -13,6 +14,7 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
   const [set] = await db
     .select({
       id: credentialSet.id,
+      name: credentialSet.name,
       organizationId: credentialSet.organizationId,
       providerId: credentialSet.providerId,
     })
@@ -175,6 +177,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       credentialSetId: id,
       memberId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_MEMBER_REMOVED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Removed member from credential set "${result.set.name}"`,
+      request: req,
     })
 
     return NextResponse.json({ success: true })

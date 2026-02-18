@@ -3,6 +3,8 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import {
@@ -70,6 +72,15 @@ export const POST = withMcpAuth('write')(
           'Missing required fields',
           400
         )
+      }
+
+      try {
+        validateMcpDomain(body.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
       }
 
       const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : crypto.randomUUID()
@@ -151,6 +162,18 @@ export const POST = withMcpAuth('write')(
         // Silently fail
       }
 
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: AuditAction.MCP_SERVER_ADDED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        resourceName: body.name,
+        description: `Added MCP server "${body.name}"`,
+        metadata: { serverName: body.name, transport: body.transport },
+        request,
+      })
+
       return createMcpSuccessResponse({ serverId }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error registering MCP server:`, error)
@@ -198,6 +221,18 @@ export const DELETE = withMcpAuth('admin')(
       await mcpService.clearCache(workspaceId)
 
       logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: AuditAction.MCP_SERVER_REMOVED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId!,
+        resourceName: deletedServer.name,
+        description: `Removed MCP server "${deletedServer.name}"`,
+        request,
+      })
+
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting MCP server:`, error)

@@ -1,0 +1,116 @@
+---
+title: Lemlist
+description: Verwalten Sie Outreach-Aktivitäten, Leads und versenden Sie E-Mails
+  über Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Bringen Sie Ihre Vertriebs-Outreach und Ihr Engagement mit [Lemlist](https://lemlist.com) auf das nächste Level – die Plattform für personalisierte Outreach-Automatisierung, der Tausende von Vertriebsteams vertrauen. Mit Lemlist können Sie Multi-Channel-Kampagnen automatisieren, Leads pflegen und Antwortquoten steigern, während Ihre Kommunikation hochgradig personalisiert und authentisch bleibt.
+
+Mit der Lemlist-Integration können Sie:
+
+- **Outreach-Sequenzen automatisieren:** Starten Sie personalisierte E-Mail-, LinkedIn- und Anrufkampagnen im großen Maßstab, zugeschnitten auf jeden Empfänger.
+- **Kampagnenaktivität verfolgen:** Überwachen Sie sofort Öffnungen, Klicks, Antworten, Bounces und jede Lead-Interaktion für detaillierte Kampagnen-Einblicke.
+- **Engagement-Daten zentralisieren:** Rufen Sie Echtzeit-Aktivitäten und Antworten für jede Kampagne oder jeden Lead ab und synchronisieren Sie diese direkt in Ihre Workflow-Automatisierung.
+- **Lead-Details automatisch abrufen:** Rufen Sie angereicherte Lead-Informationen per E-Mail oder ID ab, um Ihr CRM und Ihre Prozesse ohne manuelle Dateneingabe auf dem neuesten Stand zu halten.
+- **Gezielte E-Mails aus Ihrem Posteingang senden:** Lösen Sie maßgeschneiderte E-Mails an Leads direkt aus dem Workflow aus, unter Verwendung aktueller Vorlagen und Daten.
+- **Teamzusammenarbeit und Follow-up verbessern:** Weisen Sie Leads zu, verfolgen Sie Ergebnisse und stellen Sie sicher, dass kein Interessent verloren geht – dank der integrierten Tools von Lemlist, die alle über Automatisierung zugänglich sind.
+
+Lemlist befähigt Vertriebs-, Marketing- und Outbound-Teams, Zeit zu sparen, im großen Maßstab zu personalisieren und mehr Interessenten zu konvertieren. Automatisieren und optimieren Sie Ihre Kampagnen, integrieren Sie sie in Ihren Stack und verpassen Sie nie eine wertvolle Gelegenheit.
+
+Erzielen Sie mehr Antworten, buchen Sie mehr Meetings und bauen Sie Ihre Pipeline aus, indem Sie Lemlist noch heute mit Ihren automatisierten Workflows verbinden!
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Lemlist in Ihren Workflow. Rufen Sie Kampagnenaktivitäten und Antworten ab, erhalten Sie Lead-Informationen und versenden Sie E-Mails über den Lemlist-Posteingang.
+
+## Tools
+
+### `lemlist_get_activities`
+
+Ruft Kampagnenaktivitäten und durchgeführte Schritte ab, einschließlich E-Mail-Öffnungen, Klicks, Antworten und anderen Ereignissen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Lemlist-API-Schlüssel |
+| `type` | string | Nein | Nach Aktivitätstyp filtern \(z. B. emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | Nein | Nach Kampagnen-ID filtern \(z. B. "cam_abc123def456"\) |
+| `leadId` | string | Nein | Nach Lead-ID filtern \(z. B. "lea_abc123def456"\) |
+| `isFirst` | boolean | Nein | Nur nach erster Aktivität filtern |
+| `limit` | number | Nein | Anzahl der Ergebnisse pro Anfrage \(z. B. 50\). Max. 100, Standard 100 |
+| `offset` | number | Nein | Anzahl der zu überspringenden Datensätze für Paginierung \(z. B. 0, 100, 200\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `activities` | array | Liste der Aktivitäten |
+|   ↳ `_id` | string | Aktivitäts-ID |
+|   ↳ `type` | string | Aktivitätstyp |
+|   ↳ `leadId` | string | Zugehörige Lead-ID |
+|   ↳ `campaignId` | string | Kampagnen-ID |
+|   ↳ `sequenceId` | string | Sequenz-ID |
+|   ↳ `stepId` | string | Schritt-ID |
+|   ↳ `createdAt` | string | Zeitpunkt der Aktivität |
+| `count` | number | Anzahl der zurückgegebenen Aktivitäten |
+
+### `lemlist_get_lead`
+
+Ruft Lead-Informationen anhand der E-Mail-Adresse oder Lead-ID ab.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Lemlist API-Schlüssel |
+| `leadIdentifier` | string | Ja | E-Mail-Adresse des Leads \(z. B. "john@example.com"\) oder Lead-ID \(z. B. "lea_abc123def456"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `_id` | string | Lead-ID |
+| `email` | string | E-Mail-Adresse des Leads |
+| `firstName` | string | Vorname des Leads |
+| `lastName` | string | Nachname des Leads |
+| `companyName` | string | Firmenname |
+| `jobTitle` | string | Berufsbezeichnung |
+| `companyDomain` | string | Firmen-Domain |
+| `isPaused` | boolean | Ob der Lead pausiert ist |
+| `campaignId` | string | Kampagnen-ID, zu der der Lead gehört |
+| `contactId` | string | Kontakt-ID |
+| `emailStatus` | string | E-Mail-Zustellbarkeitsstatus |
+
+### `lemlist_send_email`
+
+Sendet eine E-Mail an einen Kontakt über den Lemlist-Posteingang.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Lemlist API-Schlüssel |
+| `sendUserId` | string | Ja | Kennung für den Benutzer, der die Nachricht sendet \(z. B. "usr_abc123def456"\) |
+| `sendUserEmail` | string | Ja | E-Mail-Adresse des Absenders \(z. B. "sales@company.com"\) |
+| `sendUserMailboxId` | string | Ja | Postfach-Kennung für den Absender \(z. B. "mbx_abc123def456"\) |
+| `contactId` | string | Ja | Empfänger-Kontaktkennung \(z. B. "con_abc123def456"\) |
+| `leadId` | string | Ja | Zugehörige Lead-Kennung \(z. B. "lea_abc123def456"\) |
+| `subject` | string | Ja | E-Mail-Betreffzeile |
+| `message` | string | Ja | E-Mail-Nachrichtentext im HTML-Format |
+| `cc` | json | Nein | Array von CC-E-Mail-Adressen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ------------ |
+| `ok` | boolean | Ob die E-Mail erfolgreich gesendet wurde |

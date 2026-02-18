@@ -170,3 +170,39 @@ Neo4jからノードとリレーションシップを削除するためのDELETE
 
 - カテゴリ: `tools`
 - タイプ: `neo4j`
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `records` | array | クエリから返されたレコードの配列 |
+| `recordCount` | number | 返されたレコード数 |
+| `summary` | json | タイミングとカウンターを含む実行サマリー |
+
+### `neo4j_introspect`
+
+Neo4jデータベースをイントロスペクトして、ノードラベル、リレーションシップタイプ、プロパティ、制約、インデックスを含むスキーマを検出します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | はい | Neo4jサーバーのホスト名またはIPアドレス |
+| `port` | number | はい | Neo4jサーバーポート（デフォルト：Boltプロトコル用7687） |
+| `database` | string | はい | 接続先のデータベース名（例："neo4j"、"movies"、"social"） |
+| `username` | string | はい | Neo4jユーザー名 |
+| `password` | string | はい | Neo4jパスワード |
+| `encryption` | string | いいえ | 接続暗号化モード（enabled、disabled） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `labels` | array | データベース内のノードラベルの配列 |
+| `relationshipTypes` | array | データベース内のリレーションシップタイプの配列 |
+| `nodeSchemas` | array | プロパティを含むノードスキーマの配列 |
+| `relationshipSchemas` | array | プロパティを含むリレーションシップスキーマの配列 |
+| `constraints` | array | データベース制約の配列 |
+| `indexes` | array | データベースインデックスの配列 |

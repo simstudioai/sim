@@ -34,6 +34,44 @@ interface DuplicateWorkflowResult {
 }
 
 /**
+ * Remaps old variable IDs to new variable IDs inside block subBlocks.
+ * Specifically targets `variables-input` subblocks whose value is an array
+ * of variable assignments containing a `variableId` field.
+ */
+function remapVariableIdsInSubBlocks(
+  subBlocks: Record<string, any>,
+  varIdMap: Map<string, string>
+): Record<string, any> {
+  const updated: Record<string, any> = {}
+
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (
+      subBlock &&
+      typeof subBlock === 'object' &&
+      subBlock.type === 'variables-input' &&
+      Array.isArray(subBlock.value)
+    ) {
+      updated[key] = {
+        ...subBlock,
+        value: subBlock.value.map((assignment: any) => {
+          if (assignment && typeof assignment === 'object' && assignment.variableId) {
+            const newVarId = varIdMap.get(assignment.variableId)
+            if (newVarId) {
+              return { ...assignment, variableId: newVarId }
+            }
+          }
+          return assignment
+        }),
+      }
+    } else {
+      updated[key] = subBlock
+    }
+  }
+
+  return updated
+}
+
+/**
  * Duplicate a workflow with all its blocks, edges, and subflows
  * This is a shared helper used by both the workflow duplicate API and folder duplicate API
  */
@@ -104,6 +142,9 @@ export async function duplicateWorkflow(
       .where(and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition))
     const sortOrder = (minResult?.minOrder ?? 1) - 1
 
+    // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
+    const varIdMapping = new Map<string, string>()
+
     // Create the new workflow first (required for foreign key constraints)
     await tx.insert(workflow).values({
       id: newWorkflowId,
@@ -123,8 +164,9 @@ export async function duplicateWorkflow(
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}
         const remapped: Record<string, Variable> = {}
-        for (const [, variable] of Object.entries(sourceVars) as [string, Variable][]) {
+        for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
           const newVarId = crypto.randomUUID()
+          varIdMapping.set(oldVarId, newVarId)
           remapped[newVarId] = {
             ...variable,
             id: newVarId,
@@ -181,6 +223,20 @@ export async function duplicateWorkflow(
           }
         }
 
+        // Update variable references in subBlocks (e.g. variables-input assignments)
+        let updatedSubBlocks = block.subBlocks
+        if (
+          varIdMapping.size > 0 &&
+          block.subBlocks &&
+          typeof block.subBlocks === 'object' &&
+          !Array.isArray(block.subBlocks)
+        ) {
+          updatedSubBlocks = remapVariableIdsInSubBlocks(
+            block.subBlocks as Record<string, any>,
+            varIdMapping
+          )
+        }
+
         return {
           ...block,
           id: newBlockId,
@@ -188,6 +244,7 @@ export async function duplicateWorkflow(
           parentId: newParentId,
           extent: newExtent,
           data: updatedData,
+          subBlocks: updatedSubBlocks,
           locked: false, // Duplicated blocks should always be unlocked
           createdAt: now,
           updatedAt: now,

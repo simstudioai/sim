@@ -166,3 +166,25 @@ Exécuter du SQL brut sur Amazon RDS en utilisant l'API Data
 
 - Catégorie : `tools`
 - Type : `rds`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Oui | Région AWS \(par ex., us-east-1\) |
+| `accessKeyId` | string | Oui | ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Clé d'accès secrète AWS |
+| `resourceArn` | string | Oui | ARN du cluster de base de données Aurora \(par ex., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | Oui | ARN du secret Secrets Manager contenant les identifiants de la base de données |
+| `database` | string | Non | Nom de la base de données à laquelle se connecter \(par ex., mydb, production_db\) |
+| `schema` | string | Non | Schéma à introspecter \(par défaut : public pour PostgreSQL, nom de la base de données pour MySQL\) |
+| `engine` | string | Non | Moteur de base de données \(aurora-postgresql ou aurora-mysql\). Détecté automatiquement si non fourni. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message de statut de l'opération |
+| `engine` | string | Type de moteur de base de données détecté |
+| `tables` | array | Tableau des schémas de tables avec colonnes, clés et index |
+| `schemas` | array | Liste des schémas disponibles dans la base de données |

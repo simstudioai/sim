@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -78,6 +79,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           updatedAt: new Date(),
         })
         .where(eq(workflow.id, workflowId))
+
+      recordAudit({
+        workspaceId: workflowData.workspaceId ?? null,
+        actorId: userId,
+        action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: workflowId,
+        resourceName: workflowData.name ?? undefined,
+        description: `Updated workflow variables`,
+        request: req,
+      })
 
       return NextResponse.json({ success: true })
     } catch (validationError) {

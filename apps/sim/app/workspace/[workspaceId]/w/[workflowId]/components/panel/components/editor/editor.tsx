@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 import {
   BookOpen,
   Check,
@@ -615,6 +615,15 @@ export function Editor() {
                           className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />
                       </button>
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                    </div>
+                  )}
+                  {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                    <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                      <span className='whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)]'>
+                        Additional fields
+                      </span>
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                     </div>
                   )}

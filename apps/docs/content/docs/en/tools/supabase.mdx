@@ -57,6 +57,7 @@ Query data from a Supabase table
 | `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
+| `offset` | number | No | Number of rows to skip \(for pagination\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
@@ -211,6 +212,7 @@ Perform full-text search on a Supabase table
 | `searchType` | string | No | Search type: plain, phrase, or websearch \(default: websearch\) |
 | `language` | string | No | Language for text search configuration \(default: english\) |
 | `limit` | number | No | Maximum number of rows to return |
+| `offset` | number | No | Number of rows to skip \(for pagination\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output

@@ -1,0 +1,92 @@
+---
+title: Google Books
+description: Buchinformationen suchen und abrufen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_books"
+  color="#FFFFFF"
+/>
+
+## Nutzungsanleitung
+
+Suchen Sie nach Büchern über die Google Books API. Finden Sie Bände nach Titel, Autor, ISBN oder Stichwörtern und rufen Sie detaillierte Informationen zu bestimmten Büchern ab, einschließlich Beschreibungen, Bewertungen und Veröffentlichungsdetails.
+
+## Tools
+
+### `google_books_volume_search`
+
+Suchen Sie nach Büchern über die Google Books API
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Google Books API-Schlüssel |
+| `query` | string | Ja | Suchanfrage. Unterstützt spezielle Schlüsselwörter: intitle:, inauthor:, inpublisher:, subject:, isbn: |
+| `filter` | string | Nein | Ergebnisse nach Verfügbarkeit filtern \(partial, full, free-ebooks, paid-ebooks, ebooks\) |
+| `printType` | string | Nein | Auf Drucktyp beschränken \(all, books, magazines\) |
+| `orderBy` | string | Nein | Sortierreihenfolge \(relevance, newest\) |
+| `startIndex` | number | Nein | Index des ersten zurückzugebenden Ergebnisses \(für Paginierung\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(1-40\) |
+| `langRestrict` | string | Nein | Ergebnisse auf eine bestimmte Sprache beschränken \(ISO 639-1-Code\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `totalItems` | number | Gesamtanzahl der übereinstimmenden Ergebnisse |
+| `volumes` | array | Liste der übereinstimmenden Bände |
+|   ↳ `id` | string | Band-ID |
+|   ↳ `title` | string | Buchtitel |
+|   ↳ `subtitle` | string | Buchuntertitel |
+|   ↳ `authors` | array | Liste der Autoren |
+|   ↳ `publisher` | string | Verlagsname |
+|   ↳ `publishedDate` | string | Veröffentlichungsdatum |
+|   ↳ `description` | string | Buchbeschreibung |
+|   ↳ `pageCount` | number | Anzahl der Seiten |
+|   ↳ `categories` | array | Buchkategorien |
+|   ↳ `averageRating` | number | Durchschnittliche Bewertung \(1-5\) |
+|   ↳ `ratingsCount` | number | Anzahl der Bewertungen |
+|   ↳ `language` | string | Sprachcode |
+|   ↳ `previewLink` | string | Link zur Vorschau auf Google Books |
+|   ↳ `infoLink` | string | Link zur Infoseite |
+|   ↳ `thumbnailUrl` | string | URL des Buchcover-Thumbnails |
+|   ↳ `isbn10` | string | ISBN-10-Kennung |
+|   ↳ `isbn13` | string | ISBN-13-Kennung |
+
+### `google_books_volume_details`
+
+Detaillierte Informationen über ein bestimmtes Buchvolumen abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Ja | Google Books API-Schlüssel |
+| `volumeId` | string | Ja | Die ID des abzurufenden Volumens |
+| `projection` | string | Nein | Projektionsebene \(full, lite\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Volumen-ID |
+| `title` | string | Buchtitel |
+| `subtitle` | string | Buchuntertitel |
+| `authors` | array | Liste der Autoren |
+| `publisher` | string | Verlagsname |
+| `publishedDate` | string | Veröffentlichungsdatum |
+| `description` | string | Buchbeschreibung |
+| `pageCount` | number | Anzahl der Seiten |
+| `categories` | array | Buchkategorien |
+| `averageRating` | number | Durchschnittliche Bewertung \(1-5\) |
+| `ratingsCount` | number | Anzahl der Bewertungen |
+| `language` | string | Sprachcode |
+| `previewLink` | string | Link zur Vorschau auf Google Books |
+| `infoLink` | string | Link zur Infoseite |
+| `thumbnailUrl` | string | URL des Buchcover-Thumbnails |
+| `isbn10` | string | ISBN-10-Kennung |
+| `isbn13` | string | ISBN-13-Kennung |

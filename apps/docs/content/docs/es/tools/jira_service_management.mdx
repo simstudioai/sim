@@ -484,3 +484,68 @@ Aprobar o rechazar una solicitud de aprobación en Jira Service Management
 
 - Categoría: `tools`
 - Tipo: `jira_service_management`
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(ej., tuempresa.atlassian.net\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia |
+| `issueIdOrKey` | string | Sí | ID o clave del issue \(ej., SD-123\) |
+| `approvalId` | string | Sí | ID de aprobación a responder |
+| `decision` | string | Sí | Decisión: "approve" o "decline" |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la operación |
+| `issueIdOrKey` | string | ID o clave del issue |
+| `approvalId` | string | ID de aprobación |
+| `decision` | string | Decisión tomada \(approve/decline\) |
+| `id` | string | ID de aprobación de la respuesta |
+| `name` | string | Descripción de la aprobación |
+| `finalDecision` | string | Decisión final de aprobación: pending, approved o declined |
+| `canAnswerApproval` | boolean | Si el usuario actual aún puede responder |
+| `approvers` | array | Lista actualizada de aprobadores con decisiones |
+|   ↳ `approver` | object | Detalles del usuario aprobador |
+|     ↳ `accountId` | string | ID de cuenta del aprobador |
+|     ↳ `displayName` | string | Nombre para mostrar del aprobador |
+|     ↳ `emailAddress` | string | Email del aprobador |
+|     ↳ `active` | boolean | Si la cuenta está activa |
+|   ↳ `approverDecision` | string | Decisión individual del aprobador |
+| `createdDate` | json | Fecha de creación de la aprobación |
+| `completedDate` | json | Fecha de finalización de la aprobación |
+| `approval` | json | El objeto de aprobación |
+| `success` | boolean | Si la operación tuvo éxito |
+
+### `jsm_get_request_type_fields`
+
+Obtiene los campos requeridos para crear una solicitud de un tipo específico en Jira Service Management
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(ej., tuempresa.atlassian.net\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia |
+| `serviceDeskId` | string | Sí | ID del service desk \(ej., "1", "2"\) |
+| `requestTypeId` | string | Sí | ID del tipo de solicitud \(ej., "10", "15"\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `ts` | string | Marca de tiempo de la operación |
+| `serviceDeskId` | string | ID del service desk |
+| `requestTypeId` | string | ID del tipo de solicitud |
+| `canAddRequestParticipants` | boolean | Si se pueden añadir participantes a solicitudes de este tipo |
+| `canRaiseOnBehalfOf` | boolean | Si se pueden crear solicitudes en nombre de otro usuario |
+| `requestTypeFields` | array | Lista de campos para este tipo de solicitud |
+|   ↳ `fieldId` | string | Identificador del campo \(ej., summary, description, customfield_10010\) |
+|   ↳ `name` | string | Nombre legible del campo |
+|   ↳ `description` | string | Texto de ayuda para el campo |
+|   ↳ `required` | boolean | Si el campo es obligatorio |
+|   ↳ `visible` | boolean | Si el campo es visible |
+|   ↳ `validValues` | json | Valores permitidos para campos de selección |
+|   ↳ `presetValues` | json | Valores pre-rellenados |
+|   ↳ `defaultValues` | json | Valores predeterminados para el campo |
+|   ↳ `jiraSchema` | json | Esquema del campo de Jira con type, system, custom, customId |

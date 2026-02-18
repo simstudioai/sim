@@ -242,3 +242,44 @@ Dies verteilt große Mehrverbrauchsgebühren über den Monat, anstatt einer gro�
 - Erfahren Sie mehr über [Protokollierung](/execution/logging), um Ausführungsdetails zu verfolgen
 - Entdecken Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
 - Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren
+
+**Pro-Tarif (20 $/Monat):**
+- Monatliches Abonnement beinhaltet 20 $ Nutzung
+- Nutzung unter 20 $ → Keine zusätzlichen Gebühren
+- Nutzung über 20 $ → Mehrverbrauch wird am Monatsende abgerechnet
+- Beispiel: 35 $ Nutzung = 20 $ (Abonnement) + 15 $ (Mehrverbrauch)
+
+**Team-Tarif (40 $/Platz/Monat):**
+- Gemeinsame Nutzung über alle Teammitglieder hinweg
+- Mehrverbrauch wird aus der gesamten Teamnutzung berechnet
+- Der Organisationsinhaber erhält eine Rechnung
+
+**Enterprise-Tarife:**
+- Fester Monatspreis, keine Mehrverbräuche
+- Individuelle Nutzungslimits gemäß Vereinbarung
+
+### Schwellenwertabrechnung
+
+Wenn der nicht abgerechnete Mehrverbrauch 50 $ erreicht, rechnet Sim automatisch den gesamten nicht abgerechneten Betrag ab.
+
+**Beispiel:**
+- Tag 10: 70 $ Mehrverbrauch → 70 $ sofort abrechnen
+- Tag 15: Weitere 35 $ Nutzung (105 $ gesamt) → Bereits abgerechnet, keine Aktion
+- Tag 20: Weitere 50 $ Nutzung (155 $ gesamt, 85 $ nicht abgerechnet) → 85 $ sofort abrechnen
+
+Dies verteilt hohe Mehrverbrauchsgebühren über den Monat hinweg, anstatt einer großen Rechnung am Periodenende.
+
+## Best Practices für das Kostenmanagement
+
+1. **Regelmäßig überwachen**: Überprüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
+2. **Budgets festlegen**: Nutzen Sie Tariflimits als Leitplanken für Ihre Ausgaben
+3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
+4. **Passende Modelle verwenden**: Stimmen Sie die Modellkomplexität auf die Aufgabenanforderungen ab
+5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie mehrere Anfragen, wenn möglich, um den Overhead zu reduzieren
+
+## Nächste Schritte
+
+- Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
+- Erfahren Sie mehr über [Protokollierung](/execution/logging), um Ausführungsdetails zu verfolgen
+- Erkunden Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
+- Informieren Sie sich über [Workflow-Optimierungstechniken](/blocks), um Kosten zu reduzieren

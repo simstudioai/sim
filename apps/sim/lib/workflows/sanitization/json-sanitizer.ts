@@ -57,12 +57,15 @@ export interface ExportWorkflowState {
       sortOrder?: number
       exportedAt?: string
     }
-    variables?: Array<{
-      id: string
-      name: string
-      type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-      value: unknown
-    }>
+    variables?: Record<
+      string,
+      {
+        id: string
+        name: string
+        type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    >
   }
 }
 

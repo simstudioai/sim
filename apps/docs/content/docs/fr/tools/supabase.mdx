@@ -495,3 +495,21 @@ Créer une URL signée temporaire pour un fichier dans un bucket de stockage Sup
 
 - Catégorie : `tools`
 - Type : `supabase`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Oui | L'ID de votre projet Supabase \(ex. : jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Oui | Le nom du bucket de stockage |
+| `path` | string | Oui | Le chemin vers le fichier \(ex. : "dossier/fichier.jpg"\) |
+| `expiresIn` | number | Oui | Nombre de secondes avant l'expiration de l'URL \(ex. : 3600 pour 1 heure\) |
+| `download` | boolean | Non | Si vrai, force le téléchargement au lieu de l'affichage en ligne \(par défaut : false\) |
+| `apiKey` | string | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message d'état de l'opération |
+| `signedUrl` | string | L'URL signée temporaire pour accéder au fichier |

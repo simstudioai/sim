@@ -555,3 +555,32 @@ Récupère les utilisateurs Jira. Si un ID de compte est fourni, renvoie un seul
 
 - Catégorie : `tools`
 - Type : `jira`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `accountId` | chaîne | Non | ID de compte optionnel pour obtenir un utilisateur spécifique. S'il n'est pas fourni, renvoie tous les utilisateurs. |
+| `startAt` | nombre | Non | Index du premier utilisateur à renvoyer \(pour la pagination, par défaut : 0\) |
+| `maxResults` | nombre | Non | Nombre maximum d'utilisateurs à renvoyer \(par défaut : 50\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | chaîne | Horodatage ISO 8601 de l'opération |
+| `users` | tableau | Tableau des utilisateurs Jira |
+|   ↳ `accountId` | chaîne | ID de compte Atlassian de l'utilisateur |
+|   ↳ `displayName` | chaîne | Nom d'affichage de l'utilisateur |
+|   ↳ `active` | booléen | Indique si le compte utilisateur est actif |
+|   ↳ `emailAddress` | chaîne | Adresse e-mail de l'utilisateur |
+|   ↳ `accountType` | chaîne | Type de compte \(ex. : atlassian, app, customer\) |
+|   ↳ `avatarUrl` | chaîne | URL de l'avatar de l'utilisateur \(48x48\) |
+|   ↳ `timeZone` | chaîne | Fuseau horaire de l'utilisateur |
+|   ↳ `avatarUrls` | json | URL des avatars de l'utilisateur en plusieurs tailles \(16x16, 24x24, 32x32, 48x48\) |
+|   ↳ `self` | chaîne | URL de l'API REST pour cet utilisateur |
+| `total` | nombre | Nombre total d'utilisateurs renvoyés |
+| `startAt` | nombre | Index de début de pagination |
+| `maxResults` | nombre | Nombre maximum de résultats par page |

@@ -4,6 +4,7 @@
  * @vitest-environment node
  */
 import {
+  auditMock,
   createMockRequest,
   mockAuth,
   mockConsoleLogger,
@@ -34,6 +35,8 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 mockDrizzleOrm()
 mockConsoleLogger()
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 describe('Document By ID API Route', () => {
   const mockAuth$ = mockAuth()

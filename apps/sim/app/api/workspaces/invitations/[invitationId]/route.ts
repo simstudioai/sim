@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -178,6 +179,19 @@ export async function GET(
         })
       }
 
+      recordAudit({
+        workspaceId: invitation.workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.INVITATION_ACCEPTED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: invitation.workspaceId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: workspaceDetails.name,
+        description: `Accepted workspace invitation to "${workspaceDetails.name}"`,
+        request: req,
+      })
+
       return NextResponse.redirect(new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl()))
     }
 
@@ -231,6 +245,19 @@ export async function DELETE(
     }
 
     await db.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitationId))
+
+    recordAudit({
+      workspaceId: invitation.workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.INVITATION_REVOKED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: invitation.workspaceId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Revoked workspace invitation for ${invitation.email}`,
+      metadata: { invitationId, email: invitation.email },
+      request: _request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

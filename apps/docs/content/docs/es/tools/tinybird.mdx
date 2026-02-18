@@ -1,0 +1,78 @@
+---
+title: Tinybird
+description: Envía eventos y consulta datos con Tinybird
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tinybird"
+  color="#2EF598"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Potencia tus pipelines de datos en tiempo real y análisis con [Tinybird](https://tinybird.co) – la plataforma rápida y escalable para ingerir, consultar y construir APIs sobre grandes volúmenes de datos de eventos. Tinybird permite a desarrolladores e ingenieros de datos recopilar, transformar y exponer datos al instante, facilitando alimentar dashboards, aplicaciones y automatización con información actualizada.
+
+Con la integración de Tinybird, puedes:
+
+- **Transmitir eventos a escala:** Ingiere millones de eventos JSON por segundo de forma confiable, usando APIs basadas en HTTP con NDJSON o JSON.
+- **Consultar datos con baja latencia:** Ejecuta análisis complejos basados en SQL y consultas de agregación en tiempo real, ideal para dashboards, alertas e informes.
+- **Exponer datos mediante APIs instantáneas:** Construye y publica endpoints de API para tus consultas directamente desde la interfaz de Tinybird o mediante su API.
+- **Automatizar flujos de trabajo:** Usa las APIs de Tinybird en tus automatizaciones para obtener, transformar y sincronizar datos en tu stack.
+- **Monitorear y depurar:** Obtén información sobre el rendimiento del pipeline, latencias de consultas y salud de la ingesta con monitoreo en tiempo real.
+- **Acceso seguro:** Aprovecha la autenticación granular y el alcance de recursos con tokens de API personales o de workspace.
+
+Tinybird empodera a equipos de ingeniería, análisis y producto para entregar productos de datos ultrarrápidos y siempre actualizados con mínima sobrecarga operativa. Pasa de datos de eventos en bruto a endpoints listos para producción en minutos.
+
+¡Conecta Tinybird a tus flujos de trabajo hoy para acelerar funcionalidades basadas en datos, automatización y análisis!
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Interactúa con Tinybird usando la Events API para transmitir eventos JSON o NDJSON, o usa la Query API para ejecutar consultas SQL contra Pipes y Data Sources.
+
+## Herramientas
+
+### `tinybird_events`
+
+Envía eventos a una fuente de datos de Tinybird usando la API de eventos. Admite formatos JSON y NDJSON con compresión gzip opcional.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Sí | URL base de la API de Tinybird \(ej., https://api.tinybird.co o https://api.us-east.tinybird.co\) |
+| `datasource` | string | Sí | Nombre de la fuente de datos de Tinybird a la que enviar eventos. Ejemplo: "events_raw", "user_analytics" |
+| `data` | string | Sí | Datos a enviar como NDJSON \(JSON delimitado por líneas\) o cadena JSON. Cada evento debe ser un objeto JSON válido. Ejemplo NDJSON: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
+| `wait` | boolean | No | Esperar confirmación de la base de datos antes de responder. Permite reintentos más seguros pero introduce latencia. Por defecto es false. |
+| `format` | string | No | Formato de los datos de eventos: "ndjson" \(por defecto\) o "json" |
+| `compression` | string | No | Formato de compresión: "none" \(por defecto\) o "gzip" |
+| `token` | string | Sí | Token de API de Tinybird con alcance DATASOURCE:APPEND o DATASOURCE:CREATE |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `successful_rows` | number | Número de filas ingestadas exitosamente |
+| `quarantined_rows` | number | Número de filas en cuarentena \(falló la validación\) |
+
+### `tinybird_query`
+
+Ejecuta consultas SQL contra pipes y fuentes de datos de Tinybird usando la API de consultas.
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | Sí | URL base de la API de Tinybird \(ej., https://api.tinybird.co\) |
+| `query` | string | Sí | Consulta SQL a ejecutar. Especifica el formato de salida deseado \(ej., FORMAT JSON, FORMAT CSV, FORMAT TSV\). El formato JSON proporciona datos estructurados, mientras que otros formatos devuelven texto sin formato. Ejemplo: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
+| `pipeline` | string | No | Nombre de pipe opcional. Cuando se proporciona, habilita la sintaxis SELECT * FROM _. Ejemplo: "my_pipe", "analytics_pipe" |
+| `token` | string | Sí | Token de API de Tinybird con alcance PIPE:READ |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | json | Datos del resultado de la consulta. Para FORMAT JSON: array de objetos. Para otros formatos \(CSV, TSV, etc.\): cadena de texto sin procesar. |
+| `rows` | number | Número de filas devueltas \(solo disponible con FORMAT JSON\) |
+| `statistics` | json | Estadísticas de ejecución de la consulta - tiempo transcurrido, filas leídas, bytes leídos \(solo disponible con FORMAT JSON\) |

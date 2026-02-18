@@ -212,3 +212,23 @@ Zepからユーザー情報を取得する
 
 - カテゴリー: `tools`
 - タイプ: `zep`
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | はい | スレッドを取得するユーザーID（例："user_123"） |
+| `limit` | number | いいえ | 返すスレッドの最大数（例：10、25、50） |
+| `apiKey` | string | はい | あなたのZep APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `threads` | array | スレッドオブジェクトの配列 |
+|   ↳ `threadId` | string | スレッド識別子 |
+|   ↳ `userId` | string | 関連付けられたユーザーID |
+|   ↳ `uuid` | string | 内部UUID |
+|   ↳ `createdAt` | string | 作成タイムスタンプ（ISO 8601） |
+|   ↳ `updatedAt` | string | 最終更新タイムスタンプ（ISO 8601） |
+|   ↳ `projectUuid` | string | プロジェクトUUID |
+|   ↳ `metadata` | object | カスタムメタデータ（動的なキーと値のペア） |
+| `totalCount` | number | 利用可能なアイテムの総数 |

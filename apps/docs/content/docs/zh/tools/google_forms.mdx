@@ -52,3 +52,193 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`google_forms`
+
+检索表单结构，包括其项目、设置和元数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | 要检索的 Google 表单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `formId` | string | 表单 ID |
+| `title` | string | 响应者可见的表单标题 |
+| `description` | string | 表单描述 |
+| `documentTitle` | string | 在 Drive 中可见的文档标题 |
+| `responderUri` | string | 可与响应者分享的 URI |
+| `linkedSheetId` | string | 关联 Google 表格的 ID |
+| `revisionId` | string | 表单的修订 ID |
+| `items` | array | 表单项目（问题、分节等） |
+|   ↳ `itemId` | string | 项目 ID |
+|   ↳ `title` | string | 项目标题 |
+|   ↳ `description` | string | 项目描述 |
+| `settings` | json | 表单设置 |
+| `publishSettings` | json | 表单发布设置 |
+
+### `google_forms_create_form`
+
+创建一个带有标题的新 Google 表单
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | 是 | 响应者可见的表单标题 |
+| `documentTitle` | string | 否 | 在 Drive 中可见的文档标题（默认为表单标题） |
+| `unpublished` | boolean | 否 | 如果为 true，则创建一个不接受响应的未发布表单 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `formId` | string | 创建的表单 ID |
+| `title` | string | 表单标题 |
+| `documentTitle` | string | Drive 中的文档标题 |
+| `responderUri` | string | 可与答题者分享的 URI |
+| `revisionId` | string | 表单的修订版本 ID |
+
+### `google_forms_batch_update`
+
+对表单应用多项更新（添加项目、更新信息、更改设置等）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Google Forms 表单 ID |
+| `requests` | json | 是 | 更新请求数组（updateFormInfo、updateSettings、createItem、updateItem、moveItem、deleteItem）|
+| `includeFormInResponse` | boolean | 否 | 是否在响应中返回已更新的表单 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `replies` | array | 每个更新请求的回复 |
+| `writeControl` | object | 包含修订版本 ID 的写入控制信息 |
+|   ↳ `requiredRevisionId` | string | 用于冲突检测的必需修订版本 ID |
+|   ↳ `targetRevisionId` | string | 目标修订版本 ID |
+| `form` | object | 已更新的表单（如果 includeFormInResponse 为 true）|
+|   ↳ `formId` | string | 表单 ID |
+|   ↳ `info` | object | 包含标题和描述的表单信息 |
+|     ↳ `title` | string | 答题者可见的表单标题 |
+|     ↳ `description` | string | 表单描述 |
+|     ↳ `documentTitle` | string | Drive 中可见的文档标题 |
+|   ↳ `settings` | object | 表单设置 |
+|     ↳ `quizSettings` | object | 测验设置 |
+|       ↳ `isQuiz` | boolean | 是否为测验表单 |
+|     ↳ `emailCollectionType` | string | 邮箱收集类型 |
+|   ↳ `revisionId` | string | 表单的修订版本 ID |
+|   ↳ `responderUri` | string | 可与答题者分享的 URI |
+|   ↳ `linkedSheetId` | string | 关联的 Google 表格 ID |
+|   ↳ `publishSettings` | object | 表单发布设置 |
+|     ↳ `publishState` | object | 当前发布状态 |
+|       ↳ `isPublished` | boolean | 表单是否已发布 |
+|       ↳ `isAcceptingResponses` | boolean | 表单是否接受响应 |
+
+### `google_forms_set_publish_settings`
+
+更新表单的发布设置（发布/取消发布，接受响应）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Google Forms 表单 ID |
+| `isPublished` | boolean | 是 | 表单是否已发布并对他人可见 |
+| `isAcceptingResponses` | boolean | 否 | 表单是否接受响应（如果 isPublished 为 false，则强制为 false） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `formId` | string | 表单 ID |
+| `publishSettings` | json | 更新后的发布设置 |
+|   ↳ `publishState` | object | 发布状态 |
+|     ↳ `isPublished` | boolean | 表单是否已发布 |
+|     ↳ `isAcceptingResponses` | boolean | 表单是否接受响应 |
+
+### `google_forms_create_watch`
+
+为表单变更（结构变更或新响应）创建通知监听
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | 要监听的 Google Forms 表单 ID |
+| `eventType` | string | 是 | 要监听的事件类型：SCHEMA（表单结构变更）或 RESPONSES（新提交） |
+| `topicName` | string | 是 | Cloud Pub/Sub 主题名称（格式：projects/\{project\}/topics/\{topic\}） |
+| `watchId` | string | 否 | 自定义监听 ID（4-63 个字符，小写字母、数字、连字符） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 监视 ID |
+| `eventType` | string | 被监视的事件类型 |
+| `topicName` | string | Cloud Pub/Sub 主题 |
+| `createTime` | string | 监视创建时间 |
+| `expireTime` | string | 监视过期时间（创建后 7 天） |
+| `state` | string | 监视状态（ACTIVE，SUSPENDED） |
+
+### `google_forms_list_watches`
+
+列出表单的所有通知监视
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Google Forms 表单 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `watches` | array | 表单的监视列表 |
+|   ↳ `id` | string | 监视 ID |
+|   ↳ `eventType` | string | 事件类型（SCHEMA 或 RESPONSES） |
+|   ↳ `createTime` | string | 监视创建时间 |
+|   ↳ `expireTime` | string | 监视过期时间 |
+|   ↳ `state` | string | 监视状态 |
+
+### `google_forms_delete_watch`
+
+从表单中删除通知监视
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Google Forms 表单 ID |
+| `watchId` | string | 是 | 要删除的监视 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 是否成功删除了监视 |
+
+### `google_forms_renew_watch`
+
+将通知监视续订 7 天
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Google Forms 表单 ID |
+| `watchId` | string | 是 | 要续订的监视 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 监视 ID |
+| `eventType` | string | 被监视的事件类型 |
+| `expireTime` | string | 新的过期时间 |
+| `state` | string | 监视状态 |

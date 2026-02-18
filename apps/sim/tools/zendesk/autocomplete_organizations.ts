@@ -21,9 +21,9 @@ export interface ZendeskAutocompleteOrganizationsResponse {
   output: {
     organizations: any[]
     paging?: {
+      after_cursor: string | null
+      has_more: boolean
       next_page?: string | null
-      previous_page?: string | null
-      count: number
     }
     metadata: {
       total_returned: number
@@ -78,7 +78,7 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number as a string (e.g., "1", "2")',
+      description: 'Page number for pagination (1-based)',
     },
   },
 
@@ -86,8 +86,8 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
     url: (params) => {
       const queryParams = new URLSearchParams()
       queryParams.append('name', params.name)
-      if (params.page) queryParams.append('page', params.page)
       if (params.perPage) queryParams.append('per_page', params.perPage)
+      if (params.page) queryParams.append('page', params.page)
 
       const query = queryParams.toString()
       const url = buildZendeskUrl(params.subdomain, '/organizations/autocomplete')
@@ -112,19 +112,22 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
 
     const data = await response.json()
     const organizations = data.organizations || []
+    const hasMore = data.next_page !== null && data.next_page !== undefined
 
     return {
       success: true,
       output: {
         organizations,
+        // /organizations/autocomplete uses offset pagination (page/per_page), not cursor pagination.
+        // after_cursor is always null; use next_page URL or page param for subsequent pages.
         paging: {
+          after_cursor: null,
+          has_more: hasMore,
           next_page: data.next_page ?? null,
-          previous_page: data.previous_page ?? null,
-          count: data.count || organizations.length,
         },
         metadata: {
           total_returned: organizations.length,
-          has_more: !!data.next_page,
+          has_more: hasMore,
         },
         success: true,
       },

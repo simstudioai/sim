@@ -1,0 +1,78 @@
+---
+title: Tinybird
+description: 使用 Tinybird 发送事件并查询数据
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tinybird"
+  color="#2EF598"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+通过 [Tinybird](https://tinybird.co) ，为你的实时数据管道和分析赋能——这是一个快速、可扩展的平台，能够高效地摄取、查询并基于大量事件数据构建 API。Tinybird 让开发者和数据工程师能够即时收集、转换和开放数据，轻松为仪表盘、应用和自动化提供最新洞察。
+
+通过集成 Tinybird，你可以：
+
+- **大规模流式传输事件：** 通过基于 HTTP 的 API，使用 NDJSON 或 JSON，可靠地每秒摄取数百万条 JSON 事件。
+- **低延迟查询数据：** 实时运行复杂的基于 SQL 的分析和聚合查询，非常适合仪表盘、告警和报表。
+- **通过即时 API 暴露数据：** 直接在 Tinybird UI 或通过其 API，为你的查询构建并发布 API 端点。
+- **自动化工作流：** 在自动化流程中使用 Tinybird 的 API，获取、转换并同步你全栈的数据。
+- **监控与调试：** 通过实时监控，洞察管道性能、查询延迟和数据摄取健康状况。
+- **安全访问：** 利用细粒度的身份验证和资源范围控制，支持个人或工作区 API 令牌。
+
+Tinybird 让工程、分析和产品团队能够以极低的运维成本，交付极速且始终最新的数据产品。从原始事件数据到生产级端点，只需几分钟。
+
+立即将 Tinybird 集成到你的工作流中，加速数据驱动的功能、自动化和分析！
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 Events API 与 Tinybird 交互，实现 JSON 或 NDJSON 事件流式传输，或使用 Query API 针对 Pipes 和 Data Sources 执行 SQL 查询。
+
+## 工具
+
+### `tinybird_events`
+
+使用 Events API 向 Tinybird 数据源发送事件。支持 JSON 和 NDJSON 格式，可选 gzip 压缩。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | 是 | Tinybird API 基础 URL（例如：`https://api.tinybird.co` 或 `https://api.us-east.tinybird.co`） |
+| `datasource` | string | 是 | 要发送事件的 Tinybird 数据源名称。例如："events_raw"、"user_analytics" |
+| `data` | string | 是 | 作为 NDJSON（换行分隔的 JSON）或 JSON 字符串发送的数据。每个事件应为有效的 JSON 对象。NDJSON 示例：`{"user_id": 1, "event": "click"}\n{"user_id": 2, "event": "view"}` |
+| `wait` | boolean | 否 | 在响应前等待数据库确认。可实现更安全的重试，但会增加延迟。默认值为 false。 |
+| `format` | string | 否 | 事件数据格式："ndjson"（默认）或 "json" |
+| `compression` | string | 否 | 压缩格式："none"（默认）或 "gzip" |
+| `token` | string | 是 | 具有 DATASOURCE:APPEND 或 DATASOURCE:CREATE 权限的 Tinybird API Token |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `successful_rows` | number | 成功导入的行数 |
+| `quarantined_rows` | number | 被隔离（校验失败）的行数 |
+
+### `tinybird_query`
+
+使用 Query API 对 Tinybird Pipes 和数据源执行 SQL 查询。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | 是 | Tinybird API 基础 URL（例如：https://api.tinybird.co） |
+| `query` | string | 是 | 要执行的 SQL 查询。请指定所需的输出格式（例如：FORMAT JSON、FORMAT CSV、FORMAT TSV）。JSON 格式提供结构化数据，其他格式返回原始文本。例如："SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
+| `pipeline` | string | 否 | 可选的 pipe 名称。提供后可启用 SELECT * FROM _ 语法。例如："my_pipe"、"analytics_pipe" |
+| `token` | string | 是 | 具有 PIPE:READ 权限的 Tinybird API Token |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | json | 查询结果数据。对于 FORMAT JSON：对象数组。对于其他格式（CSV、TSV 等）：原始文本字符串。 |
+| `rows` | number | 返回的行数（仅在 FORMAT JSON 下可用） |
+| `statistics` | json | 查询执行统计信息 - 用时、读取的行数、读取的字节数（仅在 FORMAT JSON 下可用） |

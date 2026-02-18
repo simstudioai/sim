@@ -189,3 +189,51 @@ Comprendre quand utiliser chacun :
 - **Opérations indépendantes uniquement** : Assurez-vous que les opérations ne dépendent pas les unes des autres
 - **Gérer les limites de taux** : Ajoutez des délais ou une limitation pour les workflows intensifs en API
 - **Gestion des erreurs** : Chaque instance doit gérer ses propres erreurs avec élégance
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Type parallèle</strong> : choisissez entre « count » ou « collection »
+      </li>
+      <li>
+        <strong>Count</strong> : nombre d'instances à exécuter (basé sur le comptage)
+      </li>
+      <li>
+        <strong>Collection</strong> : tableau ou objet à distribuer (basé sur la collection)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    Disponible **à l'intérieur** du parallèle uniquement :
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<parallel.index>"}</strong> : numéro d'instance (base 0)
+      </li>
+      <li>
+        <strong>{"<parallel.currentItem>"}</strong> : élément pour cette instance (collection uniquement)
+      </li>
+      <li>
+        <strong>{"<parallel.items>"}</strong> : collection complète (collection uniquement)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong> : tableau de tous les résultats d'instance (accessible via le nom du bloc)
+      </li>
+      <li>
+        <strong>Accès</strong> : disponible dans les blocs après la fin du parallèle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Bonnes pratiques
+
+- **Opérations indépendantes uniquement** : assurez-vous que les opérations ne dépendent pas les unes des autres
+- **Gérer les limites de débit** : ajoutez des délais ou une limitation pour les workflows intensifs en API
+- **Gestion des erreurs** : chaque instance doit gérer ses propres erreurs de manière appropriée

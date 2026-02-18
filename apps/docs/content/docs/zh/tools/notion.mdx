@@ -173,3 +173,34 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`notion`
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 数据库 UUID |
+| `url` | string | Notion 数据库 URL |
+| `created_time` | string | ISO 8601 创建时间戳 |
+| `properties` | object | 数据库属性结构 |
+| `title` | string | 数据库标题 |
+
+### `notion_add_database_row`
+
+向 Notion 数据库添加一行并指定属性
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | 是 | 要添加行的数据库 ID |
+| `properties` | json | 是 | 行属性，需为与数据库结构匹配的 JSON 对象（例如：`{"Name": {"title": [{"text": {"content": "Task 1"}}]}, "Status": {"select": {"name": "Done"}}}`） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `id` | string | 页面 UUID |
+| `url` | string | Notion 页面 URL |
+| `created_time` | string | ISO 8601 创建时间戳 |
+| `last_edited_time` | string | ISO 8601 最后编辑时间戳 |
+| `title` | string | 行标题 |

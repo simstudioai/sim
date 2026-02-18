@@ -62,6 +62,8 @@ export interface TypeformResponsesParams {
   formId: string
   apiKey: string
   pageSize?: number
+  before?: string
+  after?: string
   since?: string
   until?: string
   completed?: string

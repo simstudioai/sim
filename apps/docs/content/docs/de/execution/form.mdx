@@ -1,0 +1,142 @@
+---
+title: Formular-Bereitstellung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Stellen Sie Ihren Workflow als einbettbares Formular bereit, das Benutzer auf Ihrer Website ausfüllen oder per Link teilen können. Formularübermittlungen lösen Ihren Workflow mit dem `form` Trigger-Typ aus.
+
+## Übersicht
+
+Die Formular-Bereitstellung verwandelt das Eingabeformat Ihres Workflows in ein responsives Formular, das:
+- Per Direktlink geteilt werden kann (z. B. `https://sim.ai/form/my-survey`)
+- Mit einem iframe in jede Website eingebettet werden kann
+
+Wenn ein Benutzer das Formular absendet, wird Ihr Workflow mit den Formulardaten ausgelöst.
+
+<Callout type="info">
+Formulare leiten ihre Felder vom Eingabeformat des Start-Blocks Ihres Workflows ab. Jedes Feld wird zu einer Formulareingabe mit dem entsprechenden Typ.
+</Callout>
+
+## Erstellen eines Formulars
+
+1. Öffnen Sie Ihren Workflow und klicken Sie auf **Bereitstellen**
+2. Wählen Sie den Tab **Formular**
+3. Konfigurieren Sie:
+   - **URL**: Eindeutige Kennung (z. B. `contact-form` → `sim.ai/form/contact-form`)
+   - **Titel**: Formularüberschrift
+   - **Beschreibung**: Optionaler Untertitel
+   - **Formularfelder**: Passen Sie Beschriftungen und Beschreibungen für jedes Feld an
+   - **Authentifizierung**: Öffentlich, passwortgeschützt oder E-Mail-Whitelist
+   - **Dankesnachricht**: Wird nach der Übermittlung angezeigt
+4. Klicken Sie auf **Starten**
+
+## Feldzuordnung
+
+| Eingabeformat-Typ | Formularfeld |
+|------------------|------------|
+| `string` | Texteingabe |
+| `number` | Zahleneingabe |
+| `boolean` | Umschalter |
+| `object` | JSON-Editor |
+| `array` | JSON-Array-Editor |
+| `files` | Datei-Upload |
+
+## Zugriffskontrolle
+
+| Modus | Beschreibung |
+|------|-------------|
+| **Öffentlich** | Jeder mit dem Link kann absenden |
+| **Passwort** | Benutzer müssen ein Passwort eingeben |
+| **E-Mail-Whitelist** | Nur angegebene E-Mails/Domains können absenden |
+
+Für E-Mail-Whitelist:
+- Exakt: `user@example.com`
+- Domain: `@example.com` (alle E-Mails von der Domain)
+
+## Einbettung
+
+### Direkter Link
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## API-Übermittlung
+
+Formulare programmatisch übermitteln:
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+
+  </Tab>
+  <Tab value="TypeScript">
+
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+
+  </Tab>
+</Tabs>
+
+### Geschützte Formulare
+
+Für passwortgeschützte Formulare:
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+Für E-Mail-geschützte Formulare:
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## Fehlerbehebung
+
+**"Keine Eingabefelder konfiguriert"** - Fügen Sie Eingabeformat-Felder zu Ihrem Start-Block hinzu.
+
+**Formular lädt nicht im Iframe** - Überprüfen Sie, ob die CSP Ihrer Website Iframes von `sim.ai` erlaubt.
+
+**Übermittlungen schlagen fehl** - Überprüfen Sie, ob die Kennung korrekt ist und erforderliche Felder ausgefüllt sind.

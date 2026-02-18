@@ -1,0 +1,178 @@
+---
+title: Similarweb
+description: ウェブサイトのトラフィックと分析データ
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="similarweb"
+  color="#000922"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Similarweb](https://www.similarweb.com/)は、数百万のウェブサイトの詳細なトラフィックとエンゲージメントデータを提供する、ウェブ分析の主要プラットフォームです。Similarwebは、ウェブサイトの訪問数、トラフィックソース、オーディエンスの行動、競合ベンチマークに関するインサイトを提供します。
+
+SimでSimilarwebを使用すると、エージェントは次のことができます。
+
+- **ウェブサイトのトラフィックを分析**: 月間訪問数、平均滞在時間、直帰率、上位国などの主要指標を取得します。
+- **オーディエンスのエンゲージメントを理解**: 訪問あたりのページ数やエンゲージメント時間など、ユーザーがウェブサイトとどのようにやり取りするかについてのインサイトを得ます。
+- **ランキングとパフォーマンスを追跡**: グローバル、国別、カテゴリー別のランクにアクセスし、競合他社とサイトをベンチマークします。
+- **トラフィックソースを発見**: ダイレクト、検索、ソーシャル、リファラルなどのチャネル別にトラフィックを分類します。
+
+SimのSimilarweb統合を使用して、競合他社の監視を自動化し、サイトのパフォーマンスを追跡し、実用的な市場調査を表面化します。すべてワークフローと自動化に直接統合されます。エージェントが信頼性の高いウェブ分析データに簡単かつプログラム的にアクセスして活用できるようにします。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Similarweb APIを使用して、トラフィック推定、エンゲージメント指標、ランキング、トラフィックソースを含む包括的なウェブサイト分析にアクセスします。
+
+## ツール
+
+### `similarweb_website_overview`
+
+トラフィック、ランキング、エンゲージメント、トラフィックソースを含む包括的なウェブサイト分析を取得します
+
+#### 入力
+
+| パラメータ | タイプ | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SimilarWeb APIキー |
+| `domain` | string | はい | 分析するウェブサイトのドメイン（例:「example.com」、wwwやプロトコルなし） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `siteName` | string | ウェブサイト名 |
+| `description` | string | ウェブサイトの説明 |
+| `globalRank` | number | グローバルトラフィックランク |
+| `countryRank` | number | 国別トラフィックランク |
+| `categoryRank` | number | カテゴリ別トラフィックランク |
+| `category` | string | ウェブサイトカテゴリ |
+| `monthlyVisits` | number | 推定月間訪問数 |
+| `engagementVisitDuration` | number | 平均訪問時間（秒） |
+| `engagementPagesPerVisit` | number | 訪問あたりの平均ページ数 |
+| `engagementBounceRate` | number | 直帰率（0-1） |
+| `topCountries` | array | トラフィックシェア上位国 |
+|   ↳ `country` | string | 国コード |
+|   ↳ `share` | number | トラフィックシェア（0-1） |
+| `trafficSources` | json | トラフィックソース内訳 |
+|   ↳ `direct` | number | 直接トラフィックシェア |
+|   ↳ `referrals` | number | 参照トラフィックシェア |
+|   ↳ `search` | number | 検索トラフィックシェア |
+|   ↳ `social` | number | ソーシャルトラフィックシェア |
+|   ↳ `mail` | number | メールトラフィックシェア |
+|   ↳ `paidReferrals` | number | 有料参照トラフィックシェア |
+
+### `similarweb_traffic_visits`
+
+時系列でのウェブサイト総訪問数を取得（デスクトップとモバイルの合計）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SimilarWeb APIキー |
+| `domain` | string | はい | 分析対象のウェブサイトドメイン（例：「example.com」、wwwやプロトコルは不要） |
+| `country` | string | はい | ISO 2文字の国コード（例：「us」、「gb」、「de」）、または世界全体のデータの場合は「world」 |
+| `granularity` | string | はい | データの粒度：daily、weekly、またはmonthly |
+| `startDate` | string | いいえ | 開始日（YYYY-MM形式、例：「2024-01」） |
+| `endDate` | string | いいえ | 終了日（YYYY-MM形式、例：「2024-12」） |
+| `mainDomainOnly` | boolean | いいえ | 結果からサブドメインを除外 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 分析対象ドメイン |
+| `country` | string | 適用された国フィルタ |
+| `granularity` | string | データの粒度 |
+| `lastUpdated` | string | データ最終更新タイムスタンプ |
+| `visits` | array | 時系列の訪問データ |
+|   ↳ `date` | string | 日付 \(YYYY-MM-DD\) |
+|   ↳ `visits` | number | 訪問数 |
+
+### `similarweb_bounce_rate`
+
+ウェブサイトの直帰率を時系列で取得します(デスクトップとモバイルの合計)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | SimilarWeb APIキー |
+| `domain` | string | はい | 分析対象のウェブサイトドメイン \(例: "example.com" wwwやプロトコルなし\) |
+| `country` | string | はい | 2文字のISO国コード \(例: "us", "gb", "de"\) または世界全体のデータの場合は "world" |
+| `granularity` | string | はい | データの粒度: daily、weekly、またはmonthly |
+| `startDate` | string | いいえ | 開始日をYYYY-MM形式で指定 \(例: "2024-01"\) |
+| `endDate` | string | いいえ | 終了日をYYYY-MM形式で指定 \(例: "2024-12"\) |
+| `mainDomainOnly` | boolean | いいえ | 結果からサブドメインを除外 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 分析対象ドメイン |
+| `country` | string | 適用された国フィルタ |
+| `granularity` | string | データの粒度 |
+| `lastUpdated` | string | データ最終更新タイムスタンプ |
+| `bounceRate` | array | 時系列の直帰率データ |
+|   ↳ `date` | string | 日付 \(YYYY-MM-DD\) |
+|   ↳ `bounceRate` | number | 直帰率 \(0-1\) |
+
+### `similarweb_pages_per_visit`
+
+訪問あたりの平均ページ数を時系列で取得(デスクトップとモバイルの合計)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb APIキー |
+| `domain` | string | Yes | 分析対象のウェブサイトドメイン(例:「example.com」、wwwやプロトコルは不要) |
+| `country` | string | Yes | ISO 2文字の国コード(例:「us」、「gb」、「de」)、または世界全体のデータの場合は「world」 |
+| `granularity` | string | Yes | データの粒度:daily、weekly、またはmonthly |
+| `startDate` | string | No | 開始日をYYYY-MM形式で指定(例:「2024-01」) |
+| `endDate` | string | No | 終了日をYYYY-MM形式で指定(例:「2024-12」) |
+| `mainDomainOnly` | boolean | No | 結果からサブドメインを除外 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 分析されたドメイン |
+| `country` | string | 適用された国フィルタ |
+| `granularity` | string | データの粒度 |
+| `lastUpdated` | string | データの最終更新タイムスタンプ |
+| `pagesPerVisit` | array | 訪問あたりのページ数の時系列データ |
+|   ↳ `date` | string | 日付(YYYY-MM-DD) |
+|   ↳ `pagesPerVisit` | number | 訪問あたりの平均ページ数 |
+
+### `similarweb_visit_duration`
+
+デスクトップの平均訪問時間を時系列で取得(秒単位)
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SimilarWeb APIキー |
+| `domain` | string | Yes | 分析対象のウェブサイトドメイン(例:「example.com」、wwwやプロトコルは不要) |
+| `country` | string | Yes | ISO 2文字の国コード(例:「us」、「gb」、「de」)、または世界全体のデータの場合は「world」 |
+| `granularity` | string | Yes | データの粒度:daily、weekly、またはmonthly |
+| `startDate` | string | No | 開始日をYYYY-MM形式で指定(例:「2024-01」) |
+| `endDate` | string | No | 終了日をYYYY-MM形式で指定(例:「2024-12」) |
+| `mainDomainOnly` | boolean | No | 結果からサブドメインを除外 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `domain` | string | 分析対象ドメイン |
+| `country` | string | 適用された国フィルタ |
+| `granularity` | string | データの粒度 |
+| `lastUpdated` | string | データ最終更新タイムスタンプ |
+| `averageVisitDuration` | array | デスクトップ訪問時間の経時データ |
+|   ↳ `date` | string | 日付\(YYYY-MM-DD\) |
+|   ↳ `durationSeconds` | number | 平均訪問時間(秒) |

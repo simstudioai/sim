@@ -1170,3 +1170,1373 @@ Löscht ein GitHub Project V2. Diese Aktion ist permanent und kann nicht rückg�
 
 - Kategorie: `tools`
 - Typ: `github`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage mit optionalen Qualifizierern \(repo:, language:, path:, extension:, user:, org:\) |
+| `sort` | string | Nein | Sortieren nach Indexierungsdatum \(Standard: beste Übereinstimmung\) |
+| `order` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_count` | number | Gesamtzahl übereinstimmender Ergebnisse |
+| `incomplete_results` | boolean | Ob Ergebnisse unvollständig sind |
+| `items` | array | Array von Code-Übereinstimmungen aus der GitHub-API |
+|   ↳ `name` | string | Dateiname |
+|   ↳ `path` | string | Dateipfad |
+|   ↳ `sha` | string | Blob-SHA |
+|   ↳ `url` | string | API-URL |
+|   ↳ `git_url` | string | Git-Blob-URL |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `score` | number | Such-Relevanz-Score |
+|   ↳ `repository` | object | Repository, das den Code enthält |
+|     ↳ `id` | number | Repository-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `name` | string | Repository-Name |
+|     ↳ `full_name` | string | Vollständiger Name \(Besitzer/Repo\) |
+|     ↳ `private` | boolean | Ob Repository privat ist |
+|     ↳ `html_url` | string | GitHub-Web-URL |
+|     ↳ `description` | string | Repository-Beschreibung |
+|     ↳ `fork` | boolean | Ob dies ein Fork ist |
+|     ↳ `url` | string | API-URL |
+|     ↳ `owner` | object | Repository-Besitzer |
+|       ↳ `login` | string | Benutzername |
+|       ↳ `id` | number | Benutzer-ID |
+|       ↳ `node_id` | string | GraphQL-Node-ID |
+|       ↳ `avatar_url` | string | Avatar-Bild-URL |
+|       ↳ `url` | string | API-URL |
+|       ↳ `html_url` | string | Profilseiten-URL |
+|       ↳ `type` | string | Benutzer oder Organisation |
+|       ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `text_matches` | array | Textübereinstimmungen mit Kontext |
+|     ↳ `object_url` | string | Objekt-URL |
+|     ↳ `object_type` | string | Objekttyp |
+|     ↳ `property` | string | Übereinstimmende Eigenschaft |
+|     ↳ `fragment` | string | Textfragment mit Übereinstimmung |
+|     ↳ `matches` | array | Übereinstimmungsindizes |
+|       ↳ `text` | string | Übereinstimmender Text |
+|       ↳ `indices` | array | Start- und Endindizes |
+
+### `github_search_commits`
+
+Suche nach Commits auf GitHub. Verwenden Sie Qualifizierer wie repo:owner/name, author:user, committer:user, author-date:>2023-01-01
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage mit optionalen Qualifizierern \(repo:, author:, committer:, author-date:, committer-date:, merge:true/false\) |
+| `sort` | string | Nein | Sortieren nach: author-date oder committer-date \(Standard: beste Übereinstimmung\) |
+| `order` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_count` | number | Gesamtzahl übereinstimmender Ergebnisse |
+| `incomplete_results` | boolean | Ob Ergebnisse unvollständig sind |
+| `items` | array | Array von Commit-Objekten aus der GitHub-API |
+|   ↳ `sha` | string | Commit-SHA |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `html_url` | string | Web-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `comments_url` | string | Kommentar-API-URL |
+|   ↳ `score` | number | Such-Relevanz-Score |
+|   ↳ `commit` | object | Kern-Commit-Daten |
+|     ↳ `url` | string | Commit-API-URL |
+|     ↳ `message` | string | Commit-Nachricht |
+|     ↳ `comment_count` | number | Anzahl der Kommentare |
+|     ↳ `author` | object | Git-Autor |
+|       ↳ `name` | string | Autorenname |
+|       ↳ `email` | string | Autoren-E-Mail |
+|       ↳ `date` | string | Autorendatum \(ISO 8601\) |
+|     ↳ `committer` | object | Git-Committer |
+|       ↳ `name` | string | Committer-Name |
+|       ↳ `email` | string | Committer-E-Mail |
+|       ↳ `date` | string | Commit-Datum \(ISO 8601\) |
+|     ↳ `tree` | object | Tree-Objekt |
+|       ↳ `sha` | string | Tree-SHA |
+|       ↳ `url` | string | Tree-API-URL |
+|   ↳ `author` | object | GitHub-Benutzer \(Autor\) |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profil-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `committer` | object | GitHub-Benutzer \(Committer\) |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profil-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `repository` | object | Repository, das den Commit enthält |
+|     ↳ `id` | number | Repository-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `name` | string | Repository-Name |
+|     ↳ `full_name` | string | Vollständiger Name \(owner/repo\) |
+|     ↳ `private` | boolean | Ob das Repository privat ist |
+|     ↳ `html_url` | string | GitHub-Web-URL |
+|     ↳ `description` | string | Repository-Beschreibung |
+|     ↳ `owner` | object | Repository-Besitzer |
+|       ↳ `login` | string | Benutzername |
+|       ↳ `id` | number | Benutzer-ID |
+|       ↳ `node_id` | string | GraphQL-Node-ID |
+|       ↳ `avatar_url` | string | Avatar-Bild-URL |
+|       ↳ `url` | string | API-URL |
+|       ↳ `html_url` | string | Profilseiten-URL |
+|       ↳ `type` | string | Benutzer oder Organisation |
+|       ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `parents` | array | Eltern-Commits |
+|     ↳ `sha` | string | Eltern-SHA |
+|     ↳ `url` | string | Eltern-API-URL |
+|     ↳ `html_url` | string | Eltern-Web-URL |
+
+### `github_search_issues`
+
+Suchen Sie nach Issues und Pull-Requests auf GitHub. Verwenden Sie Qualifizierer wie repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage mit optionalen Qualifizierern \(repo:, is:issue, is:pr, state:, label:, author:, assignee:\) |
+| `sort` | string | Nein | Sortieren nach: comments, reactions, created, updated, interactions \(Standard: beste Übereinstimmung\) |
+| `order` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_count` | number | Gesamtzahl übereinstimmender Ergebnisse |
+| `incomplete_results` | boolean | Ob die Ergebnisse unvollständig sind |
+| `items` | array | Array von Issue-/PR-Objekten aus der GitHub-API |
+|   ↳ `id` | number | Issue-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `number` | number | Issue-Nummer |
+|   ↳ `title` | string | Titel |
+|   ↳ `state` | string | Status \(open oder closed\) |
+|   ↳ `locked` | boolean | Ob das Issue gesperrt ist |
+|   ↳ `html_url` | string | Web-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `repository_url` | string | Repository-API-URL |
+|   ↳ `comments_url` | string | Kommentar-API-URL |
+|   ↳ `body` | string | Inhalt |
+|   ↳ `comments` | number | Anzahl der Kommentare |
+|   ↳ `score` | number | Such-Relevanz-Score |
+|   ↳ `created_at` | string | Erstellungszeitstempel |
+|   ↳ `updated_at` | string | Letzter Aktualisierungszeitstempel |
+|   ↳ `closed_at` | string | Schließungszeitstempel |
+|   ↳ `user` | object | Issue-Autor |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `labels` | array | Issue-Labels |
+|     ↳ `id` | number | Label-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `url` | string | API-URL |
+|     ↳ `name` | string | Label-Name |
+|     ↳ `description` | string | Label-Beschreibung |
+|     ↳ `color` | string | Hex-Farbcode |
+|     ↳ `default` | boolean | Ob dies ein Standard-Label ist |
+|   ↳ `assignee` | object | Hauptverantwortlicher |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `assignees` | array | Alle Verantwortlichen |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `milestone` | object | Zugehöriger Meilenstein |
+|     ↳ `id` | number | Meilenstein-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `number` | number | Meilenstein-Nummer |
+|     ↳ `title` | string | Meilenstein-Titel |
+|     ↳ `description` | string | Meilenstein-Beschreibung |
+|     ↳ `state` | string | Status \(open oder closed\) |
+|     ↳ `html_url` | string | Web-URL |
+|     ↳ `due_on` | string | Fälligkeitsdatum |
+|   ↳ `pull_request` | object | Pull-Request-Details \(falls dies ein PR ist\) |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Web-URL |
+|     ↳ `diff_url` | string | Diff-URL |
+|     ↳ `patch_url` | string | Patch-URL |
+
+### `github_search_repos`
+
+Suchen Sie nach Repositories auf GitHub. Verwenden Sie Qualifizierer wie language:python, stars:>1000, topic:react, user:owner, org:name
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage mit optionalen Qualifizierern \(language:, stars:, forks:, topic:, user:, org:, in:name,description,readme\) |
+| `sort` | string | Nein | Sortieren nach: stars, forks, help-wanted-issues, updated \(Standard: beste Übereinstimmung\) |
+| `order` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_count` | number | Gesamtzahl übereinstimmender Ergebnisse |
+| `incomplete_results` | boolean | Ob die Ergebnisse unvollständig sind |
+| `items` | array | Array von Repository-Objekten aus der GitHub-API |
+|   ↳ `id` | number | Repository-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `name` | string | Repository-Name |
+|   ↳ `full_name` | string | Vollständiger Name \(owner/repo\) |
+|   ↳ `private` | boolean | Ob das Repository privat ist |
+|   ↳ `description` | string | Repository-Beschreibung |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `fork` | boolean | Ob dies ein Fork ist |
+|   ↳ `created_at` | string | Erstellungszeitstempel |
+|   ↳ `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+|   ↳ `pushed_at` | string | Zeitstempel des letzten Pushs |
+|   ↳ `size` | number | Repository-Größe in KB |
+|   ↳ `stargazers_count` | number | Anzahl der Sterne |
+|   ↳ `watchers_count` | number | Anzahl der Beobachter |
+|   ↳ `forks_count` | number | Anzahl der Forks |
+|   ↳ `open_issues_count` | number | Anzahl offener Issues |
+|   ↳ `language` | string | Primäre Programmiersprache |
+|   ↳ `default_branch` | string | Standard-Branch-Name |
+|   ↳ `visibility` | string | Repository-Sichtbarkeit |
+|   ↳ `archived` | boolean | Ob das Repository archiviert ist |
+|   ↳ `disabled` | boolean | Ob das Repository deaktiviert ist |
+|   ↳ `score` | number | Such-Relevanz-Score |
+|   ↳ `topics` | array | Repository-Themen |
+|   ↳ `license` | object | Lizenzinformationen |
+|     ↳ `key` | string | Lizenzschlüssel \(z.B. mit\) |
+|     ↳ `name` | string | Lizenzname |
+|     ↳ `spdx_id` | string | SPDX-Kennung |
+|   ↳ `owner` | object | Repository-Besitzer |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+
+### `github_search_users`
+
+Suchen Sie nach Benutzern und Organisationen auf GitHub. Verwenden Sie Qualifizierer wie type:user, type:org, followers:>1000, repos:>10, location:city
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Suchanfrage mit optionalen Qualifizierern \(type:user/org, followers:, repos:, location:, language:, created:\) |
+| `sort` | string | Nein | Sortieren nach: followers, repositories, joined \(Standard: beste Übereinstimmung\) |
+| `order` | string | Nein | Sortierreihenfolge: asc oder desc \(Standard: desc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_count` | number | Gesamtzahl übereinstimmender Ergebnisse |
+| `incomplete_results` | boolean | Ob die Ergebnisse unvollständig sind |
+| `items` | array | Array von Benutzerobjekten aus der GitHub-API |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `gravatar_id` | string | Gravatar-ID |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `followers_url` | string | Followers-API-URL |
+|   ↳ `following_url` | string | Following-API-URL |
+|   ↳ `gists_url` | string | Gists-API-URL |
+|   ↳ `starred_url` | string | Starred-API-URL |
+|   ↳ `repos_url` | string | Repos-API-URL |
+|   ↳ `organizations_url` | string | Organizations-API-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `score` | number | Suchrelevanz-Score |
+
+### `github_list_commits`
+
+Listet Commits in einem Repository mit optionaler Filterung nach SHA, Pfad, Autor, Committer oder Datumsbereich auf
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `sha` | string | Nein | SHA oder Branch, ab dem Commits aufgelistet werden sollen |
+| `path` | string | Nein | Nur Commits, die diesen Dateipfad enthalten |
+| `author` | string | Nein | GitHub-Login oder E-Mail-Adresse zum Filtern nach Autor |
+| `committer` | string | Nein | GitHub-Login oder E-Mail-Adresse zum Filtern nach Committer |
+| `since` | string | Nein | Nur Commits nach diesem Datum \(ISO 8601-Format\) |
+| `until` | string | Nein | Nur Commits vor diesem Datum \(ISO 8601-Format\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Commit-Objekten aus der GitHub-API |
+|   ↳ `commit` | object | Kern-Commit-Daten |
+|     ↳ `url` | string | Commit-API-URL |
+|     ↳ `message` | string | Commit-Nachricht |
+|     ↳ `comment_count` | number | Anzahl der Kommentare |
+|     ↳ `author` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `committer` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `tree` | object | Tree-Objekt |
+|       ↳ `sha` | string | Tree-SHA |
+|       ↳ `url` | string | Tree-API-URL |
+|     ↳ `verification` | object | Signaturverifizierung |
+|       ↳ `verified` | boolean | Ob die Signatur verifiziert ist |
+|       ↳ `reason` | string | Verifizierungsgrund |
+|       ↳ `signature` | string | GPG-Signatur |
+|       ↳ `payload` | string | Signierte Payload |
+|   ↳ `author` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `committer` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `sha` | string | Commit-SHA |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `comments_url` | string | Kommentare-API-URL |
+|   ↳ `parents` | array | Eltern-Commits |
+|     ↳ `sha` | string | Eltern-SHA |
+|     ↳ `url` | string | Eltern-API-URL |
+|     ↳ `html_url` | string | Eltern-Web-URL |
+| `count` | number | Anzahl der zurückgegebenen Commits |
+
+### `github_get_commit`
+
+Detaillierte Informationen über einen bestimmten Commit abrufen, einschließlich geänderter Dateien und Statistiken
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `ref` | string | Ja | Commit-SHA, Branch-Name oder Tag-Name |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `commit` | object | Kern-Commit-Daten |
+|   ↳ `url` | string | Commit-API-URL |
+|   ↳ `message` | string | Commit-Nachricht |
+|   ↳ `comment_count` | number | Anzahl der Kommentare |
+|   ↳ `author` | object | Git-Akteur \(Autor/Committer\) |
+|     ↳ `name` | string | Name |
+|     ↳ `email` | string | E-Mail-Adresse |
+|     ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|   ↳ `committer` | object | Git-Akteur \(Autor/Committer\) |
+|     ↳ `name` | string | Name |
+|     ↳ `email` | string | E-Mail-Adresse |
+|     ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|   ↳ `tree` | object | Tree-Objekt |
+|     ↳ `sha` | string | Tree-SHA |
+|     ↳ `url` | string | Tree-API-URL |
+|   ↳ `verification` | object | Signaturverifizierung |
+|     ↳ `verified` | boolean | Ob die Signatur verifiziert ist |
+|     ↳ `reason` | string | Verifizierungsgrund |
+|     ↳ `signature` | string | GPG-Signatur |
+|     ↳ `payload` | string | Signierte Payload |
+| `author` | object | GitHub-Benutzerobjekt |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `committer` | object | GitHub-Benutzerobjekt |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `stats` | object | Änderungsstatistiken |
+|   ↳ `additions` | number | Hinzugefügte Zeilen |
+|   ↳ `deletions` | number | Gelöschte Zeilen |
+|   ↳ `total` | number | Gesamtänderungen |
+| `sha` | string | Commit-SHA |
+| `node_id` | string | GraphQL-Node-ID |
+| `html_url` | string | GitHub-Web-URL |
+| `url` | string | API-URL |
+| `comments_url` | string | Kommentar-API-URL |
+| `files` | array | Geänderte Dateien \(Diff-Einträge\) |
+|   ↳ `sha` | string | Blob-SHA |
+|   ↳ `filename` | string | Dateipfad |
+|   ↳ `status` | string | Änderungsstatus \(added, removed, modified, renamed, copied, changed, unchanged\) |
+|   ↳ `additions` | number | Hinzugefügte Zeilen |
+|   ↳ `deletions` | number | Gelöschte Zeilen |
+|   ↳ `changes` | number | Gesamtänderungen |
+|   ↳ `blob_url` | string | Blob-URL |
+|   ↳ `raw_url` | string | Raw-Datei-URL |
+|   ↳ `contents_url` | string | Contents-API-URL |
+|   ↳ `patch` | string | Diff-Patch |
+|   ↳ `previous_filename` | string | Vorheriger Dateiname \(bei Umbenennungen\) |
+| `parents` | array | Eltern-Commits |
+|   ↳ `sha` | string | Eltern-SHA |
+|   ↳ `url` | string | Eltern-API-URL |
+|   ↳ `html_url` | string | Eltern-Web-URL |
+
+### `github_compare_commits`
+
+Vergleichen Sie zwei Commits oder Branches, um den Diff, die Commits zwischen ihnen und die geänderten Dateien zu sehen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `base` | string | Ja | Base-Branch/Tag/SHA für den Vergleich |
+| `head` | string | Ja | Head-Branch/Tag/SHA für den Vergleich |
+| `per_page` | number | Nein | Ergebnisse pro Seite für Dateien \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer für Dateien \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `url` | string | API-URL |
+| `html_url` | string | GitHub-Web-URL |
+| `permalink_url` | string | Permanente Link-URL |
+| `diff_url` | string | Diff-Download-URL |
+| `patch_url` | string | Patch-Download-URL |
+| `status` | string | Vergleichsstatus \(ahead, behind, identical, diverged\) |
+| `ahead_by` | number | Commits, die Head vor Base liegt |
+| `behind_by` | number | Commits, die Head hinter Base liegt |
+| `total_commits` | number | Gesamtzahl der Commits im Vergleich |
+| `base_commit` | object | Base-Commit-Objekt |
+|   ↳ `commit` | object | Kern-Commit-Daten |
+|     ↳ `url` | string | Commit-API-URL |
+|     ↳ `message` | string | Commit-Nachricht |
+|     ↳ `comment_count` | number | Anzahl der Kommentare |
+|     ↳ `author` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `committer` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `tree` | object | Tree-Objekt |
+|       ↳ `sha` | string | Tree-SHA |
+|       ↳ `url` | string | Tree-API-URL |
+|     ↳ `verification` | object | Signaturverifizierung |
+|       ↳ `verified` | boolean | Ob die Signatur verifiziert ist |
+|       ↳ `reason` | string | Verifizierungsgrund |
+|       ↳ `signature` | string | GPG-Signatur |
+|       ↳ `payload` | string | Signierte Payload |
+|   ↳ `author` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `committer` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `sha` | string | Commit-SHA |
+|   ↳ `html_url` | string | Web-URL |
+| `merge_base_commit` | object | Merge-Base-Commit-Objekt |
+|   ↳ `sha` | string | Commit-SHA |
+|   ↳ `html_url` | string | Web-URL |
+| `commits` | array | Commits zwischen Base und Head |
+|   ↳ `commit` | object | Kern-Commit-Daten |
+|     ↳ `url` | string | Commit-API-URL |
+|     ↳ `message` | string | Commit-Nachricht |
+|     ↳ `comment_count` | number | Anzahl der Kommentare |
+|     ↳ `author` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `committer` | object | Git-Akteur \(Autor/Committer\) |
+|       ↳ `name` | string | Name |
+|       ↳ `email` | string | E-Mail-Adresse |
+|       ↳ `date` | string | Zeitstempel \(ISO 8601\) |
+|     ↳ `tree` | object | Tree-Objekt |
+|       ↳ `sha` | string | Tree-SHA |
+|       ↳ `url` | string | Tree-API-URL |
+|     ↳ `verification` | object | Signaturverifizierung |
+|       ↳ `verified` | boolean | Ob die Signatur verifiziert ist |
+|       ↳ `reason` | string | Verifizierungsgrund |
+|       ↳ `signature` | string | GPG-Signatur |
+|       ↳ `payload` | string | Signierte Payload |
+|   ↳ `author` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `committer` | object | GitHub-Benutzerobjekt |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `sha` | string | Commit-SHA |
+|   ↳ `html_url` | string | Web-URL |
+| `files` | array | Geänderte Dateien \(Diff-Einträge\) |
+|   ↳ `sha` | string | Blob-SHA |
+|   ↳ `filename` | string | Dateipfad |
+|   ↳ `status` | string | Änderungsstatus \(added, removed, modified, renamed, copied, changed, unchanged\) |
+|   ↳ `additions` | number | Hinzugefügte Zeilen |
+|   ↳ `deletions` | number | Gelöschte Zeilen |
+|   ↳ `changes` | number | Gesamtänderungen |
+|   ↳ `blob_url` | string | Blob-URL |
+|   ↳ `raw_url` | string | Raw-Datei-URL |
+|   ↳ `contents_url` | string | Contents-API-URL |
+|   ↳ `patch` | string | Diff-Patch |
+|   ↳ `previous_filename` | string | Vorheriger Dateiname \(bei Umbenennungen\) |
+
+### `github_create_gist`
+
+Erstellt einen neuen Gist mit einer oder mehreren Dateien
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `description` | string | Nein | Beschreibung des Gists |
+| `files` | json | Ja | JSON-Objekt mit Dateinamen als Schlüssel und Inhalt als Werte. Beispiel: \{"file.txt": \{"content": "Hallo"\}\} |
+| `public` | boolean | Nein | Ob der Gist öffentlich ist \(Standard: false\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Gist-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `url` | string | API-URL |
+| `html_url` | string | Web-URL |
+| `forks_url` | string | Forks-API-URL |
+| `commits_url` | string | Commits-API-URL |
+| `git_pull_url` | string | Git-Pull-URL |
+| `git_push_url` | string | Git-Push-URL |
+| `description` | string | Gist-Beschreibung |
+| `public` | boolean | Ob der Gist öffentlich ist |
+| `truncated` | boolean | Ob Dateien gekürzt sind |
+| `comments` | number | Anzahl der Kommentare |
+| `comments_url` | string | Kommentare-API-URL |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `files` | object | Dateien im Gist \(Objekt mit Dateinamen als Schlüssel, jeder enthält filename, type, language, raw_url, size, truncated, content\) |
+| `owner` | object | Gist-Besitzer |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+
+### `github_get_gist`
+
+Ruft ein Gist anhand der ID ab, einschließlich der Dateiinhalte
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die Gist-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `files` | object | Dateien im Gist \(nach Dateiname indiziert\) |
+|   ↳ `filename` | string | Dateiname |
+|   ↳ `type` | string | MIME-Typ |
+|   ↳ `language` | string | Programmiersprache |
+|   ↳ `raw_url` | string | Raw-Datei-URL |
+|   ↳ `size` | number | Dateigröße in Bytes |
+|   ↳ `truncated` | boolean | Ob der Inhalt gekürzt ist |
+|   ↳ `content` | string | Dateiinhalt |
+| `owner` | object | Gist-Besitzer |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `id` | string | Gist-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `url` | string | API-URL |
+| `html_url` | string | GitHub-Web-URL |
+| `forks_url` | string | Forks-API-URL |
+| `commits_url` | string | Commits-API-URL |
+| `git_pull_url` | string | Git-Clone-URL |
+| `git_push_url` | string | Git-Push-URL |
+| `description` | string | Gist-Beschreibung |
+| `public` | boolean | Ob das Gist öffentlich ist |
+| `truncated` | boolean | Ob der Inhalt gekürzt ist |
+| `comments` | number | Anzahl der Kommentare |
+| `comments_url` | string | Kommentare-API-URL |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+
+### `github_list_gists`
+
+Gists für einen Benutzer oder den authentifizierten Benutzer auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Nein | GitHub-Benutzername \(weglassen für Gists des authentifizierten Benutzers\) |
+| `since` | string | Nein | Nur Gists, die nach diesem Zeitpunkt aktualisiert wurden \(ISO 8601\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Gist-Objekten aus der GitHub API |
+|   ↳ `files` | object | Dateien im Gist \(nach Dateinamen indiziert\) |
+|     ↳ `filename` | string | Dateiname |
+|     ↳ `type` | string | MIME-Typ |
+|     ↳ `language` | string | Programmiersprache |
+|     ↳ `raw_url` | string | Raw-Datei-URL |
+|     ↳ `size` | number | Dateigröße in Bytes |
+|     ↳ `truncated` | boolean | Ob der Inhalt gekürzt ist |
+|     ↳ `content` | string | Dateiinhalt |
+|   ↳ `owner` | object | Gist-Besitzer |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `id` | string | Gist-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `forks_url` | string | Forks-API-URL |
+|   ↳ `commits_url` | string | Commits-API-URL |
+|   ↳ `git_pull_url` | string | Git-Clone-URL |
+|   ↳ `git_push_url` | string | Git-Push-URL |
+|   ↳ `description` | string | Gist-Beschreibung |
+|   ↳ `public` | boolean | Ob der Gist öffentlich ist |
+|   ↳ `truncated` | boolean | Ob der Inhalt gekürzt ist |
+|   ↳ `comments` | number | Anzahl der Kommentare |
+|   ↳ `comments_url` | string | Kommentare-API-URL |
+|   ↳ `created_at` | string | Erstellungszeitstempel |
+|   ↳ `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `count` | number | Anzahl der zurückgegebenen Gists |
+
+### `github_update_gist`
+
+Aktualisiert eine Gist-Beschreibung oder Dateien. Um eine Datei zu löschen, setzen Sie ihren Wert im files-Objekt auf null
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die zu aktualisierende Gist-ID |
+| `description` | string | Nein | Neue Beschreibung für den Gist |
+| `files` | json | Nein | JSON-Objekt mit Dateinamen als Schlüssel. Auf null setzen zum Löschen oder Inhalt angeben zum Aktualisieren/Hinzufügen |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Gist-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `url` | string | API-URL |
+| `html_url` | string | Web-URL |
+| `forks_url` | string | Forks-API-URL |
+| `commits_url` | string | Commits-API-URL |
+| `git_pull_url` | string | Git-Pull-URL |
+| `git_push_url` | string | Git-Push-URL |
+| `description` | string | Gist-Beschreibung |
+| `public` | boolean | Ob der Gist öffentlich ist |
+| `truncated` | boolean | Ob Dateien gekürzt sind |
+| `comments` | number | Anzahl der Kommentare |
+| `comments_url` | string | Kommentare-API-URL |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `files` | object | Dateien im Gist \(Objekt mit Dateinamen als Schlüssel, jeder enthält filename, type, language, raw_url, size, truncated, content\) |
+| `owner` | object | Gist-Besitzer |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+
+### `github_delete_gist`
+
+Einen Gist anhand der ID löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die zu löschende Gist-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob die Löschung erfolgreich war |
+| `gist_id` | string | Die gelöschte Gist-ID |
+
+### `github_fork_gist`
+
+Einen Gist forken, um eine eigene Kopie zu erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die zu forkende Gist-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | string | Neue Gist-ID |
+| `html_url` | string | Web-URL |
+| `description` | string | Beschreibung |
+| `public` | boolean | Ist öffentlich |
+| `created_at` | string | Erstellungsdatum |
+| `owner` | object | Besitzerinformationen |
+| `files` | object | Dateien |
+
+### `github_star_gist`
+
+Einen Gist mit einem Stern markieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die Gist-ID, die mit einem Stern markiert werden soll |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Ob das Markieren mit Stern erfolgreich war |
+| `gist_id` | string | Die Gist-ID |
+
+### `github_unstar_gist`
+
+Stern von einem Gist entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `gist_id` | string | Ja | Die Gist-ID, von der der Stern entfernt werden soll |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Ob das Entfernen des Sterns erfolgreich war |
+| `gist_id` | string | Die Gist-ID |
+
+### `github_fork_repo`
+
+Repository in Ihr Konto oder eine Organisation forken
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer, von dem geforkt werden soll |
+| `repo` | string | Ja | Repository-Name, der geforkt werden soll |
+| `organization` | string | Nein | Organisation, in die geforkt werden soll \(weglassen, um in Ihr Konto zu forken\) |
+| `name` | string | Nein | Benutzerdefinierter Name für das geforkte Repository |
+| `default_branch_only` | boolean | Nein | Nur den Standard-Branch forken \(Standard: false\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | number | Repository-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `name` | string | Repository-Name |
+| `full_name` | string | Vollständiger Name \(Besitzer/Repo\) |
+| `private` | boolean | Ob das Repository privat ist |
+| `description` | string | Repository-Beschreibung |
+| `html_url` | string | GitHub-Web-URL |
+| `url` | string | API-URL |
+| `clone_url` | string | HTTPS-Clone-URL |
+| `ssh_url` | string | SSH-Clone-URL |
+| `git_url` | string | Git-Protokoll-URL |
+| `default_branch` | string | Standard-Branch-Name |
+| `fork` | boolean | Ob dies ein Fork ist |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `pushed_at` | string | Zeitstempel des letzten Pushs |
+| `owner` | object | Fork-Besitzer |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `parent` | object | Eltern-Repository \(Quelle des Forks\) |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+| `source` | object | Quell-Repository \(ursprünglicher Ursprung\) |
+|   ↳ `id` | number | Repository-ID |
+|   ↳ `full_name` | string | Vollständiger Name |
+|   ↳ `html_url` | string | Web-URL |
+
+### `github_list_forks`
+
+Forks eines Repositories auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `sort` | string | Nein | Sortieren nach: newest, oldest, stargazers, watchers \(Standard: newest\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Fork-Repository-Objekten aus der GitHub-API |
+|   ↳ `id` | number | Repository-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `name` | string | Repository-Name |
+|   ↳ `full_name` | string | Vollständiger Name \(Besitzer/Repo\) |
+|   ↳ `private` | boolean | Ob das Repository privat ist |
+|   ↳ `description` | string | Repository-Beschreibung |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `fork` | boolean | Ob dies ein Fork ist |
+|   ↳ `created_at` | string | Erstellungszeitstempel |
+|   ↳ `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+|   ↳ `pushed_at` | string | Zeitstempel des letzten Pushs |
+|   ↳ `size` | number | Repository-Größe in KB |
+|   ↳ `stargazers_count` | number | Anzahl der Sterne |
+|   ↳ `watchers_count` | number | Anzahl der Beobachter |
+|   ↳ `forks_count` | number | Anzahl der Forks |
+|   ↳ `open_issues_count` | number | Anzahl offener Issues |
+|   ↳ `language` | string | Primäre Programmiersprache |
+|   ↳ `default_branch` | string | Standard-Branch-Name |
+|   ↳ `visibility` | string | Repository-Sichtbarkeit |
+|   ↳ `archived` | boolean | Ob das Repository archiviert ist |
+|   ↳ `disabled` | boolean | Ob das Repository deaktiviert ist |
+|   ↳ `owner` | object | Fork-Besitzer |
+|     ↳ `login` | string | GitHub-Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `count` | number | Anzahl der zurückgegebenen Forks |
+
+### `github_create_milestone`
+
+Einen Meilenstein in einem Repository erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `title` | string | Ja | Meilenstein-Titel |
+| `state` | string | Nein | Status: open oder closed \(Standard: open\) |
+| `description` | string | Nein | Meilenstein-Beschreibung |
+| `due_on` | string | Nein | Fälligkeitsdatum \(ISO 8601-Format, z.B. 2024-12-31T23:59:59Z\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `creator` | object | Meilenstein-Ersteller |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `id` | number | Meilenstein-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `number` | number | Meilenstein-Nummer |
+| `title` | string | Meilenstein-Titel |
+| `description` | string | Meilenstein-Beschreibung |
+| `state` | string | Status \(open oder closed\) |
+| `url` | string | API-URL |
+| `html_url` | string | GitHub-Web-URL |
+| `labels_url` | string | Labels-API-URL |
+| `due_on` | string | Fälligkeitsdatum \(ISO 8601\) |
+| `open_issues` | number | Anzahl offener Issues |
+| `closed_issues` | number | Anzahl geschlossener Issues |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `closed_at` | string | Schließungszeitstempel |
+
+### `github_get_milestone`
+
+Einen bestimmten Meilenstein nach Nummer abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `milestone_number` | number | Ja | Meilenstein-Nummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `creator` | object | Meilenstein-Ersteller |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+| `id` | number | Meilenstein-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `number` | number | Meilenstein-Nummer |
+| `title` | string | Meilenstein-Titel |
+| `description` | string | Meilenstein-Beschreibung |
+| `state` | string | Status \(open oder closed\) |
+| `url` | string | API-URL |
+| `html_url` | string | GitHub-Web-URL |
+| `labels_url` | string | Labels-API-URL |
+| `due_on` | string | Fälligkeitsdatum \(ISO 8601\) |
+| `open_issues` | number | Anzahl offener Issues |
+| `closed_issues` | number | Anzahl geschlossener Issues |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `closed_at` | string | Schließungszeitstempel |
+
+### `github_list_milestones`
+
+Meilensteine in einem Repository auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `state` | string | Nein | Filtern nach Status: open, closed, all \(Standard: open\) |
+| `sort` | string | Nein | Sortieren nach: due_on oder completeness \(Standard: due_on\) |
+| `direction` | string | Nein | Sortierrichtung: asc oder desc \(Standard: asc\) |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Meilenstein-Objekten aus der GitHub-API |
+|   ↳ `creator` | object | Meilenstein-Ersteller |
+|     ↳ `login` | string | Benutzername |
+|     ↳ `id` | number | Benutzer-ID |
+|     ↳ `node_id` | string | GraphQL-Node-ID |
+|     ↳ `avatar_url` | string | Avatar-Bild-URL |
+|     ↳ `url` | string | API-URL |
+|     ↳ `html_url` | string | Profilseiten-URL |
+|     ↳ `type` | string | Benutzer oder Organisation |
+|     ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `id` | number | Meilenstein-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `number` | number | Meilenstein-Nummer |
+|   ↳ `title` | string | Meilenstein-Titel |
+|   ↳ `description` | string | Meilenstein-Beschreibung |
+|   ↳ `state` | string | Status \(open oder closed\) |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | GitHub-Web-URL |
+|   ↳ `labels_url` | string | Labels-API-URL |
+|   ↳ `due_on` | string | Fälligkeitsdatum \(ISO 8601\) |
+|   ↳ `open_issues` | number | Anzahl offener Issues |
+|   ↳ `closed_issues` | number | Anzahl geschlossener Issues |
+|   ↳ `created_at` | string | Erstellungszeitstempel |
+|   ↳ `updated_at` | string | Letzter Aktualisierungszeitstempel |
+|   ↳ `closed_at` | string | Schließungszeitstempel |
+| `count` | number | Anzahl der zurückgegebenen Meilensteine |
+
+### `github_update_milestone`
+
+Einen Meilenstein in einem Repository aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `milestone_number` | number | Ja | Zu aktualisierende Meilenstein-Nummer |
+| `title` | string | Nein | Neuer Meilenstein-Titel |
+| `state` | string | Nein | Neuer Status: open oder closed |
+| `description` | string | Nein | Neue Beschreibung |
+| `due_on` | string | Nein | Neues Fälligkeitsdatum \(ISO 8601-Format\) |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | number | Meilenstein-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `number` | number | Meilenstein-Nummer |
+| `title` | string | Meilenstein-Titel |
+| `description` | string | Meilenstein-Beschreibung |
+| `state` | string | Status \(open oder closed\) |
+| `url` | string | API-URL |
+| `html_url` | string | GitHub-Web-URL |
+| `labels_url` | string | Labels-API-URL |
+| `due_on` | string | Fälligkeitsdatum \(ISO 8601\) |
+| `open_issues` | number | Anzahl offener Issues |
+| `closed_issues` | number | Anzahl geschlossener Issues |
+| `created_at` | string | Erstellungszeitstempel |
+| `updated_at` | string | Zeitstempel der letzten Aktualisierung |
+| `closed_at` | string | Schließungszeitstempel |
+| `creator` | object | Meilenstein-Ersteller |
+|   ↳ `login` | string | Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+
+### `github_delete_milestone`
+
+Einen Meilenstein aus einem Repository löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `milestone_number` | number | Ja | Zu löschende Meilenstein-Nummer |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob die Löschung erfolgreich war |
+| `milestone_number` | number | Die gelöschte Meilenstein-Nummer |
+
+### `github_create_issue_reaction`
+
+Eine Reaktion zu einem Issue hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `content` | string | Ja | Reaktionstyp: +1 \(Daumen hoch\), -1 \(Daumen runter\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | number | Reaktions-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `content` | string | Reaktionstyp \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
+| `created_at` | string | Erstellungszeitstempel |
+| `user` | object | GitHub-Benutzerobjekt |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `html_url` | string | Profil-URL |
+|   ↳ `type` | string | Kontotyp \(User oder Organization\) |
+
+### `github_delete_issue_reaction`
+
+Eine Reaktion von einem Issue entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `issue_number` | number | Ja | Issue-Nummer |
+| `reaction_id` | number | Ja | Zu löschende Reaktions-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob das Löschen erfolgreich war |
+| `reaction_id` | number | Die gelöschte Reaktions-ID |
+
+### `github_create_comment_reaction`
+
+Eine Reaktion zu einem Issue-Kommentar hinzufügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `comment_id` | number | Ja | Kommentar-ID |
+| `content` | string | Ja | Reaktionstyp: +1 \(Daumen hoch\), -1 \(Daumen runter\), laugh, confused, heart, hooray, rocket, eyes |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `id` | number | Reaktions-ID |
+| `node_id` | string | GraphQL-Node-ID |
+| `content` | string | Reaktionstyp \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
+| `created_at` | string | Erstellungszeitstempel |
+| `user` | object | GitHub-Benutzerobjekt |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `html_url` | string | Profil-URL |
+|   ↳ `type` | string | Kontotyp \(User oder Organization\) |
+
+### `github_delete_comment_reaction`
+
+Eine Reaktion von einem Issue-Kommentar entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `comment_id` | number | Ja | Kommentar-ID |
+| `reaction_id` | number | Ja | Zu löschende Reaktions-ID |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob das Löschen erfolgreich war |
+| `reaction_id` | number | Die gelöschte Reaktions-ID |
+
+### `github_star_repo`
+
+Ein Repository mit einem Stern versehen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Ob das Markieren mit Stern erfolgreich war |
+| `owner` | string | Repository-Besitzer |
+| `repo` | string | Repository-Name |
+
+### `github_unstar_repo`
+
+Stern von einem Repository entfernen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `unstarred` | boolean | Ob das Entfernen des Sterns erfolgreich war |
+| `owner` | string | Repository-Besitzer |
+| `repo` | string | Repository-Name |
+
+### `github_check_star`
+
+Prüfen, ob Sie ein Repository mit einem Stern versehen haben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `starred` | boolean | Ob Sie das Repository mit einem Stern versehen haben |
+| `owner` | string | Repository-Besitzer |
+| `repo` | string | Repository-Name |
+
+### `github_list_stargazers`
+
+Benutzer auflisten, die ein Repository mit einem Stern versehen haben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `per_page` | number | Nein | Ergebnisse pro Seite \(max. 100, Standard: 30\) |
+| `page` | number | Nein | Seitennummer \(Standard: 1\) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Benutzerobjekten aus der GitHub API |
+|   ↳ `login` | string | GitHub-Benutzername |
+|   ↳ `id` | number | Benutzer-ID |
+|   ↳ `node_id` | string | GraphQL-Node-ID |
+|   ↳ `avatar_url` | string | Avatar-Bild-URL |
+|   ↳ `url` | string | API-URL |
+|   ↳ `html_url` | string | Profilseiten-URL |
+|   ↳ `type` | string | Benutzer oder Organisation |
+|   ↳ `site_admin` | boolean | GitHub-Mitarbeiter-Indikator |
+|   ↳ `gravatar_id` | string | Gravatar-ID |
+|   ↳ `followers_url` | string | Followers-API-URL |
+|   ↳ `following_url` | string | Following-API-URL |
+|   ↳ `gists_url` | string | Gists-API-URL |
+|   ↳ `starred_url` | string | Starred-API-URL |
+|   ↳ `repos_url` | string | Repos-API-URL |
+| `count` | number | Anzahl der zurückgegebenen Benutzer, die einen Stern vergeben haben |

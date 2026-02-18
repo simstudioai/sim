@@ -1,4 +1,4 @@
-import { createMockRequest, mockAuth, mockConsoleLogger } from '@sim/testing'
+import { auditMock, createMockRequest, mockAuth, mockConsoleLogger } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('Workspace Invitations API Route', () => {
@@ -95,6 +95,8 @@ describe('Workspace Invitations API Route', () => {
     vi.doMock('@/lib/core/utils/urls', () => ({
       getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
     }))
+
+    vi.doMock('@/lib/audit/log', () => auditMock)
 
     vi.doMock('drizzle-orm', () => ({
       and: vi.fn().mockImplementation((...args) => ({ type: 'and', conditions: args })),

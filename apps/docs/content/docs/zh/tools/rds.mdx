@@ -166,3 +166,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别: `tools`
 - 类型: `rds`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `accessKeyId` | string | 是 | AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | AWS 秘密访问密钥 |
+| `resourceArn` | string | 是 | Aurora 数据库集群的 ARN \(例如，arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+| `secretArn` | string | 是 | 包含数据库凭据的 Secrets Manager 密钥的 ARN |
+| `database` | string | 否 | 要连接的数据库名称 \(例如，mydb，production_db\) |
+| `schema` | string | 否 | 要内省的 schema \(PostgreSQL 默认为 public，MySQL 默认为数据库名\) |
+| `engine` | string | 否 | 数据库引擎 \(aurora-postgresql 或 aurora-mysql\)。如未提供将自动检测。|
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态信息 |
+| `engine` | string | 检测到的数据库引擎类型 |
+| `tables` | array | 包含列、键和索引的表结构数组 |
+| `schemas` | array | 数据库中可用 schema 列表 |

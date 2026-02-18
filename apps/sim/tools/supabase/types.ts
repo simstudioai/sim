@@ -315,6 +315,7 @@ export interface SupabaseQueryParams {
   filter?: string
   orderBy?: string
   limit?: number
+  offset?: number
 }
 
 export interface SupabaseInsertParams {
@@ -413,6 +414,7 @@ export interface SupabaseTextSearchParams {
   searchType?: string
   language?: string
   limit?: number
+  offset?: number
 }
 
 export interface SupabaseTextSearchResponse extends SupabaseBaseResponse {}

@@ -1,0 +1,925 @@
+---
+title: Enrich
+description: 通过 Enrich.so 实现 B2B 数据丰富与 LinkedIn 智能分析
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="enrich"
+  color="#E5E5E6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Enrich.so](https://enrich.so/) 提供实时、精准的 B2B 数据丰富和 LinkedIn 智能分析。其平台可动态访问公开和结构化的公司、联系人及专业信息，帮助团队构建更完整的客户画像，提升线索质量，并实现更高效的外联。
+
+使用 Enrich.so，您可以：
+
+- **丰富联系人和公司档案**：只需一个邮箱或 LinkedIn 个人资料，即可即时发现潜在客户、目标客户和企业的关键数据。
+- **验证邮箱可达性**：在发送前检查邮箱是否有效、可投递且安全。
+- **查找工作及个人邮箱**：通过 LinkedIn 个人资料补全缺失的商务邮箱或个人邮箱，拓展触达范围。
+- **获取电话号码和社交账号**：通过丰富工具发现更多联系人沟通渠道。
+- **分析 LinkedIn 帖子与互动**：从公开 LinkedIn 内容中提取帖子覆盖、互动和受众洞察。
+- **进行高级人员与公司搜索**：让您的团队基于深度筛选和实时智能，定位企业和专业人士。
+
+Sim 与 Enrich.so 的集成让您的团队和自动化流程能够即时查询、丰富和验证 B2B 数据，提升销售拓客、招聘、市场运营等工作流的效率。将 Sim 的编排能力与 Enrich.so 相结合，释放由顶级 B2B 智能驱动的数据化自动化策略。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+通过 Enrich.so 获取实时 B2B 数据智能。可根据邮箱丰富档案、从 LinkedIn 查找工作邮箱、验证邮箱可达性、搜索人员与公司，并分析 LinkedIn 帖子互动。
+
+## 工具
+
+### `enrich_check_credits`
+
+查看您的 Enrich API 信用额度使用情况和剩余余额。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `totalCredits` | number | 分配给账户的总额度 |
+| `creditsUsed` | number | 已消耗额度 |
+| `creditsRemaining` | number | 剩余可用额度 |
+
+### `enrich_email_to_profile`
+
+使用电子邮件地址检索详细的 LinkedIn 个人资料信息，包括工作经历、教育背景和技能。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要查询的电子邮件地址（例如：john.doe@company.com） |
+| `inRealtime` | boolean | 否 | 设为 true 可获取最新数据，跳过缓存信息 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `displayName` | string | 完整显示名称 |
+| `firstName` | string | 名字 |
+| `lastName` | string | 姓氏 |
+| `headline` | string | 职业头衔 |
+| `occupation` | string | 当前职位 |
+| `summary` | string | 个人简介 |
+| `location` | string | 地点 |
+| `country` | string | 国家 |
+| `linkedInUrl` | string | LinkedIn 个人资料 URL |
+| `photoUrl` | string | 个人头像 URL |
+| `connectionCount` | number | 连接数 |
+| `isConnectionCountObfuscated` | boolean | 连接数是否被隐藏（500+） |
+| `positionHistory` | array | 工作经历 |
+|   ↳ `title` | string | 职位名称 |
+|   ↳ `company` | string | 公司名称 |
+|   ↳ `startDate` | string | 入职日期 |
+|   ↳ `endDate` | string | 离职日期 |
+|   ↳ `location` | string | 地点 |
+| `education` | array | 教育经历 |
+|   ↳ `school` | string | 学校名称 |
+|   ↳ `degree` | string | 学位 |
+|   ↳ `fieldOfStudy` | string | 专业领域 |
+|   ↳ `startDate` | string | 入学日期 |
+|   ↳ `endDate` | string | 毕业日期 |
+| `certifications` | array | 职业认证 |
+|   ↳ `name` | string | 认证名称 |
+|   ↳ `authority` | string | 颁发机构 |
+|   ↳ `url` | string | 认证 URL |
+| `skills` | array | 技能列表 |
+| `languages` | array | 语言列表 |
+| `locale` | string | 个人资料语言（如 en_US） |
+| `version` | number | 个人资料版本号 |
+
+### `enrich_email_to_person_lite`
+
+通过电子邮件地址获取基本的 LinkedIn 个人资料信息。仅包含核心数据的轻量版。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要查询的电子邮件地址（例如：john.doe@company.com） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ---- |
+| `name` | string | 全名 |
+| `firstName` | string | 名字 |
+| `lastName` | string | 姓氏 |
+| `email` | string | 电子邮件地址 |
+| `title` | string | 职位 |
+| `location` | string | 所在地 |
+| `company` | string | 当前公司 |
+| `companyLocation` | string | 公司所在地 |
+| `companyLinkedIn` | string | 公司 LinkedIn URL |
+| `profileId` | string | LinkedIn 个人资料 ID |
+| `schoolName` | string | 学校名称 |
+| `schoolUrl` | string | 学校 URL |
+| `linkedInUrl` | string | LinkedIn 个人资料 URL |
+| `photoUrl` | string | 个人头像 URL |
+| `followerCount` | number | 粉丝数 |
+| `connectionCount` | number | 连接数 |
+| `languages` | array | 使用语言 |
+| `projects` | array | 项目 |
+| `certifications` | array | 认证 |
+| `volunteerExperience` | array | 志愿者经历 |
+
+### `enrich_linkedin_profile`
+
+通过 LinkedIn 个人资料 URL 丰富详细信息，包括职位、教育和社交指标。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `url` | string | 是 | LinkedIn 个人资料 URL（例如，linkedin.com/in/williamhgates）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `profileId` | string | LinkedIn 个人资料 ID |
+| `firstName` | string | 名 |
+| `lastName` | string | 姓 |
+| `subTitle` | string | 个人简介/头衔 |
+| `profilePicture` | string | 头像 URL |
+| `backgroundImage` | string | 背景图片 URL |
+| `industry` | string | 行业 |
+| `location` | string | 地点 |
+| `followersCount` | number | 粉丝数 |
+| `connectionsCount` | number | 连接数 |
+| `premium` | boolean | 是否为高级账户 |
+| `influencer` | boolean | 是否为影响者账户 |
+| `positions` | array | 工作经历 |
+|   ↳ `title` | string | 职位名称 |
+|   ↳ `company` | string | 公司名称 |
+|   ↳ `companyLogo` | string | 公司 logo URL |
+|   ↳ `startDate` | string | 入职日期 |
+|   ↳ `endDate` | string | 离职日期 |
+|   ↳ `location` | string | 地点 |
+| `education` | array | 教育经历 |
+|   ↳ `school` | string | 学校名称 |
+|   ↳ `degree` | string | 学位 |
+|   ↳ `fieldOfStudy` | string | 专业领域 |
+|   ↳ `startDate` | string | 入学日期 |
+|   ↳ `endDate` | string | 毕业日期 |
+| `websites` | array | 个人网站 |
+
+### `enrich_find_email`
+
+查找某个人
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `fullName` | string | 是 | 该人的全名（例如 John Doe）|
+| `companyDomain` | string | 是 | 公司域名（例如 example.com）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `email` | string | 找到的邮箱地址 |
+| `firstName` | string | 名字 |
+| `lastName` | string | 姓氏 |
+| `domain` | string | 公司域名 |
+| `found` | boolean | 是否找到邮箱 |
+| `acceptAll` | boolean | 该域名是否接受所有邮箱 |
+
+### `enrich_linkedin_to_work_email`
+
+通过 LinkedIn 个人资料 URL 查找工作邮箱地址。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `linkedinProfile` | string | 是 | LinkedIn 个人资料 URL（例如 https://www.linkedin.com/in/williamhgates）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `email` | string | 找到的工作邮箱地址 |
+| `found` | boolean | 是否找到邮箱 |
+| `status` | string | 请求状态（in_progress 或 completed）|
+
+### `enrich_linkedin_to_personal_email`
+
+通过 LinkedIn 个人资料 URL 查找个人邮箱地址。
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `linkedinProfile` | string | 是 | LinkedIn 个人资料 URL（例如，linkedin.com/in/username） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email` | string | 个人邮箱地址 |
+| `found` | boolean | 是否找到邮箱 |
+| `status` | string | 请求状态 |
+
+### `enrich_phone_finder`
+
+根据 LinkedIn 个人资料 URL 查找电话号码。
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `linkedinProfile` | string | 是 | LinkedIn 个人资料 URL（例如，linkedin.com/in/williamhgates） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `profileUrl` | string | LinkedIn 个人资料 URL |
+| `mobileNumber` | string | 找到的手机号 |
+| `found` | boolean | 是否找到手机号 |
+| `status` | string | 请求状态（in_progress 或 completed） |
+
+### `enrich_email_to_phone`
+
+根据邮箱地址查找关联的电话号码。
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要查询的邮箱地址（例如，john.doe@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `email` | string | 查询到的邮箱地址 |
+| `mobileNumber` | string | 查询到的手机号 |
+| `found` | boolean | 是否找到手机号 |
+| `status` | string | 请求状态（in_progress 或 completed） |
+
+### `enrich_verify_email`
+
+验证邮箱地址的可投递性，包括 catch-all 检测和服务商识别。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要验证的邮箱地址（例如 john.doe@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `email` | string | 已验证的邮箱地址 |
+| `status` | string | 验证状态 |
+| `result` | string | 可投递性结果（deliverable、undeliverable 等） |
+| `confidenceScore` | number | 置信分数（0-100） |
+| `smtpProvider` | string | 邮箱服务提供商（如 Google、Microsoft） |
+| `mailDisposable` | boolean | 是否为一次性邮箱服务商 |
+| `mailAcceptAll` | boolean | 域名是否为 catch-all 域名 |
+| `free` | boolean | 是否使用免费邮箱服务 |
+
+### `enrich_disposable_email_check`
+
+检查邮箱地址是否来自一次性或临时邮箱服务商。返回分数和验证详情。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要检查的邮箱地址（例如 john.doe@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email` | string | 已检查的邮箱地址 |
+| `score` | number | 验证分数（0-100） |
+| `testsPassed` | string | 通过的测试数量（例如，"3/3"） |
+| `passed` | boolean | 邮箱是否通过所有验证测试 |
+| `reason` | string | 如果邮箱未通过，失败原因 |
+| `mailServerIp` | string | 邮件服务器 IP 地址 |
+| `mxRecords` | array | 域名的 MX 记录 |
+|   ↳ `host` | string | MX 记录主机 |
+|   ↳ `pref` | number | MX 记录优先级 |
+
+### `enrich_email_to_ip`
+
+发现与邮箱地址关联的 IP 地址。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `email` | string | 是 | 要查询的邮箱地址（例如，john.doe@example.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `email` | string | 查询的邮箱地址 |
+| `ip` | string | 关联的 IP 地址 |
+| `found` | boolean | 是否找到 IP 地址 |
+
+### `enrich_ip_to_company`
+
+通过 IP 地址识别公司并获取详细的企业信息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `ip` | string | 是 | 要查询的 IP 地址（例如，86.92.60.221） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `name` | string | 公司名称 |
+| `legalName` | string | 法定公司名称 |
+| `domain` | string | 主域名 |
+| `domainAliases` | array | 域名别名 |
+| `sector` | string | 业务领域 |
+| `industry` | string | 行业 |
+| `phone` | string | 电话号码 |
+| `employees` | number | 员工人数 |
+| `revenue` | string | 预估收入 |
+| `location` | json | 公司地址 |
+|   ↳ `city` | string | 城市 |
+|   ↳ `state` | string | 州 |
+|   ↳ `country` | string | 国家 |
+|   ↳ `timezone` | string | 时区 |
+| `linkedInUrl` | string | LinkedIn 公司网址 |
+| `twitterUrl` | string | Twitter 网址 |
+| `facebookUrl` | string | Facebook 网址 |
+
+### `enrich_company_lookup`
+
+可通过公司名称或域名查询全面的公司信息，包括融资、地址和社交资料。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `name` | string | 否 | 公司名称（例如，Google） |
+| `domain` | string | 否 | 公司域名（例如，google.com） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `name` | string | 公司名称 |
+| `universalName` | string | 通用公司名称 |
+| `companyId` | string | 公司 ID |
+| `description` | string | 公司简介 |
+| `phone` | string | 电话号码 |
+| `linkedInUrl` | string | LinkedIn 公司网址 |
+| `websiteUrl` | string | 公司官网 |
+| `followers` | number | LinkedIn 粉丝数 |
+| `staffCount` | number | 员工人数 |
+| `foundedDate` | string | 成立日期 |
+| `type` | string | 公司类型 |
+| `industries` | array | 行业 |
+| `specialties` | array | 公司专长 |
+| `headquarters` | json | 总部地址 |
+|   ↳ `city` | string | 城市 |
+|   ↳ `country` | string | 国家 |
+|   ↳ `postalCode` | string | 邮政编码 |
+|   ↳ `line1` | string | 地址第一行 |
+| `logo` | string | 公司 logo 链接 |
+| `coverImage` | string | 封面图片链接 |
+| `fundingRounds` | array | 融资历史 |
+|   ↳ `roundType` | string | 融资轮次类型 |
+|   ↳ `amount` | number | 融资金额 |
+|   ↳ `currency` | string | 货币 |
+|   ↳ `investors` | array | 投资方 |
+
+### `enrich_company_funding`
+
+通过域名获取公司融资历史、流量指标和高管信息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `domain` | string | 是 | 公司域名（例如 example.com ） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `legalName` | string | 公司法定名称 |
+| `employeeCount` | number | 员工人数 |
+| `headquarters` | string | 总部所在地 |
+| `industry` | string | 行业 |
+| `totalFundingRaised` | number | 融资总额 |
+| `fundingRounds` | array | 融资轮次 |
+|   ↳ `roundType` | string | 轮次类型 |
+|   ↳ `amount` | number | 融资金额 |
+|   ↳ `date` | string | 日期 |
+|   ↳ `investors` | array | 投资方 |
+| `monthlyVisits` | number | 月度网站访问量 |
+| `trafficChange` | number | 流量变化百分比 |
+| `itSpending` | number | 预估 IT 支出（美元） |
+| `executives` | array | 高管团队 |
+|   ↳ `name` | string | 姓名 |
+|   ↳ `title` | string | 职位 |
+
+### `enrich_company_revenue`
+
+通过域名获取公司营收数据、CEO 信息及竞争分析。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `domain` | string | 是 | 公司域名（例如 clay.io ） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `companyName` | string | 公司名称 |
+| `shortDescription` | string | 公司简介 |
+| `fullSummary` | string | 公司详细介绍 |
+| `revenue` | string | 公司收入 |
+| `revenueMin` | number | 最低收入估算 |
+| `revenueMax` | number | 最高收入估算 |
+| `employeeCount` | number | 员工人数 |
+| `founded` | string | 成立年份 |
+| `ownership` | string | 所有权类型 |
+| `status` | string | 公司状态（如：在营） |
+| `website` | string | 公司网站 URL |
+| `ceo` | json | CEO 信息 |
+|   ↳ `name` | string | CEO 姓名 |
+|   ↳ `designation` | string | CEO 职位/头衔 |
+|   ↳ `rating` | number | CEO 评分 |
+| `socialLinks` | json | 社交媒体链接 |
+|   ↳ `linkedIn` | string | LinkedIn URL |
+|   ↳ `twitter` | string | Twitter URL |
+|   ↳ `facebook` | string | Facebook URL |
+| `totalFunding` | string | 融资总额 |
+| `fundingRounds` | number | 融资轮次 |
+| `competitors` | array | 竞争对手 |
+|   ↳ `name` | string | 竞争对手名称 |
+|   ↳ `revenue` | string | 收入 |
+|   ↳ `employeeCount` | number | 员工数量 |
+|   ↳ `headquarters` | string | 总部所在地 |
+
+### `enrich_search_people`
+
+可按姓名、职位、技能、学历和公司等多种条件搜索专业人士。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `firstName` | string | 否 | 名字 |
+| `lastName` | string | 否 | 姓氏 |
+| `summary` | string | 否 | 职业简介关键词 |
+| `subTitle` | string | 否 | 职位/副标题 |
+| `locationCountry` | string | 否 | 国家 |
+| `locationCity` | string | 否 | 城市 |
+| `locationState` | string | 否 | 州/省 |
+| `influencer` | boolean | 否 | 仅筛选影响者 |
+| `premium` | boolean | 否 | 仅筛选高级账户 |
+| `language` | string | 否 | 主要语言 |
+| `industry` | string | 否 | 行业 |
+| `currentJobTitles` | json | 否 | 当前职位（数组） |
+| `pastJobTitles` | json | 否 | 过往职位（数组） |
+| `skills` | json | 否 | 搜索技能（数组） |
+| `schoolNames` | json | 否 | 学校名称（数组） |
+| `certifications` | json | 否 | 筛选证书（数组） |
+| `degreeNames` | json | 否 | 筛选学位名称（数组） |
+| `studyFields` | json | 否 | 筛选专业名称（数组） |
+| `currentCompanies` | json | 否 | 筛选当前公司 ID（数字数组） |
+| `pastCompanies` | json | 否 | 筛选过往公司 ID（数字数组） |
+| `currentPage` | number | 否 | 页码（默认：1） |
+| `pageSize` | number | 否 | 每页结果数（默认：20） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `currentPage` | number | 当前页码 |
+| `totalPage` | number | 总页数 |
+| `pageSize` | number | 每页结果数 |
+| `profiles` | array | 搜索结果 |
+|   ↳ `profileIdentifier` | string | Profile ID |
+|   ↳ `givenName` | string | 名字 |
+|   ↳ `familyName` | string | 姓氏 |
+|   ↳ `currentPosition` | string | 当前职位名称 |
+|   ↳ `profileImage` | string | 个人头像 URL |
+|   ↳ `externalProfileUrl` | string | LinkedIn URL |
+|   ↳ `city` | string | 城市 |
+|   ↳ `country` | string | 国家 |
+|   ↳ `expertSkills` | array | 技能 |
+
+### `enrich_search_company`
+
+可根据名称、行业、地点和规模等多种条件搜索公司。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `name` | string | 否 | 公司名称 |
+| `website` | string | 否 | 公司网站 URL |
+| `tagline` | string | 否 | 公司标语 |
+| `type` | string | 否 | 公司类型（如 Private、Public） |
+| `description` | string | 否 | 公司描述关键词 |
+| `industries` | json | 否 | 行业筛选（数组） |
+| `locationCountry` | string | 否 | 国家 |
+| `locationCity` | string | 否 | 城市 |
+| `postalCode` | string | 否 | 邮政编码 |
+| `locationCountryList` | json | 否 | 多国家筛选（数组） |
+| `locationCityList` | json | 否 | 多城市筛选（数组） |
+| `specialities` | json | 否 | 公司专长（数组） |
+| `followers` | number | 否 | 最小关注者数 |
+| `staffCount` | number | 否 | 最大员工数 |
+| `staffCountMin` | number | 否 | 最小员工数 |
+| `staffCountMax` | number | 否 | 最大员工数 |
+| `currentPage` | number | 否 | 页码（默认：1） |
+| `pageSize` | number | 否 | 每页结果数（默认：20） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `currentPage` | number | 当前页码 |
+| `totalPage` | number | 总页数 |
+| `pageSize` | number | 每页结果数 |
+| `companies` | array | 搜索结果 |
+|   ↳ `companyName` | string | 公司名称 |
+|   ↳ `tagline` | string | 公司标语 |
+|   ↳ `webAddress` | string | 网站 URL |
+|   ↳ `industries` | array | 行业 |
+|   ↳ `teamSize` | number | 团队规模 |
+|   ↳ `linkedInProfile` | string | LinkedIn URL |
+
+### `enrich_search_company_employees`
+
+按地点和职位名称在特定公司中搜索员工。
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `companyIds` | json | 否 | 要搜索的公司 ID 数组 |
+| `country` | string | 否 | 国家筛选（例如 United States ）|
+| `city` | string | 否 | 城市筛选（例如 San Francisco ）|
+| `state` | string | 否 | 州筛选（例如 California ）|
+| `jobTitles` | json | 否 | 职位筛选（数组）|
+| `page` | number | 否 | 页码（默认：1）|
+| `pageSize` | number | 否 | 每页结果数（默认：10）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `currentPage` | number | 当前页码 |
+| `totalPage` | number | 总页数 |
+| `pageSize` | number | 每页结果数 |
+| `profiles` | array | 员工档案 |
+|   ↳ `profileIdentifier` | string | 档案 ID |
+|   ↳ `givenName` | string | 名字 |
+|   ↳ `familyName` | string | 姓氏 |
+|   ↳ `currentPosition` | string | 当前职位名称 |
+|   ↳ `profileImage` | string | 头像 URL |
+|   ↳ `externalProfileUrl` | string | LinkedIn URL |
+|   ↳ `city` | string | 城市 |
+|   ↳ `country` | string | 国家 |
+|   ↳ `expertSkills` | array | 技能 |
+
+### `enrich_search_similar_companies`
+
+通过 LinkedIn URL 查找与指定公司相似的公司，并可按地点和规模进行筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `url` | string | 是 | LinkedIn 公司 URL（例如：linkedin.com/company/google）|
+| `accountLocation` | json | 否 | 按地点筛选（国家名称数组）|
+| `employeeSizeType` | string | 否 | 员工规模筛选类型（例如：RANGE）|
+| `employeeSizeRange` | json | 否 | 员工规模区间（`{start, end}` 对象数组）|
+| `page` | number | 否 | 页码（默认：1）|
+| `num` | number | 否 | 每页结果数 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `companies` | array | 相似公司 |
+|   ↳ `url` | string | LinkedIn URL |
+|   ↳ `name` | string | 公司名称 |
+|   ↳ `universalName` | string | 通用名称 |
+|   ↳ `type` | string | 公司类型 |
+|   ↳ `description` | string | 公司简介 |
+|   ↳ `phone` | string | 电话号码 |
+|   ↳ `website` | string | 网站 URL |
+|   ↳ `logo` | string | Logo URL |
+|   ↳ `foundedYear` | number | 成立年份 |
+|   ↳ `staffTotal` | number | 员工总数 |
+|   ↳ `industries` | array | 行业 |
+|   ↳ `relevancyScore` | number | 相关性分数 |
+|   ↳ `relevancyValue` | string | 相关性值 |
+
+### `enrich_sales_pointer_people`
+
+高级人员搜索，支持按地点、公司规模、职位级别、工作经验等多种复杂筛选条件。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `page` | number | 是 | 页码（从 1 开始） |
+| `filters` | json | 是 | 筛选对象数组。每个筛选包含类型（如 POSTAL_CODE、COMPANY_HEADCOUNT）、值（包含 id、text、selectionType: INCLUDED/EXCLUDED 的数组）以及可选的 selectedSubFilter |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `data` | array | 人员结果 |
+|   ↳ `name` | string | 姓名全称 |
+|   ↳ `summary` | string | 职业简介 |
+|   ↳ `location` | string | 所在地 |
+|   ↳ `profilePicture` | string | 头像 URL |
+|   ↳ `linkedInUrn` | string | LinkedIn URN |
+|   ↳ `positions` | array | 工作经历 |
+|   ↳ `education` | array | 教育经历 |
+| `pagination` | json | 分页信息 |
+|   ↳ `totalCount` | number | 结果总数 |
+|   ↳ `returnedCount` | number | 返回数量 |
+|   ↳ `start` | number | 起始位置 |
+|   ↳ `limit` | number | 限制数量 |
+
+### `enrich_search_posts`
+
+通过关键词搜索 LinkedIn 帖子，并可按日期筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `keywords` | string | 是 | 搜索关键词（如 "AI automation"） |
+| `datePosted` | string | 否 | 时间筛选（如 past_week、past_month） |
+| `page` | number | 否 | 页码（默认：1） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `count` | number | 结果总数 |
+| `posts` | array | 搜索结果 |
+|   ↳ `url` | string | 帖子 URL |
+|   ↳ `postId` | string | 帖子 ID |
+|   ↳ `author` | object | 作者信息 |
+|     ↳ `name` | string | 作者姓名 |
+|     ↳ `headline` | string | 作者头衔 |
+|     ↳ `linkedInUrl` | string | 作者 LinkedIn URL |
+|     ↳ `profileImage` | string | 作者头像 |
+|   ↳ `timestamp` | string | 帖子时间戳 |
+|   ↳ `textContent` | string | 帖子正文内容 |
+|   ↳ `hashtags` | array | 话题标签 |
+|   ↳ `mediaUrls` | array | 媒体 URL |
+|   ↳ `reactions` | number | 点赞数 |
+|   ↳ `commentsCount` | number | 评论数 |
+
+### `enrich_get_post_details`
+
+通过 URL 获取 LinkedIn 帖子的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `url` | string | 是 | LinkedIn 帖子 URL |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `postId` | string | 帖子 ID |
+| `author` | json | 作者信息 |
+|   ↳ `name` | string | 作者姓名 |
+|   ↳ `headline` | string | 作者头衔 |
+|   ↳ `linkedInUrl` | string | 作者 LinkedIn URL |
+|   ↳ `profileImage` | string | 作者头像 |
+| `timestamp` | string | 帖子时间戳 |
+| `textContent` | string | 帖子正文内容 |
+| `hashtags` | array | 话题标签 |
+| `mediaUrls` | array | 媒体 URL |
+| `reactions` | number | 点赞数 |
+| `commentsCount` | number | 评论数 |
+
+### `enrich_search_post_reactions`
+
+获取 LinkedIn 帖子的互动反应，并可按反应类型筛选。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `apiKey` | string | 是 | Enrich API key |
+| `postUrn` | string | 是 | LinkedIn 活动 URN（例如：urn:li:activity:7231931952839196672）|
+| `reactionType` | string | 是 | 反应类型筛选：all、like、love、celebrate、insightful 或 funny（默认：all）|
+| `page` | number | 是 | 页码（从 1 开始）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ---- |
+| `page` | number | 当前页码 |
+| `totalPage` | number | 总页数 |
+| `count` | number | 返回的反应数 |
+| `reactions` | array | 反应列表 |
+|   ↳ `reactionType` | string | 反应类型 |
+|   ↳ `reactor` | object | 互动人信息 |
+|     ↳ `name` | string | 姓名 |
+|     ↳ `subTitle` | string | 职位 |
+|     ↳ `profileId` | string | 个人资料 ID |
+|     ↳ `profilePicture` | string | 头像 URL |
+|     ↳ `linkedInUrl` | string | LinkedIn 主页链接 |
+
+### `enrich_search_post_comments`
+
+获取 LinkedIn 帖子的评论。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ---- | ---- |
+| `apiKey` | string | 是 | Enrich API key |
+| `postUrn` | string | 是 | LinkedIn 活动 URN（例如：urn:li:activity:7191163324208705536）|
+| `page` | number | 否 | 页码（从 1 开始，默认：1）|
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `page` | number | 当前页码 |
+| `totalPage` | number | 总页数 |
+| `count` | number | 返回的评论数 |
+| `comments` | array | 评论 |
+|   ↳ `activityId` | string | 评论活动 ID |
+|   ↳ `commentary` | string | 评论内容 |
+|   ↳ `linkedInUrl` | string | 评论链接 |
+|   ↳ `commenter` | object | 评论者信息 |
+|     ↳ `profileId` | string | 个人资料 ID |
+|     ↳ `firstName` | string | 名字 |
+|     ↳ `lastName` | string | 姓氏 |
+|     ↳ `subTitle` | string | 副标题/头衔 |
+|     ↳ `profilePicture` | string | 头像 URL |
+|     ↳ `backgroundImage` | string | 背景图片 URL |
+|     ↳ `entityUrn` | string | 实体 URN |
+|     ↳ `objectUrn` | string | 对象 URN |
+|     ↳ `profileType` | string | 个人资料类型 |
+|   ↳ `reactionBreakdown` | object | 评论的互动 |
+|     ↳ `likes` | number | 点赞数 |
+|     ↳ `empathy` | number | 共鸣反应数 |
+|     ↳ `other` | number | 其他反应数 |
+
+### `enrich_search_people_activities`
+
+获取个人信息
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `profileId` | string | 是 | LinkedIn 个人资料 ID |
+| `activityType` | string | 是 | 活动类型：posts、comments 或 articles |
+| `paginationToken` | string | 否 | 下一页结果的分页令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `paginationToken` | string | 用于获取下一页的令牌 |
+| `activityType` | string | 返回的活动类型 |
+| `activities` | array | 活动列表 |
+|   ↳ `activityId` | string | 活动 ID |
+|   ↳ `commentary` | string | 活动文本内容 |
+|   ↳ `linkedInUrl` | string | 活动链接 |
+|   ↳ `timeElapsed` | string | 距离活动发生的时间 |
+|   ↳ `numReactions` | number | 总反应数 |
+|   ↳ `author` | object | 活动作者信息 |
+|     ↳ `name` | string | 作者姓名 |
+|     ↳ `profileId` | string | 个人资料 ID |
+|     ↳ `profilePicture` | string | 头像 URL |
+|   ↳ `reactionBreakdown` | object | 反应 |
+|     ↳ `likes` | number | 点赞数 |
+|     ↳ `empathy` | number | 共鸣数 |
+|     ↳ `other` | number | 其他反应数 |
+|   ↳ `attachments` | array | 附件 URL |
+
+### `enrich_search_company_activities`
+
+获取公司信息
+
+#### 输入
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `companyId` | string | 是 | LinkedIn 公司 ID |
+| `activityType` | string | 是 | 活动类型：posts、comments 或 articles |
+| `paginationToken` | string | 否 | 下一页结果的分页令牌 |
+| `offset` | number | 否 | 跳过的记录数（默认：0） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `paginationToken` | string | 用于获取下一页的令牌 |
+| `activityType` | string | 返回的活动类型 |
+| `activities` | array | 活动列表 |
+|   ↳ `activityId` | string | 活动 ID |
+|   ↳ `commentary` | string | 活动文本内容 |
+|   ↳ `linkedInUrl` | string | 活动链接 |
+|   ↳ `timeElapsed` | string | 距离活动发生的时间 |
+|   ↳ `numReactions` | number | 总反应数 |
+|   ↳ `author` | object | 活动作者信息 |
+|     ↳ `name` | string | 作者姓名 |
+|     ↳ `profileId` | string | 个人资料 ID |
+|     ↳ `profilePicture` | string | 个人头像 URL |
+|   ↳ `reactionBreakdown` | object | 反应 |
+|     ↳ `likes` | number | 点赞数 |
+|     ↳ `empathy` | number | 共情反应数 |
+|     ↳ `other` | number | 其他反应数 |
+|   ↳ `attachments` | array | 附件 |
+
+### `enrich_reverse_hash_lookup`
+
+将 MD5 邮箱哈希还原为原始邮箱地址和显示名称。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | Enrich API 密钥 |
+| `hash` | string | 是 | 要查询的 MD5 哈希值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `hash` | string | 被查询的 MD5 哈希 |
+| `email` | string | 原始邮箱地址 |
+| `displayName` | string | 与邮箱关联的显示名称 |
+| `found` | boolean | 是否找到对应邮箱地址 |
+
+### `enrich_search_logo`
+
+通过域名获取公司 logo 图片的 URL。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | ------ | ----------- |
+| `apiKey` | string | 是 | Enrich API key |
+| `url` | string | 是 | 公司域名（例如，google.com） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `logoUrl` | string | 用于获取公司 logo 的 URL |
+| `domain` | string | 被查询的域名 |
