@@ -1,3 +1,5 @@
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
+import { season } from '@/app/_styles/fonts/season/season'
 import {
   Collaboration,
   Enterprise,
@@ -29,9 +31,9 @@ import {
  *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration, Testimonials) ->
  *   pricing (Pricing) -> enterprise (Enterprise).
  */
-export default function Landing() {
+export default async function Landing() {
   return (
-    <>
+    <div className={`${season.variable} ${martianMono.variable} min-h-screen bg-[#1C1C1C]`}>
       <StructuredData />
       <header>
         <Navbar />
@@ -46,6 +48,6 @@ export default function Landing() {
         <Testimonials />
       </main>
       <Footer />
-    </>
+    </div>
   )
 }

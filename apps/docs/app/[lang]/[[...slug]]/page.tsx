@@ -264,15 +264,17 @@ export async function generateMetadata(props: {
   return {
     title: data.title,
     description:
-      data.description || 'Sim visual workflow builder for AI applications documentation',
+      data.description ||
+      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
     keywords: [
-      'AI workflow builder',
-      'visual workflow editor',
-      'AI automation',
-      'workflow automation',
       'AI agents',
-      'no-code AI',
-      'drag and drop workflows',
+      'agentic workforce',
+      'AI agent platform',
+      'agentic workflows',
+      'LLM orchestration',
+      'AI automation',
+      'knowledge base',
+      'AI integrations',
       data.title?.toLowerCase().split(' '),
     ]
       .flat()
@@ -282,7 +284,8 @@ export async function generateMetadata(props: {
     openGraph: {
       title: data.title,
       description:
-        data.description || 'Sim visual workflow builder for AI applications documentation',
+        data.description ||
+        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
       url: fullUrl,
       siteName: 'Sim Documentation',
       type: 'article',
@@ -303,7 +306,8 @@ export async function generateMetadata(props: {
       card: 'summary_large_image',
       title: data.title,
       description:
-        data.description || 'Sim visual workflow builder for AI applications documentation',
+        data.description ||
+        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
       images: [ogImageUrl],
       creator: '@simdotai',
       site: '@simdotai',

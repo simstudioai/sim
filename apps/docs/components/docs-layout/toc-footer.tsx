@@ -13,9 +13,9 @@ export function TOCFooter() {
         <div className='text-balance font-semibold text-base leading-tight'>
           Start building today
         </div>
-        <div className='text-muted-foreground'>Trusted by over 60,000 builders.</div>
+        <div className='text-muted-foreground'>Trusted by over 100,000 builders.</div>
         <div className='text-muted-foreground'>
-          Build Agentic workflows visually on a drag-and-drop canvas or with natural language.
+          The open-source platform to build AI agents and run your agentic workforce.
         </div>
         <Link
           href='https://sim.ai/signup'

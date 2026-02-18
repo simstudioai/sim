@@ -3,18 +3,18 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 export async function GET() {
   const baseUrl = getBaseUrl()
 
-  const llmsFullContent = `# Sim - AI Agent Workflow Builder
+  const llmsFullContent = `# Sim — Build AI Agents & Run Your Agentic Workforce
 
-> Sim is an open-source AI agent workflow builder used by 60,000+ developers at startups to Fortune 500 companies. Build and deploy agentic workflows with a visual drag-and-drop canvas. SOC2 and HIPAA compliant.
+> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.
 
 ## Overview
 
-Sim provides a visual interface for building AI agent workflows. Instead of writing code, users drag and drop blocks onto a canvas and connect them to create complex AI automations. Each block represents a step in the workflow - an LLM call, a tool invocation, an API request, or a code execution.
+Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that execute real workflows across systems, and manage them with full observability. SOC2 and HIPAA compliant.
 
 ## Product Details
 
 - **Product Name**: Sim
-- **Category**: AI Development Tools / Workflow Automation
+- **Category**: AI Agent Platform / Agentic Workflow Orchestration
 - **Deployment**: Cloud (SaaS) and Self-hosted options
 - **Pricing**: Free tier, Pro ($20/month), Team ($40/month), Enterprise (custom)
 - **Compliance**: SOC2 Type II, HIPAA compliant
@@ -66,7 +66,7 @@ Sim supports all major LLM providers:
 - Amazon Bedrock
 
 ### Integrations
-100+ pre-built integrations including:
+1,000+ pre-built integrations including:
 - **Communication**: Slack, Discord, Email (Gmail, Outlook), SMS (Twilio)
 - **Productivity**: Notion, Airtable, Google Sheets, Google Docs
 - **Development**: GitHub, GitLab, Jira, Linear
@@ -80,6 +80,12 @@ Built-in support for:
 - Vector database integration (Pinecone, Weaviate, Qdrant)
 - Semantic search and retrieval
 - Chunking strategies (fixed size, semantic, recursive)
+
+### Tables
+Built-in table creation and management:
+- Structured data storage
+- Queryable tables for agent workflows
+- Native integrations
 
 ### Code Execution
 - Sandboxed JavaScript/TypeScript execution

@@ -9,7 +9,7 @@
  *
  * GEO:
  * - Each feature block is independently extractable (atomic answer block pattern).
- * - Include specific numbers ("100+ integrations", "15+ AI providers", "SOC2 compliant").
+ * - Include specific numbers ("1,000+ integrations", "15+ AI providers", "SOC2 compliant").
  * - Always use "Sim" by name — never "the platform" or "our tool" (entity consistency).
  */
 export default function Features() {

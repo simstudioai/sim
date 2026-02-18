@@ -1,16 +1,18 @@
 import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import Landing from '@/app/(landing)/landing'
+import Landing from '@/app/(home)/landing'
+
+export const dynamic = 'force-dynamic'
 
 const baseUrl = getBaseUrl()
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  title: 'Sim - AI Agent Workflow Builder | Open Source Platform',
+  title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
   description:
-    'Open-source AI agent workflow builder used by 60,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
+    'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
   keywords:
-    'AI agent workflow builder, agentic workflows, open source AI, visual workflow builder, AI automation, LLM workflows, AI agents, workflow automation, no-code AI, SOC2 compliant, HIPAA compliant, enterprise AI',
+    'AI agents, agentic workforce, open-source AI agent platform, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, HIPAA compliant, enterprise AI',
   authors: [{ name: 'Sim' }],
   creator: 'Sim',
   publisher: 'Sim',
@@ -20,9 +22,9 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'Sim - AI Agent Workflow Builder | Open Source',
+    title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
-      'Open-source platform used by 60,000+ developers. Design, deploy, and monitor agentic workflows with a visual drag-and-drop interface, 100+ integrations, and enterprise-grade security.',
+      'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Join over 100,000 builders.',
     type: 'website',
     url: baseUrl,
     siteName: 'Sim',
@@ -32,7 +34,7 @@ export const metadata: Metadata = {
         url: '/logo/426-240/primary/small.png',
         width: 2130,
         height: 1200,
-        alt: 'Sim - AI Agent Workflow Builder',
+        alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',
         type: 'image/png',
       },
     ],
@@ -41,12 +43,12 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@simdotai',
     creator: '@simdotai',
-    title: 'Sim - AI Agent Workflow Builder | Open Source',
+    title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
-      'Open-source platform for agentic workflows. 60,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
+      'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
     images: {
       url: '/logo/426-240/primary/small.png',
-      alt: 'Sim - AI Agent Workflow Builder',
+      alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     },
   },
   alternates: {
@@ -72,11 +74,12 @@ export const metadata: Metadata = {
   classification: 'AI Development Tools',
   referrer: 'origin-when-cross-origin',
   other: {
-    'llm:content-type': 'AI workflow builder, visual programming, no-code AI development',
+    'llm:content-type':
+      'AI agent platform, agentic workforce, agentic workflows, LLM orchestration',
     'llm:use-cases':
-      'email automation, Slack bots, Discord moderation, data analysis, customer support, content generation, agentic automations',
+      'AI agents, agentic workforce, agentic workflows, knowledge bases, tables, document creation, email automation, Slack bots, data analysis, customer support, content generation',
     'llm:integrations':
-      'OpenAI, Anthropic, Google AI, Slack, Gmail, Discord, Notion, Airtable, Supabase',
+      'OpenAI, Anthropic, Google AI, Mistral, xAI, Perplexity, Slack, Gmail, Discord, Notion, Airtable, Supabase',
     'llm:pricing': 'free tier available, pro $20/month, team $40/month, enterprise custom',
     'llm:region': 'global',
     'llm:languages': 'en',

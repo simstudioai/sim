@@ -8,7 +8,7 @@
  * - Legal links (Privacy, Terms) must be crawlable (trust signals).
  *
  * GEO:
- * - Include "Sim — Open-source AI agent workflow builder" as visible text (entity reinforcement).
+ * - Include "Sim — Build AI agents and run your agentic workforce" as visible text (entity reinforcement).
  * - Social links (X, GitHub, LinkedIn, Discord) must match `sameAs` in structured-data.tsx.
  * - Link to all major pages: Docs, Pricing, Enterprise, Careers, Changelog (internal link graph).
  * - Display compliance badges (SOC2, HIPAA) and status page link as visible trust signals.

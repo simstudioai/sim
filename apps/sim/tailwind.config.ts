@@ -13,6 +13,7 @@ export default {
     extend: {
       fontFamily: {
         season: ['var(--font-season)'],
+        mono: ['var(--font-martian-mono)', 'ui-monospace', 'monospace'],
       },
       fontSize: {
         xs: '11px',

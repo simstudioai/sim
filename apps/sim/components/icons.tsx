@@ -537,6 +537,34 @@ export function GithubIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GithubOutlineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M15 21C15 21 15 18.73 15 18C15 17.37 15.15 16.04 14.5 15.5C15.89 15.37 16.98 14.92 18 14C19.02 13.08 19.5 11.69 19.5 9.5C19.5 8 19.25 7 18.5 6C18.79 5.22 18.84 4 18.5 3C16.94 3 15.53 4.07 15 4.5C14.61 4.4 13.67 4 12 4C10.33 4 9.39 4.4 9 4.5C8.47 4.07 7.06 3 5.5 3C5.16 4 5.21 5.22 5.5 6C4.75 7 4.5 8 4.5 9.5C4.5 11.69 4.98 13.08 6 14C7.02 14.92 8.11 15.37 9.5 15.5C8.85 16.04 9 17.37 9 18C9 18.73 9 21 9 21'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M9 19C7.59 19 6.16 18.44 5.31 17.81C4.47 17.18 4.22 16.15 3 15.5'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function GitLabIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>

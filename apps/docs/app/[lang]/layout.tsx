@@ -63,7 +63,7 @@ export default async function Layout({ children, params }: LayoutProps) {
     '@type': 'WebSite',
     name: 'Sim Documentation',
     description:
-      'Comprehensive documentation for Sim - the visual workflow builder for AI Agent Workflows.',
+      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
     url: 'https://docs.sim.ai',
     publisher: {
       '@type': 'Organization',
