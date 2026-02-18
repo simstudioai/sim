@@ -156,4 +156,22 @@ describe('folder optimistic top insertion ordering', () => {
     expect(optimisticFolder).toBeDefined()
     expect(optimisticFolder?.sortOrder).toBe(1)
   })
+
+  it('uses source parent scope when duplicate parentId is undefined', async () => {
+    const mutation = useDuplicateFolderMutation()
+
+    await mutation.onMutate({
+      workspaceId: 'ws-1',
+      id: 'folder-parent-match',
+      name: 'Duplicated with inherited parent',
+      // parentId intentionally omitted to mirror duplicate fallback behavior
+    })
+
+    const optimisticFolder = getOptimisticFolderByName('Duplicated with inherited parent') as
+      | { parentId: string | null; sortOrder: number }
+      | undefined
+    expect(optimisticFolder).toBeDefined()
+    expect(optimisticFolder?.parentId).toBe('parent-1')
+    expect(optimisticFolder?.sortOrder).toBe(1)
+  })
 })

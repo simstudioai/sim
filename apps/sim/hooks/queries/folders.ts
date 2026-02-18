@@ -243,19 +243,20 @@ export function useDuplicateFolderMutation() {
 
       // Get source folder info if available
       const sourceFolder = previousFolders[variables.id]
+      const targetParentId = variables.parentId ?? sourceFolder?.parentId ?? null
       return {
         id: tempId,
         name: variables.name,
         userId: sourceFolder?.userId || '',
         workspaceId: variables.workspaceId,
-        parentId: variables.parentId ?? sourceFolder?.parentId ?? null,
+        parentId: targetParentId,
         color: variables.color || sourceFolder?.color || '#808080',
         isExpanded: false,
         sortOrder: getTopInsertionSortOrder(
           currentWorkflows,
           previousFolders,
           variables.workspaceId,
-          variables.parentId
+          targetParentId
         ),
         createdAt: new Date(),
         updatedAt: new Date(),
