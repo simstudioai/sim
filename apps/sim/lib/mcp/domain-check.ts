@@ -24,21 +24,44 @@ function checkMcpDomain(url: string): string | null {
 }
 
 /**
+ * Returns true if the URL's hostname contains an env var reference,
+ * meaning domain validation must be deferred until env var resolution.
+ * Only bypasses validation when the hostname itself is unresolvable —
+ * env vars in the path/query do NOT bypass the domain check.
+ */
+function hasEnvVarInHostname(url: string): boolean {
+  const envVarPattern = createEnvVarPattern()
+  // If the entire URL is an env var reference, hostname is unknown
+  if (url.trim().replace(envVarPattern, '').trim() === '') return true
+  try {
+    // Extract the authority portion (between :// and the next /)
+    const protocolEnd = url.indexOf('://')
+    if (protocolEnd === -1) return envVarPattern.test(url)
+    const afterProtocol = url.substring(protocolEnd + 3)
+    const authorityEnd = afterProtocol.indexOf('/')
+    const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
+    return createEnvVarPattern().test(authority)
+  } catch {
+    return envVarPattern.test(url)
+  }
+}
+
+/**
  * Returns true if the URL's domain is allowed (or no restriction is configured).
- * URLs containing env var references ({{VAR}}) are allowed — they will be
+ * URLs with env var references in the hostname are allowed — they will be
  * validated after resolution at execution time.
  */
 export function isMcpDomainAllowed(url: string | undefined): boolean {
   if (!url) {
     return getAllowedMcpDomainsFromEnv() === null
   }
-  if (createEnvVarPattern().test(url)) return true
+  if (hasEnvVarInHostname(url)) return true
   return checkMcpDomain(url) === null
 }
 
 /**
  * Throws McpDomainNotAllowedError if the URL's domain is not in the allowlist.
- * URLs containing env var references ({{VAR}}) are skipped — they will be
+ * URLs with env var references in the hostname are skipped — they will be
  * validated after resolution at execution time.
  */
 export function validateMcpDomain(url: string | undefined): void {
@@ -48,7 +71,7 @@ export function validateMcpDomain(url: string | undefined): void {
     }
     return
   }
-  if (createEnvVarPattern().test(url)) return
+  if (hasEnvVarInHostname(url)) return
   const rejected = checkMcpDomain(url)
   if (rejected !== null) {
     throw new McpDomainNotAllowedError(rejected)

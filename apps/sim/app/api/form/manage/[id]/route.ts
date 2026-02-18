@@ -103,7 +103,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { id } = await params
 
-    const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
+    const {
+      hasAccess,
+      form: formRecord,
+      workspaceId: formWorkspaceId,
+    } = await checkFormAccess(id, session.user.id)
 
     if (!hasAccess || !formRecord) {
       return createErrorResponse('Form not found or access denied', 404)
@@ -186,7 +190,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       logger.info(`Form ${id} updated successfully`)
 
       recordAudit({
-        workspaceId: null,
+        workspaceId: formWorkspaceId ?? null,
         actorId: session.user.id,
         action: AuditAction.FORM_UPDATED,
         resourceType: AuditResourceType.FORM,
@@ -227,7 +231,11 @@ export async function DELETE(
 
     const { id } = await params
 
-    const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
+    const {
+      hasAccess,
+      form: formRecord,
+      workspaceId: formWorkspaceId,
+    } = await checkFormAccess(id, session.user.id)
 
     if (!hasAccess || !formRecord) {
       return createErrorResponse('Form not found or access denied', 404)
@@ -238,7 +246,7 @@ export async function DELETE(
     logger.info(`Form ${id} deleted (soft delete)`)
 
     recordAudit({
-      workspaceId: null,
+      workspaceId: formWorkspaceId ?? null,
       actorId: session.user.id,
       action: AuditAction.FORM_DELETED,
       resourceType: AuditResourceType.FORM,

@@ -109,13 +109,27 @@ const logger = createLogger('McpSettings')
 /**
  * Checks if a URL's hostname is in the allowed domains list.
  * Returns true if no allowlist is configured (null) or the domain matches.
+ * Env var references in the hostname bypass the check since the domain
+ * can't be determined until resolution — but env vars only in the path/query
+ * do NOT bypass the check.
  */
-const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
+const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/g
+
+function hasEnvVarInHostname(url: string): boolean {
+  // If the entire URL is an env var, hostname is unknown
+  if (url.trim().replace(ENV_VAR_PATTERN, '').trim() === '') return true
+  const protocolEnd = url.indexOf('://')
+  if (protocolEnd === -1) return ENV_VAR_PATTERN.test(url)
+  const afterProtocol = url.substring(protocolEnd + 3)
+  const authorityEnd = afterProtocol.indexOf('/')
+  const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
+  return new RegExp(ENV_VAR_PATTERN.source).test(authority)
+}
 
 function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
   if (allowedDomains === null) return true
   if (!url) return false
-  if (ENV_VAR_PATTERN.test(url)) return true
+  if (hasEnvVarInHostname(url)) return true
   try {
     const hostname = new URL(url).hostname.toLowerCase()
     return allowedDomains.includes(hostname)
