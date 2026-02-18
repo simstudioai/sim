@@ -2,6 +2,7 @@ import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
@@ -22,7 +23,11 @@ export async function POST(
   const { id, version } = await params
 
   try {
-    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowRecord,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -106,6 +111,19 @@ export async function POST(
     } catch (e) {
       logger.error('Error sending workflow reverted event to socket server', e)
     }
+
+    recordAudit({
+      workspaceId: workflowRecord?.workspaceId ?? null,
+      actorId: session!.user.id,
+      action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: id,
+      actorName: session!.user.name ?? undefined,
+      actorEmail: session!.user.email ?? undefined,
+      resourceName: workflowRecord?.name ?? undefined,
+      description: `Reverted workflow to deployment version ${version}`,
+      request,
+    })
 
     return createSuccessResponse({
       message: 'Reverted to deployment version',

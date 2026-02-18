@@ -124,6 +124,47 @@ export const isReactGrabEnabled = isDev && isTruthy(env.REACT_GRAB_ENABLED)
 export const isReactScanEnabled = isDev && isTruthy(env.REACT_SCAN_ENABLED)
 
 /**
+ * Returns the parsed allowlist of integration block types from the environment variable.
+ * If not set or empty, returns null (meaning all integrations are allowed).
+ */
+export function getAllowedIntegrationsFromEnv(): string[] | null {
+  if (!env.ALLOWED_INTEGRATIONS) return null
+  const parsed = env.ALLOWED_INTEGRATIONS.split(',')
+    .map((i) => i.trim().toLowerCase())
+    .filter(Boolean)
+  return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Normalizes a domain entry from the ALLOWED_MCP_DOMAINS env var.
+ * Accepts bare hostnames (e.g., "mcp.company.com") or full URLs (e.g., "https://mcp.company.com").
+ * Extracts the hostname in either case.
+ */
+function normalizeDomainEntry(entry: string): string {
+  const trimmed = entry.trim().toLowerCase()
+  if (!trimmed) return ''
+  if (trimmed.includes('://')) {
+    try {
+      return new URL(trimmed).hostname
+    } catch {
+      return trimmed
+    }
+  }
+  return trimmed
+}
+
+/**
+ * Get allowed MCP server domains from the ALLOWED_MCP_DOMAINS env var.
+ * Returns null if not set (all domains allowed), or parsed array of lowercase hostnames.
+ * Accepts both bare hostnames and full URLs in the env var value.
+ */
+export function getAllowedMcpDomainsFromEnv(): string[] | null {
+  if (!env.ALLOWED_MCP_DOMAINS) return null
+  const parsed = env.ALLOWED_MCP_DOMAINS.split(',').map(normalizeDomainEntry).filter(Boolean)
+  return parsed.length > 0 ? parsed : null
+}
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

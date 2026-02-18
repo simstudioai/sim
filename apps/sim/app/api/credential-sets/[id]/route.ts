@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 
@@ -131,6 +132,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const [updated] = await db.select().from(credentialSet).where(eq(credentialSet.id, id)).limit(1)
 
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: updated?.name ?? result.set.name,
+      description: `Updated credential set "${updated?.name ?? result.set.name}"`,
+      request: req,
+    })
+
     return NextResponse.json({ credentialSet: updated })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -174,6 +188,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await db.delete(credentialSet).where(eq(credentialSet.id, id))
 
     logger.info('Deleted credential set', { credentialSetId: id, userId: session.user.id })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Deleted credential set "${result.set.name}"`,
+      request: req,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

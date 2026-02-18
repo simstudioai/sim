@@ -3,6 +3,7 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -85,7 +86,7 @@ export const GET = withMcpAuth('read')(
  * POST - Create a new workflow MCP server
  */
 export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
 
@@ -187,6 +188,19 @@ export const POST = withMcpAuth('write')(
       logger.info(
         `[${requestId}] Successfully created workflow MCP server: ${body.name} (ID: ${serverId})`
       )
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        action: AuditAction.MCP_SERVER_ADDED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        resourceName: body.name.trim(),
+        description: `Published workflow MCP server "${body.name.trim()}" with ${addedTools.length} tool(s)`,
+        request,
+      })
 
       return createMcpSuccessResponse({ server, addedTools }, 201)
     } catch (error) {

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -52,6 +53,17 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date(),
           },
         })
+
+      recordAudit({
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.ENVIRONMENT_UPDATED,
+        resourceType: AuditResourceType.ENVIRONMENT,
+        description: 'Updated global environment variables',
+        metadata: { variableCount: Object.keys(variables).length },
+        request: req,
+      })
 
       return NextResponse.json({ success: true })
     } catch (validationError) {

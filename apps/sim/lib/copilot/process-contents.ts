@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { isHiddenFromDisplay } from '@/blocks/types'
@@ -349,16 +350,14 @@ async function processBlockMetadata(
   userId?: string
 ): Promise<AgentContext | null> {
   try {
-    if (userId) {
-      const permissionConfig = await getUserPermissionConfig(userId)
-      const allowedIntegrations = permissionConfig?.allowedIntegrations
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
-        logger.debug('Block not allowed by permission group', { blockId, userId })
-        return null
-      }
+    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const allowedIntegrations =
+      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+      logger.debug('Block not allowed by integration allowlist', { blockId, userId })
+      return null
     }
 
-    // Reuse registry to match get_blocks_metadata tool result
     const { registry: blockRegistry } = await import('@/blocks/registry')
     const { tools: toolsRegistry } = await import('@/tools/registry')
     const SPECIAL_BLOCKS_METADATA: Record<string, any> = {}
@@ -466,7 +465,6 @@ async function processWorkflowBlockFromDb(
     if (!block) return null
     const tag = label ? `@${label} in Workflow` : `@${block.name || blockId} in Workflow`
 
-    // Build content: isolate the block and include its subBlocks fully
     const contentObj = {
       workflowId,
       block: block,
@@ -518,7 +516,6 @@ async function processExecutionLogFromDb(
       endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
       totalDurationMs: log.totalDurationMs ?? null,
       workflowName: log.workflowName || '',
-      // Include trace spans and any available details without being huge
       executionData: log.executionData
         ? {
             traceSpans: (log.executionData as any).traceSpans || undefined,

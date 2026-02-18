@@ -17,6 +17,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isTest: false,
   getCostMultiplier: vi.fn().mockReturnValue(1),
+  getAllowedIntegrationsFromEnv: vi.fn().mockReturnValue(null),
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
   isOrganizationsEnabled: false,

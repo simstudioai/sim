@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { databaseMock, loggerMock } from '@sim/testing'
+import { auditMock, databaseMock, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,6 +36,8 @@ vi.mock('@/lib/core/utils/request', () => ({
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 import { PUT } from './route'
 

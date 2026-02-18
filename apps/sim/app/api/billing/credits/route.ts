@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { purchaseCredits } from '@/lib/billing/credits/purchase'
@@ -56,6 +57,17 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
+
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDIT_PURCHASED,
+      resourceType: AuditResourceType.BILLING,
+      description: `Purchased $${validation.data.amount} in credits`,
+      metadata: { amount: validation.data.amount, requestId: validation.data.requestId },
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

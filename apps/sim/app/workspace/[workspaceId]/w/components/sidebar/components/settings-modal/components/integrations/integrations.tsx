@@ -223,13 +223,11 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
     }
   }
 
-  // Group services by provider, filtering by permission config
   const groupedServices = services.reduce(
     (acc, service) => {
-      // Filter based on allowedIntegrations
       if (
         permissionConfig.allowedIntegrations !== null &&
-        !permissionConfig.allowedIntegrations.includes(service.id)
+        !permissionConfig.allowedIntegrations.includes(service.id.replace(/-/g, '_').toLowerCase())
       ) {
         return acc
       }

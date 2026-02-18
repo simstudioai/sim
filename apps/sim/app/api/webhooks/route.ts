@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -145,7 +146,8 @@ export async function GET(request: NextRequest) {
 // Create or Update a webhook
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
-  const userId = (await getSession())?.user?.id
+  const session = await getSession()
+  const userId = session?.user?.id
 
   if (!userId) {
     logger.warn(`[${requestId}] Unauthorized webhook creation attempt`)
@@ -678,6 +680,20 @@ export async function POST(request: NextRequest) {
       } catch {
         // Telemetry should not fail the operation
       }
+
+      recordAudit({
+        workspaceId: workflowRecord.workspaceId || null,
+        actorId: userId,
+        actorName: session?.user?.name ?? undefined,
+        actorEmail: session?.user?.email ?? undefined,
+        action: AuditAction.WEBHOOK_CREATED,
+        resourceType: AuditResourceType.WEBHOOK,
+        resourceId: savedWebhook.id,
+        resourceName: provider || 'generic',
+        description: `Created ${provider || 'generic'} webhook`,
+        metadata: { provider, workflowId },
+        request,
+      })
     }
 
     const status = targetWebhookId ? 200 : 201

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { McpClient } from '@/lib/mcp/client'
+import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import type { McpTransport } from '@/lib/mcp/types'
@@ -71,6 +72,15 @@ export const POST = withMcpAuth('write')(
         )
       }
 
+      try {
+        validateMcpDomain(body.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
+      }
+
       // Build initial config for resolution
       const initialConfig = {
         id: `test-${requestId}`,
@@ -93,6 +103,16 @@ export const POST = withMcpAuth('write')(
 
       if (missingVars.length > 0) {
         logger.warn(`[${requestId}] Some environment variables not found:`, { missingVars })
+      }
+
+      // Re-validate domain after env var resolution
+      try {
+        validateMcpDomain(testConfig.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
       }
 
       const testSecurityPolicy = {

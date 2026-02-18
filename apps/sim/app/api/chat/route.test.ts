@@ -1,9 +1,10 @@
-import { NextRequest } from 'next/server'
 /**
  * Tests for chat API route
  *
  * @vitest-environment node
  */
+import { auditMock } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('Chat API Route', () => {
@@ -29,6 +30,8 @@ describe('Chat API Route', () => {
     mockWhere.mockReturnValue({ limit: mockLimit })
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
+
+    vi.doMock('@/lib/audit/log', () => auditMock)
 
     vi.doMock('@sim/db', () => ({
       db: {

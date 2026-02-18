@@ -232,6 +232,7 @@ async function flushSubblockUpdate(
     }
 
     let updateSuccessful = false
+    let blockLocked = false
     await db.transaction(async (tx) => {
       const [block] = await tx
         .select({
@@ -250,6 +251,7 @@ async function flushSubblockUpdate(
       // Check if block is locked directly
       if (block.locked) {
         logger.info(`Skipping subblock update - block ${blockId} is locked`)
+        blockLocked = true
         return
       }
 
@@ -266,6 +268,7 @@ async function flushSubblockUpdate(
 
         if (parentBlock?.locked) {
           logger.info(`Skipping subblock update - parent ${parentId} is locked`)
+          blockLocked = true
           return
         }
       }
@@ -302,6 +305,13 @@ async function flushSubblockUpdate(
       }
 
       // Confirm all coalesced operationIds (io.to(socketId) works cross-pod)
+      pending.opToSocket.forEach((socketId, opId) => {
+        io.to(socketId).emit('operation-confirmed', {
+          operationId: opId,
+          serverTimestamp: Date.now(),
+        })
+      })
+    } else if (blockLocked) {
       pending.opToSocket.forEach((socketId, opId) => {
         io.to(socketId).emit('operation-confirmed', {
           operationId: opId,

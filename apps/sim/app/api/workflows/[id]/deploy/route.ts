@@ -2,6 +2,7 @@ import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import {
@@ -258,6 +259,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Sync MCP tools with the latest parameter schema
     await syncMcpToolsForWorkflow({ workflowId: id, requestId, context: 'deploy' })
 
+    recordAudit({
+      workspaceId: workflowData?.workspaceId || null,
+      actorId: actorUserId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.WORKFLOW_DEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: id,
+      resourceName: workflowData?.name,
+      description: `Deployed workflow "${workflowData?.name || id}"`,
+      request,
+    })
+
     const responseApiKeyInfo = workflowData!.workspaceId
       ? 'Workspace API keys'
       : 'Personal API keys'
@@ -297,11 +311,11 @@ export async function DELETE(
   try {
     logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
 
-    const { error, workflow: workflowData } = await validateWorkflowPermissions(
-      id,
-      requestId,
-      'admin'
-    )
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -324,6 +338,19 @@ export async function DELETE(
     } catch (_e) {
       // Silently fail
     }
+
+    recordAudit({
+      workspaceId: workflowData?.workspaceId || null,
+      actorId: session!.user.id,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.WORKFLOW_UNDEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: id,
+      resourceName: workflowData?.name,
+      description: `Undeployed workflow "${workflowData?.name || id}"`,
+      request,
+    })
 
     return createSuccessResponse({
       isDeployed: false,
