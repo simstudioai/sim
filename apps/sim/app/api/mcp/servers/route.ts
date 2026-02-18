@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { getSession } from '@/lib/auth'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -57,7 +56,7 @@ export const GET = withMcpAuth('read')(
  * it will be updated instead of creating a duplicate.
  */
 export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
 
@@ -163,12 +162,11 @@ export const POST = withMcpAuth('write')(
         // Silently fail
       }
 
-      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_ADDED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
@@ -194,7 +192,7 @@ export const POST = withMcpAuth('write')(
  * DELETE - Delete an MCP server from the workspace (requires admin permission)
  */
 export const DELETE = withMcpAuth('admin')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
       const serverId = searchParams.get('serverId')
@@ -226,12 +224,11 @@ export const DELETE = withMcpAuth('admin')(
 
       logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
 
-      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_REMOVED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId!,

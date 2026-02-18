@@ -209,8 +209,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const auditSession = await getSession()
-
     if (body.bulk === true) {
       try {
         const validatedData = BulkCreateDocumentsSchema.parse(body)
@@ -250,8 +248,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
-          actorName: auditSession?.user?.name,
-          actorEmail: auditSession?.user?.email,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
@@ -311,8 +309,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
-          actorName: auditSession?.user?.name,
-          actorEmail: auditSession?.user?.email,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,

@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { getSession } from '@/lib/auth'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -78,7 +77,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
  * POST - Add a workflow as a tool to an MCP server
  */
 export const POST = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId } = await params
       const body = getParsedBody(request) || (await request.json())
@@ -199,12 +202,11 @@ export const POST = withMcpAuth<RouteParams>('write')(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
-      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

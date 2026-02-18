@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { getSession } from '@/lib/auth'
 import { checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -338,12 +337,11 @@ export async function DELETE(
       // Don't fail the deletion if Socket.IO notification fails
     }
 
-    const deleteSession = await getSession()
     recordAudit({
       workspaceId: workflowData.workspaceId || null,
       actorId: userId,
-      actorName: deleteSession?.user?.name,
-      actorEmail: deleteSession?.user?.email,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_DELETED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
@@ -425,12 +423,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       updates: updateData,
     })
 
-    const session = await getSession()
     recordAudit({
       workspaceId: workflowData.workspaceId || null,
       actorId: userId,
-      actorName: session?.user?.name,
-      actorEmail: session?.user?.email,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_UPDATED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,

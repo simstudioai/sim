@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { getSession } from '@/lib/auth'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -18,7 +17,11 @@ export const dynamic = 'force-dynamic'
  * PATCH - Update an MCP server in the workspace (requires write or admin permission)
  */
 export const PATCH = withMcpAuth<{ id: string }>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     const { id: serverId } = await params
 
     try {
@@ -88,12 +91,11 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
 
       logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
-      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

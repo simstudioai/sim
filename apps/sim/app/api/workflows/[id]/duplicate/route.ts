@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -63,12 +62,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${result.id} in ${elapsed}ms`
     )
 
-    const session = await getSession()
     recordAudit({
       workspaceId: workspaceId || null,
       actorId: userId,
-      actorName: session?.user?.name,
-      actorEmail: session?.user?.email,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_DUPLICATED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: result.id,

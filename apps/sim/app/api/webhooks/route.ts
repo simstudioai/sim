@@ -146,7 +146,8 @@ export async function GET(request: NextRequest) {
 // Create or Update a webhook
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
-  const userId = (await getSession())?.user?.id
+  const session = await getSession()
+  const userId = session?.user?.id
 
   if (!userId) {
     logger.warn(`[${requestId}] Unauthorized webhook creation attempt`)
@@ -680,12 +681,11 @@ export async function POST(request: NextRequest) {
         // Telemetry should not fail the operation
       }
 
-      const auditSession = await getSession()
       recordAudit({
         workspaceId: workflowRecord.workspaceId || null,
         actorId: userId,
-        actorName: auditSession?.user?.name,
-        actorEmail: auditSession?.user?.email,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
         action: AuditAction.WEBHOOK_CREATED,
         resourceType: AuditResourceType.WEBHOOK,
         resourceId: savedWebhook.id,
