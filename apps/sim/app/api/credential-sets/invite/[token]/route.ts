@@ -79,6 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         status: credentialSetInvitation.status,
         expiresAt: credentialSetInvitation.expiresAt,
         invitedBy: credentialSetInvitation.invitedBy,
+        credentialSetName: credentialSet.name,
         providerId: credentialSet.providerId,
       })
       .from(credentialSetInvitation)
@@ -126,7 +127,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const now = new Date()
     const requestId = crypto.randomUUID().slice(0, 8)
 
-    // Use transaction to ensure membership + invitation update + webhook sync are atomic
     await db.transaction(async (tx) => {
       await tx.insert(credentialSetMember).values({
         id: crypto.randomUUID(),
@@ -148,8 +148,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         })
         .where(eq(credentialSetInvitation.id, invitation.id))
 
-      // Clean up all other pending invitations for the same credential set and email
-      // This prevents duplicate invites from showing up after accepting one
       if (invitation.email) {
         await tx
           .update(credentialSetInvitation)
@@ -167,7 +165,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
           )
       }
 
-      // Sync webhooks within the transaction
       const syncResult = await syncAllWebhooksForCredentialSet(
         invitation.credentialSetId,
         requestId,
@@ -192,6 +189,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       action: AuditAction.CREDENTIAL_SET_INVITATION_ACCEPTED,
       resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: invitation.credentialSetId,
+      resourceName: invitation.credentialSetName,
       description: `Accepted credential set invitation`,
       metadata: { invitationId: invitation.id },
       request: req,
