@@ -10,9 +10,14 @@ import {
   mockConsoleLogger,
   setupCommonApiMocks,
 } from '@sim/testing'
+import { drizzleOrmMock } from '@sim/testing/mocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('drizzle-orm', () => ({
+  ...drizzleOrmMock,
+  min: vi.fn((field) => ({ type: 'min', field })),
+}))
 
 interface CapturedFolderValues {
   name?: string
@@ -30,14 +35,11 @@ function createMockTransaction(mockData: {
 }) {
   const { selectResults = [[], []], insertResult = [], onInsertValues } = mockData
   return async (callback: (tx: unknown) => Promise<unknown>) => {
-    const limit = vi.fn()
+    const where = vi.fn()
     for (const result of selectResults) {
-      limit.mockReturnValueOnce(result)
+      where.mockReturnValueOnce(result)
     }
-    limit.mockReturnValue([])
-
-    const orderBy = vi.fn().mockReturnValue({ limit })
-    const where = vi.fn().mockReturnValue({ orderBy })
+    where.mockReturnValue([])
 
     const tx = {
       select: vi.fn().mockReturnValue({
@@ -294,11 +296,15 @@ describe('Folders API Route', () => {
 
     it('should create folder with correct sort order', async () => {
       mockAuthenticatedUser()
+      let capturedValues: CapturedFolderValues | null = null
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
           selectResults: [[{ minSortOrder: 5 }], [{ minSortOrder: 2 }]],
           insertResult: [{ ...mockFolders[0], sortOrder: 1 }],
+          onInsertValues: (values) => {
+            capturedValues = values
+          },
         })
       )
 
@@ -316,6 +322,8 @@ describe('Folders API Route', () => {
       expect(data.folder).toMatchObject({
         sortOrder: 1,
       })
+      expect(capturedValues).not.toBeNull()
+      expect(capturedValues!.sortOrder).toBe(1)
     })
 
     it('should create subfolder with parent reference', async () => {

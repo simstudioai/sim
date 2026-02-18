@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -73,20 +73,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       const [[folderResult], [workflowResult]] = await Promise.all([
         tx
-          .select({ sortOrder: workflowFolder.sortOrder })
+          .select({ minSortOrder: min(workflowFolder.sortOrder) })
           .from(workflowFolder)
-          .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition))
-          .orderBy(asc(workflowFolder.sortOrder))
-          .limit(1),
+          .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
         tx
-          .select({ sortOrder: workflow.sortOrder })
+          .select({ minSortOrder: min(workflow.sortOrder) })
           .from(workflow)
-          .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition))
-          .orderBy(asc(workflow.sortOrder))
-          .limit(1),
+          .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
       ])
 
-      const minSortOrder = [folderResult?.sortOrder, workflowResult?.sortOrder].reduce<
+      const minSortOrder = [folderResult?.minSortOrder, workflowResult?.minSortOrder].reduce<
         number | null
       >((currentMin, candidate) => {
         if (candidate == null) return currentMin
