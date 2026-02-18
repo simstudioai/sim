@@ -7,6 +7,8 @@ export interface SubscriptionPermissions {
   canCancelSubscription: boolean
   showTeamMemberView: boolean
   showUpgradePlans: boolean
+  isEnterpriseMember: boolean
+  canViewUsageInfo: boolean
 }
 
 export interface SubscriptionState {
@@ -31,6 +33,9 @@ export function getSubscriptionPermissions(
   const { isFree, isPro, isTeam, isEnterprise, isPaid } = subscription
   const { isTeamAdmin } = userRole
 
+  const isEnterpriseMember = isEnterprise && !isTeamAdmin
+  const canViewUsageInfo = !isEnterpriseMember
+
   return {
     canUpgradeToPro: isFree,
     canUpgradeToTeam: isFree || (isPro && !isTeam),
@@ -40,6 +45,8 @@ export function getSubscriptionPermissions(
     canCancelSubscription: isPaid && !isEnterprise && !(isTeam && !isTeamAdmin), // Team members can't cancel
     showTeamMemberView: isTeam && !isTeamAdmin,
     showUpgradePlans: isFree || (isPro && !isTeam) || (isTeam && isTeamAdmin), // Free users, Pro users, Team owners see plans
+    isEnterpriseMember,
+    canViewUsageInfo,
   }
 }
 
