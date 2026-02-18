@@ -1,11 +1,21 @@
-import { db } from '@sim/db'
-import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
+
+/** Headers for server-to-server calls to the Go copilot backend. */
+function copilotHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+  return headers
+}
 
 /**
  * GET - Fetch user's auto-allowed integration tools
@@ -20,24 +30,18 @@ export async function GET() {
 
     const userId = session.user.id
 
-    const [userSettings] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.userId, userId))
-      .limit(1)
+    const res = await fetch(
+      `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
+      { method: 'GET', headers: copilotHeaders() }
+    )
 
-    if (userSettings) {
-      const autoAllowedTools = (userSettings.copilotAutoAllowedTools as string[]) || []
-      return NextResponse.json({ autoAllowedTools })
+    if (!res.ok) {
+      logger.warn('Go backend returned error for list auto-allowed', { status: res.status })
+      return NextResponse.json({ autoAllowedTools: [] })
     }
 
-    await db.insert(settings).values({
-      id: userId,
-      userId,
-      copilotAutoAllowedTools: [],
-    })
-
-    return NextResponse.json({ autoAllowedTools: [] })
+    const payload = await res.json()
+    return NextResponse.json({ autoAllowedTools: payload?.autoAllowedTools || [] })
   } catch (error) {
     logger.error('Failed to fetch auto-allowed tools', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -62,38 +66,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
     }
 
-    const toolId = body.toolId
-
-    const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
-
-    if (existing) {
-      const currentTools = (existing.copilotAutoAllowedTools as string[]) || []
-
-      if (!currentTools.includes(toolId)) {
-        const updatedTools = [...currentTools, toolId]
-        await db
-          .update(settings)
-          .set({
-            copilotAutoAllowedTools: updatedTools,
-            updatedAt: new Date(),
-          })
-          .where(eq(settings.userId, userId))
-
-        logger.info('Added tool to auto-allowed list', { userId, toolId })
-        return NextResponse.json({ success: true, autoAllowedTools: updatedTools })
-      }
-
-      return NextResponse.json({ success: true, autoAllowedTools: currentTools })
-    }
-
-    await db.insert(settings).values({
-      id: userId,
-      userId,
-      copilotAutoAllowedTools: [toolId],
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+      method: 'POST',
+      headers: copilotHeaders(),
+      body: JSON.stringify({ userId, toolId: body.toolId }),
     })
 
-    logger.info('Created settings and added tool to auto-allowed list', { userId, toolId })
-    return NextResponse.json({ success: true, autoAllowedTools: [toolId] })
+    if (!res.ok) {
+      logger.warn('Go backend returned error for add auto-allowed', { status: res.status })
+      return NextResponse.json({ error: 'Failed to add tool' }, { status: 500 })
+    }
+
+    const payload = await res.json()
+    return NextResponse.json({
+      success: true,
+      autoAllowedTools: payload?.autoAllowedTools || [],
+    })
   } catch (error) {
     logger.error('Failed to add auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -119,25 +107,21 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
     }
 
-    const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
+    const res = await fetch(
+      `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
+      { method: 'DELETE', headers: copilotHeaders() }
+    )
 
-    if (existing) {
-      const currentTools = (existing.copilotAutoAllowedTools as string[]) || []
-      const updatedTools = currentTools.filter((t) => t !== toolId)
-
-      await db
-        .update(settings)
-        .set({
-          copilotAutoAllowedTools: updatedTools,
-          updatedAt: new Date(),
-        })
-        .where(eq(settings.userId, userId))
-
-      logger.info('Removed tool from auto-allowed list', { userId, toolId })
-      return NextResponse.json({ success: true, autoAllowedTools: updatedTools })
+    if (!res.ok) {
+      logger.warn('Go backend returned error for remove auto-allowed', { status: res.status })
+      return NextResponse.json({ error: 'Failed to remove tool' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, autoAllowedTools: [] })
+    const payload = await res.json()
+    return NextResponse.json({
+      success: true,
+      autoAllowedTools: payload?.autoAllowedTools || [],
+    })
   } catch (error) {
     logger.error('Failed to remove auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
