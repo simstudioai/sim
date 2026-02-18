@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 import { env, getEnv, isTruthy } from './lib/core/config/env'
-import { isDev, isHosted } from './lib/core/config/feature-flags'
+import { isDev } from './lib/core/config/feature-flags'
 import {
   getFormEmbedCSPPolicy,
   getMainCSPPolicy,
@@ -306,32 +306,12 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Only enable domain redirects for the hosted version
-    if (isHosted) {
-      redirects.push(
-        {
-          source: '/((?!api|_next|_vercel|favicon|static|ingest|.*\\..*).*)',
-          destination: 'https://www.sim.ai/$1',
-          permanent: true,
-          has: [{ type: 'host' as const, value: 'simstudio.ai' }],
-        },
-        {
-          source: '/((?!api|_next|_vercel|favicon|static|ingest|.*\\..*).*)',
-          destination: 'https://www.sim.ai/$1',
-          permanent: true,
-          has: [{ type: 'host' as const, value: 'www.simstudio.ai' }],
-        }
-      )
-    }
-
-    // Beluga campaign short link tracking
-    if (isHosted) {
-      redirects.push({
-        source: '/r/:shortCode',
-        destination: 'https://go.trybeluga.ai/:shortCode',
-        permanent: false,
-      })
-    }
+    // Beluga campaign short link tracking (always registered — harmless for self-hosted)
+    redirects.push({
+      source: '/r/:shortCode',
+      destination: 'https://go.trybeluga.ai/:shortCode',
+      permanent: false,
+    })
 
     return redirects
   },
