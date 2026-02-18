@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
@@ -105,6 +106,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(workflowSchedule.id, scheduleId))
 
     logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
+
+    recordAudit({
+      workspaceId: authorization.workflow.workspaceId ?? null,
+      actorId: session.user.id,
+      action: AuditAction.SCHEDULE_UPDATED,
+      resourceType: AuditResourceType.SCHEDULE,
+      resourceId: scheduleId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Reactivated schedule for workflow ${schedule.workflowId}`,
+      request,
+    })
 
     return NextResponse.json({
       message: 'Schedule activated successfully',

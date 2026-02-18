@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -254,6 +255,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workspaceId,
       subscriptionId: subscription.id,
       type: data.notificationType,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.NOTIFICATION_CREATED,
+      resourceType: AuditResourceType.NOTIFICATION,
+      resourceId: subscription.id,
+      resourceName: data.notificationType,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Created ${data.notificationType} notification subscription`,
+      request,
     })
 
     return NextResponse.json({

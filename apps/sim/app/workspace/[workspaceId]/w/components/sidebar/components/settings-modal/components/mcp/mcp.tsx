@@ -109,10 +109,29 @@ const logger = createLogger('McpSettings')
 /**
  * Checks if a URL's hostname is in the allowed domains list.
  * Returns true if no allowlist is configured (null) or the domain matches.
+ * Env var references in the hostname bypass the check since the domain
+ * can't be determined until resolution — but env vars only in the path/query
+ * do NOT bypass the check.
  */
+const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
+
+function hasEnvVarInHostname(url: string): boolean {
+  // If the entire URL is an env var, hostname is unknown
+  const globalPattern = new RegExp(ENV_VAR_PATTERN.source, 'g')
+  if (url.trim().replace(globalPattern, '').trim() === '') return true
+  const protocolEnd = url.indexOf('://')
+  if (protocolEnd === -1) return ENV_VAR_PATTERN.test(url)
+  // Extract authority per RFC 3986 (terminated by /, ?, or #)
+  const afterProtocol = url.substring(protocolEnd + 3)
+  const authorityEnd = afterProtocol.search(/[/?#]/)
+  const authority = authorityEnd === -1 ? afterProtocol : afterProtocol.substring(0, authorityEnd)
+  return ENV_VAR_PATTERN.test(authority)
+}
+
 function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
   if (allowedDomains === null) return true
-  if (!url) return true
+  if (!url) return false
+  if (hasEnvVarInHostname(url)) return true
   try {
     const hostname = new URL(url).hostname.toLowerCase()
     return allowedDomains.includes(hostname)
@@ -1030,12 +1049,14 @@ export function MCP({ initialServerId }: MCPProps) {
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
   const isFormValid = formData.name.trim() && formData.url?.trim()
-  const isAddDomainBlocked = !isDomainAllowed(formData.url, allowedMcpDomains)
+  const isAddDomainBlocked =
+    !!formData.url?.trim() && !isDomainAllowed(formData.url, allowedMcpDomains)
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid || isAddDomainBlocked
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
   const isEditFormValid = editFormData.name.trim() && editFormData.url?.trim()
-  const isEditDomainBlocked = !isDomainAllowed(editFormData.url, allowedMcpDomains)
+  const isEditDomainBlocked =
+    !!editFormData.url?.trim() && !isDomainAllowed(editFormData.url, allowedMcpDomains)
   const editTestButtonLabel = getTestButtonLabel(editTestResult, isEditTestingConnection)
   const hasEditChanges = useMemo(() => {
     if (editFormData.name !== editOriginalData.name) return true

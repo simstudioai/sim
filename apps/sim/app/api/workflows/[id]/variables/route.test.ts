@@ -5,6 +5,7 @@
  * @vitest-environment node
  */
 import {
+  auditMock,
   databaseMock,
   defaultMockUser,
   mockAuth,
@@ -26,6 +27,8 @@ describe('Workflow Variables API Route', () => {
     mockAuthorizeWorkflowByWorkspacePermission.mockReset()
 
     vi.doMock('@sim/db', () => databaseMock)
+
+    vi.doMock('@/lib/audit/log', () => auditMock)
 
     vi.doMock('@/lib/workflows/utils', () => ({
       authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,

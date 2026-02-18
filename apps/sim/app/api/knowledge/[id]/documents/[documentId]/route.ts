@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -197,6 +198,17 @@ export async function PUT(
           `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
         )
 
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+          actorId: userId,
+          action: AuditAction.DOCUMENT_UPDATED,
+          resourceType: AuditResourceType.DOCUMENT,
+          resourceId: documentId,
+          resourceName: validatedData.filename ?? accessCheck.document?.filename,
+          description: `Updated document "${documentId}" in knowledge base "${knowledgeBaseId}"`,
+          request: req,
+        })
+
         return NextResponse.json({
           success: true,
           data: updatedDocument,
@@ -256,6 +268,17 @@ export async function DELETE(
     logger.info(
       `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
     )
+
+    recordAudit({
+      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+      actorId: userId,
+      action: AuditAction.DOCUMENT_DELETED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: documentId,
+      resourceName: accessCheck.document?.filename,
+      description: `Deleted document "${documentId}" from knowledge base "${knowledgeBaseId}"`,
+      request: req,
+    })
 
     return NextResponse.json({
       success: true,

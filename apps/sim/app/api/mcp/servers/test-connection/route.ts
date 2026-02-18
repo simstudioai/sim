@@ -105,6 +105,16 @@ export const POST = withMcpAuth('write')(
         logger.warn(`[${requestId}] Some environment variables not found:`, { missingVars })
       }
 
+      // Re-validate domain after env var resolution
+      try {
+        validateMcpDomain(testConfig.url)
+      } catch (e) {
+        if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
+      }
+
       const testSecurityPolicy = {
         requireConsent: false,
         auditLevel: 'none' as const,

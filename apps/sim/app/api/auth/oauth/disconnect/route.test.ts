@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockLogger, createMockRequest } from '@sim/testing'
+import { auditMock, createMockLogger, createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('OAuth Disconnect API Route', () => {
@@ -67,6 +67,8 @@ describe('OAuth Disconnect API Route', () => {
     vi.doMock('@/lib/webhooks/utils.server', () => ({
       syncAllWebhooksForCredentialSet: mockSyncAllWebhooksForCredentialSet,
     }))
+
+    vi.doMock('@/lib/audit/log', () => auditMock)
   })
 
   afterEach(() => {

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -251,6 +252,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       subscriptionId: subscription.id,
     })
 
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.NOTIFICATION_UPDATED,
+      resourceType: AuditResourceType.NOTIFICATION,
+      resourceId: notificationId,
+      resourceName: subscription.notificationType,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Updated ${subscription.notificationType} notification subscription`,
+      request,
+    })
+
     return NextResponse.json({
       data: {
         id: subscription.id,
@@ -300,15 +314,33 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           eq(workspaceNotificationSubscription.workspaceId, workspaceId)
         )
       )
-      .returning({ id: workspaceNotificationSubscription.id })
+      .returning({
+        id: workspaceNotificationSubscription.id,
+        notificationType: workspaceNotificationSubscription.notificationType,
+      })
 
     if (deleted.length === 0) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
 
+    const deletedSubscription = deleted[0]
+
     logger.info('Deleted notification subscription', {
       workspaceId,
       subscriptionId: notificationId,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.NOTIFICATION_DELETED,
+      resourceType: AuditResourceType.NOTIFICATION,
+      resourceId: notificationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: deletedSubscription.notificationType,
+      description: `Deleted ${deletedSubscription.notificationType} notification subscription`,
+      request,
     })
 
     return NextResponse.json({ success: true })

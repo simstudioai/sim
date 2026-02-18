@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -67,6 +68,20 @@ export async function POST(req: Request) {
     const { name, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
 
     const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow)
+
+    recordAudit({
+      workspaceId: newWorkspace.id,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.WORKSPACE_CREATED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: newWorkspace.id,
+      resourceName: newWorkspace.name,
+      description: `Created workspace "${newWorkspace.name}"`,
+      metadata: { name: newWorkspace.name },
+      request: req,
+    })
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {

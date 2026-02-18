@@ -3,8 +3,16 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, mockAuth, mockConsoleLogger, setupCommonApiMocks } from '@sim/testing'
+import {
+  auditMock,
+  createMockRequest,
+  mockAuth,
+  mockConsoleLogger,
+  setupCommonApiMocks,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 interface CapturedFolderValues {
   name?: string

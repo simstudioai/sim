@@ -24,6 +24,8 @@ export {
   mockKnowledgeSchemas,
   setupCommonApiMocks,
 } from './api.mock'
+// Audit mocks
+export { auditMock } from './audit.mock'
 // Auth mocks
 export {
   defaultMockUser,
