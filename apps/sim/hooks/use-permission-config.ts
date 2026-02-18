@@ -53,8 +53,13 @@ export function usePermissionConfig(): PermissionConfigResult {
   const { data: organizationsData } = useOrganizations()
   const activeOrganization = organizationsData?.activeOrganization
 
-  const { data: permissionData, isLoading } = useUserPermissionConfig(activeOrganization?.id)
-  const { data: envAllowlistData } = useAllowedIntegrationsFromEnv()
+  const { data: permissionData, isLoading: isPermissionLoading } = useUserPermissionConfig(
+    activeOrganization?.id
+  )
+  const { data: envAllowlistData, isLoading: isEnvAllowlistLoading } =
+    useAllowedIntegrationsFromEnv()
+
+  const isLoading = isPermissionLoading || isEnvAllowlistLoading
 
   const config = useMemo(() => {
     if (accessControlDisabled) {

@@ -27,8 +27,12 @@ export class ProviderNotAllowedError extends Error {
 }
 
 export class IntegrationNotAllowedError extends Error {
-  constructor(blockType: string) {
-    super(`Integration "${blockType}" is not allowed based on your permission group settings`)
+  constructor(blockType: string, reason?: string) {
+    super(
+      reason
+        ? `Integration "${blockType}" is not allowed: ${reason}`
+        : `Integration "${blockType}" is not allowed based on your permission group settings`
+    )
     this.name = 'IntegrationNotAllowedError'
   }
 }
@@ -159,7 +163,7 @@ export async function validateBlockType(
   const envAllowlist = getAllowedIntegrationsFromEnv()
   if (envAllowlist !== null && !envAllowlist.includes(blockType)) {
     logger.warn('Integration blocked by env allowlist', { blockType })
-    throw new IntegrationNotAllowedError(blockType)
+    throw new IntegrationNotAllowedError(blockType, 'blocked by server ALLOWED_INTEGRATIONS policy')
   }
 
   if (!userId) {
