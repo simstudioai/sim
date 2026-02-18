@@ -117,7 +117,7 @@ function isDomainAllowed(url: string | undefined, allowedDomains: string[] | nul
     const hostname = new URL(url).hostname.toLowerCase()
     return allowedDomains.includes(hostname)
   } catch {
-    return true
+    return false
   }
 }
 

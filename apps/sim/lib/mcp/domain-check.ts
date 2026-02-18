@@ -9,19 +9,17 @@ export class McpDomainNotAllowedError extends Error {
 }
 
 let cachedPlatformHostname: string | null = null
-let platformHostnameResolved = false
 
 /**
  * Returns the platform's own hostname (from getBaseUrl), lazy-cached.
  * Always lowercase. Returns null if the base URL is not configured or invalid.
  */
 function getPlatformHostname(): string | null {
-  if (platformHostnameResolved) return cachedPlatformHostname
-  platformHostnameResolved = true
+  if (cachedPlatformHostname !== null) return cachedPlatformHostname
   try {
     cachedPlatformHostname = new URL(getBaseUrl()).hostname.toLowerCase()
   } catch {
-    cachedPlatformHostname = null
+    return null
   }
   return cachedPlatformHostname
 }
