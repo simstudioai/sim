@@ -2523,7 +2523,7 @@ const WorkflowContent = React.memo(() => {
         .filter((change: any) => change.type === 'remove')
         .map((change: any) => change.id)
         .filter((edgeId: string) => {
-          // Prevent removing edges connected to protected blocks
+          // Prevent removing edges targeting protected blocks
           const edge = edges.find((e) => e.id === edgeId)
           if (!edge) return true
           return !isEdgeProtected(edge, blocks)
@@ -2595,7 +2595,7 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
-        // Prevent connections to/from protected blocks
+        // Prevent connections to protected blocks (outbound from locked blocks is allowed)
         if (isEdgeProtected(connection, blocks)) {
           addNotification({
             level: 'info',
@@ -3357,12 +3357,12 @@ const WorkflowContent = React.memo(() => {
   /** Stable delete handler to avoid creating new function references per edge. */
   const handleEdgeDelete = useCallback(
     (edgeId: string) => {
-      // Prevent removing edges connected to protected blocks
+      // Prevent removing edges targeting protected blocks
       const edge = edges.find((e) => e.id === edgeId)
       if (edge && isEdgeProtected(edge, blocks)) {
         addNotification({
           level: 'info',
-          message: 'Cannot remove connections from locked blocks',
+          message: 'Cannot remove connections to locked blocks',
           workflowId: activeWorkflowId || undefined,
         })
         return
@@ -3420,7 +3420,7 @@ const WorkflowContent = React.memo(() => {
 
       // Handle edge deletion first (edges take priority if selected)
       if (selectedEdges.size > 0) {
-        // Get all selected edge IDs and filter out edges connected to protected blocks
+        // Get all selected edge IDs and filter out edges targeting protected blocks
         const edgeIds = Array.from(selectedEdges.values()).filter((edgeId) => {
           const edge = edges.find((e) => e.id === edgeId)
           if (!edge) return true
