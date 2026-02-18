@@ -45,7 +45,9 @@ function checkMcpDomain(url: string): string | null {
  * The platform's own hostname (from getBaseUrl) is always allowed.
  */
 export function isMcpDomainAllowed(url: string | undefined): boolean {
-  if (!url) return true
+  if (!url) {
+    return getAllowedMcpDomainsFromEnv() === null
+  }
   return checkMcpDomain(url) === null
 }
 
@@ -54,7 +56,12 @@ export function isMcpDomainAllowed(url: string | undefined): boolean {
  * The platform's own hostname (from getBaseUrl) is always allowed.
  */
 export function validateMcpDomain(url: string | undefined): void {
-  if (!url) return
+  if (!url) {
+    if (getAllowedMcpDomainsFromEnv() !== null) {
+      throw new McpDomainNotAllowedError('(empty)')
+    }
+    return
+  }
   const rejected = checkMcpDomain(url)
   if (rejected !== null) {
     throw new McpDomainNotAllowedError(rejected)
