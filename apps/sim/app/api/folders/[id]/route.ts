@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -173,8 +173,8 @@ export async function DELETE(
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'folder.deleted',
-      resourceType: 'folder',
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
       resourceId: id,
       resourceName: existingFolder.name,
       description: `Deleted folder "${existingFolder.name}"`,

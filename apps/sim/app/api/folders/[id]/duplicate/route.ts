@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
@@ -119,8 +119,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     recordAudit({
       workspaceId: targetWorkspaceId,
       actorId: session.user.id,
-      action: 'folder.duplicated',
-      resourceType: 'folder',
+      action: AuditAction.FOLDER_DUPLICATED,
+      resourceType: AuditResourceType.FOLDER,
       resourceId: newFolderId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
@@ -192,8 +192,8 @@ export async function POST(req: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: userId,
-      action: 'workflow.created',
-      resourceType: 'workflow',
+      action: AuditAction.WORKFLOW_CREATED,
+      resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
       resourceName: name,
       description: `Created workflow "${name}"`,

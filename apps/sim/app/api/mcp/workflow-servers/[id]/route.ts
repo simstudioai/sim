@@ -3,7 +3,7 @@ import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -116,8 +116,8 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.updated',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         resourceName: updatedServer.name,
         description: `Updated workflow MCP server "${updatedServer.name}"`,
@@ -164,8 +164,8 @@ export const DELETE = withMcpAuth<RouteParams>('admin')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.removed',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_REMOVED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         resourceName: deletedServer.name,
         description: `Unpublished workflow MCP server "${deletedServer.name}"`,

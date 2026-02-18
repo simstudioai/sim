@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, not } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -90,8 +90,8 @@ export async function PUT(
     recordAudit({
       workspaceId,
       actorId: userId,
-      action: 'api_key.updated',
-      resourceType: 'api_key',
+      action: AuditAction.API_KEY_UPDATED,
+      resourceType: AuditResourceType.API_KEY,
       resourceId: keyId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
@@ -146,8 +146,8 @@ export async function DELETE(
     recordAudit({
       workspaceId,
       actorId: userId,
-      action: 'api_key.revoked',
-      resourceType: 'api_key',
+      action: AuditAction.API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
       resourceId: keyId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteWorkspaceFile } from '@/lib/uploads/contexts/workspace'
@@ -45,8 +45,8 @@ export async function DELETE(
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'file.deleted',
-      resourceType: 'file',
+      action: AuditAction.FILE_DELETED,
+      resourceType: AuditResourceType.FILE,
       resourceId: fileId,
       description: `Deleted file "${fileId}"`,
       request,

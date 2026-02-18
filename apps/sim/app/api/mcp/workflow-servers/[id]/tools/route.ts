@@ -3,7 +3,7 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -201,8 +201,8 @@ export const POST = withMcpAuth<RouteParams>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.updated',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Added tool "${toolName}" to MCP server`,
         metadata: { toolId, toolName, workflowId: body.workflowId },

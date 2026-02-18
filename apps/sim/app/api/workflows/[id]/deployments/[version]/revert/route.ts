@@ -2,7 +2,7 @@ import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
@@ -115,8 +115,8 @@ export async function POST(
     recordAudit({
       workspaceId: workflowRecord?.workspaceId ?? '',
       actorId: session!.user.id,
-      action: 'workflow.deployment_reverted',
-      resourceType: 'workflow',
+      action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
+      resourceType: AuditResourceType.WORKFLOW,
       resourceId: id,
       actorName: session!.user.name ?? undefined,
       actorEmail: session!.user.email ?? undefined,

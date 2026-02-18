@@ -1,5 +1,5 @@
 {
-  "id": "a5703ff6-4481-4c0e-abc3-218e55a84376",
+  "id": "878a3e46-0446-46a9-9577-663699ae0373",
   "prevId": "49f580f7-7eba-4431-bdf4-61db0e606546",
   "version": "7",
   "dialect": "postgresql",
@@ -977,13 +977,13 @@
           "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "actor_id": {
           "name": "actor_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "action": {
           "name": "action",
@@ -1141,7 +1141,7 @@
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "audit_log_actor_id_user_id_fk": {
@@ -1150,7 +1150,7 @@
           "tableTo": "user",
           "columnsFrom": ["actor_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 
@@ -135,8 +135,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     recordAudit({
       workspaceId: result.set.organizationId,
       actorId: session.user.id,
-      action: 'credential_set.updated',
-      resourceType: 'credential_set',
+      action: AuditAction.CREDENTIAL_SET_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
@@ -192,8 +192,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     recordAudit({
       workspaceId: result.set.organizationId,
       actorId: session.user.id,
-      action: 'credential_set.deleted',
-      resourceType: 'credential_set',
+      action: AuditAction.CREDENTIAL_SET_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

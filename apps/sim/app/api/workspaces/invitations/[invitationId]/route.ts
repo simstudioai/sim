@@ -12,7 +12,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -166,8 +166,8 @@ export async function GET(
       recordAudit({
         workspaceId: invitation.workspaceId,
         actorId: session.user.id,
-        action: 'invitation.accepted',
-        resourceType: 'workspace',
+        action: AuditAction.INVITATION_ACCEPTED,
+        resourceType: AuditResourceType.WORKSPACE,
         resourceId: invitation.workspaceId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
@@ -233,8 +233,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: invitation.workspaceId,
       actorId: session.user.id,
-      action: 'invitation.revoked',
-      resourceType: 'workspace',
+      action: AuditAction.INVITATION_REVOKED,
+      resourceType: AuditResourceType.WORKSPACE,
       resourceId: invitation.workspaceId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

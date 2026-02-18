@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -74,8 +74,8 @@ export async function POST(req: Request) {
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'workspace.created',
-      resourceType: 'workspace',
+      action: AuditAction.WORKSPACE_CREATED,
+      resourceType: AuditResourceType.WORKSPACE,
       resourceId: newWorkspace.id,
       resourceName: newWorkspace.name,
       description: `Created workspace "${newWorkspace.name}"`,

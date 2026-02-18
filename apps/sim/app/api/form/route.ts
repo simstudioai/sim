@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         identifier,
         title,
-        description: description || '',
+        description: description || null,
         customizations: mergedCustomizations,
         isActive: true,
         authType,
@@ -199,8 +199,8 @@ export async function POST(request: NextRequest) {
       recordAudit({
         workspaceId: workflowRecord.workspaceId ?? '',
         actorId: session.user.id,
-        action: 'form.created',
-        resourceType: 'form',
+        action: AuditAction.FORM_CREATED,
+        resourceType: AuditResourceType.FORM,
         resourceId: id,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,

@@ -151,7 +151,7 @@ export const AuditResourceType = {
 export type AuditResourceTypeValue = (typeof AuditResourceType)[keyof typeof AuditResourceType]
 
 interface AuditLogParams {
-  workspaceId: string
+  workspaceId?: string | null
   actorId: string
   action: AuditActionType
   resourceType: AuditResourceTypeValue
@@ -177,7 +177,7 @@ export function recordAudit(params: AuditLogParams): void {
   db.insert(auditLog)
     .values({
       id: nanoid(),
-      workspaceId: params.workspaceId,
+      workspaceId: params.workspaceId || null,
       actorId: params.actorId,
       action: params.action,
       resourceType: params.resourceType,

@@ -13,7 +13,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -220,8 +220,8 @@ export async function POST(req: NextRequest) {
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'member.invited',
-      resourceType: 'workspace',
+      action: AuditAction.MEMBER_INVITED,
+      resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
       resourceName: email,
       description: `Invited ${email} as ${permission}`,

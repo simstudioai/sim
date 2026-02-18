@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -255,8 +255,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     recordAudit({
       workspaceId,
       actorId: session.user.id,
-      action: 'notification.updated',
-      resourceType: 'notification',
+      action: AuditAction.NOTIFICATION_UPDATED,
+      resourceType: AuditResourceType.NOTIFICATION,
       resourceId: notificationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
@@ -327,8 +327,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     recordAudit({
       workspaceId,
       actorId: session.user.id,
-      action: 'notification.deleted',
-      resourceType: 'notification',
+      action: AuditAction.NOTIFICATION_DELETED,
+      resourceType: AuditResourceType.NOTIFICATION,
       resourceId: notificationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

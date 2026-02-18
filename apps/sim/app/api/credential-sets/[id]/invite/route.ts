@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -179,8 +179,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     recordAudit({
       workspaceId: result.set.organizationId,
       actorId: session.user.id,
-      action: 'credential_set_invitation.created',
-      resourceType: 'credential_set',
+      action: AuditAction.CREDENTIAL_SET_INVITATION_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
@@ -252,8 +252,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     recordAudit({
       workspaceId: result.set.organizationId,
       actorId: session.user.id,
-      action: 'credential_set_invitation.revoked',
-      resourceType: 'credential_set',
+      action: AuditAction.CREDENTIAL_SET_INVITATION_REVOKED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

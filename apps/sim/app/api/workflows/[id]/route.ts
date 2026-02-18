@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -338,10 +338,10 @@ export async function DELETE(
     }
 
     recordAudit({
-      workspaceId: workflowData.workspaceId || '',
+      workspaceId: workflowData.workspaceId || null,
       actorId: userId,
-      action: 'workflow.deleted',
-      resourceType: 'workflow',
+      action: AuditAction.WORKFLOW_DELETED,
+      resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
       resourceName: workflowData.name,
       description: `Deleted workflow "${workflowData.name}"`,

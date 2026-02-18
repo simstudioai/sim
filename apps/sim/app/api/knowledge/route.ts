@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
         actorId: session.user.id,
         actorName: session.user.name,
         actorEmail: session.user.email,
-        action: 'knowledge_base.created',
-        resourceType: 'knowledge_base',
+        action: AuditAction.KNOWLEDGE_BASE_CREATED,
+        resourceType: AuditResourceType.KNOWLEDGE_BASE,
         resourceId: newKnowledgeBase.id,
         resourceName: validatedData.name,
         description: `Created knowledge base "${validatedData.name}"`,

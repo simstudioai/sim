@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -107,8 +107,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'member.removed',
-      resourceType: 'workspace',
+      action: AuditAction.MEMBER_REMOVED,
+      resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
       description: isSelf ? 'Left the workspace' : 'Removed a member from the workspace',
       metadata: { removedUserId: userId, selfRemoval: isSelf },

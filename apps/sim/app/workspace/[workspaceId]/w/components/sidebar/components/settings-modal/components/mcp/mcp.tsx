@@ -110,9 +110,12 @@ const logger = createLogger('McpSettings')
  * Checks if a URL's hostname is in the allowed domains list.
  * Returns true if no allowlist is configured (null) or the domain matches.
  */
+const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
+
 function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
   if (allowedDomains === null) return true
   if (!url) return false
+  if (ENV_VAR_PATTERN.test(url)) return true
   try {
     const hostname = new URL(url).hostname.toLowerCase()
     return allowedDomains.includes(hostname)

@@ -3,7 +3,7 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -125,8 +125,8 @@ export async function POST(request: NextRequest) {
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'folder.created',
-      resourceType: 'folder',
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
       resourceId: id,
       resourceName: name.trim(),
       description: `Created folder "${name.trim()}"`,

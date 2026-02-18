@@ -3,7 +3,7 @@ import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -42,10 +42,10 @@ export async function DELETE(
     }
 
     recordAudit({
-      workspaceId: '',
+      workspaceId: null,
       actorId: userId,
-      action: 'personal_api_key.revoked',
-      resourceType: 'api_key',
+      action: AuditAction.PERSONAL_API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
       resourceId: keyId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

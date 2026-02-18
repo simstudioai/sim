@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { duplicateWorkspace } from '@/lib/workspaces/duplicate'
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
-      action: 'workspace.duplicated',
-      resourceType: 'workspace',
+      action: AuditAction.WORKSPACE_DUPLICATED,
+      resourceType: AuditResourceType.WORKSPACE,
       resourceId: result.id,
       resourceName: name,
       description: `Duplicated workspace to "${name}"`,

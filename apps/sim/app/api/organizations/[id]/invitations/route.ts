@@ -17,7 +17,7 @@ import {
   renderBatchInvitationEmail,
   renderInvitationEmail,
 } from '@/components/emails'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -414,10 +414,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     for (const inv of invitationsToCreate) {
       recordAudit({
-        workspaceId: organizationId,
+        workspaceId: null,
         actorId: session.user.id,
-        action: 'org_invitation.created',
-        resourceType: 'organization',
+        action: AuditAction.ORG_INVITATION_CREATED,
+        resourceType: AuditResourceType.ORGANIZATION,
         resourceId: organizationId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
@@ -550,10 +550,10 @@ export async function DELETE(
     })
 
     recordAudit({
-      workspaceId: organizationId,
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'org_invitation.revoked',
-      resourceType: 'organization',
+      action: AuditAction.ORG_INVITATION_REVOKED,
+      resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

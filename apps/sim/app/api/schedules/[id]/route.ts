@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
@@ -110,8 +110,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     recordAudit({
       workspaceId: authorization.workflow.workspaceId ?? '',
       actorId: session.user.id,
-      action: 'schedule.updated',
-      resourceType: 'schedule',
+      action: AuditAction.SCHEDULE_UPDATED,
+      resourceType: AuditResourceType.SCHEDULE,
       resourceId: scheduleId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

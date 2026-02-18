@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -191,8 +191,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       actorId: userId,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'byok_key.created',
-      resourceType: 'byok_key',
+      action: AuditAction.BYOK_KEY_CREATED,
+      resourceType: AuditResourceType.BYOK_KEY,
       resourceId: newKey.id,
       resourceName: providerId,
       description: `Added BYOK key for ${providerId}`,
@@ -262,8 +262,8 @@ export async function DELETE(
       actorId: userId,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'byok_key.deleted',
-      resourceType: 'byok_key',
+      action: AuditAction.BYOK_KEY_DELETED,
+      resourceType: AuditResourceType.BYOK_KEY,
       resourceName: providerId,
       description: `Removed BYOK key for ${providerId}`,
       metadata: { providerId },

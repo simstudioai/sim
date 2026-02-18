@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -139,8 +139,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       recordAudit({
         workspaceId: accessCheck.knowledgeBase.workspaceId ?? '',
         actorId: userId,
-        action: 'knowledge_base.updated',
-        resourceType: 'knowledge_base',
+        action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+        resourceType: AuditResourceType.KNOWLEDGE_BASE,
         resourceId: id,
         resourceName: validatedData.name ?? updatedKnowledgeBase.name,
         description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
@@ -212,8 +212,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: accessCheck.knowledgeBase.workspaceId ?? '',
       actorId: userId,
-      action: 'knowledge_base.deleted',
-      resourceType: 'knowledge_base',
+      action: AuditAction.KNOWLEDGE_BASE_DELETED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
       resourceId: id,
       description: `Deleted knowledge base "${id}"`,
       request: _request,

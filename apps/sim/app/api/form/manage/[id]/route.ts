@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/utils'
@@ -186,10 +186,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       logger.info(`Form ${id} updated successfully`)
 
       recordAudit({
-        workspaceId: '',
+        workspaceId: null,
         actorId: session.user.id,
-        action: 'form.updated',
-        resourceType: 'form',
+        action: AuditAction.FORM_UPDATED,
+        resourceType: AuditResourceType.FORM,
         resourceId: id,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
@@ -238,10 +238,10 @@ export async function DELETE(
     logger.info(`Form ${id} deleted (soft delete)`)
 
     recordAudit({
-      workspaceId: '',
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'form.deleted',
-      resourceType: 'form',
+      action: AuditAction.FORM_DELETED,
+      resourceType: AuditResourceType.FORM,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

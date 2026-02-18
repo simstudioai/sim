@@ -3,7 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -90,8 +90,8 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.updated',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         resourceName: updatedServer.name || serverId,
         description: `Updated MCP server "${updatedServer.name || serverId}"`,

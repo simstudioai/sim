@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   getUsersWithPermissions,
@@ -161,8 +161,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       recordAudit({
         workspaceId,
         actorId: session.user.id,
-        action: 'member.role_changed',
-        resourceType: 'workspace',
+        action: AuditAction.MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,

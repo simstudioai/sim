@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -165,8 +165,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       actorId: userId,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'api_key.created',
-      resourceType: 'api_key',
+      action: AuditAction.API_KEY_CREATED,
+      resourceType: AuditResourceType.API_KEY,
       resourceId: newKey.id,
       resourceName: name,
       description: `Created API key "${name}"`,
@@ -243,8 +243,8 @@ export async function DELETE(
       actorId: userId,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'api_key.revoked',
-      resourceType: 'api_key',
+      action: AuditAction.API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
       description: `Revoked ${deletedCount} API key(s)`,
       metadata: { keyIds: keys, deletedCount },
       request,

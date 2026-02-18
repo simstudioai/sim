@@ -3,7 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -165,8 +165,8 @@ export const POST = withMcpAuth('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.added',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_ADDED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         resourceName: body.name,
         description: `Added MCP server "${body.name}"`,
@@ -225,8 +225,8 @@ export const DELETE = withMcpAuth('admin')(
       recordAudit({
         workspaceId,
         actorId: userId,
-        action: 'mcp_server.removed',
-        resourceType: 'mcp_server',
+        action: AuditAction.MCP_SERVER_REMOVED,
+        resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId!,
         resourceName: deletedServer.name,
         description: `Removed MCP server "${deletedServer.name}"`,

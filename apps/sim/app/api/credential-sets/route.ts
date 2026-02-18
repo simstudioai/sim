@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 
@@ -169,8 +169,8 @@ export async function POST(req: Request) {
     recordAudit({
       workspaceId: organizationId,
       actorId: session.user.id,
-      action: 'credential_set.created',
-      resourceType: 'credential_set',
+      action: AuditAction.CREDENTIAL_SET_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: newCredentialSet.id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
@@ -248,8 +248,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
           actorId: userId,
-          action: 'document.uploaded',
-          resourceType: 'document',
+          action: AuditAction.DOCUMENT_UPLOADED,
+          resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
           resourceName: `${createdDocuments.length} document(s)`,
           description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
@@ -307,8 +307,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
           actorId: userId,
-          action: 'document.uploaded',
-          resourceType: 'document',
+          action: AuditAction.DOCUMENT_UPLOADED,
+          resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
           resourceName: validatedData.filename,
           description: `Uploaded document "${validatedData.filename}" to knowledge base "${knowledgeBaseId}"`,

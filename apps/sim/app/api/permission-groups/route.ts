@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import {
@@ -200,10 +200,10 @@ export async function POST(req: Request) {
     })
 
     recordAudit({
-      workspaceId: organizationId,
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'permission_group.created',
-      resourceType: 'permission_group',
+      action: AuditAction.PERMISSION_GROUP_CREATED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: newGroup.id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

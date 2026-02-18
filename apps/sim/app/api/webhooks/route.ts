@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -681,10 +681,10 @@ export async function POST(request: NextRequest) {
       }
 
       recordAudit({
-        workspaceId: workflowRecord.workspaceId || '',
+        workspaceId: workflowRecord.workspaceId || null,
         actorId: userId,
-        action: 'webhook.created',
-        resourceType: 'webhook',
+        action: AuditAction.WEBHOOK_CREATED,
+        resourceType: AuditResourceType.WEBHOOK,
         resourceId: savedWebhook.id,
         resourceName: provider || 'generic',
         description: `Created ${provider || 'generic'} webhook`,

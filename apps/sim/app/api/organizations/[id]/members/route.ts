@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -287,10 +287,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     recordAudit({
-      workspaceId: organizationId,
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'org_member.added',
-      resourceType: 'organization',
+      action: AuditAction.ORG_MEMBER_ADDED,
+      resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 
@@ -153,10 +153,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     recordAudit({
-      workspaceId: result.group.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'permission_group_member.added',
-      resourceType: 'permission_group',
+      action: AuditAction.PERMISSION_GROUP_MEMBER_ADDED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
@@ -236,10 +236,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     })
 
     recordAudit({
-      workspaceId: result.group.organizationId,
+      workspaceId: null,
       actorId: session.user.id,
-      action: 'permission_group_member.removed',
-      resourceType: 'permission_group',
+      action: AuditAction.PERMISSION_GROUP_MEMBER_REMOVED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,

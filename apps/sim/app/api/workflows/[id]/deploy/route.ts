@@ -2,7 +2,7 @@ import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import {
@@ -260,12 +260,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await syncMcpToolsForWorkflow({ workflowId: id, requestId, context: 'deploy' })
 
     recordAudit({
-      workspaceId: workflowData?.workspaceId || '',
+      workspaceId: workflowData?.workspaceId || null,
       actorId: actorUserId,
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'workflow.deployed',
-      resourceType: 'workflow',
+      action: AuditAction.WORKFLOW_DEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
       resourceId: id,
       resourceName: workflowData?.name,
       description: `Deployed workflow "${workflowData?.name || id}"`,
@@ -340,12 +340,12 @@ export async function DELETE(
     }
 
     recordAudit({
-      workspaceId: workflowData?.workspaceId || '',
+      workspaceId: workflowData?.workspaceId || null,
       actorId: session?.user?.id || '',
       actorName: session?.user?.name,
       actorEmail: session?.user?.email,
-      action: 'workflow.undeployed',
-      resourceType: 'workflow',
+      action: AuditAction.WORKFLOW_UNDEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
       resourceId: id,
       resourceName: workflowData?.name,
       description: `Undeployed workflow "${workflowData?.name || id}"`,
