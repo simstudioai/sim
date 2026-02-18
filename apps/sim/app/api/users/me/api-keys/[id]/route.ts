@@ -3,6 +3,7 @@ import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -39,6 +40,18 @@ export async function DELETE(
     if (!result.length) {
       return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
+
+    recordAudit({
+      workspaceId: '',
+      actorId: userId,
+      action: 'personal_api_key.revoked',
+      resourceType: 'api_key',
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Revoked personal API key: ${keyId}`,
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

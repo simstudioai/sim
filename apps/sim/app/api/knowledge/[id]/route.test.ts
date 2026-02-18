@@ -4,6 +4,7 @@
  * @vitest-environment node
  */
 import {
+  auditMock,
   createMockRequest,
   mockAuth,
   mockConsoleLogger,
@@ -15,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 mockKnowledgeSchemas()
 mockDrizzleOrm()
 mockConsoleLogger()
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBaseById: vi.fn(),

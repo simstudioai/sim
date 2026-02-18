@@ -3,6 +3,7 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
 
@@ -113,6 +114,19 @@ export async function POST(request: Request) {
     logger.info('Successfully created organization for team plan', {
       userId: user.id,
       organizationId,
+    })
+
+    recordAudit({
+      workspaceId: organizationId,
+      actorId: user.id,
+      action: 'organization.created',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      actorName: user.name ?? undefined,
+      actorEmail: user.email ?? undefined,
+      resourceName: organizationName ?? undefined,
+      description: `Created organization "${organizationName}"`,
+      request,
     })
 
     return NextResponse.json({

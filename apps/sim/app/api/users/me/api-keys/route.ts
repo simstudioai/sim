@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 
 const logger = createLogger('ApiKeysAPI')
@@ -109,6 +110,19 @@ export async function POST(request: NextRequest) {
         name: apiKey.name,
         createdAt: apiKey.createdAt,
       })
+
+    recordAudit({
+      workspaceId: '',
+      actorId: userId,
+      action: 'personal_api_key.created',
+      resourceType: 'api_key',
+      resourceId: newKey.id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: name,
+      description: `Created personal API key: ${name}`,
+      request,
+    })
 
     return NextResponse.json({
       key: {

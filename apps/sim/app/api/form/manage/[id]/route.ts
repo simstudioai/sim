@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/utils'
@@ -184,6 +185,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       logger.info(`Form ${id} updated successfully`)
 
+      recordAudit({
+        workspaceId: '',
+        actorId: session.user.id,
+        action: 'form.updated',
+        resourceType: 'form',
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: formRecord.title ?? undefined,
+        description: `Updated form "${formRecord.title}"`,
+        request,
+      })
+
       return createSuccessResponse({
         message: 'Form updated successfully',
       })
@@ -222,6 +236,19 @@ export async function DELETE(
     await db.update(form).set({ isActive: false, updatedAt: new Date() }).where(eq(form.id, id))
 
     logger.info(`Form ${id} deleted (soft delete)`)
+
+    recordAudit({
+      workspaceId: '',
+      actorId: session.user.id,
+      action: 'form.deleted',
+      resourceType: 'form',
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: formRecord.title ?? undefined,
+      description: `Deleted form "${formRecord.title}"`,
+      request,
+    })
 
     return createSuccessResponse({
       message: 'Form deleted successfully',

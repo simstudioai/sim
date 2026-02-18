@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -194,6 +195,19 @@ export async function POST(request: NextRequest) {
       const formUrl = `${protocol}://${baseDomain}/form/${identifier}`
 
       logger.info(`Form "${title}" deployed successfully at ${formUrl}`)
+
+      recordAudit({
+        workspaceId: workflowRecord.workspaceId ?? '',
+        actorId: session.user.id,
+        action: 'form.created',
+        resourceType: 'form',
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: title,
+        description: `Created form "${title}" for workflow ${workflowId}`,
+        request,
+      })
 
       return createSuccessResponse({
         id,

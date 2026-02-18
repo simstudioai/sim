@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 
@@ -163,6 +164,19 @@ export async function POST(req: Request) {
       credentialSetId: newCredentialSet.id,
       organizationId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId: organizationId,
+      actorId: session.user.id,
+      action: 'credential_set.created',
+      resourceType: 'credential_set',
+      resourceId: newCredentialSet.id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: name,
+      description: `Created credential set "${name}"`,
+      request: req,
     })
 
     return NextResponse.json({ credentialSet: newCredentialSet }, { status: 201 })

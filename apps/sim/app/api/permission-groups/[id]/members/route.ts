@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 
@@ -151,6 +152,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       assignedBy: session.user.id,
     })
 
+    recordAudit({
+      workspaceId: result.group.organizationId,
+      actorId: session.user.id,
+      action: 'permission_group_member.added',
+      resourceType: 'permission_group',
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Added member ${userId} to permission group`,
+      metadata: { targetUserId: userId, permissionGroupId: id },
+      request: req,
+    })
+
     return NextResponse.json({ member: newMember }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -219,6 +233,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       permissionGroupId: id,
       memberId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId: result.group.organizationId,
+      actorId: session.user.id,
+      action: 'permission_group_member.removed',
+      resourceType: 'permission_group',
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Removed member ${memberToRemove.userId} from permission group`,
+      metadata: { targetUserId: memberToRemove.userId, memberId, permissionGroupId: id },
+      request: req,
     })
 
     return NextResponse.json({ success: true })

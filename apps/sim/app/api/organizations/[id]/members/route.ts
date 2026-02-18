@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -284,6 +285,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
       // Don't fail the request if email fails
     }
+
+    recordAudit({
+      workspaceId: organizationId,
+      actorId: session.user.id,
+      action: 'org_member.added',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Invited ${normalizedEmail} to organization as ${role}`,
+      metadata: { invitationId, email: normalizedEmail, role },
+      request,
+    })
 
     return NextResponse.json({
       success: true,

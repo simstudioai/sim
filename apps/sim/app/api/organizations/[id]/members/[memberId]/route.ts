@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
@@ -213,6 +214,19 @@ export async function PUT(
       updatedBy: session.user.id,
     })
 
+    recordAudit({
+      workspaceId: organizationId,
+      actorId: session.user.id,
+      action: 'org_member.role_changed',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Changed role for member ${memberId} to ${role}`,
+      metadata: { targetUserId: memberId, newRole: role },
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Member role updated successfully',
@@ -303,6 +317,22 @@ export async function DELETE(
       removedBy: session.user.id,
       wasSelfRemoval: session.user.id === targetUserId,
       billingActions: result.billingActions,
+    })
+
+    recordAudit({
+      workspaceId: organizationId,
+      actorId: session.user.id,
+      action: 'org_member.removed',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description:
+        session.user.id === targetUserId
+          ? 'Left the organization'
+          : `Removed member ${targetUserId} from organization`,
+      metadata: { targetUserId, wasSelfRemoval: session.user.id === targetUserId },
+      request,
     })
 
     return NextResponse.json({

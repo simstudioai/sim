@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
@@ -103,6 +104,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
 
     logger.info(`[${requestId}] Uploaded workspace file: ${file.name}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: 'file.uploaded',
+      resourceType: 'file',
+      resourceId: userFile.id,
+      resourceName: file.name,
+      description: `Uploaded file "${file.name}"`,
+      request,
+    })
 
     return NextResponse.json({
       success: true,

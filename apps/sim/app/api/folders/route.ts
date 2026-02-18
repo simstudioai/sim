@@ -3,6 +3,7 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -118,6 +119,20 @@ export async function POST(request: NextRequest) {
     })
 
     logger.info('Created new folder:', { id, name, workspaceId, parentId })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: 'folder.created',
+      resourceType: 'folder',
+      resourceId: id,
+      resourceName: name.trim(),
+      description: `Created folder "${name.trim()}"`,
+      metadata: { name: name.trim() },
+      request,
+    })
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, not } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -86,6 +87,19 @@ export async function PUT(
         updatedAt: apiKey.updatedAt,
       })
 
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: 'api_key.updated',
+      resourceType: 'api_key',
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: name,
+      description: `Updated workspace API key: ${name}`,
+      request,
+    })
+
     logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
     return NextResponse.json({ key: updatedKey })
   } catch (error: unknown) {
@@ -128,6 +142,18 @@ export async function DELETE(
     if (deletedRows.length === 0) {
       return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: 'api_key.revoked',
+      resourceType: 'api_key',
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Revoked workspace API key: ${keyId}`,
+      request,
+    })
 
     logger.info(`[${requestId}] Deleted workspace API key: ${keyId} from workspace ${workspaceId}`)
     return NextResponse.json({ success: true })

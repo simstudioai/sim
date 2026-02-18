@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   getUsersWithPermissions,
@@ -155,6 +156,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     })
 
     const updatedUsers = await getUsersWithPermissions(workspaceId)
+
+    for (const update of body.updates) {
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: 'member.role_changed',
+        resourceType: 'workspace',
+        resourceId: workspaceId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        description: `Changed permissions for user ${update.userId} to ${update.permissions}`,
+        metadata: { targetUserId: update.userId, newPermissions: update.permissions },
+        request,
+      })
+    }
 
     return NextResponse.json({
       message: 'Permissions updated successfully',

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
@@ -187,6 +188,18 @@ export async function POST(req: NextRequest) {
     })
 
     logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: 'workflow.created',
+      resourceType: 'workflow',
+      resourceId: workflowId,
+      resourceName: name,
+      description: `Created workflow "${name}"`,
+      metadata: { name },
+      request: req,
+    })
 
     return NextResponse.json({
       id: workflowId,

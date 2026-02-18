@@ -3,6 +3,7 @@ import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -118,6 +119,17 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: 'mcp_server.updated',
+        resourceType: 'mcp_server',
+        resourceId: serverId,
+        description: `Updated tool "${updatedTool.toolName}" in MCP server`,
+        metadata: { toolId, toolName: updatedTool.toolName },
+        request,
+      })
+
       return createMcpSuccessResponse({ tool: updatedTool })
     } catch (error) {
       logger.error(`[${requestId}] Error updating tool:`, error)
@@ -164,6 +176,17 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: 'mcp_server.updated',
+        resourceType: 'mcp_server',
+        resourceId: serverId,
+        description: `Removed tool "${deletedTool.toolName}" from MCP server`,
+        metadata: { toolId, toolName: deletedTool.toolName },
+        request,
+      })
 
       return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
     } catch (error) {

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 
 const logger = createLogger('WorkspaceByIdAPI')
@@ -279,6 +280,18 @@ export async function DELETE(
       await tx.delete(workspace).where(eq(workspace.id, workspaceId))
 
       logger.info(`Successfully deleted workspace ${workspaceId} and all related data`)
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: 'workspace.deleted',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      description: 'Deleted workspace',
+      request,
     })
 
     return NextResponse.json({ success: true })

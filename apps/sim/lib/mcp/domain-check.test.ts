@@ -3,20 +3,19 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockGetAllowedMcpDomainsFromEnv = vi.fn<() => string[] | null>()
-const mockGetBaseUrl = vi.fn<() => string>()
+const { mockGetAllowedMcpDomainsFromEnv } = vi.hoisted(() => ({
+  mockGetAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(),
+}))
 
-vi.doMock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/feature-flags', () => ({
   getAllowedMcpDomainsFromEnv: mockGetAllowedMcpDomainsFromEnv,
 }))
 
-vi.doMock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: mockGetBaseUrl,
+vi.mock('@/executor/utils/reference-validation', () => ({
+  createEnvVarPattern: () => /\{\{([^}]+)\}\}/g,
 }))
 
-const { McpDomainNotAllowedError, isMcpDomainAllowed, validateMcpDomain } = await import(
-  './domain-check'
-)
+import { isMcpDomainAllowed, McpDomainNotAllowedError, validateMcpDomain } from './domain-check'
 
 describe('McpDomainNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {
@@ -55,7 +54,6 @@ describe('isMcpDomainAllowed', () => {
   describe('when allowlist is configured', () => {
     beforeEach(() => {
       mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['allowed.com', 'internal.company.com'])
-      mockGetBaseUrl.mockReturnValue('https://platform.example.com')
     })
 
     it('allows URLs on the allowlist', () => {
@@ -83,30 +81,12 @@ describe('isMcpDomainAllowed', () => {
       expect(isMcpDomainAllowed('https://ALLOWED.COM/mcp')).toBe(true)
     })
 
-    it('always allows the platform hostname', () => {
-      expect(isMcpDomainAllowed('https://platform.example.com/mcp')).toBe(true)
+    it('allows env var URLs without validating domain', () => {
+      expect(isMcpDomainAllowed('{{MCP_SERVER_URL}}')).toBe(true)
     })
 
-    it('allows platform hostname even when not in the allowlist', () => {
-      mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['other.com'])
-      expect(isMcpDomainAllowed('https://platform.example.com/mcp')).toBe(true)
-    })
-  })
-
-  describe('when getBaseUrl is not configured', () => {
-    beforeEach(() => {
-      mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['allowed.com'])
-      mockGetBaseUrl.mockImplementation(() => {
-        throw new Error('Not configured')
-      })
-    })
-
-    it('still allows URLs on the allowlist', () => {
-      expect(isMcpDomainAllowed('https://allowed.com/mcp')).toBe(true)
-    })
-
-    it('still rejects URLs not on the allowlist', () => {
-      expect(isMcpDomainAllowed('https://evil.com/mcp')).toBe(false)
+    it('allows URLs with embedded env vars', () => {
+      expect(isMcpDomainAllowed('https://{{MCP_HOST}}/mcp')).toBe(true)
     })
   })
 })
@@ -133,7 +113,6 @@ describe('validateMcpDomain', () => {
   describe('when allowlist is configured', () => {
     beforeEach(() => {
       mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['allowed.com'])
-      mockGetBaseUrl.mockReturnValue('https://platform.example.com')
     })
 
     it('does not throw for allowed URLs', () => {
@@ -156,8 +135,12 @@ describe('validateMcpDomain', () => {
       expect(() => validateMcpDomain('https://evil.com/mcp')).toThrow(/evil\.com/)
     })
 
-    it('does not throw for platform hostname', () => {
-      expect(() => validateMcpDomain('https://platform.example.com/mcp')).not.toThrow()
+    it('does not throw for env var URLs', () => {
+      expect(() => validateMcpDomain('{{MCP_SERVER_URL}}')).not.toThrow()
+    })
+
+    it('does not throw for URLs with embedded env vars', () => {
+      expect(() => validateMcpDomain('https://{{MCP_HOST}}/mcp')).not.toThrow()
     })
   })
 })

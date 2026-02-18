@@ -112,7 +112,7 @@ const logger = createLogger('McpSettings')
  */
 function isDomainAllowed(url: string | undefined, allowedDomains: string[] | null): boolean {
   if (allowedDomains === null) return true
-  if (!url) return true
+  if (!url) return false
   try {
     const hostname = new URL(url).hostname.toLowerCase()
     return allowedDomains.includes(hostname)
@@ -1030,12 +1030,14 @@ export function MCP({ initialServerId }: MCPProps) {
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
   const isFormValid = formData.name.trim() && formData.url?.trim()
-  const isAddDomainBlocked = !isDomainAllowed(formData.url, allowedMcpDomains)
+  const isAddDomainBlocked =
+    !!formData.url?.trim() && !isDomainAllowed(formData.url, allowedMcpDomains)
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid || isAddDomainBlocked
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
   const isEditFormValid = editFormData.name.trim() && editFormData.url?.trim()
-  const isEditDomainBlocked = !isDomainAllowed(editFormData.url, allowedMcpDomains)
+  const isEditDomainBlocked =
+    !!editFormData.url?.trim() && !isDomainAllowed(editFormData.url, allowedMcpDomains)
   const editTestButtonLabel = getTestButtonLabel(editTestResult, isEditTestingConnection)
   const hasEditChanges = useMemo(() => {
     if (editFormData.name !== editOriginalData.name) return true

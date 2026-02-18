@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { recordAudit } from '@/lib/audit/log'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -161,6 +162,18 @@ export const POST = withMcpAuth('write')(
         // Silently fail
       }
 
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: 'mcp_server.added',
+        resourceType: 'mcp_server',
+        resourceId: serverId,
+        resourceName: body.name,
+        description: `Added MCP server "${body.name}"`,
+        metadata: { serverName: body.name, transport: body.transport },
+        request,
+      })
+
       return createMcpSuccessResponse({ serverId }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error registering MCP server:`, error)
@@ -208,6 +221,18 @@ export const DELETE = withMcpAuth('admin')(
       await mcpService.clearCache(workspaceId)
 
       logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: 'mcp_server.removed',
+        resourceType: 'mcp_server',
+        resourceId: serverId!,
+        resourceName: deletedServer.name,
+        description: `Removed MCP server "${deletedServer.name}"`,
+        request,
+      })
+
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting MCP server:`, error)

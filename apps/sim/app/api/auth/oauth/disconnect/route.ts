@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
@@ -117,6 +118,20 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    recordAudit({
+      workspaceId: '',
+      actorId: session.user.id,
+      action: 'oauth.disconnected',
+      resourceType: 'oauth',
+      resourceId: providerId ?? provider,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: provider,
+      description: `Disconnected OAuth provider: ${provider}`,
+      metadata: { provider, providerId },
+      request,
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

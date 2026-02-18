@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
+import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -217,6 +218,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       logger.info(`Chat "${chatId}" updated successfully`)
 
+      const [workflowRecord] = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, existingChat[0].workflowId))
+        .limit(1)
+
+      recordAudit({
+        workspaceId: workflowRecord?.workspaceId || '',
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: 'chat.updated',
+        resourceType: 'chat',
+        resourceId: chatId,
+        resourceName: title || existingChat[0].title,
+        description: `Updated chat deployment "${title || existingChat[0].title}"`,
+        request,
+      })
+
       return createSuccessResponse({
         id: chatId,
         chatUrl,
@@ -258,9 +278,36 @@ export async function DELETE(
       return createErrorResponse('Chat not found or access denied', 404)
     }
 
+    const [chatRecord] = await db
+      .select({ workflowId: chat.workflowId, title: chat.title })
+      .from(chat)
+      .where(eq(chat.id, chatId))
+      .limit(1)
+
+    const [workflowRecord] = chatRecord
+      ? await db
+          .select({ workspaceId: workflow.workspaceId })
+          .from(workflow)
+          .where(eq(workflow.id, chatRecord.workflowId))
+          .limit(1)
+      : [undefined]
+
     await db.delete(chat).where(eq(chat.id, chatId))
 
     logger.info(`Chat "${chatId}" deleted successfully`)
+
+    recordAudit({
+      workspaceId: workflowRecord?.workspaceId || '',
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: 'chat.deleted',
+      resourceType: 'chat',
+      resourceId: chatId,
+      resourceName: chatRecord?.title || chatId,
+      description: `Deleted chat deployment "${chatRecord?.title || chatId}"`,
+      request: _request,
+    })
 
     return createSuccessResponse({
       message: 'Chat deployment deleted successfully',

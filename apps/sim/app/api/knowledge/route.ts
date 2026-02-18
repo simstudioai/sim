@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -108,6 +109,20 @@ export async function POST(req: NextRequest) {
       logger.info(
         `[${requestId}] Knowledge base created: ${newKnowledgeBase.id} for user ${session.user.id}`
       )
+
+      recordAudit({
+        workspaceId: validatedData.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: 'knowledge_base.created',
+        resourceType: 'knowledge_base',
+        resourceId: newKnowledgeBase.id,
+        resourceName: validatedData.name,
+        description: `Created knowledge base "${validatedData.name}"`,
+        metadata: { name: validatedData.name },
+        request: req,
+      })
 
       return NextResponse.json({
         success: true,

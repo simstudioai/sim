@@ -1,27 +1,11 @@
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 export class McpDomainNotAllowedError extends Error {
   constructor(domain: string) {
     super(`MCP server domain "${domain}" is not allowed by the server's ALLOWED_MCP_DOMAINS policy`)
     this.name = 'McpDomainNotAllowedError'
   }
-}
-
-let cachedPlatformHostname: string | null = null
-
-/**
- * Returns the platform's own hostname (from getBaseUrl), lazy-cached.
- * Always lowercase. Returns null if the base URL is not configured or invalid.
- */
-function getPlatformHostname(): string | null {
-  if (cachedPlatformHostname !== null) return cachedPlatformHostname
-  try {
-    cachedPlatformHostname = new URL(getBaseUrl()).hostname.toLowerCase()
-  } catch {
-    return null
-  }
-  return cachedPlatformHostname
 }
 
 /**
@@ -33,7 +17,6 @@ function checkMcpDomain(url: string): string | null {
   if (allowedDomains === null) return null
   try {
     const hostname = new URL(url).hostname.toLowerCase()
-    if (hostname === getPlatformHostname()) return null
     return allowedDomains.includes(hostname) ? null : hostname
   } catch {
     return url
@@ -42,18 +25,21 @@ function checkMcpDomain(url: string): string | null {
 
 /**
  * Returns true if the URL's domain is allowed (or no restriction is configured).
- * The platform's own hostname (from getBaseUrl) is always allowed.
+ * URLs containing env var references ({{VAR}}) are allowed — they will be
+ * validated after resolution at execution time.
  */
 export function isMcpDomainAllowed(url: string | undefined): boolean {
   if (!url) {
     return getAllowedMcpDomainsFromEnv() === null
   }
+  if (createEnvVarPattern().test(url)) return true
   return checkMcpDomain(url) === null
 }
 
 /**
  * Throws McpDomainNotAllowedError if the URL's domain is not in the allowlist.
- * The platform's own hostname (from getBaseUrl) is always allowed.
+ * URLs containing env var references ({{VAR}}) are skipped — they will be
+ * validated after resolution at execution time.
  */
 export function validateMcpDomain(url: string | undefined): void {
   if (!url) {
@@ -62,6 +48,7 @@ export function validateMcpDomain(url: string | undefined): void {
     }
     return
   }
+  if (createEnvVarPattern().test(url)) return
   const rejected = checkMcpDomain(url)
   if (rejected !== null) {
     throw new McpDomainNotAllowedError(rejected)

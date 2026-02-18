@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -212,6 +213,20 @@ export async function POST(req: NextRequest) {
       workspaceName: workspaceDetails.name,
       invitationId: invitationData.id,
       token: token,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: 'member.invited',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      resourceName: email,
+      description: `Invited ${email} as ${permission}`,
+      metadata: { email, role: permission },
+      request: req,
     })
 
     return NextResponse.json({ success: true, invitation: invitationData })

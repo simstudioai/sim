@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   getOrganizationSeatAnalytics,
@@ -190,6 +191,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         organizationId,
         updatedBy: session.user.id,
         changes: { name, slug, logo },
+      })
+
+      recordAudit({
+        workspaceId: organizationId,
+        actorId: session.user.id,
+        action: 'organization.updated',
+        resourceType: 'organization',
+        resourceId: organizationId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: updatedOrg[0].name,
+        description: `Updated organization settings`,
+        metadata: { changes: { name, slug, logo } },
+        request,
       })
 
       return NextResponse.json({

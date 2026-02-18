@@ -3,9 +3,11 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { auditMock, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
@@ -48,7 +50,14 @@ describe('Chat Edit API Route', () => {
     }))
 
     vi.doMock('@sim/db/schema', () => ({
-      chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
+      chat: {
+        id: 'id',
+        identifier: 'identifier',
+        userId: 'userId',
+        workflowId: 'workflowId',
+        title: 'title',
+      },
+      workflow: { id: 'id', workspaceId: 'workspaceId' },
     }))
 
     // Mock logger - use loggerMock from @sim/testing
@@ -217,7 +226,7 @@ describe('Chat Edit API Route', () => {
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      mockLimit.mockResolvedValueOnce([]) // No identifier conflict
+      mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -312,7 +321,7 @@ describe('Chat Edit API Route', () => {
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      mockLimit.mockResolvedValueOnce([])
+      mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -372,7 +381,8 @@ describe('Chat Edit API Route', () => {
       }))
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
-      mockWhere.mockResolvedValue(undefined)
+      mockLimit.mockResolvedValueOnce([{ workflowId: 'workflow-123', title: 'Test Chat' }])
+      mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
@@ -394,7 +404,8 @@ describe('Chat Edit API Route', () => {
       }))
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
-      mockWhere.mockResolvedValue(undefined)
+      mockLimit.mockResolvedValueOnce([{ workflowId: 'workflow-123', title: 'Test Chat' }])
+      mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',

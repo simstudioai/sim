@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -251,6 +252,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       subscriptionId: subscription.id,
     })
 
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: 'notification.updated',
+      resourceType: 'notification',
+      resourceId: notificationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Updated ${subscription.notificationType} notification subscription`,
+      request,
+    })
+
     return NextResponse.json({
       data: {
         id: subscription.id,
@@ -309,6 +322,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     logger.info('Deleted notification subscription', {
       workspaceId,
       subscriptionId: notificationId,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: 'notification.deleted',
+      resourceType: 'notification',
+      resourceId: notificationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Deleted notification subscription`,
+      request,
     })
 
     return NextResponse.json({ success: true })

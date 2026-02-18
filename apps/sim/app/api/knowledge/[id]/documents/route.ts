@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
@@ -244,6 +245,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
         })
 
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+          actorId: userId,
+          action: 'document.uploaded',
+          resourceType: 'document',
+          resourceId: knowledgeBaseId,
+          resourceName: `${createdDocuments.length} document(s)`,
+          description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
+          request: req,
+        })
+
         return NextResponse.json({
           success: true,
           data: {
@@ -291,6 +303,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } catch (_e) {
           // Silently fail
         }
+
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? '',
+          actorId: userId,
+          action: 'document.uploaded',
+          resourceType: 'document',
+          resourceId: knowledgeBaseId,
+          resourceName: validatedData.filename,
+          description: `Uploaded document "${validatedData.filename}" to knowledge base "${knowledgeBaseId}"`,
+          request: req,
+        })
 
         return NextResponse.json({
           success: true,
