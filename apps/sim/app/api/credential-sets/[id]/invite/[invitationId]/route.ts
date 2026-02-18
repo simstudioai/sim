@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -146,6 +147,19 @@ export async function POST(
       credentialSetId: id,
       invitationId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      resourceName: result.set.name,
+      description: `Resent credential set invitation to ${invitation.email}`,
+      metadata: { invitationId, email: invitation.email, resend: true },
+      request: req,
     })
 
     return NextResponse.json({ success: true })

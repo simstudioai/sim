@@ -8,6 +8,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
@@ -182,6 +183,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       invitationId: invitation.id,
       credentialSetId: invitation.credentialSetId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_ACCEPTED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: invitation.credentialSetId,
+      description: `Accepted credential set invitation`,
+      metadata: { invitationId: invitation.id },
+      request: req,
     })
 
     return NextResponse.json({

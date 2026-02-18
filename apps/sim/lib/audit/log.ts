@@ -24,12 +24,17 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Billing
+  CREDIT_PURCHASED: 'credit.purchased',
+
   // Credential Sets
   CREDENTIAL_SET_CREATED: 'credential_set.created',
   CREDENTIAL_SET_UPDATED: 'credential_set.updated',
   CREDENTIAL_SET_DELETED: 'credential_set.deleted',
   CREDENTIAL_SET_MEMBER_REMOVED: 'credential_set_member.removed',
+  CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
   CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
+  CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
   CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
 
   // Documents
@@ -81,6 +86,9 @@ export const AuditAction = {
   // OAuth
   OAUTH_DISCONNECTED: 'oauth.disconnected',
 
+  // Password
+  PASSWORD_RESET: 'password.reset',
+
   // Organizations
   ORGANIZATION_CREATED: 'organization.created',
   ORGANIZATION_UPDATED: 'organization.updated',
@@ -103,6 +111,11 @@ export const AuditAction = {
   // Schedules
   SCHEDULE_UPDATED: 'schedule.updated',
 
+  // Templates
+  TEMPLATE_CREATED: 'template.created',
+  TEMPLATE_UPDATED: 'template.updated',
+  TEMPLATE_DELETED: 'template.deleted',
+
   // Webhooks
   WEBHOOK_CREATED: 'webhook.created',
   WEBHOOK_DELETED: 'webhook.deleted',
@@ -113,6 +126,7 @@ export const AuditAction = {
   WORKFLOW_DEPLOYED: 'workflow.deployed',
   WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
   WORKFLOW_DUPLICATED: 'workflow.duplicated',
+  WORKFLOW_DEPLOYMENT_ACTIVATED: 'workflow.deployment_activated',
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
 
@@ -129,6 +143,7 @@ export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
  */
 export const AuditResourceType = {
   API_KEY: 'api_key',
+  BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
   CREDENTIAL_SET: 'credential_set',
@@ -142,8 +157,10 @@ export const AuditResourceType = {
   NOTIFICATION: 'notification',
   OAUTH: 'oauth',
   ORGANIZATION: 'organization',
+  PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
   WORKSPACE: 'workspace',

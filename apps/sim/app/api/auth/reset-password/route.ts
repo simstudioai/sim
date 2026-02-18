@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,14 @@ export async function POST(request: NextRequest) {
         token,
       },
       method: 'POST',
+    })
+
+    recordAudit({
+      actorId: 'system',
+      action: AuditAction.PASSWORD_RESET,
+      resourceType: AuditResourceType.PASSWORD,
+      description: 'Password reset completed',
+      request,
     })
 
     return NextResponse.json({ success: true })

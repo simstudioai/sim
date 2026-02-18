@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
@@ -296,6 +297,18 @@ export async function PATCH(
           )
         }
       }
+
+      recordAudit({
+        actorId: actorUserId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
+        action: AuditAction.WORKFLOW_DEPLOYMENT_ACTIVATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: id,
+        description: `Activated deployment version ${versionNum}`,
+        metadata: { version: versionNum },
+        request,
+      })
 
       return createSuccessResponse({
         success: true,
