@@ -83,6 +83,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       recordAudit({
         workspaceId: workflowData.workspaceId ?? null,
         actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
         action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
         resourceType: AuditResourceType.WORKFLOW,
         resourceId: workflowId,

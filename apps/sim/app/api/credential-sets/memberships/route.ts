@@ -3,6 +3,7 @@ import { credentialSet, credentialSetMember, organization } from '@sim/db/schema
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
@@ -104,6 +105,17 @@ export async function DELETE(req: NextRequest) {
     logger.info('User left credential set', {
       credentialSetId,
       userId: session.user.id,
+    })
+
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_SET_MEMBER_LEFT,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: credentialSetId,
+      description: `Left credential set`,
+      request: req,
     })
 
     return NextResponse.json({ success: true })

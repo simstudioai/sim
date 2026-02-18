@@ -483,6 +483,17 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
+    onPasswordReset: async ({ user: resetUser }) => {
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      recordAudit({
+        actorId: resetUser.id,
+        actorName: resetUser.name,
+        actorEmail: resetUser.email,
+        action: AuditAction.PASSWORD_RESET,
+        resourceType: AuditResourceType.PASSWORD,
+        description: 'Password reset completed',
+      })
+    },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {

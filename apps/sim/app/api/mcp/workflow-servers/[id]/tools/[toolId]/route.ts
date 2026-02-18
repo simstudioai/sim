@@ -66,7 +66,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
  * PATCH - Update a tool's configuration
  */
 export const PATCH = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId, toolId } = await params
       const body = getParsedBody(request) || (await request.json())
@@ -122,6 +126,8 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
@@ -146,7 +152,11 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
  * DELETE - Remove a tool from an MCP server
  */
 export const DELETE = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId, toolId } = await params
 
@@ -180,6 +190,8 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

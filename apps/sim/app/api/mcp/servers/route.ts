@@ -56,7 +56,7 @@ export const GET = withMcpAuth('read')(
  * it will be updated instead of creating a duplicate.
  */
 export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
 
@@ -165,6 +165,8 @@ export const POST = withMcpAuth('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_ADDED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
@@ -190,7 +192,7 @@ export const POST = withMcpAuth('write')(
  * DELETE - Delete an MCP server from the workspace (requires admin permission)
  */
 export const DELETE = withMcpAuth('admin')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
       const serverId = searchParams.get('serverId')
@@ -225,6 +227,8 @@ export const DELETE = withMcpAuth('admin')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_REMOVED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId!,

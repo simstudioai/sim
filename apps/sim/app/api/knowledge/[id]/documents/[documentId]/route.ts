@@ -201,6 +201,8 @@ export async function PUT(
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
           action: AuditAction.DOCUMENT_UPDATED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: documentId,
@@ -272,6 +274,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.DOCUMENT_DELETED,
       resourceType: AuditResourceType.DOCUMENT,
       resourceId: documentId,

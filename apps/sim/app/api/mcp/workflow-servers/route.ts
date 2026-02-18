@@ -86,7 +86,7 @@ export const GET = withMcpAuth('read')(
  * POST - Create a new workflow MCP server
  */
 export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
 
@@ -192,6 +192,8 @@ export const POST = withMcpAuth('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_ADDED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
