@@ -324,19 +324,16 @@ const nextConfig: NextConfig = {
       )
     }
 
+    // Beluga campaign short link tracking
+    if (isHosted) {
+      redirects.push({
+        source: '/r/:shortCode',
+        destination: 'https://go.trybeluga.ai/:shortCode',
+        permanent: false,
+      })
+    }
+
     return redirects
-  },
-  async rewrites() {
-    return [
-      ...(isHosted
-        ? [
-            {
-              source: '/r/:shortCode',
-              destination: 'https://go.trybeluga.ai/:shortCode',
-            },
-          ]
-        : []),
-    ]
   },
 }
 
