@@ -230,8 +230,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         action: AuditAction.CHAT_UPDATED,
         resourceType: AuditResourceType.CHAT,
         resourceId: chatId,
-        resourceName: title || existingChat[0].title,
-        description: `Updated chat deployment "${title || existingChat[0].title}"`,
+        resourceName: title || existingChatRecord.title,
+        description: `Updated chat deployment "${title || existingChatRecord.title}"`,
         request,
       })
 

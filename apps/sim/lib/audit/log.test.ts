@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, loggerMock } from '@sim/testing'
+import { auditMock, databaseMock, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -240,5 +240,33 @@ describe('recordAudit', () => {
     })
 
     expect(result).toBeUndefined()
+  })
+})
+
+describe('auditMock sync', () => {
+  it('has the same AuditAction keys as the source', () => {
+    const sourceKeys = Object.keys(AuditAction).sort()
+    const mockKeys = Object.keys(auditMock.AuditAction).sort()
+    expect(mockKeys).toEqual(sourceKeys)
+  })
+
+  it('has the same AuditAction values as the source', () => {
+    for (const key of Object.keys(AuditAction)) {
+      expect(auditMock.AuditAction[key]).toBe(AuditAction[key as keyof typeof AuditAction])
+    }
+  })
+
+  it('has the same AuditResourceType keys as the source', () => {
+    const sourceKeys = Object.keys(AuditResourceType).sort()
+    const mockKeys = Object.keys(auditMock.AuditResourceType).sort()
+    expect(mockKeys).toEqual(sourceKeys)
+  })
+
+  it('has the same AuditResourceType values as the source', () => {
+    for (const key of Object.keys(AuditResourceType)) {
+      expect(auditMock.AuditResourceType[key]).toBe(
+        AuditResourceType[key as keyof typeof AuditResourceType]
+      )
+    }
   })
 })
