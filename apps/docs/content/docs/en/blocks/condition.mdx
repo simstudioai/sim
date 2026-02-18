@@ -139,3 +139,53 @@ Function (Process) → Condition (account_type === 'enterprise') → Advanced or
 - **Keep expressions simple**: Use clear, straightforward boolean expressions for better readability and easier debugging
 - **Document your conditions**: Add descriptions to explain the purpose of each condition for better team collaboration and maintenance
 - **Test edge cases**: Verify conditions handle boundary values correctly by testing with values at the edges of your condition ranges
+
+## YAML Example
+
+The following example demonstrates how to define a Condition block
+and connect its `if` / `else` branches using YAML.
+
+```yaml
+version: "1.0"
+
+nodes:
+  trigger_1:
+    type: trigger
+    name: Start
+
+  condition_1:
+    type: condition
+    name: Check value
+    config:
+      expression: "{{input.value}} > 10"
+
+  text_true:
+    type: text
+    name: True Path
+    config:
+      text: "Value > 10"
+
+  text_false:
+    type: text
+    name: False Path
+    config:
+      text: "Value <= 10"
+
+edges:
+  - source: trigger_1
+    target: condition_1
+
+  - source: condition_1
+    sourceHandle: if
+    target: text_true
+
+  - source: condition_1
+    sourceHandle: else
+    target: text_false
+
+### Notes
+
+- `type: condition` defines the condition block  
+- `config.expression` contains the evaluation logic  
+- `sourceHandle: if` → true branch  
+- `sourceHandle: else` → false branch  
