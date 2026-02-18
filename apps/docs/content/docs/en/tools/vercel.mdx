@@ -111,7 +111,17 @@ Get details of a specific Vercel deployment
 |   ↳ `name` | string | Project name |
 |   ↳ `framework` | string | Project framework |
 | `meta` | object | Deployment metadata \(key-value strings\) |
+|   ↳ `githubCommitSha` | string | GitHub commit SHA |
+|   ↳ `githubCommitMessage` | string | GitHub commit message |
+|   ↳ `githubCommitRef` | string | GitHub branch/ref |
+|   ↳ `githubRepo` | string | GitHub repository |
+|   ↳ `githubOrg` | string | GitHub organization |
+|   ↳ `githubCommitAuthorName` | string | Commit author name |
 | `gitSource` | object | Git source information |
+|   ↳ `type` | string | Git provider type \(e.g., github, gitlab, bitbucket\) |
+|   ↳ `ref` | string | Git ref \(branch or tag\) |
+|   ↳ `sha` | string | Git commit SHA |
+|   ↳ `repoId` | string | Repository ID |
 
 ### `vercel_create_deployment`
 
@@ -239,6 +249,9 @@ List files in a Vercel deployment
 |   ↳ `mode` | number | File mode indicating file type and permissions |
 |   ↳ `contentType` | string | Content-type of the file \(only valid for file type\) |
 |   ↳ `children` | array | Child files of the directory \(only valid for directory type\) |
+|     ↳ `name` | string | File name |
+|     ↳ `type` | string | Entry type |
+|     ↳ `uid` | string | File identifier |
 | `count` | number | Number of files returned |
 
 ### `vercel_list_projects`
