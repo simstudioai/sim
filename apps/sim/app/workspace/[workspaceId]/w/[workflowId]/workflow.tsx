@@ -2599,7 +2599,7 @@ const WorkflowContent = React.memo(() => {
         if (isEdgeProtected(connection, blocks)) {
           addNotification({
             level: 'info',
-            message: 'Cannot connect to locked blocks',
+            message: 'Cannot connect to locked blocks or blocks inside locked containers',
             workflowId: activeWorkflowId || undefined,
           })
           return
