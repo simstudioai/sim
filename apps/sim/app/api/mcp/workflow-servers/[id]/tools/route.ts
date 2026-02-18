@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -198,9 +199,12 @@ export const POST = withMcpAuth<RouteParams>('write')(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
+      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

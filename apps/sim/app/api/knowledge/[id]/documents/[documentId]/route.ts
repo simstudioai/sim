@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -198,9 +199,12 @@ export async function PUT(
           `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
         )
 
+        const auditSession = await getSession()
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
+          actorName: auditSession?.user?.name,
+          actorEmail: auditSession?.user?.email,
           action: AuditAction.DOCUMENT_UPDATED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: documentId,
@@ -269,9 +273,12 @@ export async function DELETE(
       `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
     )
 
+    const auditSession = await getSession()
     recordAudit({
       workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
       actorId: userId,
+      actorName: auditSession?.user?.name,
+      actorEmail: auditSession?.user?.email,
       action: AuditAction.DOCUMENT_DELETED,
       resourceType: AuditResourceType.DOCUMENT,
       resourceId: documentId,

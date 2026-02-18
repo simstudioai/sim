@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -87,9 +88,12 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
 
       logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
+      const session = await getSession()
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

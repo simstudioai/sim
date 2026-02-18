@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -80,9 +81,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
         .where(eq(workflow.id, workflowId))
 
+      const session = await getSession()
       recordAudit({
         workspaceId: workflowData.workspaceId ?? null,
         actorId: userId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
         action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
         resourceType: AuditResourceType.WORKFLOW,
         resourceId: workflowId,

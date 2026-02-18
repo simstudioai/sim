@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -136,9 +137,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
       logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
 
+      const auditSession = await getSession()
       recordAudit({
         workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
         actorId: userId,
+        actorName: auditSession?.user?.name,
+        actorEmail: auditSession?.user?.email,
         action: AuditAction.KNOWLEDGE_BASE_UPDATED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
         resourceId: id,
@@ -209,9 +213,12 @@ export async function DELETE(
 
     logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${userId}`)
 
+    const auditSession = await getSession()
     recordAudit({
       workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
       actorId: userId,
+      actorName: auditSession?.user?.name,
+      actorEmail: auditSession?.user?.email,
       action: AuditAction.KNOWLEDGE_BASE_DELETED,
       resourceType: AuditResourceType.KNOWLEDGE_BASE,
       resourceId: id,

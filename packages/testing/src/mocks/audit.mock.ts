@@ -74,6 +74,7 @@ export const auditMock = {
     WEBHOOK_CREATED: 'webhook.created',
     WEBHOOK_DELETED: 'webhook.deleted',
     WORKFLOW_CREATED: 'workflow.created',
+    WORKFLOW_UPDATED: 'workflow.updated',
     WORKFLOW_DELETED: 'workflow.deleted',
     WORKFLOW_DEPLOYED: 'workflow.deployed',
     WORKFLOW_UNDEPLOYED: 'workflow.undeployed',

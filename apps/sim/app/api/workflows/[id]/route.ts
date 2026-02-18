@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { getSession } from '@/lib/auth'
 import { checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -337,9 +338,12 @@ export async function DELETE(
       // Don't fail the deletion if Socket.IO notification fails
     }
 
+    const deleteSession = await getSession()
     recordAudit({
       workspaceId: workflowData.workspaceId || null,
       actorId: userId,
+      actorName: deleteSession?.user?.name,
+      actorEmail: deleteSession?.user?.email,
       action: AuditAction.WORKFLOW_DELETED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
@@ -419,6 +423,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
       updates: updateData,
+    })
+
+    const session = await getSession()
+    recordAudit({
+      workspaceId: workflowData.workspaceId || null,
+      actorId: userId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.WORKFLOW_UPDATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: updatedWorkflow?.name ?? workflowData.name,
+      description: `Updated workflow "${updatedWorkflow?.name ?? workflowData.name}"`,
+      metadata: updates,
+      request,
     })
 
     return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })

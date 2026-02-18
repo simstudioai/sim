@@ -680,9 +680,12 @@ export async function POST(request: NextRequest) {
         // Telemetry should not fail the operation
       }
 
+      const auditSession = await getSession()
       recordAudit({
         workspaceId: workflowRecord.workspaceId || null,
         actorId: userId,
+        actorName: auditSession?.user?.name,
+        actorEmail: auditSession?.user?.email,
         action: AuditAction.WEBHOOK_CREATED,
         resourceType: AuditResourceType.WEBHOOK,
         resourceId: savedWebhook.id,
