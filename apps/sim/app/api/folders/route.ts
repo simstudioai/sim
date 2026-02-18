@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
@@ -87,19 +87,37 @@ export async function POST(request: NextRequest) {
       if (providedSortOrder !== undefined) {
         sortOrder = providedSortOrder
       } else {
-        const existingFolders = await tx
-          .select({ sortOrder: workflowFolder.sortOrder })
-          .from(workflowFolder)
-          .where(
-            and(
-              eq(workflowFolder.workspaceId, workspaceId),
-              parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
-            )
-          )
-          .orderBy(desc(workflowFolder.sortOrder))
-          .limit(1)
+        const folderParentCondition = parentId
+          ? eq(workflowFolder.parentId, parentId)
+          : isNull(workflowFolder.parentId)
+        const workflowParentCondition = parentId
+          ? eq(workflow.folderId, parentId)
+          : isNull(workflow.folderId)
 
-        sortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
+        const [[folderResult], [workflowResult]] = await Promise.all([
+          tx
+            .select({ sortOrder: workflowFolder.sortOrder })
+            .from(workflowFolder)
+            .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition))
+            .orderBy(asc(workflowFolder.sortOrder))
+            .limit(1),
+          tx
+            .select({ sortOrder: workflow.sortOrder })
+            .from(workflow)
+            .where(and(eq(workflow.workspaceId, workspaceId), workflowParentCondition))
+            .orderBy(asc(workflow.sortOrder))
+            .limit(1),
+        ])
+
+        const minSortOrder = [folderResult?.sortOrder, workflowResult?.sortOrder].reduce<
+          number | null
+        >((currentMin, candidate) => {
+          if (candidate == null) return currentMin
+          if (currentMin == null) return candidate
+          return Math.min(currentMin, candidate)
+        }, null)
+
+        sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
       }
 
       const [folder] = await tx

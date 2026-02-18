@@ -8,6 +8,7 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
@@ -161,6 +162,39 @@ interface DuplicateWorkflowResult {
 }
 
 /**
+ * Calculates the insertion sort order for a workflow at the top of mixed siblings.
+ * Siblings include both workflows and folders because they share one rendered list.
+ */
+function getTopInsertionSortOrder(
+  workflows: Record<string, WorkflowMetadata>,
+  folders: ReturnType<typeof useFolderStore.getState>['folders'],
+  workspaceId: string,
+  folderId: string | null | undefined
+): number {
+  const normalizedFolderId = folderId ?? null
+
+  const siblingWorkflows = Object.values(workflows).filter(
+    (workflow) =>
+      workflow.workspaceId === workspaceId && (workflow.folderId ?? null) === normalizedFolderId
+  )
+  const siblingFolders = Object.values(folders).filter(
+    (folder) =>
+      folder.workspaceId === workspaceId && (folder.parentId ?? null) === normalizedFolderId
+  )
+
+  const siblingOrders = [
+    ...siblingWorkflows.map((workflow) => workflow.sortOrder ?? 0),
+    ...siblingFolders.map((folder) => folder.sortOrder),
+  ]
+
+  if (siblingOrders.length === 0) {
+    return 0
+  }
+
+  return Math.min(...siblingOrders) - 1
+}
+
+/**
  * Creates optimistic mutation handlers for workflow operations
  */
 function createWorkflowMutationHandlers<TVariables extends { workspaceId: string }>(
@@ -223,11 +257,13 @@ export function useCreateWorkflow() {
         sortOrder = variables.sortOrder
       } else {
         const currentWorkflows = useWorkflowRegistry.getState().workflows
-        const targetFolderId = variables.folderId || null
-        const workflowsInFolder = Object.values(currentWorkflows).filter(
-          (w) => w.folderId === targetFolderId
+        const currentFolders = useFolderStore.getState().folders
+        sortOrder = getTopInsertionSortOrder(
+          currentWorkflows,
+          currentFolders,
+          variables.workspaceId,
+          variables.folderId
         )
-        sortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1) - 1
       }
 
       return {
@@ -323,11 +359,8 @@ export function useDuplicateWorkflowMutation() {
     'DuplicateWorkflow',
     (variables, tempId) => {
       const currentWorkflows = useWorkflowRegistry.getState().workflows
-      const targetFolderId = variables.folderId || null
-      const workflowsInFolder = Object.values(currentWorkflows).filter(
-        (w) => w.folderId === targetFolderId
-      )
-      const minSortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1)
+      const currentFolders = useFolderStore.getState().folders
+      const targetFolderId = variables.folderId ?? null
 
       return {
         id: tempId,
@@ -338,7 +371,12 @@ export function useDuplicateWorkflowMutation() {
         color: variables.color,
         workspaceId: variables.workspaceId,
         folderId: targetFolderId,
-        sortOrder: minSortOrder - 1,
+        sortOrder: getTopInsertionSortOrder(
+          currentWorkflows,
+          currentFolders,
+          variables.workspaceId,
+          targetFolderId
+        ),
       }
     }
   )
