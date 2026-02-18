@@ -161,7 +161,7 @@ export async function validateBlockType(
   }
 
   const envAllowlist = getAllowedIntegrationsFromEnv()
-  if (envAllowlist !== null && !envAllowlist.includes(blockType)) {
+  if (envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())) {
     logger.warn('Integration blocked by env allowlist', { blockType })
     throw new IntegrationNotAllowedError(blockType, 'blocked by server ALLOWED_INTEGRATIONS policy')
   }
