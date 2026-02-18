@@ -227,9 +227,11 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
   const groupedServices = services.reduce(
     (acc, service) => {
       // Filter based on allowedIntegrations
+      // Normalize hyphens to underscores since service IDs use hyphens (e.g., "google-drive")
+      // but block types in the allowlist use underscores (e.g., "google_drive")
       if (
         permissionConfig.allowedIntegrations !== null &&
-        !permissionConfig.allowedIntegrations.includes(service.id)
+        !permissionConfig.allowedIntegrations.includes(service.id.replace(/-/g, '_'))
       ) {
         return acc
       }
