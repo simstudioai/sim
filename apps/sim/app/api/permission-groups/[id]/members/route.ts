@@ -162,7 +162,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       resourceName: result.group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Added member ${userId} to permission group "${result.group.name}"`,
+      description: `Added a member to permission group "${result.group.name}"`,
       metadata: { targetUserId: userId, permissionGroupId: id },
       request: req,
     })
@@ -246,7 +246,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       resourceName: result.group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Removed member ${memberToRemove.userId} from permission group "${result.group.name}"`,
+      description: `Removed a member from permission group "${result.group.name}"`,
       metadata: { targetUserId: memberToRemove.userId, memberId, permissionGroupId: id },
       request: req,
     })

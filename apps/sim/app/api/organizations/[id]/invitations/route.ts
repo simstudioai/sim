@@ -557,6 +557,7 @@ export async function DELETE(
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
+      resourceName: result[0].email,
       description: `Revoked organization invitation for ${result[0].email}`,
       metadata: { invitationId, email: result[0].email },
       request,

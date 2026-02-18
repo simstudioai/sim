@@ -294,6 +294,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
+      resourceName: normalizedEmail,
       description: `Invited ${normalizedEmail} to organization as ${role}`,
       metadata: { invitationId, email: normalizedEmail, role },
       request,

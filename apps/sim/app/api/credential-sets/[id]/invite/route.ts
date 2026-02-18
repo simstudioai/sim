@@ -258,7 +258,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       resourceName: result.set.name,
-      description: `Revoked invitation "${invitationId}" for credential set "${result.set.name}"`,
+      description: `Revoked an invitation for credential set "${result.set.name}"`,
       request: req,
     })
 

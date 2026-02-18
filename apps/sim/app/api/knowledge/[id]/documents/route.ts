@@ -254,7 +254,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
           resourceName: `${createdDocuments.length} document(s)`,
-          description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
+          description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${accessCheck.knowledgeBase?.name}"`,
           request: req,
         })
 
@@ -315,7 +315,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
           resourceName: validatedData.filename,
-          description: `Uploaded document "${validatedData.filename}" to knowledge base "${knowledgeBaseId}"`,
+          description: `Uploaded document "${validatedData.filename}" to knowledge base "${accessCheck.knowledgeBase?.name}"`,
           request: req,
         })
 

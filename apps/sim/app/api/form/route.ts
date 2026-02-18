@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
         resourceName: title,
-        description: `Created form "${title}" for workflow ${workflowId}`,
+        description: `Created form "${title}" for workflow "${workflowRecord.name}"`,
         request,
       })
 

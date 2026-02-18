@@ -238,6 +238,7 @@ export async function DELETE(
       resourceId: invitation.workspaceId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
+      resourceName: invitation.email,
       description: `Revoked workspace invitation for ${invitation.email}`,
       metadata: { invitationId, email: invitation.email },
       request: _request,

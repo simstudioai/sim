@@ -222,7 +222,7 @@ export async function PUT(
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Changed role for member ${memberId} to ${role}`,
+      description: `Changed member role to ${role}`,
       metadata: { targetUserId: memberId, newRole: role },
       request,
     })
@@ -330,7 +330,7 @@ export async function DELETE(
       description:
         session.user.id === targetUserId
           ? 'Left the organization'
-          : `Removed member ${targetUserId} from organization`,
+          : 'Removed a member from the organization',
       metadata: { targetUserId, wasSelfRemoval: session.user.id === targetUserId },
       request,
     })

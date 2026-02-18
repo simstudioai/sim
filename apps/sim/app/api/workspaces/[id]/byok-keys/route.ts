@@ -264,6 +264,7 @@ export async function DELETE(
       actorEmail: session?.user?.email,
       action: AuditAction.BYOK_KEY_DELETED,
       resourceType: AuditResourceType.BYOK_KEY,
+      resourceId: providerId,
       resourceName: providerId,
       description: `Removed BYOK key for ${providerId}`,
       metadata: { providerId },

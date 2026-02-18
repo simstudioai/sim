@@ -207,7 +207,7 @@ export async function PUT(
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: documentId,
           resourceName: validatedData.filename ?? accessCheck.document?.filename,
-          description: `Updated document "${documentId}" in knowledge base "${knowledgeBaseId}"`,
+          description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${accessCheck.knowledgeBase?.name}"`,
           request: req,
         })
 
@@ -280,7 +280,7 @@ export async function DELETE(
       resourceType: AuditResourceType.DOCUMENT,
       resourceId: documentId,
       resourceName: accessCheck.document?.filename,
-      description: `Deleted document "${documentId}" from knowledge base "${knowledgeBaseId}"`,
+      description: `Deleted document "${accessCheck.document?.filename}" from knowledge base "${accessCheck.knowledgeBase?.name}"`,
       request: req,
     })
 

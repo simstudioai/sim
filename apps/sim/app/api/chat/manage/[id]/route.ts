@@ -292,8 +292,8 @@ export async function DELETE(
       action: AuditAction.CHAT_DELETED,
       resourceType: AuditResourceType.CHAT,
       resourceId: chatId,
-      resourceName: chatRecord?.title || chatId,
-      description: `Deleted chat deployment "${chatRecord?.title || chatId}"`,
+      resourceName: chatRecord?.title,
+      description: `Deleted chat deployment "${chatRecord?.title}"`,
       request: _request,
     })
 

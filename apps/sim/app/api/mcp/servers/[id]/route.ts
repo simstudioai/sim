@@ -99,8 +99,8 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
-        resourceName: updatedServer.name || serverId,
-        description: `Updated MCP server "${updatedServer.name || serverId}"`,
+        resourceName: updatedServer.name,
+        description: `Updated MCP server "${updatedServer.name}"`,
         request,
       })
 

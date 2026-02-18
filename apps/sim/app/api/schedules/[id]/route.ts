@@ -115,7 +115,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       resourceId: scheduleId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Reactivated schedule for workflow ${schedule.workflowId}`,
+      resourceName: authorization.workflow?.name,
+      description: `Reactivated schedule for workflow "${authorization.workflow?.name}"`,
       request,
     })
 

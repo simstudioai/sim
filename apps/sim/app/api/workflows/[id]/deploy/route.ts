@@ -268,7 +268,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: id,
       resourceName: workflowData?.name,
-      description: `Deployed workflow "${workflowData?.name || id}"`,
+      description: `Deployed workflow "${workflowData.name}"`,
       request,
     })
 
@@ -348,7 +348,7 @@ export async function DELETE(
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: id,
       resourceName: workflowData?.name,
-      description: `Undeployed workflow "${workflowData?.name || id}"`,
+      description: `Undeployed workflow "${workflowData.name}"`,
       request,
     })
 

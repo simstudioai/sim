@@ -210,6 +210,7 @@ export const POST = withMcpAuth<RouteParams>('write')(
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
+        resourceName: toolName,
         description: `Added tool "${toolName}" to MCP server`,
         metadata: { toolId, toolName, workflowId: body.workflowId },
         request,

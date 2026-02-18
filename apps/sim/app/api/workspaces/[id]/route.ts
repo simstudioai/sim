@@ -298,7 +298,7 @@ export async function DELETE(
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
       resourceName: workspaceRecord?.name,
-      description: `Deleted workspace "${workspaceRecord?.name || workspaceId}"`,
+      description: `Deleted workspace "${workspaceRecord?.name}"`,
       request,
     })
 

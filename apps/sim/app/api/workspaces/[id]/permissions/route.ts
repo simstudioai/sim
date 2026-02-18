@@ -166,7 +166,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         resourceId: workspaceId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        description: `Changed permissions for user ${update.userId} to ${update.permissions}`,
+        description: `Changed workspace permissions to ${update.permissions}`,
         metadata: { targetUserId: update.userId, newPermissions: update.permissions },
         request,
       })

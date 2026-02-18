@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: result.id,
       resourceName: result.name,
-      description: `Duplicated workflow from ${sourceWorkflowId}`,
+      description: `Duplicated workflow as "${result.name}"`,
       metadata: { sourceWorkflowId },
       request: req,
     })
