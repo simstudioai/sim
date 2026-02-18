@@ -155,8 +155,8 @@ export function useCreateFolder() {
         sortOrder:
           variables.sortOrder ??
           getTopInsertionSortOrder(
-            previousFolders,
             currentWorkflows,
+            previousFolders,
             variables.workspaceId,
             variables.parentId
           ),
@@ -252,8 +252,8 @@ export function useDuplicateFolderMutation() {
         color: variables.color || sourceFolder?.color || '#808080',
         isExpanded: false,
         sortOrder: getTopInsertionSortOrder(
-          previousFolders,
           currentWorkflows,
+          previousFolders,
           variables.workspaceId,
           variables.parentId
         ),
