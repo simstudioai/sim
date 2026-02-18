@@ -9,6 +9,7 @@ import {
   isHosted,
 } from '@/lib/core/config/feature-flags'
 import {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
@@ -65,11 +66,36 @@ export class InvitationsNotAllowedError extends Error {
   }
 }
 
+/**
+ * Merges the env allowlist into a permission config.
+ * If `config` is null and no env allowlist is set, returns null.
+ * If `config` is null but env allowlist is set, returns a default config with only allowedIntegrations set.
+ * If both are set, intersects the two allowlists.
+ */
+function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGroupConfig | null {
+  const envAllowlist = getAllowedIntegrationsFromEnv()
+
+  if (envAllowlist === null) {
+    return config
+  }
+
+  if (config === null) {
+    return { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: envAllowlist }
+  }
+
+  const merged =
+    config.allowedIntegrations === null
+      ? envAllowlist
+      : config.allowedIntegrations.filter((i) => envAllowlist.includes(i))
+
+  return { ...config, allowedIntegrations: merged }
+}
+
 export async function getUserPermissionConfig(
   userId: string
 ): Promise<PermissionGroupConfig | null> {
   if (!isHosted && !isAccessControlEnabled) {
-    return null
+    return mergeEnvAllowlist(null)
   }
 
   const [membership] = await db
@@ -79,12 +105,12 @@ export async function getUserPermissionConfig(
     .limit(1)
 
   if (!membership) {
-    return null
+    return mergeEnvAllowlist(null)
   }
 
   const isEnterprise = await isOrganizationOnEnterprisePlan(membership.organizationId)
   if (!isEnterprise) {
-    return null
+    return mergeEnvAllowlist(null)
   }
 
   const [groupMembership] = await db
@@ -100,10 +126,10 @@ export async function getUserPermissionConfig(
     .limit(1)
 
   if (!groupMembership) {
-    return null
+    return mergeEnvAllowlist(null)
   }
 
-  return parsePermissionGroupConfig(groupMembership.config)
+  return mergeEnvAllowlist(parsePermissionGroupConfig(groupMembership.config))
 }
 
 export async function getPermissionConfig(
@@ -160,25 +186,24 @@ export async function validateBlockType(
     return
   }
 
-  const envAllowlist = getAllowedIntegrationsFromEnv()
-  if (envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())) {
-    logger.warn('Integration blocked by env allowlist', { blockType })
-    throw new IntegrationNotAllowedError(blockType, 'blocked by server ALLOWED_INTEGRATIONS policy')
-  }
-
-  if (!userId) {
-    return
-  }
-
-  const config = await getPermissionConfig(userId, ctx)
+  const config = userId ? await getPermissionConfig(userId, ctx) : mergeEnvAllowlist(null)
 
   if (!config || config.allowedIntegrations === null) {
     return
   }
 
-  if (!config.allowedIntegrations.includes(blockType)) {
-    logger.warn('Integration blocked by permission group', { userId, blockType })
-    throw new IntegrationNotAllowedError(blockType)
+  if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
+    const isEnvOnly = !userId
+    logger.warn(
+      isEnvOnly
+        ? 'Integration blocked by env allowlist'
+        : 'Integration blocked by permission config',
+      { userId, blockType }
+    )
+    throw new IntegrationNotAllowedError(
+      blockType,
+      isEnvOnly ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
+    )
   }
 }
 
