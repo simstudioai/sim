@@ -160,4 +160,12 @@ async function initializeOpenTelemetry() {
 
 export async function register() {
   await initializeOpenTelemetry()
+
+  // Initialize internal scheduler for self-hosted environments
+  try {
+    const { initializeInternalScheduler } = await import('./lib/scheduler/internal-scheduler')
+    initializeInternalScheduler()
+  } catch (error) {
+    logger.error('Failed to initialize internal scheduler', error)
+  }
 }

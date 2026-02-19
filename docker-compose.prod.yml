@@ -23,6 +23,10 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      # Internal scheduler for self-hosted environments (enables scheduled workflows)
+      - ENABLE_INTERNAL_SCHEDULER=${ENABLE_INTERNAL_SCHEDULER:-true}
+      - CRON_SECRET=${CRON_SECRET:-default-cron-secret-change-me}
+      - INTERNAL_SCHEDULER_INTERVAL_MS=${INTERNAL_SCHEDULER_INTERVAL_MS:-60000}
     depends_on:
       db:
         condition: service_healthy

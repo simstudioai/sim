@@ -136,6 +136,8 @@ export const env = createEnv({
     TRIGGER_SECRET_KEY:                    z.string().min(1).optional(),           // Trigger.dev secret key for background jobs
     TRIGGER_DEV_ENABLED:                   z.boolean().optional(),                 // Toggle to enable/disable Trigger.dev for async jobs
     CRON_SECRET:                           z.string().optional(),                  // Secret for authenticating cron job requests
+    ENABLE_INTERNAL_SCHEDULER:             z.string().optional(),                  // Enable built-in scheduler for self-hosted environments
+    INTERNAL_SCHEDULER_INTERVAL_MS:        z.string().optional(),                  // Internal scheduler poll interval (default: 60000ms)
     JOB_RETENTION_DAYS:                    z.string().optional().default('1'),     // Days to retain job logs/data
 
     // Cloud Storage - AWS S3
