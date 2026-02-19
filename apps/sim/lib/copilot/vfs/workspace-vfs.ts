@@ -12,7 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { getAllBlocks } from '@/blocks/registry'
-import { getLatestVersionTools } from '@/tools/utils'
+import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { tools as toolRegistry } from '@/tools/registry'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -50,6 +50,11 @@ let staticComponentFiles: Map<string, string> | null = null
 /**
  * Build the static component files from block and tool registries.
  * This only needs to happen once per process.
+ *
+ * Integration paths are derived deterministically from the block registry's
+ * `tools.access` arrays rather than splitting tool IDs on underscores.
+ * Each block declares which tools it owns, and the block type (minus version
+ * suffix) becomes the service directory name.
  */
 function getStaticComponentFiles(): Map<string, string> {
   if (staticComponentFiles) return staticComponentFiles
@@ -61,18 +66,41 @@ function getStaticComponentFiles(): Map<string, string> {
     staticComponentFiles.set(path, serializeBlockSchema(block))
   }
 
+  // Build a reverse index: tool ID → service name from block registry.
+  // The block type (stripped of version suffix) is used as the service directory.
+  const toolToService = new Map<string, string>()
+  for (const block of allBlocks) {
+    if (!block.tools?.access) continue
+    const service = stripVersionSuffix(block.type)
+    for (const toolId of block.tools.access) {
+      toolToService.set(toolId, service)
+    }
+  }
+
   const latestTools = getLatestVersionTools(toolRegistry)
+  let integrationCount = 0
   for (const [toolId, tool] of Object.entries(latestTools)) {
-    const parts = toolId.split('_')
-    const service = parts[0]
-    const operation = parts.slice(1).join('_') || 'default'
+    const baseName = stripVersionSuffix(toolId)
+    const service = toolToService.get(toolId) ?? toolToService.get(baseName)
+    if (!service) {
+      logger.debug('Tool not associated with any block, skipping VFS entry', { toolId })
+      continue
+    }
+
+    // Derive operation name by stripping the service prefix
+    const prefix = `${service}_`
+    const operation = baseName.startsWith(prefix)
+      ? baseName.slice(prefix.length)
+      : baseName
+
     const path = `components/integrations/${service}/${operation}.json`
     staticComponentFiles.set(path, serializeIntegrationSchema(tool))
+    integrationCount++
   }
 
   logger.info('Static component files built', {
     blocks: allBlocks.length,
-    integrations: Object.keys(latestTools).length,
+    integrations: integrationCount,
   })
 
   return staticComponentFiles
