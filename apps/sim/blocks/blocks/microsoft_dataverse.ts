@@ -492,16 +492,19 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
         }
 
         // Map block subBlock IDs to tool param names where they differ
-        if (rest.searchEntities) {
+        if (operation === 'search' && rest.searchEntities) {
           cleanParams.entities = rest.searchEntities
           rest.searchEntities = undefined
         }
-        if (rest.functionParameters) {
+        if (operation === 'execute_function' && rest.functionParameters) {
           cleanParams.parameters = rest.functionParameters
           rest.functionParameters = undefined
           // Prevent stale action parameters from overwriting mapped function parameters
           rest.parameters = undefined
         }
+        // Always clean up mapped subBlock IDs so they don't leak through the loop below
+        rest.searchEntities = undefined
+        rest.functionParameters = undefined
 
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
