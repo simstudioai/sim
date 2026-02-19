@@ -1,0 +1,404 @@
+---
+title: Algolia
+description: Search and manage Algolia indices
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="algolia"
+  color="#003DFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Algolia](https://www.algolia.com/) is a powerful hosted search platform that enables developers and teams to deliver fast, relevant search experiences in their apps and websites. Algolia provides full-text, faceted, and filtered search as well as analytics and advanced ranking capabilities.
+
+With Algolia, you can:
+
+- **Deliver lightning-fast search**: Provide instant search results as users type, with typo tolerance and synonyms
+- **Manage and update records**: Easily add, update, or delete objects/records in your indices
+- **Perform advanced filtering**: Use filters, facets, and custom ranking to refine and organize search results
+- **Configure index settings**: Adjust relevance, ranking, attributes for search, and more to optimize user experience
+- **Scale confidently**: Algolia handles massive traffic and data volumes with globally distributed infrastructure
+- **Gain insights**: Track analytics, search patterns, and user engagement
+
+In Sim, the Algolia integration allows your agents to search, manage, and configure Algolia indices directly within your workflows. Use Algolia to power dynamic data exploration, automate record updates, run batch operations, and more—all from a single tool in your workspace.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.
+
+
+
+## Tools
+
+### `algolia_search`
+
+Search an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key |
+| `indexName` | string | Yes | Name of the Algolia index to search |
+| `query` | string | Yes | Search query text |
+| `hitsPerPage` | number | No | Number of hits per page \(default: 20\) |
+| `page` | number | No | Page number to retrieve \(default: 0\) |
+| `filters` | string | No | Filter string \(e.g., "category:electronics AND price &lt; 100"\) |
+| `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hits` | array | Array of matching records |
+|   ↳ `objectID` | string | Unique identifier of the record |
+|   ↳ `_highlightResult` | object | Highlighted attributes matching the query. Each attribute has value, matchLevel \(none, partial, full\), and matchedWords |
+|   ↳ `_snippetResult` | object | Snippeted attributes matching the query. Each attribute has value and matchLevel |
+|   ↳ `_rankingInfo` | object | Ranking information for the hit. Only present when getRankingInfo is enabled |
+|     ↳ `nbTypos` | number | Number of typos in the query match |
+|     ↳ `firstMatchedWord` | number | Position of the first matched word |
+|     ↳ `geoDistance` | number | Distance in meters for geo-search results |
+|     ↳ `nbExactWords` | number | Number of exactly matched words |
+|     ↳ `userScore` | number | Custom ranking score |
+|     ↳ `words` | number | Number of matched words |
+| `nbHits` | number | Total number of matching hits |
+| `page` | number | Current page number \(zero-based\) |
+| `nbPages` | number | Total number of pages available |
+| `hitsPerPage` | number | Number of hits per page \(1-1000, default 20\) |
+| `processingTimeMS` | number | Server-side processing time in milliseconds |
+| `query` | string | The search query that was executed |
+| `parsedQuery` | string | The query string after normalization and stop word removal |
+| `facets` | object | Facet counts keyed by facet name, each containing value-count pairs |
+| `facets_stats` | object | Statistics \(min, max, avg, sum\) for numeric facets |
+| `exhaustive` | object | Exhaustiveness flags for facetsCount, facetValues, nbHits, rulesMatch, and typo |
+
+### `algolia_add_record`
+
+Add or replace a record in an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `objectID` | string | No | Object ID for the record \(auto-generated if not provided\) |
+| `record` | json | Yes | JSON object representing the record to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the indexing operation |
+| `objectID` | string | The object ID of the added or replaced record |
+| `createdAt` | string | Timestamp when the record was created \(only present when objectID is auto-generated\) |
+| `updatedAt` | string | Timestamp when the record was updated \(only present when replacing an existing record\) |
+
+### `algolia_get_record`
+
+Get a record by objectID from an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `objectID` | string | Yes | The objectID of the record to retrieve |
+| `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectID` | string | The objectID of the retrieved record |
+| `record` | object | The record data \(all attributes\) |
+
+### `algolia_get_records`
+
+Retrieve multiple records by objectID from one or more Algolia indices
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key |
+| `indexName` | string | Yes | Default index name for all requests |
+| `requests` | json | Yes | Array of objects specifying records to retrieve. Each must have "objectID" and optionally "indexName" and "attributesToRetrieve". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of retrieved records \(null entries for records not found\) |
+|   ↳ `objectID` | string | Unique identifier of the record |
+
+### `algolia_partial_update_record`
+
+Partially update a record in an Algolia index without replacing it entirely
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `objectID` | string | Yes | The objectID of the record to update |
+| `attributes` | json | Yes | JSON object with attributes to update. Supports built-in operations like \{"stock": \{"_operation": "Decrement", "value": 1\}\} |
+| `createIfNotExists` | boolean | No | Whether to create the record if it does not exist \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the update operation |
+| `objectID` | string | The objectID of the updated record |
+| `updatedAt` | string | Timestamp when the record was updated |
+
+### `algolia_delete_record`
+
+Delete a record by objectID from an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `objectID` | string | Yes | The objectID of the record to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the deletion |
+| `deletedAt` | string | Timestamp when the record was deleted |
+
+### `algolia_browse_records`
+
+Browse and iterate over all records in an Algolia index using cursor pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key \(must have browse ACL\) |
+| `indexName` | string | Yes | Name of the Algolia index to browse |
+| `query` | string | No | Search query to filter browsed records |
+| `filters` | string | No | Filter string to narrow down results |
+| `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |
+| `hitsPerPage` | number | No | Number of hits per page \(default: 1000, max: 1000\) |
+| `cursor` | string | No | Cursor from a previous browse response for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hits` | array | Array of records from the index \(up to 1000 per request\) |
+|   ↳ `objectID` | string | Unique identifier of the record |
+| `cursor` | string | Opaque cursor string for retrieving the next page of results. Absent when no more results exist. |
+| `nbHits` | number | Total number of records matching the browse criteria |
+| `page` | number | Current page number \(zero-based\) |
+| `nbPages` | number | Total number of pages available |
+| `hitsPerPage` | number | Number of hits per page \(1-1000, default 1000 for browse\) |
+| `processingTimeMS` | number | Server-side processing time in milliseconds |
+
+### `algolia_batch_operations`
+
+Perform batch add, update, partial update, or delete operations on records in an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `requests` | json | Yes | Array of batch operations. Each item has "action" \(addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject\) and "body" \(the record data, must include objectID for update/delete\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the batch operation |
+| `objectIDs` | array | Array of object IDs affected by the batch operation |
+
+### `algolia_list_indices`
+
+List all indices in an Algolia application
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key |
+| `page` | number | No | Page number for paginating indices \(default: not paginated\) |
+| `hitsPerPage` | number | No | Number of indices per page \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indices` | array | List of indices in the application |
+|   ↳ `name` | string | Name of the index |
+|   ↳ `entries` | number | Number of records in the index |
+|   ↳ `dataSize` | number | Size of the index data in bytes |
+|   ↳ `fileSize` | number | Size of the index files in bytes |
+|   ↳ `lastBuildTimeS` | number | Last build duration in seconds |
+|   ↳ `numberOfPendingTasks` | number | Number of pending indexing tasks |
+|   ↳ `pendingTask` | boolean | Whether the index has pending tasks |
+|   ↳ `createdAt` | string | Timestamp when the index was created |
+|   ↳ `updatedAt` | string | Timestamp when the index was last updated |
+|   ↳ `primary` | string | Name of the primary index \(if this is a replica\) |
+|   ↳ `replicas` | array | List of replica index names |
+|   ↳ `virtual` | boolean | Whether the index is a virtual replica |
+| `nbPages` | number | Total number of pages of indices |
+
+### `algolia_get_settings`
+
+Retrieve the settings of an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia API Key |
+| `indexName` | string | Yes | Name of the Algolia index |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searchableAttributes` | array | List of searchable attributes |
+| `attributesForFaceting` | array | Attributes used for faceting |
+| `ranking` | array | Ranking criteria |
+| `customRanking` | array | Custom ranking criteria |
+| `replicas` | array | List of replica index names |
+| `hitsPerPage` | number | Default number of hits per page |
+| `maxValuesPerFacet` | number | Maximum number of facet values returned |
+| `highlightPreTag` | string | HTML tag inserted before highlighted parts |
+| `highlightPostTag` | string | HTML tag inserted after highlighted parts |
+| `paginationLimitedTo` | number | Maximum number of hits accessible via pagination |
+
+### `algolia_update_settings`
+
+Update the settings of an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key \(must have editSettings ACL\) |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `settings` | json | Yes | JSON object with settings to update \(e.g., \{"searchableAttributes": \["name", "description"\], "customRanking": \["desc\(popularity\)"\]\}\) |
+| `forwardToReplicas` | boolean | No | Whether to apply changes to replica indices \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the settings update |
+| `updatedAt` | string | Timestamp when the settings were updated |
+
+### `algolia_delete_index`
+
+Delete an entire Algolia index and all its records
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
+| `indexName` | string | Yes | Name of the Algolia index to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the index deletion |
+| `deletedAt` | string | Timestamp when the index was deleted |
+
+### `algolia_copy_move_index`
+
+Copy or move an Algolia index to a new destination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key |
+| `indexName` | string | Yes | Name of the source index |
+| `operation` | string | Yes | Operation to perform: "copy" or "move" |
+| `destination` | string | Yes | Name of the destination index |
+| `scope` | json | No | Array of scopes to copy \(only for "copy" operation\): \["settings", "synonyms", "rules"\]. Omit to copy everything including records. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the copy/move operation |
+| `updatedAt` | string | Timestamp when the operation was performed |
+
+### `algolia_clear_records`
+
+Clear all records from an Algolia index while keeping settings, synonyms, and rules
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
+| `indexName` | string | Yes | Name of the Algolia index to clear |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the clear operation |
+| `updatedAt` | string | Timestamp when the records were cleared |
+
+### `algolia_delete_by_filter`
+
+Delete all records matching a filter from an Algolia index
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationId` | string | Yes | Algolia Application ID |
+| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
+| `indexName` | string | Yes | Name of the Algolia index |
+| `filters` | string | No | Filter expression to match records for deletion \(e.g., "category:outdated"\) |
+| `facetFilters` | json | No | Array of facet filters \(e.g., \["brand:Acme"\]\) |
+| `numericFilters` | json | No | Array of numeric filters \(e.g., \["price &gt; 100"\]\) |
+| `tagFilters` | json | No | Array of tag filters using the _tags attribute \(e.g., \["published"\]\) |
+| `aroundLatLng` | string | No | Coordinates for geo-search filter \(e.g., "40.71,-74.01"\) |
+| `aroundRadius` | number | No | Maximum radius in meters for geo-search, or "all" for unlimited |
+| `insideBoundingBox` | json | No | Bounding box coordinates as \[\[lat1, lng1, lat2, lng2\]\] for geo-search filter |
+| `insidePolygon` | json | No | Polygon coordinates as \[\[lat1, lng1, lat2, lng2, lat3, lng3, ...\]\] for geo-search filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskID` | number | Algolia task ID for tracking the delete-by-filter operation |
+| `updatedAt` | string | Timestamp when the operation was performed |
+
+
