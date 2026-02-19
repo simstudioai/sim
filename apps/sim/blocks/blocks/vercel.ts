@@ -99,6 +99,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Filter by project ID or name (optional)',
       condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
     },
     {
       id: 'target',
@@ -110,6 +111,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Staging', id: 'staging' },
       ],
       condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -124,6 +126,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Canceled', id: 'CANCELED' },
       ],
       condition: { field: 'operation', value: 'list_deployments' },
+      mode: 'advanced',
     },
     {
       id: 'deploymentId',
@@ -166,6 +169,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Project ID (optional, overrides name)',
       condition: { field: 'operation', value: 'create_deployment' },
+      mode: 'advanced',
     },
     {
       id: 'redeployId',
@@ -173,6 +177,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Existing deployment ID to redeploy (optional)',
       condition: { field: 'operation', value: 'create_deployment' },
+      mode: 'advanced',
     },
     {
       id: 'deployTarget',
@@ -184,6 +189,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Staging', id: 'staging' },
       ],
       condition: { field: 'operation', value: 'create_deployment' },
+      mode: 'advanced',
     },
 
     // === Project fields ===
@@ -193,6 +199,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Search projects by name (optional)',
       condition: { field: 'operation', value: 'list_projects' },
+      mode: 'advanced',
     },
     {
       id: 'projectId',
@@ -259,6 +266,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Other', id: 'other' },
       ],
       condition: { field: 'operation', value: ['create_project', 'update_project'] },
+      mode: 'advanced',
     },
     {
       id: 'buildCommand',
@@ -266,6 +274,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Custom build command (optional)',
       condition: { field: 'operation', value: ['create_project', 'update_project'] },
+      mode: 'advanced',
     },
     {
       id: 'outputDirectory',
@@ -273,6 +282,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Output directory (optional)',
       condition: { field: 'operation', value: ['create_project', 'update_project'] },
+      mode: 'advanced',
     },
     {
       id: 'installCommand',
@@ -280,6 +290,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Install command (optional)',
       condition: { field: 'operation', value: ['create_project', 'update_project'] },
+      mode: 'advanced',
     },
 
     // === Project Domain fields ===
@@ -362,6 +373,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Sensitive', id: 'sensitive' },
       ],
       condition: { field: 'operation', value: ['create_env_var', 'update_env_var'] },
+      mode: 'advanced',
     },
 
     // === DNS fields ===
@@ -489,6 +501,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Comma-separated project IDs (optional)',
       condition: { field: 'operation', value: 'create_webhook' },
+      mode: 'advanced',
     },
     {
       id: 'webhookId',
@@ -553,6 +566,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Page path being checked (optional)',
       condition: { field: 'operation', value: ['create_check', 'update_check'] },
+      mode: 'advanced',
     },
     {
       id: 'checkDetailsUrl',
@@ -560,6 +574,7 @@ export const VercelBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'URL for more details (optional)',
       condition: { field: 'operation', value: ['create_check', 'update_check'] },
+      mode: 'advanced',
     },
     {
       id: 'checkStatus',
@@ -607,6 +622,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Billing', id: 'BILLING' },
       ],
       condition: { field: 'operation', value: 'list_team_members' },
+      mode: 'advanced',
     },
 
     // === Shared optional Team ID (for scoping requests) ===
@@ -629,6 +645,7 @@ export const VercelBlock: BlockConfig = {
         ],
         not: true,
       },
+      mode: 'advanced',
     },
   ],
   tools: {
