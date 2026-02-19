@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const { email, redirectTo } = validationResult.data
 
-    await auth.api.forgetPassword({
+    await auth.api.requestPasswordReset({
       body: {
         email,
         redirectTo,

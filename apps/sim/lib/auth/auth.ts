@@ -466,7 +466,7 @@ export const auth = betterAuth({
     sendVerificationOnSignUp: isEmailVerificationEnabled, // Auto-send verification OTP on signup when verification is required
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
-    sendResetPassword: async ({ user, url, token }, request) => {
+    sendResetPassword: async ({ user, url, token }, ctx) => {
       const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)
@@ -542,7 +542,7 @@ export const auth = betterAuth({
   plugins: [
     nextCookies(),
     oneTimeToken({
-      expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
+      expiresIn: 24 * 60, // 24 hours in minutes - Socket.IO handles connection persistence with heartbeats
     }),
     customSession(async ({ user, session }) => ({
       user,
@@ -2876,9 +2876,9 @@ export const auth = betterAuth({
 
               return hasTeamPlan
             },
-            organizationCreation: {
-              afterCreate: async ({ organization, user }) => {
-                logger.info('[organizationCreation.afterCreate] Organization created', {
+            organizationHooks: {
+              afterCreateOrganization: async ({ organization, member, user }) => {
+                logger.info('[organizationHooks.afterCreateOrganization] Organization created', {
                   organizationId: organization.id,
                   creatorId: user.id,
                 })

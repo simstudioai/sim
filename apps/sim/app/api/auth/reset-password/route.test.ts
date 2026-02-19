@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 function setupAuthApiMocks(
   options: {
     operations?: {
-      forgetPassword?: { success?: boolean; error?: string }
+      requestPasswordReset?: { success?: boolean; error?: string }
       resetPassword?: { success?: boolean; error?: string }
     }
   } = {}
@@ -30,7 +30,11 @@ function setupAuthApiMocks(
 
   const { operations = {} } = options
   const defaultOperations = {
-    forgetPassword: { success: true, error: 'Forget password error', ...operations.forgetPassword },
+    requestPasswordReset: {
+      success: true,
+      error: 'Forget password error',
+      ...operations.requestPasswordReset,
+    },
     resetPassword: { success: true, error: 'Reset password error', ...operations.resetPassword },
   }
 
@@ -46,7 +50,7 @@ function setupAuthApiMocks(
   vi.doMock('@/lib/auth', () => ({
     auth: {
       api: {
-        forgetPassword: createAuthMethod(defaultOperations.forgetPassword),
+        requestPasswordReset: createAuthMethod(defaultOperations.requestPasswordReset),
         resetPassword: createAuthMethod(defaultOperations.resetPassword),
       },
     },

@@ -21,7 +21,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
 function setupAuthApiMocks(
   options: {
     operations?: {
-      forgetPassword?: { success?: boolean; error?: string }
+      requestPasswordReset?: { success?: boolean; error?: string }
       resetPassword?: { success?: boolean; error?: string }
     }
   } = {}
@@ -34,7 +34,11 @@ function setupAuthApiMocks(
 
   const { operations = {} } = options
   const defaultOperations = {
-    forgetPassword: { success: true, error: 'Forget password error', ...operations.forgetPassword },
+    requestPasswordReset: {
+      success: true,
+      error: 'Forget password error',
+      ...operations.requestPasswordReset,
+    },
     resetPassword: { success: true, error: 'Reset password error', ...operations.resetPassword },
   }
 
@@ -50,7 +54,7 @@ function setupAuthApiMocks(
   vi.doMock('@/lib/auth', () => ({
     auth: {
       api: {
-        forgetPassword: createAuthMethod(defaultOperations.forgetPassword),
+        requestPasswordReset: createAuthMethod(defaultOperations.requestPasswordReset),
         resetPassword: createAuthMethod(defaultOperations.resetPassword),
       },
     },
@@ -69,7 +73,7 @@ describe('Forget Password API Route', () => {
   it('should send password reset email successfully with same-origin redirectTo', async () => {
     setupAuthApiMocks({
       operations: {
-        forgetPassword: { success: true },
+        requestPasswordReset: { success: true },
       },
     })
 
@@ -87,7 +91,7 @@ describe('Forget Password API Route', () => {
     expect(data.success).toBe(true)
 
     const auth = await import('@/lib/auth')
-    expect(auth.auth.api.forgetPassword).toHaveBeenCalledWith({
+    expect(auth.auth.api.requestPasswordReset).toHaveBeenCalledWith({
       body: {
         email: 'test@example.com',
         redirectTo: 'https://app.example.com/reset',
@@ -99,7 +103,7 @@ describe('Forget Password API Route', () => {
   it('should reject external redirectTo URL', async () => {
     setupAuthApiMocks({
       operations: {
-        forgetPassword: { success: true },
+        requestPasswordReset: { success: true },
       },
     })
 
@@ -117,13 +121,13 @@ describe('Forget Password API Route', () => {
     expect(data.message).toBe('Redirect URL must be a valid same-origin URL')
 
     const auth = await import('@/lib/auth')
-    expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()
+    expect(auth.auth.api.requestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should send password reset email without redirectTo', async () => {
     setupAuthApiMocks({
       operations: {
-        forgetPassword: { success: true },
+        requestPasswordReset: { success: true },
       },
     })
 
@@ -140,7 +144,7 @@ describe('Forget Password API Route', () => {
     expect(data.success).toBe(true)
 
     const auth = await import('@/lib/auth')
-    expect(auth.auth.api.forgetPassword).toHaveBeenCalledWith({
+    expect(auth.auth.api.requestPasswordReset).toHaveBeenCalledWith({
       body: {
         email: 'test@example.com',
         redirectTo: undefined,
@@ -163,7 +167,7 @@ describe('Forget Password API Route', () => {
     expect(data.message).toBe('Email is required')
 
     const auth = await import('@/lib/auth')
-    expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()
+    expect(auth.auth.api.requestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should handle empty email', async () => {
@@ -182,7 +186,7 @@ describe('Forget Password API Route', () => {
     expect(data.message).toBe('Please provide a valid email address')
 
     const auth = await import('@/lib/auth')
-    expect(auth.auth.api.forgetPassword).not.toHaveBeenCalled()
+    expect(auth.auth.api.requestPasswordReset).not.toHaveBeenCalled()
   })
 
   it('should handle auth service error with message', async () => {
@@ -190,7 +194,7 @@ describe('Forget Password API Route', () => {
 
     setupAuthApiMocks({
       operations: {
-        forgetPassword: {
+        requestPasswordReset: {
           success: false,
           error: errorMessage,
         },
@@ -222,7 +226,7 @@ describe('Forget Password API Route', () => {
     vi.doMock('@/lib/auth', () => ({
       auth: {
         api: {
-          forgetPassword: vi.fn().mockRejectedValue('Unknown error'),
+          requestPasswordReset: vi.fn().mockRejectedValue('Unknown error'),
         },
       },
     }))
