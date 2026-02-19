@@ -178,33 +178,34 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             edges: candidateState.edges?.length || 0,
           })
 
-          // BACKGROUND: Broadcast and persist without blocking
-          // These operations happen after the UI has already updated
-          const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(candidateState))
+          // When skipPersist is set, the server tool (edit_workflow) already
+          // saved to DB. Both the Socket.IO broadcast and HTTP persist would
+          // race with subsequent edit_workflow calls and overwrite newer state,
+          // causing block IDs to thrash.
+          if (!options?.skipPersist) {
+            const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(candidateState))
 
-          // Fire and forget: broadcast to other users (don't await)
-          enqueueReplaceWorkflowState({
-            workflowId: activeWorkflowId,
-            state: cleanState,
-          }).catch((error) => {
-            logger.warn('Failed to broadcast workflow state (non-blocking)', { error })
-          })
+            enqueueReplaceWorkflowState({
+              workflowId: activeWorkflowId,
+              state: cleanState,
+            }).catch((error) => {
+              logger.warn('Failed to broadcast workflow state (non-blocking)', { error })
+            })
 
-          // Fire and forget: persist to database (don't await)
-          persistWorkflowStateToServer(activeWorkflowId, candidateState)
-            .then((persisted) => {
-              if (!persisted) {
-                logger.warn('Failed to persist copilot edits (state already applied locally)')
-                // Don't revert - user can retry or state will sync on next save
-              } else {
-                logger.info('Workflow diff persisted to database', {
-                  workflowId: activeWorkflowId,
-                })
-              }
-            })
-            .catch((error) => {
-              logger.warn('Failed to persist workflow state (non-blocking)', { error })
-            })
+            persistWorkflowStateToServer(activeWorkflowId, candidateState)
+              .then((persisted) => {
+                if (!persisted) {
+                  logger.warn('Failed to persist copilot edits (state already applied locally)')
+                } else {
+                  logger.info('Workflow diff persisted to database', {
+                    workflowId: activeWorkflowId,
+                  })
+                }
+              })
+              .catch((error) => {
+                logger.warn('Failed to persist workflow state (non-blocking)', { error })
+              })
+          }
 
           // Emit event for undo/redo recording
           if (!options?.skipRecording) {

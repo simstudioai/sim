@@ -317,21 +317,44 @@ export const sseHandlers: Record<string, SSEHandler> = {
             const resultPayload = asRecord(
               data?.result || eventData.result || eventData.data || data?.data
             )
-            const workflowState = asRecord(resultPayload?.workflowState)
-            const hasWorkflowState = !!resultPayload?.workflowState
-            logger.info('[SSE] edit_workflow result received', {
-              hasWorkflowState,
-              blockCount: hasWorkflowState ? Object.keys(workflowState.blocks ?? {}).length : 0,
-              edgeCount: Array.isArray(workflowState.edges) ? workflowState.edges.length : 0,
-            })
-            if (hasWorkflowState) {
-              const diffStore = useWorkflowDiffStore.getState()
-              diffStore
-                .setProposedChanges(resultPayload.workflowState as WorkflowState)
-                .catch((err) => {
-                  logger.error('[SSE] Failed to apply edit_workflow diff', {
-                    error: err instanceof Error ? err.message : String(err),
+            const input = asRecord(current.params || current.input)
+            const workflowId =
+              (input?.workflowId as string) ||
+              useWorkflowRegistry.getState().activeWorkflowId
+
+            if (!workflowId) {
+              logger.warn('[SSE] edit_workflow result has no workflowId, skipping diff')
+            } else {
+              // Re-fetch the state the server just wrote to DB.
+              // Never use the response's workflowState directly — that would
+              // mean client and server independently track state, creating
+              // race conditions when the build agent makes sequential calls.
+              logger.info('[SSE] edit_workflow success, fetching state from DB', { workflowId })
+              fetch(`/api/workflows/${workflowId}/state`)
+                .then((res) => {
+                  if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
+                  return res.json()
+                })
+                .then((freshState) => {
+                  const diffStore = useWorkflowDiffStore.getState()
+                  return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+                    skipPersist: true,
                   })
+                })
+                .catch((err) => {
+                  logger.error('[SSE] Failed to fetch/apply edit_workflow state', {
+                    error: err instanceof Error ? err.message : String(err),
+                    workflowId,
+                  })
+                  // Fallback: use the response's workflowState if DB fetch failed
+                  if (resultPayload?.workflowState) {
+                    const diffStore = useWorkflowDiffStore.getState()
+                    diffStore
+                      .setProposedChanges(resultPayload.workflowState as WorkflowState, undefined, {
+                        skipPersist: true,
+                      })
+                      .catch(() => {})
+                  }
                 })
             }
           } catch (err) {

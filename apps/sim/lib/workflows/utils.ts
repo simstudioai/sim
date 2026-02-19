@@ -30,7 +30,8 @@ export async function resolveWorkflowIdForUser(
     if (!authorization.allowed) {
       return null
     }
-    return { workflowId }
+    const wf = await getWorkflowById(workflowId)
+    return { workflowId, workflowName: wf?.name || undefined }
   }
 
   const workspaceIds = await db

@@ -8,7 +8,10 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -107,6 +110,49 @@ const WorkflowStateSchema = z.object({
   deployedAt: z.coerce.date().optional(),
   variables: z.any().optional(), // Workflow variables
 })
+
+/**
+ * GET /api/workflows/[id]/state
+ * Fetch the current workflow state from normalized tables.
+ * Used by the client after server-side edits (edit_workflow) to stay in sync.
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: workflowId } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: auth.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) {
+      return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      blocks: normalized.blocks,
+      edges: normalized.edges,
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+    })
+  } catch (error) {
+    logger.error('Failed to fetch workflow state', {
+      workflowId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 /**
  * PUT /api/workflows/[id]/state

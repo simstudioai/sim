@@ -10,6 +10,7 @@ const logger = createLogger('CopilotChatPayload')
 export interface BuildPayloadParams {
   message: string
   workflowId: string
+  workflowName?: string
   userId: string
   userMessageId: string
   mode: string
@@ -152,6 +153,7 @@ export async function buildCopilotRequestPayload(
   return {
     message,
     workflowId,
+    ...(params.workflowName ? { workflowName: params.workflowName } : {}),
     userId,
     model: selectedModel,
     ...(provider ? { provider } : {}),

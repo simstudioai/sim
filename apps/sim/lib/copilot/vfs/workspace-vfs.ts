@@ -43,18 +43,6 @@ import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 
 const logger = createLogger('WorkspaceVFS')
 
-/** Cache entry for a materialized VFS */
-interface VFSCacheEntry {
-  vfs: WorkspaceVFS
-  expiresAt: number
-}
-
-/** Module-level VFS cache keyed by workspaceId */
-const vfsCache = new Map<string, VFSCacheEntry>()
-
-/** Cache TTL in milliseconds (30 seconds) */
-const VFS_CACHE_TTL_MS = 30_000
-
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
 
@@ -73,15 +61,19 @@ function getStaticComponentFiles(): Map<string, string> {
   const files = new Map<string, string>()
 
   const allBlocks = getAllBlocks()
-  for (const block of allBlocks) {
+  const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+
+  let blocksFiltered = 0
+  for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
     files.set(path, serializeBlockSchema(block))
   }
+  blocksFiltered = allBlocks.length - visibleBlocks.length
 
   // Build a reverse index: tool ID → service name from block registry.
   // The block type (stripped of version suffix) is used as the service directory.
   const toolToService = new Map<string, string>()
-  for (const block of allBlocks) {
+  for (const block of visibleBlocks) {
     if (!block.tools?.access) continue
     const service = stripVersionSuffix(block.type)
     for (const toolId of block.tools.access) {
@@ -110,8 +102,37 @@ function getStaticComponentFiles(): Map<string, string> {
     integrationCount++
   }
 
+  // Add synthetic component files for subflow containers (not in block registry)
+  files.set('components/blocks/loop.json', JSON.stringify({
+    type: 'loop',
+    name: 'Loop',
+    description: 'Iterate over a collection or repeat a fixed number of times. Blocks inside the loop run once per iteration.',
+    inputs: {
+      loopType: { type: 'string', enum: ['for', 'forEach', 'while', 'doWhile'], description: 'Loop strategy' },
+      iterations: { type: 'number', description: 'Number of iterations (for loopType "for")' },
+      collection: { type: 'string', description: 'Collection expression to iterate (for loopType "forEach")' },
+      condition: { type: 'string', description: 'Condition expression (for loopType "while" or "doWhile")' },
+    },
+    sourceHandles: ['loop-start-source', 'source'],
+    notes: 'Use "loop-start-source" to connect to blocks inside the loop. Use "source" for the edge that runs after the loop completes. Blocks inside the loop must have parentId set to the loop block ID.',
+  }, null, 2))
+
+  files.set('components/blocks/parallel.json', JSON.stringify({
+    type: 'parallel',
+    name: 'Parallel',
+    description: 'Run blocks in parallel branches. All branches execute concurrently.',
+    inputs: {
+      parallelType: { type: 'string', enum: ['count', 'collection'], description: 'Parallel strategy' },
+      count: { type: 'number', description: 'Number of parallel branches (for parallelType "count")' },
+      collection: { type: 'string', description: 'Collection to distribute (for parallelType "collection")' },
+    },
+    sourceHandles: ['parallel-start-source', 'source'],
+    notes: 'Use "parallel-start-source" to connect to blocks inside the parallel container. Use "source" for the edge after all branches complete. Blocks inside must have parentId set to the parallel block ID.',
+  }, null, 2))
+
   logger.info('Static component files built', {
-    blocks: allBlocks.length,
+    blocks: visibleBlocks.length,
+    blocksFiltered,
     integrations: integrationCount,
   })
 
@@ -557,41 +578,25 @@ export class WorkspaceVFS {
 }
 
 /**
- * Get or create a cached VFS for a workspace.
- * Re-materializes if the cache is expired.
+ * Create a fresh VFS for a workspace.
+ * Dynamic data (workflows, KBs, env) is always fetched fresh.
+ * Static component files (blocks, integrations) are cached per-process.
  */
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceVFS> {
-  const now = Date.now()
-  const cached = vfsCache.get(workspaceId)
-
-  if (cached && cached.expiresAt > now) {
-    return cached.vfs
-  }
-
   const vfs = new WorkspaceVFS()
   await vfs.materialize(workspaceId, userId)
-
-  vfsCache.set(workspaceId, {
-    vfs,
-    expiresAt: now + VFS_CACHE_TTL_MS,
-  })
-
   return vfs
 }
 
 /**
  * Sanitize a name for use as a VFS path segment.
- * Converts to lowercase, replaces spaces/special chars with hyphens.
+ * Uses the raw name as-is — only trims whitespace and replaces forward
+ * slashes (which would break path hierarchy).
  */
 function sanitizeName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64)
+  return name.trim().replace(/\//g, '-')
 }
 

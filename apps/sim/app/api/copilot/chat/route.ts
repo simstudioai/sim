@@ -264,6 +264,7 @@ export async function POST(req: NextRequest) {
       {
         message,
         workflowId,
+        workflowName: resolved.workflowName,
         userId: authenticatedUserId,
         userMessageId: userMessageIdToUse,
         mode,
