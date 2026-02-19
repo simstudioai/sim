@@ -1,0 +1,221 @@
+---
+title: Microsoft Dataverse
+description: Manage records in Microsoft Dataverse tables
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_dataverse"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, and query records in Dataverse tables using the Web API. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
+
+
+
+## Tools
+
+### `microsoft_dataverse_associate`
+
+Associate two records in Microsoft Dataverse via a navigation property. Creates a relationship between a source record and a target record. Supports both collection-valued (POST) and single-valued (PUT) navigation properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Source entity set name \(e.g., accounts\) |
+| `recordId` | string | Yes | Source record GUID |
+| `navigationProperty` | string | Yes | Navigation property name \(e.g., contact_customer_accounts for collection-valued, or parentcustomerid_account for single-valued\) |
+| `targetEntitySetName` | string | Yes | Target entity set name \(e.g., contacts\) |
+| `targetRecordId` | string | Yes | Target record GUID to associate |
+| `navigationType` | string | No | Type of navigation property: "collection" \(default, uses POST\) or "single" \(uses PUT for lookup fields\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the association was created successfully |
+| `entitySetName` | string | Source entity set name used in the association |
+| `recordId` | string | Source record GUID that was associated |
+| `navigationProperty` | string | Navigation property used for the association |
+| `targetEntitySetName` | string | Target entity set name used in the association |
+| `targetRecordId` | string | Target record GUID that was associated |
+
+### `microsoft_dataverse_create_record`
+
+Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `data` | object | Yes | Record data as a JSON object with column names as keys |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | The ID of the created record |
+| `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
+| `success` | boolean | Whether the record was created successfully |
+
+### `microsoft_dataverse_delete_record`
+
+Delete a record from a Microsoft Dataverse table by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | The unique identifier \(GUID\) of the record to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | The ID of the deleted record |
+| `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_disassociate`
+
+Remove an association between two records in Microsoft Dataverse. For collection-valued navigation properties, provide the target record ID. For single-valued navigation properties, only the navigation property name is needed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Source entity set name \(e.g., accounts\) |
+| `recordId` | string | Yes | Source record GUID |
+| `navigationProperty` | string | Yes | Navigation property name \(e.g., contact_customer_accounts for collection-valued, or parentcustomerid_account for single-valued\) |
+| `targetRecordId` | string | No | Target record GUID \(required for collection-valued navigation properties, omit for single-valued\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the disassociation was completed successfully |
+| `entitySetName` | string | Source entity set name used in the disassociation |
+| `recordId` | string | Source record GUID that was disassociated |
+| `navigationProperty` | string | Navigation property used for the disassociation |
+| `targetRecordId` | string | Target record GUID that was disassociated |
+
+### `microsoft_dataverse_get_record`
+
+Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | The unique identifier \(GUID\) of the record to retrieve |
+| `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
+| `expand` | string | No | Navigation properties to expand \(OData $expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
+| `recordId` | string | The record primary key ID \(auto-detected from response\) |
+| `success` | boolean | Whether the record was retrieved successfully |
+
+### `microsoft_dataverse_list_records`
+
+Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
+| `filter` | string | No | OData $filter expression \(e.g., statecode eq 0\) |
+| `orderBy` | string | No | OData $orderby expression \(e.g., name asc, createdon desc\) |
+| `top` | number | No | Maximum number of records to return \(OData $top\) |
+| `expand` | string | No | Navigation properties to expand \(OData $expand\) |
+| `count` | string | No | Set to "true" to include total record count in response \(OData $count\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of Dataverse records. Each record has dynamic columns based on the table schema. |
+| `count` | number | Number of records returned in the current page |
+| `totalCount` | number | Total number of matching records server-side \(requires $count=true\) |
+| `nextLink` | string | URL for the next page of results |
+| `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_update_record`
+
+Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | The unique identifier \(GUID\) of the record to update |
+| `data` | object | Yes | Record data to update as a JSON object with column names as keys |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | The ID of the updated record |
+| `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_upsert_record`
+
+Create or update a record in a Microsoft Dataverse table. If a record with the given ID exists, it is updated; otherwise, a new record is created.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | The unique identifier \(GUID\) of the record to upsert |
+| `data` | object | Yes | Record data as a JSON object with column names as keys |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | The ID of the upserted record |
+| `created` | boolean | True if the record was created, false if updated |
+| `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
+| `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_whoami`
+
+Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | The authenticated user ID |
+| `businessUnitId` | string | The business unit ID |
+| `organizationId` | string | The organization ID |
+| `success` | boolean | Operation success status |
+
+

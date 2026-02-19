@@ -18,6 +18,7 @@ import {
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
+  MicrosoftDataverseIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
   MicrosoftOneDriveIcon,
@@ -154,6 +155,20 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name: 'Microsoft',
     icon: MicrosoftIcon,
     services: {
+      'microsoft-dataverse': {
+        name: 'Microsoft Dataverse',
+        description: 'Connect to Microsoft Dataverse and manage records.',
+        providerId: 'microsoft-dataverse',
+        icon: MicrosoftDataverseIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'https://dynamics.microsoft.com/user_impersonation',
+          'offline_access',
+        ],
+      },
       'microsoft-excel': {
         name: 'Microsoft Excel',
         description: 'Connect to Microsoft Excel and manage spreadsheets.',

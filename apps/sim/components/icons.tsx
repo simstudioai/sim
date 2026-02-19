@@ -4407,6 +4407,161 @@ export function DatadogIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MicrosoftDataverseIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const clip0 = `dataverse_clip0_${id}`
+  const clip1 = `dataverse_clip1_${id}`
+  const clip2 = `dataverse_clip2_${id}`
+  const paint0 = `dataverse_paint0_${id}`
+  const paint1 = `dataverse_paint1_${id}`
+  const paint2 = `dataverse_paint2_${id}`
+  const paint3 = `dataverse_paint3_${id}`
+  const paint4 = `dataverse_paint4_${id}`
+  const paint5 = `dataverse_paint5_${id}`
+  const paint6 = `dataverse_paint6_${id}`
+  return (
+    <svg
+      {...props}
+      width='96'
+      height='96'
+      viewBox='0 0 96 96'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <g clipPath={`url(#${clip0})`}>
+        <g clipPath={`url(#${clip1})`}>
+          <g clipPath={`url(#${clip2})`}>
+            <path
+              d='M13.8776 21.8242C29.1033 8.13791 49.7501 8.1861 62.955 18.9134C74.9816 28.6836 77.4697 44.3159 70.851 55.7801C64.2321 67.2443 52.5277 70.1455 39.5011 62.6247L31.7286 76.087L31.7234 76.0862C27.4181 83.5324 17.8937 86.0828 10.4437 81.7817C7.45394 80.0556 5.25322 77.4879 3.96665 74.551L3.96096 74.5511C-4.07832 55.7804 0.200745 34.1184 13.8776 21.8242Z'
+              fill={`url(#${paint0})`}
+            />
+            <path
+              d='M13.8776 21.8242C29.1033 8.13791 49.7501 8.1861 62.955 18.9134C74.9816 28.6836 77.4697 44.3159 70.851 55.7801C64.2321 67.2443 52.5277 70.1455 39.5011 62.6247L31.7286 76.087L31.7234 76.0862C27.4181 83.5324 17.8937 86.0828 10.4437 81.7817C7.45394 80.0556 5.25322 77.4879 3.96665 74.551L3.96096 74.5511C-4.07832 55.7804 0.200745 34.1184 13.8776 21.8242Z'
+              fill={`url(#${paint1})`}
+              fillOpacity='0.8'
+            />
+            <path
+              d='M85.4327 14.2231C88.4528 15.9668 90.6686 18.569 91.9494 21.5433L91.9533 21.5444C99.9406 40.2943 95.6533 61.9068 81.9983 74.1814C66.7726 87.8677 46.1257 87.8196 32.9209 77.0923C20.8945 67.3221 18.4062 51.6897 25.0249 40.2256C31.6438 28.7614 43.3482 25.8601 56.3748 33.381L64.1434 19.9255L64.1482 19.9249C68.4516 12.4736 77.9805 9.92084 85.4327 14.2231Z'
+              fill={`url(#${paint2})`}
+            />
+            <path
+              d='M85.4327 14.2231C88.4528 15.9668 90.6686 18.569 91.9494 21.5433L91.9533 21.5444C99.9406 40.2943 95.6533 61.9068 81.9983 74.1814C66.7726 87.8677 46.1257 87.8196 32.9209 77.0923C20.8945 67.3221 18.4062 51.6897 25.0249 40.2256C31.6438 28.7614 43.3482 25.8601 56.3748 33.381L64.1434 19.9255L64.1482 19.9249C68.4516 12.4736 77.9805 9.92084 85.4327 14.2231Z'
+              fill={`url(#${paint3})`}
+              fillOpacity='0.9'
+            />
+            <path
+              d='M39.5041 62.6261C52.5307 70.1469 64.2352 67.2456 70.8541 55.7814C77.2488 44.7055 75.1426 29.7389 64.147 19.9271L56.3791 33.3814L39.5041 62.6261Z'
+              fill={`url(#${paint4})`}
+            />
+            <path
+              d='M56.3794 33.3815C43.3528 25.8607 31.6482 28.762 25.0294 40.2262C18.6347 51.3021 20.7409 66.2687 31.7364 76.0806L39.5043 62.6262L56.3794 33.3815Z'
+              fill={`url(#${paint5})`}
+            />
+            <path
+              d='M33.3215 56.4453C37.9837 64.5204 48.3094 67.2872 56.3846 62.625C64.4598 57.9628 67.2266 47.6371 62.5643 39.5619C57.9021 31.4867 47.5764 28.72 39.5013 33.3822C31.4261 38.0444 28.6593 48.3701 33.3215 56.4453Z'
+              fill={`url(#${paint6})`}
+            />
+          </g>
+        </g>
+      </g>
+      <defs>
+        <radialGradient
+          id={paint0}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(46.0001 49.4996) rotate(-148.717) scale(46.2195 47.5359)'
+        >
+          <stop offset='0.465088' stopColor='#09442A' />
+          <stop offset='0.70088' stopColor='#136C6C' />
+          <stop offset='1' stopColor='#22918B' />
+        </radialGradient>
+        <radialGradient
+          id={paint1}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(50.0001 32.4996) rotate(123.57) scale(66.0095 46.5498)'
+        >
+          <stop offset='0.718705' stopColor='#1A7F7C' stopOpacity='0' />
+          <stop offset='1' stopColor='#16BBDA' />
+        </radialGradient>
+        <radialGradient
+          id={paint2}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(50.4999 44.5001) rotate(30.75) scale(45.9618 44.5095)'
+        >
+          <stop offset='0.358097' stopColor='#136C6C' />
+          <stop offset='0.789474' stopColor='#42B870' />
+          <stop offset='1' stopColor='#76D45E' />
+        </radialGradient>
+        <radialGradient
+          id={paint3}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientTransform='matrix(42.5 -36.0002 31.1824 36.8127 49.4998 55.5001)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0.583166' stopColor='#76D45E' stopOpacity='0' />
+          <stop offset='1' stopColor='#C8F5B7' />
+        </radialGradient>
+        <radialGradient
+          id={paint4}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(47.5 48) rotate(-58.9042) scale(32.6898)'
+        >
+          <stop offset='0.486266' stopColor='#22918B' />
+          <stop offset='0.729599' stopColor='#42B870' />
+          <stop offset='1' stopColor='#43E5CA' />
+        </radialGradient>
+        <radialGradient
+          id={paint5}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(47.3833 49.0077) rotate(119.859) scale(31.1328 29.4032)'
+        >
+          <stop offset='0.459553' stopColor='#08494E' />
+          <stop offset='0.742242' stopColor='#1A7F7C' />
+          <stop offset='1' stopColor='#309C61' />
+        </radialGradient>
+        <radialGradient
+          id={paint6}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(52.5 40) rotate(120.784) scale(27.3542)'
+        >
+          <stop stopColor='#C8F5B7' />
+          <stop offset='0.24583' stopColor='#98F0B0' />
+          <stop offset='0.643961' stopColor='#52D17C' />
+          <stop offset='1' stopColor='#119FC5' />
+        </radialGradient>
+        <clipPath id={clip0}>
+          <rect width='96' height='96' fill='white' />
+        </clipPath>
+        <clipPath id={clip1}>
+          <rect width='96' height='96' fill='white' />
+        </clipPath>
+        <clipPath id={clip2}>
+          <rect width='95.9998' height='96' fill='white' />
+        </clipPath>
+      </defs>
+    </svg>
+  )
+}
+
 export function KalshiIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 78 20' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
@@ -5544,6 +5699,21 @@ export function VercelIcon(props: SVGProps<SVGSVGElement>) {
       <g transform='translate(19.2 16.63) scale(0.85)'>
         <polygon fill='#fafafa' points='128 0 256 221.705007 0 221.705007' />
       </g>
+    </svg>
+  )
+}
+
+export function CloudflareIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>
+      <path
+        fill='#f38020'
+        d='M331 326c11-26-4-38-19-38l-148-2c-4 0-4-6 1-7l150-2c17-1 37-15 43-33 0 0 10-21 9-24a97 97 0 0 0-187-11c-38-25-78 9-69 46-48 3-65 46-60 72 0 1 1 2 3 2h274c1 0 3-1 3-3z'
+      />
+      <path
+        fill='#faae40'
+        d='M381 224c-4 0-6-1-7 1l-5 21c-5 16 3 30 20 31l32 2c4 0 4 6-1 7l-33 1c-36 4-46 39-46 39 0 2 0 3 2 3h113l3-2a81 81 0 0 0-78-103'
+      />
     </svg>
   )
 }
