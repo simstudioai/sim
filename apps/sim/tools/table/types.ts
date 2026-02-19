@@ -143,3 +143,11 @@ export interface TableGetSchemaResponse extends ToolResponse {
     message: string
   }
 }
+
+export interface TableUpsertResponse extends ToolResponse {
+  output: {
+    row: TableRow
+    operation: 'insert' | 'update'
+    message: string
+  }
+}

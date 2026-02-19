@@ -1,5 +1,5 @@
+import type { TableListParams, TableListResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableListParams, TableListResponse } from './types'
 
 export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
   id: 'table_list',

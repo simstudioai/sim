@@ -1,5 +1,5 @@
+import type { TableRowGetParams, TableRowResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableRowGetParams, TableRowResponse } from './types'
 
 export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = {
   id: 'table_get_row',

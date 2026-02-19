@@ -1,5 +1,5 @@
+import type { TableGetSchemaParams, TableGetSchemaResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableGetSchemaParams, TableGetSchemaResponse } from './types'
 
 export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchemaResponse> = {
   id: 'table_get_schema',

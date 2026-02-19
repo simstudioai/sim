@@ -1,15 +1,6 @@
-import type { TableRow } from '@/lib/table/types'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { TableRowInsertParams } from './types'
-
-interface TableUpsertResponse extends ToolResponse {
-  output: {
-    row: TableRow
-    operation: 'insert' | 'update'
-    message: string
-  }
-}
+import type { TableRowInsertParams, TableUpsertResponse } from '@/tools/table/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertResponse> = {
   id: 'table_upsert_row',

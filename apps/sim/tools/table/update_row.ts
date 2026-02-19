@@ -1,6 +1,6 @@
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import type { TableRowResponse, TableRowUpdateParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableRowResponse, TableRowUpdateParams } from './types'
 
 export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowResponse> = {
   id: 'table_update_row',

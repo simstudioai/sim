@@ -1,5 +1,5 @@
+import type { TableDeleteResponse, TableRowDeleteParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableDeleteResponse, TableRowDeleteParams } from './types'
 
 export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteResponse> = {
   id: 'table_delete_row',

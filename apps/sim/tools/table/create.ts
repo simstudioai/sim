@@ -1,5 +1,5 @@
+import type { TableCreateParams, TableCreateResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableCreateParams, TableCreateResponse } from './types'
 
 export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse> = {
   id: 'table_create',

@@ -1,7 +1,7 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
-import type { TableQueryResponse, TableRowQueryParams } from './types'
 
 export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryResponse> = {
   id: 'table_query_rows',
