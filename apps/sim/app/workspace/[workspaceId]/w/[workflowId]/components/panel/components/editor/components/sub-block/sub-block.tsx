@@ -1,6 +1,14 @@
-import { type JSX, type MouseEvent, memo, useCallback, useRef, useState } from 'react'
+import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
 import isEqual from 'lodash/isEqual'
-import { AlertTriangle, ArrowLeftRight, ArrowUp, Check, Clipboard } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  ArrowUp,
+  Check,
+  Clipboard,
+  ExternalLink,
+} from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
@@ -206,7 +214,12 @@ const renderLabel = (
     copied: boolean
     onCopy: () => void
   },
-  labelSuffix?: React.ReactNode
+  labelSuffix?: React.ReactNode,
+  externalLink?: {
+    show: boolean
+    onClick: () => void
+    tooltip: string
+  }
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -215,6 +228,7 @@ const renderLabel = (
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
   const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
   const showCopy = copyState?.showCopyButton && !wandState?.isPreview
+  const showExternalLink = externalLink?.show && !wandState?.isPreview
   const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
@@ -355,6 +369,23 @@ const renderLabel = (
             </Tooltip.Content>
           </Tooltip.Root>
         )}
+        {showExternalLink && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                onClick={externalLink?.onClick}
+                aria-label={externalLink?.tooltip}
+              >
+                <ExternalLink className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>{externalLink?.tooltip}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
       </div>
     </div>
   )
@@ -419,6 +450,9 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
 }: SubBlockProps): JSX.Element {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -454,6 +488,30 @@ function SubBlockComponent({
       setTimeout(() => setCopied(false), 2000)
     }
   }, [webhookManagement?.webhookUrl])
+
+  const tableId =
+    config.type === 'table-selector' && subBlockValues
+      ? (subBlockValues[config.id]?.value as string | null)
+      : null
+  const hasSelectedTable = tableId && !tableId.startsWith('<')
+
+  const handleNavigateToTable = useCallback(() => {
+    if (tableId && workspaceId) {
+      window.open(`/workspace/${workspaceId}/tables/${tableId}`, '_blank')
+    }
+  }, [workspaceId, tableId])
+
+  const externalLink = useMemo(
+    () =>
+      config.type === 'table-selector' && hasSelectedTable
+        ? {
+            show: true,
+            onClick: handleNavigateToTable,
+            tooltip: 'View table',
+          }
+        : undefined,
+    [config.type, hasSelectedTable, handleNavigateToTable]
+  )
 
   /**
    * Handles wand icon click to activate inline prompt mode.
@@ -1099,7 +1157,8 @@ function SubBlockComponent({
           copied,
           onCopy: handleCopy,
         },
-        labelSuffix
+        labelSuffix,
+        externalLink
       )}
       {renderInput()}
     </div>
