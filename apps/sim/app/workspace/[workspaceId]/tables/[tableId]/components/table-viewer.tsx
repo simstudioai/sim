@@ -77,14 +77,10 @@ export function TableViewer() {
     setShowAddModal(true)
   }, [])
 
-  const handleApplyQueryOptions = useCallback(
-    (options: QueryOptions) => {
-      setQueryOptions(options)
-      setCurrentPage(0)
-      refetchRows()
-    },
-    [refetchRows]
-  )
+  const handleApplyQueryOptions = useCallback((options: QueryOptions) => {
+    setQueryOptions(options)
+    setCurrentPage(0)
+  }, [])
 
   const handleDeleteSelected = useCallback(() => {
     setDeletingRows(Array.from(selectedRows))
@@ -248,16 +244,17 @@ export function TableViewer() {
         onNextPage={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
       />
 
-      <RowModal
-        mode='add'
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        table={tableData}
-        onSuccess={() => {
-          refetchRows()
-          setShowAddModal(false)
-        }}
-      />
+      {showAddModal && (
+        <RowModal
+          mode='add'
+          isOpen={true}
+          onClose={() => setShowAddModal(false)}
+          table={tableData}
+          onSuccess={() => {
+            setShowAddModal(false)
+          }}
+        />
+      )}
 
       {editingRow && (
         <RowModal
@@ -267,7 +264,6 @@ export function TableViewer() {
           table={tableData}
           row={editingRow}
           onSuccess={() => {
-            refetchRows()
             setEditingRow(null)
           }}
         />
@@ -281,7 +277,6 @@ export function TableViewer() {
           table={tableData}
           rowIds={deletingRows}
           onSuccess={() => {
-            refetchRows()
             setDeletingRows([])
             clearSelection()
           }}
@@ -292,6 +287,7 @@ export function TableViewer() {
         isOpen={showSchemaModal}
         onClose={() => setShowSchemaModal(false)}
         columns={columns}
+        tableName={tableData.name}
       />
 
       <CellViewerModal

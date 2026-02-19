@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Database, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Tooltip } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useTablesList } from '@/hooks/queries/use-tables'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useTablesList } from '@/hooks/queries/tables'
 import { useDebounce } from '@/hooks/use-debounce'
 import { CreateModal } from './create-modal'
 import { EmptyState } from './empty-state'
 import { ErrorState } from './error-state'
 import { LoadingState } from './loading-state'
 import { TableCard } from './table-card'
+import { TablesListContextMenu } from './tables-list-context-menu'
 
 export function TablesView() {
   const params = useParams()
@@ -23,6 +25,26 @@ export function TablesView() {
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const {
+    isOpen: isListContextMenuOpen,
+    position: listContextMenuPosition,
+    menuRef: listMenuRef,
+    handleContextMenu: handleListContextMenu,
+    closeMenu: closeListContextMenu,
+  } = useContextMenu()
+
+  const handleContentContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      const isOnCard = target.closest('[data-table-card]')
+      const isOnInteractive = target.closest('button, input, a, [role="button"]')
+
+      if (!isOnCard && !isOnInteractive) {
+        handleListContextMenu(e)
+      }
+    },
+    [handleListContextMenu]
+  )
 
   // Filter tables by search query
   const filteredTables = tables.filter((table) => {
@@ -38,7 +60,10 @@ export function TablesView() {
     <>
       <div className='flex h-full flex-1 flex-col'>
         <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'>
+          <div
+            className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[28px] pb-[24px] dark:bg-[var(--bg)]'
+            onContextMenu={handleContentContextMenu}
+          >
             {/* Header */}
             <div>
               <div className='flex items-start gap-[12px]'>
@@ -100,6 +125,15 @@ export function TablesView() {
           </div>
         </div>
       </div>
+
+      <TablesListContextMenu
+        isOpen={isListContextMenuOpen}
+        position={listContextMenuPosition}
+        menuRef={listMenuRef}
+        onClose={closeListContextMenu}
+        onCreateTable={() => setIsCreateModalOpen(true)}
+        disableCreate={userPermissions.canEdit !== true}
+      />
 
       <CreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </>

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useMemo } from 'react'
+import { useTable } from '@/hooks/queries/tables'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { ColumnOption } from '../types'
 
 interface UseTableColumnsOptions {
@@ -8,46 +10,27 @@ interface UseTableColumnsOptions {
 
 /** Fetches table schema columns as dropdown options. */
 export function useTableColumns({ tableId, includeBuiltIn = false }: UseTableColumnsOptions) {
-  const [columns, setColumns] = useState<ColumnOption[]>([])
-  const fetchedTableIdRef = useRef<string | null>(null)
+  const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
+  const { data: tableData } = useTable(workspaceId ?? undefined, tableId ?? undefined)
 
-  useEffect(() => {
-    const fetchColumns = async () => {
-      if (!tableId || tableId === fetchedTableIdRef.current) return
+  const schemaColumns = useMemo<ColumnOption[]>(
+    () =>
+      (tableData?.schema?.columns || []).map((col) => ({
+        value: col.name,
+        label: col.name,
+      })),
+    [tableData]
+  )
 
-      try {
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-        const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-        if (!workspaceId) return
-
-        const response = await fetch(`/api/table/${tableId}?workspaceId=${workspaceId}`)
-        if (!response.ok) return
-
-        const result = await response.json()
-        const cols = result.data?.table?.schema?.columns || result.table?.schema?.columns || []
-        const schemaCols = cols.map((col: { name: string }) => ({
-          value: col.name,
-          label: col.name,
-        }))
-
-        if (includeBuiltIn) {
-          const builtInCols = [
-            { value: 'createdAt', label: 'createdAt' },
-            { value: 'updatedAt', label: 'updatedAt' },
-          ]
-          setColumns([...schemaCols, ...builtInCols])
-        } else {
-          setColumns(schemaCols)
-        }
-
-        fetchedTableIdRef.current = tableId
-      } catch {
-        // Silently fail
-      }
+  return useMemo(() => {
+    if (includeBuiltIn) {
+      const builtInCols = [
+        { value: 'createdAt', label: 'createdAt' },
+        { value: 'updatedAt', label: 'updatedAt' },
+      ]
+      return [...schemaColumns, ...builtInCols]
     }
 
-    fetchColumns()
-  }, [tableId, includeBuiltIn])
-
-  return columns
+    return schemaColumns
+  }, [includeBuiltIn, schemaColumns])
 }

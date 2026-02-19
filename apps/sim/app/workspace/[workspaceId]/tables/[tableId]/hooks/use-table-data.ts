@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
 import type { TableDefinition, TableRow } from '@/lib/table'
+import { useTable, useTableRows } from '@/hooks/queries/tables'
 import { ROWS_PER_PAGE } from '../lib/constants'
 import type { QueryOptions } from '../lib/types'
 
@@ -26,48 +26,20 @@ export function useTableData({
   queryOptions,
   currentPage,
 }: UseTableDataParams): UseTableDataReturn {
-  const { data: tableData, isLoading: isLoadingTable } = useQuery({
-    queryKey: ['table', tableId],
-    queryFn: async () => {
-      const res = await fetch(`/api/table/${tableId}?workspaceId=${workspaceId}`)
-      if (!res.ok) throw new Error('Failed to fetch table')
-      const json: { data?: { table: TableDefinition }; table?: TableDefinition } = await res.json()
-      const data = json.data || json
-      return (data as { table: TableDefinition }).table
-    },
-  })
+  const { data: tableData, isLoading: isLoadingTable } = useTable(workspaceId, tableId)
 
   const {
     data: rowsData,
     isLoading: isLoadingRows,
     refetch: refetchRows,
-  } = useQuery({
-    queryKey: ['table-rows', tableId, queryOptions, currentPage],
-    queryFn: async () => {
-      const searchParams = new URLSearchParams({
-        workspaceId,
-        limit: String(ROWS_PER_PAGE),
-        offset: String(currentPage * ROWS_PER_PAGE),
-      })
-
-      if (queryOptions.filter) {
-        searchParams.set('filter', JSON.stringify(queryOptions.filter))
-      }
-
-      if (queryOptions.sort) {
-        searchParams.set('sort', JSON.stringify(queryOptions.sort))
-      }
-
-      const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`)
-      if (!res.ok) throw new Error('Failed to fetch rows')
-      const json: {
-        data?: { rows: TableRow[]; totalCount: number }
-        rows?: TableRow[]
-        totalCount?: number
-      } = await res.json()
-      return json.data || json
-    },
-    enabled: !!tableData,
+  } = useTableRows({
+    workspaceId,
+    tableId,
+    limit: ROWS_PER_PAGE,
+    offset: currentPage * ROWS_PER_PAGE,
+    filter: queryOptions.filter,
+    sort: queryOptions.sort,
+    enabled: Boolean(workspaceId && tableId),
   })
 
   const rows = (rowsData?.rows || []) as TableRow[]

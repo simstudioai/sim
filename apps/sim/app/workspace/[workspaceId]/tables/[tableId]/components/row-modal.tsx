@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { AlertCircle } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -17,6 +17,12 @@ import {
   Textarea,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import {
+  useCreateTableRow,
+  useDeleteTableRow,
+  useDeleteTableRows,
+  useUpdateTableRow,
+} from '@/hooks/queries/tables'
 
 const logger = createLogger('RowModal')
 
@@ -92,126 +98,78 @@ function formatValueForInput(value: unknown, type: string): string {
   return String(value)
 }
 
+function getInitialRowData(
+  mode: RowModalProps['mode'],
+  columns: ColumnDefinition[],
+  row?: TableRow
+): Record<string, unknown> {
+  if (mode === 'add' && columns.length > 0) {
+    return createInitialRowData(columns)
+  }
+  if (mode === 'edit' && row) {
+    return row.data
+  }
+  return {}
+}
+
 export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const tableId = table.id
 
   const schema = table?.schema
   const columns = schema?.columns || []
 
-  const [rowData, setRowData] = useState<Record<string, unknown>>({})
+  const [rowData, setRowData] = useState<Record<string, unknown>>(() =>
+    getInitialRowData(mode, columns, row)
+  )
   const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Initialize form data based on mode
-  useEffect(() => {
-    if (!isOpen) return
-
-    if (mode === 'add' && columns.length > 0) {
-      setRowData(createInitialRowData(columns))
-    } else if (mode === 'edit' && row) {
-      setRowData(row.data)
-    }
-  }, [isOpen, mode, columns, row])
+  const createRowMutation = useCreateTableRow({ workspaceId, tableId })
+  const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
+  const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
+  const deleteRowsMutation = useDeleteTableRows({ workspaceId, tableId })
+  const isSubmitting =
+    createRowMutation.isPending ||
+    updateRowMutation.isPending ||
+    deleteRowMutation.isPending ||
+    deleteRowsMutation.isPending
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setIsSubmitting(true)
 
     try {
       const cleanData = cleanRowData(columns, rowData)
 
       if (mode === 'add') {
-        const res = await fetch(`/api/table/${table?.id}/rows`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId, data: cleanData }),
-        })
-
-        const result: { error?: string } = await res.json()
-        if (!res.ok) {
-          throw new Error(result.error || 'Failed to add row')
-        }
+        await createRowMutation.mutateAsync(cleanData)
       } else if (mode === 'edit' && row) {
-        const res = await fetch(`/api/table/${table?.id}/rows/${row.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId, data: cleanData }),
-        })
-
-        const result: { error?: string } = await res.json()
-        if (!res.ok) {
-          throw new Error(result.error || 'Failed to update row')
-        }
+        await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
       }
 
       onSuccess()
     } catch (err) {
       logger.error(`Failed to ${mode} row:`, err)
       setError(err instanceof Error ? err.message : `Failed to ${mode} row`)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   const handleDelete = async () => {
     setError(null)
-    setIsSubmitting(true)
 
     const idsToDelete = rowIds ?? (row ? [row.id] : [])
 
     try {
       if (idsToDelete.length === 1) {
-        const res = await fetch(`/api/table/${table?.id}/rows/${idsToDelete[0]}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId }),
-        })
-
-        if (!res.ok) {
-          const result: { error?: string } = await res.json()
-          throw new Error(result.error || 'Failed to delete row')
-        }
+        await deleteRowMutation.mutateAsync(idsToDelete[0])
       } else {
-        const results = await Promise.allSettled(
-          idsToDelete.map(async (rowId) => {
-            const res = await fetch(`/api/table/${table?.id}/rows/${rowId}`, {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ workspaceId }),
-            })
-
-            if (!res.ok) {
-              const result: { error?: string } = await res.json().catch(() => ({}))
-              throw new Error(result.error || `Failed to delete row ${rowId}`)
-            }
-
-            return rowId
-          })
-        )
-
-        const failures = results.filter((r) => r.status === 'rejected')
-
-        if (failures.length > 0) {
-          const failureCount = failures.length
-          const totalCount = idsToDelete.length
-          const successCount = totalCount - failureCount
-          const firstError =
-            failures[0].status === 'rejected' ? failures[0].reason?.message || 'Unknown error' : ''
-
-          throw new Error(
-            `Failed to delete ${failureCount} of ${totalCount} row(s)${successCount > 0 ? ` (${successCount} deleted successfully)` : ''}. ${firstError}`
-          )
-        }
+        await deleteRowsMutation.mutateAsync(idsToDelete)
       }
 
       onSuccess()
     } catch (err) {
       logger.error('Failed to delete row(s):', err)
       setError(err instanceof Error ? err.message : 'Failed to delete row(s)')
-    } finally {
-      setIsSubmitting(false)
     }
   }
 

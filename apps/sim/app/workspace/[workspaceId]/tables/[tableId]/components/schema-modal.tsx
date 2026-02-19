@@ -1,10 +1,11 @@
-import { Info, X } from 'lucide-react'
 import {
   Badge,
   Button,
   Modal,
   ModalBody,
   ModalContent,
+  ModalFooter,
+  ModalHeader,
   Table,
   TableBody,
   TableCell,
@@ -19,68 +20,74 @@ interface SchemaModalProps {
   isOpen: boolean
   onClose: () => void
   columns: ColumnDefinition[]
+  tableName?: string
 }
 
-export function SchemaModal({ isOpen, onClose, columns }: SchemaModalProps) {
+export function SchemaModal({ isOpen, onClose, columns, tableName }: SchemaModalProps) {
+  const columnCount = columns.length
+
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent className='w-[500px] duration-100'>
-        <div className='flex items-center justify-between gap-[8px] px-[16px] py-[10px]'>
-          <div className='flex min-w-0 items-center gap-[8px]'>
-            <Info className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Table Schema</span>
+      <ModalContent size='md'>
+        <ModalHeader>Table Schema</ModalHeader>
+        <ModalBody className='max-h-[60vh] overflow-y-auto'>
+          <div className='mb-[10px] flex items-center justify-between gap-[8px]'>
+            {tableName ? (
+              <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                {tableName}
+              </span>
+            ) : (
+              <div />
+            )}
             <Badge variant='gray' size='sm'>
-              {columns.length} columns
+              {columnCount} {columnCount === 1 ? 'column' : 'columns'}
             </Badge>
           </div>
-          <Button variant='ghost' size='sm' onClick={onClose}>
-            <X className='h-[14px] w-[14px]' />
-          </Button>
-        </div>
-        <ModalBody className='p-0'>
-          <div className='max-h-[400px] overflow-auto'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='w-[180px]'>Column</TableHead>
-                  <TableHead className='w-[100px]'>Type</TableHead>
-                  <TableHead>Constraints</TableHead>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Column</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Constraints</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {columns.map((column) => (
+                <TableRow key={column.name}>
+                  <TableCell className='font-mono'>{column.name}</TableCell>
+                  <TableCell>
+                    <Badge variant={getTypeBadgeVariant(column.type)} size='sm'>
+                      {column.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className='flex items-center gap-[6px]'>
+                      {column.required && (
+                        <Badge variant='red' size='sm'>
+                          required
+                        </Badge>
+                      )}
+                      {column.unique && (
+                        <Badge variant='purple' size='sm'>
+                          unique
+                        </Badge>
+                      )}
+                      {!column.required && !column.unique && (
+                        <span className='text-[var(--text-muted)]'>None</span>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {columns.map((column) => (
-                  <TableRow key={column.name}>
-                    <TableCell className='font-mono text-[12px] text-[var(--text-primary)]'>
-                      {column.name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getTypeBadgeVariant(column.type)} size='sm'>
-                        {column.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-[12px]'>
-                      <div className='flex gap-[6px]'>
-                        {column.required && (
-                          <Badge variant='red' size='sm'>
-                            required
-                          </Badge>
-                        )}
-                        {column.unique && (
-                          <Badge variant='purple' size='sm'>
-                            unique
-                          </Badge>
-                        )}
-                        {!column.required && !column.unique && (
-                          <span className='text-[var(--text-muted)]'>—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
         </ModalBody>
+        <ModalFooter>
+          <Button variant='default' onClick={onClose}>
+            Close
+          </Button>
+        </ModalFooter>
       </ModalContent>
     </Modal>
   )

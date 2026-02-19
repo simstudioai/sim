@@ -77,6 +77,16 @@ const DeleteRowsByFilterSchema = z.object({
     .optional(),
 })
 
+const DeleteRowsByIdsSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  rowIds: z
+    .array(z.string().min(1), { required_error: 'Row IDs are required' })
+    .min(1, 'At least one row ID is required')
+    .max(1000, 'Cannot delete more than 1000 rows per operation'),
+})
+
+const DeleteRowsRequestSchema = z.union([DeleteRowsByFilterSchema, DeleteRowsByIdsSchema])
+
 interface TableRowsRouteParams {
   params: Promise<{ tableId: string }>
 }
@@ -577,7 +587,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     }
 
     const body: unknown = await request.json()
-    const validated = DeleteRowsByFilterSchema.parse(body)
+    const validated = DeleteRowsRequestSchema.parse(body)
 
     const accessResult = await checkAccess(tableId, authResult.userId, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -596,40 +606,72 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       eq(userTableRows.workspaceId, validated.workspaceId),
     ]
 
-    const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
-    if (filterClause) {
-      baseConditions.push(filterClause)
+    let rowIds: string[] = []
+    let missingRowIds: string[] | undefined
+    let requestedCount: number | undefined
+
+    if ('rowIds' in validated) {
+      const uniqueRequestedRowIds = Array.from(new Set(validated.rowIds))
+      requestedCount = uniqueRequestedRowIds.length
+
+      const matchingRows = await db
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(
+            ...baseConditions,
+            sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
+              uniqueRequestedRowIds.map((id) => sql`${id}`),
+              sql`, `
+            )}])`
+          )
+        )
+
+      const matchedRowIds = matchingRows.map((r) => r.id)
+      const matchedIdSet = new Set(matchedRowIds)
+      missingRowIds = uniqueRequestedRowIds.filter((id) => !matchedIdSet.has(id))
+      rowIds = matchedRowIds
+    } else {
+      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
+      if (filterClause) {
+        baseConditions.push(filterClause)
+      }
+
+      let matchingRowsQuery = db
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(and(...baseConditions))
+
+      if (validated.limit) {
+        matchingRowsQuery = matchingRowsQuery.limit(validated.limit) as typeof matchingRowsQuery
+      }
+
+      const matchingRows = await matchingRowsQuery
+      rowIds = matchingRows.map((r) => r.id)
     }
 
-    let matchingRowsQuery = db
-      .select({ id: userTableRows.id })
-      .from(userTableRows)
-      .where(and(...baseConditions))
-
-    if (validated.limit) {
-      matchingRowsQuery = matchingRowsQuery.limit(validated.limit) as typeof matchingRowsQuery
-    }
-
-    const matchingRows = await matchingRowsQuery
-
-    if (matchingRows.length === 0) {
+    if (rowIds.length === 0) {
       return NextResponse.json(
         {
           success: true,
           data: {
-            message: 'No rows matched the filter criteria',
+            message:
+              'rowIds' in validated
+                ? 'No matching rows found for the provided IDs'
+                : 'No rows matched the filter criteria',
             deletedCount: 0,
+            deletedRowIds: [],
+            ...(requestedCount !== undefined ? { requestedCount } : {}),
+            ...(missingRowIds ? { missingRowIds } : {}),
           },
         },
         { status: 200 }
       )
     }
 
-    if (matchingRows.length > TABLE_LIMITS.DELETE_BATCH_SIZE) {
-      logger.warn(`[${requestId}] Deleting ${matchingRows.length} rows. This may take some time.`)
+    if (rowIds.length > TABLE_LIMITS.DELETE_BATCH_SIZE) {
+      logger.warn(`[${requestId}] Deleting ${rowIds.length} rows. This may take some time.`)
     }
-
-    const rowIds = matchingRows.map((r) => r.id)
 
     await db.transaction(async (trx) => {
       let totalDeleted = 0
@@ -653,14 +695,16 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       }
     })
 
-    logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${tableId}`)
+    logger.info(`[${requestId}] Deleted ${rowIds.length} rows from table ${tableId}`)
 
     return NextResponse.json({
       success: true,
       data: {
         message: 'Rows deleted successfully',
-        deletedCount: matchingRows.length,
+        deletedCount: rowIds.length,
         deletedRowIds: rowIds,
+        ...(requestedCount !== undefined ? { requestedCount } : {}),
+        ...(missingRowIds ? { missingRowIds } : {}),
       },
     })
   } catch (error) {

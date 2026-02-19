@@ -7,7 +7,7 @@ import { Combobox, type ComboboxOption, Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTablesList } from '@/hooks/queries/use-tables'
+import { useTablesList } from '@/hooks/queries/tables'
 
 interface TableSelectorProps {
   blockId: string
