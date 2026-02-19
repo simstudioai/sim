@@ -146,6 +146,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
+import { VercelBlock } from '@/blocks/blocks/vercel'
 import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
@@ -330,6 +331,7 @@ export const registry: Record<string, BlockConfig> = {
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
+  vercel: VercelBlock,
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
