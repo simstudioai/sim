@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { createServer, request as httpRequest } from 'http'
-import { createMockLogger, databaseMock } from '@sim/testing'
+import { createEnvMock, createMockLogger, databaseMock } from '@sim/testing'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSocketIOServer } from '@/socket/config/socket'
 import { MemoryRoomManager } from '@/socket/rooms'
@@ -30,19 +30,13 @@ vi.mock('redis', () => ({
   })),
 }))
 
-// Mock env to not have REDIS_URL (use importOriginal to get helper functions)
-vi.mock('@/lib/core/config/env', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/core/config/env')>()
-  return {
-    ...actual,
-    env: {
-      ...actual.env,
-      DATABASE_URL: 'postgres://localhost/test',
-      NODE_ENV: 'test',
-      REDIS_URL: undefined,
-    },
-  }
-})
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
+    DATABASE_URL: 'postgres://localhost/test',
+    NODE_ENV: 'test',
+    REDIS_URL: undefined,
+  })
+)
 
 vi.mock('@/socket/middleware/auth', () => ({
   authenticateSocket: vi.fn((socket, next) => {

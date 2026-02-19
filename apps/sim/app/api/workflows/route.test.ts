@@ -1,11 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createMockRequest, mockConsoleLogger, setupCommonApiMocks } from '@sim/testing'
+import {
+  auditMock,
+  createMockRequest,
+  mockConsoleLogger,
+  mockHybridAuth,
+  setupCommonApiMocks,
+} from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCheckSessionOrInternalAuth = vi.fn()
 const mockGetUserEntityPermissions = vi.fn()
 const mockDbSelect = vi.fn()
 const mockDbInsert = vi.fn()
@@ -30,6 +35,7 @@ describe('Workflows API Route - POST ordering', () => {
       randomUUID: vi.fn().mockReturnValue('workflow-new-id'),
     })
 
+    const { mockCheckSessionOrInternalAuth } = mockHybridAuth()
     mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
@@ -43,10 +49,6 @@ describe('Workflows API Route - POST ordering', () => {
         select: (...args: unknown[]) => mockDbSelect(...args),
         insert: (...args: unknown[]) => mockDbInsert(...args),
       },
-    }))
-
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: (...args: unknown[]) => mockCheckSessionOrInternalAuth(...args),
     }))
 
     vi.doMock('@/lib/workspaces/permissions/utils', () => ({

@@ -3,11 +3,11 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { loggerMock, mockHybridAuth } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCheckSessionOrInternalAuth = vi.fn()
+let mockCheckSessionOrInternalAuth: ReturnType<typeof vi.fn>
 const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
 const mockDbSelect = vi.fn()
 const mockDbFrom = vi.fn()
@@ -43,9 +43,7 @@ describe('Workflow Form Status Route', () => {
         isActive: 'isActive',
       },
     }))
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-    }))
+    ;({ mockCheckSessionOrInternalAuth } = mockHybridAuth())
     vi.doMock('@/lib/workflows/utils', () => ({
       authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
     }))

@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { auditMock, databaseMock, loggerMock } from '@sim/testing'
+import { auditMock, databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,9 +31,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn(),
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => 'test-request-id',
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@sim/logger', () => loggerMock)
 
