@@ -158,18 +158,37 @@ function globToRegExp(pattern: string): RegExp {
 }
 
 /**
- * Glob pattern matching against VFS file paths.
- * Returns matching file paths.
+ * Glob pattern matching against VFS file paths and virtual directories.
+ * Returns matching paths (both files and directory prefixes), just like a real filesystem.
  */
 export function glob(files: Map<string, string>, pattern: string): string[] {
   const regex = globToRegExp(pattern)
-  const result: string[] = []
+  const result = new Set<string>()
+
+  // Collect all virtual directory paths from file paths
+  const directories = new Set<string>()
   for (const filePath of files.keys()) {
-    if (regex.test(filePath)) {
-      result.push(filePath)
+    const parts = filePath.split('/')
+    for (let i = 1; i < parts.length; i++) {
+      directories.add(parts.slice(0, i).join('/'))
     }
   }
-  return result.sort()
+
+  // Match file paths
+  for (const filePath of files.keys()) {
+    if (regex.test(filePath)) {
+      result.add(filePath)
+    }
+  }
+
+  // Match virtual directory paths
+  for (const dir of directories) {
+    if (regex.test(dir)) {
+      result.add(dir)
+    }
+  }
+
+  return Array.from(result).sort()
 }
 
 /**

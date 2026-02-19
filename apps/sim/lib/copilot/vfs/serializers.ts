@@ -1,4 +1,5 @@
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -126,8 +127,37 @@ export function serializeDocuments(
 }
 
 /**
+ * Returns the static model list from PROVIDER_DEFINITIONS for VFS serialization.
+ * Excludes dynamic providers (ollama, vllm, openrouter) whose models are user-configured.
+ * Includes provider ID and whether the model is hosted by Sim (no API key required).
+ */
+function getStaticModelOptionsForVFS(): Array<{
+  id: string
+  provider: string
+  hosted: boolean
+}> {
+  const hostedProviders = new Set(['openai', 'anthropic', 'google'])
+  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter'])
+
+  const models: Array<{ id: string; provider: string; hosted: boolean }> = []
+
+  for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (dynamicProviders.has(providerId)) continue
+    for (const model of def.models) {
+      models.push({
+        id: model.id,
+        provider: providerId,
+        hosted: hostedProviders.has(providerId),
+      })
+    }
+  }
+
+  return models
+}
+
+/**
  * Serialize a SubBlockConfig for the VFS component schema.
- * Strips functions and UI-only fields.
+ * Strips functions and UI-only fields. Includes static options arrays.
  */
 function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   const result: Record<string, unknown> = {
@@ -139,6 +169,12 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.defaultValue !== undefined) result.defaultValue = sb.defaultValue
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
+
+  // Include static options arrays for dropdowns
+  if (Array.isArray(sb.options)) {
+    result.options = sb.options
+  }
+
   return result
 }
 
@@ -146,6 +182,17 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
 export function serializeBlockSchema(block: BlockConfig): string {
+  const subBlocks = block.subBlocks.map((sb) => {
+    const serialized = serializeSubBlock(sb)
+
+    // For model comboboxes with function options, inject static model data with hosting info
+    if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
+      serialized.options = getStaticModelOptionsForVFS()
+    }
+
+    return serialized
+  })
+
   return JSON.stringify(
     {
       type: block.type,
@@ -157,11 +204,11 @@ export function serializeBlockSchema(block: BlockConfig): string {
       triggerAllowed: block.triggerAllowed || undefined,
       singleInstance: block.singleInstance || undefined,
       tools: block.tools.access,
-      subBlocks: block.subBlocks.map(serializeSubBlock),
+      subBlocks,
       inputs: block.inputs,
       outputs: Object.fromEntries(
         Object.entries(block.outputs)
-          .filter(([key]) => key !== 'visualization')
+          .filter(([key, val]) => key !== 'visualization' && val != null)
           .map(([key, val]) => [
             key,
             typeof val === 'string'
@@ -248,6 +295,7 @@ export interface DeploymentData {
   workflowId: string
   isDeployed: boolean
   deployedAt?: Date | null
+  needsRedeployment?: boolean
   api?: {
     version: number
     createdAt: Date
@@ -294,6 +342,10 @@ export interface DeploymentData {
  */
 export function serializeDeployments(data: DeploymentData): string {
   const result: Record<string, unknown> = {}
+
+  if (data.needsRedeployment !== undefined) {
+    result.needsRedeployment = data.needsRedeployment
+  }
 
   if (data.isDeployed) {
     result.api = {
@@ -390,23 +442,29 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
       oauth: tool.oauth
         ? { required: tool.oauth.required, provider: tool.oauth.provider }
         : undefined,
-      params: Object.fromEntries(
-        Object.entries(tool.params).map(([key, val]) => [
-          key,
-          {
-            type: val.type,
-            required: val.required,
-            description: val.description,
-            default: val.default,
-          },
-        ])
-      ),
+      params: tool.params
+        ? Object.fromEntries(
+            Object.entries(tool.params)
+              .filter(([, val]) => val != null)
+              .map(([key, val]) => [
+                key,
+                {
+                  type: val.type,
+                  required: val.required,
+                  description: val.description,
+                  default: val.default,
+                },
+              ])
+          )
+        : undefined,
       outputs: tool.outputs
         ? Object.fromEntries(
-            Object.entries(tool.outputs).map(([key, val]) => [
-              key,
-              { type: val.type, description: val.description },
-            ])
+            Object.entries(tool.outputs)
+              .filter(([, val]) => val != null)
+              .map(([key, val]) => [
+                key,
+                { type: val.type, description: val.description },
+              ])
           )
         : undefined,
     },

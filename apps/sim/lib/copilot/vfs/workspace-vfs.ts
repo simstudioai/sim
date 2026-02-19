@@ -21,6 +21,7 @@ import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { getAllBlocks } from '@/blocks/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { tools as toolRegistry } from '@/tools/registry'
+import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { GrepMatch, GrepOptions, ReadResult, DirEntry } from '@/lib/copilot/vfs/operations'
@@ -68,12 +69,13 @@ let staticComponentFiles: Map<string, string> | null = null
  */
 function getStaticComponentFiles(): Map<string, string> {
   if (staticComponentFiles) return staticComponentFiles
-  staticComponentFiles = new Map()
+
+  const files = new Map<string, string>()
 
   const allBlocks = getAllBlocks()
   for (const block of allBlocks) {
     const path = `components/blocks/${block.type}.json`
-    staticComponentFiles.set(path, serializeBlockSchema(block))
+    files.set(path, serializeBlockSchema(block))
   }
 
   // Build a reverse index: tool ID → service name from block registry.
@@ -104,7 +106,7 @@ function getStaticComponentFiles(): Map<string, string> {
       : baseName
 
     const path = `components/integrations/${service}/${operation}.json`
-    staticComponentFiles.set(path, serializeIntegrationSchema(tool))
+    files.set(path, serializeIntegrationSchema(tool))
     integrationCount++
   }
 
@@ -113,6 +115,8 @@ function getStaticComponentFiles(): Map<string, string> {
     integrations: integrationCount,
   })
 
+  // Only cache after successful completion to avoid poisoning with partial results
+  staticComponentFiles = files
   return staticComponentFiles
 }
 
@@ -121,8 +125,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *
  * Structure:
  *   workflows/{name}/meta.json
- *   workflows/{name}/blocks.json
- *   workflows/{name}/edges.json
+ *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
  *   knowledgebases/{name}/meta.json
@@ -212,9 +215,10 @@ export class WorkspaceVFS {
         // Meta
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
 
-        // Blocks + edges from normalized tables
+        // Workflow state (blocks with embedded connections, nested loops/parallels)
+        let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
         try {
-          const normalized = await loadWorkflowFromNormalizedTables(wf.id)
+          normalized = await loadWorkflowFromNormalizedTables(wf.id)
           if (normalized) {
             const sanitized = sanitizeForCopilot({
               blocks: normalized.blocks,
@@ -222,19 +226,10 @@ export class WorkspaceVFS {
               loops: normalized.loops,
               parallels: normalized.parallels,
             } as any)
-            this.files.set(`${prefix}blocks.json`, JSON.stringify(sanitized, null, 2))
-
-            // Edges as simple source->target list
-            const edges = normalized.edges.map((e) => ({
-              source: e.source,
-              target: e.target,
-              sourceHandle: e.sourceHandle || undefined,
-              targetHandle: e.targetHandle || undefined,
-            }))
-            this.files.set(`${prefix}edges.json`, JSON.stringify(edges, null, 2))
+            this.files.set(`${prefix}state.json`, JSON.stringify(sanitized, null, 2))
           }
         } catch (err) {
-          logger.warn('Failed to load workflow blocks', {
+          logger.warn('Failed to load workflow state', {
             workflowId: wf.id,
             error: err instanceof Error ? err.message : String(err),
           })
@@ -269,7 +264,7 @@ export class WorkspaceVFS {
 
         // Deployment configuration
         try {
-          const deploymentData = await this.getWorkflowDeployments(wf.id, workspaceId, wf.isDeployed, wf.deployedAt)
+          const deploymentData = await this.getWorkflowDeployments(wf.id, workspaceId, wf.isDeployed, wf.deployedAt, normalized)
           if (deploymentData) {
             this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
           }
@@ -351,7 +346,8 @@ export class WorkspaceVFS {
     workflowId: string,
     workspaceId: string,
     isDeployed: boolean,
-    deployedAt: Date | null
+    deployedAt: Date | null,
+    currentNormalized?: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
   ): Promise<DeploymentData | null> {
     const [chatRows, formRows, mcpRows, a2aRows, versionRows] = await Promise.all([
       db
@@ -407,6 +403,7 @@ export class WorkspaceVFS {
         ? db
             .select({
               version: workflowDeploymentVersion.version,
+              state: workflowDeploymentVersion.state,
               createdAt: workflowDeploymentVersion.createdAt,
             })
             .from(workflowDeploymentVersion)
@@ -424,11 +421,32 @@ export class WorkspaceVFS {
       isDeployed || chatRows.length > 0 || formRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
     if (!hasAnyDeployment) return null
 
+    // Compute needsRedeployment by comparing current state to deployed state
+    let needsRedeployment: boolean | undefined
+    const deployedVersion = versionRows[0]
+    if (isDeployed && deployedVersion?.state && currentNormalized) {
+      try {
+        const currentState = {
+          blocks: currentNormalized.blocks,
+          edges: currentNormalized.edges,
+          loops: currentNormalized.loops,
+          parallels: currentNormalized.parallels,
+        }
+        needsRedeployment = hasWorkflowChanged(currentState as any, deployedVersion.state as any)
+      } catch (err) {
+        logger.warn('Failed to compute needsRedeployment', {
+          workflowId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
     return {
       workflowId,
       isDeployed,
       deployedAt,
-      api: versionRows[0] ?? null,
+      needsRedeployment,
+      api: deployedVersion ? { version: deployedVersion.version, createdAt: deployedVersion.createdAt } : null,
       chat: chatRows[0] ?? null,
       form: formRows[0] ?? null,
       mcp: mcpRows,
@@ -577,17 +595,3 @@ function sanitizeName(name: string): string {
     .slice(0, 64)
 }
 
-/**
- * Deduplicate a sanitized name against a set of already-used names.
- * Appends `-2`, `-3`, etc. on collision. Adds the final name to the set.
- */
-function deduplicateName(baseName: string, usedNames: Set<string>): string {
-  let name = baseName
-  let counter = 2
-  while (usedNames.has(name)) {
-    name = `${baseName}-${counter}`
-    counter++
-  }
-  usedNames.add(name)
-  return name
-}
