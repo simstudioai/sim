@@ -122,6 +122,11 @@ export interface ToolSchema {
   required: string[]
 }
 
+export interface LLMToolSchemaResult {
+  schema: ToolSchema
+  enrichedDescription?: string
+}
+
 export interface ValidationResult {
   valid: boolean
   missingParams: string[]
@@ -434,27 +439,19 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
 export async function createLLMToolSchema(
   toolConfig: ToolConfig,
   userProvidedParams: Record<string, unknown>
-): Promise<ToolSchema> {
+): Promise<LLMToolSchemaResult> {
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
     required: [],
   }
 
-  // Only include parameters that the LLM should/can provide
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
-    // Check if this param has schema enrichment config
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
 
-    // Special handling for workflow_executor's inputMapping parameter
-    // Always include in LLM schema so LLM can provide dynamic input values
-    // even if user has configured empty/partial inputMapping in the UI
     const isWorkflowInputMapping =
       toolConfig.id === 'workflow_executor' && paramId === 'inputMapping'
 
-    // Parameters with enrichment config are treated specially:
-    // - Include them if dependency value is available (even if normally hidden)
-    // - Skip them if dependency value is not available
     if (enrichmentConfig) {
       const dependencyValue = userProvidedParams[enrichmentConfig.dependsOn] as string
       if (!dependencyValue) {
@@ -476,26 +473,21 @@ export async function createLLMToolSchema(
     }
 
     if (!isWorkflowInputMapping) {
-      // Skip parameters that user has already provided
       if (isNonEmpty(userProvidedParams[paramId])) {
         continue
       }
 
-      // Skip parameters that are user-only (never shown to LLM)
       if (param.visibility === 'user-only') {
         continue
       }
 
-      // Skip hidden parameters
       if (param.visibility === 'hidden') {
         continue
       }
     }
 
-    // Add parameter to LLM schema
     const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
 
-    // Apply dynamic schema enrichment for workflow_executor's inputMapping
     if (isWorkflowInputMapping) {
       const workflowId = userProvidedParams.workflowId as string
       if (workflowId) {
@@ -505,13 +497,29 @@ export async function createLLMToolSchema(
 
     schema.properties[paramId] = propertySchema
 
-    // Add to required if LLM must provide it and it's originally required
     if ((param.visibility === 'user-or-llm' || param.visibility === 'llm-only') && param.required) {
       schema.required.push(paramId)
     }
   }
 
-  return schema
+  if (toolConfig.toolEnrichment) {
+    const dependencyValue = userProvidedParams[toolConfig.toolEnrichment.dependsOn] as string
+    if (dependencyValue) {
+      const enriched = await toolConfig.toolEnrichment.enrichTool(
+        dependencyValue,
+        schema,
+        toolConfig.description
+      )
+      if (enriched) {
+        return {
+          schema: enriched.parameters as ToolSchema,
+          enrichedDescription: enriched.description,
+        }
+      }
+    }
+  }
+
+  return { schema }
 }
 
 /**

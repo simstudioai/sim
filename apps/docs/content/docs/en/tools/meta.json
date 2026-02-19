@@ -114,6 +114,7 @@
     "stripe",
     "stt",
     "supabase",
+    "table",
     "tavily",
     "telegram",
     "textract",
