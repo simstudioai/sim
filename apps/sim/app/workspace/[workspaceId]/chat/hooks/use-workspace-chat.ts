@@ -5,11 +5,38 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('useWorkspaceChat')
 
-interface ChatMessage {
+/** Status of a tool call as it progresses through execution. */
+export type ToolCallStatus = 'executing' | 'success' | 'error'
+
+/** Lightweight info about a single tool call rendered in the chat. */
+export interface ToolCallInfo {
+  id: string
+  name: string
+  status: ToolCallStatus
+  /** Human-readable title from the backend ToolUI metadata. */
+  displayTitle?: string
+}
+
+/** A content block inside an assistant message. */
+export type ContentBlockType = 'text' | 'tool_call' | 'subagent'
+
+export interface ContentBlock {
+  type: ContentBlockType
+  /** Text content (for 'text' and 'subagent' blocks). */
+  content?: string
+  /** Tool call info (for 'tool_call' blocks). */
+  toolCall?: ToolCallInfo
+}
+
+export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  /** Structured content blocks for rich rendering. When present, prefer over `content`. */
+  contentBlocks?: ContentBlock[]
+  /** Name of the currently active subagent (shown as a label while streaming). */
+  activeSubagent?: string | null
 }
 
 interface UseWorkspaceChatProps {
@@ -23,6 +50,20 @@ interface UseWorkspaceChatReturn {
   sendMessage: (message: string) => Promise<void>
   abortMessage: () => void
   clearMessages: () => void
+}
+
+/** Maps subagent IDs to human-readable labels. */
+const SUBAGENT_LABELS: Record<string, string> = {
+  build: 'Building',
+  deploy: 'Deploying',
+  auth: 'Connecting credentials',
+  research: 'Researching',
+  knowledge: 'Managing knowledge base',
+  custom_tool: 'Creating tool',
+  superagent: 'Executing action',
+  plan: 'Planning',
+  debug: 'Debugging',
+  edit: 'Editing workflow',
 }
 
 export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWorkspaceChatReturn {
@@ -51,12 +92,48 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
         role: 'assistant',
         content: '',
         timestamp: new Date().toISOString(),
+        contentBlocks: [],
+        activeSubagent: null,
       }
 
       setMessages((prev) => [...prev, userMessage, assistantMessage])
 
       const abortController = new AbortController()
       abortControllerRef.current = abortController
+
+      // Mutable refs for the streaming context so we can build content blocks
+      // without relying on stale React state closures.
+      const blocksRef: ContentBlock[] = []
+      const toolCallMapRef = new Map<string, number>() // toolCallId → index in blocksRef
+
+      /** Ensure the last block is a text block and return it. */
+      const ensureTextBlock = (): ContentBlock => {
+        const last = blocksRef[blocksRef.length - 1]
+        if (last && last.type === 'text') return last
+        const newBlock: ContentBlock = { type: 'text', content: '' }
+        blocksRef.push(newBlock)
+        return newBlock
+      }
+
+      /** Push updated blocks + content into the assistant message. */
+      const flushBlocks = (extra?: Partial<ChatMessage>) => {
+        const fullText = blocksRef
+          .filter((b) => b.type === 'text')
+          .map((b) => b.content ?? '')
+          .join('')
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessage.id
+              ? {
+                  ...msg,
+                  content: fullText,
+                  contentBlocks: [...blocksRef],
+                  ...extra,
+                }
+              : msg
+          )
+        )
+      }
 
       try {
         const response = await fetch('/api/copilot/workspace-chat', {
@@ -98,27 +175,123 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
             try {
               const event = JSON.parse(line.slice(6))
 
-              if (event.type === 'chat_id' && event.chatId) {
-                chatIdRef.current = event.chatId
-              } else if (event.type === 'content' && event.content) {
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id
-                      ? { ...msg, content: msg.content + event.content }
-                      : msg
-                  )
-                )
-              } else if (event.type === 'error') {
-                setError(event.error || 'An error occurred')
-              } else if (event.type === 'done') {
-                if (event.content && typeof event.content === 'string') {
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === assistantMessage.id && !msg.content
-                        ? { ...msg, content: event.content }
-                        : msg
+              switch (event.type) {
+                case 'chat_id': {
+                  if (event.chatId) {
+                    chatIdRef.current = event.chatId
+                  }
+                  break
+                }
+
+                case 'content': {
+                  if (event.content || event.data) {
+                    const chunk =
+                      typeof event.data === 'string' ? event.data : event.content || ''
+                    if (chunk) {
+                      const textBlock = ensureTextBlock()
+                      textBlock.content = (textBlock.content ?? '') + chunk
+                      flushBlocks()
+                    }
+                  }
+                  break
+                }
+
+                case 'tool_generating':
+                case 'tool_call': {
+                  const toolCallId = event.toolCallId
+                  const toolName = event.toolName || event.data?.name || 'unknown'
+                  if (!toolCallId) break
+
+                  const ui = event.ui || event.data?.ui
+                  const displayTitle = ui?.title || ui?.phaseLabel
+
+                  if (!toolCallMapRef.has(toolCallId)) {
+                    const toolBlock: ContentBlock = {
+                      type: 'tool_call',
+                      toolCall: {
+                        id: toolCallId,
+                        name: toolName,
+                        status: 'executing',
+                        displayTitle,
+                      },
+                    }
+                    toolCallMapRef.set(toolCallId, blocksRef.length)
+                    blocksRef.push(toolBlock)
+                  } else {
+                    const idx = toolCallMapRef.get(toolCallId)!
+                    const existing = blocksRef[idx]
+                    if (existing.toolCall) {
+                      existing.toolCall.name = toolName
+                      if (displayTitle) existing.toolCall.displayTitle = displayTitle
+                    }
+                  }
+                  flushBlocks()
+                  break
+                }
+
+                case 'tool_result': {
+                  const toolCallId = event.toolCallId || event.data?.id
+                  if (!toolCallId) break
+                  const idx = toolCallMapRef.get(toolCallId)
+                  if (idx !== undefined) {
+                    const block = blocksRef[idx]
+                    if (block.toolCall) {
+                      block.toolCall.status = event.success ? 'success' : 'error'
+                    }
+                    flushBlocks()
+                  }
+                  break
+                }
+
+                case 'tool_error': {
+                  const toolCallId = event.toolCallId || event.data?.id
+                  if (!toolCallId) break
+                  const idx = toolCallMapRef.get(toolCallId)
+                  if (idx !== undefined) {
+                    const block = blocksRef[idx]
+                    if (block.toolCall) {
+                      block.toolCall.status = 'error'
+                    }
+                    flushBlocks()
+                  }
+                  break
+                }
+
+                case 'subagent_start': {
+                  const subagentName = event.subagent || event.data?.agent
+                  if (subagentName) {
+                    const label = SUBAGENT_LABELS[subagentName] || subagentName
+                    const subBlock: ContentBlock = {
+                      type: 'subagent',
+                      content: label,
+                    }
+                    blocksRef.push(subBlock)
+                    flushBlocks({ activeSubagent: label })
+                  }
+                  break
+                }
+
+                case 'subagent_end': {
+                  flushBlocks({ activeSubagent: null })
+                  break
+                }
+
+                case 'error': {
+                  setError(event.error || 'An error occurred')
+                  break
+                }
+
+                case 'done': {
+                  if (event.content && typeof event.content === 'string') {
+                    setMessages((prev) =>
+                      prev.map((msg) =>
+                        msg.id === assistantMessage.id && !msg.content
+                          ? { ...msg, content: event.content }
+                          : msg
+                      )
                     )
-                  )
+                  }
+                  break
                 }
               }
             } catch {

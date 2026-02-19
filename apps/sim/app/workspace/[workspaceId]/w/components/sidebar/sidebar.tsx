@@ -250,7 +250,7 @@ export const Sidebar = memo(function Sidebar() {
       [
         {
           id: 'chat',
-          label: 'Chat',
+          label: 'Mothership',
           icon: MessageSquare,
           href: `/workspace/${workspaceId}/chat`,
         },
