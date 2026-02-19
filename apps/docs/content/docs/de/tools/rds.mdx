@@ -166,3 +166,25 @@ Rohes SQL auf Amazon RDS über die Data API ausführen
 
 - Kategorie: `tools`
 - Typ: `rds`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Ja | AWS-Region (z. B. us-east-1) |
+| `accessKeyId` | string | Ja | AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | Geheimer AWS-Zugriffsschlüssel |
+| `resourceArn` | string | Ja | ARN des Aurora-DB-Clusters (z. B. arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+| `secretArn` | string | Ja | ARN des Secrets-Manager-Geheimnisses mit DB-Anmeldedaten |
+| `database` | string | Nein | Datenbankname für die Verbindung (z. B. mydb, production_db) |
+| `schema` | string | Nein | Zu untersuchendes Schema (Standard: public für PostgreSQL, Datenbankname für MySQL) |
+| `engine` | string | Nein | Datenbank-Engine (aurora-postgresql oder aurora-mysql). Wird automatisch erkannt, falls nicht angegeben. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `engine` | string | Erkannter Datenbank-Engine-Typ |
+| `tables` | array | Array von Tabellenschemata mit Spalten, Schlüsseln und Indizes |
+| `schemas` | array | Liste der verfügbaren Schemata in der Datenbank |

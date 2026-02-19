@@ -3,9 +3,11 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { auditMock, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
@@ -216,8 +218,11 @@ describe('Chat Edit API Route', () => {
         workflowId: 'workflow-123',
       }
 
-      mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      mockLimit.mockResolvedValueOnce([]) // No identifier conflict
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: mockChat,
+        workspaceId: 'workspace-123',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -311,8 +316,11 @@ describe('Chat Edit API Route', () => {
         workflowId: 'workflow-123',
       }
 
-      mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      mockLimit.mockResolvedValueOnce([])
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: mockChat,
+        workspaceId: 'workspace-123',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -371,8 +379,11 @@ describe('Chat Edit API Route', () => {
         }),
       }))
 
-      mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
-      mockWhere.mockResolvedValue(undefined)
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: { title: 'Test Chat', workflowId: 'workflow-123' },
+        workspaceId: 'workspace-123',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
@@ -393,8 +404,11 @@ describe('Chat Edit API Route', () => {
         }),
       }))
 
-      mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
-      mockWhere.mockResolvedValue(undefined)
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: { title: 'Test Chat', workflowId: 'workflow-123' },
+        workspaceId: 'workspace-123',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',

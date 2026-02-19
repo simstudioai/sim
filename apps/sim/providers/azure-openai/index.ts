@@ -30,6 +30,7 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
+import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   prepareToolExecution,
@@ -251,7 +252,7 @@ async function executeChatCompletionsRequest(
       output: currentResponse.usage?.completion_tokens || 0,
       total: currentResponse.usage?.total_tokens || 0,
     }
-    const toolCalls: (FunctionCallResponse & { success: boolean })[] = []
+    const toolCalls: FunctionCallResponse[] = []
     const toolResults: Record<string, unknown>[] = []
     const currentMessages = [...allMessages]
     let iterationCount = 0
@@ -577,15 +578,11 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    const enhancedError = new Error(error instanceof Error ? error.message : String(error))
-    // @ts-ignore - Adding timing property to the error
-    enhancedError.timing = {
+    throw new ProviderError(error instanceof Error ? error.message : String(error), {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
-    }
-
-    throw enhancedError
+    })
   }
 }
 

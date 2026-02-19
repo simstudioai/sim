@@ -363,3 +363,22 @@ Sim 的 Elasticsearch 工具支持自托管和 Elastic Cloud 环境。将 Elasti
 
 - 类别：`tools`
 - 类型：`elasticsearch`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `deploymentType` | string | 是 | 部署类型：self_hosted 或 cloud |
+| `host` | string | 否 | Elasticsearch 主机 URL（适用于自托管）|
+| `cloudId` | string | 否 | Elastic Cloud ID（适用于云部署）|
+| `authMethod` | string | 是 | 认证方法：api_key 或 basic_auth |
+| `apiKey` | string | 否 | Elasticsearch API 密钥 |
+| `username` | string | 否 | 基本认证的用户名 |
+| `password` | string | 否 | 基本认证的密码 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 关于索引的摘要信息 |
+| `indices` | json | 索引信息对象数组 |

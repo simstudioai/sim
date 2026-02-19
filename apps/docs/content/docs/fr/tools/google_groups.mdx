@@ -217,3 +217,201 @@ Vérifier si un utilisateur est membre d'un groupe Google
 
 - Catégorie : `tools`
 - Type : `google_groups`
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `groupKey` | string | Oui | Identifiant du groupe. Peut être l'adresse email du groupe \(par ex., team@example.com\) ou l'ID unique du groupe |
+| `memberKey` | string | Oui | Identifiant du membre à vérifier. Peut être l'adresse email du membre \(par ex., user@example.com\) ou l'ID unique du membre |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `isMember` | boolean | Indique si l'utilisateur est membre du groupe |
+
+### `google_groups_list_aliases`
+
+Lister tous les alias email d'un groupe Google
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `groupKey` | string | Oui | Identifiant du groupe. Peut être l'adresse email du groupe \(par ex., team@example.com\) ou l'ID unique du groupe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | array | Liste des alias email du groupe |
+|   ↳ `id` | string | Identifiant unique du groupe |
+|   ↳ `primaryEmail` | string | Adresse email principale du groupe |
+|   ↳ `alias` | string | Adresse email de l'alias |
+|   ↳ `kind` | string | Type de ressource API |
+|   ↳ `etag` | string | Identifiant de version de la ressource |
+
+### `google_groups_add_alias`
+
+Ajouter un alias email à un groupe Google
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `groupKey` | string | Oui | Identifiant du groupe. Peut être l'adresse email du groupe \(par ex., team@example.com\) ou l'ID unique du groupe |
+| `alias` | string | Oui | L'alias email à ajouter au groupe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Identifiant unique du groupe |
+| `primaryEmail` | string | Adresse email principale du groupe |
+| `alias` | string | L'alias qui a été ajouté |
+| `kind` | string | Type de ressource API |
+| `etag` | string | Identifiant de version de la ressource |
+
+### `google_groups_remove_alias`
+
+Supprimer un alias email d'un groupe Google
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `groupKey` | string | Oui | Identifiant du groupe. Peut être l'adresse email du groupe (par ex., team@example.com) ou l'ID unique du groupe |
+| `alias` | string | Oui | L'alias email à supprimer du groupe |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indique si l'alias a été supprimé avec succès |
+
+### `google_groups_get_settings`
+
+Obtenir les paramètres d'un groupe Google incluant les permissions d'accès, la modération et les options de publication
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ------------ | ----------- |
+| `groupEmail` | string | Oui | L'adresse email du groupe (par ex., team@example.com) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | L'adresse email du groupe |
+| `name` | string | Le nom du groupe (max 75 caractères) |
+| `description` | string | La description du groupe (max 4096 caractères) |
+| `whoCanJoin` | string | Qui peut rejoindre le groupe (ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN) |
+| `whoCanViewMembership` | string | Qui peut voir les membres du groupe |
+| `whoCanViewGroup` | string | Qui peut voir les messages du groupe |
+| `whoCanPostMessage` | string | Qui peut publier des messages dans le groupe |
+| `allowExternalMembers` | string | Si les utilisateurs externes peuvent être membres |
+| `allowWebPosting` | string | Si la publication web est autorisée |
+| `primaryLanguage` | string | La langue principale du groupe |
+| `isArchived` | string | Si les messages sont archivés |
+| `archiveOnly` | string | Si le groupe est en mode archive uniquement (inactif) |
+| `messageModerationLevel` | string | Niveau de modération des messages |
+| `spamModerationLevel` | string | Niveau de gestion du spam (ALLOW, MODERATE, SILENTLY_MODERATE, REJECT) |
+| `replyTo` | string | Destination de réponse par défaut |
+| `customReplyTo` | string | Email personnalisé pour les réponses |
+| `includeCustomFooter` | string | Si un pied de page personnalisé doit être inclus |
+| `customFooterText` | string | Texte du pied de page personnalisé (max 1000 caractères) |
+| `sendMessageDenyNotification` | string | Si des notifications de rejet doivent être envoyées |
+| `defaultMessageDenyNotificationText` | string | Texte du message de rejet par défaut |
+| `membersCanPostAsTheGroup` | string | Si les membres peuvent publier au nom du groupe |
+| `includeInGlobalAddressList` | string | Si le groupe est inclus dans la liste d'adresses globale |
+| `whoCanLeaveGroup` | string | Qui peut quitter le groupe |
+| `whoCanContactOwner` | string | Qui peut contacter le propriétaire du groupe |
+| `favoriteRepliesOnTop` | string | Si les réponses favorites apparaissent en haut |
+| `whoCanApproveMembers` | string | Qui peut approuver les nouveaux membres |
+| `whoCanBanUsers` | string | Qui peut bannir des utilisateurs |
+| `whoCanModerateMembers` | string | Qui peut gérer les membres |
+| `whoCanModerateContent` | string | Qui peut modérer le contenu |
+| `whoCanAssistContent` | string | Qui peut aider avec les métadonnées du contenu |
+| `enableCollaborativeInbox` | string | Si la boîte de réception collaborative est activée |
+| `whoCanDiscoverGroup` | string | Qui peut découvrir le groupe |
+| `defaultSender` | string | Identité d'expéditeur par défaut (DEFAULT_SELF ou GROUP) |
+
+### `google_groups_update_settings`
+
+Mettre à jour les paramètres d'un groupe Google, y compris les autorisations d'accès, la modération et les options de publication
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | Oui | L'adresse e-mail du groupe (par ex., equipe@exemple.com) |
+| `name` | string | Non | Le nom du groupe (max 75 caractères) |
+| `description` | string | Non | La description du groupe (max 4096 caractères) |
+| `whoCanJoin` | string | Non | Qui peut rejoindre : ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
+| `whoCanViewMembership` | string | Non | Qui peut voir les membres : ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | Non | Qui peut voir les messages du groupe : ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanPostMessage` | string | Non | Qui peut publier : NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
+| `allowExternalMembers` | string | Non | Si les utilisateurs externes peuvent être membres : true ou false |
+| `allowWebPosting` | string | Non | Si la publication web est autorisée : true ou false |
+| `primaryLanguage` | string | Non | La langue principale du groupe (par ex., fr) |
+| `isArchived` | string | Non | Si les messages sont archivés : true ou false |
+| `archiveOnly` | string | Non | Si le groupe est en mode archive uniquement (inactif) : true ou false |
+| `messageModerationLevel` | string | Non | Modération des messages : MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE |
+| `spamModerationLevel` | string | Non | Gestion du spam : ALLOW, MODERATE, SILENTLY_MODERATE, REJECT |
+| `replyTo` | string | Non | Réponse par défaut : REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS |
+| `customReplyTo` | string | Non | E-mail personnalisé pour les réponses (lorsque replyTo est REPLY_TO_CUSTOM) |
+| `includeCustomFooter` | string | Non | S'il faut inclure un pied de page personnalisé : true ou false |
+| `customFooterText` | string | Non | Texte du pied de page personnalisé (max 1000 caractères) |
+| `sendMessageDenyNotification` | string | Non | S'il faut envoyer des notifications de rejet : true ou false |
+| `defaultMessageDenyNotificationText` | string | Non | Texte du message de rejet par défaut |
+| `membersCanPostAsTheGroup` | string | Non | Si les membres peuvent publier au nom du groupe : true ou false |
+| `includeInGlobalAddressList` | string | Non | Si inclus dans la liste d'adresses globale : true ou false |
+| `whoCanLeaveGroup` | string | Non | Qui peut quitter : ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_LEAVE, NONE_CAN_LEAVE |
+| `whoCanContactOwner` | string | Non | Qui peut contacter le propriétaire : ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
+| `favoriteRepliesOnTop` | string | Non | Si les réponses favorites apparaissent en haut : true ou false |
+| `whoCanApproveMembers` | string | Non | Qui peut approuver les membres : ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
+| `whoCanBanUsers` | string | Non | Qui peut bannir des utilisateurs : OWNERS_ONLY, OWNERS_AND_MANAGERS, NONE |
+| `whoCanModerateMembers` | string | Non | Qui peut gérer les membres : OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanModerateContent` | string | Non | Qui peut modérer le contenu : OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanAssistContent` | string | Non | Qui peut aider avec les métadonnées du contenu : OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `enableCollaborativeInbox` | string | Non | Si la boîte de réception collaborative est activée : true ou false |
+| `whoCanDiscoverGroup` | string | Non | Qui peut découvrir : ANYONE_CAN_DISCOVER, ALL_IN_DOMAIN_CAN_DISCOVER, ALL_MEMBERS_CAN_DISCOVER |
+| `defaultSender` | string | Non | Expéditeur par défaut : DEFAULT_SELF ou GROUP |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Adresse email du groupe |
+| `name` | string | Nom du groupe |
+| `description` | string | Description du groupe |
+| `whoCanJoin` | string | Qui peut rejoindre le groupe |
+| `whoCanViewMembership` | string | Qui peut voir les membres du groupe |
+| `whoCanViewGroup` | string | Qui peut voir les messages du groupe |
+| `whoCanPostMessage` | string | Qui peut publier des messages dans le groupe |
+| `allowExternalMembers` | string | Si les utilisateurs externes peuvent être membres |
+| `allowWebPosting` | string | Si la publication web est autorisée |
+| `primaryLanguage` | string | Langue principale du groupe |
+| `isArchived` | string | Si les messages sont archivés |
+| `archiveOnly` | string | Si le groupe est en mode archive uniquement |
+| `messageModerationLevel` | string | Niveau de modération des messages |
+| `spamModerationLevel` | string | Niveau de gestion du spam |
+| `replyTo` | string | Destination de réponse par défaut |
+| `customReplyTo` | string | Email personnalisé pour les réponses |
+| `includeCustomFooter` | string | Si un pied de page personnalisé doit être inclus |
+| `customFooterText` | string | Texte du pied de page personnalisé |
+| `sendMessageDenyNotification` | string | Si des notifications de rejet doivent être envoyées |
+| `defaultMessageDenyNotificationText` | string | Texte du message de rejet par défaut |
+| `membersCanPostAsTheGroup` | string | Si les membres peuvent publier au nom du groupe |
+| `includeInGlobalAddressList` | string | Si inclus dans la liste d'adresses globale |
+| `whoCanLeaveGroup` | string | Qui peut quitter le groupe |
+| `whoCanContactOwner` | string | Qui peut contacter le propriétaire du groupe |
+| `favoriteRepliesOnTop` | string | Si les réponses favorites apparaissent en haut |
+| `whoCanApproveMembers` | string | Qui peut approuver les nouveaux membres |
+| `whoCanBanUsers` | string | Qui peut bannir des utilisateurs |
+| `whoCanModerateMembers` | string | Qui peut gérer les membres |
+| `whoCanModerateContent` | string | Qui peut modérer le contenu |
+| `whoCanAssistContent` | string | Qui peut aider avec les métadonnées du contenu |
+| `enableCollaborativeInbox` | string | Si la boîte de réception collaborative est activée |
+| `whoCanDiscoverGroup` | string | Qui peut découvrir le groupe |
+| `defaultSender` | string | Identité d'expéditeur par défaut |

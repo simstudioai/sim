@@ -1,3 +1,4 @@
+import { setupGlobalFetchMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
@@ -16,6 +17,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isTest: false,
   getCostMultiplier: vi.fn().mockReturnValue(1),
+  getAllowedIntegrationsFromEnv: vi.fn().mockReturnValue(null),
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
   isOrganizationsEnabled: false,
@@ -61,6 +63,30 @@ vi.mock('@/providers', () => ({
   }),
 }))
 
+vi.mock('@/executor/utils/http', () => ({
+  buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
+  buildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
+    const url = new URL(path, 'http://localhost:3000')
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) {
+          url.searchParams.set(key, value)
+        }
+      }
+    }
+    return url
+  }),
+  extractAPIErrorMessage: vi.fn(async (response: Response) => {
+    const defaultMessage = `API request failed with status ${response.status}`
+    try {
+      const errorData = await response.json()
+      return errorData.error || defaultMessage
+    } catch {
+      return defaultMessage
+    }
+  }),
+}))
+
 vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn().mockReturnValue({
@@ -84,7 +110,7 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
-global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
+setupGlobalFetchMock()
 
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
@@ -1900,6 +1926,302 @@ describe('AgentBlockHandler', () => {
       expect(discoveryCalls.length).toBe(1)
 
       expect(discoveryCalls[0].url).toContain('serverId=mcp-legacy-server')
+    })
+
+    describe('customToolId resolution - DB as source of truth', () => {
+      const staleInlineSchema = {
+        function: {
+          name: 'formatReport',
+          description: 'Formats a report',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Report title' },
+              content: { type: 'string', description: 'Report content' },
+            },
+            required: ['title', 'content'],
+          },
+        },
+      }
+
+      const dbSchema = {
+        function: {
+          name: 'formatReport',
+          description: 'Formats a report',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Report title' },
+              content: { type: 'string', description: 'Report content' },
+              format: { type: 'string', description: 'Output format' },
+            },
+            required: ['title', 'content', 'format'],
+          },
+        },
+      }
+
+      const staleInlineCode = 'return { title, content };'
+      const dbCode = 'return { title, content, format };'
+
+      function mockFetchForCustomTool(toolId: string) {
+        mockFetch.mockImplementation((url: string) => {
+          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
+            return Promise.resolve({
+              ok: true,
+              headers: { get: () => null },
+              json: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: toolId,
+                      title: 'formatReport',
+                      schema: dbSchema,
+                      code: dbCode,
+                    },
+                  ],
+                }),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            headers: { get: () => null },
+            json: () => Promise.resolve({}),
+          })
+        })
+      }
+
+      function mockFetchFailure() {
+        mockFetch.mockImplementation((url: string) => {
+          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
+            return Promise.resolve({
+              ok: false,
+              status: 500,
+              headers: { get: () => null },
+              json: () => Promise.resolve({}),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            headers: { get: () => null },
+            json: () => Promise.resolve({}),
+          })
+        })
+      }
+
+      beforeEach(() => {
+        Object.defineProperty(global, 'window', {
+          value: undefined,
+          writable: true,
+          configurable: true,
+        })
+      })
+
+      it('should always fetch latest schema from DB when customToolId is present', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              title: 'formatReport',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        // DB schema wins over stale inline — includes format param
+        expect(tools[0].parameters.required).toContain('format')
+        expect(tools[0].parameters.properties).toHaveProperty('format')
+      })
+
+      it('should fetch from DB when customToolId has no inline schema', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).toContain('format')
+      })
+
+      it('should fall back to inline schema when DB fetch fails and inline exists', async () => {
+        mockFetchFailure()
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-tool-123',
+              title: 'formatReport',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).not.toContain('format')
+      })
+
+      it('should return null when DB fetch fails and no inline schema exists', async () => {
+        mockFetchFailure()
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-tool-123',
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(0)
+      })
+
+      it('should use DB code for executeFunction when customToolId resolves', async () => {
+        const toolId = 'custom-tool-123'
+        mockFetchForCustomTool(toolId)
+
+        let capturedTools: any[] = []
+        Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
+          const result = originalPromiseAll.call(Promise, promises)
+          result.then((tools: any[]) => {
+            if (tools?.length) {
+              capturedTools = tools.filter((t) => t !== null)
+            }
+          })
+          return result
+        })
+
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              title: 'formatReport',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        expect(capturedTools.length).toBe(1)
+        expect(typeof capturedTools[0].executeFunction).toBe('function')
+
+        await capturedTools[0].executeFunction({ title: 'Q1', format: 'pdf' })
+
+        expect(mockExecuteTool).toHaveBeenCalledWith(
+          'function_execute',
+          expect.objectContaining({
+            code: dbCode,
+          }),
+          false,
+          expect.any(Object)
+        )
+      })
+
+      it('should not fetch from DB when no customToolId is present', async () => {
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Use the tool',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'custom-tool',
+              title: 'formatReport',
+              schema: staleInlineSchema,
+              code: staleInlineCode,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        const customToolFetches = mockFetch.mock.calls.filter(
+          (call: any[]) => typeof call[0] === 'string' && call[0].includes('/api/tools/custom')
+        )
+        expect(customToolFetches.length).toBe(0)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
+
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('formatReport')
+        expect(tools[0].parameters.required).not.toContain('format')
+      })
     })
   })
 })

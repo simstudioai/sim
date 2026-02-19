@@ -11,7 +11,7 @@ import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { GmailAttachment } from '@/tools/gmail/types'
 import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
@@ -691,7 +691,7 @@ async function processEmails(
             `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
           )
 
-          const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
+          const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
           const response = await fetch(webhookUrl, {
             method: 'POST',

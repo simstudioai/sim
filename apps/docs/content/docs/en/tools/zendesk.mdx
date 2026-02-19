@@ -67,10 +67,9 @@ Retrieve a list of tickets from Zendesk with optional filtering
 | `type` | string | No | Filter by type: "problem", "incident", "question", or "task" |
 | `assigneeId` | string | No | Filter by assignee user ID as a numeric string \(e.g., "12345"\) |
 | `organizationId` | string | No | Filter by organization ID as a numeric string \(e.g., "67890"\) |
-| `sortBy` | string | No | Sort field: "created_at", "updated_at", "priority", or "status" |
-| `sortOrder` | string | No | Sort order: "asc" or "desc" |
+| `sort` | string | No | Sort field for ticket listing \(only applies without filters\): "updated_at", "id", or "status". Prefix with "-" for descending \(e.g., "-updated_at"\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 
 #### Output
 
@@ -129,10 +128,10 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `from_messaging_channel` | boolean | Whether the ticket originated from a messaging channel |
 |   ↳ `ticket_form_id` | number | Ticket form ID |
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
@@ -515,7 +514,7 @@ Retrieve a list of users from Zendesk with optional filtering
 | `role` | string | No | Filter by role: "end-user", "agent", or "admin" |
 | `permissionSet` | string | No | Filter by permission set ID as a numeric string \(e.g., "12345"\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 
 #### Output
 
@@ -563,10 +562,10 @@ Retrieve a list of users from Zendesk with optional filtering
 |   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
 |   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
@@ -706,7 +705,7 @@ Search for users in Zendesk using a query string
 | `query` | string | No | Search query string \(e.g., user name or email\) |
 | `externalId` | string | No | External ID to search by \(your system identifier\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `page` | string | No | Page number for pagination \(1-based\) |
 
 #### Output
 
@@ -754,10 +753,10 @@ Search for users in Zendesk using a query string
 |   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
 |   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
@@ -999,7 +998,7 @@ Retrieve a list of organizations from Zendesk
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain \(e.g., "mycompany" for mycompany.zendesk.com\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 
 #### Output
 
@@ -1020,10 +1019,10 @@ Retrieve a list of organizations from Zendesk
 |   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
 |   ↳ `external_id` | string | External ID for linking to external records |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
@@ -1075,7 +1074,7 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 | `subdomain` | string | Yes | Your Zendesk subdomain |
 | `name` | string | Yes | Organization name prefix to search for \(e.g., "Acme"\) |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `page` | string | No | Page number for pagination \(1-based\) |
 
 #### Output
 
@@ -1096,10 +1095,10 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 |   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
 |   ↳ `external_id` | string | External ID for linking to external records |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |
@@ -1249,19 +1248,18 @@ Unified search across tickets, users, and organizations in Zendesk
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
 | `query` | string | Yes | Search query string using Zendesk search syntax \(e.g., "type:ticket status:open"\) |
-| `sortBy` | string | No | Sort field: "relevance", "created_at", "updated_at", "priority", "status", or "ticket_type" |
-| `sortOrder` | string | No | Sort order: "asc" or "desc" |
+| `filterType` | string | Yes | Resource type to search for: "ticket", "user", "organization", or "group" |
 | `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
-| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
+| `pageAfter` | string | No | Cursor from a previous response to fetch the next page of results |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `paging` | object | Pagination information |
+| `paging` | object | Cursor-based pagination information |
+|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
+|   ↳ `has_more` | boolean | Whether more results are available |
 |   ↳ `next_page` | string | URL for next page of results |
-|   ↳ `previous_page` | string | URL for previous page of results |
-|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
 |   ↳ `total_returned` | number | Number of items returned in this response |
 |   ↳ `has_more` | boolean | Whether more items are available |

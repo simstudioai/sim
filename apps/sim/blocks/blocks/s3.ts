@@ -59,6 +59,16 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
     {
+      id: 'getObjectRegion',
+      title: 'AWS Region',
+      type: 'short-input',
+      placeholder: 'Used when S3 URL does not include region',
+      condition: {
+        field: 'operation',
+        value: ['get_object'],
+      },
+    },
+    {
       id: 'bucketName',
       title: 'Bucket Name',
       type: 'short-input',
@@ -291,34 +301,11 @@ export const S3Block: BlockConfig<S3Response> = {
             if (!params.s3Uri) {
               throw new Error('S3 Object URL is required')
             }
-
-            // Parse S3 URI for get_object
-            try {
-              const url = new URL(params.s3Uri)
-              const hostname = url.hostname
-              const bucketName = hostname.split('.')[0]
-              const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
-              const region = regionMatch ? regionMatch[1] : params.region
-              const objectKey = url.pathname.startsWith('/')
-                ? url.pathname.substring(1)
-                : url.pathname
-
-              if (!bucketName || !objectKey) {
-                throw new Error('Could not parse S3 URL')
-              }
-
-              return {
-                accessKeyId: params.accessKeyId,
-                secretAccessKey: params.secretAccessKey,
-                region,
-                bucketName,
-                objectKey,
-                s3Uri: params.s3Uri,
-              }
-            } catch (_error) {
-              throw new Error(
-                'Invalid S3 Object URL format. Expected: https://bucket-name.s3.region.amazonaws.com/path/to/file'
-              )
+            return {
+              accessKeyId: params.accessKeyId,
+              secretAccessKey: params.secretAccessKey,
+              region: params.getObjectRegion || params.region,
+              s3Uri: params.s3Uri,
             }
           }
 
@@ -401,6 +388,7 @@ export const S3Block: BlockConfig<S3Response> = {
     acl: { type: 'string', description: 'Access control list' },
     // Download inputs
     s3Uri: { type: 'string', description: 'S3 object URL' },
+    getObjectRegion: { type: 'string', description: 'Optional AWS region override for downloads' },
     // List inputs
     prefix: { type: 'string', description: 'Prefix filter' },
     maxKeys: { type: 'number', description: 'Maximum results' },

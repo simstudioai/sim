@@ -20,6 +20,8 @@ export interface BuildPayloadParams {
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
+  conversationId?: string
+  prefetch?: boolean
   implicitFeedback?: string
 }
 
@@ -64,6 +66,10 @@ export async function buildCopilotRequestPayload(
     fileAttachments,
     commands,
     chatId,
+    conversationId,
+    prefetch,
+    conversationHistory,
+    implicitFeedback,
   } = params
 
   const selectedModel = options.selectedModel
@@ -154,6 +160,12 @@ export async function buildCopilotRequestPayload(
     version: SIM_AGENT_VERSION,
     ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
     ...(chatId ? { chatId } : {}),
+    ...(conversationId ? { conversationId } : {}),
+    ...(Array.isArray(conversationHistory) && conversationHistory.length > 0
+      ? { conversationHistory }
+      : {}),
+    ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
+    ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(credentials ? { credentials } : {}),

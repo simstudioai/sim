@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 import {
   BookOpen,
   Check,
@@ -571,7 +571,6 @@ export function Editor() {
                           isPreview={false}
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
-                          fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
@@ -619,6 +618,15 @@ export function Editor() {
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                     </div>
                   )}
+                  {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                    <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                      <span className='whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)]'>
+                        Additional fields
+                      </span>
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                    </div>
+                  )}
 
                   {advancedOnlySubBlocks.map((subBlock, index) => {
                     const stableKey = getSubBlockStableKey(
@@ -635,7 +643,6 @@ export function Editor() {
                           isPreview={false}
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
-                          fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (

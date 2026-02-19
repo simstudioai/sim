@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 
 const logger = createLogger('WorkspaceByIdAPI')
@@ -228,6 +229,13 @@ export async function DELETE(
       `Deleting workspace ${workspaceId} for user ${session.user.id}, deleteTemplates: ${deleteTemplates}`
     )
 
+    // Fetch workspace name before deletion for audit logging
+    const [workspaceRecord] = await db
+      .select({ name: workspace.name })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
     // Delete workspace and all related data in a transaction
     await db.transaction(async (tx) => {
       // Get all workflows in this workspace before deletion
@@ -279,6 +287,19 @@ export async function DELETE(
       await tx.delete(workspace).where(eq(workspace.id, workspaceId))
 
       logger.info(`Successfully deleted workspace ${workspaceId} and all related data`)
+    })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.WORKSPACE_DELETED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: workspaceId,
+      resourceName: workspaceRecord?.name,
+      description: `Deleted workspace "${workspaceRecord?.name || workspaceId}"`,
+      request,
     })
 
     return NextResponse.json({ success: true })

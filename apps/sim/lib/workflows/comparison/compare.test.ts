@@ -2364,6 +2364,261 @@ describe('hasWorkflowChanged', () => {
     })
   })
 
+  describe('Trigger Config Normalization (False Positive Prevention)', () => {
+    it.concurrent(
+      'should not detect change when deployed has null fields but current has values from triggerConfig',
+      () => {
+        // Core scenario: deployed state has null individual fields, current state has
+        // values populated from triggerConfig at runtime by populateTriggerFieldsFromConfig
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+                botToken: { id: 'botToken', type: 'short-input', value: null },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123', botToken: 'token456' },
+                },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: 'secret123' },
+                botToken: { id: 'botToken', type: 'short-input', value: 'token456' },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123', botToken: 'token456' },
+                },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+
+    it.concurrent(
+      'should detect change when user edits a trigger field to a different value',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'old-secret' },
+                },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: 'new-secret' },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'old-secret' },
+                },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+      }
+    )
+
+    it.concurrent('should not detect change when both sides have no triggerConfig', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent(
+      'should not detect change when deployed has empty fields and triggerConfig populates them',
+      () => {
+        // Empty string is also treated as "empty" by normalizeTriggerConfigValues
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: '' },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123' },
+                },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: 'secret123' },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123' },
+                },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+
+    it.concurrent('should not detect change when triggerId differs', () => {
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              model: { value: 'gpt-4' },
+              triggerId: { value: null },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            type: 'starter',
+            subBlocks: {
+              model: { value: 'gpt-4' },
+              triggerId: { value: 'slack_webhook' },
+            },
+          }),
+        },
+      })
+
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent(
+      'should not detect change for namespaced system subBlock IDs like samplePayload_slack_webhook',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                model: { value: 'gpt-4' },
+                samplePayload_slack_webhook: { value: 'old payload' },
+                triggerInstructions_slack_webhook: { value: 'old instructions' },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                model: { value: 'gpt-4' },
+                samplePayload_slack_webhook: { value: 'new payload' },
+                triggerInstructions_slack_webhook: { value: 'new instructions' },
+              },
+            }),
+          },
+        })
+
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+      }
+    )
+
+    it.concurrent(
+      'should handle mixed scenario: some fields from triggerConfig, some user-edited',
+      () => {
+        const deployedState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: null },
+                botToken: { id: 'botToken', type: 'short-input', value: null },
+                includeFiles: { id: 'includeFiles', type: 'switch', value: false },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123', botToken: 'token456' },
+                },
+              },
+            }),
+          },
+        })
+
+        const currentState = createWorkflowState({
+          blocks: {
+            block1: createBlock('block1', {
+              type: 'starter',
+              subBlocks: {
+                signingSecret: { id: 'signingSecret', type: 'short-input', value: 'secret123' },
+                botToken: { id: 'botToken', type: 'short-input', value: 'token456' },
+                includeFiles: { id: 'includeFiles', type: 'switch', value: true },
+                triggerConfig: {
+                  id: 'triggerConfig',
+                  type: 'short-input',
+                  value: { signingSecret: 'secret123', botToken: 'token456' },
+                },
+              },
+            }),
+          },
+        })
+
+        // includeFiles changed from false to true — this IS a real change
+        expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
+      }
+    )
+  })
+
   describe('Trigger Runtime Metadata (Should Not Trigger Change)', () => {
     it.concurrent('should not detect change when webhookId differs', () => {
       const deployedState = createWorkflowState({

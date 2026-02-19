@@ -399,6 +399,28 @@ Create a new custom property (metadata) on a Confluence page.
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
+### `confluence_delete_page_property`
+
+Delete a content property from a Confluence page by its property ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page containing the property |
+| `propertyId` | string | Yes | The ID of the property to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page |
+| `propertyId` | string | ID of the deleted property |
+| `deleted` | boolean | Deletion status |
+
 ### `confluence_search`
 
 Search for content across Confluence pages, blog posts, and other content.
@@ -871,6 +893,90 @@ Add a label to a Confluence page for organization and categorization.
 | `pageId` | string | Page ID that the label was added to |
 | `labelName` | string | Name of the added label |
 | `labelId` | string | ID of the added label |
+
+### `confluence_delete_label`
+
+Remove a label from a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to remove the label from |
+| `labelName` | string | Yes | Name of the label to remove |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | Page ID the label was removed from |
+| `labelName` | string | Name of the removed label |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_get_pages_by_label`
+
+Retrieve all pages that have a specific label applied.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `labelId` | string | Yes | The ID of the label to get pages for |
+| `limit` | number | No | Maximum number of pages to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `labelId` | string | ID of the label |
+| `pages` | array | Array of pages with this label |
+|   ↳ `id` | string | Unique page identifier |
+|   ↳ `title` | string | Page title |
+|   ↳ `status` | string | Page status \(e.g., current, archived, trashed, draft\) |
+|   ↳ `spaceId` | string | ID of the space containing the page |
+|   ↳ `parentId` | string | ID of the parent page \(null if top-level\) |
+|   ↳ `authorId` | string | Account ID of the page author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the page was created |
+|   ↳ `version` | object | Page version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_list_space_labels`
+
+List all labels associated with a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | The ID of the Confluence space to list labels from |
+| `limit` | number | No | Maximum number of labels to return \(default: 25, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceId` | string | ID of the space |
+| `labels` | array | Array of labels on the space |
+|   ↳ `id` | string | Unique label identifier |
+|   ↳ `name` | string | Label name |
+|   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `confluence_get_space`
 

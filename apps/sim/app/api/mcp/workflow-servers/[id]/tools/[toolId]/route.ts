@@ -3,6 +3,7 @@ import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -65,7 +66,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
  * PATCH - Update a tool's configuration
  */
 export const PATCH = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId, toolId } = await params
       const body = getParsedBody(request) || (await request.json())
@@ -118,6 +123,19 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        description: `Updated tool "${updatedTool.toolName}" in MCP server`,
+        metadata: { toolId, toolName: updatedTool.toolName },
+        request,
+      })
+
       return createMcpSuccessResponse({ tool: updatedTool })
     } catch (error) {
       logger.error(`[${requestId}] Error updating tool:`, error)
@@ -134,7 +152,11 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
  * DELETE - Remove a tool from an MCP server
  */
 export const DELETE = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId, toolId } = await params
 
@@ -164,6 +186,19 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
 
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        description: `Removed tool "${deletedTool.toolName}" from MCP server`,
+        metadata: { toolId, toolName: deletedTool.toolName },
+        request,
+      })
 
       return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
     } catch (error) {

@@ -1,6 +1,7 @@
 import {
   buildCanonicalIndex,
   type CanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   getCanonicalValues,
   isCanonicalPair,
@@ -12,7 +13,10 @@ import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 export {
   buildCanonicalIndex,
   type CanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
   type SubBlockCondition,
 }
 

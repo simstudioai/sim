@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import {
@@ -181,6 +182,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       .where(eq(permissionGroup.id, id))
       .limit(1)
 
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.PERMISSION_GROUP_UPDATED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: updated.name,
+      description: `Updated permission group "${updated.name}"`,
+      request: req,
+    })
+
     return NextResponse.json({
       permissionGroup: {
         ...updated,
@@ -228,6 +242,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await db.delete(permissionGroup).where(eq(permissionGroup.id, id))
 
     logger.info('Deleted permission group', { permissionGroupId: id, userId: session.user.id })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.PERMISSION_GROUP_DELETED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.group.name,
+      description: `Deleted permission group "${result.group.name}"`,
+      request: req,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

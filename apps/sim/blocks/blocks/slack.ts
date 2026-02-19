@@ -604,7 +604,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           case 'send': {
             baseParams.text = text
             if (threadTs) {
-              baseParams.thread_ts = threadTs
+              baseParams.threadTs = threadTs
             }
             // files is the canonical param from attachmentFiles (basic) or files (advanced)
             const normalizedFiles = normalizeFileInput(files)

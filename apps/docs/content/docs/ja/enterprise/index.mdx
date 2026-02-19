@@ -74,3 +74,40 @@ Simのホストキーの代わりに、AIモデルプロバイダー用の独自
 <Callout type="warn">
   BYOKはホスト型Simでのみ利用可能です。セルフホスト型デプロイメントでは、環境変数を介してAIプロバイダーキーを直接設定します。
 </Callout>
+
+請求が無効の場合、Admin APIを使用して組織を管理します:
+
+```bash
+# Create an organization
+curl -X POST https://your-instance/api/v1/admin/organizations \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
+
+# Add a member
+curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "role": "admin"}'
+```
+
+### ワークスペースメンバー
+
+招待が無効の場合、Admin APIを使用してワークスペースメンバーシップを直接管理します:
+
+```bash
+# Add a user to a workspace
+curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user-id-here", "permissions": "write"}'
+
+# Remove a user from a workspace
+curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
+  -H "x-admin-key: YOUR_ADMIN_API_KEY"
+```
+
+### 注意事項
+
+- `ACCESS_CONTROL_ENABLED`を有効にすると、アクセス制御には組織メンバーシップが必要なため、組織が自動的に有効になります。
+- `DISABLE_INVITATIONS`が設定されている場合、ユーザーは招待を送信できません。代わりにAdmin APIを使用してワークスペースと組織のメンバーシップを管理してください。

@@ -13,9 +13,6 @@ export type CommandId =
   | 'goto-logs'
   | 'open-search'
   | 'run-workflow'
-  | 'focus-copilot-tab'
-  | 'focus-toolbar-tab'
-  | 'focus-editor-tab'
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
   | 'clear-notifications'
@@ -73,21 +70,6 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'run-workflow': {
     id: 'run-workflow',
     shortcut: 'Mod+Enter',
-    allowInEditable: false,
-  },
-  'focus-copilot-tab': {
-    id: 'focus-copilot-tab',
-    shortcut: 'C',
-    allowInEditable: false,
-  },
-  'focus-toolbar-tab': {
-    id: 'focus-toolbar-tab',
-    shortcut: 'T',
-    allowInEditable: false,
-  },
-  'focus-editor-tab': {
-    id: 'focus-editor-tab',
-    shortcut: 'E',
     allowInEditable: false,
   },
   'clear-terminal-console': {

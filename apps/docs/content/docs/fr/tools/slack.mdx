@@ -284,3 +284,126 @@ Ajouter une réaction emoji à un message Slack
 
 - Catégorie : `tools`
 - Type : `slack`
+
+Mettre à jour un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message à mettre à jour (par ex., 1405894322.002768) |
+| `text` | chaîne | Oui | Nouveau texte du message (prend en charge le formatage mrkdwn de Slack) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | objet | Objet message mis à jour complet avec toutes les propriétés renvoyées par Slack |
+|   ↳ `type` | chaîne | Type de message (généralement « message ») |
+|   ↳ `ts` | chaîne | Horodatage du message (identifiant unique) |
+|   ↳ `text` | chaîne | Contenu textuel du message |
+|   ↳ `user` | chaîne | ID de l'utilisateur qui a envoyé le message |
+|   ↳ `bot_id` | chaîne | ID du bot si envoyé par un bot |
+|   ↳ `username` | chaîne | Nom d'utilisateur affiché |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `team` | chaîne | ID de l'équipe/espace de travail |
+|   ↳ `thread_ts` | chaîne | Horodatage du message parent (pour les réponses en fil) |
+|   ↳ `parent_user_id` | chaîne | ID de l'utilisateur auteur du message parent du fil |
+|   ↳ `reply_count` | nombre | Nombre total de réponses dans le fil |
+|   ↳ `reply_users_count` | nombre | Nombre d'utilisateurs uniques ayant répondu |
+|   ↳ `latest_reply` | chaîne | Horodatage de la réponse la plus récente |
+|   ↳ `subscribed` | booléen | Indique si l'utilisateur est abonné au fil |
+|   ↳ `last_read` | chaîne | Horodatage du dernier message lu |
+|   ↳ `unread_count` | nombre | Nombre de messages non lus dans le fil |
+|   ↳ `subtype` | chaîne | Sous-type de message (bot_message, file_share, etc.) |
+|   ↳ `is_starred` | booléen | Indique si le message est marqué d'une étoile par l'utilisateur |
+|   ↳ `pinned_to` | tableau | ID des canaux où le message est épinglé |
+|   ↳ `permalink` | chaîne | URL permanente vers le message |
+|   ↳ `reactions` | tableau | Réactions sur ce message |
+|     ↳ `name` | chaîne | Nom de l'emoji (sans deux-points) |
+|     ↳ `count` | nombre | Nombre de fois où cette réaction a été ajoutée |
+|     ↳ `users` | tableau | Tableau des ID d'utilisateurs ayant réagi |
+|   ↳ `files` | tableau | Fichiers joints au message |
+|     ↳ `id` | chaîne | Identifiant unique du fichier |
+|     ↳ `name` | chaîne | Nom du fichier |
+|     ↳ `mimetype` | chaîne | Type MIME du fichier |
+|     ↳ `size` | nombre | Taille du fichier en octets |
+|     ↳ `url_private` | chaîne | URL de téléchargement privée (nécessite une authentification) |
+|     ↳ `permalink` | chaîne | Lien permanent vers le fichier |
+|     ↳ `mode` | chaîne | Mode de fichier (hosted, external, etc.) |
+|   ↳ `attachments` | tableau | Pièces jointes héritées sur le message |
+|     ↳ `id` | nombre | ID de la pièce jointe |
+|     ↳ `fallback` | chaîne | Résumé en texte brut |
+|     ↳ `text` | chaîne | Texte principal de la pièce jointe |
+|     ↳ `pretext` | chaîne | Texte affiché avant la pièce jointe |
+|     ↳ `color` | chaîne | Code hexadécimal ou préréglage de la barre de couleur |
+|     ↳ `author_name` | chaîne | Nom d'affichage de l'auteur |
+|     ↳ `author_link` | chaîne | URL du lien de l'auteur |
+|     ↳ `author_icon` | chaîne | URL de l'icône de l'auteur |
+|     ↳ `title` | chaîne | Titre de la pièce jointe |
+|     ↳ `title_link` | chaîne | URL du lien du titre |
+|     ↳ `image_url` | chaîne | URL de l'image |
+|     ↳ `thumb_url` | chaîne | URL de la miniature |
+|     ↳ `footer` | chaîne | Texte du pied de page |
+|     ↳ `footer_icon` | chaîne | URL de l'icône du pied de page |
+|     ↳ `ts` | chaîne | Horodatage affiché dans le pied de page |
+|   ↳ `blocks` | tableau | Blocs Block Kit dans le message |
+|     ↳ `type` | chaîne | Type de bloc (section, divider, image, actions, etc.) |
+|     ↳ `block_id` | chaîne | Identifiant unique du bloc |
+|   ↳ `edited` | objet | Informations de modification si le message a été modifié |
+|     ↳ `user` | chaîne | ID de l'utilisateur qui a modifié le message |
+|     ↳ `ts` | chaîne | Horodatage de la modification |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message mis à jour |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+|   ↳ `text` | chaîne | Texte du message mis à jour |
+
+### `slack_delete_message`
+
+Supprimer un message précédemment envoyé par le bot dans Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message à supprimer (par ex., 1405894322.002768) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées du message supprimé |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+
+### `slack_add_reaction`
+
+Ajouter une réaction emoji à un message Slack
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
+| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
+| `channel` | chaîne | Oui | ID du canal où le message a été publié (par ex., C1234567890) |
+| `timestamp` | chaîne | Oui | Horodatage du message auquel réagir (par ex., 1405894322.002768) |
+| `name` | chaîne | Oui | Nom de la réaction emoji (sans deux-points, par ex., thumbsup, heart, eyes) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Message de succès |
+| `metadata` | objet | Métadonnées de la réaction |
+|   ↳ `channel` | chaîne | ID du canal |
+|   ↳ `timestamp` | chaîne | Horodatage du message |
+|   ↳ `reaction` | chaîne | Nom de la réaction emoji |

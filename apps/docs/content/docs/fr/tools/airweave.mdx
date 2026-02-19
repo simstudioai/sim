@@ -1,0 +1,63 @@
+---
+title: Airweave
+description: Recherchez vos collections de données synchronisées
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airweave](https://airweave.ai/) est une plateforme de recherche sémantique alimentée par l'IA qui vous aide à découvrir et récupérer des connaissances à travers toutes vos sources de données synchronisées. Conçu pour les équipes modernes, Airweave permet d'obtenir des résultats de recherche rapides et pertinents en utilisant des stratégies neuronales, hybrides ou basées sur des mots-clés adaptées à vos besoins.
+
+Avec Airweave, vous pouvez :
+
+- **Rechercher plus intelligemment** : utilisez des requêtes en langage naturel pour découvrir des informations stockées dans vos outils et bases de données connectés
+- **Unifier vos données** : accédez facilement au contenu provenant de sources telles que le code, les documents, les discussions, les e-mails, les fichiers cloud, et plus encore
+- **Personnaliser la récupération** : choisissez entre des stratégies de recherche hybride (sémantique + mots-clés), neuronale ou par mots-clés pour des résultats optimaux
+- **Améliorer le rappel** : élargissez les requêtes de recherche avec l'IA pour trouver des réponses plus complètes
+- **Reclasser les résultats avec l'IA** : priorisez les réponses les plus pertinentes grâce à de puissants modèles de langage
+- **Obtenir des réponses instantanées** : générez des réponses claires alimentées par l'IA et synthétisées à partir de vos données
+
+Dans Sim, l'intégration Airweave permet à vos agents de rechercher, résumer et extraire des informations de toutes les données de votre organisation via un seul outil. Utilisez Airweave pour favoriser une récupération de connaissances riche et contextuelle au sein de vos flux de travail, que ce soit pour répondre à des questions, générer des résumés ou soutenir une prise de décision dynamique.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Recherchez dans vos sources de données synchronisées en utilisant Airweave. Prend en charge la recherche sémantique avec des stratégies de récupération hybride, neuronale ou par mots-clés. Génère optionnellement des réponses alimentées par l'IA à partir des résultats de recherche.
+
+## Outils
+
+### `airweave_search`
+
+Recherchez vos collections de données synchronisées en utilisant Airweave. Prend en charge la recherche sémantique avec des stratégies de récupération hybride, neuronale ou par mots-clés. Génère optionnellement des réponses alimentées par l'IA à partir des résultats de recherche.
+
+#### Entrée
+
+| Paramètre | Type | Requis | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Oui | Clé API Airweave pour l'authentification |
+| `collectionId` | string | Oui | L'identifiant lisible de la collection à rechercher |
+| `query` | string | Oui | Le texte de la requête de recherche |
+| `limit` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 100\) |
+| `retrievalStrategy` | string | Non | Stratégie de récupération : hybrid \(par défaut\), neural ou keyword |
+| `expandQuery` | boolean | Non | Générer des variations de requête pour améliorer le rappel |
+| `rerank` | boolean | Non | Réordonner les résultats pour une pertinence améliorée en utilisant un LLM |
+| `generateAnswer` | boolean | Non | Générer une réponse en langage naturel à la requête |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Résultats de recherche avec contenu, scores et métadonnées de vos données synchronisées |
+|   ↳ `entity_id` | string | Identifiant unique pour l'entité du résultat de recherche |
+|   ↳ `source_name` | string | Nom de la source de données \(par exemple, « GitHub », « Slack »\) |
+|   ↳ `md_content` | string | Contenu formaté en Markdown du résultat |
+|   ↳ `score` | number | Score de pertinence de la recherche |
+|   ↳ `metadata` | object | Métadonnées supplémentaires associées au résultat |
+|   ↳ `breadcrumbs` | array | Chemin de navigation vers le résultat dans sa source |
+|   ↳ `url` | string | URL vers le contenu original |
+| `completion` | string | Réponse générée par IA à la requête \(lorsque generateAnswer est activé\) |

@@ -35,17 +35,17 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by specific stage within the pipeline (e.g., "2")',
     },
-    status: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by deal status: open, won, lost',
-    },
     limit: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
+    },
+    start: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination start offset (0-based index of the first item to return)',
     },
   },
 
@@ -55,8 +55,8 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
       const queryParams = new URLSearchParams()
 
       if (params.stage_id) queryParams.append('stage_id', params.stage_id)
-      if (params.status) queryParams.append('status', params.status)
       if (params.limit) queryParams.append('limit', params.limit)
+      if (params.start) queryParams.append('start', params.start)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -83,6 +83,8 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
     }
 
     const deals = data.data || []
+    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
+    const nextStart = data.additional_data?.pagination?.next_start ?? null
 
     return {
       success: true,
@@ -91,6 +93,8 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
         metadata: {
           pipeline_id: params?.pipeline_id || '',
           total_items: deals.length,
+          has_more: hasMore,
+          next_start: nextStart,
         },
         success: true,
       },

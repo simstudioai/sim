@@ -239,6 +239,16 @@ export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT: OutputProperty = {
 export const PIPEDRIVE_METADATA_OUTPUT_PROPERTIES = {
   total_items: { type: 'number', description: 'Total number of items' },
   has_more: { type: 'boolean', description: 'Whether more items are available', optional: true },
+  next_cursor: {
+    type: 'string',
+    description: 'Cursor for fetching the next page (v2 endpoints)',
+    optional: true,
+  },
+  next_start: {
+    type: 'number',
+    description: 'Offset for fetching the next page (v1 endpoints)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 // Common Pipedrive types
@@ -355,6 +365,7 @@ export interface PipedriveGetAllDealsParams {
   pipeline_id?: string
   updated_since?: string
   limit?: string
+  cursor?: string
 }
 
 export interface PipedriveGetAllDealsOutput {
@@ -362,6 +373,7 @@ export interface PipedriveGetAllDealsOutput {
   metadata: {
     total_items: number
     has_more: boolean
+    next_cursor?: string
   }
   success: boolean
 }
@@ -431,10 +443,9 @@ export interface PipedriveUpdateDealResponse extends ToolResponse {
 // GET Files
 export interface PipedriveGetFilesParams {
   accessToken: string
-  deal_id?: string
-  person_id?: string
-  org_id?: string
+  sort?: string
   limit?: string
+  start?: string
   downloadFiles?: boolean
 }
 
@@ -442,6 +453,8 @@ export interface PipedriveGetFilesOutput {
   files: PipedriveFile[]
   downloadedFiles?: ToolFileData[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -453,11 +466,14 @@ export interface PipedriveGetMailMessagesParams {
   accessToken: string
   folder?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetMailMessagesOutput {
   messages: PipedriveMailMessage[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -490,12 +506,14 @@ export interface PipedriveGetPipelinesParams {
   sort_by?: string
   sort_direction?: string
   limit?: string
-  cursor?: string
+  start?: string
 }
 
 export interface PipedriveGetPipelinesOutput {
   pipelines: PipedrivePipeline[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -508,8 +526,8 @@ export interface PipedriveGetPipelineDealsParams {
   accessToken: string
   pipeline_id: string
   stage_id?: string
-  status?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetPipelineDealsOutput {
@@ -517,6 +535,8 @@ export interface PipedriveGetPipelineDealsOutput {
   metadata: {
     pipeline_id: string
     total_items: number
+    has_more?: boolean
+    next_start?: number
   }
   success: boolean
 }
@@ -531,12 +551,15 @@ export interface PipedriveGetProjectsParams {
   project_id?: string
   status?: string
   limit?: string
+  cursor?: string
 }
 
 export interface PipedriveGetProjectsOutput {
   projects?: PipedriveProject[]
   project?: PipedriveProject
   total_items?: number
+  has_more?: boolean
+  next_cursor?: string
   success: boolean
 }
 
@@ -565,17 +588,18 @@ export interface PipedriveCreateProjectResponse extends ToolResponse {
 // GET All Activities
 export interface PipedriveGetActivitiesParams {
   accessToken: string
-  deal_id?: string
-  person_id?: string
-  org_id?: string
+  user_id?: string
   type?: string
   done?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetActivitiesOutput {
   activities: PipedriveActivity[]
   total_items: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 
@@ -636,12 +660,15 @@ export interface PipedriveGetLeadsParams {
   person_id?: string
   organization_id?: string
   limit?: string
+  start?: string
 }
 
 export interface PipedriveGetLeadsOutput {
   leads?: PipedriveLead[]
   lead?: PipedriveLead
   total_items?: number
+  has_more?: boolean
+  next_start?: number
   success: boolean
 }
 

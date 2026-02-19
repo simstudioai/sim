@@ -9,6 +9,7 @@ import {
   normalizeLoop,
   normalizeParallel,
   normalizeSubBlockValue,
+  normalizeTriggerConfigValues,
   normalizeValue,
   normalizeVariables,
   sanitizeVariable,
@@ -172,14 +173,18 @@ export function generateWorkflowDiffSummary(
       }
     }
 
+    // Normalize trigger config values for both states before comparison
+    const normalizedCurrentSubs = normalizeTriggerConfigValues(currentSubBlocks)
+    const normalizedPreviousSubs = normalizeTriggerConfigValues(previousSubBlocks)
+
     // Compare subBlocks using shared helper for filtering (single source of truth)
     const allSubBlockIds = filterSubBlockIds([
-      ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(previousSubBlocks)]),
+      ...new Set([...Object.keys(normalizedCurrentSubs), ...Object.keys(normalizedPreviousSubs)]),
     ])
 
     for (const subId of allSubBlockIds) {
-      const currentSub = currentSubBlocks[subId] as Record<string, unknown> | undefined
-      const previousSub = previousSubBlocks[subId] as Record<string, unknown> | undefined
+      const currentSub = normalizedCurrentSubs[subId] as Record<string, unknown> | undefined
+      const previousSub = normalizedPreviousSubs[subId] as Record<string, unknown> | undefined
 
       if (!currentSub || !previousSub) {
         changes.push({

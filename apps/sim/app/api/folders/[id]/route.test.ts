@@ -4,6 +4,7 @@
  * @vitest-environment node
  */
 import {
+  auditMock,
   createMockRequest,
   type MockUser,
   mockAuth,
@@ -11,6 +12,8 @@ import {
   setupCommonApiMocks,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 /** Type for captured folder values in tests */
 interface CapturedFolderValues {

@@ -1,0 +1,142 @@
+---
+title: 表单部署
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+将你的工作流部署为可嵌入的表单，用户可以在你的网站上填写，或通过链接分享。表单提交后会以 `form` 触发类型启动你的工作流。
+
+## 概述
+
+表单部署会将你的工作流输入格式转化为响应式表单，可用于：
+- 通过直接链接分享（如：`https://sim.ai/form/my-survey`）
+- 通过 iframe 嵌入到任意网站
+
+当用户提交表单时，会携带表单数据触发你的工作流。
+
+<Callout type="info">
+表单字段来源于你工作流的 Start 块输入格式。每个字段都会变成对应类型的表单输入项。
+</Callout>
+
+## 创建表单
+
+1. 打开你的工作流并点击 **Deploy**
+2. 选择 **Form** 标签页
+3. 配置：
+   - **URL**：唯一标识符（如：`contact-form` → `sim.ai/form/contact-form`）
+   - **Title**：表单标题
+   - **Description**：可选副标题
+   - **Form Fields**：自定义每个字段的标签和描述
+   - **Authentication**：公开、密码保护或邮箱白名单
+   - **Thank You Message**：提交后显示的感谢信息
+4. 点击 **Launch**
+
+## 字段类型映射
+
+| 输入格式类型 | 表单字段 |
+|------------------|------------|
+| `string` | 文本输入 |
+| `number` | 数字输入 |
+| `boolean` | 开关切换 |
+| `object` | JSON 编辑器 |
+| `array` | JSON 数组编辑器 |
+| `files` | 文件上传 |
+
+## 访问控制
+
+| 模式 | 说明 |
+|------|-------------|
+| **Public** | 任何拥有链接的人都可提交 |
+| **Password** | 用户需输入密码 |
+| **Email Whitelist** | 仅指定邮箱/域名可提交 |
+
+对于邮箱白名单：
+- 精确匹配：`user@example.com`
+- 域名匹配：`@example.com`（该域名下所有邮箱）
+
+## 嵌入
+
+### 直接链接
+
+```
+https://sim.ai/form/your-identifier
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://sim.ai/form/your-identifier"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Form"
+></iframe>
+```
+
+## API 提交
+
+以编程方式提交表单：
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{
+    "formData": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }'
+```
+
+  </Tab>
+  <Tab value="TypeScript">
+
+```typescript
+const response = await fetch('https://sim.ai/api/form/your-identifier', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    formData: {
+      name: 'John Doe',
+      email: 'john@example.com'
+    }
+  })
+});
+
+const result = await response.json();
+// { success: true, data: { executionId: '...' } }
+```
+
+  </Tab>
+</Tabs>
+
+### 受保护的表单
+
+对于密码保护的表单：
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "formData": { "name": "John" } }'
+```
+
+对于邮箱保护的表单：
+
+```bash
+curl -X POST https://sim.ai/api/form/your-identifier \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
+```
+
+## 故障排查
+
+**“未配置输入字段”** - 请在 Start 块中添加 Input Format 字段。
+
+**表单无法在 iframe 中加载** - 请检查你的网站 CSP 是否允许来自 `sim.ai` 的 iframe。
+
+**提交失败** - 请确认标识符正确且所有必填项已填写。

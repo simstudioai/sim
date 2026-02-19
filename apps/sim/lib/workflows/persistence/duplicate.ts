@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
+import {
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowFolder,
+  workflowSubflows,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -31,6 +37,44 @@ interface DuplicateWorkflowResult {
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+}
+
+/**
+ * Remaps old variable IDs to new variable IDs inside block subBlocks.
+ * Specifically targets `variables-input` subblocks whose value is an array
+ * of variable assignments containing a `variableId` field.
+ */
+function remapVariableIdsInSubBlocks(
+  subBlocks: Record<string, any>,
+  varIdMap: Map<string, string>
+): Record<string, any> {
+  const updated: Record<string, any> = {}
+
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (
+      subBlock &&
+      typeof subBlock === 'object' &&
+      subBlock.type === 'variables-input' &&
+      Array.isArray(subBlock.value)
+    ) {
+      updated[key] = {
+        ...subBlock,
+        value: subBlock.value.map((assignment: any) => {
+          if (assignment && typeof assignment === 'object' && assignment.variableId) {
+            const newVarId = varIdMap.get(assignment.variableId)
+            if (newVarId) {
+              return { ...assignment, variableId: newVarId }
+            }
+          }
+          return assignment
+        }),
+      }
+    } else {
+      updated[key] = subBlock
+    }
+  }
+
+  return updated
 }
 
 /**
@@ -94,15 +138,34 @@ export async function duplicateWorkflow(
       throw new Error('Write or admin access required for target workspace')
     }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
-    const folderCondition = targetFolderId
+    const workflowParentCondition = targetFolderId
       ? eq(workflow.folderId, targetFolderId)
       : isNull(workflow.folderId)
+    const folderParentCondition = targetFolderId
+      ? eq(workflowFolder.parentId, targetFolderId)
+      : isNull(workflowFolder.parentId)
 
-    const [minResult] = await tx
-      .select({ minOrder: min(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, targetWorkspaceId), folderCondition))
-    const sortOrder = (minResult?.minOrder ?? 1) - 1
+    const [[workflowMinResult], [folderMinResult]] = await Promise.all([
+      tx
+        .select({ minOrder: min(workflow.sortOrder) })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
+      tx
+        .select({ minOrder: min(workflowFolder.sortOrder) })
+        .from(workflowFolder)
+        .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+    ])
+    const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
+      number | null
+    >((currentMin, candidate) => {
+      if (candidate == null) return currentMin
+      if (currentMin == null) return candidate
+      return Math.min(currentMin, candidate)
+    }, null)
+    const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+
+    // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
+    const varIdMapping = new Map<string, string>()
 
     // Create the new workflow first (required for foreign key constraints)
     await tx.insert(workflow).values({
@@ -123,8 +186,9 @@ export async function duplicateWorkflow(
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}
         const remapped: Record<string, Variable> = {}
-        for (const [, variable] of Object.entries(sourceVars) as [string, Variable][]) {
+        for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
           const newVarId = crypto.randomUUID()
+          varIdMapping.set(oldVarId, newVarId)
           remapped[newVarId] = {
             ...variable,
             id: newVarId,
@@ -181,6 +245,20 @@ export async function duplicateWorkflow(
           }
         }
 
+        // Update variable references in subBlocks (e.g. variables-input assignments)
+        let updatedSubBlocks = block.subBlocks
+        if (
+          varIdMapping.size > 0 &&
+          block.subBlocks &&
+          typeof block.subBlocks === 'object' &&
+          !Array.isArray(block.subBlocks)
+        ) {
+          updatedSubBlocks = remapVariableIdsInSubBlocks(
+            block.subBlocks as Record<string, any>,
+            varIdMapping
+          )
+        }
+
         return {
           ...block,
           id: newBlockId,
@@ -188,6 +266,7 @@ export async function duplicateWorkflow(
           parentId: newParentId,
           extent: newExtent,
           data: updatedData,
+          subBlocks: updatedSubBlocks,
           locked: false, // Duplicated blocks should always be unlocked
           createdAt: now,
           updatedAt: now,

@@ -169,3 +169,175 @@ copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5))
 <Callout type="info">
   Los precios de los modelos son por millón de tokens. El cálculo divide por 1.000.000 para obtener el costo real. Consulta <a href="/execution/costs">la página de Cálculo de Costos</a> para obtener información general y ejemplos.
 </Callout>
+
+Pasa el cursor sobre cualquiera de tus mensajes y haz clic en **Editar** para modificarlo y reenviarlo. Esto es útil para refinar tus prompts.
+
+### Cola de mensajes
+
+Si envías un mensaje mientras Copilot aún está respondiendo, se pone en cola. Puedes:
+- Ver los mensajes en cola en el panel expandible de cola
+- Enviar un mensaje en cola inmediatamente (interrumpe la respuesta actual)
+- Eliminar mensajes de la cola
+
+## Archivos adjuntos
+
+Haz clic en el icono de adjunto para subir archivos con tu mensaje. Los tipos de archivo compatibles incluyen:
+- Imágenes (se muestran miniaturas de vista previa)
+- PDFs
+- Archivos de texto, JSON, XML
+- Otros formatos de documentos
+
+Los archivos se muestran como miniaturas en las que se puede hacer clic y que se abren en una nueva pestaña.
+
+## Puntos de control y cambios
+
+Cuando Copilot realiza cambios en tu flujo de trabajo, guarda puntos de control para que puedas revertirlos si es necesario.
+
+### Ver puntos de control
+
+Pasa el cursor sobre un mensaje de Copilot y haz clic en el icono de puntos de control para ver los estados guardados del flujo de trabajo para ese mensaje.
+
+### Revertir cambios
+
+Haz clic en **Revertir** en cualquier punto de control para restaurar tu flujo de trabajo a ese estado. Un diálogo de confirmación te advertirá que esta acción no se puede deshacer.
+
+### Aceptar cambios
+
+Cuando Copilot propone cambios, puedes:
+- **Aceptar**: aplicar los cambios propuestos (`Mod+Shift+Enter`)
+- **Rechazar**: descartar los cambios y mantener tu flujo de trabajo actual
+
+## Bloques de pensamiento
+
+Para solicitudes complejas, Copilot puede mostrar su proceso de razonamiento en bloques de pensamiento expandibles:
+
+- Los bloques se expanden automáticamente mientras Copilot está pensando
+- Haz clic para expandir/contraer manualmente
+- Muestra la duración del proceso de pensamiento
+- Te ayuda a entender cómo Copilot llegó a su solución
+
+## Selección de opciones
+
+Cuando Copilot presenta múltiples opciones, puedes seleccionar usando:
+
+| Control | Acción |
+|---------|--------|
+| **1-9** | Seleccionar opción por número |
+| **Flecha arriba/abajo** | Navegar entre opciones |
+| **Enter** | Seleccionar opción resaltada |
+
+Las opciones seleccionadas están resaltadas; las opciones no seleccionadas aparecen tachadas.
+
+## Atajos de teclado
+
+| Atajo | Acción |
+|----------|--------|
+| `@` | Abrir menú contextual |
+| `/` | Abrir comandos de barra |
+| `Arrow Up/Down` | Navegar elementos del menú |
+| `Enter` | Seleccionar elemento del menú |
+| `Esc` | Cerrar menús |
+| `Mod+Shift+Enter` | Aceptar cambios de Copilot |
+
+## Límites de uso
+
+El uso de Copilot se factura por token del LLM subyacente. Si alcanzas tu límite de uso, Copilot te pedirá que aumentes tu límite. Puedes agregar uso en incrementos ($50, $100) desde tu base actual.
+
+<Callout type="info">
+  Consulta la [página de cálculo de costos](/execution/costs) para detalles de facturación.
+</Callout>
+## Copilot MCP
+
+Puedes usar Copilot como servidor MCP en tu editor o cliente de IA favorito. Esto te permite construir, probar, desplegar y gestionar flujos de trabajo de Sim directamente desde herramientas como Cursor, Claude Code, Claude Desktop y VS Code.
+
+### Generar una clave API de Copilot
+
+Para conectarte al servidor MCP de Copilot, necesitas una **clave API de Copilot**:
+
+1. Ve a [sim.ai](https://sim.ai) e inicia sesión
+2. Navega a **Configuración** → **Copilot**
+3. Haz clic en **Generar clave API**
+4. Copia la clave — solo se muestra una vez
+
+La clave se verá como `sk-sim-copilot-...`. Usarás esto en la configuración a continuación.
+
+### Cursor
+
+Agrega lo siguiente a tu `.cursor/mcp.json` (nivel de proyecto) o configuración global de MCP de Cursor:
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Reemplaza `YOUR_COPILOT_API_KEY` con la clave que generaste anteriormente.
+
+### Claude Code
+
+Ejecuta el siguiente comando para añadir el servidor MCP de Copilot:
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+Reemplaza `YOUR_COPILOT_API_KEY` con tu clave.
+
+### Claude Desktop
+
+Claude Desktop requiere [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) para conectarse a servidores MCP basados en HTTP. Añade lo siguiente a tu archivo de configuración de Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json` en macOS):
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+Reemplaza `YOUR_COPILOT_API_KEY` con tu clave.
+
+### VS Code
+
+Añade lo siguiente a tu `settings.json` de VS Code o al `.vscode/settings.json` del espacio de trabajo:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+Reemplaza `YOUR_COPILOT_API_KEY` con tu clave.
+
+<Callout type="info">
+  Para implementaciones auto-alojadas, reemplaza `https://www.sim.ai` con tu URL de Sim auto-alojada.
+</Callout>

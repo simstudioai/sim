@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 import { useReactFlow } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
@@ -239,7 +239,12 @@ export const ComboBox = memo(function ComboBox({
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
-      return defaultValue
+      // Validate that the default value exists in the available (filtered) options
+      const defaultInOptions = evaluatedOptions.find((opt) => getOptionValue(opt) === defaultValue)
+      if (defaultInOptions) {
+        return defaultValue
+      }
+      // Default not available (e.g. provider disabled) — fall through to other fallbacks
     }
 
     // For model field, default to claude-sonnet-4-5 if available

@@ -28,21 +28,21 @@
   "overrides": {
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "next": "16.1.0-canary.21",
-    "@next/env": "16.1.0-canary.21",
+    "next": "16.1.6",
+    "@next/env": "16.1.6",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
-    "@next/env": "16.1.0-canary.21",
+    "@next/env": "16.1.6",
     "@octokit/rest": "^21.0.0",
     "@tailwindcss/typography": "0.5.19",
     "drizzle-kit": "^0.31.4",
     "glob": "13.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.8.3"
+    "turbo": "2.8.10"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

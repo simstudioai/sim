@@ -1,10 +1,7 @@
 name: 'Auto-translate Documentation'
 
 on:
-  schedule:
-    # Run every Sunday at midnight UTC
-    - cron: '0 0 * * 0'
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: # Manual trigger only (scheduled runs disabled)
 
 permissions:
   contents: write

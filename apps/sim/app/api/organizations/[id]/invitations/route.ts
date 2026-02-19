@@ -17,6 +17,7 @@ import {
   renderBatchInvitationEmail,
   renderInvitationEmail,
 } from '@/components/emails'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -411,6 +412,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workspaceInvitationCount: workspaceInvitationIds.length,
     })
 
+    for (const inv of invitationsToCreate) {
+      recordAudit({
+        workspaceId: null,
+        actorId: session.user.id,
+        action: AuditAction.ORG_INVITATION_CREATED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: organizationEntry[0]?.name,
+        description: `Invited ${inv.email} to organization as ${role}`,
+        metadata: { invitationId: inv.id, email: inv.email, role },
+        request,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       message: `${invitationsToCreate.length} invitation(s) sent successfully`,
@@ -530,6 +547,19 @@ export async function DELETE(
       invitationId,
       cancelledBy: session.user.id,
       email: result[0].email,
+    })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.ORG_INVITATION_REVOKED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Revoked organization invitation for ${result[0].email}`,
+      metadata: { invitationId, email: result[0].email },
+      request,
     })
 
     return NextResponse.json({

@@ -275,6 +275,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (generationType === 'cron-expression') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw cron expression (e.g., "0 9 * * 1-5"). Do NOT wrap it in markdown code blocks, backticks, or quotes. Do NOT include any explanation or text before or after the expression.'
+    }
+
     if (generationType === 'json-object') {
       finalSystemPrompt +=
         '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'

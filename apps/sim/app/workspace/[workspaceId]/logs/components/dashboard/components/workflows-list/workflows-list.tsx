@@ -14,7 +14,7 @@ export interface WorkflowExecutionItem {
   overallSuccessRate: number
 }
 
-export function WorkflowsList({
+function WorkflowsListInner({
   filteredExecutions,
   expandedWorkflowId,
   onToggleWorkflow,
@@ -103,7 +103,7 @@ export function WorkflowsList({
                     <StatusBar
                       segments={workflow.segments}
                       selectedSegmentIndices={selectedSegments[workflow.workflowId] || null}
-                      onSegmentClick={onSegmentClick as any}
+                      onSegmentClick={onSegmentClick}
                       workflowId={workflow.workflowId}
                       segmentDurationMs={segmentDurationMs}
                       preferBelow={idx < 2}
@@ -124,4 +124,4 @@ export function WorkflowsList({
   )
 }
 
-export default memo(WorkflowsList)
+export const WorkflowsList = memo(WorkflowsListInner)

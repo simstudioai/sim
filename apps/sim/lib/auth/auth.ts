@@ -395,6 +395,7 @@ export const auth = betterAuth({
         'google-groups',
         'vertex-ai',
         'github-repo',
+        'microsoft-dataverse',
         'microsoft-teams',
         'microsoft-excel',
         'microsoft-planner',
@@ -482,6 +483,17 @@ export const auth = betterAuth({
       if (!result.success) {
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
+    },
+    onPasswordReset: async ({ user: resetUser }) => {
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      recordAudit({
+        actorId: resetUser.id,
+        actorName: resetUser.name,
+        actorEmail: resetUser.email,
+        action: AuditAction.PASSWORD_RESET,
+        resourceType: AuditResourceType.PASSWORD,
+        description: 'Password reset completed',
+      })
     },
   },
   hooks: {
@@ -1139,6 +1151,54 @@ export const auth = betterAuth({
             } catch (error) {
               logger.error('Error in Microsoft getUserInfo', { error })
               throw error
+            }
+          },
+        },
+        {
+          providerId: 'microsoft-dataverse',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: [
+            'openid',
+            'profile',
+            'email',
+            'https://dynamics.microsoft.com/user_impersonation',
+            'offline_access',
+          ],
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          pkce: true,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-dataverse`,
+          getUserInfo: async (tokens) => {
+            // Dataverse access tokens target dynamics.microsoft.com, not graph.microsoft.com,
+            // so we cannot call the Graph API /me endpoint. Instead, we decode the ID token JWT
+            // which is always returned when the openid scope is requested.
+            const idToken = (tokens as Record<string, unknown>).idToken as string | undefined
+            if (!idToken) {
+              logger.error(
+                'Microsoft Dataverse OAuth: no ID token received. Ensure openid scope is requested.'
+              )
+              throw new Error('Microsoft Dataverse OAuth requires an ID token (openid scope)')
+            }
+
+            const parts = idToken.split('.')
+            if (parts.length !== 3) {
+              throw new Error('Microsoft Dataverse OAuth: malformed ID token')
+            }
+
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
+            const now = new Date()
+            return {
+              id: `${payload.oid || payload.sub}-${crypto.randomUUID()}`,
+              name: payload.name || 'Microsoft User',
+              email: payload.preferred_username || payload.email || payload.upn,
+              emailVerified: true,
+              createdAt: now,
+              updatedAt: now,
             }
           },
         },

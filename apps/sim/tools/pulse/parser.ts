@@ -18,7 +18,7 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
     file: {
       type: 'file',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Document file to be processed',
     },
     fileUpload: {
@@ -268,7 +268,7 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
     file: {
       type: 'file',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Document to be processed',
     },
     pages: pulseParserTool.params.pages,

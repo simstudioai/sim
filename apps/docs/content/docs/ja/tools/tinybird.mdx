@@ -1,0 +1,78 @@
+---
+title: Tinybird
+description: Tinybirdでイベントを送信し、データをクエリする
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tinybird"
+  color="#2EF598"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Tinybird](https://tinybird.co)でリアルタイムデータパイプラインと分析を強化しましょう。大量のイベントデータを取り込み、クエリし、API構築を行う高速でスケーラブルなプラットフォームです。Tinybirdは、開発者やデータエンジニアがデータを即座に収集、変換、公開できるようにし、ダッシュボード、アプリケーション、自動化を最新のインサイトで簡単に強化します。
+
+Tinybird連携により、以下が可能になります:
+
+- **大規模なイベントストリーミング:** NDJSONまたはJSONを使用したHTTPベースのAPIで、毎秒数百万のJSONイベントを確実に取り込みます。
+- **低レイテンシーでのデータクエリ:** 複雑なSQLベースの分析と集計クエリをリアルタイムで実行し、ダッシュボード、アラート、レポートに最適です。
+- **即座のAPI公開:** Tinybird UIまたはAPIから直接、クエリ用のAPIエンドポイントを構築・公開できます。
+- **ワークフローの自動化:** 自動化でTinybirdのAPIを使用して、スタック全体でデータを取得、変換、同期します。
+- **監視とデバッグ:** リアルタイム監視により、パイプラインのパフォーマンス、クエリレイテンシー、取り込みの健全性に関するインサイトを取得できます。
+- **安全なアクセス:** 個人またはワークスペースのAPIトークンを使用した、きめ細かい認証とリソーススコープを活用できます。
+
+Tinybirdは、エンジニアリング、分析、プロダクトチームが、最小限の運用オーバーヘッドで超高速かつ常に最新のデータプロダクトを提供できるようにします。生のイベントデータから本番環境対応のエンドポイントまで、数分で実現できます。
+
+今すぐTinybirdをワークフローに接続して、データドリブンな機能、自動化、分析を加速しましょう!
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Events APIを使用してJSONまたはNDJSONイベントをストリーミングするか、Query APIを使用してパイプとデータソースに対してSQLクエリを実行し、Tinybirdと連携します。
+
+## ツール
+
+### `tinybird_events`
+
+Events APIを使用してTinybird Data Sourceにイベントを送信します。JSONおよびNDJSON形式をサポートし、オプションでgzip圧縮が可能です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | はい | Tinybird APIのベースURL（例: https://api.tinybird.co または https://api.us-east.tinybird.co） |
+| `datasource` | string | はい | イベントを送信するTinybird Data Sourceの名前。例: "events_raw"、"user_analytics" |
+| `data` | string | はい | NDJSON（改行区切りJSON）またはJSON文字列として送信するデータ。各イベントは有効なJSONオブジェクトである必要があります。NDJSON例: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
+| `wait` | boolean | いいえ | 応答前にデータベースの確認応答を待機します。より安全な再試行が可能になりますが、レイテンシが発生します。デフォルトはfalseです。 |
+| `format` | string | いいえ | イベントデータの形式: "ndjson"（デフォルト）または "json" |
+| `compression` | string | いいえ | 圧縮形式: "none"（デフォルト）または "gzip" |
+| `token` | string | はい | DATASOURCE:APPENDまたはDATASOURCE:CREATEスコープを持つTinybird APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `successful_rows` | number | 正常に取り込まれた行数 |
+| `quarantined_rows` | number | 隔離された行数（検証失敗） |
+
+### `tinybird_query`
+
+Query APIを使用してTinybird PipesおよびData Sourcesに対してSQLクエリを実行します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `base_url` | string | はい | Tinybird APIのベースURL（例: https://api.tinybird.co） |
+| `query` | string | はい | 実行するSQLクエリ。希望する出力形式を指定してください（例: FORMAT JSON、FORMAT CSV、FORMAT TSV）。JSON形式は構造化データを提供し、その他の形式は生のテキストを返します。例: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
+| `pipeline` | string | いいえ | オプションのパイプ名。指定すると、SELECT * FROM _ 構文が使用可能になります。例: "my_pipe"、"analytics_pipe" |
+| `token` | string | はい | PIPE:READスコープを持つTinybird APIトークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `data` | json | クエリ結果データ。FORMAT JSONの場合：オブジェクトの配列。その他の形式（CSV、TSVなど）の場合：生のテキスト文字列。 |
+| `rows` | number | 返された行数（FORMAT JSONでのみ利用可能） |
+| `statistics` | json | クエリ実行統計 - 経過時間、読み取った行数、読み取ったバイト数（FORMAT JSONでのみ利用可能） |

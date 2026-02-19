@@ -26,6 +26,13 @@ export const s3GetObjectTool: ToolConfig = {
       visibility: 'user-only',
       description: 'Your AWS Secret Access Key',
     },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Optional region override when URL does not include region (e.g., us-east-1, eu-west-1)',
+    },
     s3Uri: {
       type: 'string',
       required: true,
@@ -37,7 +44,7 @@ export const s3GetObjectTool: ToolConfig = {
   request: {
     url: (params) => {
       try {
-        const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+        const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri, params.region)
 
         params.bucketName = bucketName
         params.region = region
@@ -46,7 +53,7 @@ export const s3GetObjectTool: ToolConfig = {
         return `https://${bucketName}.s3.${region}.amazonaws.com/${encodeS3PathComponent(objectKey)}`
       } catch (_error) {
         throw new Error(
-          'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
+          'Invalid S3 Object URL. Use a valid S3 URL and optionally provide region if the URL omits it.'
         )
       }
     },
@@ -55,7 +62,7 @@ export const s3GetObjectTool: ToolConfig = {
       try {
         // Parse S3 URI if not already parsed
         if (!params.bucketName || !params.region || !params.objectKey) {
-          const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+          const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri, params.region)
           params.bucketName = bucketName
           params.region = region
           params.objectKey = objectKey
@@ -102,7 +109,7 @@ export const s3GetObjectTool: ToolConfig = {
   transformResponse: async (response: Response, params) => {
     // Parse S3 URI if not already parsed
     if (!params.bucketName || !params.region || !params.objectKey) {
-      const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+      const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri, params.region)
       params.bucketName = bucketName
       params.region = region
       params.objectKey = objectKey

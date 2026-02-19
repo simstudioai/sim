@@ -16,6 +16,7 @@ import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ClerkBlock } from '@/blocks/blocks/clerk'
+import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
@@ -39,6 +40,7 @@ import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
@@ -77,6 +79,7 @@ import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
+import { MicrosoftDataverseBlock } from '@/blocks/blocks/microsoft_dataverse'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
@@ -146,6 +149,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
+import { VercelBlock } from '@/blocks/blocks/vercel'
 import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
@@ -182,6 +186,7 @@ export const registry: Record<string, BlockConfig> = {
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
+  cloudflare: CloudflareBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
   condition: ConditionBlock,
@@ -215,6 +220,7 @@ export const registry: Record<string, BlockConfig> = {
   gmail_v2: GmailV2Block,
   google_calendar: GoogleCalendarBlock,
   google_calendar_v2: GoogleCalendarV2Block,
+  google_books: GoogleBooksBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,
@@ -257,6 +263,7 @@ export const registry: Record<string, BlockConfig> = {
   mcp: McpBlock,
   mem0: Mem0Block,
   memory: MemoryBlock,
+  microsoft_dataverse: MicrosoftDataverseBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
@@ -330,6 +337,7 @@ export const registry: Record<string, BlockConfig> = {
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
+  vercel: VercelBlock,
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,

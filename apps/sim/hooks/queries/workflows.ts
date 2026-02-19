@@ -8,6 +8,8 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
@@ -223,11 +225,13 @@ export function useCreateWorkflow() {
         sortOrder = variables.sortOrder
       } else {
         const currentWorkflows = useWorkflowRegistry.getState().workflows
-        const targetFolderId = variables.folderId || null
-        const workflowsInFolder = Object.values(currentWorkflows).filter(
-          (w) => w.folderId === targetFolderId
+        const currentFolders = useFolderStore.getState().folders
+        sortOrder = getTopInsertionSortOrder(
+          currentWorkflows,
+          currentFolders,
+          variables.workspaceId,
+          variables.folderId
         )
-        sortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1) - 1
       }
 
       return {
@@ -323,11 +327,8 @@ export function useDuplicateWorkflowMutation() {
     'DuplicateWorkflow',
     (variables, tempId) => {
       const currentWorkflows = useWorkflowRegistry.getState().workflows
-      const targetFolderId = variables.folderId || null
-      const workflowsInFolder = Object.values(currentWorkflows).filter(
-        (w) => w.folderId === targetFolderId
-      )
-      const minSortOrder = workflowsInFolder.reduce((min, w) => Math.min(min, w.sortOrder ?? 0), 1)
+      const currentFolders = useFolderStore.getState().folders
+      const targetFolderId = variables.folderId ?? null
 
       return {
         id: tempId,
@@ -338,7 +339,12 @@ export function useDuplicateWorkflowMutation() {
         color: variables.color,
         workspaceId: variables.workspaceId,
         folderId: targetFolderId,
-        sortOrder: minSortOrder - 1,
+        sortOrder: getTopInsertionSortOrder(
+          currentWorkflows,
+          currentFolders,
+          variables.workspaceId,
+          targetFolderId
+        ),
       }
     }
   )
@@ -641,6 +647,10 @@ export function useDeployChildWorkflow() {
 
       queryClient.invalidateQueries({
         queryKey: workflowKeys.deploymentStatus(variables.workflowId),
+      })
+      // Invalidate workflow state so tool input mappings refresh
+      queryClient.invalidateQueries({
+        queryKey: workflowKeys.state(variables.workflowId),
       })
       // Also invalidate deployment queries
       queryClient.invalidateQueries({

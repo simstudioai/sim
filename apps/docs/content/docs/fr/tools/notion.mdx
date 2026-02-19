@@ -173,3 +173,34 @@ Créer une nouvelle base de données dans Notion avec des propriétés personnal
 
 - Catégorie : `tools`
 - Type : `notion`
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | UUID de la base de données |
+| `url` | chaîne | URL de la base de données Notion |
+| `created_time` | chaîne | Horodatage de création ISO 8601 |
+| `properties` | objet | Schéma des propriétés de la base de données |
+| `title` | chaîne | Titre de la base de données |
+
+### `notion_add_database_row`
+
+Ajouter une nouvelle ligne à une base de données Notion avec des propriétés spécifiées
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `databaseId` | chaîne | Oui | ID de la base de données à laquelle ajouter la ligne |
+| `properties` | json | Oui | Propriétés de la ligne sous forme d'objet JSON correspondant au schéma de la base de données \(par ex., \{"Name": \{"title": \[\{"text": \{"content": "Tâche 1"\}\}\]\}, "Status": \{"select": \{"name": "Terminé"\}\}\}\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | chaîne | UUID de la page |
+| `url` | chaîne | URL de la page Notion |
+| `created_time` | chaîne | Horodatage de création ISO 8601 |
+| `last_edited_time` | chaîne | Horodatage de dernière modification ISO 8601 |
+| `title` | chaîne | Titre de la ligne |

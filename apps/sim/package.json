@@ -125,7 +125,7 @@
     "mysql2": "3.14.3",
     "nanoid": "^3.3.7",
     "neo4j-driver": "6.0.1",
-    "next": "16.1.0-canary.21",
+    "next": "16.1.6",
     "next-mdx-remote": "^5.0.0",
     "next-runtime-env": "3.3.0",
     "next-themes": "^0.4.6",
@@ -208,8 +208,8 @@
     "sharp"
   ],
   "overrides": {
-    "next": "16.1.0-canary.21",
-    "@next/env": "16.1.0-canary.21",
+    "next": "16.1.6",
+    "@next/env": "16.1.6",
     "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   }

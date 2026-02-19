@@ -3,6 +3,7 @@ import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -260,6 +261,20 @@ export async function DELETE(
 
       logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
     }
+
+    recordAudit({
+      workspaceId: webhookData.workflow.workspaceId || null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WEBHOOK_DELETED,
+      resourceType: AuditResourceType.WEBHOOK,
+      resourceId: id,
+      resourceName: foundWebhook.provider || 'generic',
+      description: 'Deleted webhook',
+      metadata: { workflowId: webhookData.workflow.id },
+      request,
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {

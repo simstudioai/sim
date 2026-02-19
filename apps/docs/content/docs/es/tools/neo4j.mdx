@@ -170,3 +170,39 @@ Ejecuta consultas Cypher arbitrarias en la base de datos de grafos Neo4j para op
 
 - Categoría: `tools`
 - Tipo: `neo4j`
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `records` | array | Array de registros devueltos por la consulta |
+| `recordCount` | number | Número de registros devueltos |
+| `summary` | json | Resumen de ejecución con tiempos y contadores |
+
+### `neo4j_introspect`
+
+Inspecciona una base de datos Neo4j para descubrir su esquema, incluyendo etiquetas de nodos, tipos de relaciones, propiedades, restricciones e índices.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Sí | Nombre de host o dirección IP del servidor Neo4j |
+| `port` | number | Sí | Puerto del servidor Neo4j \(predeterminado: 7687 para protocolo Bolt\) |
+| `database` | string | Sí | Nombre de la base de datos a la que conectarse \(p. ej., "neo4j", "movies", "social"\) |
+| `username` | string | Sí | Nombre de usuario de Neo4j |
+| `password` | string | Sí | Contraseña de Neo4j |
+| `encryption` | string | No | Modo de cifrado de conexión \(enabled, disabled\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `labels` | array | Array de etiquetas de nodos en la base de datos |
+| `relationshipTypes` | array | Array de tipos de relaciones en la base de datos |
+| `nodeSchemas` | array | Array de esquemas de nodos con sus propiedades |
+| `relationshipSchemas` | array | Array de esquemas de relaciones con sus propiedades |
+| `constraints` | array | Array de restricciones de la base de datos |
+| `indexes` | array | Array de índices de la base de datos |

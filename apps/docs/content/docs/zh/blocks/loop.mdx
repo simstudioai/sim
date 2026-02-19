@@ -225,3 +225,57 @@ Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
 - **设置合理的限制**：保持迭代次数在合理范围内，以避免长时间的执行
 - **对集合使用 ForEach**：在处理数组或对象时，使用 ForEach 而不是 For 循环
 - **优雅地处理错误**：考虑在循环中添加错误处理，以实现更健壮的工作流程
+
+## 输入与输出
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>循环类型</strong>：可选择 'for'、'forEach'、'while' 或 'doWhile'
+      </li>
+      <li>
+        <strong>迭代次数</strong>：执行的次数（适用于 for 循环）
+      </li>
+      <li>
+        <strong>集合</strong>：要遍历的数组或对象（适用于 forEach 循环）
+      </li>
+      <li>
+        <strong>条件</strong>：要判断的布尔表达式（适用于 while/do-while 循环）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    仅在循环**内部**可用：
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<loop.index>"}</strong>：当前迭代次数（从 0 开始）
+      </li>
+      <li>
+        <strong>{"<loop.currentItem>"}</strong>：当前正在处理的项（仅适用于 forEach）
+      </li>
+      <li>
+        <strong>{"<loop.items>"}</strong>：完整集合（仅适用于 forEach）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>{"<blockname.results>"}</strong>：所有迭代结果的数组（通过区块名访问）
+      </li>
+      <li>
+        <strong>结构</strong>：结果保持迭代顺序
+      </li>
+      <li>
+        <strong>访问</strong>：循环结束后可在后续区块中访问
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+- **设置合理的限制**：保持迭代次数适中，避免执行时间过长
+- **集合处理优先用 ForEach**：处理数组或对象时，优先使用 ForEach 而不是 For 循环
+- **优雅处理错误**：建议在循环内部添加错误处理，使流程更健壮

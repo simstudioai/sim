@@ -1,0 +1,784 @@
+---
+title: Cal Com
+description: Cal.comの予約、イベントタイプ、スケジュール、空き状況を管理
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cal.com](https://cal.com/)は、予約、イベントタイプ、チームの空き状況を簡単に管理できる、柔軟でオープンソースのスケジューリングプラットフォームです。
+
+Cal.comでは、次のことができます。
+
+- **スケジューリングの自動化**: ユーザーが空き時間を確認し、メールのやり取りなしで自動的にミーティングを予約できます。
+- **イベントの管理**: 1対1またはグループミーティングのイベントタイプ、期間、ルールを作成およびカスタマイズできます。
+- **カレンダーの統合**: Google、Outlook、Appleなどのカレンダープロバイダーとシームレスに接続し、二重予約を回避できます。
+- **参加者とゲストの管理**: 参加者情報を収集し、ゲストを管理し、招待状やリマインダーを送信できます。
+- **空き状況の制御**: カスタム勤務時間、バッファ時間、キャンセル/再予約ルールを定義できます。
+- **ワークフローの強化**: 予約が作成、キャンセル、または再スケジュールされたときに、Webhookを介してカスタムアクションをトリガーできます。
+
+Simでは、Cal.com統合により、エージェントがミーティングを予約し、空き状況を確認し、イベントタイプを管理し、スケジューリングタスクをプログラムで自動化できます。これにより、エージェントはミーティングを調整し、ユーザーに代わって予約を送信し、スケジュールを確認し、予約イベントに応答できます。すべて手動介入なしで実行されます。SimとCal.comを接続することで、より広範な自動化ニーズとシームレスに統合できる、高度に自動化されたインテリジェントなスケジューリングワークフローを実現できます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Cal.comをワークフローに統合します。予約、イベントタイプ、スケジュールを作成および管理し、空き時間スロットを確認します。予約の作成、一覧表示、再スケジュール、キャンセル、およびイベントタイプとスケジュールの管理をサポートします。Cal.com Webhookイベント(予約の作成、キャンセル、再スケジュール)に基づいてワークフローをトリガーすることもできます。OAuthを介してCal.comアカウントに接続します。
+
+## ツール
+
+### `calcom_create_booking`
+
+Cal.comで新しい予約を作成
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | はい | 予約するイベントタイプのID |
+| `start` | string | はい | UTC ISO 8601形式の開始時刻（例：2024-01-15T09:00:00Z） |
+| `attendee` | object | はい | 参加者情報オブジェクト（name、email、timeZone、およびオプションのphoneNumberを含む、個別の参加者フィールドから構築） |
+| `guests` | array | いいえ | ゲストのメールアドレスの配列 |
+| `items` | string | いいえ | ゲストのメールアドレス |
+| `lengthInMinutes` | number | いいえ | 予約の時間（分単位、イベントタイプのデフォルトを上書き） |
+| `metadata` | object | いいえ | 予約に添付するカスタムメタデータ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 作成された予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプのスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合あり） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合あり） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `status` | string | 予約ステータス（例：accepted、pending、cancelled） |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 時間（分単位） |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `meetingUrl` | string | ミーティングに参加するためのURL |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `absentHost` | boolean | ホストが欠席したかどうか |
+|   ↳ `guests` | array | ゲストのメールアドレス |
+|   ↳ `bookingFieldsResponses` | json | カスタム予約フィールドの回答（イベントタイプの設定に基づく動的キー） |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `icsUid` | string | ICSカレンダーUID |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+
+### `calcom_get_booking`
+
+UIDによる特定の予約の詳細を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | はい | 予約の一意識別子（UID） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `description` | string | 予約の説明 |
+|   ↳ `status` | string | 予約ステータス（例：承認済み、保留中、キャンセル済み） |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 所要時間（分） |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `meetingUrl` | string | ミーティングに参加するためのURL |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `absentHost` | boolean | ホストが欠席したかどうか |
+|   ↳ `guests` | array | ゲストのメールアドレス |
+|   ↳ `bookingFieldsResponses` | json | カスタム予約フィールドの回答（イベントタイプの設定に基づく動的キー） |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `rating` | number | 予約の評価 |
+|   ↳ `icsUid` | string | ICSカレンダーUID |
+|   ↳ `cancellationReason` | string | キャンセルされた場合のキャンセル理由 |
+|   ↳ `reschedulingReason` | string | 再スケジュールされた場合の再スケジュール理由 |
+|   ↳ `rescheduledFromUid` | string | この予約が再スケジュールされた場合の元の予約UID |
+|   ↳ `rescheduledToUid` | string | 再スケジュール後の新しい予約UID |
+|   ↳ `cancelledByEmail` | string | 予約をキャンセルした人のメール |
+|   ↳ `rescheduledByEmail` | string | 予約を再スケジュールした人のメール |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `updatedAt` | string | 予約が最後に更新された日時 |
+
+### `calcom_list_bookings`
+
+すべての予約を一覧表示（オプションでステータスフィルタ可能）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | いいえ | ステータスで予約をフィルタ: upcoming、recurring、past、cancelled、unconfirmed |
+| `take` | number | いいえ | 返す予約の数（ページネーション制限） |
+| `skip` | number | いいえ | スキップする予約の数（ページネーションオフセット） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | array | 予約の配列 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合あり） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストユーザーID |
+|     ↳ `name` | string | ホスト表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合あり） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `description` | string | 予約の説明 |
+|   ↳ `status` | string | 予約ステータス（例: accepted、pending、cancelled） |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 分単位の期間 |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `meetingUrl` | string | ミーティングに参加するURL |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `absentHost` | boolean | ホストが欠席したかどうか |
+|   ↳ `guests` | array | ゲストのメールアドレス |
+|   ↳ `bookingFieldsResponses` | json | カスタム予約フィールドの回答（イベントタイプ設定に基づく動的キー） |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `rating` | number | 予約の評価 |
+|   ↳ `icsUid` | string | ICSカレンダーUID |
+|   ↳ `cancellationReason` | string | キャンセルされた場合のキャンセル理由 |
+|   ↳ `cancelledByEmail` | string | 予約をキャンセルした人のメール |
+|   ↳ `reschedulingReason` | string | 再スケジュールされた場合の再スケジュール理由 |
+|   ↳ `rescheduledByEmail` | string | 予約を再スケジュールした人のメール |
+|   ↳ `rescheduledFromUid` | string | この予約が再スケジュールされた場合の元の予約UID |
+|   ↳ `rescheduledToUid` | string | 再スケジュール後の新しい予約UID |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `updatedAt` | string | 予約が最後に更新された日時 |
+| `pagination` | object | ページネーションメタデータ |
+|   ↳ `totalItems` | number | アイテムの総数 |
+|   ↳ `remainingItems` | number | 現在のページ以降の残りアイテム数 |
+|   ↳ `returnedItems` | number | このレスポンスで返されたアイテム数 |
+|   ↳ `itemsPerPage` | number | ページあたりのアイテム数 |
+|   ↳ `currentPage` | number | 現在のページ番号 |
+|   ↳ `totalPages` | number | ページの総数 |
+|   ↳ `hasNextPage` | boolean | 次のページがあるかどうか |
+|   ↳ `hasPreviousPage` | boolean | 前のページがあるかどうか |
+
+### `calcom_cancel_booking`
+
+既存の予約をキャンセルする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | はい | キャンセルする予約の一意識別子（UID） |
+| `cancellationReason` | string | いいえ | 予約をキャンセルする理由 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | キャンセルされた予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `cancellationReason` | string | キャンセルされた場合のキャンセル理由 |
+|   ↳ `cancelledByEmail` | string | 予約をキャンセルした人のメール |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 分単位の所要時間 |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `status` | string | 予約ステータス（キャンセル済みである必要がある） |
+
+### `calcom_reschedule_booking`
+
+既存の予約を新しい時間に変更する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | はい | 変更する予約の一意識別子（UID） |
+| `start` | string | はい | UTC ISO 8601形式の新しい開始時刻（例：2024-01-15T09:00:00Z） |
+| `reschedulingReason` | string | いいえ | 予約を変更する理由 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 変更された予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `status` | string | 予約ステータス（例：accepted、pending、cancelled） |
+|   ↳ `reschedulingReason` | string | 変更された場合の変更理由 |
+|   ↳ `rescheduledFromUid` | string | この予約が変更された場合の元の予約UID |
+|   ↳ `rescheduledByEmail` | string | 予約を変更した人のメール |
+|   ↳ `duration` | number | 所要時間（分） |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `meetingUrl` | string | ミーティングに参加するためのURL |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `guests` | array | ゲストのメールアドレス |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `icsUid` | string | ICSカレンダーUID |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `uid` | string | 新しい予約の一意識別子 |
+|   ↳ `start` | string | ISO 8601形式の新しい開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の新しい終了時刻 |
+
+### `calcom_confirm_booking`
+
+確認が必要な保留中の予約を確定する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | はい | 確定する予約の一意識別子(UID) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 確定された予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール(実際のメールと異なる場合がある) |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン(IANA形式) |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定(ISOコード) |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール(実際のメールと異なる場合がある) |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン(IANA形式) |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 所要時間(分) |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `meetingUrl` | string | ミーティングに参加するためのURL |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `guests` | array | ゲストのメールアドレス |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ(動的なキーと値のペア) |
+|   ↳ `icsUid` | string | ICSカレンダーUID |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `status` | string | 予約ステータス(承認済み/確定済みである必要がある) |
+
+### `calcom_decline_booking`
+
+保留中の予約リクエストを拒否する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `bookingUid` | string | はい | 拒否する予約の一意識別子（UID） |
+| `reason` | string | いいえ | 予約を拒否する理由 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 拒否された予約の詳細 |
+|   ↳ `eventType` | object | イベントタイプの詳細 |
+|     ↳ `id` | number | イベントタイプID |
+|     ↳ `slug` | string | イベントタイプスラッグ |
+|   ↳ `attendees` | array | 参加者のリスト |
+|     ↳ `name` | string | 参加者名 |
+|     ↳ `email` | string | 参加者の実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `timeZone` | string | 参加者のタイムゾーン（IANA形式） |
+|     ↳ `phoneNumber` | string | 参加者の電話番号 |
+|     ↳ `language` | string | 参加者の言語設定（ISOコード） |
+|     ↳ `absent` | boolean | 参加者が欠席したかどうか |
+|   ↳ `hosts` | array | ホストのリスト |
+|     ↳ `id` | number | ホストのユーザーID |
+|     ↳ `name` | string | ホストの表示名 |
+|     ↳ `email` | string | ホストの実際のメールアドレス |
+|     ↳ `displayEmail` | string | 公開表示されるメール（実際のメールと異なる場合がある） |
+|     ↳ `username` | string | ホストのCal.comユーザー名 |
+|     ↳ `timeZone` | string | ホストのタイムゾーン（IANA形式） |
+|   ↳ `id` | number | 数値の予約ID |
+|   ↳ `uid` | string | 予約の一意識別子 |
+|   ↳ `title` | string | 予約のタイトル |
+|   ↳ `cancellationReason` | string | キャンセルされた場合のキャンセル理由 |
+|   ↳ `start` | string | ISO 8601形式の開始時刻 |
+|   ↳ `end` | string | ISO 8601形式の終了時刻 |
+|   ↳ `duration` | number | 分単位の期間 |
+|   ↳ `eventTypeId` | number | イベントタイプID |
+|   ↳ `location` | string | 予約の場所 |
+|   ↳ `metadata` | json | 予約に添付されたカスタムメタデータ（動的なキーと値のペア） |
+|   ↳ `createdAt` | string | 予約が作成された日時 |
+|   ↳ `status` | string | 予約ステータス（キャンセル済み/拒否済みである必要がある） |
+
+### `calcom_create_event_type`
+
+Cal.comで新しいイベントタイプを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | はい | イベントタイプのタイトル |
+| `slug` | string | はい | イベントタイプURLの一意のスラッグ |
+| `lengthInMinutes` | number | はい | イベントの所要時間(分) |
+| `description` | string | いいえ | イベントタイプの説明 |
+| `slotInterval` | number | いいえ | 予約可能な時間枠の間隔(分) |
+| `minimumBookingNotice` | number | いいえ | 予約前に必要な最小通知時間(分) |
+| `beforeEventBuffer` | number | いいえ | イベント前のバッファ時間(分) |
+| `afterEventBuffer` | number | いいえ | イベント後のバッファ時間(分) |
+| `scheduleId` | number | いいえ | 空き状況に使用するスケジュールのID |
+| `disableGuests` | boolean | いいえ | 予約にゲストを追加できないようにするかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 作成されたイベントタイプの詳細 |
+|   ↳ `id` | number | イベントタイプID |
+|   ↳ `title` | string | イベントタイプのタイトル |
+|   ↳ `slug` | string | イベントタイプのスラッグ |
+|   ↳ `description` | string | イベントタイプの説明 |
+|   ↳ `lengthInMinutes` | number | 所要時間(分) |
+|   ↳ `slotInterval` | number | 時間枠の間隔(分) |
+|   ↳ `minimumBookingNotice` | number | 最小予約通知時間(分) |
+|   ↳ `beforeEventBuffer` | number | イベント前のバッファ(分) |
+|   ↳ `afterEventBuffer` | number | イベント後のバッファ(分) |
+|   ↳ `scheduleId` | number | スケジュールID |
+|   ↳ `disableGuests` | boolean | ゲストが無効かどうか |
+|   ↳ `createdAt` | string | 作成日時のISOタイムスタンプ |
+|   ↳ `updatedAt` | string | 最終更新日時のISOタイムスタンプ |
+
+### `calcom_get_event_type`
+
+特定のイベントタイプに関する詳細情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | はい | 取得するイベントタイプID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | イベントタイプの詳細 |
+|   ↳ `id` | number | イベントタイプID |
+|   ↳ `title` | string | イベントタイプのタイトル |
+|   ↳ `slug` | string | イベントタイプのスラッグ |
+|   ↳ `description` | string | イベントタイプの説明 |
+|   ↳ `lengthInMinutes` | number | 所要時間(分) |
+|   ↳ `slotInterval` | number | スロット間隔(分) |
+|   ↳ `minimumBookingNotice` | number | 最小予約通知時間(分) |
+|   ↳ `beforeEventBuffer` | number | イベント前のバッファ時間(分) |
+|   ↳ `afterEventBuffer` | number | イベント後のバッファ時間(分) |
+|   ↳ `scheduleId` | number | スケジュールID |
+|   ↳ `disableGuests` | boolean | ゲストが無効かどうか |
+|   ↳ `createdAt` | string | 作成日時のISOタイムスタンプ |
+|   ↳ `updatedAt` | string | 最終更新日時のISOタイムスタンプ |
+
+### `calcom_list_event_types`
+
+すべてのイベントタイプのリストを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `sortCreatedAt` | string | いいえ | 作成日でソート:"asc"または"desc" |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | array | イベントタイプの配列 |
+|   ↳ `id` | number | イベントタイプID |
+|   ↳ `title` | string | イベントタイプのタイトル |
+|   ↳ `slug` | string | イベントタイプのスラッグ |
+|   ↳ `description` | string | イベントタイプの説明 |
+|   ↳ `lengthInMinutes` | number | 所要時間(分) |
+|   ↳ `slotInterval` | number | スロット間隔(分) |
+|   ↳ `minimumBookingNotice` | number | 最小予約通知時間(分) |
+|   ↳ `beforeEventBuffer` | number | イベント前のバッファ時間(分) |
+|   ↳ `afterEventBuffer` | number | イベント後のバッファ時間(分) |
+|   ↳ `scheduleId` | number | スケジュールID |
+|   ↳ `disableGuests` | boolean | ゲストが無効かどうか |
+|   ↳ `createdAt` | string | 作成日時(ISO形式) |
+|   ↳ `updatedAt` | string | 最終更新日時(ISO形式) |
+
+### `calcom_update_event_type`
+
+Cal.comで既存のイベントタイプを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | はい | 更新するイベントタイプID(例: 12345) |
+| `title` | string | いいえ | イベントタイプのタイトル |
+| `slug` | string | いいえ | イベントタイプURLの一意のスラッグ |
+| `lengthInMinutes` | number | いいえ | イベントの所要時間(分) |
+| `description` | string | いいえ | イベントタイプの説明 |
+| `slotInterval` | number | いいえ | 予約可能なスロット間の間隔(分) |
+| `minimumBookingNotice` | number | いいえ | 予約前に必要な最小通知時間(分) |
+| `beforeEventBuffer` | number | いいえ | イベント前のバッファ時間(分) |
+| `afterEventBuffer` | number | いいえ | イベント後のバッファ時間(分) |
+| `scheduleId` | number | いいえ | 空き状況に使用するスケジュールのID |
+| `disableGuests` | boolean | いいえ | 予約にゲストを追加できないようにするかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 更新されたイベントタイプの詳細 |
+|   ↳ `id` | number | イベントタイプID |
+|   ↳ `title` | string | イベントタイプのタイトル |
+|   ↳ `slug` | string | イベントタイプのスラッグ |
+|   ↳ `description` | string | イベントタイプの説明 |
+|   ↳ `lengthInMinutes` | number | 所要時間(分) |
+|   ↳ `slotInterval` | number | スロット間隔(分) |
+|   ↳ `minimumBookingNotice` | number | 最小予約通知時間(分) |
+|   ↳ `beforeEventBuffer` | number | イベント前のバッファ時間(分) |
+|   ↳ `afterEventBuffer` | number | イベント後のバッファ時間(分) |
+|   ↳ `scheduleId` | number | スケジュールID |
+|   ↳ `disableGuests` | boolean | ゲストが無効かどうか |
+|   ↳ `createdAt` | string | 作成日時(ISO形式) |
+|   ↳ `updatedAt` | string | 最終更新日時(ISO形式) |
+
+### `calcom_delete_event_type`
+
+Cal.comからイベントタイプを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `eventTypeId` | number | はい | 削除するイベントタイプID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 削除されたイベントタイプの詳細 |
+|   ↳ `id` | number | イベントタイプID |
+|   ↳ `lengthInMinutes` | number | 所要時間(分) |
+|   ↳ `title` | string | イベントタイプのタイトル |
+|   ↳ `slug` | string | イベントタイプのスラッグ |
+
+### `calcom_create_schedule`
+
+Cal.comで新しい空き時間スケジュールを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | はい | スケジュールの名前 |
+| `timeZone` | string | はい | スケジュールのタイムゾーン（例：America/New_York） |
+| `isDefault` | boolean | はい | このスケジュールをデフォルトにするかどうか |
+| `availability` | array | いいえ | スケジュールの空き時間間隔 |
+| `items` | object | いいえ | 空き時間間隔 |
+| `properties` | array | いいえ | 曜日（月曜日、火曜日、水曜日、木曜日、金曜日、土曜日、日曜日） |
+| `days` | array | いいえ | 曜日（月曜日、火曜日、水曜日、木曜日、金曜日、土曜日、日曜日） |
+| `startTime` | string | いいえ | HH:MM形式の開始時刻 |
+| `endTime` | string | いいえ | HH:MM形式の終了時刻 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 作成されたスケジュールデータ |
+|   ↳ `id` | number | スケジュールID |
+|   ↳ `ownerId` | number | 所有者ユーザーID |
+|   ↳ `name` | string | スケジュール名 |
+|   ↳ `timeZone` | string | タイムゾーン（例：America/New_York） |
+|   ↳ `isDefault` | boolean | デフォルトスケジュールかどうか |
+|   ↳ `availability` | array | 空き時間ウィンドウ |
+|     ↳ `days` | array | 曜日（月曜日、火曜日など） |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+|   ↳ `overrides` | array | 日付固有の空き時間オーバーライド |
+|     ↳ `date` | string | YYYY-MM-DD形式の日付 |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+
+### `calcom_get_schedule`
+
+Cal.comから特定のスケジュールをIDで取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | はい | 取得するスケジュールのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | スケジュールデータ |
+|   ↳ `id` | number | スケジュールID |
+|   ↳ `ownerId` | number | オーナーユーザーID |
+|   ↳ `name` | string | スケジュール名 |
+|   ↳ `timeZone` | string | タイムゾーン（例：America/New_York） |
+|   ↳ `isDefault` | boolean | デフォルトスケジュールかどうか |
+|   ↳ `availability` | array | 空き時間枠 |
+|     ↳ `days` | array | 曜日（月曜日、火曜日など） |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+|   ↳ `overrides` | array | 日付固有の空き時間上書き |
+|     ↳ `date` | string | YYYY-MM-DD形式の日付 |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+
+### `calcom_list_schedules`
+
+Cal.comからすべての空き時間スケジュールを一覧表示
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | array | スケジュールオブジェクトの配列 |
+|   ↳ `id` | number | スケジュールID |
+|   ↳ `ownerId` | number | オーナーユーザーID |
+|   ↳ `name` | string | スケジュール名 |
+|   ↳ `timeZone` | string | タイムゾーン（例：America/New_York） |
+|   ↳ `isDefault` | boolean | デフォルトスケジュールかどうか |
+|   ↳ `availability` | array | 空き時間枠 |
+|     ↳ `days` | array | 曜日（月曜日、火曜日など） |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+|   ↳ `overrides` | array | 日付固有の空き時間上書き |
+|     ↳ `date` | string | YYYY-MM-DD形式の日付 |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+
+### `calcom_update_schedule`
+
+Cal.comで既存のスケジュールを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | はい | 更新するスケジュールのID |
+| `name` | string | いいえ | スケジュールの新しい名前 |
+| `timeZone` | string | いいえ | スケジュールの新しいタイムゾーン（例：America/New_York） |
+| `isDefault` | boolean | いいえ | このスケジュールをデフォルトにするかどうか |
+| `availability` | array | いいえ | スケジュールの新しい利用可能時間帯 |
+| `items` | object | いいえ | 利用可能時間帯 |
+| `properties` | array | いいえ | 曜日（月曜日、火曜日、水曜日、木曜日、金曜日、土曜日、日曜日） |
+| `days` | array | いいえ | 曜日（月曜日、火曜日、水曜日、木曜日、金曜日、土曜日、日曜日） |
+| `startTime` | string | いいえ | HH:MM形式の開始時刻 |
+| `endTime` | string | いいえ | HH:MM形式の終了時刻 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | 更新されたスケジュールデータ |
+|   ↳ `id` | number | スケジュールID |
+|   ↳ `ownerId` | number | 所有者のユーザーID |
+|   ↳ `name` | string | スケジュール名 |
+|   ↳ `timeZone` | string | タイムゾーン（例：America/New_York） |
+|   ↳ `isDefault` | boolean | これがデフォルトのスケジュールかどうか |
+|   ↳ `availability` | array | 利用可能時間帯 |
+|     ↳ `days` | array | 曜日（月曜日、火曜日など） |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+|   ↳ `overrides` | array | 日付固有の利用可能時間の上書き |
+|     ↳ `date` | string | YYYY-MM-DD形式の日付 |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+
+### `calcom_delete_schedule`
+
+Cal.comからスケジュールを削除
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `scheduleId` | string | はい | 削除するスケジュールのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス（成功またはエラー） |
+
+### `calcom_get_default_schedule`
+
+Cal.comからデフォルトの空き時間スケジュールを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | object | デフォルトスケジュールデータ |
+|   ↳ `id` | number | スケジュールID |
+|   ↳ `ownerId` | number | 所有者ユーザーID |
+|   ↳ `name` | string | スケジュール名 |
+|   ↳ `timeZone` | string | タイムゾーン（例：America/New_York） |
+|   ↳ `isDefault` | boolean | これがデフォルトスケジュールかどうか |
+|   ↳ `availability` | array | 空き時間枠 |
+|     ↳ `days` | array | 曜日（月曜日、火曜日など） |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+|   ↳ `overrides` | array | 日付固有の空き時間上書き |
+|     ↳ `date` | string | YYYY-MM-DD形式の日付 |
+|     ↳ `startTime` | string | HH:MM形式の開始時刻 |
+|     ↳ `endTime` | string | HH:MM形式の終了時刻 |
+
+### `calcom_get_slots`
+
+Cal.comのイベントタイプで、指定した時間範囲内の予約可能なスロットを取得します
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `start` | string | はい | UTC ISO 8601形式での時間範囲の開始時刻（例：2024-01-15T00:00:00Z） |
+| `end` | string | はい | UTC ISO 8601形式での時間範囲の終了時刻（例：2024-01-22T00:00:00Z） |
+| `eventTypeId` | number | いいえ | 直接検索用のイベントタイプID |
+| `eventTypeSlug` | string | いいえ | イベントタイプのスラッグ（usernameの設定が必要） |
+| `username` | string | いいえ | 個人用イベントタイプのユーザー名（eventTypeSlug使用時は必須） |
+| `timeZone` | string | いいえ | 返されるスロットのタイムゾーン（デフォルトはUTC） |
+| `duration` | number | いいえ | スロットの長さ（分単位） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `status` | string | レスポンスステータス |
+| `data` | json | 日付ごとにグループ化された利用可能な時間スロット（YYYY-MM-DD形式のキー）。各日付は、開始時刻、オプションの終了時刻、および座席制イベント情報を含むスロットオブジェクトの配列にマッピングされます。 |

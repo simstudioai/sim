@@ -12,7 +12,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -700,15 +700,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
     let isStreamClosed = false
 
+    const eventWriter = createExecutionEventWriter(executionId)
+    setExecutionMeta(executionId, {
+      status: 'active',
+      userId: actorUserId,
+      workflowId,
+    }).catch(() => {})
+
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const sendEvent = (event: ExecutionEvent) => {
-          if (isStreamClosed) return
+        let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
 
-          try {
-            controller.enqueue(encodeSSEEvent(event))
-          } catch {
-            isStreamClosed = true
+        const sendEvent = (event: ExecutionEvent) => {
+          if (!isStreamClosed) {
+            try {
+              controller.enqueue(encodeSSEEvent(event))
+            } catch {
+              isStreamClosed = true
+            }
+          }
+          if (event.type !== 'stream:chunk' && event.type !== 'stream:done') {
+            eventWriter.write(event).catch(() => {})
           }
         }
 
@@ -829,14 +841,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
-            let chunkCount = 0
 
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
-                chunkCount++
                 const chunk = decoder.decode(value, { stream: true })
                 sendEvent({
                   type: 'stream:chunk',
@@ -951,6 +961,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   duration: result.metadata?.duration || 0,
                 },
               })
+              finalMetaStatus = 'error'
             } else {
               logger.info(`[${requestId}] Workflow execution was cancelled`)
 
@@ -963,6 +974,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   duration: result.metadata?.duration || 0,
                 },
               })
+              finalMetaStatus = 'cancelled'
             }
             return
           }
@@ -986,6 +998,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
+          finalMetaStatus = 'complete'
         } catch (error: unknown) {
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
@@ -1017,7 +1030,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               duration: executionResult?.metadata?.duration || 0,
             },
           })
+          finalMetaStatus = 'error'
         } finally {
+          try {
+            await eventWriter.close()
+          } catch (closeError) {
+            logger.warn(`[${requestId}] Failed to close event writer`, {
+              error: closeError instanceof Error ? closeError.message : String(closeError),
+            })
+          }
+          if (finalMetaStatus) {
+            setExecutionMeta(executionId, { status: finalMetaStatus }).catch(() => {})
+          }
           timeoutController.cleanup()
           if (executionId) {
             await cleanupExecutionBase64Cache(executionId)
@@ -1032,10 +1056,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
-        timeoutController.cleanup()
-        logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
-        timeoutController.abort()
-        markExecutionCancelled(executionId).catch(() => {})
+        logger.info(`[${requestId}] Client disconnected from SSE stream`)
       },
     })
 

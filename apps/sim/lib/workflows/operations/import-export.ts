@@ -583,7 +583,10 @@ export function parseWorkflowJson(
       loops: workflowData.loops || {},
       parallels: workflowData.parallels || {},
       metadata: workflowData.metadata,
-      variables: Array.isArray(workflowData.variables) ? workflowData.variables : undefined,
+      variables:
+        workflowData.variables && typeof workflowData.variables === 'object'
+          ? workflowData.variables
+          : undefined,
     }
 
     if (regenerateIdsFlag) {

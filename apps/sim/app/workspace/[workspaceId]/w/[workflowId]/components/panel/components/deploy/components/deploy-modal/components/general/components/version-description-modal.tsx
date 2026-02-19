@@ -113,7 +113,7 @@ export function VersionDescriptionModal({
               className='min-h-[120px] resize-none'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
+              maxLength={2000}
               disabled={isGenerating}
             />
             <div className='flex items-center justify-between'>
@@ -123,7 +123,7 @@ export function VersionDescriptionModal({
                 </p>
               )}
               {!updateMutation.error && !generateMutation.error && <div />}
-              <p className='text-[11px] text-[var(--text-tertiary)]'>{description.length}/500</p>
+              <p className='text-[11px] text-[var(--text-tertiary)]'>{description.length}/2000</p>
             </div>
           </ModalBody>
           <ModalFooter>

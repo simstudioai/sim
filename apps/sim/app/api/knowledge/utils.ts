@@ -99,7 +99,7 @@ export interface EmbeddingData {
 
 export interface KnowledgeBaseAccessResult {
   hasAccess: true
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId' | 'name'>
 }
 
 export interface KnowledgeBaseAccessDenied {
@@ -113,7 +113,7 @@ export type KnowledgeBaseAccessCheck = KnowledgeBaseAccessResult | KnowledgeBase
 export interface DocumentAccessResult {
   hasAccess: true
   document: DocumentData
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId' | 'name'>
 }
 
 export interface DocumentAccessDenied {
@@ -128,7 +128,7 @@ export interface ChunkAccessResult {
   hasAccess: true
   chunk: EmbeddingData
   document: DocumentData
-  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId'>
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId' | 'workspaceId' | 'name'>
 }
 
 export interface ChunkAccessDenied {
@@ -151,6 +151,7 @@ export async function checkKnowledgeBaseAccess(
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
+      name: knowledgeBase.name,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -194,6 +195,7 @@ export async function checkKnowledgeBaseWriteAccess(
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
+      name: knowledgeBase.name,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))

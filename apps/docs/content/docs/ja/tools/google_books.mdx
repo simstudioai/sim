@@ -1,0 +1,92 @@
+---
+title: Google Books
+description: 書籍情報の検索と取得
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_books"
+  color="#FFFFFF"
+/>
+
+## 使用方法
+
+Google Books APIを使用して書籍を検索します。タイトル、著者、ISBN、またはキーワードで書籍を検索し、説明、評価、出版詳細を含む特定の書籍に関する詳細情報を取得できます。
+
+## ツール
+
+### `google_books_volume_search`
+
+Google Books APIを使用して書籍を検索
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Books APIキー |
+| `query` | string | はい | 検索クエリ。特殊キーワードをサポート: intitle:, inauthor:, inpublisher:, subject:, isbn: |
+| `filter` | string | いいえ | 利用可能性で結果をフィルタ \(partial, full, free-ebooks, paid-ebooks, ebooks\) |
+| `printType` | string | いいえ | 印刷タイプで制限 \(all, books, magazines\) |
+| `orderBy` | string | いいえ | 並び順 \(relevance, newest\) |
+| `startIndex` | number | いいえ | 返す最初の結果のインデックス \(ページネーション用\) |
+| `maxResults` | number | いいえ | 返す結果の最大数 \(1-40\) |
+| `langRestrict` | string | いいえ | 特定の言語に結果を制限 \(ISO 639-1コード\) |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `totalItems` | number | 一致する結果の総数 |
+| `volumes` | array | 一致する書籍のリスト |
+|   ↳ `id` | string | 書籍ID |
+|   ↳ `title` | string | 書籍タイトル |
+|   ↳ `subtitle` | string | 書籍サブタイトル |
+|   ↳ `authors` | array | 著者のリスト |
+|   ↳ `publisher` | string | 出版社名 |
+|   ↳ `publishedDate` | string | 出版日 |
+|   ↳ `description` | string | 書籍の説明 |
+|   ↳ `pageCount` | number | ページ数 |
+|   ↳ `categories` | array | 書籍のカテゴリ |
+|   ↳ `averageRating` | number | 平均評価 \(1-5\) |
+|   ↳ `ratingsCount` | number | 評価数 |
+|   ↳ `language` | string | 言語コード |
+|   ↳ `previewLink` | string | Google Booksのプレビューへのリンク |
+|   ↳ `infoLink` | string | 情報ページへのリンク |
+|   ↳ `thumbnailUrl` | string | 書籍カバーのサムネイルURL |
+|   ↳ `isbn10` | string | ISBN-10識別子 |
+|   ↳ `isbn13` | string | ISBN-13識別子 |
+
+### `google_books_volume_details`
+
+特定の書籍ボリュームに関する詳細情報を取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | はい | Google Books APIキー |
+| `volumeId` | string | はい | 取得するボリュームのID |
+| `projection` | string | いいえ | プロジェクションレベル（full、lite） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `id` | string | ボリュームID |
+| `title` | string | 書籍タイトル |
+| `subtitle` | string | 書籍サブタイトル |
+| `authors` | array | 著者リスト |
+| `publisher` | string | 出版社名 |
+| `publishedDate` | string | 出版日 |
+| `description` | string | 書籍説明 |
+| `pageCount` | number | ページ数 |
+| `categories` | array | 書籍カテゴリ |
+| `averageRating` | number | 平均評価（1-5） |
+| `ratingsCount` | number | 評価数 |
+| `language` | string | 言語コード |
+| `previewLink` | string | Google Booksのプレビューへのリンク |
+| `infoLink` | string | 情報ページへのリンク |
+| `thumbnailUrl` | string | 書籍カバーのサムネイルURL |
+| `isbn10` | string | ISBN-10識別子 |
+| `isbn13` | string | ISBN-13識別子 |

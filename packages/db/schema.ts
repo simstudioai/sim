@@ -726,6 +726,61 @@ export const userStats = pgTable('user_stats', {
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
 })
 
+export const referralCampaigns = pgTable(
+  'referral_campaigns',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    code: text('code').unique(),
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmContent: text('utm_content'),
+    bonusCreditAmount: decimal('bonus_credit_amount').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    activeIdx: index('referral_campaigns_active_idx').on(table.isActive),
+  })
+)
+
+export const referralAttribution = pgTable(
+  'referral_attribution',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' })
+      .unique(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    campaignId: text('campaign_id').references(() => referralCampaigns.id, {
+      onDelete: 'set null',
+    }),
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmContent: text('utm_content'),
+    referrerUrl: text('referrer_url'),
+    landingPage: text('landing_page'),
+    bonusCreditAmount: decimal('bonus_credit_amount').notNull().default('0'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('referral_attribution_user_id_idx').on(table.userId),
+    orgUniqueIdx: uniqueIndex('referral_attribution_org_unique_idx')
+      .on(table.organizationId)
+      .where(sql`${table.organizationId} IS NOT NULL`),
+    campaignIdIdx: index('referral_attribution_campaign_id_idx').on(table.campaignId),
+    utmCampaignIdx: index('referral_attribution_utm_campaign_idx').on(table.utmCampaign),
+    utmContentIdx: index('referral_attribution_utm_content_idx').on(table.utmContent),
+    createdAtIdx: index('referral_attribution_created_at_idx').on(table.createdAt),
+  })
+)
+
 export const customTools = pgTable(
   'custom_tools',
   {
@@ -1968,6 +2023,35 @@ export const a2aPushNotificationConfig = pgTable(
   (table) => ({
     taskIdIdx: index('a2a_push_notification_config_task_id_idx').on(table.taskId),
     taskIdUnique: uniqueIndex('a2a_push_notification_config_task_unique').on(table.taskId),
+  })
+)
+
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }),
+    action: text('action').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id'),
+    actorName: text('actor_name'),
+    actorEmail: text('actor_email'),
+    resourceName: text('resource_name'),
+    description: text('description'),
+    metadata: jsonb('metadata').default('{}'),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceCreatedIdx: index('audit_log_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
+    resourceIdx: index('audit_log_resource_idx').on(table.resourceType, table.resourceId),
+    actionIdx: index('audit_log_action_idx').on(table.action),
   })
 )
 

@@ -37,7 +37,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     },
     ref
   ) => {
-    const [inputValue, setInputValue] = useState(currentLimit.toString())
+    const [inputValue, setInputValue] = useState(() => currentLimit.toString())
     const [hasError, setHasError] = useState(false)
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)

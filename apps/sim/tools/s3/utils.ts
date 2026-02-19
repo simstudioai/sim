@@ -20,7 +20,10 @@ export function getSignatureKey(
   return kSigning
 }
 
-export function parseS3Uri(s3Uri: string): {
+export function parseS3Uri(
+  s3Uri: string,
+  fallbackRegion?: string
+): {
   bucketName: string
   region: string
   objectKey: string
@@ -28,10 +31,55 @@ export function parseS3Uri(s3Uri: string): {
   try {
     const url = new URL(s3Uri)
     const hostname = url.hostname
-    const bucketName = hostname.split('.')[0]
-    const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
-    const region = regionMatch ? regionMatch[1] : 'us-east-1'
-    const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+    const normalizedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
+
+    const virtualHostedDualstackMatch = hostname.match(
+      /^(.+)\.s3\.dualstack\.([^.]+)\.amazonaws\.com(?:\.cn)?$/
+    )
+    const virtualHostedRegionalMatch = hostname.match(
+      /^(.+)\.s3[.-]([^.]+)\.amazonaws\.com(?:\.cn)?$/
+    )
+    const virtualHostedGlobalMatch = hostname.match(/^(.+)\.s3\.amazonaws\.com(?:\.cn)?$/)
+
+    const pathStyleDualstackMatch = hostname.match(
+      /^s3\.dualstack\.([^.]+)\.amazonaws\.com(?:\.cn)?$/
+    )
+    const pathStyleRegionalMatch = hostname.match(/^s3[.-]([^.]+)\.amazonaws\.com(?:\.cn)?$/)
+    const pathStyleGlobalMatch = hostname.match(/^s3\.amazonaws\.com(?:\.cn)?$/)
+
+    const isPathStyleHost = Boolean(
+      pathStyleDualstackMatch || pathStyleRegionalMatch || pathStyleGlobalMatch
+    )
+
+    const firstSlashIndex = normalizedPath.indexOf('/')
+    const pathStyleBucketName =
+      firstSlashIndex === -1 ? normalizedPath : normalizedPath.slice(0, firstSlashIndex)
+    const pathStyleObjectKey =
+      firstSlashIndex === -1 ? '' : normalizedPath.slice(firstSlashIndex + 1)
+
+    const bucketName = isPathStyleHost
+      ? pathStyleBucketName
+      : (virtualHostedDualstackMatch?.[1] ??
+        virtualHostedRegionalMatch?.[1] ??
+        virtualHostedGlobalMatch?.[1] ??
+        '')
+
+    const rawObjectKey = isPathStyleHost ? pathStyleObjectKey : normalizedPath
+    const objectKey = (() => {
+      try {
+        return decodeURIComponent(rawObjectKey)
+      } catch {
+        return rawObjectKey
+      }
+    })()
+
+    const normalizedFallbackRegion = fallbackRegion?.trim()
+    const regionFromHost =
+      virtualHostedDualstackMatch?.[2] ??
+      virtualHostedRegionalMatch?.[2] ??
+      pathStyleDualstackMatch?.[1] ??
+      pathStyleRegionalMatch?.[1]
+    const region = regionFromHost || normalizedFallbackRegion || 'us-east-1'
 
     if (!bucketName || !objectKey) {
       throw new Error('Invalid S3 URI format')
@@ -40,7 +88,7 @@ export function parseS3Uri(s3Uri: string): {
     return { bucketName, region, objectKey }
   } catch (_error) {
     throw new Error(
-      'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
+      'Invalid S3 Object URL format. Expected S3 virtual-hosted or path-style URL with object key.'
     )
   }
 }

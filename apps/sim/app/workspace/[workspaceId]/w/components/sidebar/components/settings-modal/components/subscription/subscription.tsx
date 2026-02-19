@@ -17,6 +17,7 @@ import {
   CancelSubscription,
   CreditBalance,
   PlanCard,
+  ReferralCode,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import {
   ENTERPRISE_PLAN_FEATURES,
@@ -299,12 +300,16 @@ export function Subscription() {
   )
 
   const showBadge =
-    (permissions.canEditUsageLimit && !permissions.showTeamMemberView) ||
-    permissions.showTeamMemberView ||
-    subscription.isEnterprise ||
-    isBlocked
+    !permissions.isEnterpriseMember &&
+    ((permissions.canEditUsageLimit && !permissions.showTeamMemberView) ||
+      permissions.showTeamMemberView ||
+      subscription.isEnterprise ||
+      isBlocked)
 
   const getBadgeConfig = (): { text: string; variant: 'blue-secondary' | 'red' } => {
+    if (permissions.isEnterpriseMember) {
+      return { text: '', variant: 'blue-secondary' }
+    }
     if (permissions.showTeamMemberView || subscription.isEnterprise) {
       return { text: `${subscription.seats} seats`, variant: 'blue-secondary' }
     }
@@ -442,67 +447,75 @@ export function Subscription() {
 
   return (
     <div className='flex h-full flex-col gap-[20px]'>
-      {/* Current Plan & Usage Overview */}
-      <UsageHeader
-        title={formatPlanName(subscription.plan)}
-        showBadge={showBadge}
-        badgeText={badgeConfig.text}
-        badgeVariant={badgeConfig.variant}
-        onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
-        seatsText={
-          permissions.canManageTeam || subscription.isEnterprise
-            ? `${subscription.seats} seats`
-            : undefined
-        }
-        current={usage.current}
-        limit={
-          subscription.isEnterprise || subscription.isTeam
-            ? organizationBillingData?.data?.totalUsageLimit
-            : !subscription.isFree &&
-                (permissions.canEditUsageLimit || permissions.showTeamMemberView)
-              ? usage.current // placeholder; rightContent will render UsageLimit
-              : usage.limit
-        }
-        isBlocked={isBlocked}
-        progressValue={Math.min(usage.percentUsed, 100)}
-        rightContent={
-          !subscription.isFree &&
-          (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
-            <UsageLimit
-              ref={usageLimitRef}
-              currentLimit={
-                (subscription.isTeam || subscription.isEnterprise) &&
-                isTeamAdmin &&
-                organizationBillingData?.data
-                  ? organizationBillingData.data.totalUsageLimit
-                  : usageLimitData.currentLimit || usage.limit
-              }
-              currentUsage={usage.current}
-              canEdit={permissions.canEditUsageLimit}
-              minimumLimit={
-                (subscription.isTeam || subscription.isEnterprise) &&
-                isTeamAdmin &&
-                organizationBillingData?.data
-                  ? organizationBillingData.data.minimumBillingAmount
-                  : usageLimitData.minimumLimit || (subscription.isPro ? 20 : 40)
-              }
-              context={
-                (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                  ? 'organization'
-                  : 'user'
-              }
-              organizationId={
-                (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                  ? activeOrgId
-                  : undefined
-              }
-              onLimitUpdated={() => {
-                logger.info('Usage limit updated')
-              }}
-            />
-          ) : undefined
-        }
-      />
+      {/* Current Plan & Usage Overview - hidden from enterprise members (non-admin) */}
+      {permissions.canViewUsageInfo ? (
+        <UsageHeader
+          title={formatPlanName(subscription.plan)}
+          showBadge={showBadge}
+          badgeText={badgeConfig.text}
+          badgeVariant={badgeConfig.variant}
+          onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
+          seatsText={
+            permissions.canManageTeam || subscription.isEnterprise
+              ? `${subscription.seats} seats`
+              : undefined
+          }
+          current={usage.current}
+          limit={
+            subscription.isEnterprise || subscription.isTeam
+              ? organizationBillingData?.data?.totalUsageLimit
+              : !subscription.isFree &&
+                  (permissions.canEditUsageLimit || permissions.showTeamMemberView)
+                ? usage.current // placeholder; rightContent will render UsageLimit
+                : usage.limit
+          }
+          isBlocked={isBlocked}
+          progressValue={Math.min(usage.percentUsed, 100)}
+          rightContent={
+            !subscription.isFree &&
+            (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
+              <UsageLimit
+                ref={usageLimitRef}
+                currentLimit={
+                  (subscription.isTeam || subscription.isEnterprise) &&
+                  isTeamAdmin &&
+                  organizationBillingData?.data
+                    ? organizationBillingData.data.totalUsageLimit
+                    : usageLimitData.currentLimit || usage.limit
+                }
+                currentUsage={usage.current}
+                canEdit={permissions.canEditUsageLimit}
+                minimumLimit={
+                  (subscription.isTeam || subscription.isEnterprise) &&
+                  isTeamAdmin &&
+                  organizationBillingData?.data
+                    ? organizationBillingData.data.minimumBillingAmount
+                    : usageLimitData.minimumLimit || (subscription.isPro ? 20 : 40)
+                }
+                context={
+                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
+                    ? 'organization'
+                    : 'user'
+                }
+                organizationId={
+                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
+                    ? activeOrgId
+                    : undefined
+                }
+                onLimitUpdated={() => {
+                  logger.info('Usage limit updated')
+                }}
+              />
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className='flex items-center'>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+            {formatPlanName(subscription.plan)}
+          </span>
+        </div>
+      )}
 
       {/* Upgrade Plans */}
       {permissions.showUpgradePlans && (
@@ -538,8 +551,8 @@ export function Subscription() {
         </div>
       )}
 
-      {/* Credit Balance */}
-      {subscription.isPaid && (
+      {/* Credit Balance - hidden from enterprise members (non-admin) */}
+      {subscription.isPaid && permissions.canViewUsageInfo && (
         <CreditBalance
           balance={subscriptionData?.data?.creditBalance ?? 0}
           canPurchase={permissions.canEditUsageLimit}
@@ -549,10 +562,15 @@ export function Subscription() {
         />
       )}
 
-      {/* Next Billing Date - hidden from team members */}
+      {!subscription.isEnterprise && (
+        <ReferralCode onRedeemComplete={() => refetchSubscription()} />
+      )}
+
+      {/* Next Billing Date - hidden from team members and enterprise members (non-admin) */}
       {subscription.isPaid &&
         subscriptionData?.data?.periodEnd &&
-        !permissions.showTeamMemberView && (
+        !permissions.showTeamMemberView &&
+        !permissions.isEnterpriseMember && (
           <div className='flex items-center justify-between'>
             <Label>Next Billing Date</Label>
             <span className='text-[12px] text-[var(--text-secondary)]'>
@@ -561,8 +579,8 @@ export function Subscription() {
           </div>
         )}
 
-      {/* Usage notifications */}
-      {subscription.isPaid && <BillingUsageNotificationsToggle />}
+      {/* Usage notifications - hidden from enterprise members (non-admin) */}
+      {subscription.isPaid && permissions.canViewUsageInfo && <BillingUsageNotificationsToggle />}
 
       {/* Cancel Subscription */}
       {permissions.canCancelSubscription && (

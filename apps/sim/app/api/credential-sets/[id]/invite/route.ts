@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -175,6 +176,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       emailSent: !!email,
     })
 
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Created invitation for credential set "${result.set.name}"${email ? ` to ${email}` : ''}`,
+      request: req,
+    })
+
     return NextResponse.json({
       invitation: {
         ...invitation,
@@ -234,6 +248,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
           eq(credentialSetInvitation.credentialSetId, id)
         )
       )
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_REVOKED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Revoked invitation "${invitationId}" for credential set "${result.set.name}"`,
+      request: req,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

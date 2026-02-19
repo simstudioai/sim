@@ -52,7 +52,7 @@ export async function checkWorkflowAccessForFormCreation(
 export async function checkFormAccess(
   formId: string,
   userId: string
-): Promise<{ hasAccess: boolean; form?: any }> {
+): Promise<{ hasAccess: boolean; form?: any; workspaceId?: string }> {
   const formData = await db
     .select({ form: form, workflowWorkspaceId: workflow.workspaceId })
     .from(form)
@@ -75,7 +75,9 @@ export async function checkFormAccess(
     action: 'admin',
   })
 
-  return authorization.allowed ? { hasAccess: true, form: formRecord } : { hasAccess: false }
+  return authorization.allowed
+    ? { hasAccess: true, form: formRecord, workspaceId: workflowWorkspaceId }
+    : { hasAccess: false }
 }
 
 export async function validateFormAuth(
