@@ -11,7 +11,9 @@ import { ensureWorkflowAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
   CreateWorkspaceMcpServerParams,
+  DeleteWorkspaceMcpServerParams,
   ListWorkspaceMcpServersParams,
+  UpdateWorkspaceMcpServerParams,
 } from '../param-types'
 
 export async function executeCheckDeploymentStatus(
@@ -227,6 +229,85 @@ export async function executeCreateWorkspaceMcpServer(
     }
 
     return { success: true, output: { server, addedTools } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeUpdateWorkspaceMcpServer(
+  params: UpdateWorkspaceMcpServerParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const serverId = params.serverId
+    if (!serverId) {
+      return { success: false, error: 'serverId is required' }
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() }
+
+    if (typeof params.name === 'string') {
+      const name = params.name.trim()
+      if (!name) return { success: false, error: 'name cannot be empty' }
+      updates.name = name
+    }
+    if (typeof params.description === 'string') {
+      updates.description = params.description.trim() || null
+    }
+    if (typeof params.isPublic === 'boolean') {
+      updates.isPublic = params.isPublic
+    }
+
+    if (Object.keys(updates).length <= 1) {
+      return { success: false, error: 'At least one of name, description, or isPublic is required' }
+    }
+
+    const [existing] = await db
+      .select({ id: workflowMcpServer.id, createdBy: workflowMcpServer.createdBy })
+      .from(workflowMcpServer)
+      .where(eq(workflowMcpServer.id, serverId))
+      .limit(1)
+
+    if (!existing) {
+      return { success: false, error: 'MCP server not found' }
+    }
+
+    await db
+      .update(workflowMcpServer)
+      .set(updates)
+      .where(eq(workflowMcpServer.id, serverId))
+
+    return { success: true, output: { serverId, ...updates, updatedAt: undefined } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteWorkspaceMcpServer(
+  params: DeleteWorkspaceMcpServerParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const serverId = params.serverId
+    if (!serverId) {
+      return { success: false, error: 'serverId is required' }
+    }
+
+    const [existing] = await db
+      .select({ id: workflowMcpServer.id, name: workflowMcpServer.name, workspaceId: workflowMcpServer.workspaceId })
+      .from(workflowMcpServer)
+      .where(eq(workflowMcpServer.id, serverId))
+      .limit(1)
+
+    if (!existing) {
+      return { success: false, error: 'MCP server not found' }
+    }
+
+    await db.delete(workflowMcpServer).where(eq(workflowMcpServer.id, serverId))
+
+    mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: existing.workspaceId })
+
+    return { success: true, output: { serverId, name: existing.name, deleted: true } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

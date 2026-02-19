@@ -4,8 +4,10 @@ import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
+  deleteKnowledgeBase,
   getKnowledgeBaseById,
   getKnowledgeBases,
+  updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import {
   createTagDefinition,
@@ -221,6 +223,83 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
         }
 
+        case 'update': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for update operation',
+            }
+          }
+
+          const updates: { name?: string; description?: string; chunkingConfig?: { maxSize: number; minSize: number; overlap: number } } = {}
+          if (args.name) updates.name = args.name
+          if (args.description !== undefined) updates.description = args.description
+          if (args.chunkingConfig) updates.chunkingConfig = args.chunkingConfig
+
+          if (!updates.name && updates.description === undefined && !updates.chunkingConfig) {
+            return {
+              success: false,
+              message: 'At least one of name, description, or chunkingConfig is required for update',
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
+
+          logger.info('Knowledge base updated via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Knowledge base "${updatedKb.name}" updated successfully`,
+            data: {
+              id: updatedKb.id,
+              name: updatedKb.name,
+              description: updatedKb.description,
+              workspaceId: updatedKb.workspaceId,
+              docCount: updatedKb.docCount,
+              updatedAt: updatedKb.updatedAt,
+            },
+          }
+        }
+
+        case 'delete': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for delete operation',
+            }
+          }
+
+          const kbToDelete = await getKnowledgeBaseById(args.knowledgeBaseId)
+          if (!kbToDelete) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          await deleteKnowledgeBase(args.knowledgeBaseId, requestId)
+
+          logger.info('Knowledge base deleted via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            name: kbToDelete.name,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Knowledge base "${kbToDelete.name}" deleted successfully`,
+            data: {
+              id: args.knowledgeBaseId,
+              name: kbToDelete.name,
+            },
+          }
+        }
+
         case 'list_tags': {
           if (!args.knowledgeBaseId) {
             return {
@@ -391,7 +470,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported operations: create, list, get, query, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
+            message: `Unknown operation: ${operation}. Supported operations: create, list, get, query, update, delete, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
           }
       }
     } catch (error) {

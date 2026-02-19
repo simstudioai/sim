@@ -243,6 +243,140 @@ export function serializeEnvironmentVariables(
   )
 }
 
+/** Input types for deployment serialization. */
+export interface DeploymentData {
+  workflowId: string
+  isDeployed: boolean
+  deployedAt?: Date | null
+  api?: {
+    version: number
+    createdAt: Date
+  } | null
+  chat?: {
+    id: string
+    identifier: string
+    title: string
+    description?: string | null
+    authType: string
+    customizations: unknown
+    isActive: boolean
+  } | null
+  form?: {
+    id: string
+    identifier: string
+    title: string
+    description?: string | null
+    authType: string
+    showBranding: boolean
+    customizations: unknown
+    isActive: boolean
+  } | null
+  mcp: Array<{
+    serverId: string
+    serverName: string
+    toolId: string
+    toolName: string
+    toolDescription?: string | null
+  }>
+  a2a?: {
+    id: string
+    name: string
+    description?: string | null
+    version: string
+    isPublished: boolean
+    capabilities: unknown
+  } | null
+}
+
+/**
+ * Serialize all deployment configurations for VFS deployment.json.
+ * Only includes keys for active deployment types.
+ */
+export function serializeDeployments(data: DeploymentData): string {
+  const result: Record<string, unknown> = {}
+
+  if (data.isDeployed) {
+    result.api = {
+      isDeployed: true,
+      deployedAt: data.deployedAt?.toISOString(),
+      apiEndpoint: `/api/workflows/${data.workflowId}/run`,
+      ...(data.api ? { version: data.api.version } : {}),
+    }
+  }
+
+  if (data.chat) {
+    result.chat = {
+      id: data.chat.id,
+      identifier: data.chat.identifier,
+      chatUrl: `/chat/${data.chat.identifier}`,
+      title: data.chat.title,
+      description: data.chat.description || undefined,
+      authType: data.chat.authType,
+      customizations: data.chat.customizations,
+      isActive: data.chat.isActive,
+    }
+  }
+
+  if (data.form) {
+    result.form = {
+      id: data.form.id,
+      identifier: data.form.identifier,
+      formUrl: `/form/${data.form.identifier}`,
+      title: data.form.title,
+      description: data.form.description || undefined,
+      authType: data.form.authType,
+      showBranding: data.form.showBranding,
+      customizations: data.form.customizations,
+      isActive: data.form.isActive,
+    }
+  }
+
+  if (data.mcp.length > 0) {
+    result.mcp = data.mcp.map((m) => ({
+      serverId: m.serverId,
+      serverName: m.serverName,
+      toolId: m.toolId,
+      toolName: m.toolName,
+      toolDescription: m.toolDescription || undefined,
+    }))
+  }
+
+  if (data.a2a) {
+    result.a2a = {
+      id: data.a2a.id,
+      name: data.a2a.name,
+      description: data.a2a.description || undefined,
+      version: data.a2a.version,
+      isPublished: data.a2a.isPublished,
+      capabilities: data.a2a.capabilities,
+      agentUrl: `/api/a2a/serve/${data.a2a.id}`,
+    }
+  }
+
+  return JSON.stringify(result, null, 2)
+}
+
+/**
+ * Serialize a custom tool for VFS custom-tools/{name}.json
+ */
+export function serializeCustomTool(tool: {
+  id: string
+  title: string
+  schema: unknown
+  code: string
+}): string {
+  return JSON.stringify(
+    {
+      id: tool.id,
+      title: tool.title,
+      schema: tool.schema,
+      codePreview: tool.code.length > 500 ? tool.code.slice(0, 500) + '...' : tool.code,
+    },
+    null,
+    2
+  )
+}
+
 /**
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */

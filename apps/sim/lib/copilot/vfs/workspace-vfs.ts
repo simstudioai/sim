@@ -1,11 +1,18 @@
 import { db } from '@sim/db'
 import {
+  a2aAgent,
   account,
   apiKey,
+  chat as chatTable,
+  customTools,
   document,
   environment,
+  form,
   knowledgeBase,
   workflow,
+  workflowDeploymentVersion,
+  workflowMcpServer,
+  workflowMcpTool,
   workspaceEnvironment,
   workflowExecutionLogs,
 } from '@sim/db/schema'
@@ -22,6 +29,8 @@ import {
   serializeApiKeys,
   serializeBlockSchema,
   serializeCredentials,
+  serializeCustomTool,
+  serializeDeployments,
   serializeDocuments,
   serializeEnvironmentVariables,
   serializeIntegrationSchema,
@@ -29,6 +38,7 @@ import {
   serializeRecentExecutions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 
 const logger = createLogger('WorkspaceVFS')
 
@@ -114,8 +124,10 @@ function getStaticComponentFiles(): Map<string, string> {
  *   workflows/{name}/blocks.json
  *   workflows/{name}/edges.json
  *   workflows/{name}/executions.json
+ *   workflows/{name}/deployment.json
  *   knowledgebases/{name}/meta.json
  *   knowledgebases/{name}/documents.json
+ *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -137,6 +149,7 @@ export class WorkspaceVFS {
       this.materializeWorkflows(workspaceId, userId),
       this.materializeKnowledgeBases(workspaceId),
       this.materializeEnvironment(workspaceId, userId),
+      this.materializeCustomTools(workspaceId),
     ])
 
     // Merge static component files
@@ -253,6 +266,19 @@ export class WorkspaceVFS {
             error: err instanceof Error ? err.message : String(err),
           })
         }
+
+        // Deployment configuration
+        try {
+          const deploymentData = await this.getWorkflowDeployments(wf.id, workspaceId, wf.isDeployed, wf.deployedAt)
+          if (deploymentData) {
+            this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
+          }
+        } catch (err) {
+          logger.warn('Failed to load deployment data', {
+            workflowId: wf.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       })
     )
   }
@@ -315,6 +341,134 @@ export class WorkspaceVFS {
         }
       })
     )
+  }
+
+  /**
+   * Query all deployment configurations for a single workflow.
+   * Returns null if the workflow has no deployments of any kind.
+   */
+  private async getWorkflowDeployments(
+    workflowId: string,
+    workspaceId: string,
+    isDeployed: boolean,
+    deployedAt: Date | null
+  ): Promise<DeploymentData | null> {
+    const [chatRows, formRows, mcpRows, a2aRows, versionRows] = await Promise.all([
+      db
+        .select({
+          id: chatTable.id,
+          identifier: chatTable.identifier,
+          title: chatTable.title,
+          description: chatTable.description,
+          authType: chatTable.authType,
+          customizations: chatTable.customizations,
+          isActive: chatTable.isActive,
+        })
+        .from(chatTable)
+        .where(eq(chatTable.workflowId, workflowId)),
+      db
+        .select({
+          id: form.id,
+          identifier: form.identifier,
+          title: form.title,
+          description: form.description,
+          authType: form.authType,
+          showBranding: form.showBranding,
+          customizations: form.customizations,
+          isActive: form.isActive,
+        })
+        .from(form)
+        .where(eq(form.workflowId, workflowId)),
+      db
+        .select({
+          serverId: workflowMcpTool.serverId,
+          serverName: workflowMcpServer.name,
+          toolId: workflowMcpTool.id,
+          toolName: workflowMcpTool.toolName,
+          toolDescription: workflowMcpTool.toolDescription,
+        })
+        .from(workflowMcpTool)
+        .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
+        .where(eq(workflowMcpTool.workflowId, workflowId)),
+      db
+        .select({
+          id: a2aAgent.id,
+          name: a2aAgent.name,
+          description: a2aAgent.description,
+          version: a2aAgent.version,
+          isPublished: a2aAgent.isPublished,
+          capabilities: a2aAgent.capabilities,
+        })
+        .from(a2aAgent)
+        .where(
+          and(eq(a2aAgent.workflowId, workflowId), eq(a2aAgent.workspaceId, workspaceId))
+        ),
+      isDeployed
+        ? db
+            .select({
+              version: workflowDeploymentVersion.version,
+              createdAt: workflowDeploymentVersion.createdAt,
+            })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflowId),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+            .limit(1)
+        : Promise.resolve([]),
+    ])
+
+    const hasAnyDeployment =
+      isDeployed || chatRows.length > 0 || formRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
+    if (!hasAnyDeployment) return null
+
+    return {
+      workflowId,
+      isDeployed,
+      deployedAt,
+      api: versionRows[0] ?? null,
+      chat: chatRows[0] ?? null,
+      form: formRows[0] ?? null,
+      mcp: mcpRows,
+      a2a: a2aRows[0] ?? null,
+    }
+  }
+
+  /**
+   * Materialize all custom tools in the workspace.
+   */
+  private async materializeCustomTools(workspaceId: string): Promise<void> {
+    try {
+      const toolRows = await db
+        .select({
+          id: customTools.id,
+          title: customTools.title,
+          schema: customTools.schema,
+          code: customTools.code,
+        })
+        .from(customTools)
+        .where(eq(customTools.workspaceId, workspaceId))
+
+      for (const tool of toolRows) {
+        const safeName = sanitizeName(tool.title)
+        this.files.set(
+          `custom-tools/${safeName}.json`,
+          serializeCustomTool({
+            id: tool.id,
+            title: tool.title,
+            schema: tool.schema,
+            code: tool.code,
+          })
+        )
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize custom tools', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   /**
@@ -421,4 +575,19 @@ function sanitizeName(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 64)
+}
+
+/**
+ * Deduplicate a sanitized name against a set of already-used names.
+ * Appends `-2`, `-3`, etc. on collision. Adds the final name to the set.
+ */
+function deduplicateName(baseName: string, usedNames: Set<string>): string {
+  let name = baseName
+  let counter = 2
+  while (usedNames.has(name)) {
+    name = `${baseName}-${counter}`
+    counter++
+  }
+  usedNames.add(name)
+  return name
 }

@@ -17,11 +17,13 @@ import { getTool, resolveToolId } from '@/tools/utils'
 import {
   executeCheckDeploymentStatus,
   executeCreateWorkspaceMcpServer,
+  executeDeleteWorkspaceMcpServer,
   executeDeployApi,
   executeDeployChat,
   executeDeployMcp,
   executeListWorkspaceMcpServers,
   executeRedeploy,
+  executeUpdateWorkspaceMcpServer,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
 import {
@@ -35,6 +37,9 @@ import type {
   CreateFolderParams,
   CreateWorkflowParams,
   CreateWorkspaceMcpServerParams,
+  DeleteFolderParams,
+  DeleteWorkflowParams,
+  DeleteWorkspaceMcpServerParams,
   DeployApiParams,
   DeployChatParams,
   DeployMcpParams,
@@ -47,17 +52,22 @@ import type {
   ListWorkspaceMcpServersParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
+  UpdateWorkflowParams,
+  UpdateWorkspaceMcpServerParams,
 } from './param-types'
 import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import {
   executeCreateFolder,
   executeCreateWorkflow,
+  executeDeleteFolder,
+  executeDeleteWorkflow,
   executeGenerateApiKey,
   executeGetBlockOutputs,
   executeGetBlockUpstreamReferences,
@@ -67,12 +77,14 @@ import {
   executeListUserWorkspaces,
   executeMoveFolder,
   executeMoveWorkflow,
+  executeRenameFolder,
   executeRenameWorkflow,
   executeRunBlock,
   executeRunFromBlock,
   executeRunWorkflow,
   executeRunWorkflowUntilBlock,
   executeSetGlobalWorkflowVariables,
+  executeUpdateWorkflow,
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
@@ -339,8 +351,12 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   create_workflow: (p, c) => executeCreateWorkflow(p as CreateWorkflowParams, c),
   create_folder: (p, c) => executeCreateFolder(p as CreateFolderParams, c),
   rename_workflow: (p, c) => executeRenameWorkflow(p as unknown as RenameWorkflowParams, c),
+  update_workflow: (p, c) => executeUpdateWorkflow(p as unknown as UpdateWorkflowParams, c),
+  delete_workflow: (p, c) => executeDeleteWorkflow(p as unknown as DeleteWorkflowParams, c),
   move_workflow: (p, c) => executeMoveWorkflow(p as unknown as MoveWorkflowParams, c),
   move_folder: (p, c) => executeMoveFolder(p as unknown as MoveFolderParams, c),
+  rename_folder: (p, c) => executeRenameFolder(p as unknown as RenameFolderParams, c),
+  delete_folder: (p, c) => executeDeleteFolder(p as unknown as DeleteFolderParams, c),
   get_workflow_data: (p, c) => executeGetWorkflowData(p as GetWorkflowDataParams, c),
   get_block_outputs: (p, c) => executeGetBlockOutputs(p as GetBlockOutputsParams, c),
   get_block_upstream_references: (p, c) =>
@@ -370,6 +386,10 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     executeListWorkspaceMcpServers(p as ListWorkspaceMcpServersParams, c),
   create_workspace_mcp_server: (p, c) =>
     executeCreateWorkspaceMcpServer(p as CreateWorkspaceMcpServerParams, c),
+  update_workspace_mcp_server: (p, c) =>
+    executeUpdateWorkspaceMcpServer(p as unknown as UpdateWorkspaceMcpServerParams, c),
+  delete_workspace_mcp_server: (p, c) =>
+    executeDeleteWorkspaceMcpServer(p as unknown as DeleteWorkspaceMcpServerParams, c),
   oauth_get_auth_link: async (p, _c) => {
     const providerName = (p.providerName || p.provider_name || 'the provider') as string
     try {

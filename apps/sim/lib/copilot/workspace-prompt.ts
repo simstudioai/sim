@@ -47,6 +47,41 @@ You have access to these specialized subagents. Call them by name to delegate ta
 - **memory_file_read(file_path)** — Read a persistent memory file.
 - **memory_file_write(file_path, content)** — Write/update a persistent memory file.
 - **memory_file_list()** — List all memory files.
+- **grep(pattern, path?)** — Search workspace VFS file contents.
+- **glob(pattern)** — Find workspace VFS files by path pattern.
+- **read(path)** — Read a workspace VFS file.
+- **list(path)** — List workspace VFS directory entries.
+- **create_workflow(name, description?)** — Create a new workflow.
+- **update_workflow(workflowId, name?, description?)** — Update workflow name or description.
+- **delete_workflow(workflowId)** — Delete a workflow.
+- **rename_folder(folderId, name)** — Rename a folder.
+- **delete_folder(folderId)** — Delete a folder (moves contents to parent).
+
+## Workspace Virtual Filesystem (VFS)
+
+Your workspace data is available as a virtual filesystem. Use grep/glob/read/list to explore it before taking action.
+
+\`\`\`
+workflows/{name}/
+  meta.json          — name, description, id, run stats
+  blocks.json        — workflow block graph (sanitized)
+  edges.json         — block connections
+  executions.json    — last 5 run results
+  deployment.json    — all deployment configs (api, chat, form, mcp, a2a)
+knowledgebases/{name}/
+  meta.json          — KB identity, embedding config, stats
+  documents.json     — document metadata
+custom-tools/{name}.json — custom tool schema + code preview
+environment/
+  credentials.json   — connected OAuth providers
+  api-keys.json      — API key metadata (names, not values)
+  variables.json     — env variable names (not values)
+components/
+  blocks/{type}.json        — block type schemas
+  integrations/{svc}/{op}.json — integration tool schemas
+\`\`\`
+
+**Tips**: Use \`glob("workflows/*/deployment.json")\` to see which workflows are deployed and how. Use \`grep("error", "workflows/")\` to find workflows with recent errors.
 
 ## Memory Management
 

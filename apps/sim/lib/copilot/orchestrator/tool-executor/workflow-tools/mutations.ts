@@ -18,15 +18,19 @@ import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } fr
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
+  DeleteFolderParams,
+  DeleteWorkflowParams,
   GenerateApiKeyParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
+  UpdateWorkflowParams,
   VariableOperation,
 } from '../param-types'
 
@@ -561,6 +565,142 @@ export async function executeRunFromBlock(
       },
       error: result.success ? undefined : result.error || 'Workflow execution failed',
     }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeUpdateWorkflow(
+  params: UpdateWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() }
+
+    if (typeof params.name === 'string') {
+      const name = params.name.trim()
+      if (!name) return { success: false, error: 'name cannot be empty' }
+      if (name.length > 200) return { success: false, error: 'Workflow name must be 200 characters or less' }
+      updates.name = name
+    }
+
+    if (typeof params.description === 'string') {
+      if (params.description.length > 2000) {
+        return { success: false, error: 'Description must be 2000 characters or less' }
+      }
+      updates.description = params.description
+    }
+
+    if (Object.keys(updates).length <= 1) {
+      return { success: false, error: 'At least one of name or description is required' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId)
+
+    await db.update(workflow).set(updates).where(eq(workflow.id, workflowId))
+
+    return {
+      success: true,
+      output: { workflowId, ...updates, updatedAt: undefined },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteWorkflow(
+  params: DeleteWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+
+    await db.delete(workflow).where(eq(workflow.id, workflowId))
+
+    return {
+      success: true,
+      output: { workflowId, name: workflowRecord.name, deleted: true },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRenameFolder(
+  params: RenameFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+    const name = typeof params.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+    if (name.length > 200) {
+      return { success: false, error: 'Folder name must be 200 characters or less' }
+    }
+
+    await db
+      .update(workflowFolder)
+      .set({ name, updatedAt: new Date() })
+      .where(eq(workflowFolder.id, folderId))
+
+    return { success: true, output: { folderId, name } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteFolder(
+  params: DeleteFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+
+    // Get the folder to find its parent
+    const [folder] = await db
+      .select({ parentId: workflowFolder.parentId })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, folderId))
+      .limit(1)
+
+    if (!folder) {
+      return { success: false, error: 'Folder not found' }
+    }
+
+    // Move child workflows to parent folder
+    await db
+      .update(workflow)
+      .set({ folderId: folder.parentId, updatedAt: new Date() })
+      .where(eq(workflow.folderId, folderId))
+
+    // Move child folders to parent folder
+    await db
+      .update(workflowFolder)
+      .set({ parentId: folder.parentId, updatedAt: new Date() })
+      .where(eq(workflowFolder.parentId, folderId))
+
+    // Delete the folder
+    await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
+
+    return { success: true, output: { folderId, deleted: true } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

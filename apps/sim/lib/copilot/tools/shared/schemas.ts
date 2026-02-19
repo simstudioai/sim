@@ -26,6 +26,8 @@ export const KnowledgeBaseArgsSchema = z.object({
     'list',
     'get',
     'query',
+    'update',
+    'delete',
     'list_tags',
     'create_tag',
     'update_tag',
