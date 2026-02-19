@@ -475,6 +475,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 192.0.2.1',
       condition: { field: 'operation', value: 'update_dns_record' },
+      mode: 'advanced',
     },
     {
       id: 'ttl',
@@ -934,46 +935,47 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       'cloudflare_purge_cache',
     ],
     config: {
-      tool: (params) => {
-        // Convert numeric string params
-        if (params.ttl) params.ttl = Number(params.ttl)
-        if (params.priority) params.priority = Number(params.priority)
+      tool: (params) => `cloudflare_${params.operation}`,
+      params: (params) => {
+        const result = { ...params }
 
-        // Convert boolean string params
-        if (params.proxied === 'true') params.proxied = true
-        else if (params.proxied === 'false') params.proxied = false
-        else if (params.proxied === '') params.proxied = undefined
+        if (result.ttl) result.ttl = Number(result.ttl)
+        if (result.priority) result.priority = Number(result.priority)
+        if (result.limit) result.limit = Number(result.limit)
+        if (result.page) result.page = Number(result.page)
+        if (result.per_page) result.per_page = Number(result.per_page)
 
-        if (params.purge_everything === 'true') params.purge_everything = true
-        else if (params.purge_everything === 'false') params.purge_everything = false
+        if (result.proxied === 'true') result.proxied = true
+        else if (result.proxied === 'false') result.proxied = false
+        else if (result.proxied === '') result.proxied = undefined
 
-        if (params.jump_start === 'true') params.jump_start = true
-        else if (params.jump_start === 'false') params.jump_start = false
+        if (result.purge_everything === 'true') result.purge_everything = true
+        else if (result.purge_everything === 'false') result.purge_everything = false
 
-        // Convert limit to number for dns_analytics
-        if (params.limit) params.limit = Number(params.limit)
+        if (result.jump_start === 'true') result.jump_start = true
+        else if (result.jump_start === 'false') result.jump_start = false
 
-        // Convert pagination params to numbers for list_certificates
-        if (params.page) params.page = Number(params.page)
-        if (params.per_page) params.per_page = Number(params.per_page)
-
-        // Clear empty string dropdown values
-        if (params.type === '' && params.operation !== 'create_dns_record') {
-          params.type = undefined
+        if (result.type === '' && result.operation !== 'create_dns_record') {
+          result.type = undefined
         }
-        if (params.status === '') params.status = undefined
-        if (params.order === '') params.order = undefined
-        if (params.direction === '') params.direction = undefined
-        if (params.match === '') params.match = undefined
-        if (params.tag_match === '') params.tag_match = undefined
-        if (params.deploy === '') params.deploy = undefined
+        if (result.status === '') result.status = undefined
+        if (result.order === '') result.order = undefined
+        if (result.direction === '') result.direction = undefined
+        if (result.match === '') result.match = undefined
+        if (result.tag_match === '') result.tag_match = undefined
+        if (result.deploy === '') result.deploy = undefined
 
-        // Map zoneType to type for create_zone
-        if (params.operation === 'create_zone' && params.zoneType) {
-          params.type = params.zoneType
+        if (result.operation === 'update_dns_record') {
+          if (result.content === '') result.content = undefined
+          if (result.name === '') result.name = undefined
+          if (result.comment === '') result.comment = undefined
         }
 
-        return `cloudflare_${params.operation}`
+        if (result.operation === 'create_zone' && result.zoneType) {
+          result.type = result.zoneType
+        }
+
+        return result
       },
     },
   },
