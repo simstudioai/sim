@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock, requestUtilsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Mock execution dependencies for webhook tests */
@@ -348,9 +348,7 @@ vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 

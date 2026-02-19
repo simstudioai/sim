@@ -1,4 +1,4 @@
-import { databaseMock, loggerMock } from '@sim/testing'
+import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 /**
  * Tests for chat API utils
@@ -37,9 +37,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(),
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,

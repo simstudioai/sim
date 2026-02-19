@@ -3,10 +3,11 @@
  *
  * @vitest-environment node
  */
+import { mockHybridAuth } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCheckHybridAuth = vi.fn()
+let mockCheckHybridAuth: ReturnType<typeof vi.fn>
 const mockGetUserEntityPermissions = vi.fn()
 const mockGenerateInternalToken = vi.fn()
 const mockDbSelect = vi.fn()
@@ -61,9 +62,7 @@ describe('MCP Serve Route', () => {
         isDeployed: 'isDeployed',
       },
     }))
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: mockCheckHybridAuth,
-    }))
+    ;({ mockCheckHybridAuth } = mockHybridAuth())
     vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: mockGetUserEntityPermissions,
     }))

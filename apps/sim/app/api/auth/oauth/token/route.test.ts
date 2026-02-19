@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockLogger, createMockRequest } from '@sim/testing'
+import { createMockLogger, createMockRequest, mockHybridAuth } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('OAuth Token API Routes', () => {
@@ -12,7 +12,7 @@ describe('OAuth Token API Routes', () => {
   const mockRefreshTokenIfNeeded = vi.fn()
   const mockGetOAuthToken = vi.fn()
   const mockAuthorizeCredentialUse = vi.fn()
-  const mockCheckSessionOrInternalAuth = vi.fn()
+  let mockCheckSessionOrInternalAuth: ReturnType<typeof vi.fn>
 
   const mockLogger = createMockLogger()
 
@@ -41,9 +41,7 @@ describe('OAuth Token API Routes', () => {
       authorizeCredentialUse: mockAuthorizeCredentialUse,
     }))
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-    }))
+    ;({ mockCheckSessionOrInternalAuth } = mockHybridAuth())
   })
 
   afterEach(() => {
@@ -73,23 +71,18 @@ describe('OAuth Token API Routes', () => {
         refreshed: false,
       })
 
-      // Create mock request
       const req = createMockRequest('POST', {
         credentialId: 'credential-id',
       })
 
-      // Import handler after setting up mocks
       const { POST } = await import('@/app/api/auth/oauth/token/route')
 
-      // Call handler
       const response = await POST(req)
       const data = await response.json()
 
-      // Verify request was handled correctly
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('accessToken', 'fresh-token')
 
-      // Verify mocks were called correctly
       expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
       expect(mockGetCredential).toHaveBeenCalled()
       expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()

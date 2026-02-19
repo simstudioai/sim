@@ -1,4 +1,4 @@
-import { loggerMock } from '@sim/testing'
+import { loggerMock, requestUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
@@ -7,9 +7,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(() => 'test-request-id'),
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/tools', () => ({
   executeTool: vi.fn(),
