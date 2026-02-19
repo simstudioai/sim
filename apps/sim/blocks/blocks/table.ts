@@ -202,12 +202,24 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       value: () => 'query_rows',
     },
 
-    // Table selector (for all operations)
+    // Table selector (for all operations) - basic mode
     {
-      id: 'tableId',
+      id: 'tableSelector',
       title: 'Table',
       type: 'table-selector',
+      canonicalParamId: 'tableId',
+      mode: 'basic',
       placeholder: 'Select a table',
+      required: true,
+    },
+    // Table ID manual input - advanced mode
+    {
+      id: 'manualTableId',
+      title: 'Table ID',
+      type: 'short-input',
+      canonicalParamId: 'tableId',
+      mode: 'advanced',
+      placeholder: 'Enter table ID',
       required: true,
     },
 

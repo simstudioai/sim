@@ -15,6 +15,7 @@ const {
     allowedModelProviders: null,
     hideTraceSpans: false,
     hideKnowledgeBaseTab: false,
+    hideTablesTab: false,
     hideCopilot: false,
     hideApiKeysTab: false,
     hideEnvironmentTab: false,

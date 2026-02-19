@@ -273,6 +273,7 @@ export const Sidebar = memo(function Sidebar() {
           label: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
         },
         {
           id: 'help',
@@ -287,7 +288,12 @@ export const Sidebar = memo(function Sidebar() {
           onClick: () => openSettingsModal(),
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
+    [
+      workspaceId,
+      permissionConfig.hideTemplates,
+      permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+    ]
   )
 
   const isLoading = workflowsLoading || sessionLoading

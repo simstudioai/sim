@@ -4,6 +4,7 @@ export interface PermissionGroupConfig {
   // Platform Configuration
   hideTraceSpans: boolean
   hideKnowledgeBaseTab: boolean
+  hideTablesTab: boolean
   hideCopilot: boolean
   hideApiKeysTab: boolean
   hideEnvironmentTab: boolean
@@ -26,6 +27,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   allowedModelProviders: null,
   hideTraceSpans: false,
   hideKnowledgeBaseTab: false,
+  hideTablesTab: false,
   hideCopilot: false,
   hideApiKeysTab: false,
   hideEnvironmentTab: false,
@@ -55,6 +57,7 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     hideTraceSpans: typeof c.hideTraceSpans === 'boolean' ? c.hideTraceSpans : false,
     hideKnowledgeBaseTab:
       typeof c.hideKnowledgeBaseTab === 'boolean' ? c.hideKnowledgeBaseTab : false,
+    hideTablesTab: typeof c.hideTablesTab === 'boolean' ? c.hideTablesTab : false,
     hideCopilot: typeof c.hideCopilot === 'boolean' ? c.hideCopilot : false,
     hideApiKeysTab: typeof c.hideApiKeysTab === 'boolean' ? c.hideApiKeysTab : false,
     hideEnvironmentTab: typeof c.hideEnvironmentTab === 'boolean' ? c.hideEnvironmentTab : false,

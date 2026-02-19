@@ -111,6 +111,7 @@ export interface FilterRule {
   column: string
   operator: string
   value: string
+  collapsed?: boolean
 }
 
 /**
@@ -121,6 +122,7 @@ export interface SortRule {
   id: string
   column: string
   direction: SortDirection
+  collapsed?: boolean
 }
 
 export interface QueryOptions {

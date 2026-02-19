@@ -1,13 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { useCallback, useMemo } from 'react'
+import type { ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
+import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { EmptyState } from './components/empty-state'
 import { FilterRuleRow } from './components/filter-rule-row'
 
 interface FilterBuilderProps {
@@ -19,6 +18,15 @@ interface FilterBuilderProps {
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
 }
+
+const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
+  id: crypto.randomUUID(),
+  logicalOperator: 'and',
+  column: columns[0]?.value || '',
+  operator: 'eq',
+  value: '',
+  collapsed: false,
+})
 
 /** Visual builder for table filter rules in workflow blocks. */
 export function FilterBuilder({
@@ -40,7 +48,8 @@ export function FilterBuilder({
   }, [propColumns, dynamicColumns])
 
   const value = isPreview ? previewValue : storeValue
-  const rules: FilterRule[] = Array.isArray(value) && value.length > 0 ? value : []
+  const rules: FilterRule[] =
+    Array.isArray(value) && value.length > 0 ? value : [createDefaultRule(columns)]
   const isReadOnly = isPreview || disabled
 
   const { comparisonOptions, logicalOptions, addRule, removeRule, updateRule } = useFilterBuilder({
@@ -50,41 +59,60 @@ export function FilterBuilder({
     isReadOnly,
   })
 
+  const inputController = useSubBlockInput({
+    blockId,
+    subBlockId,
+    config: {
+      id: subBlockId,
+      type: 'filter-builder',
+      connectionDroppable: true,
+    },
+    isPreview,
+    disabled,
+  })
+
+  const toggleCollapse = useCallback(
+    (id: string) => {
+      if (isReadOnly) return
+      setStoreValue(rules.map((r) => (r.id === id ? { ...r, collapsed: !r.collapsed } : r)))
+    },
+    [isReadOnly, rules, setStoreValue]
+  )
+
+  const handleRemoveRule = useCallback(
+    (id: string) => {
+      if (isReadOnly) return
+      if (rules.length === 1) {
+        setStoreValue([createDefaultRule(columns)])
+      } else {
+        removeRule(id)
+      }
+    },
+    [isReadOnly, rules, columns, setStoreValue, removeRule]
+  )
+
   return (
-    <div className='flex flex-col gap-[8px]'>
-      {rules.length === 0 ? (
-        <EmptyState onAdd={addRule} disabled={isReadOnly} label='Add filter rule' />
-      ) : (
-        <>
-          {rules.map((rule, index) => (
-            <FilterRuleRow
-              key={rule.id}
-              blockId={blockId}
-              subBlockId={subBlockId}
-              rule={rule}
-              index={index}
-              columns={columns}
-              comparisonOptions={comparisonOptions}
-              logicalOptions={logicalOptions}
-              isReadOnly={isReadOnly}
-              isPreview={isPreview}
-              disabled={disabled}
-              onRemove={removeRule}
-              onUpdate={updateRule}
-            />
-          ))}
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={addRule}
-            disabled={isReadOnly}
-            className='self-start'
-          >
-            <Plus className='mr-[4px] h-[12px] w-[12px]' />
-            Add rule
-          </Button>
-        </>
-      )}
+    <div className='space-y-[8px]'>
+      {rules.map((rule, index) => (
+        <FilterRuleRow
+          key={rule.id}
+          blockId={blockId}
+          subBlockId={subBlockId}
+          rule={rule}
+          index={index}
+          columns={columns}
+          comparisonOptions={comparisonOptions}
+          logicalOptions={logicalOptions}
+          isReadOnly={isReadOnly}
+          isPreview={isPreview}
+          disabled={disabled}
+          onAdd={addRule}
+          onRemove={handleRemoveRule}
+          onUpdate={updateRule}
+          onToggleCollapse={toggleCollapse}
+          inputController={inputController}
+        />
+      ))}
     </div>
   )
 }

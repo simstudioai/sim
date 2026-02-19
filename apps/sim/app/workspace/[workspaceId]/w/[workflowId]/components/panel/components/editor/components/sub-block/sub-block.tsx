@@ -336,6 +336,23 @@ const renderLabel = (
             )}
           </>
         )}
+        {showExternalLink && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                onClick={externalLink?.onClick}
+                aria-label={externalLink?.tooltip}
+              >
+                <ExternalLink className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>{externalLink?.tooltip}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
         {showCanonicalToggle && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -366,23 +383,6 @@ const renderLabel = (
                   ? 'Switch to selector'
                   : 'Switch to manual ID'}
               </p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-        {showExternalLink && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
-                onClick={externalLink?.onClick}
-                aria-label={externalLink?.tooltip}
-              >
-                <ExternalLink className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>{externalLink?.tooltip}</p>
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -495,23 +495,47 @@ function SubBlockComponent({
       : null
   const hasSelectedTable = tableId && !tableId.startsWith('<')
 
+  const knowledgeBaseId =
+    config.type === 'knowledge-base-selector' && subBlockValues
+      ? (subBlockValues[config.id]?.value as string | null)
+      : null
+  const hasSelectedKnowledgeBase = knowledgeBaseId && !knowledgeBaseId.startsWith('<')
+
   const handleNavigateToTable = useCallback(() => {
     if (tableId && workspaceId) {
       window.open(`/workspace/${workspaceId}/tables/${tableId}`, '_blank')
     }
   }, [workspaceId, tableId])
 
-  const externalLink = useMemo(
-    () =>
-      config.type === 'table-selector' && hasSelectedTable
-        ? {
-            show: true,
-            onClick: handleNavigateToTable,
-            tooltip: 'View table',
-          }
-        : undefined,
-    [config.type, hasSelectedTable, handleNavigateToTable]
-  )
+  const handleNavigateToKnowledgeBase = useCallback(() => {
+    if (knowledgeBaseId && workspaceId) {
+      window.open(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`, '_blank')
+    }
+  }, [workspaceId, knowledgeBaseId])
+
+  const externalLink = useMemo(() => {
+    if (config.type === 'table-selector' && hasSelectedTable) {
+      return {
+        show: true,
+        onClick: handleNavigateToTable,
+        tooltip: 'View table',
+      }
+    }
+    if (config.type === 'knowledge-base-selector' && hasSelectedKnowledgeBase) {
+      return {
+        show: true,
+        onClick: handleNavigateToKnowledgeBase,
+        tooltip: 'View knowledge base',
+      }
+    }
+    return undefined
+  }, [
+    config.type,
+    hasSelectedTable,
+    handleNavigateToTable,
+    hasSelectedKnowledgeBase,
+    handleNavigateToKnowledgeBase,
+  ])
 
   /**
    * Handles wand icon click to activate inline prompt mode.

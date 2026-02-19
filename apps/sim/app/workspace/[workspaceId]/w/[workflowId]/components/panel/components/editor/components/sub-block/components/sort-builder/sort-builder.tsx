@@ -1,13 +1,10 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Plus } from 'lucide-react'
-import { nanoid } from 'nanoid'
-import { Button, type ComboboxOption } from '@/components/emcn'
+import type { ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { EmptyState } from './components/empty-state'
 import { SortRuleRow } from './components/sort-rule-row'
 
 interface SortBuilderProps {
@@ -21,9 +18,10 @@ interface SortBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
-  id: nanoid(),
+  id: crypto.randomUUID(),
   column: columns[0]?.value || '',
   direction: 'asc',
+  collapsed: false,
 })
 
 /** Visual builder for table sort rules in workflow blocks. */
@@ -51,7 +49,8 @@ export function SortBuilder({
   )
 
   const value = isPreview ? previewValue : storeValue
-  const rules: SortRule[] = Array.isArray(value) && value.length > 0 ? value : []
+  const rules: SortRule[] =
+    Array.isArray(value) && value.length > 0 ? value : [createDefaultRule(columns)]
   const isReadOnly = isPreview || disabled
 
   const addRule = useCallback(() => {
@@ -62,9 +61,13 @@ export function SortBuilder({
   const removeRule = useCallback(
     (id: string) => {
       if (isReadOnly) return
-      setStoreValue(rules.filter((r) => r.id !== id))
+      if (rules.length === 1) {
+        setStoreValue([createDefaultRule(columns)])
+      } else {
+        setStoreValue(rules.filter((r) => r.id !== id))
+      }
     },
-    [isReadOnly, rules, setStoreValue]
+    [isReadOnly, rules, columns, setStoreValue]
   )
 
   const updateRule = useCallback(
@@ -75,36 +78,30 @@ export function SortBuilder({
     [isReadOnly, rules, setStoreValue]
   )
 
+  const toggleCollapse = useCallback(
+    (id: string) => {
+      if (isReadOnly) return
+      setStoreValue(rules.map((r) => (r.id === id ? { ...r, collapsed: !r.collapsed } : r)))
+    },
+    [isReadOnly, rules, setStoreValue]
+  )
+
   return (
-    <div className='flex flex-col gap-[8px]'>
-      {rules.length === 0 ? (
-        <EmptyState onAdd={addRule} disabled={isReadOnly} label='Add sort rule' />
-      ) : (
-        <>
-          {rules.map((rule, index) => (
-            <SortRuleRow
-              key={rule.id}
-              rule={rule}
-              index={index}
-              columns={columns}
-              directionOptions={directionOptions}
-              isReadOnly={isReadOnly}
-              onRemove={removeRule}
-              onUpdate={updateRule}
-            />
-          ))}
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={addRule}
-            disabled={isReadOnly}
-            className='self-start'
-          >
-            <Plus className='mr-[4px] h-[12px] w-[12px]' />
-            Add sort
-          </Button>
-        </>
-      )}
+    <div className='space-y-[8px]'>
+      {rules.map((rule, index) => (
+        <SortRuleRow
+          key={rule.id}
+          rule={rule}
+          index={index}
+          columns={columns}
+          directionOptions={directionOptions}
+          isReadOnly={isReadOnly}
+          onAdd={addRule}
+          onRemove={removeRule}
+          onUpdate={updateRule}
+          onToggleCollapse={toggleCollapse}
+        />
+      ))}
     </div>
   )
 }

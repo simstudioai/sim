@@ -296,6 +296,12 @@ export function AccessControl() {
         configKey: 'hideKnowledgeBaseTab' as const,
       },
       {
+        id: 'hide-tables',
+        label: 'Tables',
+        category: 'Sidebar',
+        configKey: 'hideTablesTab' as const,
+      },
+      {
         id: 'hide-templates',
         label: 'Templates',
         category: 'Sidebar',
@@ -949,6 +955,7 @@ export function AccessControl() {
                         onClick={() => {
                           const allVisible =
                             !editingConfig?.hideKnowledgeBaseTab &&
+                            !editingConfig?.hideTablesTab &&
                             !editingConfig?.hideTemplates &&
                             !editingConfig?.hideCopilot &&
                             !editingConfig?.hideApiKeysTab &&
@@ -969,6 +976,7 @@ export function AccessControl() {
                               ? {
                                   ...prev,
                                   hideKnowledgeBaseTab: allVisible,
+                                  hideTablesTab: allVisible,
                                   hideTemplates: allVisible,
                                   hideCopilot: allVisible,
                                   hideApiKeysTab: allVisible,
@@ -990,6 +998,7 @@ export function AccessControl() {
                         }}
                       >
                         {!editingConfig?.hideKnowledgeBaseTab &&
+                        !editingConfig?.hideTablesTab &&
                         !editingConfig?.hideTemplates &&
                         !editingConfig?.hideCopilot &&
                         !editingConfig?.hideApiKeysTab &&
