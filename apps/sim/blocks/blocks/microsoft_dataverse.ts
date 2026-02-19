@@ -75,7 +75,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
       },
       required: {
         field: 'operation',
-        value: ['whoami', 'search'],
+        value: ['whoami', 'search', 'execute_action', 'execute_function'],
         not: true,
       },
     },
@@ -96,6 +96,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
           'upload_file',
           'download_file',
           'execute_action',
+          'execute_function',
         ],
       },
       required: {
@@ -371,7 +372,7 @@ Return ONLY the filter expression - no $filter= prefix, no explanations.`,
       title: 'Order By',
       type: 'short-input',
       placeholder: 'e.g., name asc, createdon desc',
-      condition: { field: 'operation', value: 'list_records' },
+      condition: { field: 'operation', value: ['list_records', 'search'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -452,7 +453,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       type: 'short-input',
       placeholder: 'Target record GUID',
       condition: { field: 'operation', value: ['associate', 'disassociate'] },
-      required: { field: 'operation', value: ['associate', 'disassociate'] },
+      required: { field: 'operation', value: 'associate' },
     },
   ],
   tools: {
@@ -498,6 +499,8 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
         if (rest.functionParameters) {
           cleanParams.parameters = rest.functionParameters
           rest.functionParameters = undefined
+          // Prevent stale action parameters from overwriting mapped function parameters
+          rest.parameters = undefined
         }
 
         Object.entries(rest).forEach(([key, value]) => {
@@ -581,6 +584,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     fetchXmlPagingCookie: { type: 'string', description: 'Paging cookie for FetchXML pagination' },
     moreRecords: { type: 'boolean', description: 'Whether more records are available (FetchXML)' },
     results: { type: 'json', description: 'Search results array' },
+    facets: { type: 'json', description: 'Facet results for search (when facets requested)' },
     fileContent: { type: 'string', description: 'Base64-encoded downloaded file content' },
     fileName: { type: 'string', description: 'Downloaded file name' },
     fileSize: { type: 'number', description: 'File size in bytes' },

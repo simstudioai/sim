@@ -1068,8 +1068,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
     },
     meta: {
       type: 'json',
-      description:
-        'Resource metadata (zone: cdn_only, dns_only, etc.; DNS record: auto_added, source)',
+      description: 'Resource metadata (zone: cdn_only, dns_only, etc.; DNS record: source)',
     },
     vanity_name_servers: { type: 'json', description: 'Custom vanity name servers' },
     permissions: { type: 'json', description: 'User permissions for the zone' },

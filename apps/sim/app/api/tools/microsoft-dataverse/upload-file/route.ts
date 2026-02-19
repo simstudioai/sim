@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const baseUrl = validatedData.environmentUrl.replace(/\/$/, '')
-    const uploadUrl = `${baseUrl}/api/data/v9.2/${validatedData.entitySetName}(${validatedData.recordId})/${validatedData.fileColumn}?x-ms-file-name=${encodeURIComponent(validatedData.fileName)}`
+    const uploadUrl = `${baseUrl}/api/data/v9.2/${validatedData.entitySetName}(${validatedData.recordId})/${validatedData.fileColumn}`
 
     const response = await fetch(uploadUrl, {
       method: 'PATCH',

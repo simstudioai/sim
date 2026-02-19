@@ -166,7 +166,6 @@ export interface CloudflareListDnsRecordsParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareDnsRecordMeta {
-  auto_added: boolean
   source: string
 }
 
@@ -364,7 +363,7 @@ export interface CloudflareDnsAnalyticsParams extends CloudflareBaseParams {
   zoneId: string
   since?: string
   until?: string
-  metrics?: string
+  metrics: string
   dimensions?: string
   filters?: string
   sort?: string

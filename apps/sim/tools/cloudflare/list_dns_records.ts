@@ -120,7 +120,7 @@ export const listDnsRecordsTool: ToolConfig<
       if (params.proxied !== undefined) url.searchParams.append('proxied', String(params.proxied))
       if (params.search) url.searchParams.append('search', params.search)
       if (params.tag) url.searchParams.append('tag', params.tag)
-      if (params.tag_match) url.searchParams.append('tag-match', params.tag_match)
+      if (params.tag_match) url.searchParams.append('tag_match', params.tag_match)
       if (params.commentFilter) url.searchParams.append('comment.contains', params.commentFilter)
       return url.toString()
     },
@@ -214,10 +214,6 @@ export const listDnsRecordsTool: ToolConfig<
             description: 'Record metadata',
             optional: true,
             properties: {
-              auto_added: {
-                type: 'boolean',
-                description: 'Whether the record was auto-added by Cloudflare',
-              },
               source: { type: 'string', description: 'Source of the DNS record' },
             },
           },

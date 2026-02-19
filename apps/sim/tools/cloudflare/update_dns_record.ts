@@ -205,10 +205,6 @@ export const updateDnsRecordTool: ToolConfig<
       description: 'Record metadata',
       optional: true,
       properties: {
-        auto_added: {
-          type: 'boolean',
-          description: 'Whether the record was auto-added by Cloudflare',
-        },
         source: { type: 'string', description: 'Source of the DNS record' },
       },
     },

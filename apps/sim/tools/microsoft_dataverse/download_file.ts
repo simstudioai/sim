@@ -97,9 +97,9 @@ export const dataverseDownloadFileTool: ToolConfig<
 
   outputs: {
     fileContent: { type: 'string', description: 'Base64-encoded file content' },
-    fileName: { type: 'string', description: 'Name of the downloaded file' },
+    fileName: { type: 'string', description: 'Name of the downloaded file', optional: true },
     fileSize: { type: 'number', description: 'File size in bytes' },
-    mimeType: { type: 'string', description: 'MIME type of the file' },
+    mimeType: { type: 'string', description: 'MIME type of the file', optional: true },
     success: { type: 'boolean', description: 'Whether the file was downloaded successfully' },
   },
 }

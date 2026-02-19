@@ -117,6 +117,7 @@ export const dataverseCreateMultipleTool: ToolConfig<
       description: 'Array of GUIDs for the created records',
       items: {
         type: 'string',
+        description: 'GUID of a created record',
       },
     },
     count: { type: 'number', description: 'Number of records created' },
