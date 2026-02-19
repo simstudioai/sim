@@ -279,6 +279,15 @@ Return ONLY valid JSON.`,
         if (params.isRestore !== undefined) {
           params.isRestore = params.isRestore === 'true'
         }
+        if (params.price !== undefined && params.price !== '') {
+          params.price = Number(params.price)
+        }
+        if (params.extendByDays !== undefined && params.extendByDays !== '') {
+          params.extendByDays = Number(params.extendByDays)
+        }
+        if (params.startTimeMs !== undefined && params.startTimeMs !== '') {
+          params.startTimeMs = Number(params.startTimeMs)
+        }
         return `revenuecat_${params.operation}`
       },
     },
