@@ -68,6 +68,12 @@ export const updateDnsRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comment for the DNS record',
     },
+    tags: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated tags for the DNS record',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -93,6 +99,13 @@ export const updateDnsRecordTool: ToolConfig<
       if (params.proxied !== undefined) body.proxied = params.proxied
       if (params.priority !== undefined) body.priority = Number(params.priority)
       if (params.comment !== undefined) body.comment = params.comment
+      if (params.tags) {
+        const tagList = String(params.tags)
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+        if (tagList.length > 0) body.tags = tagList
+      }
       return body
     },
   },
@@ -117,6 +130,9 @@ export const updateDnsRecordTool: ToolConfig<
           priority: undefined,
           comment: null,
           tags: [],
+          comment_modified_on: null,
+          tags_modified_on: null,
+          meta: null,
           created_on: '',
           modified_on: '',
         },
@@ -141,6 +157,9 @@ export const updateDnsRecordTool: ToolConfig<
         priority: record?.priority ?? null,
         comment: record?.comment ?? null,
         tags: record?.tags ?? [],
+        comment_modified_on: record?.comment_modified_on ?? null,
+        tags_modified_on: record?.tags_modified_on ?? null,
+        meta: record?.meta ?? null,
         created_on: record?.created_on ?? '',
         modified_on: record?.modified_on ?? '',
       },
@@ -170,6 +189,28 @@ export const updateDnsRecordTool: ToolConfig<
       type: 'array',
       description: 'Tags associated with the record',
       items: { type: 'string', description: 'Tag value' },
+    },
+    comment_modified_on: {
+      type: 'string',
+      description: 'ISO 8601 timestamp when the comment was last modified',
+      optional: true,
+    },
+    tags_modified_on: {
+      type: 'string',
+      description: 'ISO 8601 timestamp when tags were last modified',
+      optional: true,
+    },
+    meta: {
+      type: 'object',
+      description: 'Record metadata',
+      optional: true,
+      properties: {
+        auto_added: {
+          type: 'boolean',
+          description: 'Whether the record was auto-added by Cloudflare',
+        },
+        source: { type: 'string', description: 'Source of the DNS record' },
+      },
     },
     created_on: { type: 'string', description: 'ISO 8601 timestamp when the record was created' },
     modified_on: {

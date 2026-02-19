@@ -26,6 +26,24 @@ export const listCertificatesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter certificate packs by status (e.g., "all", "active", "pending")',
     },
+    page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page number of paginated results (default: 1)',
+    },
+    per_page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of certificate packs per page (default: 20, min: 5, max: 50)',
+    },
+    deploy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by deployment environment: "staging" or "production"',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -40,6 +58,9 @@ export const listCertificatesTool: ToolConfig<
         `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/ssl/certificate_packs`
       )
       if (params.status) url.searchParams.append('status', params.status)
+      if (params.page) url.searchParams.append('page', String(params.page))
+      if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
+      if (params.deploy) url.searchParams.append('deploy', params.deploy)
       return url.toString()
     },
     method: 'GET',
@@ -89,7 +110,32 @@ export const listCertificatesTool: ToolConfig<
             validation_method: cert.validation_method ?? '',
             validity_days: cert.validity_days ?? 0,
             certificate_authority: cert.certificate_authority ?? '',
-            created_on: cert.created_on ?? '',
+            validation_errors:
+              cert.validation_errors?.map((e: any) => ({
+                message: e.message ?? '',
+              })) ?? [],
+            validation_records:
+              cert.validation_records?.map((r: any) => ({
+                cname: r.cname ?? '',
+                cname_target: r.cname_target ?? '',
+                emails: r.emails ?? [],
+                http_body: r.http_body ?? '',
+                http_url: r.http_url ?? '',
+                status: r.status ?? '',
+                txt_name: r.txt_name ?? '',
+                txt_value: r.txt_value ?? '',
+              })) ?? [],
+            dcv_delegation_records:
+              cert.dcv_delegation_records?.map((r: any) => ({
+                cname: r.cname ?? '',
+                cname_target: r.cname_target ?? '',
+                emails: r.emails ?? [],
+                http_body: r.http_body ?? '',
+                http_url: r.http_url ?? '',
+                status: r.status ?? '',
+                txt_name: r.txt_name ?? '',
+                txt_value: r.txt_value ?? '',
+              })) ?? [],
           })) ?? [],
         total_count: data.result_info?.total_count ?? data.result?.length ?? 0,
       },
@@ -187,7 +233,64 @@ export const listCertificatesTool: ToolConfig<
             description: 'Certificate authority (e.g., "lets_encrypt", "google")',
             optional: true,
           },
-          created_on: { type: 'string', description: 'Creation date (ISO 8601)' },
+          validation_errors: {
+            type: 'array',
+            description: 'Validation issues for the certificate pack',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                message: {
+                  type: 'string',
+                  description: 'Validation error message',
+                },
+              },
+            },
+          },
+          validation_records: {
+            type: 'array',
+            description: 'Validation records for the certificate pack',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                cname: { type: 'string', description: 'CNAME record name' },
+                cname_target: { type: 'string', description: 'CNAME record target' },
+                emails: {
+                  type: 'array',
+                  description: 'Email addresses for validation',
+                  items: { type: 'string', description: 'Email address' },
+                },
+                http_body: { type: 'string', description: 'HTTP validation body content' },
+                http_url: { type: 'string', description: 'HTTP validation URL' },
+                status: { type: 'string', description: 'Validation record status' },
+                txt_name: { type: 'string', description: 'TXT record name' },
+                txt_value: { type: 'string', description: 'TXT record value' },
+              },
+            },
+          },
+          dcv_delegation_records: {
+            type: 'array',
+            description: 'Domain control validation delegation records',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                cname: { type: 'string', description: 'CNAME record name' },
+                cname_target: { type: 'string', description: 'CNAME record target' },
+                emails: {
+                  type: 'array',
+                  description: 'Email addresses for validation',
+                  items: { type: 'string', description: 'Email address' },
+                },
+                http_body: { type: 'string', description: 'HTTP validation body content' },
+                http_url: { type: 'string', description: 'HTTP validation URL' },
+                status: { type: 'string', description: 'Delegation record status' },
+                txt_name: { type: 'string', description: 'TXT record name' },
+                txt_value: { type: 'string', description: 'TXT record value' },
+              },
+            },
+          },
         },
       },
     },

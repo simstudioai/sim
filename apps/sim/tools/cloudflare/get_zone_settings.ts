@@ -55,7 +55,10 @@ export const getZoneSettingsTool: ToolConfig<
         settings:
           data.result?.map((setting: Record<string, unknown>) => ({
             id: (setting.id as string) ?? '',
-            value: setting.value ?? null,
+            value:
+              typeof setting.value === 'object' && setting.value !== null
+                ? JSON.stringify(setting.value)
+                : String(setting.value ?? ''),
             editable: (setting.editable as boolean) ?? false,
             modified_on: (setting.modified_on as string) ?? '',
             ...(setting.time_remaining != null
@@ -79,9 +82,9 @@ export const getZoneSettingsTool: ToolConfig<
               'Setting identifier (e.g., ssl, minify, cache_level, security_level, always_use_https)',
           },
           value: {
-            type: 'json',
+            type: 'string',
             description:
-              'Setting value - may be a string, number, boolean, or object depending on the setting',
+              'Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., \'{"css":"on","html":"on","js":"on"}\').',
           },
           editable: {
             type: 'boolean',

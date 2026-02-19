@@ -36,7 +36,7 @@ export const dnsAnalyticsTool: ToolConfig<
     },
     metrics: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th")',
@@ -46,7 +46,7 @@ export const dnsAnalyticsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated dimensions to group by (e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion")',
+        'Comma-separated dimensions to group by (e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion,querySizeBucket,responseSizeBucket")',
     },
     filters: {
       type: 'string',
@@ -112,9 +112,36 @@ export const dnsAnalyticsTool: ToolConfig<
             responseTime90th: 0,
             responseTime99th: 0,
           },
+          min: {
+            queryCount: 0,
+            uncachedCount: 0,
+            staleCount: 0,
+            responseTimeAvg: 0,
+            responseTimeMedian: 0,
+            responseTime90th: 0,
+            responseTime99th: 0,
+          },
+          max: {
+            queryCount: 0,
+            uncachedCount: 0,
+            staleCount: 0,
+            responseTimeAvg: 0,
+            responseTimeMedian: 0,
+            responseTime90th: 0,
+            responseTime99th: 0,
+          },
           data: [],
           data_lag: 0,
           rows: 0,
+          query: {
+            since: '',
+            until: '',
+            metrics: [],
+            dimensions: [],
+            filters: '',
+            sort: [],
+            limit: 0,
+          },
         },
         error: data.errors?.[0]?.message ?? 'Failed to get DNS analytics',
       }
@@ -133,6 +160,24 @@ export const dnsAnalyticsTool: ToolConfig<
           responseTime90th: result?.totals?.responseTime90th ?? 0,
           responseTime99th: result?.totals?.responseTime99th ?? 0,
         },
+        min: {
+          queryCount: result?.min?.queryCount ?? 0,
+          uncachedCount: result?.min?.uncachedCount ?? 0,
+          staleCount: result?.min?.staleCount ?? 0,
+          responseTimeAvg: result?.min?.responseTimeAvg ?? 0,
+          responseTimeMedian: result?.min?.responseTimeMedian ?? 0,
+          responseTime90th: result?.min?.responseTime90th ?? 0,
+          responseTime99th: result?.min?.responseTime99th ?? 0,
+        },
+        max: {
+          queryCount: result?.max?.queryCount ?? 0,
+          uncachedCount: result?.max?.uncachedCount ?? 0,
+          staleCount: result?.max?.staleCount ?? 0,
+          responseTimeAvg: result?.max?.responseTimeAvg ?? 0,
+          responseTimeMedian: result?.max?.responseTimeMedian ?? 0,
+          responseTime90th: result?.max?.responseTime90th ?? 0,
+          responseTime99th: result?.max?.responseTime99th ?? 0,
+        },
         data:
           result?.data?.map((entry: any) => ({
             dimensions: entry.dimensions ?? [],
@@ -140,6 +185,15 @@ export const dnsAnalyticsTool: ToolConfig<
           })) ?? [],
         data_lag: result?.data_lag ?? 0,
         rows: result?.rows ?? 0,
+        query: {
+          since: result?.query?.since ?? '',
+          until: result?.query?.until ?? '',
+          metrics: result?.query?.metrics ?? [],
+          dimensions: result?.query?.dimensions ?? [],
+          filters: result?.query?.filters ?? '',
+          sort: result?.query?.sort ?? [],
+          limit: result?.query?.limit ?? 0,
+        },
       },
     }
   },
@@ -174,6 +228,66 @@ export const dnsAnalyticsTool: ToolConfig<
         },
       },
     },
+    min: {
+      type: 'object',
+      description: 'Minimum values across the analytics period',
+      optional: true,
+      properties: {
+        queryCount: { type: 'number', description: 'Minimum number of DNS queries' },
+        uncachedCount: { type: 'number', description: 'Minimum number of uncached DNS queries' },
+        staleCount: { type: 'number', description: 'Minimum number of stale DNS queries' },
+        responseTimeAvg: {
+          type: 'number',
+          description: 'Minimum average response time in milliseconds',
+          optional: true,
+        },
+        responseTimeMedian: {
+          type: 'number',
+          description: 'Minimum median response time in milliseconds',
+          optional: true,
+        },
+        responseTime90th: {
+          type: 'number',
+          description: 'Minimum 90th percentile response time in milliseconds',
+          optional: true,
+        },
+        responseTime99th: {
+          type: 'number',
+          description: 'Minimum 99th percentile response time in milliseconds',
+          optional: true,
+        },
+      },
+    },
+    max: {
+      type: 'object',
+      description: 'Maximum values across the analytics period',
+      optional: true,
+      properties: {
+        queryCount: { type: 'number', description: 'Maximum number of DNS queries' },
+        uncachedCount: { type: 'number', description: 'Maximum number of uncached DNS queries' },
+        staleCount: { type: 'number', description: 'Maximum number of stale DNS queries' },
+        responseTimeAvg: {
+          type: 'number',
+          description: 'Maximum average response time in milliseconds',
+          optional: true,
+        },
+        responseTimeMedian: {
+          type: 'number',
+          description: 'Maximum median response time in milliseconds',
+          optional: true,
+        },
+        responseTime90th: {
+          type: 'number',
+          description: 'Maximum 90th percentile response time in milliseconds',
+          optional: true,
+        },
+        responseTime99th: {
+          type: 'number',
+          description: 'Maximum 99th percentile response time in milliseconds',
+          optional: true,
+        },
+      },
+    },
     data: {
       type: 'array',
       description: 'Raw analytics data rows returned by the Cloudflare DNS analytics report',
@@ -201,6 +315,32 @@ export const dnsAnalyticsTool: ToolConfig<
     rows: {
       type: 'number',
       description: 'Total number of rows in the result set',
+    },
+    query: {
+      type: 'object',
+      description: 'Echo of the query parameters sent to the API',
+      optional: true,
+      properties: {
+        since: { type: 'string', description: 'Start date of the analytics query' },
+        until: { type: 'string', description: 'End date of the analytics query' },
+        metrics: {
+          type: 'array',
+          description: 'Metrics requested in the query',
+          items: { type: 'string', description: 'Metric name' },
+        },
+        dimensions: {
+          type: 'array',
+          description: 'Dimensions requested in the query',
+          items: { type: 'string', description: 'Dimension name' },
+        },
+        filters: { type: 'string', description: 'Filters applied to the query' },
+        sort: {
+          type: 'array',
+          description: 'Sort order applied to the query',
+          items: { type: 'string', description: 'Sort field with direction prefix' },
+        },
+        limit: { type: 'number', description: 'Maximum number of results requested' },
+      },
     },
   },
 }

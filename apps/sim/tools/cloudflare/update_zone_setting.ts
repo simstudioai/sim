@@ -66,7 +66,7 @@ export const updateZoneSettingTool: ToolConfig<
     if (!data.success) {
       return {
         success: false,
-        output: { id: '', value: null, editable: false, modified_on: '' },
+        output: { id: '', value: '', editable: false, modified_on: '' },
         error: data.errors?.[0]?.message ?? 'Failed to update zone setting',
       }
     }
@@ -76,7 +76,10 @@ export const updateZoneSettingTool: ToolConfig<
       success: true,
       output: {
         id: setting?.id ?? '',
-        value: setting?.value ?? null,
+        value:
+          typeof setting?.value === 'object' && setting?.value !== null
+            ? JSON.stringify(setting.value)
+            : String(setting?.value ?? ''),
         editable: setting?.editable ?? false,
         modified_on: setting?.modified_on ?? '',
         ...(setting?.time_remaining != null
@@ -92,9 +95,9 @@ export const updateZoneSettingTool: ToolConfig<
       description: 'Setting identifier (e.g., ssl, minify, cache_level)',
     },
     value: {
-      type: 'json',
+      type: 'string',
       description:
-        'Updated setting value - may be a string, number, boolean, or object depending on the setting',
+        'Updated setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified.',
     },
     editable: {
       type: 'boolean',

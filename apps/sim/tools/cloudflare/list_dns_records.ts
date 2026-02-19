@@ -30,13 +30,13 @@ export const listDnsRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by record name (substring match)',
+      description: 'Filter by record name (exact match)',
     },
     content: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by record content (substring match)',
+      description: 'Filter by record content (exact match)',
     },
     page: {
       type: 'number',
@@ -49,6 +49,54 @@ export const listDnsRecordsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Number of records per page (default: 100, max: 5000000)',
+    },
+    direction: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort direction (asc or desc)',
+    },
+    match: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Match logic for filters: any or all (default: all)',
+    },
+    order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort field (type, name, content, ttl, proxied)',
+    },
+    proxied: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by proxy status',
+    },
+    search: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Free-text search across record name, content, and value',
+    },
+    tag: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by tags (comma-separated)',
+    },
+    tag_match: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tag filter match logic: any or all',
+    },
+    commentFilter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter records by comment content (substring match)',
     },
     apiKey: {
       type: 'string',
@@ -66,6 +114,14 @@ export const listDnsRecordsTool: ToolConfig<
       if (params.content) url.searchParams.append('content', params.content)
       if (params.page) url.searchParams.append('page', String(params.page))
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
+      if (params.direction) url.searchParams.append('direction', params.direction)
+      if (params.match) url.searchParams.append('match', params.match)
+      if (params.order) url.searchParams.append('order', params.order)
+      if (params.proxied !== undefined) url.searchParams.append('proxied', String(params.proxied))
+      if (params.search) url.searchParams.append('search', params.search)
+      if (params.tag) url.searchParams.append('tag', params.tag)
+      if (params.tag_match) url.searchParams.append('tag-match', params.tag_match)
+      if (params.commentFilter) url.searchParams.append('comment.contains', params.commentFilter)
       return url.toString()
     },
     method: 'GET',
@@ -104,6 +160,9 @@ export const listDnsRecordsTool: ToolConfig<
             priority: record.priority ?? null,
             comment: record.comment ?? null,
             tags: record.tags ?? [],
+            comment_modified_on: record.comment_modified_on ?? null,
+            tags_modified_on: record.tags_modified_on ?? null,
+            meta: record.meta ?? null,
             created_on: record.created_on ?? '',
             modified_on: record.modified_on ?? '',
           })) ?? [],
@@ -139,6 +198,28 @@ export const listDnsRecordsTool: ToolConfig<
             type: 'array',
             description: 'Tags associated with the record',
             items: { type: 'string', description: 'Tag value' },
+          },
+          comment_modified_on: {
+            type: 'string',
+            description: 'ISO 8601 timestamp when the comment was last modified',
+            optional: true,
+          },
+          tags_modified_on: {
+            type: 'string',
+            description: 'ISO 8601 timestamp when tags were last modified',
+            optional: true,
+          },
+          meta: {
+            type: 'object',
+            description: 'Record metadata',
+            optional: true,
+            properties: {
+              auto_added: {
+                type: 'boolean',
+                description: 'Whether the record was auto-added by Cloudflare',
+              },
+              source: { type: 'string', description: 'Source of the DNS record' },
+            },
           },
           created_on: {
             type: 'string',

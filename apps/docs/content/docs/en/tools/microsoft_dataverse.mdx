@@ -27,9 +27,10 @@ The Dataverse integration empowers solution builders and business users to autom
 Connect Microsoft Dataverse to your automations to unlock sophisticated data management, orchestration, and business logic across your apps, teams, and cloud services.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
-Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, and query records in Dataverse tables using the Web API. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
+Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
 
 
 
@@ -61,6 +62,27 @@ Associate two records in Microsoft Dataverse via a navigation property. Creates 
 | `navigationProperty` | string | Navigation property used for the association |
 | `targetEntitySetName` | string | Target entity set name used in the association |
 | `targetRecordId` | string | Target record GUID that was associated |
+
+### `microsoft_dataverse_create_multiple`
+
+Create multiple records of the same table type in a single request. Each record in the Targets array must include an @odata.type annotation. Recommended batch size: 100-1000 records for standard tables.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `entityLogicalName` | string | Yes | Table logical name for @odata.type annotation \(e.g., account, contact\). Used to set Microsoft.Dynamics.CRM.\{entityLogicalName\} on each record. |
+| `records` | object | Yes | Array of record objects to create. Each record should contain column logical names as keys. The @odata.type annotation is added automatically. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ids` | array | Array of GUIDs for the created records |
+| `count` | number | Number of records created |
+| `success` | boolean | Whether all records were created successfully |
 
 ### `microsoft_dataverse_create_record`
 
@@ -125,6 +147,93 @@ Remove an association between two records in Microsoft Dataverse. For collection
 | `navigationProperty` | string | Navigation property used for the disassociation |
 | `targetRecordId` | string | Target record GUID that was disassociated |
 
+### `microsoft_dataverse_download_file`
+
+Download a file from a file or image column on a Dataverse record. Returns the file content as a base64-encoded string along with file metadata from response headers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | Record GUID to download the file from |
+| `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileContent` | string | Base64-encoded file content |
+| `fileName` | string | Name of the downloaded file |
+| `fileSize` | number | File size in bytes |
+| `mimeType` | string | MIME type of the file |
+| `success` | boolean | Whether the file was downloaded successfully |
+
+### `microsoft_dataverse_execute_action`
+
+Execute a bound or unbound Dataverse action. Actions perform operations with side effects (e.g., Merge, GrantAccess, SendEmail, QualifyLead). For bound actions, provide the entity set name and record ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `actionName` | string | Yes | Action name \(e.g., Merge, GrantAccess, SendEmail\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound actions. |
+| `entitySetName` | string | No | Entity set name for bound actions \(e.g., accounts\). Leave empty for unbound actions. |
+| `recordId` | string | No | Record GUID for bound actions. Leave empty for unbound or collection-bound actions. |
+| `parameters` | object | No | Action parameters as a JSON object. For entity references, include @odata.type annotation \(e.g., \{"Target": \{"@odata.type": "Microsoft.Dynamics.CRM.account", "accountid": "..."\}\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | object | Action response data. Structure varies by action. Null for actions that return 204 No Content. |
+| `success` | boolean | Whether the action executed successfully |
+
+### `microsoft_dataverse_execute_function`
+
+Execute a bound or unbound Dataverse function. Functions are read-only operations (e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount, InitializeFrom). For bound functions, provide the entity set name and record ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `functionName` | string | Yes | Function name \(e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound functions. |
+| `entitySetName` | string | No | Entity set name for bound functions \(e.g., systemusers\). Leave empty for unbound functions. |
+| `recordId` | string | No | Record GUID for bound functions. Leave empty for unbound functions. |
+| `parameters` | string | No | Function parameters as a comma-separated list of name=value pairs for the URL \(e.g., "LocalizedStandardName=\'Pacific Standard Time\ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | object | Function response data. Structure varies by function. |
+| `success` | boolean | Whether the function executed successfully |
+
+### `microsoft_dataverse_fetchxml_query`
+
+Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports aggregation, grouping, linked-entity joins, and complex filtering beyond OData capabilities.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `fetchXml` | string | Yes | FetchXML query string. Must include &lt;fetch&gt; root element and &lt;entity&gt; child element matching the table logical name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of Dataverse records. Each record has dynamic columns based on the table schema. |
+| `count` | number | Number of records returned in the current page |
+| `fetchXmlPagingCookie` | string | Paging cookie for retrieving the next page of results |
+| `moreRecords` | boolean | Whether more records are available beyond the current page |
+| `success` | boolean | Operation success status |
+
 ### `microsoft_dataverse_get_record`
 
 Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.
@@ -174,6 +283,60 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `nextLink` | string | URL for the next page of results |
 | `success` | boolean | Operation success status |
 
+### `microsoft_dataverse_search`
+
+Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `searchTerm` | string | Yes | Search text \(1-100 chars\). Supports simple syntax: + \(AND\), \| \(OR\), - \(NOT\), * \(wildcard\), "exact phrase" |
+| `entities` | string | No | JSON array of search entity configs. Each object: \{"Name":"account","SelectColumns":\["name"\],"SearchColumns":\["name"\],"Filter":"statecode eq 0"\} |
+| `filter` | string | No | Global OData filter applied across all entities \(e.g., "createdon gt 2024-01-01"\) |
+| `facets` | string | No | JSON array of facet specifications \(e.g., \["entityname,count:100","ownerid,count:100"\]\) |
+| `top` | number | No | Maximum number of results \(default: 50, max: 100\) |
+| `skip` | number | No | Number of results to skip for pagination |
+| `orderBy` | string | No | JSON array of sort expressions \(e.g., \["createdon desc"\]\) |
+| `searchMode` | string | No | Search mode: "any" \(default, match any term\) or "all" \(match all terms\) |
+| `searchType` | string | No | Query type: "simple" \(default\) or "lucene" \(enables regex, fuzzy, proximity, boosting\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search result objects |
+|   ↳ `Id` | string | Record GUID |
+|   ↳ `EntityName` | string | Table logical name \(e.g., account, contact\) |
+|   ↳ `ObjectTypeCode` | number | Entity type code |
+|   ↳ `Attributes` | object | Record attributes matching the search. Keys are column logical names. |
+|   ↳ `Highlights` | object | Highlighted search matches. Keys are column names, values are arrays of strings with \{crmhit\}/\{/crmhit\} markers. |
+|   ↳ `Score` | number | Relevance score for this result |
+| `totalCount` | number | Total number of matching records across all tables |
+| `count` | number | Number of results returned in this page |
+| `facets` | object | Facet results when facets were requested. Keys are facet names, values are arrays of facet value objects with count and value properties. |
+| `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_update_multiple`
+
+Update multiple records of the same table type in a single request. Each record must include its primary key. Only include columns that need to be changed. Recommended batch size: 100-1000 records.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `entityLogicalName` | string | Yes | Table logical name for @odata.type annotation \(e.g., account, contact\). Used to set Microsoft.Dynamics.CRM.\{entityLogicalName\} on each record. |
+| `records` | object | Yes | Array of record objects to update. Each record must include its primary key \(e.g., accountid\) and only the columns being changed. The @odata.type annotation is added automatically. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether all records were updated successfully |
+
 ### `microsoft_dataverse_update_record`
 
 Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.
@@ -193,6 +356,31 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 | --------- | ---- | ----------- |
 | `recordId` | string | The ID of the updated record |
 | `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_upload_file`
+
+Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
+| `recordId` | string | Yes | Record GUID to upload the file to |
+| `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
+| `fileName` | string | Yes | Name of the file being uploaded \(e.g., document.pdf\) |
+| `file` | file | No | File to upload \(UserFile object\) |
+| `fileContent` | string | No | Base64-encoded file content \(legacy\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | Record GUID the file was uploaded to |
+| `fileColumn` | string | File column the file was uploaded to |
+| `fileName` | string | Name of the uploaded file |
+| `success` | boolean | Whether the file was uploaded successfully |
 
 ### `microsoft_dataverse_upsert_record`
 

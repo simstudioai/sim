@@ -9,6 +9,30 @@ export interface CloudflareListZonesParams extends CloudflareBaseParams {
   status?: string
   page?: number
   per_page?: number
+  accountId?: string
+  order?: string
+  direction?: string
+  match?: string
+}
+
+export interface CloudflareZonePlan {
+  id: string
+  name: string
+  price: number
+  is_subscribed: boolean
+  frequency: string
+  currency: string
+  legacy_id: string
+}
+
+export interface CloudflareZoneMeta {
+  cdn_only: boolean
+  custom_certificate_quota: number
+  dns_only: boolean
+  foundation_dns: boolean
+  page_rule_quota: number
+  phishing_detected: boolean
+  step: number
 }
 
 export interface CloudflareZone {
@@ -18,13 +42,24 @@ export interface CloudflareZone {
   paused: boolean
   type: string
   name_servers: string[]
-  original_name_servers: string[]
+  original_name_servers?: string[]
   created_on: string
   modified_on: string
-  plan: {
+  activated_on?: string
+  development_mode?: number
+  plan?: CloudflareZonePlan
+  account?: {
     id: string
     name: string
   }
+  owner?: {
+    id: string
+    name: string
+    type: string
+  }
+  meta?: CloudflareZoneMeta
+  vanity_name_servers?: string[]
+  permissions?: string[]
 }
 
 export interface CloudflareListZonesResponse extends ToolResponse {
@@ -49,10 +84,21 @@ export interface CloudflareGetZoneResponse extends ToolResponse {
     original_name_servers: string[]
     created_on: string
     modified_on: string
-    plan: {
+    activated_on: string
+    development_mode: number
+    plan: CloudflareZonePlan
+    account: {
       id: string
       name: string
     }
+    owner: {
+      id: string
+      name: string
+      type: string
+    }
+    meta: CloudflareZoneMeta
+    vanity_name_servers: string[]
+    permissions: string[]
   }
 }
 
@@ -60,6 +106,7 @@ export interface CloudflareCreateZoneParams extends CloudflareBaseParams {
   name: string
   accountId: string
   type?: string
+  jump_start?: boolean
 }
 
 export interface CloudflareCreateZoneResponse extends ToolResponse {
@@ -73,10 +120,21 @@ export interface CloudflareCreateZoneResponse extends ToolResponse {
     original_name_servers: string[]
     created_on: string
     modified_on: string
-    plan: {
+    activated_on: string
+    development_mode: number
+    plan: CloudflareZonePlan
+    account: {
       id: string
       name: string
     }
+    owner: {
+      id: string
+      name: string
+      type: string
+    }
+    meta: CloudflareZoneMeta
+    vanity_name_servers: string[]
+    permissions: string[]
   }
 }
 
@@ -97,6 +155,19 @@ export interface CloudflareListDnsRecordsParams extends CloudflareBaseParams {
   content?: string
   page?: number
   per_page?: number
+  direction?: string
+  match?: string
+  order?: string
+  proxied?: boolean
+  search?: string
+  tag?: string
+  tag_match?: string
+  commentFilter?: string
+}
+
+export interface CloudflareDnsRecordMeta {
+  auto_added: boolean
+  source: string
 }
 
 export interface CloudflareDnsRecord {
@@ -113,6 +184,9 @@ export interface CloudflareDnsRecord {
   priority?: number
   comment?: string | null
   tags: string[]
+  comment_modified_on?: string | null
+  tags_modified_on?: string | null
+  meta?: CloudflareDnsRecordMeta | null
   created_on: string
   modified_on: string
 }
@@ -133,6 +207,7 @@ export interface CloudflareCreateDnsRecordParams extends CloudflareBaseParams {
   proxied?: boolean
   priority?: number
   comment?: string
+  tags?: string
 }
 
 export interface CloudflareCreateDnsRecordResponse extends ToolResponse {
@@ -150,6 +225,9 @@ export interface CloudflareCreateDnsRecordResponse extends ToolResponse {
     priority?: number
     comment?: string | null
     tags: string[]
+    comment_modified_on?: string | null
+    tags_modified_on?: string | null
+    meta?: CloudflareDnsRecordMeta | null
     created_on: string
     modified_on: string
   }
@@ -165,6 +243,7 @@ export interface CloudflareUpdateDnsRecordParams extends CloudflareBaseParams {
   proxied?: boolean
   priority?: number
   comment?: string
+  tags?: string
 }
 
 export interface CloudflareUpdateDnsRecordResponse extends ToolResponse {
@@ -182,6 +261,9 @@ export interface CloudflareUpdateDnsRecordResponse extends ToolResponse {
     priority?: number
     comment?: string | null
     tags: string[]
+    comment_modified_on?: string | null
+    tags_modified_on?: string | null
+    meta?: CloudflareDnsRecordMeta | null
     created_on: string
     modified_on: string
   }
@@ -201,6 +283,9 @@ export interface CloudflareDeleteDnsRecordResponse extends ToolResponse {
 export interface CloudflareListCertificatesParams extends CloudflareBaseParams {
   zoneId: string
   status?: string
+  page?: number
+  per_page?: number
+  deploy?: string
 }
 
 export interface CloudflareCertificateGeoRestrictions {
@@ -222,6 +307,21 @@ export interface CloudflareCertificate {
   geo_restrictions?: CloudflareCertificateGeoRestrictions
 }
 
+export interface CloudflareCertificateValidationError {
+  message: string
+}
+
+export interface CloudflareDcvDelegationRecord {
+  cname: string
+  cname_target: string
+  emails: string[]
+  http_body: string
+  http_url: string
+  status: string
+  txt_name: string
+  txt_value: string
+}
+
 export interface CloudflareCertificatePack {
   id: string
   type: string
@@ -233,7 +333,9 @@ export interface CloudflareCertificatePack {
   validation_method?: string
   validity_days?: number
   certificate_authority?: string
-  created_on: string
+  validation_errors?: CloudflareCertificateValidationError[]
+  validation_records?: CloudflareDcvDelegationRecord[]
+  dcv_delegation_records?: CloudflareDcvDelegationRecord[]
 }
 
 export interface CloudflareListCertificatesResponse extends ToolResponse {
@@ -246,10 +348,10 @@ export interface CloudflareListCertificatesResponse extends ToolResponse {
 export interface CloudflarePurgeCacheParams extends CloudflareBaseParams {
   zoneId: string
   purge_everything?: boolean
-  files?: string[]
-  tags?: string[]
-  hosts?: string[]
-  prefixes?: string[]
+  files?: string
+  tags?: string
+  hosts?: string
+  prefixes?: string
 }
 
 export interface CloudflarePurgeCacheResponse extends ToolResponse {
@@ -269,23 +371,38 @@ export interface CloudflareDnsAnalyticsParams extends CloudflareBaseParams {
   limit?: number
 }
 
+export interface CloudflareDnsAnalyticsTotals {
+  queryCount: number
+  uncachedCount: number
+  staleCount: number
+  responseTimeAvg?: number
+  responseTimeMedian?: number
+  responseTime90th?: number
+  responseTime99th?: number
+}
+
+export interface CloudflareDnsAnalyticsQuery {
+  since: string
+  until: string
+  metrics: string[]
+  dimensions: string[]
+  filters: string
+  sort: string[]
+  limit: number
+}
+
 export interface CloudflareDnsAnalyticsResponse extends ToolResponse {
   output: {
-    totals: {
-      queryCount: number
-      uncachedCount: number
-      staleCount: number
-      responseTimeAvg?: number
-      responseTimeMedian?: number
-      responseTime90th?: number
-      responseTime99th?: number
-    }
+    totals: CloudflareDnsAnalyticsTotals
+    min: CloudflareDnsAnalyticsTotals
+    max: CloudflareDnsAnalyticsTotals
     data: Array<{
       dimensions: string[]
       metrics: number[]
     }>
     data_lag: number
     rows: number
+    query: CloudflareDnsAnalyticsQuery
   }
 }
 
@@ -295,7 +412,7 @@ export interface CloudflareGetZoneSettingsParams extends CloudflareBaseParams {
 
 export interface CloudflareZoneSetting {
   id: string
-  value: unknown
+  value: string
   editable: boolean
   modified_on: string
   time_remaining?: number
@@ -316,7 +433,7 @@ export interface CloudflareUpdateZoneSettingParams extends CloudflareBaseParams 
 export interface CloudflareUpdateZoneSettingResponse extends ToolResponse {
   output: {
     id: string
-    value: unknown
+    value: string
     editable: boolean
     modified_on: string
     time_remaining?: number

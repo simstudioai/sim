@@ -69,35 +69,44 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
         if (params.purge_everything) {
           return { purge_everything: true }
         }
+
+        const body: Record<string, string[]> = {}
         if (params.files) {
           const fileList = String(params.files)
             .split(',')
             .map((f) => f.trim())
             .filter(Boolean)
-          return { files: fileList }
+          if (fileList.length > 0) body.files = fileList
         }
         if (params.tags) {
           const tagList = String(params.tags)
             .split(',')
             .map((t) => t.trim())
             .filter(Boolean)
-          return { tags: tagList }
+          if (tagList.length > 0) body.tags = tagList
         }
         if (params.hosts) {
           const hostList = String(params.hosts)
             .split(',')
             .map((h) => h.trim())
             .filter(Boolean)
-          return { hosts: hostList }
+          if (hostList.length > 0) body.hosts = hostList
         }
         if (params.prefixes) {
           const prefixList = String(params.prefixes)
             .split(',')
             .map((p) => p.trim())
             .filter(Boolean)
-          return { prefixes: prefixList }
+          if (prefixList.length > 0) body.prefixes = prefixList
         }
-        return { purge_everything: true }
+
+        if (Object.keys(body).length === 0) {
+          throw new Error(
+            'No purge targets specified. Provide at least one of: files, tags, hosts, or prefixes, or set purge_everything to true.'
+          )
+        }
+
+        return body
       },
     },
 
