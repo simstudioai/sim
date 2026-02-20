@@ -152,6 +152,7 @@ const nextConfig: NextConfig = {
       {
         source: '/api/auth/oauth2/:path*',
         headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'false' },
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
           {
@@ -163,6 +164,7 @@ const nextConfig: NextConfig = {
       {
         source: '/api/auth/jwks',
         headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'false' },
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
@@ -171,6 +173,7 @@ const nextConfig: NextConfig = {
       {
         source: '/api/auth/.well-known/:path*',
         headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'false' },
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
