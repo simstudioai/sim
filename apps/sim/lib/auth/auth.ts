@@ -11,6 +11,8 @@ import {
   customSession,
   emailOTP,
   genericOAuth,
+  jwt,
+  oidcProvider,
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
@@ -80,6 +82,8 @@ export const auth = betterAuth({
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
+    'https://claude.ai',
+    'https://claude.com',
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -542,6 +546,21 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    jwt({
+      jwks: {
+        keyPairConfig: { alg: 'RS256' },
+      },
+      disableSettingJwtHeader: true,
+    }),
+    oidcProvider({
+      loginPage: '/login',
+      consentPage: '/oauth/consent',
+      requirePKCE: true,
+      allowPlainCodeChallengeMethod: false,
+      allowDynamicClientRegistration: true,
+      useJWTPlugin: true,
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
+    }),
     oneTimeToken({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
     }),
