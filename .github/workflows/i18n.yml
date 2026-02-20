@@ -58,7 +58,7 @@ jobs:
       
       - name: Create Pull Request with translations
         if: steps.changes.outputs.changes == 'true'
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_PAT }}
           commit-message: "feat(i18n): update translations"
