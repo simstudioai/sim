@@ -13,6 +13,7 @@ import {
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   navigatePath,
+  RESOLVED_EMPTY,
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
@@ -84,7 +85,12 @@ export class BlockResolver implements Resolver {
         return result.value
       }
 
-      return this.handleBackwardsCompat(block, output, pathParts)
+      const backwardsCompat = this.handleBackwardsCompat(block, output, pathParts)
+      if (backwardsCompat !== undefined) {
+        return backwardsCompat
+      }
+
+      return RESOLVED_EMPTY
     } catch (error) {
       if (error instanceof InvalidFieldError) {
         const fallback = this.handleBackwardsCompat(block, output, pathParts)

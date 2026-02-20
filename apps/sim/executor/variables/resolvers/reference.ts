@@ -13,6 +13,14 @@ export interface Resolver {
 }
 
 /**
+ * Sentinel value indicating a reference was resolved to a known block
+ * that produced no output (e.g., the block exists in the workflow but
+ * didn't execute on this path). Distinct from `undefined`, which means
+ * the reference couldn't be matched to any block at all.
+ */
+export const RESOLVED_EMPTY = Symbol('RESOLVED_EMPTY')
+
+/**
  * Navigate through nested object properties using a path array.
  * Supports dot notation and array indices.
  *
