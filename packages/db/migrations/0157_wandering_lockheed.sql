@@ -1,3 +1,61 @@
+-- ============================================================
+-- Triggers for user_table_rows (from 0156 schema addition)
+-- Drizzle does not generate trigger SQL, so they are applied here.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION increment_user_table_row_count()
+RETURNS TRIGGER AS $$
+DECLARE
+    current_count INTEGER;
+    max_allowed INTEGER;
+BEGIN
+    SELECT row_count, max_rows INTO current_count, max_allowed
+    FROM user_table_definitions
+    WHERE id = NEW.table_id;
+
+    IF current_count >= max_allowed THEN
+        RAISE EXCEPTION 'Maximum row limit (%) reached for table %', max_allowed, NEW.table_id;
+    END IF;
+
+    UPDATE user_table_definitions
+    SET row_count = row_count + 1,
+        updated_at = now()
+    WHERE id = NEW.table_id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION decrement_user_table_row_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE user_table_definitions
+    SET row_count = GREATEST(row_count - 1, 0),
+        updated_at = now()
+    WHERE id = OLD.table_id;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+
+CREATE TRIGGER user_table_rows_insert_trigger
+    BEFORE INSERT ON user_table_rows
+    FOR EACH ROW
+    EXECUTE FUNCTION increment_user_table_row_count();
+--> statement-breakpoint
+
+CREATE TRIGGER user_table_rows_delete_trigger
+    AFTER DELETE ON user_table_rows
+    FOR EACH ROW
+    EXECUTE FUNCTION decrement_user_table_row_count();
+--> statement-breakpoint
+
+-- ============================================================
+-- Credential system schema + backfill
+-- ============================================================
+
 CREATE TYPE "public"."credential_member_role" AS ENUM('admin', 'member');--> statement-breakpoint
 CREATE TYPE "public"."credential_member_status" AS ENUM('active', 'pending', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."credential_type" AS ENUM('oauth', 'env_workspace', 'env_personal');--> statement-breakpoint
