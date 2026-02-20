@@ -100,14 +100,28 @@ export default function OAuthConsentPage() {
   )
 
   const handleSwitchAccount = useCallback(async () => {
+    if (!consentCode) return
+
+    const res = await fetch(`/api/auth/oauth2/authorize-params?consent_code=${consentCode}`)
+    if (!res.ok) {
+      setError('Unable to switch accounts. Please re-initiate the connection.')
+      return
+    }
+
+    const params = (await res.json()) as Record<string, string | null>
+    const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+    for (const [key, value] of Object.entries(params)) {
+      if (value) authorizeUrl.searchParams.set(key, value)
+    }
+
     await signOut({
       fetchOptions: {
         onSuccess: () => {
-          window.location.href = '/login'
+          window.location.href = authorizeUrl.toString()
         },
       },
     })
-  }, [])
+  }, [consentCode])
 
   if (loading) {
     return (
