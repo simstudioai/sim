@@ -584,6 +584,13 @@ export interface SlackGetMessageParams extends SlackBaseParams {
   timestamp: string
 }
 
+export interface SlackEphemeralMessageParams extends SlackBaseParams {
+  channel: string
+  user: string
+  text: string
+  threadTs?: string
+}
+
 export interface SlackGetThreadParams extends SlackBaseParams {
   channel: string
   threadTs: string
@@ -831,6 +838,13 @@ export interface SlackGetMessageResponse extends ToolResponse {
   }
 }
 
+export interface SlackEphemeralMessageResponse extends ToolResponse {
+  output: {
+    messageTs: string
+    channel: string
+  }
+}
+
 export interface SlackGetThreadResponse extends ToolResponse {
   output: {
     parentMessage: SlackMessage
@@ -853,5 +867,6 @@ export type SlackResponse =
   | SlackListMembersResponse
   | SlackListUsersResponse
   | SlackGetUserResponse
+  | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse

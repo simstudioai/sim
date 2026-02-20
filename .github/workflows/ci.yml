@@ -144,7 +144,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
-          no-cache: true
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
@@ -205,7 +204,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
-          no-cache: true
 
   # Create GHCR multi-arch manifests (only for main, after both builds)
   create-ghcr-manifests:

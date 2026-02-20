@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, add reactions in Slack or trigger workflows from Slack events
+description: Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -59,7 +59,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -145,6 +145,28 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `channel` | string | Channel ID where message was sent |
 | `fileCount` | number | Number of files uploaded \(when files are attached\) |
 | `files` | file[] | Files attached to the message |
+
+### `slack_ephemeral_message`
+
+Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `user` | string | Yes | User ID who will see the ephemeral message \(e.g., U1234567890\). Must be a member of the channel. |
+| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `threadTs` | string | No | Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageTs` | string | Timestamp of the ephemeral message \(cannot be used with chat.update\) |
+| `channel` | string | Channel ID where the ephemeral message was sent |
 
 ### `slack_canvas`
 

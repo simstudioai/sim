@@ -38,6 +38,12 @@ jobs:
           key: ${{ github.repository }}-node-modules
           path: ./node_modules
 
+      - name: Mount Next.js cache (Sticky Disk)
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-next-cache
+          path: ./apps/sim/.next/cache
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
