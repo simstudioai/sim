@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -37,7 +37,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
-    // Verify the source folder exists
     const sourceFolder = await db
       .select()
       .from(workflowFolder)
@@ -48,7 +47,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       throw new Error('Source folder not found')
     }
 
-    // Check if user has permission to access the source folder
     const userPermission = await getUserEntityPermissions(
       session.user.id,
       'workspace',
@@ -61,26 +59,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
 
-    // Step 1: Duplicate folder structure
     const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
       const newFolderId = crypto.randomUUID()
       const now = new Date()
+      const targetParentId = parentId ?? sourceFolder.parentId
 
-      // Create the new root folder
+      const folderParentCondition = targetParentId
+        ? eq(workflowFolder.parentId, targetParentId)
+        : isNull(workflowFolder.parentId)
+      const workflowParentCondition = targetParentId
+        ? eq(workflow.folderId, targetParentId)
+        : isNull(workflow.folderId)
+
+      const [[folderResult], [workflowResult]] = await Promise.all([
+        tx
+          .select({ minSortOrder: min(workflowFolder.sortOrder) })
+          .from(workflowFolder)
+          .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+        tx
+          .select({ minSortOrder: min(workflow.sortOrder) })
+          .from(workflow)
+          .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
+      ])
+
+      const minSortOrder = [folderResult?.minSortOrder, workflowResult?.minSortOrder].reduce<
+        number | null
+      >((currentMin, candidate) => {
+        if (candidate == null) return currentMin
+        if (currentMin == null) return candidate
+        return Math.min(currentMin, candidate)
+      }, null)
+      const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+
       await tx.insert(workflowFolder).values({
         id: newFolderId,
         userId: session.user.id,
         workspaceId: targetWorkspaceId,
         name,
         color: color || sourceFolder.color,
-        parentId: parentId || sourceFolder.parentId,
-        sortOrder: sourceFolder.sortOrder,
+        parentId: targetParentId,
+        sortOrder,
         isExpanded: false,
         createdAt: now,
         updatedAt: now,
       })
 
-      // Recursively duplicate child folders
       const folderMapping = new Map<string, string>([[sourceFolderId, newFolderId]])
       await duplicateFolderStructure(
         tx,
@@ -96,7 +119,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return { newFolderId, folderMapping }
     })
 
-    // Step 2: Duplicate workflows
     const workflowStats = await duplicateWorkflowsInFolderTree(
       sourceFolder.workspaceId,
       targetWorkspaceId,
@@ -173,7 +195,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-// Helper to recursively duplicate folder structure
 async function duplicateFolderStructure(
   tx: any,
   sourceFolderId: string,
@@ -184,7 +205,6 @@ async function duplicateFolderStructure(
   timestamp: Date,
   folderMapping: Map<string, string>
 ): Promise<void> {
-  // Get all child folders
   const childFolders = await tx
     .select()
     .from(workflowFolder)
@@ -195,7 +215,6 @@ async function duplicateFolderStructure(
       )
     )
 
-  // Create each child folder and recurse
   for (const childFolder of childFolders) {
     const newChildFolderId = crypto.randomUUID()
     folderMapping.set(childFolder.id, newChildFolderId)
@@ -213,7 +232,6 @@ async function duplicateFolderStructure(
       updatedAt: timestamp,
     })
 
-    // Recurse for this child's children
     await duplicateFolderStructure(
       tx,
       childFolder.id,
@@ -227,7 +245,6 @@ async function duplicateFolderStructure(
   }
 }
 
-// Helper to duplicate all workflows in a folder tree
 async function duplicateWorkflowsInFolderTree(
   sourceWorkspaceId: string,
   targetWorkspaceId: string,
@@ -237,9 +254,7 @@ async function duplicateWorkflowsInFolderTree(
 ): Promise<{ total: number; succeeded: number; failed: number }> {
   const stats = { total: 0, succeeded: 0, failed: 0 }
 
-  // Process each folder in the mapping
   for (const [oldFolderId, newFolderId] of folderMapping.entries()) {
-    // Get workflows in this folder
     const workflowsInFolder = await db
       .select()
       .from(workflow)
@@ -247,7 +262,6 @@ async function duplicateWorkflowsInFolderTree(
 
     stats.total += workflowsInFolder.length
 
-    // Duplicate each workflow
     for (const sourceWorkflow of workflowsInFolder) {
       try {
         await duplicateWorkflow({

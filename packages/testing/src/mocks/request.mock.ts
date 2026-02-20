@@ -1,6 +1,7 @@
 /**
  * Mock request utilities for API testing
  */
+import { vi } from 'vitest'
 
 /**
  * Creates a mock NextRequest for API route testing.
@@ -56,4 +57,17 @@ export function createMockFormDataRequest(
     method,
     body: formData,
   })
+}
+
+/**
+ * Pre-configured mock for @/lib/core/utils/request module.
+ *
+ * @example
+ * ```ts
+ * vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+ * ```
+ */
+export const requestUtilsMock = {
+  generateRequestId: vi.fn(() => 'mock-request-id'),
+  noop: vi.fn(),
 }

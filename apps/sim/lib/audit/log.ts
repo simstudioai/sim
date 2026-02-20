@@ -1,5 +1,7 @@
 import { auditLog, db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 const logger = createLogger('AuditLog')
@@ -24,12 +26,18 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Billing
+  CREDIT_PURCHASED: 'credit.purchased',
+
   // Credential Sets
   CREDENTIAL_SET_CREATED: 'credential_set.created',
   CREDENTIAL_SET_UPDATED: 'credential_set.updated',
   CREDENTIAL_SET_DELETED: 'credential_set.deleted',
   CREDENTIAL_SET_MEMBER_REMOVED: 'credential_set_member.removed',
+  CREDENTIAL_SET_MEMBER_LEFT: 'credential_set_member.left',
   CREDENTIAL_SET_INVITATION_CREATED: 'credential_set_invitation.created',
+  CREDENTIAL_SET_INVITATION_ACCEPTED: 'credential_set_invitation.accepted',
+  CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
   CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
 
   // Documents
@@ -81,6 +89,9 @@ export const AuditAction = {
   // OAuth
   OAUTH_DISCONNECTED: 'oauth.disconnected',
 
+  // Password
+  PASSWORD_RESET: 'password.reset',
+
   // Organizations
   ORGANIZATION_CREATED: 'organization.created',
   ORGANIZATION_UPDATED: 'organization.updated',
@@ -103,6 +114,11 @@ export const AuditAction = {
   // Schedules
   SCHEDULE_UPDATED: 'schedule.updated',
 
+  // Templates
+  TEMPLATE_CREATED: 'template.created',
+  TEMPLATE_UPDATED: 'template.updated',
+  TEMPLATE_DELETED: 'template.deleted',
+
   // Webhooks
   WEBHOOK_CREATED: 'webhook.created',
   WEBHOOK_DELETED: 'webhook.deleted',
@@ -113,6 +129,7 @@ export const AuditAction = {
   WORKFLOW_DEPLOYED: 'workflow.deployed',
   WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
   WORKFLOW_DUPLICATED: 'workflow.duplicated',
+  WORKFLOW_DEPLOYMENT_ACTIVATED: 'workflow.deployment_activated',
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
 
@@ -129,6 +146,7 @@ export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
  */
 export const AuditResourceType = {
   API_KEY: 'api_key',
+  BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
   CREDENTIAL_SET: 'credential_set',
@@ -142,8 +160,10 @@ export const AuditResourceType = {
   NOTIFICATION: 'notification',
   OAUTH: 'oauth',
   ORGANIZATION: 'organization',
+  PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
   WORKSPACE: 'workspace',
@@ -167,41 +187,51 @@ interface AuditLogParams {
 
 /**
  * Records an audit log entry. Fire-and-forget — never throws or blocks the caller.
+ * If actorName and actorEmail are both undefined (not provided by the caller),
+ * resolves them from the user table before inserting.
  */
 export function recordAudit(params: AuditLogParams): void {
-  try {
-    const ipAddress =
-      params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-      params.request?.headers.get('x-real-ip') ??
-      undefined
-    const userAgent = params.request?.headers.get('user-agent') ?? undefined
+  insertAuditLog(params).catch((error) => {
+    logger.error('Failed to record audit log', { error, action: params.action })
+  })
+}
 
-    db.insert(auditLog)
-      .values({
-        id: nanoid(),
-        workspaceId: params.workspaceId || null,
-        actorId: params.actorId,
-        action: params.action,
-        resourceType: params.resourceType,
-        resourceId: params.resourceId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        resourceName: params.resourceName,
-        description: params.description,
-        metadata: params.metadata ?? {},
-        ipAddress,
-        userAgent,
-      })
-      .then(() => {
-        logger.debug('Audit log recorded', {
-          action: params.action,
-          resourceType: params.resourceType,
-        })
-      })
-      .catch((error) => {
-        logger.error('Failed to record audit log', { error, action: params.action })
-      })
-  } catch (error) {
-    logger.error('Failed to initiate audit log', { error, action: params.action })
+async function insertAuditLog(params: AuditLogParams): Promise<void> {
+  const ipAddress =
+    params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    params.request?.headers.get('x-real-ip') ??
+    undefined
+  const userAgent = params.request?.headers.get('user-agent') ?? undefined
+
+  let { actorName, actorEmail } = params
+
+  if (actorName === undefined && actorEmail === undefined && params.actorId) {
+    try {
+      const [row] = await db
+        .select({ name: user.name, email: user.email })
+        .from(user)
+        .where(eq(user.id, params.actorId))
+        .limit(1)
+      actorName = row?.name ?? undefined
+      actorEmail = row?.email ?? undefined
+    } catch (error) {
+      logger.debug('Failed to resolve actor info', { error, actorId: params.actorId })
+    }
   }
+
+  await db.insert(auditLog).values({
+    id: nanoid(),
+    workspaceId: params.workspaceId || null,
+    actorId: params.actorId,
+    action: params.action,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    actorName: actorName ?? undefined,
+    actorEmail: actorEmail ?? undefined,
+    resourceName: params.resourceName,
+    description: params.description,
+    metadata: params.metadata ?? {},
+    ipAddress,
+    userAgent,
+  })
 }

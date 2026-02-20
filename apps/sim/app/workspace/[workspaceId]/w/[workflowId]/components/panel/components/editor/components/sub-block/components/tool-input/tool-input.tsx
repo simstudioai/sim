@@ -357,6 +357,7 @@ const BUILT_IN_TOOL_TYPES = new Set([
   'tts',
   'stt',
   'memory',
+  'table',
   'webhook_request',
   'workflow',
 ])
@@ -614,7 +615,8 @@ export const ToolInput = memo(function ToolInput({
           block.type === 'workflow' ||
           block.type === 'workflow_input' ||
           block.type === 'knowledge' ||
-          block.type === 'function') &&
+          block.type === 'function' ||
+          block.type === 'table') &&
         block.type !== 'evaluator' &&
         block.type !== 'mcp' &&
         block.type !== 'file'

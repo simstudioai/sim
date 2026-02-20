@@ -265,6 +265,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: webhookData.workflow.workspaceId || null,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WEBHOOK_DELETED,
       resourceType: AuditResourceType.WEBHOOK,
       resourceId: id,

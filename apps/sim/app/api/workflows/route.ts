@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workflow } from '@sim/db/schema'
+import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -162,12 +162,33 @@ export async function POST(req: NextRequest) {
     if (providedSortOrder !== undefined) {
       sortOrder = providedSortOrder
     } else {
-      const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-      const [minResult] = await db
-        .select({ minOrder: min(workflow.sortOrder) })
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, workspaceId), folderCondition))
-      sortOrder = (minResult?.minOrder ?? 1) - 1
+      const workflowParentCondition = folderId
+        ? eq(workflow.folderId, folderId)
+        : isNull(workflow.folderId)
+      const folderParentCondition = folderId
+        ? eq(workflowFolder.parentId, folderId)
+        : isNull(workflowFolder.parentId)
+
+      const [[workflowMinResult], [folderMinResult]] = await Promise.all([
+        db
+          .select({ minOrder: min(workflow.sortOrder) })
+          .from(workflow)
+          .where(and(eq(workflow.workspaceId, workspaceId), workflowParentCondition)),
+        db
+          .select({ minOrder: min(workflowFolder.sortOrder) })
+          .from(workflowFolder)
+          .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      ])
+
+      const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
+        number | null
+      >((currentMin, candidate) => {
+        if (candidate == null) return currentMin
+        if (currentMin == null) return candidate
+        return Math.min(currentMin, candidate)
+      }, null)
+
+      sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
     }
 
     await db.insert(workflow).values({
@@ -192,6 +213,8 @@ export async function POST(req: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
       action: AuditAction.WORKFLOW_CREATED,
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,

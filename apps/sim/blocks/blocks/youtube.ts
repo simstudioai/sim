@@ -50,6 +50,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       step: 1,
       integer: true,
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -57,6 +58,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'channelId',
@@ -64,6 +66,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'short-input',
       placeholder: 'Filter results to a specific channel',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'eventType',
@@ -77,6 +80,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'publishedAfter',
@@ -84,6 +88,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -106,6 +111,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: '2024-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -134,6 +140,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'any',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'order',
@@ -148,6 +155,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'relevance',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'videoCategoryId',
@@ -155,6 +163,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Use Get Video Categories to find IDs',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'videoDefinition',
@@ -167,6 +176,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'any',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'videoCaption',
@@ -179,6 +189,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'any',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'regionCode',
@@ -189,6 +200,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['youtube_search', 'youtube_trending', 'youtube_video_categories'],
       },
+      mode: 'advanced',
     },
     {
       id: 'relevanceLanguage',
@@ -196,6 +208,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'en, es, fr',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     {
       id: 'safeSearch',
@@ -208,6 +221,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'moderate',
       condition: { field: 'operation', value: 'youtube_search' },
+      mode: 'advanced',
     },
     // Get Trending Videos operation inputs
     {
@@ -226,6 +240,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Use Get Video Categories to find IDs',
       condition: { field: 'operation', value: 'youtube_trending' },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -233,6 +248,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_trending' },
+      mode: 'advanced',
     },
     // Get Video Details operation inputs
     {
@@ -250,6 +266,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'en, es, fr (for category names)',
       condition: { field: 'operation', value: 'youtube_video_categories' },
+      mode: 'advanced',
     },
     // Get Channel Info operation inputs
     {
@@ -298,6 +315,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'date',
       condition: { field: 'operation', value: 'youtube_channel_videos' },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -305,6 +323,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_channel_videos' },
+      mode: 'advanced',
     },
     // Get Channel Playlists operation inputs
     {
@@ -331,6 +350,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_channel_playlists' },
+      mode: 'advanced',
     },
     // Get Playlist Items operation inputs
     {
@@ -357,6 +377,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_playlist_items' },
+      mode: 'advanced',
     },
     // Get Video Comments operation inputs
     {
@@ -387,6 +408,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       value: () => 'relevance',
       condition: { field: 'operation', value: 'youtube_comments' },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -394,6 +416,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_comments' },
+      mode: 'advanced',
     },
     // API Key (common to all operations)
     {

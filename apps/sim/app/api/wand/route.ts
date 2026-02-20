@@ -10,6 +10,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
 import { getModelPricing } from '@/providers/utils'
@@ -48,6 +49,7 @@ interface RequestBody {
   history?: ChatMessage[]
   workflowId?: string
   generationType?: string
+  wandContext?: Record<string, unknown>
 }
 
 function safeStringify(value: unknown): string {
@@ -56,6 +58,38 @@ function safeStringify(value: unknown): string {
   } catch {
     return '[unserializable]'
   }
+}
+
+/**
+ * Wand enricher function type.
+ * Enrichers add context to the system prompt based on generationType.
+ */
+type WandEnricher = (
+  workspaceId: string | null,
+  context: Record<string, unknown>
+) => Promise<string | null>
+
+/**
+ * Registry of wand enrichers by generationType.
+ * Each enricher returns additional context to append to the system prompt.
+ */
+const wandEnrichers: Partial<Record<string, WandEnricher>> = {
+  timestamp: async () => {
+    const now = new Date()
+    return `Current date and time context for reference:
+- Current UTC timestamp: ${now.toISOString()}
+- Current Unix timestamp (seconds): ${Math.floor(now.getTime() / 1000)}
+- Current Unix timestamp (milliseconds): ${now.getTime()}
+- Current date (UTC): ${now.toISOString().split('T')[0]}
+- Current year: ${now.getUTCFullYear()}
+- Current month: ${now.getUTCMonth() + 1}
+- Current day of month: ${now.getUTCDate()}
+- Current day of week: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()]}
+
+Use this context to calculate relative dates like "yesterday", "last week", "beginning of this month", etc.`
+  },
+
+  'table-schema': enrichTableSchema,
 }
 
 async function updateUserStatsForWand(
@@ -147,7 +181,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody
 
-    const { prompt, systemPrompt, stream = false, history = [], workflowId, generationType } = body
+    const {
+      prompt,
+      systemPrompt,
+      stream = false,
+      history = [],
+      workflowId,
+      generationType,
+      wandContext = {},
+    } = body
 
     if (!prompt) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt.`)
@@ -222,20 +264,15 @@ export async function POST(req: NextRequest) {
       systemPrompt ||
       'You are a helpful AI assistant. Generate content exactly as requested by the user.'
 
-    if (generationType === 'timestamp') {
-      const now = new Date()
-      const currentTimeContext = `\n\nCurrent date and time context for reference:
-- Current UTC timestamp: ${now.toISOString()}
-- Current Unix timestamp (seconds): ${Math.floor(now.getTime() / 1000)}
-- Current Unix timestamp (milliseconds): ${now.getTime()}
-- Current date (UTC): ${now.toISOString().split('T')[0]}
-- Current year: ${now.getUTCFullYear()}
-- Current month: ${now.getUTCMonth() + 1}
-- Current day of month: ${now.getUTCDate()}
-- Current day of week: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()]}
-
-Use this context to calculate relative dates like "yesterday", "last week", "beginning of this month", etc.`
-      finalSystemPrompt += currentTimeContext
+    // Apply enricher if one exists for this generationType
+    if (generationType) {
+      const enricher = wandEnrichers[generationType]
+      if (enricher) {
+        const enrichment = await enricher(workspaceId, wandContext)
+        if (enrichment) {
+          finalSystemPrompt += `\n\n${enrichment}`
+        }
+      }
     }
 
     if (generationType === 'cron-expression') {

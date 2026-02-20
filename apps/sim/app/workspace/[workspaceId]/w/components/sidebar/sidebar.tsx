@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, Plus, Search, Settings, Table } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
@@ -269,6 +269,13 @@ export const Sidebar = memo(function Sidebar() {
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
+          id: 'tables',
+          label: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
+        },
+        {
           id: 'help',
           label: 'Help',
           icon: HelpCircle,
@@ -281,7 +288,12 @@ export const Sidebar = memo(function Sidebar() {
           onClick: () => openSettingsModal(),
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
+    [
+      workspaceId,
+      permissionConfig.hideTemplates,
+      permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+    ]
   )
 
   const isLoading = workflowsLoading || sessionLoading

@@ -77,7 +77,11 @@ export const GET = withMcpAuth<RouteParams>('read')(
  * POST - Add a workflow as a tool to an MCP server
  */
 export const POST = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (
+    request: NextRequest,
+    { userId, userName, userEmail, workspaceId, requestId },
+    { params }
+  ) => {
     try {
       const { id: serverId } = await params
       const body = getParsedBody(request) || (await request.json())
@@ -201,6 +205,8 @@ export const POST = withMcpAuth<RouteParams>('write')(
       recordAudit({
         workspaceId,
         actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,

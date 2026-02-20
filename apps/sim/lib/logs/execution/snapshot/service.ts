@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, lt, notExists } from 'drizzle-orm'
+import { and, eq, lt, notExists, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SnapshotService as ISnapshotService,
@@ -28,36 +28,8 @@ export class SnapshotService implements ISnapshotService {
     workflowId: string,
     state: WorkflowState
   ): Promise<SnapshotCreationResult> {
-    // Hash the position-less state for deduplication (functional equivalence)
     const stateHash = this.computeStateHash(state)
 
-    const existingSnapshot = await this.getSnapshotByHash(workflowId, stateHash)
-    if (existingSnapshot) {
-      let refreshedState: WorkflowState = existingSnapshot.stateData
-      try {
-        await db
-          .update(workflowExecutionSnapshots)
-          .set({ stateData: state })
-          .where(eq(workflowExecutionSnapshots.id, existingSnapshot.id))
-        refreshedState = state
-      } catch (error) {
-        logger.warn(
-          `Failed to refresh snapshot stateData for ${existingSnapshot.id}, continuing with existing data`,
-          error
-        )
-      }
-
-      logger.info(
-        `Reusing existing snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
-      )
-      return {
-        snapshot: { ...existingSnapshot, stateData: refreshedState },
-        isNew: false,
-      }
-    }
-
-    // Store the FULL state (including positions) so we can recreate the exact workflow
-    // Even though we hash without positions, we want to preserve the complete state
     const snapshotData: WorkflowExecutionSnapshotInsert = {
       id: uuidv4(),
       workflowId,
@@ -65,21 +37,32 @@ export class SnapshotService implements ISnapshotService {
       stateData: state,
     }
 
-    const [newSnapshot] = await db
+    const [upsertedSnapshot] = await db
       .insert(workflowExecutionSnapshots)
       .values(snapshotData)
+      .onConflictDoUpdate({
+        target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
+        set: {
+          stateData: sql`excluded.state_data`,
+        },
+      })
       .returning()
 
+    const isNew = upsertedSnapshot.id === snapshotData.id
+
     logger.info(
-      `Created new snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}..., blocks: ${Object.keys(state.blocks || {}).length})`
+      isNew
+        ? `Created new snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}..., blocks: ${Object.keys(state.blocks || {}).length})`
+        : `Reusing existing snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
     )
+
     return {
       snapshot: {
-        ...newSnapshot,
-        stateData: newSnapshot.stateData as WorkflowState,
-        createdAt: newSnapshot.createdAt.toISOString(),
+        ...upsertedSnapshot,
+        stateData: upsertedSnapshot.stateData as WorkflowState,
+        createdAt: upsertedSnapshot.createdAt.toISOString(),
       },
-      isNew: true,
+      isNew,
     }
   }
 

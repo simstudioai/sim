@@ -2380,3 +2380,68 @@ export const asyncJobs = pgTable(
     ),
   })
 )
+
+/**
+ * User-defined table definitions
+ * Stores schema and metadata for custom tables created by users
+ */
+export const userTableDefinitions = pgTable(
+  'user_table_definitions',
+  {
+    id: text('id').primaryKey(), // tbl_xxxxx
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    /**
+     * @remarks
+     * Stores the table schema definition. Example: { columns: [{ name: string, type: string, required: boolean }] }
+     */
+    schema: jsonb('schema').notNull(),
+    maxRows: integer('max_rows').notNull().default(10000),
+    rowCount: integer('row_count').notNull().default(0),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('user_table_def_workspace_id_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('user_table_def_workspace_name_unique').on(
+      table.workspaceId,
+      table.name
+    ),
+  })
+)
+
+/**
+ * User-defined table rows
+ * Stores actual row data as JSONB for flexible schema
+ */
+export const userTableRows = pgTable(
+  'user_table_rows',
+  {
+    id: text('id').primaryKey(), // row_xxxxx
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
+    workspaceIdIdx: index('user_table_rows_workspace_id_idx').on(table.workspaceId),
+    dataGinIdx: index('user_table_rows_data_gin_idx').using('gin', table.data),
+    workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
+      table.workspaceId,
+      table.tableId
+    ),
+  })
+)

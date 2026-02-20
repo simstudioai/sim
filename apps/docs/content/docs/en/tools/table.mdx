@@ -1,0 +1,351 @@
+---
+title: Table
+description: User-defined data tables for storing and querying structured data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="table"
+  color="#10B981"
+/>
+
+Tables allow you to create and manage custom data tables directly within Sim. Store, query, and manipulate structured data within your workflows without needing external database integrations.
+
+**Why Use Tables?**
+- **No external setup**: Create tables instantly without configuring external databases
+- **Workflow-native**: Data persists across workflow executions and is accessible from any workflow in your workspace
+- **Flexible schema**: Define columns with types (string, number, boolean, date, json) and constraints (required, unique)
+- **Powerful querying**: Filter, sort, and paginate data using MongoDB-style operators
+- **Agent-friendly**: Tables can be used as tools by AI agents for dynamic data storage and retrieval
+
+**Key Features:**
+- Create tables with custom schemas
+- Insert, update, upsert, and delete rows
+- Query with filters and sorting
+- Batch operations for bulk inserts
+- Bulk updates and deletes by filter
+- Up to 10,000 rows per table, 100 tables per workspace
+
+## Creating Tables
+
+Tables are created from the **Tables** section in the sidebar. Each table requires:
+- **Name**: Alphanumeric with underscores (e.g., `customer_leads`)
+- **Description**: Optional description of the table's purpose
+- **Schema**: Define columns with name, type, and optional constraints
+
+### Column Types
+
+| Type | Description | Example Values |
+|------|-------------|----------------|
+| `string` | Text data | `"John Doe"`, `"active"` |
+| `number` | Numeric data | `42`, `99.99` |
+| `boolean` | True/false values | `true`, `false` |
+| `date` | Date/time values | `"2024-01-15T10:30:00Z"` |
+| `json` | Complex nested data | `{"address": {"city": "NYC"}}` |
+
+### Column Constraints
+
+- **Required**: Column must have a value (cannot be null)
+- **Unique**: Values must be unique across all rows (enables upsert matching)
+
+## Usage Instructions
+
+Create and manage custom data tables. Store, query, and manipulate structured data within workflows.
+
+## Tools
+
+### `table_query_rows`
+
+Query rows from a table with filtering, sorting, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | No | Filter conditions using MongoDB-style operators |
+| `sort` | object | No | Sort order as \{column: "asc"\|"desc"\} |
+| `limit` | number | No | Maximum rows to return \(default: 100, max: 1000\) |
+| `offset` | number | No | Number of rows to skip \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether query succeeded |
+| `rows` | array | Query result rows |
+| `rowCount` | number | Number of rows returned |
+| `totalCount` | number | Total rows matching filter |
+| `limit` | number | Limit used in query |
+| `offset` | number | Offset used in query |
+
+### `table_insert_row`
+
+Insert a new row into a table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `data` | object | Yes | Row data as JSON object matching the table schema |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was inserted |
+| `row` | object | Inserted row data including generated ID |
+| `message` | string | Status message |
+
+### `table_upsert_row`
+
+Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `data` | object | Yes | Row data to insert or update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was upserted |
+| `row` | object | Upserted row data |
+| `operation` | string | Operation performed: "insert" or "update" |
+| `message` | string | Status message |
+
+### `table_batch_insert_rows`
+
+Insert multiple rows at once (up to 1000 rows per batch)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rows` | array | Yes | Array of row data objects to insert |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether batch insert succeeded |
+| `rows` | array | Array of inserted rows with IDs |
+| `insertedCount` | number | Number of rows inserted |
+| `message` | string | Status message |
+
+### `table_update_row`
+
+Update a specific row by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to update |
+| `data` | object | Yes | Data to update \(partial update supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was updated |
+| `row` | object | Updated row data |
+| `message` | string | Status message |
+
+### `table_update_rows_by_filter`
+
+Update multiple rows matching a filter condition
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | Yes | Filter to match rows for update |
+| `data` | object | Yes | Data to apply to matching rows |
+| `limit` | number | No | Maximum rows to update \(default: 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether update succeeded |
+| `updatedCount` | number | Number of rows updated |
+| `updatedRowIds` | array | IDs of updated rows |
+| `message` | string | Status message |
+
+### `table_delete_row`
+
+Delete a specific row by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was deleted |
+| `deletedCount` | number | Number of rows deleted \(1 or 0\) |
+| `message` | string | Status message |
+
+### `table_delete_rows_by_filter`
+
+Delete multiple rows matching a filter condition
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | Yes | Filter to match rows for deletion |
+| `limit` | number | No | Maximum rows to delete \(default: 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether delete succeeded |
+| `deletedCount` | number | Number of rows deleted |
+| `deletedRowIds` | array | IDs of deleted rows |
+| `message` | string | Status message |
+
+### `table_get_row`
+
+Get a single row by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was found |
+| `row` | object | Row data |
+| `message` | string | Status message |
+
+### `table_get_schema`
+
+Get the schema definition for a table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether schema was retrieved |
+| `name` | string | Table name |
+| `columns` | array | Array of column definitions |
+| `message` | string | Status message |
+
+## Filter Operators
+
+Filters use MongoDB-style operators for flexible querying:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `$eq` | Equals | `{"status": {"$eq": "active"}}` or `{"status": "active"}` |
+| `$ne` | Not equals | `{"status": {"$ne": "deleted"}}` |
+| `$gt` | Greater than | `{"age": {"$gt": 18}}` |
+| `$gte` | Greater than or equal | `{"score": {"$gte": 80}}` |
+| `$lt` | Less than | `{"price": {"$lt": 100}}` |
+| `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
+| `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
+| `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
+| `$contains` | String contains | `{"email": {"$contains": "@gmail.com"}}` |
+
+### Combining Filters
+
+Multiple field conditions are combined with AND logic:
+
+```json
+{
+  "status": "active",
+  "age": {"$gte": 18}
+}
+```
+
+Use `$or` for OR logic:
+
+```json
+{
+  "$or": [
+    {"status": "active"},
+    {"status": "pending"}
+  ]
+}
+```
+
+## Sort Specification
+
+Specify sort order with column names and direction:
+
+```json
+{
+  "createdAt": "desc"
+}
+```
+
+Multi-column sorting:
+
+```json
+{
+  "priority": "desc",
+  "name": "asc"
+}
+```
+
+## Built-in Columns
+
+Every row automatically includes:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | string | Unique row identifier |
+| `createdAt` | date | When the row was created |
+| `updatedAt` | date | When the row was last modified |
+
+These can be used in filters and sorting.
+
+## Limits
+
+| Resource | Limit |
+|----------|-------|
+| Tables per workspace | 100 |
+| Rows per table | 10,000 |
+| Columns per table | 50 |
+| Max row size | 100KB |
+| String value length | 10,000 characters |
+| Query limit | 1,000 rows |
+| Batch insert size | 1,000 rows |
+| Bulk update/delete | 1,000 rows |
+
+## Notes
+
+- Category: `blocks`
+- Type: `table`
+- Tables are scoped to workspaces and accessible from any workflow within that workspace
+- Data persists across workflow executions
+- Use unique constraints to enable upsert functionality
+- The visual filter/sort builder provides an easy way to construct queries without writing JSON

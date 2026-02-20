@@ -1157,6 +1157,17 @@ export function AirweaveIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AlgoliaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'>
+      <path
+        fill='#FFFFFF'
+        d='M25,0C11.3,0,0.2,11,0,24.6C-0.2,38.4,11,49.9,24.8,50c4.3,0,8.4-1,12-3c0.4-0.2,0.4-0.7,0.1-1l-2.3-2.1 c-0.5-0.4-1.2-0.5-1.7-0.3c-2.5,1.1-5.3,1.6-8.2,1.6c-11.2-0.1-20.2-9.4-20-20.6C4.9,13.6,13.9,4.7,25,4.7h20.3v36L33.7,30.5 c-0.4-0.3-0.9-0.3-1.2,0.1c-1.8,2.4-4.9,4-8.2,3.7c-4.6-0.3-8.4-4-8.7-8.7c-0.4-5.5,4-10.2,9.4-10.2c4.9,0,9,3.8,9.4,8.6 c0,0.4,0.2,0.8,0.6,1.1l3,2.7c0.3,0.3,0.9,0.1,1-0.3c0.2-1.2,0.3-2.4,0.2-3.6c-0.5-7-6.2-12.7-13.2-13.1c-8.1-0.5-14.8,5.8-15,13.7 c-0.2,7.7,6.1,14.4,13.8,14.5c3.2,0.1,6.2-0.9,8.6-2.7l15,13.3c0.6,0.6,1.7,0.1,1.7-0.7v-48C50,0.4,49.5,0,49,0L25,0 C25,0,25,0,25,0z'
+      />
+    </svg>
+  )
+}
+
 export function GoogleBooksIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 478.633 540.068'>
@@ -4407,6 +4418,161 @@ export function DatadogIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MicrosoftDataverseIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const clip0 = `dataverse_clip0_${id}`
+  const clip1 = `dataverse_clip1_${id}`
+  const clip2 = `dataverse_clip2_${id}`
+  const paint0 = `dataverse_paint0_${id}`
+  const paint1 = `dataverse_paint1_${id}`
+  const paint2 = `dataverse_paint2_${id}`
+  const paint3 = `dataverse_paint3_${id}`
+  const paint4 = `dataverse_paint4_${id}`
+  const paint5 = `dataverse_paint5_${id}`
+  const paint6 = `dataverse_paint6_${id}`
+  return (
+    <svg
+      {...props}
+      width='96'
+      height='96'
+      viewBox='0 0 96 96'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <g clipPath={`url(#${clip0})`}>
+        <g clipPath={`url(#${clip1})`}>
+          <g clipPath={`url(#${clip2})`}>
+            <path
+              d='M13.8776 21.8242C29.1033 8.13791 49.7501 8.1861 62.955 18.9134C74.9816 28.6836 77.4697 44.3159 70.851 55.7801C64.2321 67.2443 52.5277 70.1455 39.5011 62.6247L31.7286 76.087L31.7234 76.0862C27.4181 83.5324 17.8937 86.0828 10.4437 81.7817C7.45394 80.0556 5.25322 77.4879 3.96665 74.551L3.96096 74.5511C-4.07832 55.7804 0.200745 34.1184 13.8776 21.8242Z'
+              fill={`url(#${paint0})`}
+            />
+            <path
+              d='M13.8776 21.8242C29.1033 8.13791 49.7501 8.1861 62.955 18.9134C74.9816 28.6836 77.4697 44.3159 70.851 55.7801C64.2321 67.2443 52.5277 70.1455 39.5011 62.6247L31.7286 76.087L31.7234 76.0862C27.4181 83.5324 17.8937 86.0828 10.4437 81.7817C7.45394 80.0556 5.25322 77.4879 3.96665 74.551L3.96096 74.5511C-4.07832 55.7804 0.200745 34.1184 13.8776 21.8242Z'
+              fill={`url(#${paint1})`}
+              fillOpacity='0.8'
+            />
+            <path
+              d='M85.4327 14.2231C88.4528 15.9668 90.6686 18.569 91.9494 21.5433L91.9533 21.5444C99.9406 40.2943 95.6533 61.9068 81.9983 74.1814C66.7726 87.8677 46.1257 87.8196 32.9209 77.0923C20.8945 67.3221 18.4062 51.6897 25.0249 40.2256C31.6438 28.7614 43.3482 25.8601 56.3748 33.381L64.1434 19.9255L64.1482 19.9249C68.4516 12.4736 77.9805 9.92084 85.4327 14.2231Z'
+              fill={`url(#${paint2})`}
+            />
+            <path
+              d='M85.4327 14.2231C88.4528 15.9668 90.6686 18.569 91.9494 21.5433L91.9533 21.5444C99.9406 40.2943 95.6533 61.9068 81.9983 74.1814C66.7726 87.8677 46.1257 87.8196 32.9209 77.0923C20.8945 67.3221 18.4062 51.6897 25.0249 40.2256C31.6438 28.7614 43.3482 25.8601 56.3748 33.381L64.1434 19.9255L64.1482 19.9249C68.4516 12.4736 77.9805 9.92084 85.4327 14.2231Z'
+              fill={`url(#${paint3})`}
+              fillOpacity='0.9'
+            />
+            <path
+              d='M39.5041 62.6261C52.5307 70.1469 64.2352 67.2456 70.8541 55.7814C77.2488 44.7055 75.1426 29.7389 64.147 19.9271L56.3791 33.3814L39.5041 62.6261Z'
+              fill={`url(#${paint4})`}
+            />
+            <path
+              d='M56.3794 33.3815C43.3528 25.8607 31.6482 28.762 25.0294 40.2262C18.6347 51.3021 20.7409 66.2687 31.7364 76.0806L39.5043 62.6262L56.3794 33.3815Z'
+              fill={`url(#${paint5})`}
+            />
+            <path
+              d='M33.3215 56.4453C37.9837 64.5204 48.3094 67.2872 56.3846 62.625C64.4598 57.9628 67.2266 47.6371 62.5643 39.5619C57.9021 31.4867 47.5764 28.72 39.5013 33.3822C31.4261 38.0444 28.6593 48.3701 33.3215 56.4453Z'
+              fill={`url(#${paint6})`}
+            />
+          </g>
+        </g>
+      </g>
+      <defs>
+        <radialGradient
+          id={paint0}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(46.0001 49.4996) rotate(-148.717) scale(46.2195 47.5359)'
+        >
+          <stop offset='0.465088' stopColor='#09442A' />
+          <stop offset='0.70088' stopColor='#136C6C' />
+          <stop offset='1' stopColor='#22918B' />
+        </radialGradient>
+        <radialGradient
+          id={paint1}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(50.0001 32.4996) rotate(123.57) scale(66.0095 46.5498)'
+        >
+          <stop offset='0.718705' stopColor='#1A7F7C' stopOpacity='0' />
+          <stop offset='1' stopColor='#16BBDA' />
+        </radialGradient>
+        <radialGradient
+          id={paint2}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(50.4999 44.5001) rotate(30.75) scale(45.9618 44.5095)'
+        >
+          <stop offset='0.358097' stopColor='#136C6C' />
+          <stop offset='0.789474' stopColor='#42B870' />
+          <stop offset='1' stopColor='#76D45E' />
+        </radialGradient>
+        <radialGradient
+          id={paint3}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientTransform='matrix(42.5 -36.0002 31.1824 36.8127 49.4998 55.5001)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0.583166' stopColor='#76D45E' stopOpacity='0' />
+          <stop offset='1' stopColor='#C8F5B7' />
+        </radialGradient>
+        <radialGradient
+          id={paint4}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(47.5 48) rotate(-58.9042) scale(32.6898)'
+        >
+          <stop offset='0.486266' stopColor='#22918B' />
+          <stop offset='0.729599' stopColor='#42B870' />
+          <stop offset='1' stopColor='#43E5CA' />
+        </radialGradient>
+        <radialGradient
+          id={paint5}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(47.3833 49.0077) rotate(119.859) scale(31.1328 29.4032)'
+        >
+          <stop offset='0.459553' stopColor='#08494E' />
+          <stop offset='0.742242' stopColor='#1A7F7C' />
+          <stop offset='1' stopColor='#309C61' />
+        </radialGradient>
+        <radialGradient
+          id={paint6}
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(52.5 40) rotate(120.784) scale(27.3542)'
+        >
+          <stop stopColor='#C8F5B7' />
+          <stop offset='0.24583' stopColor='#98F0B0' />
+          <stop offset='0.643961' stopColor='#52D17C' />
+          <stop offset='1' stopColor='#119FC5' />
+        </radialGradient>
+        <clipPath id={clip0}>
+          <rect width='96' height='96' fill='white' />
+        </clipPath>
+        <clipPath id={clip1}>
+          <rect width='96' height='96' fill='white' />
+        </clipPath>
+        <clipPath id={clip2}>
+          <rect width='95.9998' height='96' fill='white' />
+        </clipPath>
+      </defs>
+    </svg>
+  )
+}
+
 export function KalshiIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 78 20' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
@@ -4809,6 +4975,26 @@ export function BedrockIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function TableIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth={2}
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      {...props}
+    >
+      <rect width='18' height='18' x='3' y='3' rx='2' />
+      <path d='M3 9h18' />
+      <path d='M3 15h18' />
+      <path d='M9 3v18' />
+      <path d='M15 3v18' />
+    </svg>
+  )
+}
 export function ReductoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -5528,6 +5714,107 @@ export function OnePasswordIcon(props: SVGProps<SVGSVGElement>) {
         stroke='#000000'
         strokeLinecap='round'
         strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
+export function VercelIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 256 222'
+      xmlns='http://www.w3.org/2000/svg'
+      preserveAspectRatio='xMidYMid'
+    >
+      <g transform='translate(19.2 16.63) scale(0.85)'>
+        <polygon fill='#fafafa' points='128 0 256 221.705007 0 221.705007' />
+      </g>
+    </svg>
+  )
+}
+
+export function CloudflareIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>
+      <path
+        fill='#f38020'
+        d='M331 326c11-26-4-38-19-38l-148-2c-4 0-4-6 1-7l150-2c17-1 37-15 43-33 0 0 10-21 9-24a97 97 0 0 0-187-11c-38-25-78 9-69 46-48 3-65 46-60 72 0 1 1 2 3 2h274c1 0 3-1 3-3z'
+      />
+      <path
+        fill='#faae40'
+        d='M381 224c-4 0-6-1-7 1l-5 21c-5 16 3 30 20 31l32 2c4 0 4 6-1 7l-33 1c-36 4-46 39-46 39 0 2 0 3 2 3h113l3-2a81 81 0 0 0-78-103'
+      />
+    </svg>
+  )
+}
+
+export function UpstashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 341' width='24' height='24'>
+      <path
+        fill='#00C98D'
+        d='M0 298.417c56.554 56.553 148.247 56.553 204.801 0c56.554-56.554 56.554-148.247 0-204.801l-25.6 25.6c42.415 42.416 42.415 111.185 0 153.6c-42.416 42.416-111.185 42.416-153.601 0z'
+      />
+      <path
+        fill='#00C98D'
+        d='M51.2 247.216c28.277 28.277 74.123 28.277 102.4 0c28.277-28.276 28.277-74.123 0-102.4l-25.6 25.6c14.14 14.138 14.14 37.061 0 51.2c-14.138 14.139-37.061 14.139-51.2 0zM256 42.415c-56.554-56.553-148.247-56.553-204.8 0c-56.555 56.555-56.555 148.247 0 204.801l25.599-25.6c-42.415-42.415-42.415-111.185 0-153.6c42.416-42.416 111.185-42.416 153.6 0z'
+      />
+      <path
+        fill='#00C98D'
+        d='M204.8 93.616c-28.276-28.277-74.124-28.277-102.4 0c-28.278 28.277-28.278 74.123 0 102.4l25.6-25.6c-14.14-14.138-14.14-37.061 0-51.2c14.138-14.139 37.06-14.139 51.2 0z'
+      />
+      <path
+        fill='#FFF'
+        fillOpacity='.4'
+        d='M256 42.415c-56.554-56.553-148.247-56.553-204.8 0c-56.555 56.555-56.555 148.247 0 204.801l25.599-25.6c-42.415-42.415-42.415-111.185 0-153.6c42.416-42.416 111.185-42.416 153.6 0z'
+      />
+      <path
+        fill='#FFF'
+        fillOpacity='.4'
+        d='M204.8 93.616c-28.276-28.277-74.124-28.277-102.4 0c-28.278 28.277-28.278 74.123 0 102.4l25.6-25.6c-14.14-14.138-14.14-37.061 0-51.2c14.138-14.139 37.06-14.139 51.2 0z'
+      />
+    </svg>
+  )
+}
+
+export function RevenueCatIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='512'
+      height='512'
+      viewBox='0 0 512 512'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M95 109.774C110.152 106.108 133.612 104 154.795 104C212.046 104 246.32 123.928 246.32 174.646C246.32 205.746 233.737 226.264 214.005 237.437L261.765 318.946C258.05 321.632 250.035 323.176 238.864 323.176C226.282 323.176 217.987 321.672 211.982 318.946L172.225 248.3H167.645C157.789 248.305 147.945 247.601 138.18 246.192V319.255C134.172 321.672 127.022 323.176 116.73 323.176C106.73 323.176 99.2874 321.659 95 319.255V109.774ZM137.643 207.848C145.772 209.263 153.997 209.968 162.235 209.956C187.12 209.956 202.285 200.556 202.285 177.057C202.285 152.886 186.268 142.949 157.668 142.949C150.956 142.918 144.255 143.515 137.643 144.735V207.848Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M428.529 329.244C428.529 365.526 410.145 375.494 396.306 382.195C360.972 399.32 304.368 379.4 244.206 373.338C189.732 366.214 135.706 361.522 127.309 373.738C124.152 376.832 123.481 386.798 127.309 390.862C138.604 402.85 168.061 394.493 188.919 390.714C195.391 389.694 201.933 392.099 206.079 397.021C210.226 401.944 211.349 408.637 209.024 414.58C206.699 420.522 201.28 424.811 194.809 425.831C185.379 427.264 175.85 427.989 166.306 428C145.988 428 120.442 424.495 105.943 409.072C98.7232 401.4 91.3266 387.78 97.0271 366.465C107.875 326.074 172.807 336.052 248.033 343.633C300.41 348.907 357.23 366.465 379.934 350.343C385.721 346.234 396.517 337.022 390.698 329.244C384.879 321.467 375.353 325.684 362.838 325.684C300.152 325.684 263.238 285.302 263.238 217.916C263.247 167.292 284.176 131.892 318.287 115.09C333.109 107.789 350.421 104 369.587 104C386.292 104 403.269 106.931 414.11 113.366C420.847 123.032 423.778 140.305 422.306 153.201C408.247 146.466 395.36 142.949 378.669 142.949C337.365 142.949 308.947 164.039 308.947 214.985C308.947 265.932 337.065 286.149 376.611 286.149C387.869 286.035 403.1 284.67 422.306 282.053C426.455 297.498 428.529 313.228 428.529 329.244Z'
+        fill='#FFFFFF'
+      />
+    </svg>
+  )
+}
+
+export function RedisIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 512 512'
+      xmlns='http://www.w3.org/2000/svg'
+      fillRule='evenodd'
+      clipRule='evenodd'
+      strokeLinejoin='round'
+      strokeMiterlimit='2'
+    >
+      <path
+        d='M479.14 279.864c-34.584 43.578-71.94 93.385-146.645 93.385-66.73 0-91.59-58.858-93.337-106.672 14.62 30.915 43.203 55.949 87.804 54.792C412.737 318.6 471.53 241.127 471.53 170.57c0-84.388-62.947-145.262-172.24-145.262-78.165 0-175.004 29.743-238.646 76.782-.689 48.42 26.286 111.369 35.972 104.452 55.17-39.67 98.918-65.203 141.35-78.01C175.153 198.58 24.451 361.219 6 389.85c2.076 26.286 34.588 96.842 50.496 96.842 4.841 0 8.993-2.768 13.835-7.61 45.433-51.046 82.472-96.816 115.412-140.933 4.627 64.658 36.42 143.702 125.307 143.702 79.55 0 158.408-57.414 194.377-186.767 4.149-15.911-15.22-28.362-26.286-15.22zm-90.616-104.449c0 40.81-40.118 60.87-76.782 60.87-19.596 0-34.648-5.145-46.554-11.832 21.906-33.168 43.59-67.182 66.887-103.593 41.08 6.953 56.449 29.788 56.449 54.555z'
+        fill='#FFFFFF'
+        fillRule='nonzero'
       />
     </svg>
   )

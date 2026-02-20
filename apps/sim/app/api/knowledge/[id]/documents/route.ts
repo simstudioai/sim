@@ -248,6 +248,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,
@@ -307,6 +309,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
           action: AuditAction.DOCUMENT_UPLOADED,
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: knowledgeBaseId,

@@ -7,6 +7,7 @@ import {
   defaultMockUser,
   mockAuth,
   mockCryptoUuid,
+  mockHybridAuth,
   mockUuid,
   setupCommonApiMocks,
 } from '@sim/testing'
@@ -54,12 +55,11 @@ describe('File Serve API Route', () => {
       withUploadUtils: true,
     })
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-        success: true,
-        userId: 'test-user-id',
-      }),
-    }))
+    const { mockCheckSessionOrInternalAuth: serveAuthMock } = mockHybridAuth()
+    serveAuthMock.mockResolvedValue({
+      success: true,
+      userId: 'test-user-id',
+    })
 
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(true),
@@ -164,12 +164,11 @@ describe('File Serve API Route', () => {
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/nested/path/file.txt'),
     }))
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-        success: true,
-        userId: 'test-user-id',
-      }),
-    }))
+    const { mockCheckSessionOrInternalAuth: serveAuthMock } = mockHybridAuth()
+    serveAuthMock.mockResolvedValue({
+      success: true,
+      userId: 'test-user-id',
+    })
 
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(true),
@@ -225,12 +224,11 @@ describe('File Serve API Route', () => {
       USE_BLOB_STORAGE: false,
     }))
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-        success: true,
-        userId: 'test-user-id',
-      }),
-    }))
+    const { mockCheckSessionOrInternalAuth: serveAuthMock } = mockHybridAuth()
+    serveAuthMock.mockResolvedValue({
+      success: true,
+      userId: 'test-user-id',
+    })
 
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(true),
@@ -290,12 +288,11 @@ describe('File Serve API Route', () => {
       readFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file or directory')),
     }))
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-        success: true,
-        userId: 'test-user-id',
-      }),
-    }))
+    const { mockCheckSessionOrInternalAuth: serveAuthMock } = mockHybridAuth()
+    serveAuthMock.mockResolvedValue({
+      success: true,
+      userId: 'test-user-id',
+    })
 
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(false), // File not found = no access
@@ -349,12 +346,11 @@ describe('File Serve API Route', () => {
 
     for (const test of contentTypeTests) {
       it(`should serve ${test.ext} file with correct content type`, async () => {
-        vi.doMock('@/lib/auth/hybrid', () => ({
-          checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-            success: true,
-            userId: 'test-user-id',
-          }),
-        }))
+        const { mockCheckSessionOrInternalAuth: ctAuthMock } = mockHybridAuth()
+        ctAuthMock.mockResolvedValue({
+          success: true,
+          userId: 'test-user-id',
+        })
 
         vi.doMock('@/app/api/files/authorization', () => ({
           verifyFileAccess: vi.fn().mockResolvedValue(true),

@@ -73,6 +73,7 @@ const DialogContent = React.forwardRef<
         }}
         {...props}
       >
+        <DialogPrimitive.Title>Dialog</DialogPrimitive.Title>
         {children}
         {!hideCloseButton && (
           <DialogPrimitive.Close

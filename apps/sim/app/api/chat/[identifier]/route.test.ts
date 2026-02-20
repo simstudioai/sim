@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { loggerMock, requestUtilsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -94,9 +94,7 @@ vi.mock('@/lib/core/utils/sse', () => ({
   },
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-password' }),
