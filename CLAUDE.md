@@ -246,7 +246,7 @@ export const ServiceBlock: BlockConfig = {
 
 Register in `blocks/registry.ts` (alphabetically).
 
-**IMPORTANT:** `tools.config.tool` runs during serialization (before variable resolution). Never do `Number()` or other type coercions there — dynamic references like `<Block.output>` will be destroyed. Use `tools.config.params` for type coercions (it runs during execution, after variables are resolved).
+**Important:** `tools.config.tool` runs during serialization (before variable resolution). Never do `Number()` or other type coercions there — dynamic references like `<Block.output>` will be destroyed. Use `tools.config.params` for type coercions (it runs during execution, after variables are resolved).
 
 **SubBlock Properties:**
 ```typescript

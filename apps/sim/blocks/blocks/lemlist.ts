@@ -169,11 +169,6 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
     access: ['lemlist_get_activities', 'lemlist_get_lead', 'lemlist_send_email'],
     config: {
       tool: (params) => {
-        // Map filterLeadId to leadId for get_activities tool
-        if (params.filterLeadId) {
-          params.leadId = params.filterLeadId
-        }
-
         switch (params.operation) {
           case 'get_activities':
             return 'lemlist_get_activities'
@@ -189,6 +184,7 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
         if (params.offset) result.offset = Number(params.offset)
+        if (params.filterLeadId) result.leadId = params.filterLeadId
         return result
       },
     },

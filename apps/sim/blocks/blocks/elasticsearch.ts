@@ -465,9 +465,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         if (params.size) result.size = Number(params.size)
         if (params.from) result.from = Number(params.from)
         if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
-        // Append 's' to timeout for Elasticsearch time format
-        if (params.timeout && typeof params.timeout === 'string' && !params.timeout.endsWith('s')) {
-          result.timeout = `${params.timeout}s`
+        if (params.timeout && typeof params.timeout === 'string') {
+          result.timeout = params.timeout.endsWith('s') ? params.timeout : `${params.timeout}s`
         }
         return result
       },

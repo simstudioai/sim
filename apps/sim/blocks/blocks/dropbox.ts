@@ -309,12 +309,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Normalize file input for upload operation - use canonical 'file' param
-        const normalizedFile = normalizeFileInput(params.file, { single: true })
-        if (normalizedFile) {
-          params.file = normalizedFile
-        }
-
         switch (params.operation) {
           case 'dropbox_upload':
             return 'dropbox_upload'
@@ -344,6 +338,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
         if (params.maxResults) result.maxResults = Number(params.maxResults)
+        const normalizedFile = normalizeFileInput(params.file, { single: true })
+        if (normalizedFile) {
+          result.file = normalizedFile
+        }
         return result
       },
     },

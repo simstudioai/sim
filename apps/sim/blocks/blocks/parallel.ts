@@ -172,6 +172,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
               .filter((query: string) => query.length > 0)
             if (queries.length > 0) {
               result.search_queries = queries
+            } else {
+              result.search_queries = undefined
             }
           }
           if (params.max_results) result.max_results = Number(params.max_results)
@@ -182,16 +184,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
 
         if (operation === 'extract') {
           result.objective = params.extract_objective
-          result.excerpts =
-            params.excerpts === 'true' || params.excerpts === true
-              ? true
-              : !(params.excerpts === 'false' || params.excerpts === false)
-          result.full_content =
-            params.full_content === 'true' || params.full_content === true
-              ? true
-              : params.full_content === 'false' || params.full_content === false
-                ? false
-                : false
+          result.excerpts = !(params.excerpts === 'false' || params.excerpts === false)
+          result.full_content = params.full_content === 'true' || params.full_content === true
         }
 
         if (operation === 'deep_research') {
