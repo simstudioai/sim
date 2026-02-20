@@ -4,7 +4,7 @@ import { env } from './lib/core/config/env'
 
 export default defineConfig({
   project: env.TRIGGER_PROJECT_ID!,
-  runtime: 'node',
+  runtime: 'node-22',
   logLevel: 'log',
   maxDuration: 5400,
   retries: {
