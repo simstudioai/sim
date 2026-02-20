@@ -63,12 +63,14 @@ export {
   mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
+// Hybrid auth mocks
+export { type MockHybridAuthResult, mockHybridAuth } from './hybrid-auth.mock'
 // Logger mocks
 export { clearLoggerMocks, createMockLogger, getLoggerCalls, loggerMock } from './logger.mock'
 // Redis mocks
 export { clearRedisMocks, createMockRedis, type MockRedis } from './redis.mock'
 // Request mocks
-export { createMockFormDataRequest, createMockRequest } from './request.mock'
+export { createMockFormDataRequest, createMockRequest, requestUtilsMock } from './request.mock'
 // Socket mocks
 export {
   createMockSocket,
@@ -78,5 +80,7 @@ export {
 } from './socket.mock'
 // Storage mocks
 export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from './storage.mock'
+// Telemetry mocks
+export { telemetryMock } from './telemetry.mock'
 // UUID mocks
 export { mockCryptoUuid, mockUuid } from './uuid.mock'

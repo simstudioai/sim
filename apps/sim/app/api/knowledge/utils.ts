@@ -163,17 +163,18 @@ export async function checkKnowledgeBaseAccess(
 
   const kbData = kb[0]
 
-  // Case 1: User owns the knowledge base directly
-  if (kbData.userId === userId) {
-    return { hasAccess: true, knowledgeBase: kbData }
-  }
-
-  // Case 2: Knowledge base belongs to a workspace the user has permissions for
   if (kbData.workspaceId) {
+    // Workspace KB: use workspace permissions only
     const userPermission = await getUserEntityPermissions(userId, 'workspace', kbData.workspaceId)
     if (userPermission !== null) {
       return { hasAccess: true, knowledgeBase: kbData }
     }
+    return { hasAccess: false }
+  }
+
+  // Legacy non-workspace KB: allow owner access
+  if (kbData.userId === userId) {
+    return { hasAccess: true, knowledgeBase: kbData }
   }
 
   return { hasAccess: false }
@@ -182,8 +183,8 @@ export async function checkKnowledgeBaseAccess(
 /**
  * Check if a user has write access to a knowledge base
  * Write access is granted if:
- * 1. User owns the knowledge base directly, OR
- * 2. User has write or admin permissions on the knowledge base's workspace
+ * 1. KB has a workspace: user has write or admin permissions on that workspace
+ * 2. KB has no workspace (legacy): user owns the KB directly
  */
 export async function checkKnowledgeBaseWriteAccess(
   knowledgeBaseId: string,
@@ -206,17 +207,18 @@ export async function checkKnowledgeBaseWriteAccess(
 
   const kbData = kb[0]
 
-  // Case 1: User owns the knowledge base directly
-  if (kbData.userId === userId) {
-    return { hasAccess: true, knowledgeBase: kbData }
-  }
-
-  // Case 2: Knowledge base belongs to a workspace and user has write/admin permissions
   if (kbData.workspaceId) {
+    // Workspace KB: use workspace permissions only
     const userPermission = await getUserEntityPermissions(userId, 'workspace', kbData.workspaceId)
     if (userPermission === 'write' || userPermission === 'admin') {
       return { hasAccess: true, knowledgeBase: kbData }
     }
+    return { hasAccess: false }
+  }
+
+  // Legacy non-workspace KB: allow owner access
+  if (kbData.userId === userId) {
+    return { hasAccess: true, knowledgeBase: kbData }
   }
 
   return { hasAccess: false }

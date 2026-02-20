@@ -1,4 +1,10 @@
-import { mockAuth, mockCryptoUuid, mockUuid, setupCommonApiMocks } from '@sim/testing'
+import {
+  mockAuth,
+  mockCryptoUuid,
+  mockHybridAuth,
+  mockUuid,
+  setupCommonApiMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,13 +34,12 @@ function setupFileApiMocks(
     authMocks.setUnauthenticated()
   }
 
-  vi.doMock('@/lib/auth/hybrid', () => ({
-    checkHybridAuth: vi.fn().mockResolvedValue({
-      success: authenticated,
-      userId: authenticated ? 'test-user-id' : undefined,
-      error: authenticated ? undefined : 'Unauthorized',
-    }),
-  }))
+  const { mockCheckHybridAuth } = mockHybridAuth()
+  mockCheckHybridAuth.mockResolvedValue({
+    success: authenticated,
+    userId: authenticated ? 'test-user-id' : undefined,
+    error: authenticated ? undefined : 'Unauthorized',
+  })
 
   vi.doMock('@/app/api/files/authorization', () => ({
     verifyFileAccess: vi.fn().mockResolvedValue(true),

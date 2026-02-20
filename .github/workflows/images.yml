@@ -97,6 +97,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
+          no-cache: true
 
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
@@ -143,6 +144,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
+          no-cache: true
 
   create-ghcr-manifests:
     name: Create GHCR Manifests

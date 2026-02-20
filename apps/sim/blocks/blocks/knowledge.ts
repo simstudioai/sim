@@ -26,12 +26,26 @@ export const KnowledgeBlock: BlockConfig = {
       ],
       value: () => 'search',
     },
+    // Knowledge base selector - basic mode
     {
-      id: 'knowledgeBaseId',
+      id: 'knowledgeBaseSelector',
       title: 'Knowledge Base',
       type: 'knowledge-base-selector',
+      canonicalParamId: 'knowledgeBaseId',
+      mode: 'basic',
       placeholder: 'Select knowledge base',
       multiSelect: false,
+      required: true,
+      condition: { field: 'operation', value: ['search', 'upload_chunk', 'create_document'] },
+    },
+    // Knowledge base ID manual input - advanced mode
+    {
+      id: 'manualKnowledgeBaseId',
+      title: 'Knowledge Base ID',
+      type: 'short-input',
+      canonicalParamId: 'knowledgeBaseId',
+      mode: 'advanced',
+      placeholder: 'Enter knowledge base ID',
       required: true,
       condition: { field: 'operation', value: ['search', 'upload_chunk', 'create_document'] },
     },

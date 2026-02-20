@@ -66,7 +66,7 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Custom field values as key-value pairs (overrides summary/description if provided)',
+        'Request field values as key-value pairs (overrides summary/description if provided)',
     },
     requestParticipants: {
       type: 'string',

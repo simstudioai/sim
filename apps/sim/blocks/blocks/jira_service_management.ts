@@ -100,6 +100,19 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       title: 'Service Desk ID',
       type: 'short-input',
       placeholder: 'Enter service desk ID',
+      required: {
+        field: 'operation',
+        value: [
+          'get_request_types',
+          'create_request',
+          'get_customers',
+          'add_customer',
+          'get_organizations',
+          'add_organization',
+          'get_queues',
+          'get_request_type_fields',
+        ],
+      },
       condition: {
         field: 'operation',
         value: [
@@ -207,9 +220,10 @@ Return ONLY the description text - no explanations.`,
     },
     {
       id: 'requestFieldValues',
-      title: 'Custom Field Values',
+      title: 'Request Field Values',
       type: 'long-input',
-      placeholder: 'JSON object of custom field values (e.g., {"customfield_10010": "value"})',
+      placeholder:
+        'JSON object of field values (e.g., {"summary": "Title", "customfield_10010": "value"})',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
@@ -775,7 +789,7 @@ Return ONLY the comment text - no explanations.`,
       description: 'Comma-separated account IDs for request participants',
     },
     channel: { type: 'string', description: 'Channel (e.g., portal, email)' },
-    requestFieldValues: { type: 'string', description: 'JSON object of custom field values' },
+    requestFieldValues: { type: 'string', description: 'JSON object of request field values' },
     searchQuery: { type: 'string', description: 'Filter request types by name' },
     groupId: { type: 'string', description: 'Filter by request type group ID' },
     expand: { type: 'string', description: 'Comma-separated fields to expand' },

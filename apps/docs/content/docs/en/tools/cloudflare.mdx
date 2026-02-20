@@ -1,0 +1,569 @@
+---
+title: Cloudflare
+description: Manage DNS, domains, certificates, and cache
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudflare"
+  color="#F5F6FA"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Cloudflare](https://cloudflare.com/) is a global cloud platform that provides content delivery, domain management, cybersecurity, and performance services for websites and applications.
+
+In Sim, the Cloudflare integration empowers your agents to automate the management of DNS records, SSL/TLS certificates, domains (zones), cache, zone settings, and more through easy-to-use API tools. Agents can securely list and edit domains, update DNS records, monitor analytics, and manage security and performance—all as part of your automated workflows.
+
+With Cloudflare, you can:
+
+- **Manage DNS and Domains**: List all your domains (zones), view zone details, and fully control DNS records from your automated agent workflows.
+- **Handle SSL/TLS Certificates and Settings**: Issue, renew, or list certificates and adjust security and performance settings for your sites.
+- **Purge Cache and Analyze Traffic**: Instantly purge edge cache and review real-time DNS analytics directly within your Sim agent processes.
+- **Automate Security and Operations**: Use agents to programmatically manage zones, update settings, and streamline repetitive Cloudflare tasks.
+
+This integration enables streamlined, secure management of your site's infrastructure from within Sim. Your agents can integrate Cloudflare operations directly into processes—keeping DNS records up-to-date, responding to security events, improving site performance, and automating large-scale site and account administration.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.
+
+
+
+## Tools
+
+### `cloudflare_list_zones`
+
+Lists all zones (domains) in the Cloudflare account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | No | Filter zones by domain name \(e.g., "example.com"\) |
+| `status` | string | No | Filter by zone status: "initializing", "pending", "active", or "moved" |
+| `page` | number | No | Page number for pagination \(default: 1\) |
+| `per_page` | number | No | Number of zones per page \(default: 20, max: 50\) |
+| `accountId` | string | No | Filter zones by account ID |
+| `order` | string | No | Sort field \(name, status, account.id, account.name\) |
+| `direction` | string | No | Sort direction \(asc, desc\) |
+| `match` | string | No | Match logic for filters \(any, all\). Default: all |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `zones` | array | List of zones/domains |
+|   ↳ `id` | string | Zone ID |
+|   ↳ `name` | string | Domain name |
+|   ↳ `status` | string | Zone status \(initializing, pending, active, moved\) |
+|   ↳ `paused` | boolean | Whether the zone is paused |
+|   ↳ `type` | string | Zone type \(full, partial, or secondary\) |
+|   ↳ `name_servers` | array | Assigned Cloudflare name servers |
+|   ↳ `original_name_servers` | array | Original name servers before moving to Cloudflare |
+|   ↳ `created_on` | string | ISO 8601 date when the zone was created |
+|   ↳ `modified_on` | string | ISO 8601 date when the zone was last modified |
+|   ↳ `activated_on` | string | ISO 8601 date when the zone was activated |
+|   ↳ `development_mode` | number | Seconds remaining in development mode \(0 = off\) |
+|   ↳ `plan` | object | Zone plan information |
+|     ↳ `id` | string | Plan identifier |
+|     ↳ `name` | string | Plan name |
+|     ↳ `price` | number | Plan price |
+|     ↳ `is_subscribed` | boolean | Whether the zone is subscribed to the plan |
+|     ↳ `frequency` | string | Plan billing frequency |
+|     ↳ `currency` | string | Plan currency |
+|     ↳ `legacy_id` | string | Legacy plan identifier |
+|   ↳ `account` | object | Account the zone belongs to |
+|     ↳ `id` | string | Account identifier |
+|     ↳ `name` | string | Account name |
+|   ↳ `owner` | object | Zone owner information |
+|     ↳ `id` | string | Owner identifier |
+|     ↳ `name` | string | Owner name |
+|     ↳ `type` | string | Owner type |
+|   ↳ `meta` | object | Zone metadata |
+|     ↳ `cdn_only` | boolean | Whether the zone is CDN only |
+|     ↳ `custom_certificate_quota` | number | Custom certificate quota |
+|     ↳ `dns_only` | boolean | Whether the zone is DNS only |
+|     ↳ `foundation_dns` | boolean | Whether foundation DNS is enabled |
+|     ↳ `page_rule_quota` | number | Page rule quota |
+|     ↳ `phishing_detected` | boolean | Whether phishing was detected |
+|     ↳ `step` | number | Current setup step |
+|   ↳ `vanity_name_servers` | array | Custom vanity name servers |
+|   ↳ `permissions` | array | User permissions for the zone |
+| `total_count` | number | Total number of zones matching the query |
+
+### `cloudflare_get_zone`
+
+Gets details for a specific zone (domain) by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to retrieve details for |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Zone ID |
+| `name` | string | Domain name |
+| `status` | string | Zone status \(initializing, pending, active, moved\) |
+| `paused` | boolean | Whether the zone is paused |
+| `type` | string | Zone type \(full, partial, or secondary\) |
+| `name_servers` | array | Assigned Cloudflare name servers |
+| `original_name_servers` | array | Original name servers before moving to Cloudflare |
+| `created_on` | string | ISO 8601 date when the zone was created |
+| `modified_on` | string | ISO 8601 date when the zone was last modified |
+| `activated_on` | string | ISO 8601 date when the zone was activated |
+| `development_mode` | number | Seconds remaining in development mode \(0 = off\) |
+| `plan` | object | Zone plan information |
+|   ↳ `id` | string | Plan identifier |
+|   ↳ `name` | string | Plan name |
+|   ↳ `price` | number | Plan price |
+|   ↳ `is_subscribed` | boolean | Whether the zone is subscribed to the plan |
+|   ↳ `frequency` | string | Plan billing frequency |
+|   ↳ `currency` | string | Plan currency |
+|   ↳ `legacy_id` | string | Legacy plan identifier |
+| `account` | object | Account the zone belongs to |
+|   ↳ `id` | string | Account identifier |
+|   ↳ `name` | string | Account name |
+| `owner` | object | Zone owner information |
+|   ↳ `id` | string | Owner identifier |
+|   ↳ `name` | string | Owner name |
+|   ↳ `type` | string | Owner type |
+| `meta` | object | Zone metadata |
+|   ↳ `cdn_only` | boolean | Whether the zone is CDN only |
+|   ↳ `custom_certificate_quota` | number | Custom certificate quota |
+|   ↳ `dns_only` | boolean | Whether the zone is DNS only |
+|   ↳ `foundation_dns` | boolean | Whether foundation DNS is enabled |
+|   ↳ `page_rule_quota` | number | Page rule quota |
+|   ↳ `phishing_detected` | boolean | Whether phishing was detected |
+|   ↳ `step` | number | Current setup step |
+| `vanity_name_servers` | array | Custom vanity name servers |
+| `permissions` | array | User permissions for the zone |
+
+### `cloudflare_create_zone`
+
+Adds a new zone (domain) to the Cloudflare account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | The domain name to add \(e.g., "example.com"\) |
+| `accountId` | string | Yes | The Cloudflare account ID |
+| `type` | string | No | Zone type: "full" \(Cloudflare manages DNS\), "partial" \(CNAME setup\), or "secondary" \(secondary DNS\) |
+| `jump_start` | boolean | No | Automatically attempt to fetch existing DNS records when creating the zone |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created zone ID |
+| `name` | string | Domain name |
+| `status` | string | Zone status \(initializing, pending, active, moved\) |
+| `paused` | boolean | Whether the zone is paused |
+| `type` | string | Zone type \(full, partial, or secondary\) |
+| `name_servers` | array | Assigned Cloudflare name servers |
+| `original_name_servers` | array | Original name servers before moving to Cloudflare |
+| `created_on` | string | ISO 8601 date when the zone was created |
+| `modified_on` | string | ISO 8601 date when the zone was last modified |
+| `activated_on` | string | ISO 8601 date when the zone was activated |
+| `development_mode` | number | Seconds remaining in development mode \(0 = off\) |
+| `plan` | object | Zone plan information |
+|   ↳ `id` | string | Plan identifier |
+|   ↳ `name` | string | Plan name |
+|   ↳ `price` | number | Plan price |
+|   ↳ `is_subscribed` | boolean | Whether the zone is subscribed to the plan |
+|   ↳ `frequency` | string | Plan billing frequency |
+|   ↳ `currency` | string | Plan currency |
+|   ↳ `legacy_id` | string | Legacy plan identifier |
+| `account` | object | Account the zone belongs to |
+|   ↳ `id` | string | Account identifier |
+|   ↳ `name` | string | Account name |
+| `owner` | object | Zone owner information |
+|   ↳ `id` | string | Owner identifier |
+|   ↳ `name` | string | Owner name |
+|   ↳ `type` | string | Owner type |
+| `meta` | object | Zone metadata |
+|   ↳ `cdn_only` | boolean | Whether the zone is CDN only |
+|   ↳ `custom_certificate_quota` | number | Custom certificate quota |
+|   ↳ `dns_only` | boolean | Whether the zone is DNS only |
+|   ↳ `foundation_dns` | boolean | Whether foundation DNS is enabled |
+|   ↳ `page_rule_quota` | number | Page rule quota |
+|   ↳ `phishing_detected` | boolean | Whether phishing was detected |
+|   ↳ `step` | number | Current setup step |
+| `vanity_name_servers` | array | Custom vanity name servers |
+| `permissions` | array | User permissions for the zone |
+
+### `cloudflare_delete_zone`
+
+Deletes a zone (domain) from the Cloudflare account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to delete |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted zone ID |
+
+### `cloudflare_list_dns_records`
+
+Lists DNS records for a specific zone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to list DNS records for |
+| `type` | string | No | Filter by record type \(e.g., "A", "AAAA", "CNAME", "MX", "TXT"\) |
+| `name` | string | No | Filter by record name \(exact match\) |
+| `content` | string | No | Filter by record content \(exact match\) |
+| `page` | number | No | Page number for pagination \(default: 1\) |
+| `per_page` | number | No | Number of records per page \(default: 100, max: 5000000\) |
+| `direction` | string | No | Sort direction \(asc or desc\) |
+| `match` | string | No | Match logic for filters: any or all \(default: all\) |
+| `order` | string | No | Sort field \(type, name, content, ttl, proxied\) |
+| `proxied` | boolean | No | Filter by proxy status |
+| `search` | string | No | Free-text search across record name, content, and value |
+| `tag` | string | No | Filter by tags \(comma-separated\) |
+| `tag_match` | string | No | Tag filter match logic: any or all |
+| `commentFilter` | string | No | Filter records by comment content \(substring match\) |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | List of DNS records |
+|   ↳ `id` | string | Unique identifier for the DNS record |
+|   ↳ `zone_id` | string | The ID of the zone the record belongs to |
+|   ↳ `zone_name` | string | The name of the zone |
+|   ↳ `type` | string | Record type \(A, AAAA, CNAME, MX, TXT, etc.\) |
+|   ↳ `name` | string | Record name \(e.g., example.com\) |
+|   ↳ `content` | string | Record content \(e.g., IP address\) |
+|   ↳ `proxiable` | boolean | Whether the record can be proxied |
+|   ↳ `proxied` | boolean | Whether Cloudflare proxy is enabled |
+|   ↳ `ttl` | number | TTL in seconds \(1 = automatic\) |
+|   ↳ `locked` | boolean | Whether the record is locked |
+|   ↳ `priority` | number | MX/SRV record priority |
+|   ↳ `comment` | string | Comment associated with the record |
+|   ↳ `tags` | array | Tags associated with the record |
+|   ↳ `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
+|   ↳ `tags_modified_on` | string | ISO 8601 timestamp when tags were last modified |
+|   ↳ `meta` | object | Record metadata |
+|     ↳ `source` | string | Source of the DNS record |
+|   ↳ `created_on` | string | ISO 8601 timestamp when the record was created |
+|   ↳ `modified_on` | string | ISO 8601 timestamp when the record was last modified |
+| `total_count` | number | Total number of DNS records matching the query |
+
+### `cloudflare_create_dns_record`
+
+Creates a new DNS record for a zone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to create the DNS record in |
+| `type` | string | Yes | DNS record type \(e.g., "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV"\) |
+| `name` | string | Yes | DNS record name \(e.g., "example.com" or "subdomain.example.com"\) |
+| `content` | string | Yes | DNS record content \(e.g., IP address for A records, target for CNAME\) |
+| `ttl` | number | No | Time to live in seconds \(1 = automatic, default: 1\) |
+| `proxied` | boolean | No | Whether to enable Cloudflare proxy \(default: false\) |
+| `priority` | number | No | Priority for MX and SRV records |
+| `comment` | string | No | Comment for the DNS record |
+| `tags` | string | No | Comma-separated tags for the DNS record |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the created DNS record |
+| `zone_id` | string | The ID of the zone the record belongs to |
+| `zone_name` | string | The name of the zone |
+| `type` | string | DNS record type \(A, AAAA, CNAME, MX, TXT, etc.\) |
+| `name` | string | DNS record hostname |
+| `content` | string | DNS record value \(e.g., IP address, target hostname\) |
+| `proxiable` | boolean | Whether the record can be proxied through Cloudflare |
+| `proxied` | boolean | Whether Cloudflare proxy is enabled |
+| `ttl` | number | Time to live in seconds \(1 = automatic\) |
+| `locked` | boolean | Whether the record is locked |
+| `priority` | number | Priority for MX and SRV records |
+| `comment` | string | Comment associated with the record |
+| `tags` | array | Tags associated with the record |
+| `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
+| `tags_modified_on` | string | ISO 8601 timestamp when tags were last modified |
+| `meta` | object | Record metadata |
+|   ↳ `source` | string | Source of the DNS record |
+| `created_on` | string | ISO 8601 timestamp when the record was created |
+| `modified_on` | string | ISO 8601 timestamp when the record was last modified |
+
+### `cloudflare_update_dns_record`
+
+Updates an existing DNS record for a zone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID containing the DNS record |
+| `recordId` | string | Yes | The DNS record ID to update |
+| `type` | string | No | DNS record type \(e.g., "A", "AAAA", "CNAME", "MX", "TXT"\) |
+| `name` | string | No | DNS record name |
+| `content` | string | No | DNS record content \(e.g., IP address\) |
+| `ttl` | number | No | Time to live in seconds \(1 = automatic\) |
+| `proxied` | boolean | No | Whether to enable Cloudflare proxy |
+| `priority` | number | No | Priority for MX and SRV records |
+| `comment` | string | No | Comment for the DNS record |
+| `tags` | string | No | Comma-separated tags for the DNS record |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the updated DNS record |
+| `zone_id` | string | The ID of the zone the record belongs to |
+| `zone_name` | string | The name of the zone |
+| `type` | string | DNS record type \(A, AAAA, CNAME, MX, TXT, etc.\) |
+| `name` | string | DNS record hostname |
+| `content` | string | DNS record value \(e.g., IP address, target hostname\) |
+| `proxiable` | boolean | Whether the record can be proxied through Cloudflare |
+| `proxied` | boolean | Whether Cloudflare proxy is enabled |
+| `ttl` | number | Time to live in seconds \(1 = automatic\) |
+| `locked` | boolean | Whether the record is locked |
+| `priority` | number | Priority for MX and SRV records |
+| `comment` | string | Comment associated with the record |
+| `tags` | array | Tags associated with the record |
+| `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
+| `tags_modified_on` | string | ISO 8601 timestamp when tags were last modified |
+| `meta` | object | Record metadata |
+|   ↳ `source` | string | Source of the DNS record |
+| `created_on` | string | ISO 8601 timestamp when the record was created |
+| `modified_on` | string | ISO 8601 timestamp when the record was last modified |
+
+### `cloudflare_delete_dns_record`
+
+Deletes a DNS record from a zone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID containing the DNS record |
+| `recordId` | string | Yes | The DNS record ID to delete |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted record ID |
+
+### `cloudflare_list_certificates`
+
+Lists SSL/TLS certificate packs for a zone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to list certificates for |
+| `status` | string | No | Filter certificate packs by status \(e.g., "all", "active", "pending"\) |
+| `page` | number | No | Page number of paginated results \(default: 1\) |
+| `per_page` | number | No | Number of certificate packs per page \(default: 20, min: 5, max: 50\) |
+| `deploy` | string | No | Filter by deployment environment: "staging" or "production" |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `certificates` | array | List of SSL/TLS certificate packs |
+|   ↳ `id` | string | Certificate pack ID |
+|   ↳ `type` | string | Certificate type \(e.g., "universal", "advanced"\) |
+|   ↳ `hosts` | array | Hostnames covered by this certificate pack |
+|   ↳ `primary_certificate` | string | ID of the primary certificate in the pack |
+|   ↳ `status` | string | Certificate pack status \(e.g., "active", "pending"\) |
+|   ↳ `certificates` | array | Individual certificates within the pack |
+|     ↳ `id` | string | Certificate ID |
+|     ↳ `hosts` | array | Hostnames covered by this certificate |
+|     ↳ `issuer` | string | Certificate issuer |
+|     ↳ `signature` | string | Signature algorithm \(e.g., "ECDSAWithSHA256"\) |
+|     ↳ `status` | string | Certificate status |
+|     ↳ `bundle_method` | string | Bundle method \(e.g., "ubiquitous"\) |
+|     ↳ `zone_id` | string | Zone ID the certificate belongs to |
+|     ↳ `uploaded_on` | string | Upload date \(ISO 8601\) |
+|     ↳ `modified_on` | string | Last modified date \(ISO 8601\) |
+|     ↳ `expires_on` | string | Expiration date \(ISO 8601\) |
+|     ↳ `priority` | number | Certificate priority order |
+|     ↳ `geo_restrictions` | object | Geographic restrictions for the certificate |
+|       ↳ `label` | string | Geographic restriction label |
+|   ↳ `cloudflare_branding` | boolean | Whether Cloudflare branding is enabled on the certificate |
+|   ↳ `validation_method` | string | Validation method \(e.g., "txt", "http", "cname"\) |
+|   ↳ `validity_days` | number | Validity period in days |
+|   ↳ `certificate_authority` | string | Certificate authority \(e.g., "lets_encrypt", "google"\) |
+|   ↳ `validation_errors` | array | Validation issues for the certificate pack |
+|     ↳ `message` | string | Validation error message |
+|   ↳ `validation_records` | array | Validation records for the certificate pack |
+|     ↳ `cname` | string | CNAME record name |
+|     ↳ `cname_target` | string | CNAME record target |
+|     ↳ `emails` | array | Email addresses for validation |
+|     ↳ `http_body` | string | HTTP validation body content |
+|     ↳ `http_url` | string | HTTP validation URL |
+|     ↳ `status` | string | Validation record status |
+|     ↳ `txt_name` | string | TXT record name |
+|     ↳ `txt_value` | string | TXT record value |
+|   ↳ `dcv_delegation_records` | array | Domain control validation delegation records |
+|     ↳ `cname` | string | CNAME record name |
+|     ↳ `cname_target` | string | CNAME record target |
+|     ↳ `emails` | array | Email addresses for validation |
+|     ↳ `http_body` | string | HTTP validation body content |
+|     ↳ `http_url` | string | HTTP validation URL |
+|     ↳ `status` | string | Delegation record status |
+|     ↳ `txt_name` | string | TXT record name |
+|     ↳ `txt_value` | string | TXT record value |
+| `total_count` | number | Total number of certificate packs |
+
+### `cloudflare_get_zone_settings`
+
+Gets all settings for a zone including SSL mode, minification, caching level, and security settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to get settings for |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `settings` | array | List of zone settings |
+|   ↳ `id` | string | Setting identifier \(e.g., ssl, minify, cache_level, security_level, always_use_https\) |
+|   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \ |
+|   ↳ `editable` | boolean | Whether the setting can be modified for the current zone plan |
+|   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
+|   ↳ `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
+
+### `cloudflare_update_zone_setting`
+
+Updates a specific zone setting such as SSL mode, security level, cache level, minification, or other configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to update settings for |
+| `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "minify", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
+| `value` | string | Yes | New value for the setting as a string or JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'\{"css":"on","html":"on","js":"on"\}\' for minify, \'\["ECDHE-RSA-AES128-GCM-SHA256"\]\' for ciphers\) |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Setting identifier \(e.g., ssl, minify, cache_level\) |
+| `value` | string | Updated setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified. |
+| `editable` | boolean | Whether the setting can be modified for the current zone plan |
+| `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
+| `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
+
+### `cloudflare_dns_analytics`
+
+Gets DNS analytics report for a zone including query counts and trends.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to get DNS analytics for |
+| `since` | string | No | Start date for analytics \(ISO 8601, e.g., "2024-01-01T00:00:00Z"\) or relative \(e.g., "-6h"\) |
+| `until` | string | No | End date for analytics \(ISO 8601, e.g., "2024-01-31T23:59:59Z"\) or relative \(e.g., "now"\) |
+| `metrics` | string | Yes | Comma-separated metrics to retrieve \(e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"\) |
+| `dimensions` | string | No | Comma-separated dimensions to group by \(e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion,querySizeBucket,responseSizeBucket"\) |
+| `filters` | string | No | Filters to apply to the data \(e.g., "queryType==A"\) |
+| `sort` | string | No | Sort order for the result set. Fields must be included in metrics or dimensions \(e.g., "+queryCount" or "-responseTimeAvg"\) |
+| `limit` | number | No | Maximum number of results to return |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totals` | object | Aggregate DNS analytics totals for the entire queried period |
+|   ↳ `queryCount` | number | Total number of DNS queries |
+|   ↳ `uncachedCount` | number | Number of uncached DNS queries |
+|   ↳ `staleCount` | number | Number of stale DNS queries |
+|   ↳ `responseTimeAvg` | number | Average response time in milliseconds |
+|   ↳ `responseTimeMedian` | number | Median response time in milliseconds |
+|   ↳ `responseTime90th` | number | 90th percentile response time in milliseconds |
+|   ↳ `responseTime99th` | number | 99th percentile response time in milliseconds |
+| `min` | object | Minimum values across the analytics period |
+|   ↳ `queryCount` | number | Minimum number of DNS queries |
+|   ↳ `uncachedCount` | number | Minimum number of uncached DNS queries |
+|   ↳ `staleCount` | number | Minimum number of stale DNS queries |
+|   ↳ `responseTimeAvg` | number | Minimum average response time in milliseconds |
+|   ↳ `responseTimeMedian` | number | Minimum median response time in milliseconds |
+|   ↳ `responseTime90th` | number | Minimum 90th percentile response time in milliseconds |
+|   ↳ `responseTime99th` | number | Minimum 99th percentile response time in milliseconds |
+| `max` | object | Maximum values across the analytics period |
+|   ↳ `queryCount` | number | Maximum number of DNS queries |
+|   ↳ `uncachedCount` | number | Maximum number of uncached DNS queries |
+|   ↳ `staleCount` | number | Maximum number of stale DNS queries |
+|   ↳ `responseTimeAvg` | number | Maximum average response time in milliseconds |
+|   ↳ `responseTimeMedian` | number | Maximum median response time in milliseconds |
+|   ↳ `responseTime90th` | number | Maximum 90th percentile response time in milliseconds |
+|   ↳ `responseTime99th` | number | Maximum 99th percentile response time in milliseconds |
+| `data` | array | Raw analytics data rows returned by the Cloudflare DNS analytics report |
+|   ↳ `dimensions` | array | Dimension values for this data row, parallel to the requested dimensions list |
+|   ↳ `metrics` | array | Metric values for this data row, parallel to the requested metrics list |
+| `data_lag` | number | Processing lag in seconds before analytics data becomes available |
+| `rows` | number | Total number of rows in the result set |
+| `query` | object | Echo of the query parameters sent to the API |
+|   ↳ `since` | string | Start date of the analytics query |
+|   ↳ `until` | string | End date of the analytics query |
+|   ↳ `metrics` | array | Metrics requested in the query |
+|   ↳ `dimensions` | array | Dimensions requested in the query |
+|   ↳ `filters` | string | Filters applied to the query |
+|   ↳ `sort` | array | Sort order applied to the query |
+|   ↳ `limit` | number | Maximum number of results requested |
+
+### `cloudflare_purge_cache`
+
+Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to purge cache for |
+| `purge_everything` | boolean | No | Set to true to purge all cached content. Mutually exclusive with files, tags, hosts, and prefixes |
+| `files` | string | No | Comma-separated list of URLs to purge from cache |
+| `tags` | string | No | Comma-separated list of cache tags to purge \(Enterprise only\) |
+| `hosts` | string | No | Comma-separated list of hostnames to purge \(Enterprise only\) |
+| `prefixes` | string | No | Comma-separated list of URL prefixes to purge \(Enterprise only\) |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Purge request identifier returned by Cloudflare |
+
+

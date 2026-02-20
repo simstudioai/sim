@@ -20,6 +20,7 @@ const configSchema = z.object({
   allowedModelProviders: z.array(z.string()).nullable().optional(),
   hideTraceSpans: z.boolean().optional(),
   hideKnowledgeBaseTab: z.boolean().optional(),
+  hideTablesTab: z.boolean().optional(),
   hideCopilot: z.boolean().optional(),
   hideApiKeysTab: z.boolean().optional(),
   hideEnvironmentTab: z.boolean().optional(),

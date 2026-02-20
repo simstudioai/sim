@@ -10,6 +10,7 @@ import {
   createMockRequest,
   mockConsoleLogger,
   mockKnowledgeSchemas,
+  requestUtilsMock,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,9 +30,7 @@ mockKnowledgeSchemas()
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-api-key' }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn(() => 'test-request-id'),
-}))
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: vi.fn().mockImplementation((fn) => fn()),

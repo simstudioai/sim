@@ -4,23 +4,37 @@ import { useQueryClient } from '@tanstack/react-query'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useWand')
 
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+interface BuildWandContextInfoOptions {
+  currentValue?: string
+  generationType?: string
+}
+
 /**
- * Builds rich context information based on current content and generation type
+ * Builds rich context information based on current content and generation type.
+ * Note: Table schema context is now fetched server-side in /api/wand for simplicity.
  */
-function buildContextInfo(currentValue?: string, generationType?: string): string {
-  if (!currentValue || currentValue.trim() === '') {
-    return 'no current content'
-  }
+function buildWandContextInfo({
+  currentValue,
+  generationType,
+}: BuildWandContextInfoOptions): string {
+  const hasContent = Boolean(currentValue && currentValue.trim() !== '')
+  const contentLength = currentValue?.length ?? 0
+  const lineCount = currentValue ? currentValue.split('\n').length : 0
 
-  const contentLength = currentValue.length
-  const lineCount = currentValue.split('\n').length
+  let contextInfo = hasContent
+    ? `Current content (${contentLength} characters, ${lineCount} lines):\n${currentValue}`
+    : 'no current content'
 
-  let contextInfo = `Current content (${contentLength} characters, ${lineCount} lines):\n${currentValue}`
-
-  if (generationType) {
+  if (generationType && currentValue) {
     switch (generationType) {
       case 'javascript-function-body':
       case 'typescript-function-body': {
@@ -33,6 +47,7 @@ function buildContextInfo(currentValue?: string, generationType?: string): strin
 
       case 'json-schema':
       case 'json-object':
+      case 'table-schema':
         try {
           const parsed = JSON.parse(currentValue)
           const keys = Object.keys(parsed)
@@ -47,11 +62,6 @@ function buildContextInfo(currentValue?: string, generationType?: string): strin
   return contextInfo
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
-
 export interface WandConfig {
   enabled: boolean
   prompt: string
@@ -63,6 +73,9 @@ export interface WandConfig {
 interface UseWandProps {
   wandConfig?: WandConfig
   currentValue?: string
+  contextParams?: {
+    tableId?: string | null
+  }
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
   onStreamStart?: () => void
@@ -72,12 +85,14 @@ interface UseWandProps {
 export function useWand({
   wandConfig,
   currentValue,
+  contextParams,
   onGeneratedContent,
   onStreamChunk,
   onStreamStart,
   onGenerationComplete,
 }: UseWandProps) {
   const queryClient = useQueryClient()
+  const workflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
   const [promptInputValue, setPromptInputValue] = useState('')
@@ -148,7 +163,10 @@ export function useWand({
       }
 
       try {
-        const contextInfo = buildContextInfo(currentValue, wandConfig?.generationType)
+        const contextInfo = buildWandContextInfo({
+          currentValue,
+          generationType: wandConfig?.generationType,
+        })
 
         let systemPrompt = wandConfig?.prompt || ''
         if (systemPrompt.includes('{context}')) {
@@ -171,6 +189,8 @@ export function useWand({
             stream: true,
             history: wandConfig?.maintainHistory ? conversationHistory : [],
             generationType: wandConfig?.generationType,
+            workflowId,
+            wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
           }),
           signal: abortControllerRef.current.signal,
           cache: 'no-store',
@@ -235,6 +255,8 @@ export function useWand({
       onStreamStart,
       onGenerationComplete,
       queryClient,
+      contextParams?.tableId,
+      workflowId,
     ]
   )
 

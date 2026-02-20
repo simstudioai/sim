@@ -268,6 +268,14 @@ export const Sidebar = memo(function Sidebar() {
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
+        // TODO: Uncomment when working on tables
+        // {
+        //   id: 'tables',
+        //   label: 'Tables',
+        //   icon: Table,
+        //   href: `/workspace/${workspaceId}/tables`,
+        //   hidden: permissionConfig.hideTablesTab,
+        // },
         {
           id: 'help',
           label: 'Help',

@@ -119,6 +119,14 @@ export function SearchModal({
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
+        // TODO: Uncomment when working on tables
+        // {
+        //   id: 'tables',
+        //   name: 'Tables',
+        //   icon: Table,
+        //   href: `/workspace/${workspaceId}/tables`,
+        //   hidden: permissionConfig.hideTablesTab,
+        // },
         {
           id: 'help',
           name: 'Help',

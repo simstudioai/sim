@@ -5,11 +5,29 @@ import { vi } from 'vitest'
  * Mimics drizzle-orm's sql tagged template.
  */
 export function createMockSql() {
-  return (strings: TemplateStringsArray, ...values: any[]) => ({
+  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => ({
     strings,
     values,
     toSQL: () => ({ sql: strings.join('?'), params: values }),
   })
+
+  // Add sql.raw method used by some queries
+  sqlFn.raw = (rawSql: string) => ({
+    rawSql,
+    toSQL: () => ({ sql: rawSql, params: [] }),
+  })
+
+  // Add sql.join method used to combine multiple SQL fragments
+  sqlFn.join = (fragments: any[], separator: any) => ({
+    fragments,
+    separator,
+    toSQL: () => ({
+      sql: fragments.map((f) => f?.toSQL?.()?.sql || String(f)).join(separator?.rawSql || ', '),
+      params: fragments.flatMap((f) => f?.toSQL?.()?.params || []),
+    }),
+  })
+
+  return sqlFn
 }
 
 /**
@@ -23,6 +41,7 @@ export function createMockSqlOperators() {
     gte: vi.fn((a, b) => ({ type: 'gte', left: a, right: b })),
     lt: vi.fn((a, b) => ({ type: 'lt', left: a, right: b })),
     lte: vi.fn((a, b) => ({ type: 'lte', left: a, right: b })),
+    count: vi.fn((column) => ({ type: 'count', column })),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     not: vi.fn((condition) => ({ type: 'not', condition })),

@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock, mockHybridAuth } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -180,13 +180,12 @@ describe('Custom Tools API Routes', () => {
       getSession: vi.fn().mockResolvedValue(mockSession),
     }))
 
-    vi.doMock('@/lib/auth/hybrid', () => ({
-      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-        success: true,
-        userId: 'user-123',
-        authType: 'session',
-      }),
-    }))
+    const { mockCheckSessionOrInternalAuth: hybridAuthMock } = mockHybridAuth()
+    hybridAuthMock.mockResolvedValue({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
+    })
 
     vi.doMock('@/lib/workspaces/permissions/utils', () => ({
       getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
@@ -261,12 +260,11 @@ describe('Custom Tools API Routes', () => {
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      vi.doMock('@/lib/auth/hybrid', () => ({
-        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-          success: false,
-          error: 'Unauthorized',
-        }),
-      }))
+      const { mockCheckSessionOrInternalAuth: unauthMock } = mockHybridAuth()
+      unauthMock.mockResolvedValue({
+        success: false,
+        error: 'Unauthorized',
+      })
 
       const { GET } = await import('@/app/api/tools/custom/route')
 
@@ -297,12 +295,11 @@ describe('Custom Tools API Routes', () => {
    */
   describe('POST /api/tools/custom', () => {
     it('should reject unauthorized requests', async () => {
-      vi.doMock('@/lib/auth/hybrid', () => ({
-        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-          success: false,
-          error: 'Unauthorized',
-        }),
-      }))
+      const { mockCheckSessionOrInternalAuth: unauthMock } = mockHybridAuth()
+      unauthMock.mockResolvedValue({
+        success: false,
+        error: 'Unauthorized',
+      })
 
       const req = createMockRequest('POST', { tools: [], workspaceId: 'workspace-123' })
 
@@ -384,13 +381,12 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
-      vi.doMock('@/lib/auth/hybrid', () => ({
-        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-          success: true,
-          userId: 'user-456',
-          authType: 'session',
-        }),
-      }))
+      const { mockCheckSessionOrInternalAuth: diffUserMock } = mockHybridAuth()
+      diffUserMock.mockResolvedValue({
+        success: true,
+        userId: 'user-456',
+        authType: 'session',
+      })
 
       const userScopedTool = { ...sampleTools[0], workspaceId: null, userId: 'user-123' }
       const mockLimitUserScoped = vi.fn().mockResolvedValue([userScopedTool])
@@ -408,12 +404,11 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should reject unauthorized requests', async () => {
-      vi.doMock('@/lib/auth/hybrid', () => ({
-        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
-          success: false,
-          error: 'Unauthorized',
-        }),
-      }))
+      const { mockCheckSessionOrInternalAuth: unauthMock } = mockHybridAuth()
+      unauthMock.mockResolvedValue({
+        success: false,
+        error: 'Unauthorized',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 

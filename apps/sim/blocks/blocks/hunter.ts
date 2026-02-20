@@ -204,11 +204,6 @@ Return ONLY the search query text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric parameters
-        if (params.limit) {
-          params.limit = Number(params.limit)
-        }
-
         switch (params.operation) {
           case 'hunter_discover':
             return 'hunter_discover'
@@ -225,6 +220,11 @@ Return ONLY the search query text - no explanations.`,
           default:
             return 'hunter_domain_search'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        return result
       },
     },
   },

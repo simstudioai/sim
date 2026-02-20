@@ -1,20 +1,15 @@
-import { loggerMock } from '@sim/testing'
+import { createEnvMock, loggerMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mockEnv = vi.hoisted(() => ({
-  ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
-  isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
-}))
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
+    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  })
+)
 
 vi.mock('@sim/logger', () => loggerMock)
 
+import { env } from '@/lib/core/config/env'
 import { decryptSecret, encryptSecret, generatePassword } from './encryption'
 
 describe('encryptSecret', () => {
@@ -172,21 +167,21 @@ describe('generatePassword', () => {
 })
 
 describe('encryption key validation', () => {
-  const originalEnv = { ...mockEnv }
+  const originalEncryptionKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
   afterEach(() => {
-    mockEnv.ENCRYPTION_KEY = originalEnv.ENCRYPTION_KEY
+    ;(env as Record<string, string>).ENCRYPTION_KEY = originalEncryptionKey
   })
 
   it('should throw error when ENCRYPTION_KEY is not set', async () => {
-    mockEnv.ENCRYPTION_KEY = ''
+    ;(env as Record<string, string>).ENCRYPTION_KEY = ''
     await expect(encryptSecret('test')).rejects.toThrow(
       'ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)'
     )
   })
 
   it('should throw error when ENCRYPTION_KEY is wrong length', async () => {
-    mockEnv.ENCRYPTION_KEY = '0123456789abcdef'
+    ;(env as Record<string, string>).ENCRYPTION_KEY = '0123456789abcdef'
     await expect(encryptSecret('test')).rejects.toThrow(
       'ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)'
     )

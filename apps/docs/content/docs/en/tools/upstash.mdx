@@ -1,0 +1,357 @@
+---
+title: Upstash
+description: Serverless Redis with Upstash
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="upstash"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Upstash](https://upstash.com/) is a serverless data platform designed for modern applications that need fast, simple, and scalable data storage with minimal setup. Upstash specializes in providing Redis and Kafka as fully managed, pay-per-request cloud services, making it a popular choice for developers building serverless, edge, and event-driven architectures.
+
+With Upstash Redis, you can:
+
+- **Store and retrieve data instantly**: Read and write key-value pairs, hashes, lists, sets, and more—all over a high-performance REST API.
+- **Scale serverlessly**: No infrastructure to manage. Upstash automatically scales with your app and charges only for what you use.
+- **Access globally**: Deploy near your users with multi-region support and global distribution.
+- **Integrate easily**: Use Upstash’s REST API in serverless functions, edge workers, Next.js, Vercel, Cloudflare Workers, and more.
+- **Automate with scripts**: Run Lua scripts for advanced transactions and automation.
+- **Ensure security**: Protect your data with built-in authentication and TLS encryption.
+
+In Sim, the Upstash integration empowers your agents and workflows to read, write, and manage data in Upstash Redis using simple, unified commands—perfect for building scalable automations, caching results, managing queues, and more, all without dealing with server management.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Upstash Redis to perform key-value, hash, list, and utility operations via the REST API.
+
+
+
+## Tools
+
+### `upstash_redis_get`
+
+Get the value of a key from Upstash Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was retrieved |
+| `value` | json | The value of the key \(string\), or null if not found |
+
+### `upstash_redis_set`
+
+Set the value of a key in Upstash Redis with an optional expiration time in seconds.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to set |
+| `value` | string | Yes | The value to store |
+| `ex` | number | No | Expiration time in seconds \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was set |
+| `result` | string | The result of the SET operation \(typically "OK"\) |
+
+### `upstash_redis_delete`
+
+Delete a key from Upstash Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was deleted |
+| `deletedCount` | number | Number of keys deleted \(0 if key did not exist, 1 if deleted\) |
+
+### `upstash_redis_keys`
+
+List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `pattern` | string | No | Pattern to match keys \(e.g., "user:*"\). Defaults to "*" for all keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pattern` | string | The pattern used to match keys |
+| `keys` | array | List of keys matching the pattern |
+| `count` | number | Number of keys found |
+
+### `upstash_redis_command`
+
+Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., [
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `command` | string | Yes | Redis command as a JSON array \(e.g., \["HSET", "myhash", "field1", "value1"\]\) or a simple command string \(e.g., "PING"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `command` | string | The command that was executed |
+| `result` | json | The result of the Redis command |
+
+### `upstash_redis_hset`
+
+Set a field in a hash stored at a key in Upstash Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The hash key |
+| `field` | string | Yes | The field name within the hash |
+| `value` | string | Yes | The value to store in the hash field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `field` | string | The field that was set |
+| `result` | number | Number of new fields added \(0 if field was updated, 1 if new\) |
+
+### `upstash_redis_hget`
+
+Get the value of a field in a hash stored at a key in Upstash Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The hash key |
+| `field` | string | Yes | The field name to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `field` | string | The field that was retrieved |
+| `value` | json | The value of the hash field \(string\), or null if not found |
+
+### `upstash_redis_hgetall`
+
+Get all fields and values of a hash stored at a key in Upstash Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The hash key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `fields` | object | All field-value pairs in the hash, keyed by field name |
+| `fieldCount` | number | Number of fields in the hash |
+
+### `upstash_redis_incr`
+
+Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to increment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was incremented |
+| `value` | number | The new value after incrementing |
+
+### `upstash_redis_expire`
+
+Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to set expiration on |
+| `seconds` | number | Yes | Timeout in seconds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that expiration was set on |
+| `result` | number | 1 if the timeout was set, 0 if the key does not exist |
+
+### `upstash_redis_ttl`
+
+Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to check TTL for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key checked |
+| `ttl` | number | Remaining TTL in seconds. Positive integer if the key has a TTL set, -1 if the key exists with no expiration, -2 if the key does not exist. |
+
+### `upstash_redis_lpush`
+
+Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The list key |
+| `value` | string | Yes | The value to prepend to the list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `length` | number | The length of the list after the push |
+
+### `upstash_redis_lrange`
+
+Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The list key |
+| `start` | number | Yes | Start index \(0-based, negative values count from end\) |
+| `stop` | number | Yes | Stop index \(inclusive, -1 for last element\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `values` | array | List of elements in the specified range |
+| `count` | number | Number of elements returned |
+
+### `upstash_redis_exists`
+
+Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to check |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was checked |
+| `exists` | boolean | Whether the key exists \(true\) or not \(false\) |
+
+### `upstash_redis_setnx`
+
+Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to set |
+| `value` | string | Yes | The value to store if the key does not exist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was attempted to set |
+| `wasSet` | boolean | Whether the key was set \(true\) or already existed \(false\) |
+
+### `upstash_redis_incrby`
+
+Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `restUrl` | string | Yes | Upstash Redis REST URL |
+| `restToken` | string | Yes | Upstash Redis REST Token |
+| `key` | string | Yes | The key to increment |
+| `increment` | number | Yes | Amount to increment by \(use negative value to decrement\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was incremented |
+| `value` | number | The new value after incrementing |
+
+
