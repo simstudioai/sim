@@ -30,6 +30,34 @@ export async function postSlackMessage(
 }
 
 /**
+ * Sends an ephemeral message to a Slack channel using chat.postEphemeral
+ * Ephemeral messages are only visible to the specified user and do not persist
+ */
+export async function postSlackEphemeralMessage(
+  accessToken: string,
+  channel: string,
+  user: string,
+  text: string,
+  threadTs?: string | null
+): Promise<{ ok: boolean; message_ts?: string; error?: string }> {
+  const response = await fetch('https://slack.com/api/chat.postEphemeral', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      channel,
+      user,
+      text,
+      ...(threadTs && { thread_ts: threadTs }),
+    }),
+  })
+
+  return response.json()
+}
+
+/**
  * Creates a default message object when the API doesn't return one
  */
 export function createDefaultMessageObject(

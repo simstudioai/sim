@@ -2,6 +2,7 @@ import { slackAddReactionTool } from '@/tools/slack/add_reaction'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackDeleteMessageTool } from '@/tools/slack/delete_message'
 import { slackDownloadTool } from '@/tools/slack/download'
+import { slackEphemeralMessageTool } from '@/tools/slack/ephemeral_message'
 import { slackGetMessageTool } from '@/tools/slack/get_message'
 import { slackGetThreadTool } from '@/tools/slack/get_thread'
 import { slackGetUserTool } from '@/tools/slack/get_user'
@@ -26,4 +27,5 @@ export {
   slackGetUserTool,
   slackGetMessageTool,
   slackGetThreadTool,
+  slackEphemeralMessageTool,
 }

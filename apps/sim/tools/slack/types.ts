@@ -590,6 +590,15 @@ export interface SlackGetThreadParams extends SlackBaseParams {
   limit?: number
 }
 
+export interface SlackEphemeralMessageParams extends SlackBaseParams {
+  destinationType?: 'channel' | 'dm'
+  channel?: string
+  dmUserId?: string
+  userId: string
+  text: string
+  threadTs?: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -841,6 +850,14 @@ export interface SlackGetThreadResponse extends ToolResponse {
   }
 }
 
+export interface SlackEphemeralMessageResponse extends ToolResponse {
+  output: {
+    message_ts: string
+    channel: string
+    user: string
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -855,3 +872,4 @@ export type SlackResponse =
   | SlackGetUserResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse
+  | SlackEphemeralMessageResponse
