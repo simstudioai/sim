@@ -322,7 +322,7 @@ export async function executeTool(
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
         }
-        if (userId) {
+        if (userId && contextParams._context?.enforceCredentialAccess) {
           tokenUrlObj.searchParams.set('userId', userId)
         }
 
@@ -349,7 +349,15 @@ export async function executeTool(
             status: response.status,
             error: errorText,
           })
-          throw new Error(`Failed to fetch access token: ${response.status} ${errorText}`)
+          let parsedError = errorText
+          try {
+            const parsed = JSON.parse(errorText)
+            if (parsed.error) parsedError = parsed.error
+          } catch {
+            // Use raw text
+          }
+          const toolLabel = tool?.name || toolId
+          throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
         }
 
         const data = await response.json()
@@ -378,10 +386,7 @@ export async function executeTool(
         logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
           error: error instanceof Error ? error.message : String(error),
         })
-        // Re-throw the error to fail the tool execution if token fetching fails
-        throw new Error(
-          `Failed to obtain credential for tool ${toolId}: ${error instanceof Error ? error.message : String(error)}`
-        )
+        throw error
       }
     }
 

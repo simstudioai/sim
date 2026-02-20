@@ -110,23 +110,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
+    const callerUserId = new URL(request.url).searchParams.get('userId') || undefined
+
     const authz = await authorizeCredentialUse(request, {
       credentialId,
       workflowId: workflowId ?? undefined,
       requireWorkflowIdForInternal: false,
+      callerUserId,
     })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
+    const resolvedCredentialId = authz.resolvedCredentialId || credentialId
+    const credential = await getCredential(
+      requestId,
+      resolvedCredentialId,
+      authz.credentialOwnerUserId
+    )
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     try {
-      const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+      const { accessToken } = await refreshTokenIfNeeded(
+        requestId,
+        credential,
+        resolvedCredentialId
+      )
 
       let instanceUrl: string | undefined
       if (credential.providerId === 'salesforce' && credential.scope) {
@@ -186,13 +198,20 @@ export async function GET(request: NextRequest) {
 
     const { credentialId } = parseResult.data
 
-    // For GET requests, we only support session-based authentication
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!auth.success || auth.authType !== 'session' || !auth.userId) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      requireWorkflowIdForInternal: false,
+    })
+    if (!authz.ok || authz.authType !== 'session' || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    const credential = await getCredential(requestId, credentialId, auth.userId)
+    const resolvedCredentialId = authz.resolvedCredentialId || credentialId
+    const credential = await getCredential(
+      requestId,
+      resolvedCredentialId,
+      authz.credentialOwnerUserId
+    )
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
@@ -204,7 +223,11 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+      const { accessToken } = await refreshTokenIfNeeded(
+        requestId,
+        credential,
+        resolvedCredentialId
+      )
 
       // For Salesforce, extract instanceUrl from the scope field
       let instanceUrl: string | undefined

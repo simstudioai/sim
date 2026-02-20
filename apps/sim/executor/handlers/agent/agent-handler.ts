@@ -336,6 +336,7 @@ export class AgentBlockHandler implements BlockHandler {
               workspaceId: ctx.workspaceId,
               userId: ctx.userId,
               isDeployedContext: ctx.isDeployedContext,
+              enforceCredentialAccess: ctx.enforceCredentialAccess,
             },
           },
           false,

@@ -7,7 +7,6 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
@@ -125,8 +124,6 @@ export function FileSelectorInput({
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 
-  const { isForeignCredential } = useForeignCredential(effectiveProviderId, normalizedCredentialId)
-
   const selectorResolution = useMemo<SelectorResolution | null>(() => {
     return resolveSelectorForSubBlock(subBlock, {
       workflowId: workflowIdFromUrl,
@@ -168,7 +165,6 @@ export function FileSelectorInput({
 
   const disabledReason =
     finalDisabled ||
-    isForeignCredential ||
     missingCredential ||
     missingDomain ||
     missingProject ||

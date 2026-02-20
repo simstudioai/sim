@@ -52,7 +52,11 @@ export async function POST(request: NextRequest) {
     const trelloUser = await userResponse.json()
 
     const existing = await db.query.account.findFirst({
-      where: and(eq(account.userId, session.user.id), eq(account.providerId, 'trello')),
+      where: and(
+        eq(account.userId, session.user.id),
+        eq(account.providerId, 'trello'),
+        eq(account.accountId, trelloUser.id)
+      ),
     })
 
     const now = new Date()

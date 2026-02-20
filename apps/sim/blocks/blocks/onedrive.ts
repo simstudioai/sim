@@ -39,6 +39,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'onedrive',
       requiredScopes: [
         'openid',
@@ -49,6 +51,14 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Microsoft account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
     },
     // Create File Fields
     {
@@ -355,7 +365,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           // Folder canonical params (per-operation)
           uploadFolderId,
           createFolderParentId,
@@ -405,7 +415,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
 
         return {
-          credential,
+          oauthCredential,
           ...rest,
           values: normalizedValues,
           file: normalizedFile,
@@ -420,7 +430,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Microsoft account credential' },
+    oauthCredential: { type: 'string', description: 'Microsoft account credential' },
     // Upload and Create operation inputs
     fileName: { type: 'string', description: 'File name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },

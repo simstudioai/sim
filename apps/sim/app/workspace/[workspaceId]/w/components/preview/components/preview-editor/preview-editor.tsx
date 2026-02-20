@@ -473,7 +473,7 @@ function ConnectionsSection({
           </div>
         )}
 
-        {/* Environment Variables */}
+        {/* Secrets */}
         {envVars.length > 0 && (
           <div className='mb-[2px] last:mb-0'>
             <div
@@ -489,7 +489,7 @@ function ConnectionsSection({
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                 )}
               >
-                Environment Variables
+                Secrets
               </span>
               <ChevronDownIcon
                 className={cn(

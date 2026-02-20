@@ -62,20 +62,22 @@ describe('OAuth Utils', () => {
 
   describe('getCredential', () => {
     it('should return credential when found', async () => {
-      const mockCredential = { id: 'credential-id', userId: 'test-user-id' }
-      const { mockFrom, mockWhere, mockLimit } = mockSelectChain([mockCredential])
+      const mockCredentialRow = { type: 'oauth', accountId: 'resolved-account-id' }
+      const mockAccountRow = { id: 'resolved-account-id', userId: 'test-user-id' }
+
+      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockAccountRow])
 
       const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
 
-      expect(mockDb.select).toHaveBeenCalled()
-      expect(mockFrom).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
-      expect(mockLimit).toHaveBeenCalledWith(1)
+      expect(mockDb.select).toHaveBeenCalledTimes(2)
 
-      expect(credential).toEqual(mockCredential)
+      expect(credential).toMatchObject(mockAccountRow)
+      expect(credential).toMatchObject({ resolvedCredentialId: 'resolved-account-id' })
     })
 
     it('should return undefined when credential is not found', async () => {
+      mockSelectChain([])
       mockSelectChain([])
 
       const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
@@ -158,15 +160,17 @@ describe('OAuth Utils', () => {
 
   describe('refreshAccessTokenIfNeeded', () => {
     it('should return valid access token without refresh if not expired', async () => {
-      const mockCredential = {
-        id: 'credential-id',
+      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockAccountRow = {
+        id: 'account-id',
         accessToken: 'valid-token',
         refreshToken: 'refresh-token',
         accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredential])
+      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockAccountRow])
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
@@ -175,15 +179,17 @@ describe('OAuth Utils', () => {
     })
 
     it('should refresh token when expired', async () => {
-      const mockCredential = {
-        id: 'credential-id',
+      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockAccountRow = {
+        id: 'account-id',
         accessToken: 'expired-token',
         refreshToken: 'refresh-token',
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredential])
+      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockAccountRow])
       mockUpdateChain()
 
       mockRefreshOAuthToken.mockResolvedValueOnce({
@@ -201,6 +207,7 @@ describe('OAuth Utils', () => {
 
     it('should return null if credential not found', async () => {
       mockSelectChain([])
+      mockSelectChain([])
 
       const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
 
@@ -208,15 +215,17 @@ describe('OAuth Utils', () => {
     })
 
     it('should return null if refresh fails', async () => {
-      const mockCredential = {
-        id: 'credential-id',
+      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockAccountRow = {
+        id: 'account-id',
         accessToken: 'expired-token',
         refreshToken: 'refresh-token',
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredential])
+      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockAccountRow])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
 

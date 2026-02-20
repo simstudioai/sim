@@ -1,8 +1,7 @@
 export type SettingsSection =
   | 'general'
-  | 'environment'
+  | 'credentials'
   | 'template-profile'
-  | 'integrations'
   | 'apikeys'
   | 'files'
   | 'subscription'

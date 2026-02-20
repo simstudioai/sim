@@ -33,8 +33,19 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       title: 'LinkedIn Account',
       type: 'oauth-input',
       serviceId: 'linkedin',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: ['profile', 'openid', 'email', 'w_member_social'],
       placeholder: 'Select LinkedIn account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'LinkedIn Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 
@@ -80,25 +91,25 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       },
       params: (inputs) => {
         const operation = inputs.operation || 'share_post'
-        const { credential, ...rest } = inputs
+        const { oauthCredential, ...rest } = inputs
 
         if (operation === 'get_profile') {
           return {
-            accessToken: credential,
+            accessToken: oauthCredential,
           }
         }
 
         return {
           text: rest.text,
           visibility: rest.visibility || 'PUBLIC',
-          accessToken: credential,
+          accessToken: oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'LinkedIn access token' },
+    oauthCredential: { type: 'string', description: 'LinkedIn access token' },
     text: { type: 'string', description: 'Post text content' },
     visibility: { type: 'string', description: 'Post visibility (PUBLIC or CONNECTIONS)' },
   },

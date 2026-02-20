@@ -38,8 +38,19 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'credential',
       title: 'Notion Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'notion',
       placeholder: 'Select Notion account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Notion Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // Read/Write operation - Page ID
@@ -302,7 +313,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, properties, filter, sorts, ...rest } = params
+        const { oauthCredential, operation, properties, filter, sorts, ...rest } = params
 
         // Parse properties from JSON string for create/add operations
         let parsedProperties
@@ -351,7 +362,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         return {
           ...rest,
-          credential,
+          oauthCredential,
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),
@@ -361,7 +372,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Notion access token' },
+    oauthCredential: { type: 'string', description: 'Notion access token' },
     pageId: { type: 'string', description: 'Page identifier' },
     content: { type: 'string', description: 'Page content' },
     // Create page inputs

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
@@ -31,15 +31,13 @@ export async function GET(request: NextRequest) {
       })
       .from(account)
       .where(and(...whereConditions))
-
-    // Use the user's email as the display name (consistent with credential selector)
-    const userEmail = session.user.email
+      .orderBy(desc(account.updatedAt))
 
     const accountsWithDisplayName = accounts.map((acc) => ({
       id: acc.id,
       accountId: acc.accountId,
       providerId: acc.providerId,
-      displayName: userEmail || acc.providerId,
+      displayName: acc.accountId || acc.providerId,
     }))
 
     return NextResponse.json({ accounts: accountsWithDisplayName })
