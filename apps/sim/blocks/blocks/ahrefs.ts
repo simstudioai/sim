@@ -485,14 +485,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     ],
     config: {
       tool: (params) => {
-        // Convert numeric string inputs to numbers
-        if (params.limit) {
-          params.limit = Number(params.limit)
-        }
-        if (params.offset) {
-          params.offset = Number(params.offset)
-        }
-
         switch (params.operation) {
           case 'ahrefs_domain_rating':
             return 'ahrefs_domain_rating'
@@ -513,6 +505,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           default:
             return 'ahrefs_domain_rating'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        if (params.offset) result.offset = Number(params.offset)
+        return result
       },
     },
   },

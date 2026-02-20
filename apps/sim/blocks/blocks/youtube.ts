@@ -442,11 +442,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric parameters
-        if (params.maxResults) {
-          params.maxResults = Number(params.maxResults)
-        }
-
         switch (params.operation) {
           case 'youtube_search':
             return 'youtube_search'
@@ -469,6 +464,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           default:
             return 'youtube_search'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.maxResults) result.maxResults = Number(params.maxResults)
+        return result
       },
     },
   },

@@ -606,26 +606,6 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric string fields to numbers
-        if (params.panelId) {
-          params.panelId = Number(params.panelId)
-        }
-        if (params.annotationId) {
-          params.annotationId = Number(params.annotationId)
-        }
-        if (params.time) {
-          params.time = Number(params.time)
-        }
-        if (params.timeEnd) {
-          params.timeEnd = Number(params.timeEnd)
-        }
-        if (params.from) {
-          params.from = Number(params.from)
-        }
-        if (params.to) {
-          params.to = Number(params.to)
-        }
-
         // Map subblock fields to tool parameter names
         if (params.alertTitle) {
           params.title = params.alertTitle
@@ -644,6 +624,16 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
         }
 
         return params.operation
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.panelId) result.panelId = Number(params.panelId)
+        if (params.annotationId) result.annotationId = Number(params.annotationId)
+        if (params.time) result.time = Number(params.time)
+        if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
+        if (params.from) result.from = Number(params.from)
+        if (params.to) result.to = Number(params.to)
+        return result
       },
     },
   },

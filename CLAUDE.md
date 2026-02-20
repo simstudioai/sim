@@ -238,13 +238,15 @@ export const ServiceBlock: BlockConfig = {
   bgColor: '#hexcolor',
   icon: ServiceIcon,
   subBlocks: [ /* see SubBlock Properties */ ],
-  tools: { access: ['service_action'], config: { tool: (p) => `service_${p.operation}` } },
+  tools: { access: ['service_action'], config: { tool: (p) => `service_${p.operation}`, params: (p) => ({ /* type coercions here */ }) } },
   inputs: { /* ... */ },
   outputs: { /* ... */ },
 }
 ```
 
 Register in `blocks/registry.ts` (alphabetically).
+
+**IMPORTANT:** `tools.config.tool` runs during serialization (before variable resolution). Never do `Number()` or other type coercions there — dynamic references like `<Block.output>` will be destroyed. Use `tools.config.params` for type coercions (it runs during execution, after variables are resolved).
 
 **SubBlock Properties:**
 ```typescript

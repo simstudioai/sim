@@ -755,25 +755,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     ],
     config: {
       tool: (params) => {
-        // Convert numeric parameters
-        if (params.limit) {
-          params.limit = Number(params.limit)
-        }
-        if (params.volume_percent) {
-          params.volume_percent = Number(params.volume_percent)
-        }
-        if (params.range_start) {
-          params.range_start = Number(params.range_start)
-        }
-        if (params.insert_before) {
-          params.insert_before = Number(params.insert_before)
-        }
-        if (params.range_length) {
-          params.range_length = Number(params.range_length)
-        }
-        if (params.position_ms) {
-          params.position_ms = Number(params.position_ms)
-        }
         // Map followType to type for check_following
         if (params.followType) {
           params.type = params.followType
@@ -791,6 +772,16 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           params.coverImage = normalizeFileInput(params.coverImage, { single: true })
         }
         return params.operation || 'spotify_search'
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        if (params.volume_percent) result.volume_percent = Number(params.volume_percent)
+        if (params.range_start) result.range_start = Number(params.range_start)
+        if (params.insert_before) result.insert_before = Number(params.insert_before)
+        if (params.range_length) result.range_length = Number(params.range_length)
+        if (params.position_ms) result.position_ms = Number(params.position_ms)
+        return result
       },
     },
   },

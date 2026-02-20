@@ -151,63 +151,54 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       tool: (params) => {
         switch (params.operation) {
           case 'search':
-            // Convert search_queries from comma-separated string to array (if provided)
-            if (params.search_queries && typeof params.search_queries === 'string') {
-              const queries = params.search_queries
-                .split(',')
-                .map((query: string) => query.trim())
-                .filter((query: string) => query.length > 0)
-              // Only set if we have actual queries
-              if (queries.length > 0) {
-                params.search_queries = queries
-              } else {
-                params.search_queries = undefined
-              }
-            }
-
-            // Convert numeric parameters
-            if (params.max_results) {
-              params.max_results = Number(params.max_results)
-            }
-            if (params.max_chars_per_result) {
-              params.max_chars_per_result = Number(params.max_chars_per_result)
-            }
-
             return 'parallel_search'
-
           case 'extract':
-            // Map extract_objective to objective for the tool
-            params.objective = params.extract_objective
-
-            // Convert boolean strings to actual booleans with defaults
-            if (params.excerpts === 'true' || params.excerpts === true) {
-              params.excerpts = true
-            } else if (params.excerpts === 'false' || params.excerpts === false) {
-              params.excerpts = false
-            } else {
-              // Default to true if not provided
-              params.excerpts = true
-            }
-
-            if (params.full_content === 'true' || params.full_content === true) {
-              params.full_content = true
-            } else if (params.full_content === 'false' || params.full_content === false) {
-              params.full_content = false
-            } else {
-              // Default to false if not provided
-              params.full_content = false
-            }
-
             return 'parallel_extract'
-
           case 'deep_research':
-            // Map research_input to input for the tool
-            params.input = params.research_input
             return 'parallel_deep_research'
-
           default:
             return 'parallel_search'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        const operation = params.operation
+
+        if (operation === 'search') {
+          if (params.search_queries && typeof params.search_queries === 'string') {
+            const queries = params.search_queries
+              .split(',')
+              .map((query: string) => query.trim())
+              .filter((query: string) => query.length > 0)
+            if (queries.length > 0) {
+              result.search_queries = queries
+            }
+          }
+          if (params.max_results) result.max_results = Number(params.max_results)
+          if (params.max_chars_per_result) {
+            result.max_chars_per_result = Number(params.max_chars_per_result)
+          }
+        }
+
+        if (operation === 'extract') {
+          result.objective = params.extract_objective
+          result.excerpts =
+            params.excerpts === 'true' || params.excerpts === true
+              ? true
+              : !(params.excerpts === 'false' || params.excerpts === false)
+          result.full_content =
+            params.full_content === 'true' || params.full_content === true
+              ? true
+              : params.full_content === 'false' || params.full_content === false
+                ? false
+                : false
+        }
+
+        if (operation === 'deep_research') {
+          result.input = params.research_input
+        }
+
+        return result
       },
     },
   },

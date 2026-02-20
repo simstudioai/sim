@@ -49,6 +49,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Use Autoprompt',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'type',
@@ -62,6 +63,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => 'auto',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'includeDomains',
@@ -69,6 +71,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'excludeDomains',
@@ -76,6 +79,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'exclude.com, another.com (comma-separated)',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'category',
@@ -95,6 +99,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'text',
@@ -107,12 +112,14 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Include Highlights',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'summary',
       title: 'Include Summary',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     {
       id: 'livecrawl',
@@ -125,6 +132,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => 'never',
       condition: { field: 'operation', value: 'exa_search' },
+      mode: 'advanced',
     },
     // Get Contents operation inputs
     {
@@ -147,6 +155,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'Enter a query to guide the summary generation...',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     {
       id: 'subpages',
@@ -154,6 +163,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'short-input',
       placeholder: '5',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     {
       id: 'subpageTarget',
@@ -161,12 +171,14 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'docs, tutorial, about (comma-separated)',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     {
       id: 'highlights',
       title: 'Include Highlights',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      mode: 'advanced',
     },
     // Find Similar Links operation inputs
     {
@@ -196,6 +208,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'excludeDomains',
@@ -203,12 +216,14 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'long-input',
       placeholder: 'exclude.com, another.com (comma-separated)',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'excludeSourceDomain',
       title: 'Exclude Source Domain',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'category',
@@ -228,18 +243,21 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'highlights',
       title: 'Include Highlights',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'summary',
       title: 'Include Summary',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     {
       id: 'livecrawl',
@@ -252,6 +270,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => 'never',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      mode: 'advanced',
     },
     // Answer operation inputs
     {
@@ -267,6 +286,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Include Text',
       type: 'switch',
       condition: { field: 'operation', value: 'exa_answer' },
+      mode: 'advanced',
     },
     // Research operation inputs
     {
@@ -309,16 +329,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     ],
     config: {
       tool: (params) => {
-        // Convert numResults to a number for operations that use it
-        if (params.numResults) {
-          params.numResults = Number(params.numResults)
-        }
-
-        // Convert subpages to a number if provided
-        if (params.subpages) {
-          params.subpages = Number(params.subpages)
-        }
-
         switch (params.operation) {
           case 'exa_search':
             return 'exa_search'
@@ -333,6 +343,16 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
           default:
             return 'exa_search'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.numResults) {
+          result.numResults = Number(params.numResults)
+        }
+        if (params.subpages) {
+          result.subpages = Number(params.subpages)
+        }
+        return result
       },
     },
   },

@@ -1185,11 +1185,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric parameters
-        if (params.limit) params.limit = Number(params.limit)
-        if (params.offset) params.offset = Number(params.offset)
-        if (params.rolloutPercentage) params.rolloutPercentage = Number(params.rolloutPercentage)
-
         // Map projectIdParam to projectId for get_project operation
         if (params.operation === 'posthog_get_project' && params.projectIdParam) {
           params.projectId = params.projectIdParam
@@ -1272,12 +1267,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
         }
 
-        // Convert responsesLimit to number
-        if (params.responsesLimit) {
-          params.responsesLimit = Number(params.responsesLimit)
-        }
-
         return params.operation as string
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        if (params.offset) result.offset = Number(params.offset)
+        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
+        if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
+        return result
       },
     },
   },

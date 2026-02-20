@@ -457,23 +457,19 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric strings to numbers
-        if (params.size) {
-          params.size = Number(params.size)
-        }
-        if (params.from) {
-          params.from = Number(params.from)
-        }
-        if (params.retryOnConflict) {
-          params.retryOnConflict = Number(params.retryOnConflict)
-        }
-        // Append 's' to timeout for Elasticsearch time format
-        if (params.timeout && !params.timeout.endsWith('s')) {
-          params.timeout = `${params.timeout}s`
-        }
-
         // Return the operation as the tool ID
         return params.operation || 'elasticsearch_search'
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.size) result.size = Number(params.size)
+        if (params.from) result.from = Number(params.from)
+        if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
+        // Append 's' to timeout for Elasticsearch time format
+        if (params.timeout && typeof params.timeout === 'string' && !params.timeout.endsWith('s')) {
+          result.timeout = `${params.timeout}s`
+        }
+        return result
       },
     },
   },
