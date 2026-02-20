@@ -165,7 +165,8 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
     queryFn: () => fetchLogDetail(logId as string),
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 30 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     initialData: () => {
       if (!logId) return undefined
       const listQueries = queryClient.getQueriesData<{
@@ -190,7 +191,7 @@ export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
   queryClient.prefetchQuery({
     queryKey: logKeys.detail(logId),
     queryFn: () => fetchLogDetail(logId),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 1000,
   })
 }
 
