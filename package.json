@@ -51,5 +51,10 @@
   },
   "trustedDependencies": [
     "sharp"
-  ]
+  ],
+  "dependencies": {
+    "@better-auth/sso": "1.4.18",
+    "@better-auth/stripe": "1.4.18",
+    "better-auth": "1.4.18"
+  }
 }
