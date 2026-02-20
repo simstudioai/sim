@@ -1,5 +1,7 @@
 import { auditLog, db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 const logger = createLogger('AuditLog')
@@ -185,41 +187,51 @@ interface AuditLogParams {
 
 /**
  * Records an audit log entry. Fire-and-forget — never throws or blocks the caller.
+ * If actorName and actorEmail are both undefined (not provided by the caller),
+ * resolves them from the user table before inserting.
  */
 export function recordAudit(params: AuditLogParams): void {
-  try {
-    const ipAddress =
-      params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-      params.request?.headers.get('x-real-ip') ??
-      undefined
-    const userAgent = params.request?.headers.get('user-agent') ?? undefined
+  insertAuditLog(params).catch((error) => {
+    logger.error('Failed to record audit log', { error, action: params.action })
+  })
+}
 
-    db.insert(auditLog)
-      .values({
-        id: nanoid(),
-        workspaceId: params.workspaceId || null,
-        actorId: params.actorId,
-        action: params.action,
-        resourceType: params.resourceType,
-        resourceId: params.resourceId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        resourceName: params.resourceName,
-        description: params.description,
-        metadata: params.metadata ?? {},
-        ipAddress,
-        userAgent,
-      })
-      .then(() => {
-        logger.debug('Audit log recorded', {
-          action: params.action,
-          resourceType: params.resourceType,
-        })
-      })
-      .catch((error) => {
-        logger.error('Failed to record audit log', { error, action: params.action })
-      })
-  } catch (error) {
-    logger.error('Failed to initiate audit log', { error, action: params.action })
+async function insertAuditLog(params: AuditLogParams): Promise<void> {
+  const ipAddress =
+    params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    params.request?.headers.get('x-real-ip') ??
+    undefined
+  const userAgent = params.request?.headers.get('user-agent') ?? undefined
+
+  let { actorName, actorEmail } = params
+
+  if (actorName === undefined && actorEmail === undefined && params.actorId) {
+    try {
+      const [row] = await db
+        .select({ name: user.name, email: user.email })
+        .from(user)
+        .where(eq(user.id, params.actorId))
+        .limit(1)
+      actorName = row?.name ?? undefined
+      actorEmail = row?.email ?? undefined
+    } catch (error) {
+      logger.debug('Failed to resolve actor info', { error, actorId: params.actorId })
+    }
   }
+
+  await db.insert(auditLog).values({
+    id: nanoid(),
+    workspaceId: params.workspaceId || null,
+    actorId: params.actorId,
+    action: params.action,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    actorName: actorName ?? undefined,
+    actorEmail: actorEmail ?? undefined,
+    resourceName: params.resourceName,
+    description: params.description,
+    metadata: params.metadata ?? {},
+    ipAddress,
+    userAgent,
+  })
 }
