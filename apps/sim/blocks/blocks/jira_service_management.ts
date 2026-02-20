@@ -99,6 +99,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'serviceDeskId',
       title: 'Service Desk ID',
       type: 'short-input',
+      required: true,
       placeholder: 'Enter service desk ID',
       condition: {
         field: 'operation',
