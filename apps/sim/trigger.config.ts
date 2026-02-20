@@ -1,4 +1,4 @@
-import { additionalPackages } from '@trigger.dev/build/extensions/core'
+import { additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
 
@@ -15,9 +15,11 @@ export default defineConfig({
   },
   dirs: ['./background'],
   build: {
+    external: ['isolated-vm'],
     extensions: [
+      additionalFiles({ files: ['./lib/execution/isolated-vm-worker.cjs'] }),
       additionalPackages({
-        packages: ['unpdf', 'pdf-lib'],
+        packages: ['unpdf', 'pdf-lib', 'isolated-vm'],
       }),
     ],
   },

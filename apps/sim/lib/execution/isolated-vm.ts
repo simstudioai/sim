@@ -679,11 +679,15 @@ function spawnWorker(): Promise<WorkerInfo> {
     }
 
     const currentDir = path.dirname(fileURLToPath(import.meta.url))
-    const workerPath = path.join(currentDir, 'isolated-vm-worker.cjs')
+    const candidatePaths = [
+      path.join(currentDir, 'isolated-vm-worker.cjs'),
+      path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
+    ]
+    const workerPath = candidatePaths.find((p) => fs.existsSync(p))
 
-    if (!fs.existsSync(workerPath)) {
+    if (!workerPath) {
       settleSpawnInProgress()
-      reject(new Error(`Worker file not found at ${workerPath}`))
+      reject(new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`))
       return
     }
 
