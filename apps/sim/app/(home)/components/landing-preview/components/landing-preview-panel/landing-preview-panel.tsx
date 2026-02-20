@@ -17,7 +17,7 @@ import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
  *   aside > div.border-l.pt-[14px] > Header(px-8) > Tabs(px-8,pt-14) > Content(pt-12)
  *     inside Content > Copilot > header-bar(mx-[-1px]) > UserInput(p-8)
  */
-export const HeroPreviewPanel = memo(function HeroPreviewPanel() {
+export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
   const router = useRouter()
   const [inputValue, setInputValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -85,10 +85,7 @@ export const HeroPreviewPanel = memo(function HeroPreviewPanel() {
                   <div className='h-full w-[8px] bg-[#FA4EDF]' />
                   <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
                 </div>
-                <div
-                  className='flex items-center gap-[5px] bg-white px-[6px] py-[4px] font-medium text-[#1C1C1C] text-[11px]'
-                  style={{ boxShadow: '2px 2px 0px 0px #3d3d3d' }}
-                >
+                <div className='flex items-center gap-[5px] bg-white px-[6px] py-[4px] font-medium text-[#1C1C1C] text-[11px]'>
                   Get started
                   <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                 </div>

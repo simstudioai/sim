@@ -43,7 +43,7 @@ export interface PreviewWorkflow {
 const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
   id: 'wf-it-service',
   name: 'IT Service Management',
-  color: '#33C482',
+  color: '#FF6B2C',
   blocks: [
     {
       id: 'slack-1',
@@ -84,7 +84,7 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
 const CONTENT_PIPELINE_WORKFLOW: PreviewWorkflow = {
   id: 'wf-content-pipeline',
   name: 'Content Pipeline',
-  color: '#FF6B2C',
+  color: '#33C482',
   blocks: [
     {
       id: 'schedule-1',
@@ -147,7 +147,7 @@ const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
       type: 'note',
       bgColor: 'transparent',
       rows: [],
-      markdown: '### What will you build?\n\n_"Find Slack todos and add them to Linear"_',
+      markdown: '### What will you build?\n\n_"Find Linear todos and send in Slack"_',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
       hideSourceHandle: true,
@@ -157,8 +157,8 @@ const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
 }
 
 export const PREVIEW_WORKFLOWS: PreviewWorkflow[] = [
-  IT_SERVICE_WORKFLOW,
   CONTENT_PIPELINE_WORKFLOW,
+  IT_SERVICE_WORKFLOW,
   NEW_AGENT_WORKFLOW,
 ]
 

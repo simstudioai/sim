@@ -23,22 +23,6 @@ const LOGO_CELL = 'flex items-center px-[20px]'
 /** Links: even spacing between items. */
 const LINK_CELL = 'flex items-center px-[14px]'
 
-/**
- * Landing page navigation bar.
- *
- * Server Component for immediate crawlability. Only the GitHubStars counter
- * is a client component (hydrates independently).
- *
- * SEO:
- * - `<nav>` with schema.org `SiteNavigationElement`.
- * - All routes use `<Link>` (crawlable). External links include `rel="noopener noreferrer"`.
- * - Logo `<Image>` uses `priority` (LCP element).
- *
- * GEO:
- * - Navigation items in semantic `<ul>/<li>` with descriptive anchor text.
- * - Descriptive `aria-label` on interactive elements for AI intent extraction.
- * - Server-rendered content available immediately to AI crawlers.
- */
 export default function Navbar() {
   return (
     <nav
@@ -95,7 +79,7 @@ export default function Navbar() {
       <div className='flex items-center gap-[8px] px-[20px]'>
         <Link
           href='/login'
-          className='inline-flex h-[30px] items-center rounded-[5px] border border-[#2A2A2A] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+          className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
           aria-label='Log in'
         >
           Log in

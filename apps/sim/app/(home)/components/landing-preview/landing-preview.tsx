@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
-import { HeroPreviewPanel } from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-panel/hero-preview-panel'
-import { HeroPreviewSidebar } from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-sidebar/hero-preview-sidebar'
-import { HeroPreviewWorkflow } from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/hero-preview-workflow'
+import { LandingPreviewPanel } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
+import { LandingPreviewSidebar } from '@/app/(home)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
+import { LandingPreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/landing-preview-workflow'
 import {
   EASE_OUT,
   PREVIEW_WORKFLOWS,
-} from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/workflow-data'
+} from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 const containerVariants: Variants = {
   hidden: {},
@@ -55,7 +55,7 @@ const panelVariants: Variants = {
  * staggered fade. Edges draw left-to-right. Animations only fire on initial
  * load — workflow switches render instantly.
  */
-export function HeroPreview() {
+export function LandingPreview() {
   const [activeWorkflowId, setActiveWorkflowId] = useState(PREVIEW_WORKFLOWS[0].id)
   const isInitialMount = useRef(true)
 
@@ -74,17 +74,17 @@ export function HeroPreview() {
       variants={containerVariants}
     >
       <motion.div className='hidden lg:flex' variants={sidebarVariants}>
-        <HeroPreviewSidebar
+        <LandingPreviewSidebar
           workflows={PREVIEW_WORKFLOWS}
           activeWorkflowId={activeWorkflowId}
           onSelectWorkflow={setActiveWorkflowId}
         />
       </motion.div>
       <div className='relative flex-1 overflow-hidden'>
-        <HeroPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
+        <LandingPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
       </div>
       <motion.div className='hidden lg:flex' variants={panelVariants}>
-        <HeroPreviewPanel />
+        <LandingPreviewPanel />
       </motion.div>
     </motion.div>
   )

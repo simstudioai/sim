@@ -16,16 +16,22 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { PreviewBlockNode } from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/preview-block-node'
+import { PreviewBlockNode } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/preview-block-node'
 import {
   EASE_OUT,
   type PreviewWorkflow,
   toReactFlowElements,
-} from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/workflow-data'
+} from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
-interface HeroPreviewWorkflowProps {
+interface FitViewOptions {
+  padding?: number
+  maxZoom?: number
+}
+
+interface LandingPreviewWorkflowProps {
   workflow: PreviewWorkflow
   animate?: boolean
+  fitViewOptions?: FitViewOptions
 }
 
 /**
@@ -82,13 +88,13 @@ function PreviewEdge({
 const NODE_TYPES: NodeTypes = { previewBlock: PreviewBlockNode }
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
 const PRO_OPTIONS = { hideAttribution: true }
-const FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1 } as const
+const DEFAULT_FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1 } as const
 
 /**
  * Inner flow component. Keyed on workflow ID by the parent so it remounts
  * cleanly on workflow switch — fitView fires on mount with zero delay.
  */
-function PreviewFlow({ workflow, animate = false }: HeroPreviewWorkflowProps) {
+function PreviewFlow({ workflow, animate = false, fitViewOptions }: LandingPreviewWorkflowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => toReactFlowElements(workflow, animate),
     [workflow, animate]
@@ -106,6 +112,8 @@ function PreviewFlow({ workflow, animate = false }: HeroPreviewWorkflowProps) {
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     []
   )
+
+  const resolvedFitViewOptions = fitViewOptions ?? DEFAULT_FIT_VIEW_OPTIONS
 
   return (
     <ReactFlow
@@ -128,7 +136,7 @@ function PreviewFlow({ workflow, animate = false }: HeroPreviewWorkflowProps) {
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
       fitView
-      fitViewOptions={FIT_VIEW_OPTIONS}
+      fitViewOptions={resolvedFitViewOptions}
       className='h-full w-full bg-[#1b1b1b]'
     />
   )
@@ -139,11 +147,15 @@ function PreviewFlow({ workflow, animate = false }: HeroPreviewWorkflowProps) {
  * The key on workflow.id forces a clean remount on switch — instant fitView,
  * no timers, no flicker.
  */
-export function HeroPreviewWorkflow({ workflow, animate = false }: HeroPreviewWorkflowProps) {
+export function LandingPreviewWorkflow({
+  workflow,
+  animate = false,
+  fitViewOptions,
+}: LandingPreviewWorkflowProps) {
   return (
     <div className='h-full w-full'>
       <ReactFlowProvider key={workflow.id}>
-        <PreviewFlow workflow={workflow} animate={animate} />
+        <PreviewFlow workflow={workflow} animate={animate} fitViewOptions={fitViewOptions} />
       </ReactFlowProvider>
     </div>
   )

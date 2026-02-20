@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Database, Layout, Search, Settings } from 'lucide-react'
 import { ChevronDown, Library } from '@/components/emcn'
-import type { PreviewWorkflow } from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/workflow-data'
+import type { PreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 /**
- * Props for the HeroPreviewSidebar component
+ * Props for the LandingPreviewSidebar component
  */
-interface HeroPreviewSidebarProps {
+interface LandingPreviewSidebarProps {
   workflows: PreviewWorkflow[]
   activeWorkflowId: string
   onSelectWorkflow: (id: string) => void
@@ -32,11 +32,11 @@ const FOOTER_NAV_ITEMS = [
  * --surface-1: #1e1e1e, --surface-5: #363636, --border: #2c2c2c, --border-1: #3d3d3d
  * --text-primary: #e6e6e6, --text-tertiary: #b3b3b3, --text-muted: #787878
  */
-export function HeroPreviewSidebar({
+export function LandingPreviewSidebar({
   workflows,
   activeWorkflowId,
   onSelectWorkflow,
-}: HeroPreviewSidebarProps) {
+}: LandingPreviewSidebarProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 

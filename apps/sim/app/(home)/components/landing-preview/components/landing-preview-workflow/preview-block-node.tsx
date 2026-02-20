@@ -6,11 +6,29 @@ import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import {
   AgentIcon,
+  AnthropicIcon,
+  FirecrawlIcon,
+  GeminiIcon,
+  GithubIcon,
+  GmailIcon,
+  GoogleCalendarIcon,
+  GoogleSheetsIcon,
   JiraIcon,
+  LinearIcon,
+  LinkedInIcon,
+  MistralIcon,
+  NotionIcon,
+  OpenAIIcon,
+  RedditIcon,
+  ReductoIcon,
   ScheduleIcon,
   SlackIcon,
   StartIcon,
+  SupabaseIcon,
   TelegramIcon,
+  TextractIcon,
+  WebhookIcon,
+  xAIIcon,
   xIcon,
   YouTubeIcon,
 } from '@/components/icons'
@@ -18,7 +36,7 @@ import {
   BLOCK_STAGGER,
   EASE_OUT,
   type PreviewTool,
-} from '@/app/(home)/components/hero/components/hero-preview/components/hero-preview-workflow/workflow-data'
+} from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 /** Map block type strings to their icon components. */
 const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -32,6 +50,39 @@ const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   schedule: ScheduleIcon,
   telegram: TelegramIcon,
   knowledge_base: Database,
+  webhook: WebhookIcon,
+  github: GithubIcon,
+  supabase: SupabaseIcon,
+  google_calendar: GoogleCalendarIcon,
+  gmail: GmailIcon,
+  google_sheets: GoogleSheetsIcon,
+  linear: LinearIcon,
+  firecrawl: FirecrawlIcon,
+  reddit: RedditIcon,
+  notion: NotionIcon,
+  reducto: ReductoIcon,
+  textract: TextractIcon,
+  linkedin: LinkedInIcon,
+}
+
+/** Model prefix → provider icon for the "Model" row in agent blocks. */
+const MODEL_PROVIDER_ICONS: Array<{
+  prefix: string
+  icon: React.ComponentType<{ className?: string }>
+  size?: string
+}> = [
+  { prefix: 'gpt-', icon: OpenAIIcon },
+  { prefix: 'o3', icon: OpenAIIcon },
+  { prefix: 'o4', icon: OpenAIIcon },
+  { prefix: 'claude-', icon: AnthropicIcon },
+  { prefix: 'gemini-', icon: GeminiIcon },
+  { prefix: 'grok-', icon: xAIIcon, size: 'h-[17px] w-[17px]' },
+  { prefix: 'mistral-', icon: MistralIcon },
+]
+
+function getModelIconEntry(modelValue: string) {
+  const lower = modelValue.toLowerCase()
+  return MODEL_PROVIDER_ICONS.find((m) => lower.startsWith(m.prefix)) ?? null
 }
 
 /**
@@ -145,23 +196,32 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         {/* Sub-block rows + tools */}
         {hasContent && (
           <div className='flex flex-col gap-[8px] p-[8px]'>
-            {rows.map((row) => (
-              <div key={row.title} className='flex items-center gap-[8px]'>
-                <span className='min-w-0 truncate text-[#b3b3b3] text-[14px] capitalize'>
-                  {row.title}
-                </span>
-                {row.value && (
-                  <span className='flex-1 truncate text-right text-[#e6e6e6] text-[14px]'>
-                    {row.value}
+            {rows.map((row) => {
+              const modelEntry = row.title === 'Model' ? getModelIconEntry(row.value) : null
+              const ModelIcon = modelEntry?.icon
+              return (
+                <div key={row.title} className='flex items-center gap-[8px]'>
+                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
+                    {row.title}
                   </span>
-                )}
-              </div>
-            ))}
+                  {row.value && (
+                    <span className='flex min-w-0 flex-1 items-center justify-end gap-[5px] font-normal text-[#e6e6e6] text-[14px]'>
+                      {ModelIcon && (
+                        <ModelIcon
+                          className={`inline-block flex-shrink-0 text-[#e6e6e6] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
+                        />
+                      )}
+                      <span className='truncate'>{row.value}</span>
+                    </span>
+                  )}
+                </div>
+              )
+            })}
 
             {/* Tool chips — inline with label */}
             {tools && tools.length > 0 && (
               <div className='flex items-center gap-[8px]'>
-                <span className='flex-shrink-0 text-[#b3b3b3] text-[14px]'>Tools</span>
+                <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>Tools</span>
                 <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
                   {tools.map((tool) => {
                     const ToolIcon = BLOCK_ICONS[tool.type]
@@ -176,7 +236,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                         >
                           {ToolIcon && <ToolIcon className='h-[10px] w-[10px] text-white' />}
                         </div>
-                        <span className='text-[#e6e6e6] text-[12px]'>{tool.name}</span>
+                        <span className='font-normal text-[#e6e6e6] text-[12px]'>{tool.name}</span>
                       </div>
                     )
                   })}
