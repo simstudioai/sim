@@ -23,7 +23,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/chat') ||
     pathname.startsWith('/studio') ||
     pathname.startsWith('/resume') ||
-    pathname.startsWith('/form')
+    pathname.startsWith('/form') ||
+    pathname.startsWith('/oauth')
 
   return (
     <NextThemesProvider

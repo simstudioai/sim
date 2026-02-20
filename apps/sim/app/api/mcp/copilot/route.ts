@@ -16,6 +16,7 @@ import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   ORCHESTRATION_TIMEOUT_MS,
@@ -402,27 +403,51 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const headers = (extra.requestInfo?.headers || {}) as HeaderMap
     const apiKeyHeader = readHeader(headers, 'x-api-key')
+    const authorizationHeader = readHeader(headers, 'authorization')
 
-    if (!apiKeyHeader) {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: 'AUTHENTICATION ERROR: No Copilot API key provided. The user must set their Copilot API key in the x-api-key header. They can generate one in the Sim app under Settings → Copilot. Do NOT retry — this will fail until the key is configured.',
-          },
-        ],
-        isError: true,
+    let authResult: CopilotKeyAuthResult = { success: false }
+
+    if (authorizationHeader?.startsWith('Bearer ')) {
+      const token = authorizationHeader.slice(7)
+      const oauthResult = await validateOAuthAccessToken(token)
+      if (oauthResult.success && oauthResult.userId) {
+        if (!oauthResult.scopes?.includes('mcp:tools')) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'AUTHENTICATION ERROR: OAuth token is missing the required "mcp:tools" scope. Re-authorize with the correct scopes.',
+              },
+            ],
+            isError: true,
+          }
+        }
+        authResult = { success: true, userId: oauthResult.userId }
+      } else {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `AUTHENTICATION ERROR: ${oauthResult.error ?? 'Invalid OAuth access token'} Do NOT retry — re-authorize via OAuth.`,
+            },
+          ],
+          isError: true,
+        }
       }
+    } else if (apiKeyHeader) {
+      authResult = await authenticateCopilotApiKey(apiKeyHeader)
     }
 
-    const authResult = await authenticateCopilotApiKey(apiKeyHeader)
     if (!authResult.success || !authResult.userId) {
-      logger.warn('MCP copilot key auth failed', { method: request.method })
+      const errorMsg = apiKeyHeader
+        ? `AUTHENTICATION ERROR: ${authResult.error} Do NOT retry — this will fail until the user fixes their Copilot API key.`
+        : 'AUTHENTICATION ERROR: No authentication provided. Provide a Bearer token (OAuth 2.1) or an x-api-key header. Generate a Copilot API key in Settings → Copilot.'
+      logger.warn('MCP copilot auth failed', { method: request.method })
       return {
         content: [
           {
             type: 'text' as const,
-            text: `AUTHENTICATION ERROR: ${authResult.error} Do NOT retry — this will fail until the user fixes their Copilot API key.`,
+            text: errorMsg,
           },
         ],
         isError: true,
@@ -512,6 +537,19 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const hasAuth = request.headers.has('authorization') || request.headers.has('x-api-key')
+
+  if (!hasAuth) {
+    const resourceMetadataUrl = `${request.nextUrl.origin}/.well-known/oauth-protected-resource/api/mcp/copilot`
+    return new NextResponse(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"`,
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+
   try {
     let parsedBody: unknown
 
@@ -530,6 +568,19 @@ export async function POST(request: NextRequest) {
       status: 500,
     })
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE',
+      'Access-Control-Allow-Headers':
+        'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
+      'Access-Control-Max-Age': '86400',
+    },
+  })
 }
 
 export async function DELETE(request: NextRequest) {

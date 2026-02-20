@@ -10,15 +10,17 @@ export function createMcpAuthorizationServerMetadataResponse(request: NextReques
 
   return NextResponse.json(
     {
-      issuer: resource,
-      token_endpoint: `${origin}/api/auth/oauth/token`,
-      token_endpoint_auth_methods_supported: ['none'],
+      issuer: origin,
+      authorization_endpoint: `${origin}/api/auth/oauth2/authorize`,
+      token_endpoint: `${origin}/api/auth/oauth2/token`,
+      registration_endpoint: `${origin}/api/auth/oauth2/register`,
+      jwks_uri: `${origin}/api/auth/jwks`,
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       response_types_supported: ['code'],
       code_challenge_methods_supported: ['S256'],
-      scopes_supported: ['mcp:tools'],
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
       resource,
-      // Non-standard extension for API-key-only clients.
       x_sim_auth: {
         type: 'api_key',
         header: 'x-api-key',
@@ -35,7 +37,7 @@ export function createMcpAuthorizationServerMetadataResponse(request: NextReques
 export function createMcpProtectedResourceMetadataResponse(request: NextRequest): NextResponse {
   const origin = getOrigin(request)
   const resource = `${origin}/api/mcp/copilot`
-  const authorizationServerIssuer = `${origin}/api/mcp/copilot`
+  const authorizationServerIssuer = origin
 
   return NextResponse.json(
     {

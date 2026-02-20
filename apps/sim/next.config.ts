@@ -122,6 +122,41 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/.well-known/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
+        ],
+      },
+      {
+        source: '/api/auth/oauth2/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization, Accept',
+          },
+        ],
+      },
+      {
+        source: '/api/auth/jwks',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
+        ],
+      },
+      {
+        source: '/api/auth/.well-known/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
+        ],
+      },
+      {
         // API routes CORS headers
         source: '/api/:path*',
         headers: [
@@ -137,7 +172,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Access-Control-Allow-Headers',
             value:
-              'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key',
+              'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization',
           },
         ],
       },
