@@ -4,6 +4,7 @@ import { confluenceCreateCommentTool } from '@/tools/confluence/create_comment'
 import { confluenceCreatePageTool } from '@/tools/confluence/create_page'
 import { confluenceCreatePagePropertyTool } from '@/tools/confluence/create_page_property'
 import { confluenceDeleteAttachmentTool } from '@/tools/confluence/delete_attachment'
+import { confluenceDeleteBlogPostTool } from '@/tools/confluence/delete_blogpost'
 import { confluenceDeleteCommentTool } from '@/tools/confluence/delete_comment'
 import { confluenceDeleteLabelTool } from '@/tools/confluence/delete_label'
 import { confluenceDeletePageTool } from '@/tools/confluence/delete_page'
@@ -31,6 +32,9 @@ import {
   ATTACHMENT_ITEM_PROPERTIES,
   ATTACHMENT_OUTPUT,
   ATTACHMENTS_OUTPUT,
+  BLOGPOST_ITEM_PROPERTIES,
+  BLOGPOST_OUTPUT,
+  BLOGPOSTS_OUTPUT,
   BODY_FORMAT_PROPERTIES,
   COMMENT_BODY_OUTPUT_PROPERTIES,
   COMMENT_ITEM_PROPERTIES,
@@ -47,6 +51,7 @@ import {
   PAGE_ID_OUTPUT,
   PAGE_ITEM_PROPERTIES,
   PAGE_OUTPUT,
+  PAGE_PROPERTY_ITEM_PROPERTIES,
   PAGES_OUTPUT,
   PAGINATION_LINKS_PROPERTIES,
   SEARCH_RESULT_ITEM_PROPERTIES,
@@ -59,12 +64,15 @@ import {
   SPACES_OUTPUT,
   SUCCESS_OUTPUT,
   TIMESTAMP_OUTPUT,
+  UPDATED_OUTPUT,
   URL_OUTPUT,
   VERSION_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
 import { confluenceUpdateTool } from '@/tools/confluence/update'
+import { confluenceUpdateBlogPostTool } from '@/tools/confluence/update_blogpost'
 import { confluenceUpdateCommentTool } from '@/tools/confluence/update_comment'
+import { confluenceUpdatePagePropertyTool } from '@/tools/confluence/update_page_property'
 import { confluenceUploadAttachmentTool } from '@/tools/confluence/upload_attachment'
 
 export {
@@ -82,11 +90,14 @@ export {
   // Page Properties Tools
   confluenceListPagePropertiesTool,
   confluenceCreatePagePropertyTool,
+  confluenceUpdatePagePropertyTool,
   confluenceDeletePagePropertyTool,
   // Blog Post Tools
   confluenceListBlogPostsTool,
   confluenceGetBlogPostTool,
   confluenceCreateBlogPostTool,
+  confluenceUpdateBlogPostTool,
+  confluenceDeleteBlogPostTool,
   confluenceListBlogPostsInSpaceTool,
   // Search Tools
   confluenceSearchTool,
@@ -111,9 +122,11 @@ export {
   confluenceListSpacesTool,
   // Item property constants (for use in outputs)
   ATTACHMENT_ITEM_PROPERTIES,
+  BLOGPOST_ITEM_PROPERTIES,
   COMMENT_ITEM_PROPERTIES,
   LABEL_ITEM_PROPERTIES,
   PAGE_ITEM_PROPERTIES,
+  PAGE_PROPERTY_ITEM_PROPERTIES,
   SEARCH_RESULT_ITEM_PROPERTIES,
   SPACE_ITEM_PROPERTIES,
   VERSION_OUTPUT_PROPERTIES,
@@ -127,6 +140,8 @@ export {
   // Complete output definitions (for use in outputs)
   ATTACHMENT_OUTPUT,
   ATTACHMENTS_OUTPUT,
+  BLOGPOST_OUTPUT,
+  BLOGPOSTS_OUTPUT,
   COMMENT_OUTPUT,
   COMMENTS_OUTPUT,
   CONTENT_BODY_OUTPUT,
@@ -145,5 +160,6 @@ export {
   PAGE_ID_OUTPUT,
   SUCCESS_OUTPUT,
   DELETED_OUTPUT,
+  UPDATED_OUTPUT,
   URL_OUTPUT,
 }

@@ -1,4 +1,4 @@
-import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import { PAGE_PROPERTY_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePagePropertyParams {
@@ -115,13 +115,6 @@ export const confluenceCreatePagePropertyTool: ToolConfig<
     ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'ID of the page' },
     propertyId: { type: 'string', description: 'ID of the created property' },
-    key: { type: 'string', description: 'Property key' },
-    value: { type: 'json', description: 'Property value' },
-    version: {
-      type: 'object',
-      description: 'Version information',
-      properties: VERSION_OUTPUT_PROPERTIES,
-      optional: true,
-    },
+    ...PAGE_PROPERTY_ITEM_PROPERTIES,
   },
 }

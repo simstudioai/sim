@@ -530,6 +530,9 @@ export async function validateTwilioSignature(
 const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 const SLACK_MAX_FILES = 15
 
+const JIRA_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+const CONFLUENCE_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+
 /**
  * Resolves the full file object from the Slack API when the event payload
  * only contains a partial file (e.g. missing url_private due to file_access restrictions).
@@ -677,6 +680,169 @@ async function downloadSlackFiles(
   }
 
   return downloaded
+}
+
+/**
+ * Downloads a Jira attachment file using Basic auth (email + API token).
+ * Returns the file data in the format expected by WebhookAttachmentProcessor.
+ */
+async function downloadJiraAttachment(
+  attachment: { content?: string; filename?: string; mimeType?: string; size?: number },
+  apiEmail: string,
+  apiToken: string
+): Promise<{ name: string; data: string; mimeType: string; size: number } | null> {
+  const contentUrl = attachment.content
+  if (!contentUrl) {
+    logger.warn('Jira attachment has no content URL, skipping download')
+    return null
+  }
+
+  const reportedSize = Number(attachment.size) || 0
+  if (reportedSize > JIRA_MAX_FILE_SIZE) {
+    logger.warn('Jira attachment exceeds size limit, skipping', {
+      filename: attachment.filename,
+      size: reportedSize,
+      limit: JIRA_MAX_FILE_SIZE,
+    })
+    return null
+  }
+
+  try {
+    const urlValidation = await validateUrlWithDNS(contentUrl, 'attachment_content')
+    if (!urlValidation.isValid) {
+      logger.warn('Jira attachment URL failed DNS validation, skipping', {
+        filename: attachment.filename,
+        error: urlValidation.error,
+      })
+      return null
+    }
+
+    const authHeader = Buffer.from(`${apiEmail}:${apiToken}`).toString('base64')
+
+    const response = await secureFetchWithPinnedIP(contentUrl, urlValidation.resolvedIP!, {
+      headers: {
+        Authorization: `Basic ${authHeader}`,
+        Accept: '*/*',
+      },
+    })
+
+    if (!response.ok) {
+      logger.warn('Failed to download Jira attachment', {
+        filename: attachment.filename,
+        status: response.status,
+      })
+      return null
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    if (buffer.length > JIRA_MAX_FILE_SIZE) {
+      logger.warn('Downloaded Jira attachment exceeds size limit, skipping', {
+        filename: attachment.filename,
+        actualSize: buffer.length,
+        limit: JIRA_MAX_FILE_SIZE,
+      })
+      return null
+    }
+
+    return {
+      name: attachment.filename || 'attachment',
+      data: buffer.toString('base64'),
+      mimeType: attachment.mimeType || 'application/octet-stream',
+      size: buffer.length,
+    }
+  } catch (error) {
+    logger.error('Error downloading Jira attachment', {
+      filename: attachment.filename,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
+/**
+ * Downloads a Confluence attachment file using Atlassian Basic Auth.
+ * Constructs the download URL from the domain and attachment download path.
+ */
+async function downloadConfluenceAttachment(
+  attachment: Record<string, any>,
+  domain: string,
+  apiEmail: string,
+  apiToken: string
+): Promise<{ name: string; data: string; mimeType: string; size: number } | null> {
+  // Confluence webhook payload includes _links.download for the attachment
+  const downloadPath = attachment?._links?.download || attachment?._expandable?.download || null
+  const attachmentId = attachment?.id
+
+  if (!downloadPath && !attachmentId) {
+    logger.warn('Confluence attachment has no download path or ID, skipping download')
+    return null
+  }
+
+  const reportedSize = Number(attachment?.extensions?.fileSize || attachment?.fileSize || 0)
+  if (reportedSize > CONFLUENCE_MAX_FILE_SIZE) {
+    logger.warn('Confluence attachment exceeds size limit, skipping', {
+      title: attachment?.title,
+      size: reportedSize,
+      limit: CONFLUENCE_MAX_FILE_SIZE,
+    })
+    return null
+  }
+
+  // Build the download URL
+  const cleanDomain = domain.replace(/\/+$/, '')
+  const baseUrl = cleanDomain.startsWith('http') ? cleanDomain : `https://${cleanDomain}`
+  const downloadUrl = downloadPath
+    ? `${baseUrl}/wiki${downloadPath}`
+    : `${baseUrl}/wiki/rest/api/content/${attachmentId}/download`
+
+  try {
+    const authHeader = Buffer.from(`${apiEmail}:${apiToken}`).toString('base64')
+
+    const response = await fetch(downloadUrl, {
+      headers: {
+        Authorization: `Basic ${authHeader}`,
+        Accept: '*/*',
+        'X-Atlassian-Token': 'no-check',
+      },
+    })
+
+    if (!response.ok) {
+      logger.warn('Failed to download Confluence attachment', {
+        title: attachment?.title,
+        status: response.status,
+        url: sanitizeUrlForLog(downloadUrl),
+      })
+      return null
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    if (buffer.length > CONFLUENCE_MAX_FILE_SIZE) {
+      logger.warn('Downloaded Confluence attachment exceeds size limit, skipping', {
+        title: attachment?.title,
+        actualSize: buffer.length,
+        limit: CONFLUENCE_MAX_FILE_SIZE,
+      })
+      return null
+    }
+
+    return {
+      name: attachment?.title || 'attachment',
+      data: buffer.toString('base64'),
+      mimeType:
+        attachment?.extensions?.mediaType || attachment?.mediaType || 'application/octet-stream',
+      size: buffer.length,
+    }
+  } catch (error) {
+    logger.error('Error downloading Confluence attachment', {
+      title: attachment?.title,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
 }
 
 /**
@@ -1103,20 +1269,154 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'jira') {
-    const { extractIssueData, extractCommentData, extractWorklogData } = await import(
-      '@/triggers/jira/utils'
-    )
+    const {
+      extractIssueData,
+      extractCommentData,
+      extractWorklogData,
+      extractAttachmentData,
+      extractSprintData,
+      extractProjectData,
+      extractVersionData,
+      extractBoardData,
+      extractIssueLinkData,
+    } = await import('@/triggers/jira/utils')
 
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const triggerId = providerConfig.triggerId as string | undefined
 
-    if (triggerId === 'jira_issue_commented') {
+    if (
+      triggerId === 'jira_issue_commented' ||
+      triggerId === 'jira_comment_updated' ||
+      triggerId === 'jira_comment_deleted'
+    ) {
       return extractCommentData(body)
     }
-    if (triggerId === 'jira_worklog_created') {
+    if (
+      triggerId === 'jira_worklog_created' ||
+      triggerId === 'jira_worklog_updated' ||
+      triggerId === 'jira_worklog_deleted'
+    ) {
       return extractWorklogData(body)
     }
+    if (triggerId === 'jira_attachment_created' || triggerId === 'jira_attachment_deleted') {
+      const result = extractAttachmentData(body)
+
+      // Download the attachment file if configured
+      if (triggerId === 'jira_attachment_created') {
+        const apiEmail = providerConfig.apiEmail as string | undefined
+        const apiToken = providerConfig.apiToken as string | undefined
+        const includeAttachments = Boolean(providerConfig.includeAttachments)
+
+        if (includeAttachments && apiEmail && apiToken && result.attachment?.content) {
+          const downloaded = await downloadJiraAttachment(result.attachment, apiEmail, apiToken)
+          if (downloaded) {
+            result.attachments = [downloaded]
+          }
+        } else if (includeAttachments && (!apiEmail || !apiToken)) {
+          logger.warn(
+            'Jira attachment trigger has includeAttachments enabled but missing API credentials'
+          )
+        }
+      }
+
+      return result
+    }
+    if (triggerId?.startsWith('jira_sprint_')) {
+      return extractSprintData(body)
+    }
+    if (triggerId?.startsWith('jira_project_')) {
+      return extractProjectData(body)
+    }
+    if (triggerId?.startsWith('jira_version_')) {
+      return extractVersionData(body)
+    }
+    if (triggerId?.startsWith('jira_board_')) {
+      return extractBoardData(body)
+    }
+    if (triggerId?.startsWith('jira_issuelink_')) {
+      return extractIssueLinkData(body)
+    }
     return extractIssueData(body)
+  }
+
+  if (foundWebhook.provider === 'jira_service_management') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+    const includeFiles = Boolean(providerConfig.includeFiles)
+    const jiraEmail = providerConfig.jiraEmail as string | undefined
+    const jiraApiToken = providerConfig.jiraApiToken as string | undefined
+
+    const webhookEvent = body.webhookEvent || ''
+
+    // Base data common to all JSM events
+    const baseData: Record<string, any> = {
+      webhookEvent,
+      timestamp: body.timestamp,
+      issue: body.issue || {},
+    }
+
+    // Handle attachment events
+    if (
+      triggerId === 'jsm_attachment_created' ||
+      triggerId === 'jsm_attachment_deleted' ||
+      webhookEvent.includes('attachment')
+    ) {
+      const attachment = body.attachment || {}
+      baseData.attachment = attachment
+
+      let files: Array<{ name: string; data: string; mimeType: string; size: number }> = []
+
+      if (
+        webhookEvent.includes('attachment_created') &&
+        includeFiles &&
+        jiraEmail &&
+        jiraApiToken &&
+        attachment.content
+      ) {
+        const downloaded = await downloadJiraAttachment(attachment, jiraEmail, jiraApiToken)
+        if (downloaded) {
+          files = [downloaded]
+        }
+      } else if (
+        webhookEvent.includes('attachment_created') &&
+        includeFiles &&
+        (!jiraEmail || !jiraApiToken)
+      ) {
+        logger.warn(
+          'JSM attachment trigger has includeFiles enabled but missing Jira API credentials'
+        )
+      }
+
+      baseData.files = files
+      return baseData
+    }
+
+    // Handle comment events
+    if (
+      triggerId === 'jsm_request_commented' ||
+      triggerId === 'jsm_comment_updated' ||
+      triggerId === 'jsm_comment_deleted' ||
+      webhookEvent.includes('comment')
+    ) {
+      baseData.comment = body.comment || {}
+      return baseData
+    }
+
+    // Handle worklog events
+    if (
+      triggerId === 'jsm_worklog_created' ||
+      triggerId === 'jsm_worklog_updated' ||
+      triggerId === 'jsm_worklog_deleted' ||
+      webhookEvent.includes('worklog')
+    ) {
+      baseData.worklog = body.worklog || {}
+      return baseData
+    }
+
+    // Default: request events (created/updated/deleted) and generic webhook
+    baseData.issue_event_type_name = body.issue_event_type_name
+    baseData.changelog = body.changelog
+    return baseData
   }
 
   if (foundWebhook.provider === 'stripe') {
@@ -1165,6 +1465,70 @@ export async function formatWebhookInput(
       eventType: body.eventType || 'Transcription completed',
       clientReferenceId: body.clientReferenceId || '',
     }
+  }
+
+  if (foundWebhook.provider === 'confluence') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const event = body.event as string | undefined
+    const result: Record<string, unknown> = {
+      event: event || '',
+      timestamp: body.timestamp,
+      userAccountId: body.userAccountId || '',
+    }
+
+    if (body.page) {
+      result.page = body.page
+    }
+
+    if (body.comment) {
+      result.comment = body.comment
+    }
+
+    if (body.blog || body.blogpost) {
+      result.blog = body.blog || body.blogpost
+    }
+
+    if (body.attachment) {
+      result.attachment = body.attachment
+    }
+
+    if (body.space) {
+      result.space = body.space
+    }
+
+    if (body.label) {
+      result.label = body.label
+    }
+
+    if (body.content) {
+      result.content = body.content
+    }
+
+    // Download attachment file content when configured
+    const includeFileContent = Boolean(providerConfig.includeFileContent)
+    const confluenceEmail = providerConfig.confluenceEmail as string | undefined
+    const confluenceApiToken = providerConfig.confluenceApiToken as string | undefined
+    const confluenceDomain = providerConfig.confluenceDomain as string | undefined
+
+    if (body.attachment && includeFileContent) {
+      if (confluenceEmail && confluenceApiToken && confluenceDomain) {
+        const downloaded = await downloadConfluenceAttachment(
+          body.attachment,
+          confluenceDomain,
+          confluenceEmail,
+          confluenceApiToken
+        )
+        if (downloaded) {
+          result.files = [downloaded]
+        }
+      } else {
+        logger.warn(
+          'Confluence attachment trigger has includeFileContent enabled but missing credentials (email, API token, or domain)'
+        )
+      }
+    }
+
+    return result
   }
 
   return body

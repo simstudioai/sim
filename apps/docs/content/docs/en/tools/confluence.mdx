@@ -88,7 +88,8 @@ Update a Confluence page using the Confluence API.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of update |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `success` | boolean | Operation success status |
 | `pageId` | string | Confluence page ID |
 | `title` | string | Updated page title |
 | `status` | string | Page status |
@@ -110,7 +111,6 @@ Update a Confluence page using the Confluence API.
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `url` | string | URL to view the page in Confluence |
-| `success` | boolean | Update operation success status |
 
 ### `confluence_create_page`
 
@@ -131,7 +131,7 @@ Create a new page in a Confluence space.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of creation |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `pageId` | string | Created page ID |
 | `title` | string | Page title |
 | `status` | string | Page status |
@@ -172,9 +172,9 @@ Delete a Confluence page. By default moves to trash; use purge=true to permanent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of deletion |
-| `pageId` | string | Deleted page ID |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `deleted` | boolean | Deletion status |
+| `pageId` | string | Deleted page ID |
 
 ### `confluence_list_pages_in_space`
 
@@ -358,10 +358,10 @@ List all custom properties (metadata) attached to a Confluence page.
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `pageId` | string | ID of the page |
 | `properties` | array | Array of content properties |
-|   ↳ `id` | string | Property ID |
-|   ↳ `key` | string | Property key |
+|   ↳ `id` | string | Unique property identifier |
+|   ↳ `key` | string | Property key/name |
 |   ↳ `value` | json | Property value \(can be any JSON\) |
-|   ↳ `version` | object | Version information |
+|   ↳ `version` | object | Property version information |
 |     ↳ `number` | number | Version number |
 |     ↳ `message` | string | Version message |
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
@@ -388,16 +388,50 @@ Create a new custom property (metadata) on a Confluence page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
-| `pageId` | string | ID of the page |
-| `propertyId` | string | ID of the created property |
-| `key` | string | Property key |
-| `value` | json | Property value |
-| `version` | object | Version information |
+| `id` | string | Unique property identifier |
+| `key` | string | Property key/name |
+| `value` | json | Property value \(can be any JSON\) |
+| `version` | object | Property version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
 |   ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `pageId` | string | ID of the page |
+| `propertyId` | string | ID of the created property |
+
+### `confluence_update_page_property`
+
+Update an existing content property on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page containing the property |
+| `propertyId` | string | Yes | The ID of the property to update |
+| `key` | string | Yes | The key/name of the property |
+| `value` | json | Yes | The new value for the property \(can be any JSON value\) |
+| `versionNumber` | number | Yes | The current version number of the property \(for conflict prevention\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Unique property identifier |
+| `key` | string | Property key/name |
+| `value` | json | Property value \(can be any JSON\) |
+| `version` | object | Property version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `pageId` | string | ID of the page |
+| `propertyId` | string | ID of the updated property |
 
 ### `confluence_delete_page_property`
 
@@ -438,7 +472,7 @@ Search for content across Confluence pages, blog posts, and other content.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of search |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `results` | array | Array of search results |
 |   ↳ `id` | string | Unique content identifier |
 |   ↳ `title` | string | Content title |
@@ -512,19 +546,29 @@ List all blog posts across all accessible Confluence spaces.
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `blogPosts` | array | Array of blog posts |
-|   ↳ `id` | string | Blog post ID |
+|   ↳ `id` | string | Unique blog post identifier |
 |   ↳ `title` | string | Blog post title |
-|   ↳ `status` | string | Blog post status |
-|   ↳ `spaceId` | string | Space ID |
-|   ↳ `authorId` | string | Author account ID |
-|   ↳ `createdAt` | string | Creation timestamp |
-|   ↳ `version` | object | Version information |
+|   ↳ `status` | string | Blog post status \(e.g., current, draft\) |
+|   ↳ `spaceId` | string | ID of the space containing the blog post |
+|   ↳ `authorId` | string | Account ID of the blog post author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the blog post was created |
+|   ↳ `version` | object | Blog post version information |
 |     ↳ `number` | number | Version number |
 |     ↳ `message` | string | Version message |
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |     ↳ `authorId` | string | Account ID of the version author |
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
-|   ↳ `webUrl` | string | URL to view the blog post |
+|   ↳ `body` | object | Blog post body content |
+|     ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `view` | object | Body in view format \(rendered HTML\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|   ↳ `webUrl` | string | URL to view the blog post in Confluence |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `confluence_get_blogpost`
@@ -545,19 +589,19 @@ Get a specific Confluence blog post by ID, including its content.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
-| `id` | string | Blog post ID |
+| `id` | string | Unique blog post identifier |
 | `title` | string | Blog post title |
-| `status` | string | Blog post status |
-| `spaceId` | string | Space ID |
-| `authorId` | string | Author account ID |
-| `createdAt` | string | Creation timestamp |
-| `version` | object | Version information |
+| `status` | string | Blog post status \(e.g., current, draft\) |
+| `spaceId` | string | ID of the space containing the blog post |
+| `authorId` | string | Account ID of the blog post author |
+| `createdAt` | string | ISO 8601 timestamp when the blog post was created |
+| `version` | object | Blog post version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
 |   ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
-| `body` | object | Blog post body content in requested format\(s\) |
+| `body` | object | Blog post body content |
 |   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
 |     ↳ `value` | string | The content value in the specified format |
 |     ↳ `representation` | string | Content representation type |
@@ -567,7 +611,7 @@ Get a specific Confluence blog post by ID, including its content.
 |   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
 |     ↳ `value` | string | The content value in the specified format |
 |     ↳ `representation` | string | Content representation type |
-| `webUrl` | string | URL to view the blog post |
+| `webUrl` | string | URL to view the blog post in Confluence |
 
 ### `confluence_create_blogpost`
 
@@ -589,11 +633,18 @@ Create a new blog post in a Confluence space.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
-| `id` | string | Created blog post ID |
+| `id` | string | Unique blog post identifier |
 | `title` | string | Blog post title |
-| `status` | string | Blog post status |
-| `spaceId` | string | Space ID |
-| `authorId` | string | Author account ID |
+| `status` | string | Blog post status \(e.g., current, draft\) |
+| `spaceId` | string | ID of the space containing the blog post |
+| `authorId` | string | Account ID of the blog post author |
+| `createdAt` | string | ISO 8601 timestamp when the blog post was created |
+| `version` | object | Blog post version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `body` | object | Blog post body content |
 |   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
 |     ↳ `value` | string | The content value in the specified format |
@@ -604,13 +655,71 @@ Create a new blog post in a Confluence space.
 |   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
 |     ↳ `value` | string | The content value in the specified format |
 |     ↳ `representation` | string | Content representation type |
+| `webUrl` | string | URL to view the blog post in Confluence |
+
+### `confluence_update_blogpost`
+
+Update an existing Confluence blog post title, content, or status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `blogPostId` | string | Yes | The ID of the blog post to update |
+| `title` | string | No | New title for the blog post |
+| `content` | string | No | New content for the blog post in Confluence storage format |
+| `status` | string | No | Blog post status: current or draft |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Unique blog post identifier |
+| `title` | string | Blog post title |
+| `status` | string | Blog post status \(e.g., current, draft\) |
+| `spaceId` | string | ID of the space containing the blog post |
+| `authorId` | string | Account ID of the blog post author |
+| `createdAt` | string | ISO 8601 timestamp when the blog post was created |
 | `version` | object | Blog post version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
 |   ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
-| `webUrl` | string | URL to view the blog post |
+| `body` | object | Blog post body content |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `webUrl` | string | URL to view the blog post in Confluence |
+
+### `confluence_delete_blogpost`
+
+Delete a Confluence blog post.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `blogPostId` | string | Yes | The ID of the blog post to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `deleted` | boolean | Deletion status |
+| `blogPostId` | string | Deleted blog post ID |
 
 ### `confluence_list_blogposts_in_space`
 
@@ -634,13 +743,13 @@ List all blog posts within a specific Confluence space.
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `blogPosts` | array | Array of blog posts in the space |
-|   ↳ `id` | string | Blog post ID |
+|   ↳ `id` | string | Unique blog post identifier |
 |   ↳ `title` | string | Blog post title |
-|   ↳ `status` | string | Blog post status |
-|   ↳ `spaceId` | string | Space ID |
-|   ↳ `authorId` | string | Author account ID |
-|   ↳ `createdAt` | string | Creation timestamp |
-|   ↳ `version` | object | Version information |
+|   ↳ `status` | string | Blog post status \(e.g., current, draft\) |
+|   ↳ `spaceId` | string | ID of the space containing the blog post |
+|   ↳ `authorId` | string | Account ID of the blog post author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the blog post was created |
+|   ↳ `version` | object | Blog post version information |
 |     ↳ `number` | number | Version number |
 |     ↳ `message` | string | Version message |
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
@@ -656,7 +765,7 @@ List all blog posts within a specific Confluence space.
 |     ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
 |       ↳ `value` | string | The content value in the specified format |
 |       ↳ `representation` | string | Content representation type |
-|   ↳ `webUrl` | string | URL to view the blog post |
+|   ↳ `webUrl` | string | URL to view the blog post in Confluence |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `confluence_create_comment`
@@ -676,7 +785,7 @@ Add a comment to a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of creation |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `commentId` | string | Created comment ID |
 | `pageId` | string | Page ID |
 
@@ -737,9 +846,9 @@ Update an existing comment on a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of update |
-| `commentId` | string | Updated comment ID |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `updated` | boolean | Update status |
+| `commentId` | string | Updated comment ID |
 
 ### `confluence_delete_comment`
 
@@ -757,9 +866,9 @@ Delete a comment from a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of deletion |
-| `commentId` | string | Deleted comment ID |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `deleted` | boolean | Deletion status |
+| `commentId` | string | Deleted comment ID |
 
 ### `confluence_upload_attachment`
 
@@ -780,7 +889,7 @@ Upload a file as an attachment to a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of upload |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `attachmentId` | string | Uploaded attachment ID |
 | `title` | string | Attachment file name |
 | `fileSize` | number | File size in bytes |
@@ -842,9 +951,9 @@ Delete an attachment from a Confluence page (moves to trash).
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of deletion |
-| `attachmentId` | string | Deleted attachment ID |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `deleted` | boolean | Deletion status |
+| `attachmentId` | string | Deleted attachment ID |
 
 ### `confluence_list_labels`
 
@@ -864,7 +973,7 @@ List all labels on a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `labels` | array | Array of labels on the page |
 |   ↳ `id` | string | Unique label identifier |
 |   ↳ `name` | string | Label name |

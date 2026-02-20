@@ -1,4 +1,4 @@
-import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
+import { PAGE_PROPERTY_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListPagePropertiesParams {
@@ -127,17 +127,7 @@ export const confluenceListPagePropertiesTool: ToolConfig<
       description: 'Array of content properties',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Property ID' },
-          key: { type: 'string', description: 'Property key' },
-          value: { type: 'json', description: 'Property value (can be any JSON)' },
-          version: {
-            type: 'object',
-            description: 'Version information',
-            properties: VERSION_OUTPUT_PROPERTIES,
-            optional: true,
-          },
-        },
+        properties: PAGE_PROPERTY_ITEM_PROPERTIES,
       },
     },
     nextCursor: {

@@ -43,7 +43,7 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS',
+        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_ORGANIZATIONS, APPROVER, ALL_REQUESTS',
     },
     requestStatus: {
       type: 'string',

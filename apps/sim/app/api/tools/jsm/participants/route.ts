@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmParticipantsAPI')
 
-const VALID_ACTIONS = ['get', 'add'] as const
+const VALID_ACTIONS = ['get', 'add', 'remove'] as const
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         },
       })
     }
-    if (action === 'add') {
+    if (action === 'add' || action === 'remove') {
       if (!accountIds) {
         logger.error('Missing accountIds in request')
         return NextResponse.json({ error: 'Account IDs are required' }, { status: 400 })
@@ -128,16 +128,19 @@ export async function POST(request: NextRequest) {
           : accountIds
 
       const url = `${baseUrl}/request/${issueIdOrKey}/participant`
+      const method = action === 'add' ? 'POST' : 'DELETE'
 
-      logger.info('Adding participants to:', url, { accountIds: parsedAccountIds })
+      logger.info(`${action === 'add' ? 'Adding' : 'Removing'} participants:`, url, {
+        accountIds: parsedAccountIds,
+      })
 
       const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: getJsmHeaders(accessToken),
         body: JSON.stringify({ accountIds: parsedAccountIds }),
       })
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 204) {
         const errorText = await response.text()
         logger.error('JSM API error:', {
           status: response.status,
@@ -151,14 +154,22 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const data = await response.json()
+      let participants: unknown[] = []
+      if (response.status !== 204) {
+        try {
+          const data = await response.json()
+          participants = data.values || []
+        } catch {
+          // DELETE may return empty body
+        }
+      }
 
       return NextResponse.json({
         success: true,
         output: {
           ts: new Date().toISOString(),
           issueIdOrKey,
-          participants: data.values || [],
+          participants,
           success: true,
         },
       })

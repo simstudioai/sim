@@ -1,3 +1,4 @@
+import { DELETED_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeletePageParams {
@@ -100,8 +101,8 @@ export const confluenceDeletePageTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of deletion' },
+    ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'Deleted page ID' },
-    deleted: { type: 'boolean', description: 'Deletion status' },
+    deleted: DELETED_OUTPUT,
   },
 }
