@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -68,6 +68,8 @@ export function ToolCredentialSelector({
 }: ToolCredentialSelectorProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -113,7 +115,7 @@ export function ToolCredentialSelector({
         const data = await response.json()
         if (!cancelled && data.credential?.displayName) {
           if (data.credential.id !== selectedId) {
-            onChange(data.credential.id)
+            onChangeRef.current(data.credential.id)
           }
           setInaccessibleCredentialName(data.credential.displayName)
         }
