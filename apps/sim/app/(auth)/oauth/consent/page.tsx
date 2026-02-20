@@ -100,11 +100,10 @@ export default function OAuthConsentPage() {
   )
 
   const handleSwitchAccount = useCallback(async () => {
-    const currentUrl = window.location.href
     await signOut({
       fetchOptions: {
         onSuccess: () => {
-          window.location.href = `/login?callbackUrl=${encodeURIComponent(currentUrl)}`
+          window.location.href = '/login'
         },
       },
     })
