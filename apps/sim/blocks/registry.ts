@@ -3,6 +3,7 @@ import { AgentBlock } from '@/blocks/blocks/agent'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
+import { AlgoliaBlock } from '@/blocks/blocks/algolia'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock } from '@/blocks/blocks/apify'
@@ -108,9 +109,11 @@ import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
+import { RedisBlock } from '@/blocks/blocks/redis'
 import { ReductoBlock, ReductoV2Block } from '@/blocks/blocks/reducto'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
+import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
@@ -148,6 +151,7 @@ import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
+import { UpstashBlock } from '@/blocks/blocks/upstash'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock } from '@/blocks/blocks/vercel'
 import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
@@ -175,6 +179,7 @@ export const registry: Record<string, BlockConfig> = {
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
+  algolia: AlgoliaBlock,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,
@@ -293,10 +298,12 @@ export const registry: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
+  redis: RedisBlock,
   reducto: ReductoBlock,
   reducto_v2: ReductoV2Block,
   resend: ResendBlock,
   response: ResponseBlock,
+  revenuecat: RevenueCatBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
   rss: RssBlock,
@@ -337,6 +344,7 @@ export const registry: Record<string, BlockConfig> = {
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
+  upstash: UpstashBlock,
   vercel: VercelBlock,
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,

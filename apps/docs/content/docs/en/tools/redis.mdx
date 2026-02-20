@@ -1,0 +1,452 @@
+---
+title: Redis
+description: Key-value operations with Redis
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="redis"
+  color="#FF4438"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Redis](https://redis.io/) is an open-source, in-memory data structure store, used as a distributed key-value database, cache, and message broker. Redis supports a variety of data structures including strings, hashes, lists, sets, and more, making it highly flexible for different application scenarios.
+
+With Redis, you can:
+
+- **Store and retrieve key-value data instantly**: Use Redis as a fast database, cache, or session store for high performance.
+- **Work with multiple data structures**: Manage not just strings, but also lists, hashes, sets, sorted sets, streams, and bitmaps.
+- **Perform atomic operations**: Safely manipulate data using atomic commands and transactions.
+- **Support pub/sub messaging**: Use Redis’s publisher/subscriber features for real-time event handling and messaging.
+- **Set automatic expiration policies**: Assign TTLs to keys for caching and time-sensitive data.
+- **Scale horizontally**: Use Redis Cluster for sharding, high availability, and scalable workloads.
+
+In Sim, the Redis integration lets your agents connect to any Redis-compatible instance to perform key-value, hash, list, and utility operations. You can build workflows that involve storing, retrieving, or manipulating data in Redis, or manage your app’s cache, sessions, or real-time messaging, directly within your Sim workspace.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to any Redis instance to perform key-value, hash, list, and utility operations via a direct connection.
+
+
+
+## Tools
+
+### `redis_get`
+
+Get the value of a key from Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was retrieved |
+| `value` | string | The value of the key, or null if the key does not exist |
+
+### `redis_set`
+
+Set the value of a key in Redis with an optional expiration time in seconds.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to set |
+| `value` | string | Yes | The value to store |
+| `ex` | number | No | Expiration time in seconds \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was set |
+| `result` | string | The result of the SET operation \(typically "OK"\) |
+
+### `redis_delete`
+
+Delete a key from Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was deleted |
+| `deletedCount` | number | Number of keys deleted \(0 if key did not exist, 1 if deleted\) |
+
+### `redis_keys`
+
+List all keys matching a pattern in Redis. Avoid using on large databases in production; use the Redis Command tool with SCAN for large key spaces.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `pattern` | string | No | Pattern to match keys \(default: * for all keys\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pattern` | string | The pattern used to match keys |
+| `keys` | array | List of keys matching the pattern |
+| `count` | number | Number of keys found |
+
+### `redis_command`
+
+Execute a raw Redis command as a JSON array (e.g. [
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `command` | string | Yes | Redis command as a JSON array \(e.g. \["SET", "key", "value"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `command` | string | The command that was executed |
+| `result` | json | The result of the command |
+
+### `redis_hset`
+
+Set a field in a hash stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The hash key |
+| `field` | string | Yes | The field name within the hash |
+| `value` | string | Yes | The value to set for the field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `field` | string | The field that was set |
+| `result` | number | Number of fields added \(1 if new, 0 if updated\) |
+
+### `redis_hget`
+
+Get the value of a field in a hash stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The hash key |
+| `field` | string | Yes | The field name to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `field` | string | The field that was retrieved |
+| `value` | string | The field value, or null if the field or key does not exist |
+
+### `redis_hgetall`
+
+Get all fields and values of a hash stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The hash key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `fields` | object | All field-value pairs in the hash as a key-value object. Empty object if the key does not exist. |
+| `fieldCount` | number | Number of fields in the hash |
+
+### `redis_hdel`
+
+Delete a field from a hash stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The hash key |
+| `field` | string | Yes | The field name to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The hash key |
+| `field` | string | The field that was deleted |
+| `deleted` | number | Number of fields removed \(1 if deleted, 0 if field did not exist\) |
+
+### `redis_incr`
+
+Increment the integer value of a key by one in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to increment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was incremented |
+| `value` | number | The new value after increment |
+
+### `redis_incrby`
+
+Increment the integer value of a key by a given amount in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to increment |
+| `increment` | number | Yes | Amount to increment by \(negative to decrement\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was incremented |
+| `value` | number | The new value after increment |
+
+### `redis_expire`
+
+Set an expiration time (in seconds) on a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to set expiration on |
+| `seconds` | number | Yes | Timeout in seconds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that expiration was set on |
+| `result` | number | 1 if the timeout was set, 0 if the key does not exist |
+
+### `redis_ttl`
+
+Get the remaining time to live (in seconds) of a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to check TTL for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was checked |
+| `ttl` | number | Remaining TTL in seconds. Positive integer if TTL set, -1 if no expiration, -2 if key does not exist. |
+
+### `redis_persist`
+
+Remove the expiration from a key in Redis, making it persist indefinitely.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to persist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was persisted |
+| `result` | number | 1 if the expiration was removed, 0 if the key does not exist or has no expiration |
+
+### `redis_lpush`
+
+Prepend a value to a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+| `value` | string | Yes | The value to prepend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `length` | number | Length of the list after the push |
+
+### `redis_rpush`
+
+Append a value to the end of a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+| `value` | string | Yes | The value to append |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `length` | number | Length of the list after the push |
+
+### `redis_lpop`
+
+Remove and return the first element of a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `value` | string | The removed element, or null if the list is empty |
+
+### `redis_rpop`
+
+Remove and return the last element of a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `value` | string | The removed element, or null if the list is empty |
+
+### `redis_llen`
+
+Get the length of a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `length` | number | The length of the list, or 0 if the key does not exist |
+
+### `redis_lrange`
+
+Get a range of elements from a list stored at a key in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The list key |
+| `start` | number | Yes | Start index \(0-based\) |
+| `stop` | number | Yes | Stop index \(-1 for all elements\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The list key |
+| `values` | array | List elements in the specified range |
+| `count` | number | Number of elements returned |
+
+### `redis_exists`
+
+Check if a key exists in Redis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to check |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was checked |
+| `exists` | boolean | Whether the key exists \(true\) or not \(false\) |
+
+### `redis_setnx`
+
+Set the value of a key in Redis only if the key does not already exist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Redis connection URL \(e.g. redis://user:password@host:port\) |
+| `key` | string | Yes | The key to set |
+| `value` | string | Yes | The value to store |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The key that was set |
+| `wasSet` | boolean | Whether the key was set \(true\) or already existed \(false\) |
+
+
