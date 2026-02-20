@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
@@ -14,6 +17,25 @@ export interface AuthResult {
   authType?: 'session' | 'api_key' | 'internal_jwt'
   apiKeyType?: 'personal' | 'workspace'
   error?: string
+}
+
+/**
+ * Looks up a user's name and email by ID. Returns empty values on failure
+ * so auth is never blocked by a lookup error.
+ */
+async function lookupUserInfo(
+  userId: string
+): Promise<{ userName: string | null; userEmail: string | null }> {
+  try {
+    const [row] = await db
+      .select({ name: user.name, email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+    return { userName: row?.name ?? null, userEmail: row?.email ?? null }
+  } catch {
+    return { userName: null, userEmail: null }
+  }
 }
 
 /**
@@ -46,7 +68,8 @@ async function resolveUserFromJwt(
   }
 
   if (userId) {
-    return { success: true, userId, authType: 'internal_jwt' }
+    const { userName, userEmail } = await lookupUserInfo(userId)
+    return { success: true, userId, userName, userEmail, authType: 'internal_jwt' }
   }
 
   if (options.requireWorkflowId !== false) {
@@ -205,9 +228,12 @@ export async function checkHybridAuth(
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
         await updateApiKeyLastUsed(result.keyId!)
+        const { userName, userEmail } = await lookupUserInfo(result.userId!)
         return {
           success: true,
           userId: result.userId!,
+          userName,
+          userEmail,
           authType: 'api_key',
           apiKeyType: result.keyType,
         }
