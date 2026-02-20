@@ -87,6 +87,9 @@ export default function OAuthConsentPage() {
         const data = (await res.json()) as { redirectURI?: string }
         if (data.redirectURI) {
           window.location.href = data.redirectURI
+        } else {
+          setError('The server did not return a redirect. Please try again.')
+          setSubmitting(false)
         }
       } catch {
         setError('Something went wrong. Please try again.')
