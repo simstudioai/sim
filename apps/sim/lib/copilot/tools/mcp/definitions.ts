@@ -1,8 +1,16 @@
+export type ToolAnnotations = {
+  readOnlyHint?: boolean
+  destructiveHint?: boolean
+  idempotentHint?: boolean
+  openWorldHint?: boolean
+}
+
 export type DirectToolDef = {
   name: string
   description: string
   inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
   toolId: string
+  annotations?: ToolAnnotations
 }
 
 export type SubagentToolDef = {
@@ -10,6 +18,7 @@ export type SubagentToolDef = {
   description: string
   inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
   agentId: string
+  annotations?: ToolAnnotations
 }
 
 /**
@@ -26,6 +35,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       type: 'object',
       properties: {},
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'list_workflows',
@@ -45,6 +55,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
       },
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'list_folders',
@@ -61,6 +72,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workspaceId'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'get_workflow',
@@ -77,6 +89,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'create_workflow',
@@ -105,6 +118,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['name'],
     },
+    annotations: { destructiveHint: false },
   },
   {
     name: 'create_folder',
@@ -129,6 +143,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['name'],
     },
+    annotations: { destructiveHint: false },
   },
   {
     name: 'rename_workflow',
@@ -148,6 +163,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId', 'name'],
     },
+    annotations: { destructiveHint: false, idempotentHint: true },
   },
   {
     name: 'move_workflow',
@@ -168,6 +184,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId'],
     },
+    annotations: { destructiveHint: false, idempotentHint: true },
   },
   {
     name: 'move_folder',
@@ -189,6 +206,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['folderId'],
     },
+    annotations: { destructiveHint: false, idempotentHint: true },
   },
   {
     name: 'run_workflow',
@@ -214,6 +232,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'run_workflow_until_block',
@@ -243,6 +262,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId', 'stopAfterBlockId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'run_from_block',
@@ -276,6 +296,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId', 'startBlockId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'run_block',
@@ -309,6 +330,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId', 'blockId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'get_deployed_workflow_state',
@@ -325,6 +347,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['workflowId'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'generate_api_key',
@@ -346,6 +369,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       },
       required: ['name'],
     },
+    annotations: { destructiveHint: false },
   },
 ]
 
@@ -397,6 +421,7 @@ WORKFLOW:
       },
       required: ['request', 'workflowId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'sim_discovery',
@@ -422,6 +447,7 @@ DO NOT USE (use direct tools instead):
       },
       required: ['request'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'sim_plan',
@@ -456,6 +482,7 @@ IMPORTANT: Pass the returned plan EXACTLY to sim_edit - do not modify or summari
       },
       required: ['request', 'workflowId'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'sim_edit',
@@ -491,6 +518,7 @@ After sim_edit completes, you can test immediately with sim_test, or deploy with
       },
       required: ['workflowId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'sim_deploy',
@@ -524,6 +552,7 @@ ALSO CAN:
       },
       required: ['request', 'workflowId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'sim_test',
@@ -547,6 +576,7 @@ Supports full and partial execution:
       },
       required: ['request', 'workflowId'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'sim_debug',
@@ -562,6 +592,7 @@ Supports full and partial execution:
       },
       required: ['error', 'workflowId'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'sim_auth',
@@ -576,6 +607,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
     name: 'sim_knowledge',
@@ -590,6 +622,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { destructiveHint: false },
   },
   {
     name: 'sim_custom_tool',
@@ -604,6 +637,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { destructiveHint: false },
   },
   {
     name: 'sim_info',
@@ -619,6 +653,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'sim_workflow',
@@ -634,6 +669,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { destructiveHint: false },
   },
   {
     name: 'sim_research',
@@ -648,6 +684,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { readOnlyHint: true, openWorldHint: true },
   },
   {
     name: 'sim_superagent',
@@ -662,6 +699,7 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { destructiveHint: true, openWorldHint: true },
   },
   {
     name: 'sim_platform',
@@ -676,5 +714,6 @@ Supports full and partial execution:
       },
       required: ['request'],
     },
+    annotations: { readOnlyHint: true },
   },
 ]

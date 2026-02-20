@@ -385,12 +385,14 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      ...(tool.annotations && { annotations: tool.annotations }),
     }))
 
     const subagentTools = SUBAGENT_TOOL_DEFS.map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      ...(tool.annotations && { annotations: tool.annotations }),
     }))
 
     const result: ListToolsResult = {
