@@ -3,6 +3,7 @@ import { verification } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 
 /**
  * Returns the original OAuth authorize parameters stored in the verification record
@@ -10,6 +11,11 @@ import { NextResponse } from 'next/server'
  * when switching accounts.
  */
 export async function GET(request: NextRequest) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const consentCode = request.nextUrl.searchParams.get('consent_code')
   if (!consentCode) {
     return NextResponse.json({ error: 'consent_code is required' }, { status: 400 })
@@ -29,10 +35,15 @@ export async function GET(request: NextRequest) {
     clientId: string
     redirectURI: string
     scope: string[]
+    userId: string
     codeChallenge: string
     codeChallengeMethod: string
     state: string | null
     nonce: string | null
+  }
+
+  if (data.userId !== session.user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   return NextResponse.json({
