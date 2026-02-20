@@ -76,33 +76,41 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
-    if (membership.role === 'admin') {
-      const activeAdmins = await db
-        .select({ id: credentialMember.id })
-        .from(credentialMember)
-        .where(
-          and(
-            eq(credentialMember.credentialId, credentialId),
-            eq(credentialMember.role, 'admin'),
-            eq(credentialMember.status, 'active')
+    const revoked = await db.transaction(async (tx) => {
+      if (membership.role === 'admin') {
+        const activeAdmins = await tx
+          .select({ id: credentialMember.id })
+          .from(credentialMember)
+          .where(
+            and(
+              eq(credentialMember.credentialId, credentialId),
+              eq(credentialMember.role, 'admin'),
+              eq(credentialMember.status, 'active')
+            )
           )
-        )
 
-      if (activeAdmins.length <= 1) {
-        return NextResponse.json(
-          { error: 'Cannot leave credential as the last active admin' },
-          { status: 400 }
-        )
+        if (activeAdmins.length <= 1) {
+          return false
+        }
       }
-    }
 
-    await db
-      .update(credentialMember)
-      .set({
-        status: 'revoked',
-        updatedAt: new Date(),
-      })
-      .where(eq(credentialMember.id, membership.id))
+      await tx
+        .update(credentialMember)
+        .set({
+          status: 'revoked',
+          updatedAt: new Date(),
+        })
+        .where(eq(credentialMember.id, membership.id))
+
+      return true
+    })
+
+    if (!revoked) {
+      return NextResponse.json(
+        { error: 'Cannot leave credential as the last active admin' },
+        { status: 400 }
+      )
+    }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
