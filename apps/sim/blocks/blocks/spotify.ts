@@ -755,6 +755,9 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     ],
     config: {
       tool: (params) => {
+        if (params.followType) params.type = params.followType
+        if (params.newName) params.name = params.newName
+        if (params.playUris) params.uris = params.playUris
         return params.operation || 'spotify_search'
       },
       params: (params) => {
@@ -765,9 +768,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         if (params.insert_before) result.insert_before = Number(params.insert_before)
         if (params.range_length) result.range_length = Number(params.range_length)
         if (params.position_ms) result.position_ms = Number(params.position_ms)
-        if (params.followType) result.type = params.followType
-        if (params.newName) result.name = params.newName
-        if (params.playUris) result.uris = params.playUris
         if (params.coverImage !== undefined) {
           result.coverImage = normalizeFileInput(params.coverImage, { single: true })
         }

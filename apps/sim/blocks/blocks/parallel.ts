@@ -149,6 +149,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     access: ['parallel_search', 'parallel_extract', 'parallel_deep_research'],
     config: {
       tool: (params) => {
+        if (params.extract_objective) params.objective = params.extract_objective
+        if (params.research_input) params.input = params.research_input
         switch (params.operation) {
           case 'search':
             return 'parallel_search'
@@ -183,13 +185,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
         }
 
         if (operation === 'extract') {
-          result.objective = params.extract_objective
           result.excerpts = !(params.excerpts === 'false' || params.excerpts === false)
           result.full_content = params.full_content === 'true' || params.full_content === true
-        }
-
-        if (operation === 'deep_research') {
-          result.input = params.research_input
         }
 
         return result

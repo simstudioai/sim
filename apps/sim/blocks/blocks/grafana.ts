@@ -606,6 +606,11 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
+        if (params.alertTitle) params.title = params.alertTitle
+        if (params.folderTitle) params.title = params.folderTitle
+        if (params.folderUidNew) params.uid = params.folderUidNew
+        if (params.annotationTags) params.tags = params.annotationTags
+        if (params.annotationDashboardUid) params.dashboardUid = params.annotationDashboardUid
         return params.operation
       },
       params: (params) => {
@@ -616,11 +621,6 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
         if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
         if (params.from) result.from = Number(params.from)
         if (params.to) result.to = Number(params.to)
-        if (params.alertTitle) result.title = params.alertTitle
-        if (params.folderTitle) result.title = params.folderTitle
-        if (params.folderUidNew) result.uid = params.folderUidNew
-        if (params.annotationTags) result.tags = params.annotationTags
-        if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
         return result
       },
     },

@@ -1185,20 +1185,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        return params.operation as string
-      },
-      params: (params) => {
-        const result: Record<string, unknown> = {}
-        if (params.limit) result.limit = Number(params.limit)
-        if (params.offset) result.offset = Number(params.offset)
-        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
-        if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
-
+        // Field renames in tool() are safe (they copy values, not coerce types)
+        // and are needed for serialization-time validation of required fields
         if (params.operation === 'posthog_get_project' && params.projectIdParam) {
-          result.projectId = params.projectIdParam
+          params.projectId = params.projectIdParam
         }
         if (params.personalApiKey) {
-          result.apiKey = params.personalApiKey
+          params.apiKey = params.personalApiKey
         }
 
         const flagOps = [
@@ -1207,7 +1200,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'posthog_delete_feature_flag',
         ]
         if (flagOps.includes(params.operation as string) && params.featureFlagId) {
-          result.flagId = params.featureFlagId
+          params.flagId = params.featureFlagId
         }
 
         if (
@@ -1215,39 +1208,39 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             params.operation === 'posthog_update_survey') &&
           params.surveyType
         ) {
-          result.type = params.surveyType
+          params.type = params.surveyType
         }
 
         if (params.operation === 'posthog_create_cohort' && params.isStatic !== undefined) {
-          result.is_static = params.isStatic
+          params.is_static = params.isStatic
         }
 
         if (params.operation === 'posthog_create_annotation' && params.dateMarker) {
-          result.date_marker = params.dateMarker
+          params.date_marker = params.dateMarker
         }
 
         if (params.operation === 'posthog_update_property_definition' && params.propertyType) {
-          result.property_type = params.propertyType
+          params.property_type = params.propertyType
         }
 
         if (params.operation === 'posthog_create_insight' && params.insightQuery) {
-          result.query = params.insightQuery
+          params.query = params.insightQuery
         }
 
         if (params.operation === 'posthog_create_insight' && params.insightTags) {
-          result.tags = params.insightTags
+          params.tags = params.insightTags
         }
 
         if (params.operation === 'posthog_list_persons' && params.distinctIdFilter) {
-          result.distinctId = params.distinctIdFilter
+          params.distinctId = params.distinctIdFilter
         }
 
         if (params.operation === 'posthog_create_experiment') {
           if (params.experimentStartDate) {
-            result.startDate = params.experimentStartDate
+            params.startDate = params.experimentStartDate
           }
           if (params.experimentEndDate) {
-            result.endDate = params.experimentEndDate
+            params.endDate = params.experimentEndDate
           }
         }
 
@@ -1256,12 +1249,21 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.operation === 'posthog_update_survey'
         ) {
           if (params.surveyStartDate) {
-            result.startDate = params.surveyStartDate
+            params.startDate = params.surveyStartDate
           }
           if (params.surveyEndDate) {
-            result.endDate = params.surveyEndDate
+            params.endDate = params.surveyEndDate
           }
         }
+
+        return params.operation as string
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        if (params.offset) result.offset = Number(params.offset)
+        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
+        if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
 
         return result
       },
