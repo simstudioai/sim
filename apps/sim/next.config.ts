@@ -179,6 +179,21 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
         ],
       },
+      {
+        source: '/api/mcp/copilot',
+        headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'false' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, OPTIONS, DELETE',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
+          },
+        ],
+      },
       // For workflow execution API endpoints
       {
         source: '/api/workflows/:id/execute',

@@ -102,7 +102,9 @@ export default function OAuthConsentPage() {
   const handleSwitchAccount = useCallback(async () => {
     if (!consentCode) return
 
-    const res = await fetch(`/api/auth/oauth2/authorize-params?consent_code=${consentCode}`)
+    const res = await fetch(`/api/auth/oauth2/authorize-params?consent_code=${consentCode}`, {
+      credentials: 'include',
+    })
     if (!res.ok) {
       setError('Unable to switch accounts. Please re-initiate the connection.')
       return

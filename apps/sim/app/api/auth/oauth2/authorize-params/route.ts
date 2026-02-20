@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { verification } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, gt } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const [record] = await db
     .select({ value: verification.value })
     .from(verification)
-    .where(eq(verification.identifier, consentCode))
+    .where(and(eq(verification.identifier, consentCode), gt(verification.expiresAt, new Date())))
     .limit(1)
 
   if (!record) {

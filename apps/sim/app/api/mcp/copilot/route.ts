@@ -544,7 +544,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: {
-        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"`,
+        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}", scope="mcp:tools"`,
         'Content-Type': 'application/json',
       },
     })
