@@ -531,6 +531,66 @@ const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 const SLACK_MAX_FILES = 15
 
 /**
+ * Fetches the original message text for a reaction event using conversations.history.
+ * Reaction events don't include message text, so we need to fetch it separately.
+ * Returns empty string if permissions are missing or fetch fails.
+ */
+async function fetchSlackReactionMessageText(
+  channel: string,
+  messageTs: string,
+  botToken: string
+): Promise<{ text: string; user?: string }> {
+  try {
+    const url = new URL('https://slack.com/api/conversations.history')
+    url.searchParams.append('channel', channel)
+    url.searchParams.append('oldest', messageTs)
+    url.searchParams.append('limit', '1')
+    url.searchParams.append('inclusive', 'true')
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${botToken}`,
+      },
+    })
+
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      messages?: Array<{ text?: string; user?: string }>
+    }
+
+    if (!data.ok) {
+      if (data.error === 'missing_scope') {
+        logger.debug('Missing scope for fetching reaction message text - channels:history required')
+      } else if (data.error === 'channel_not_found') {
+        logger.debug('Channel not found when fetching reaction message text', { channel })
+      } else {
+        logger.warn('Failed to fetch reaction message text', { error: data.error, channel })
+      }
+      return { text: '' }
+    }
+
+    const messages = data.messages || []
+    if (messages.length === 0) {
+      return { text: '' }
+    }
+
+    return {
+      text: messages[0].text || '',
+      user: messages[0].user,
+    }
+  } catch (error) {
+    logger.warn('Error fetching reaction message text', {
+      error: error instanceof Error ? error.message : String(error),
+      channel,
+    })
+    return { text: '' }
+  }
+}
+
+/**
  * Resolves the full file object from the Slack API when the event payload
  * only contains a partial file (e.g. missing url_private due to file_access restrictions).
  * @see https://docs.slack.dev/reference/methods/files.info
@@ -953,6 +1013,51 @@ export async function formatWebhookInput(
       })
     }
 
+    const eventType = rawEvent?.type || body?.type || 'unknown'
+
+    // Handle reaction events (reaction_added, reaction_removed) which have a different payload structure
+    const isReactionEvent = eventType === 'reaction_added' || eventType === 'reaction_removed'
+
+    if (isReactionEvent) {
+      // Reaction events have item.channel instead of channel, and item.ts for the message timestamp
+      const itemChannel = rawEvent?.item?.channel || ''
+      const itemTs = rawEvent?.item?.ts || ''
+      const reaction = rawEvent?.reaction || ''
+      const itemUser = rawEvent?.item_user || ''
+
+      // Fetch the original message text if bot token is available
+      let messageText = ''
+      let messageAuthor = itemUser
+      if (botToken && itemChannel && itemTs) {
+        const messageData = await fetchSlackReactionMessageText(itemChannel, itemTs, botToken)
+        messageText = messageData.text
+        if (messageData.user) {
+          messageAuthor = messageData.user
+        }
+      }
+
+      return {
+        event: {
+          event_type: eventType,
+          channel: itemChannel,
+          channel_name: '',
+          user: rawEvent?.user || '',
+          user_name: '',
+          text: messageText,
+          reaction,
+          item_user: messageAuthor,
+          timestamp: itemTs,
+          event_ts: rawEvent?.event_ts || '',
+          thread_ts: '',
+          team_id: body?.team_id || rawEvent?.team || '',
+          event_id: body?.event_id || '',
+          hasFiles: false,
+          files: [],
+        },
+      }
+    }
+
+    // Standard message events
     const rawFiles: any[] = rawEvent?.files ?? []
     const hasFiles = rawFiles.length > 0
 
@@ -965,7 +1070,7 @@ export async function formatWebhookInput(
 
     return {
       event: {
-        event_type: rawEvent?.type || body?.type || 'unknown',
+        event_type: eventType,
         channel: rawEvent?.channel || '',
         channel_name: '',
         user: rawEvent?.user || '',

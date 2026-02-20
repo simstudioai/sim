@@ -67,7 +67,7 @@ export const slackWebhookTrigger: TriggerConfig = {
         'Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Slack Apps page</a>',
         'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
         'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
-        'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li><li><code>files:read</code> - To access files and images shared in messages</li></ul>',
+        'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li><li><code>files:read</code> - To access files and images shared in messages</li><li><code>channels:history</code> - To fetch message text for reaction events</li><li><code>reactions:read</code> - To receive reaction events</li></ul>',
         'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
         'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
         'Copy the "Bot User OAuth Token" (starts with <code>xoxb-</code>) and paste it in the Bot Token field above to enable file downloads.',
@@ -90,7 +90,8 @@ export const slackWebhookTrigger: TriggerConfig = {
       properties: {
         event_type: {
           type: 'string',
-          description: 'Type of Slack event (e.g., app_mention, message)',
+          description:
+            'Type of Slack event (e.g., app_mention, message, reaction_added, reaction_removed)',
         },
         channel: {
           type: 'string',
@@ -102,7 +103,8 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         user: {
           type: 'string',
-          description: 'User ID who triggered the event',
+          description:
+            'User ID who triggered the event (for reactions, the user who added/removed the reaction)',
         },
         user_name: {
           type: 'string',
@@ -110,11 +112,26 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         text: {
           type: 'string',
-          description: 'Message text content',
+          description:
+            'Message text content. For reaction events, fetched via API if bot token has channels:history scope.',
+        },
+        reaction: {
+          type: 'string',
+          description: 'Emoji name for reaction events (e.g., "thumbsup", "heart")',
+        },
+        item_user: {
+          type: 'string',
+          description: 'User ID of the message author (for reaction events)',
         },
         timestamp: {
           type: 'string',
-          description: 'Message timestamp from the triggering event',
+          description:
+            'Message timestamp. For reactions, this is the timestamp of the reacted-to message (item.ts).',
+        },
+        event_ts: {
+          type: 'string',
+          description:
+            'Event timestamp. For reactions, this is when the reaction was added/removed.',
         },
         thread_ts: {
           type: 'string',
