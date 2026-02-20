@@ -24,6 +24,7 @@ import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -121,6 +122,8 @@ export function CredentialSelector({
       setInaccessibleCredentialName(null)
       return
     }
+
+    setInaccessibleCredentialName(null)
 
     let cancelled = false
     ;(async () => {
@@ -411,53 +414,4 @@ export function CredentialSelector({
       )}
     </div>
   )
-}
-
-function useCredentialRefreshTriggers(
-  refetchCredentials: () => Promise<unknown>,
-  providerId: string,
-  workspaceId: string
-) {
-  useEffect(() => {
-    const refresh = () => {
-      void refetchCredentials()
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refresh()
-      }
-    }
-
-    const handlePageShow = (event: Event) => {
-      if ('persisted' in event && (event as PageTransitionEvent).persisted) {
-        refresh()
-      }
-    }
-
-    const handleCredentialsUpdated = (
-      event: CustomEvent<{ providerId?: string; workspaceId?: string }>
-    ) => {
-      if (event.detail?.providerId && event.detail.providerId !== providerId) {
-        return
-      }
-      if (event.detail?.workspaceId && workspaceId && event.detail.workspaceId !== workspaceId) {
-        return
-      }
-      refresh()
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('pageshow', handlePageShow)
-    window.addEventListener('oauth-credentials-updated', handleCredentialsUpdated as EventListener)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('pageshow', handlePageShow)
-      window.removeEventListener(
-        'oauth-credentials-updated',
-        handleCredentialsUpdated as EventListener
-      )
-    }
-  }, [providerId, workspaceId, refetchCredentials])
 }
