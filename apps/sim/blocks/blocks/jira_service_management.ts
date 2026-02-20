@@ -222,7 +222,8 @@ Return ONLY the description text - no explanations.`,
       id: 'requestFieldValues',
       title: 'Request Field Values',
       type: 'long-input',
-      placeholder: 'JSON object of field values (e.g., {"summary": "Title", "customfield_10010": "value"})',
+      placeholder:
+        'JSON object of field values (e.g., {"summary": "Title", "customfield_10010": "value"})',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
