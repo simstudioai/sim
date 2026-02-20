@@ -2344,7 +2344,7 @@ export const oauthApplication = pgTable(
     metadata: text('metadata'),
     clientId: text('client_id').notNull().unique(),
     clientSecret: text('client_secret'),
-    redirectURLs: text('redirect_u_r_ls').notNull(),
+    redirectURLs: text('redirect_urls').notNull(),
     type: text('type').notNull(),
     disabled: boolean('disabled').default(false),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),

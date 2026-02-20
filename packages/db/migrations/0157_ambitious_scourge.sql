@@ -27,7 +27,7 @@ CREATE TABLE "oauth_application" (
 	"metadata" text,
 	"client_id" text NOT NULL,
 	"client_secret" text,
-	"redirect_u_r_ls" text NOT NULL,
+	"redirect_urls" text NOT NULL,
 	"type" text NOT NULL,
 	"disabled" boolean DEFAULT false,
 	"user_id" text,

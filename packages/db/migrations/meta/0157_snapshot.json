@@ -5014,8 +5014,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "redirect_u_r_ls": {
-          "name": "redirect_u_r_ls",
+        "redirect_urls": {
+          "name": "redirect_urls",
           "type": "text",
           "primaryKey": false,
           "notNull": true
