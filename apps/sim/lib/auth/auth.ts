@@ -546,8 +546,10 @@ export const auth = betterAuth({
         const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
         if (clientId && isMetadataUrl(clientId)) {
           try {
-            const metadata = await resolveClientMetadata(clientId)
-            await upsertCimdClient(metadata)
+            const { metadata, fromCache } = await resolveClientMetadata(clientId)
+            if (!fromCache) {
+              await upsertCimdClient(metadata)
+            }
           } catch (err) {
             logger.warn('CIMD resolution failed', {
               clientId,

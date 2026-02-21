@@ -49,13 +49,14 @@ async function fetchClientMetadata(url: string): Promise<ClientMetadataDocument>
   }
 
   for (const uri of doc.redirect_uris) {
+    let parsed: URL
     try {
-      const parsed = new URL(uri)
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        throw new Error(`Invalid redirect_uri scheme: ${parsed.protocol}`)
-      }
+      parsed = new URL(uri)
     } catch {
       throw new Error(`Invalid redirect_uri: ${uri}`)
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error(`Invalid redirect_uri scheme: ${parsed.protocol}`)
     }
     if (uri.includes(',')) {
       throw new Error(`redirect_uri must not contain commas: ${uri}`)
@@ -86,10 +87,15 @@ const cache = new Map<string, { doc: ClientMetadataDocument; expiresAt: number }
 const failureCache = new Map<string, { error: string; expiresAt: number }>()
 const inflight = new Map<string, Promise<ClientMetadataDocument>>()
 
-export async function resolveClientMetadata(url: string): Promise<ClientMetadataDocument> {
+interface ResolveResult {
+  metadata: ClientMetadataDocument
+  fromCache: boolean
+}
+
+export async function resolveClientMetadata(url: string): Promise<ResolveResult> {
   const cached = cache.get(url)
   if (cached && Date.now() < cached.expiresAt) {
-    return cached.doc
+    return { metadata: cached.doc, fromCache: true }
   }
 
   const failed = failureCache.get(url)
@@ -99,7 +105,7 @@ export async function resolveClientMetadata(url: string): Promise<ClientMetadata
 
   const pending = inflight.get(url)
   if (pending) {
-    return pending
+    return pending.then((doc) => ({ metadata: doc, fromCache: false }))
   }
 
   const promise = fetchClientMetadata(url)
@@ -118,7 +124,7 @@ export async function resolveClientMetadata(url: string): Promise<ClientMetadata
     })
 
   inflight.set(url, promise)
-  return promise
+  return promise.then((doc) => ({ metadata: doc, fromCache: false }))
 }
 
 export async function upsertCimdClient(metadata: ClientMetadataDocument): Promise<void> {
