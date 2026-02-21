@@ -64,6 +64,13 @@ export const slackEphemeralMessageTool: ToolConfig<
       description:
         'Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply.',
     },
+    blocks: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text.',
+    },
   },
 
   request: {
@@ -78,6 +85,8 @@ export const slackEphemeralMessageTool: ToolConfig<
       user: params.user?.trim(),
       text: params.text,
       thread_ts: params.threadTs || undefined,
+      blocks:
+        typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,
     }),
   },
 

@@ -14,6 +14,7 @@ const SlackSendEphemeralSchema = z.object({
   user: z.string().min(1, 'User ID is required'),
   text: z.string().min(1, 'Message text is required'),
   thread_ts: z.string().optional().nullable(),
+  blocks: z.array(z.record(z.unknown())).optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
         user: validatedData.user,
         text: validatedData.text,
         ...(validatedData.thread_ts && { thread_ts: validatedData.thread_ts }),
+        ...(validatedData.blocks &&
+          validatedData.blocks.length > 0 && { blocks: validatedData.blocks }),
       }),
     })
 

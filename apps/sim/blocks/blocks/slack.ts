@@ -200,6 +200,20 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       required: true,
     },
     {
+      id: 'messageFormat',
+      title: 'Message Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'Block Kit', id: 'blocks' },
+      ],
+      value: () => 'text',
+      condition: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+      },
+    },
+    {
       id: 'text',
       title: 'Message',
       type: 'long-input',
@@ -207,8 +221,29 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       condition: {
         field: 'operation',
         value: ['send', 'ephemeral'],
+        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['send', 'ephemeral'],
+        and: { field: 'messageFormat', value: 'blocks', not: true },
+      },
+    },
+    {
+      id: 'blocks',
+      title: 'Block Kit Blocks',
+      type: 'code',
+      placeholder: 'JSON array of Block Kit blocks',
+      condition: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+        and: { field: 'messageFormat', value: 'blocks' },
+      },
+      required: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+        and: { field: 'messageFormat', value: 'blocks' },
+      },
     },
     {
       id: 'threadTs',
@@ -480,8 +515,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: 'update',
+        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: 'update',
+        and: { field: 'messageFormat', value: 'blocks', not: true },
+      },
     },
     // Delete Message specific fields
     {
@@ -581,12 +621,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           destinationType,
           channel,
           dmUserId,
+          messageFormat,
           text,
           title,
           content,
           limit,
           oldest,
           files,
+          blocks,
           threadTs,
           ephemeralUser,
           updateTimestamp,
@@ -630,9 +672,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         switch (operation) {
           case 'send': {
-            baseParams.text = text
+            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
             if (threadTs) {
               baseParams.threadTs = threadTs
+            }
+            if (blocks) {
+              baseParams.blocks = blocks
             }
             // files is the canonical param from attachmentFiles (basic) or files (advanced)
             const normalizedFiles = normalizeFileInput(files)
@@ -643,10 +688,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
 
           case 'ephemeral': {
-            baseParams.text = text
+            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
             baseParams.user = ephemeralUser ? String(ephemeralUser).trim() : ''
             if (threadTs) {
               baseParams.threadTs = threadTs
+            }
+            if (blocks) {
+              baseParams.blocks = blocks
             }
             break
           }
@@ -717,7 +765,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
           case 'update':
             baseParams.timestamp = updateTimestamp
-            baseParams.text = updateText
+            baseParams.text = messageFormat === 'blocks' && !updateText ? ' ' : updateText
+            if (blocks) {
+              baseParams.blocks = blocks
+            }
             break
 
           case 'delete':
@@ -736,6 +787,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    messageFormat: { type: 'string', description: 'Message format: text or blocks' },
     authMethod: { type: 'string', description: 'Authentication method' },
     destinationType: { type: 'string', description: 'Destination type (channel or dm)' },
     credential: { type: 'string', description: 'Slack access token' },
@@ -770,6 +822,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
     // Ephemeral message inputs
     ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
+    blocks: { type: 'json', description: 'Block Kit layout blocks as a JSON array' },
     // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
     // Get Message inputs

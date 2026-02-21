@@ -13,6 +13,7 @@ const SlackUpdateMessageSchema = z.object({
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
   text: z.string().min(1, 'Message text is required'),
+  blocks: z.array(z.record(z.unknown())).optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -57,6 +58,8 @@ export async function POST(request: NextRequest) {
         channel: validatedData.channel,
         ts: validatedData.timestamp,
         text: validatedData.text,
+        ...(validatedData.blocks &&
+          validatedData.blocks.length > 0 && { blocks: validatedData.blocks }),
       }),
     })
 

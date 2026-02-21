@@ -38,12 +38,6 @@ jobs:
           key: ${{ github.repository }}-node-modules
           path: ./node_modules
 
-      - name: Mount Next.js cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@v1
-        with:
-          key: ${{ github.repository }}-next-cache
-          path: ./apps/sim/.next/cache
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -116,7 +110,7 @@ jobs:
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
-        run: bun run build
+        run: bunx turbo run build --filter=sim
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

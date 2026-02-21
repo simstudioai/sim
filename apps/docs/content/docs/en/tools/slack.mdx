@@ -80,6 +80,7 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `dmUserId` | string | No | Slack user ID for direct messages \(e.g., U1234567890\) |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `threadTs` | string | No | Thread timestamp to reply to \(creates thread reply\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -160,6 +161,7 @@ Send an ephemeral message visible only to a specific user in a channel. Optional
 | `user` | string | Yes | User ID who will see the ephemeral message \(e.g., U1234567890\). Must be a member of the channel. |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `threadTs` | string | No | Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply. |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 
 #### Output
 
@@ -704,6 +706,7 @@ Update a message previously sent by the bot in Slack
 | `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
 | `timestamp` | string | Yes | Timestamp of the message to update \(e.g., 1405894322.002768\) |
 | `text` | string | Yes | New message text \(supports Slack mrkdwn formatting\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 
 #### Output
 

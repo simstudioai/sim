@@ -53,6 +53,13 @@ export const slackUpdateMessageTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'New message text (supports Slack mrkdwn formatting)',
     },
+    blocks: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text.',
+    },
   },
 
   request: {
@@ -66,6 +73,8 @@ export const slackUpdateMessageTool: ToolConfig<
       channel: params.channel,
       timestamp: params.timestamp,
       text: params.text,
+      blocks:
+        typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,
     }),
   },
 
