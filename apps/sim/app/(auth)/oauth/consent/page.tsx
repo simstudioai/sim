@@ -46,7 +46,7 @@ export default function OAuthConsentPage() {
       return
     }
 
-    fetch(`/api/auth/oauth2/client/${clientId}`, { credentials: 'include' })
+    fetch(`/api/auth/oauth2/client/${encodeURIComponent(clientId)}`, { credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) return
         const data = await res.json()
@@ -164,13 +164,12 @@ export default function OAuthConsentPage() {
     <div className='flex flex-col items-center justify-center'>
       <div className='mb-6 flex items-center gap-4'>
         {clientInfo?.icon ? (
-          <Image
+          <img
             src={clientInfo.icon}
             alt={clientName ?? 'Application'}
             width={48}
             height={48}
             className='rounded-[10px]'
-            unoptimized
           />
         ) : (
           <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-muted font-medium text-[18px] text-muted-foreground'>

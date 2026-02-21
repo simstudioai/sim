@@ -25,6 +25,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { isMetadataUrl, resolveClientMetadata, upsertCimdClient } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -541,6 +542,21 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
+        const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
+        if (clientId && isMetadataUrl(clientId)) {
+          try {
+            const metadata = await resolveClientMetadata(clientId)
+            await upsertCimdClient(metadata)
+          } catch (err) {
+            logger.warn('CIMD resolution failed', {
+              clientId,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+      }
+
       return
     }),
   },
@@ -560,6 +576,9 @@ export const auth = betterAuth({
       allowDynamicClientRegistration: true,
       useJWTPlugin: true,
       scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
+      metadata: {
+        client_id_metadata_document_supported: true,
+      } as Record<string, unknown>,
     }),
     oneTimeToken({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
