@@ -97,7 +97,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
-          no-cache: true
 
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
@@ -144,11 +143,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
-          no-cache: true
 
   create-ghcr-manifests:
     name: Create GHCR Manifests
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: [build-amd64, build-ghcr-arm64]
     if: github.ref == 'refs/heads/main'
     strategy:

@@ -135,12 +135,13 @@ interface OutputFieldSchema {
 function matchesOperation(condition: any, operation: string): boolean {
   if (!condition) return false
 
-  const cond = typeof condition === 'function' ? condition() : condition
+  const cond = typeof condition === 'function' ? condition({ operation }) : condition
   if (!cond) return false
 
-  if (cond.field === 'operation' && !cond.not) {
+  if (cond.field === 'operation') {
     const values = Array.isArray(cond.value) ? cond.value : [cond.value]
-    return values.includes(operation)
+    const included = values.includes(operation)
+    return cond.not ? !included : included
   }
 
   return false
@@ -173,18 +174,10 @@ function extractInputsFromSubBlocks(
     // 1. Have no condition (common parameters)
     // 2. Have a condition matching the operation
     if (operation) {
-      const condition = typeof sb.condition === 'function' ? sb.condition() : sb.condition
-      if (condition) {
-        if (condition.field === 'operation' && !condition.not) {
-          // This is an operation-specific field
-          const values = Array.isArray(condition.value) ? condition.value : [condition.value]
-          if (!values.includes(operation)) {
-            continue // Skip if doesn't match our operation
-          }
-        } else if (!matchesOperation(condition, operation)) {
-          // Other condition that doesn't match
-          continue
-        }
+      const condition =
+        typeof sb.condition === 'function' ? sb.condition({ operation }) : sb.condition
+      if (condition && !matchesOperation(condition, operation)) {
+        continue
       }
     }
 

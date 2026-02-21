@@ -11,7 +11,8 @@ export async function postSlackMessage(
   accessToken: string,
   channel: string,
   text: string,
-  threadTs?: string | null
+  threadTs?: string | null,
+  blocks?: unknown[] | null
 ): Promise<{ ok: boolean; ts?: string; channel?: string; message?: any; error?: string }> {
   const response = await fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
@@ -23,6 +24,7 @@ export async function postSlackMessage(
       channel,
       text,
       ...(threadTs && { thread_ts: threadTs }),
+      ...(blocks && blocks.length > 0 && { blocks }),
     }),
   })
 
@@ -220,6 +222,7 @@ export interface SlackMessageParams {
   userId?: string
   text: string
   threadTs?: string | null
+  blocks?: unknown[] | null
   files?: any[] | null
 }
 
@@ -242,7 +245,7 @@ export async function sendSlackMessage(
   }
   error?: string
 }> {
-  const { accessToken, text, threadTs, files } = params
+  const { accessToken, text, threadTs, blocks, files } = params
   let { channel } = params
 
   if (!channel && params.userId) {
@@ -258,7 +261,7 @@ export async function sendSlackMessage(
   if (!files || files.length === 0) {
     logger.info(`[${requestId}] No files, using chat.postMessage`)
 
-    const data = await postSlackMessage(accessToken, channel, text, threadTs)
+    const data = await postSlackMessage(accessToken, channel, text, threadTs, blocks)
 
     if (!data.ok) {
       logger.error(`[${requestId}] Slack API error:`, data.error)
@@ -282,7 +285,7 @@ export async function sendSlackMessage(
   if (fileIds.length === 0) {
     logger.warn(`[${requestId}] No valid files to upload, sending text-only message`)
 
-    const data = await postSlackMessage(accessToken, channel, text, threadTs)
+    const data = await postSlackMessage(accessToken, channel, text, threadTs, blocks)
 
     if (!data.ok) {
       return { success: false, error: data.error || 'Failed to send message' }
