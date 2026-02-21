@@ -57,17 +57,12 @@ export function useChangeDetection({
         }
       }
 
-      if (block.triggerMode) {
-        const triggerConfigValue = blockSubValues?.triggerConfig
-        if (
-          triggerConfigValue &&
-          typeof triggerConfigValue === 'object' &&
-          !subBlocks.triggerConfig
-        ) {
-          subBlocks.triggerConfig = {
-            id: 'triggerConfig',
+      for (const [subId, value] of Object.entries(blockSubValues)) {
+        if (!subBlocks[subId] && value !== null && value !== undefined) {
+          subBlocks[subId] = {
+            id: subId,
             type: 'short-input',
-            value: triggerConfigValue,
+            value,
           }
         }
       }
