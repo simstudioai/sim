@@ -682,8 +682,10 @@ async function downloadSlackFiles(
 const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
 
 /**
- * Fetches the text of a message from Slack using conversations.history.
- * Requires the bot token to have channels:history (public) or groups:history (private) scope.
+ * Fetches the text of a reacted-to message from Slack using the reactions.get API.
+ * Unlike conversations.history, reactions.get works for both top-level messages and
+ * thread replies, since it looks up the item directly by channel + timestamp.
+ * Requires the bot token to have the reactions:read scope.
  */
 async function fetchSlackMessageText(
   channel: string,
@@ -693,23 +695,21 @@ async function fetchSlackMessageText(
   try {
     const params = new URLSearchParams({
       channel,
-      oldest: messageTs,
-      latest: messageTs,
-      inclusive: 'true',
-      limit: '1',
+      timestamp: messageTs,
     })
-    const response = await fetch(`https://slack.com/api/conversations.history?${params}`, {
+    const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
       headers: { Authorization: `Bearer ${botToken}` },
     })
 
     const data = (await response.json()) as {
       ok: boolean
       error?: string
-      messages?: Array<{ text?: string }>
+      type?: string
+      message?: { text?: string }
     }
 
     if (!data.ok) {
-      logger.warn('Slack conversations.history failed — message text unavailable', {
+      logger.warn('Slack reactions.get failed — message text unavailable', {
         channel,
         messageTs,
         error: data.error,
@@ -717,7 +717,7 @@ async function fetchSlackMessageText(
       return ''
     }
 
-    return data.messages?.[0]?.text ?? ''
+    return data.message?.text ?? ''
   } catch (error) {
     logger.warn('Error fetching Slack message text', {
       channel,
