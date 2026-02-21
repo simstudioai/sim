@@ -127,6 +127,10 @@ export async function resolveClientMetadata(url: string): Promise<ResolveResult>
   return promise.then((doc) => ({ metadata: doc, fromCache: false }))
 }
 
+export function evictCachedMetadata(url: string): void {
+  cache.delete(url)
+}
+
 export async function upsertCimdClient(metadata: ClientMetadataDocument): Promise<void> {
   const now = new Date()
   const redirectURLs = metadata.redirect_uris.join(',')

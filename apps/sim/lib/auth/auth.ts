@@ -25,7 +25,12 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import { isMetadataUrl, resolveClientMetadata, upsertCimdClient } from '@/lib/auth/cimd'
+import {
+  evictCachedMetadata,
+  isMetadataUrl,
+  resolveClientMetadata,
+  upsertCimdClient,
+} from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -548,7 +553,12 @@ export const auth = betterAuth({
           try {
             const { metadata, fromCache } = await resolveClientMetadata(clientId)
             if (!fromCache) {
-              await upsertCimdClient(metadata)
+              try {
+                await upsertCimdClient(metadata)
+              } catch (upsertErr) {
+                evictCachedMetadata(clientId)
+                throw upsertErr
+              }
             }
           } catch (err) {
             logger.warn('CIMD resolution failed', {
