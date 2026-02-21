@@ -32,6 +32,7 @@ import {
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -542,7 +543,8 @@ export async function POST(request: NextRequest) {
   const hasAuth = request.headers.has('authorization') || request.headers.has('x-api-key')
 
   if (!hasAuth) {
-    const resourceMetadataUrl = `${request.nextUrl.origin}/.well-known/oauth-protected-resource/api/mcp/copilot`
+    const origin = getBaseUrl().replace(/\/$/, '')
+    const resourceMetadataUrl = `${origin}/.well-known/oauth-protected-resource/api/mcp/copilot`
     return new NextResponse(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: {

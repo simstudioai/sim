@@ -1,11 +1,12 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
-function getOrigin(request: NextRequest): string {
-  return request.nextUrl.origin
+function getOrigin(): string {
+  return getBaseUrl().replace(/\/$/, '')
 }
 
-export function createMcpAuthorizationServerMetadataResponse(request: NextRequest): NextResponse {
-  const origin = getOrigin(request)
+export function createMcpAuthorizationServerMetadataResponse(): NextResponse {
+  const origin = getOrigin()
   const resource = `${origin}/api/mcp/copilot`
 
   return NextResponse.json(
@@ -34,8 +35,8 @@ export function createMcpAuthorizationServerMetadataResponse(request: NextReques
   )
 }
 
-export function createMcpProtectedResourceMetadataResponse(request: NextRequest): NextResponse {
-  const origin = getOrigin(request)
+export function createMcpProtectedResourceMetadataResponse(): NextResponse {
+  const origin = getOrigin()
   const resource = `${origin}/api/mcp/copilot`
   const authorizationServerIssuer = origin
 
