@@ -7,6 +7,63 @@ const logger = createLogger('Redis')
 const redisUrl = env.REDIS_URL
 
 let globalRedisClient: Redis | null = null
+let pingFailures = 0
+let pingInterval: NodeJS.Timeout | null = null
+let pingInFlight = false
+
+const PING_INTERVAL_MS = 30_000
+const MAX_PING_FAILURES = 3
+
+/** Callbacks invoked when the PING health check forces a reconnect. */
+const reconnectListeners: Array<() => void> = []
+
+/**
+ * Register a callback that fires when the PING health check forces a reconnect.
+ * Useful for resetting cached adapters that hold a stale Redis reference.
+ */
+export function onRedisReconnect(cb: () => void): void {
+  reconnectListeners.push(cb)
+}
+
+function startPingHealthCheck(redis: Redis): void {
+  if (pingInterval) return
+
+  pingInterval = setInterval(async () => {
+    if (pingInFlight) return
+    pingInFlight = true
+    try {
+      await redis.ping()
+      pingFailures = 0
+    } catch (error) {
+      pingFailures++
+      logger.warn('Redis PING failed', {
+        consecutiveFailures: pingFailures,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      if (pingFailures >= MAX_PING_FAILURES) {
+        logger.error('Redis PING failed 3 consecutive times — forcing reconnect', {
+          consecutiveFailures: pingFailures,
+        })
+        pingFailures = 0
+        for (const cb of reconnectListeners) {
+          try {
+            cb()
+          } catch (cbError) {
+            logger.error('Redis reconnect listener error', { error: cbError })
+          }
+        }
+        try {
+          redis.disconnect(true)
+        } catch (disconnectError) {
+          logger.error('Error during forced Redis disconnect', { error: disconnectError })
+        }
+      }
+    } finally {
+      pingInFlight = false
+    }
+  }, PING_INTERVAL_MS)
+}
 
 /**
  * Get a Redis client instance.
@@ -35,8 +92,10 @@ export function getRedisClient(): Redis | null {
           logger.error(`Redis reconnection attempt ${times}`, { nextRetryMs: 30000 })
           return 30000
         }
-        const delay = Math.min(times * 500, 5000)
-        logger.warn(`Redis reconnecting`, { attempt: times, nextRetryMs: delay })
+        const base = Math.min(1000 * 2 ** (times - 1), 10000)
+        const jitter = Math.random() * base * 0.3
+        const delay = Math.round(base + jitter)
+        logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
         return delay
       },
 
@@ -53,6 +112,8 @@ export function getRedisClient(): Redis | null {
     })
     globalRedisClient.on('close', () => logger.warn('Redis connection closed'))
     globalRedisClient.on('end', () => logger.error('Redis connection ended'))
+
+    startPingHealthCheck(globalRedisClient)
 
     return globalRedisClient
   } catch (error) {
@@ -118,6 +179,11 @@ export async function releaseLock(lockKey: string, value: string): Promise<boole
  * Use for graceful shutdown.
  */
 export async function closeRedisConnection(): Promise<void> {
+  if (pingInterval) {
+    clearInterval(pingInterval)
+    pingInterval = null
+  }
+
   if (globalRedisClient) {
     try {
       await globalRedisClient.quit()
