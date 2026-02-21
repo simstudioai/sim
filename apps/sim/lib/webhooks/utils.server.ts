@@ -694,6 +694,7 @@ async function fetchSlackMessageText(
     const params = new URLSearchParams({
       channel,
       oldest: messageTs,
+      latest: messageTs,
       inclusive: 'true',
       limit: '1',
     })
