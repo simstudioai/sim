@@ -135,6 +135,7 @@ export async function upsertCimdClient(metadata: ClientMetadataDocument): Promis
       redirectURLs,
       type: 'public',
       clientSecret: null,
+      userId: null,
       createdAt: now,
       updatedAt: now,
     })
