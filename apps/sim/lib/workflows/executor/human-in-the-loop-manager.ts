@@ -4,9 +4,16 @@ import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { withRetry } from '@/lib/core/utils/retry'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import {
+  PausedExecutionNotFoundError,
+  PausePointNotFoundError,
+  PausePointNotPausedError,
+  PauseSnapshotNotReadyError,
+} from '@/lib/workflows/executor/pause-resume-errors'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionResult, PausePoint, SerializedSnapshot } from '@/executor/types'
 import type { SerializedConnection } from '@/serializer/types'
@@ -16,18 +23,6 @@ const logger = createLogger('HumanInTheLoopManager')
 const _RESUME_LOOKUP_MAX_ATTEMPTS = 8
 const _RESUME_LOOKUP_INITIAL_DELAY_MS = 25
 const _RESUME_LOOKUP_MAX_DELAY_MS = 400
-
-function _sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function _is_transient_resume_lookup_error(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error)
-  return (
-    msg.includes('Paused execution not found') ||
-    msg.includes('Snapshot not ready; execution still finalizing pause')
-  )
-}
 
 interface ResumeQueueEntrySummary {
   id: string
@@ -178,11 +173,9 @@ export class PauseResumeManager {
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
     const { executionId, contextId, resumeInput, userId } = args
 
-    let delayMs = _RESUME_LOOKUP_INITIAL_DELAY_MS
-    let lastError: unknown
-    for (let attempt = 1; attempt <= _RESUME_LOOKUP_MAX_ATTEMPTS; attempt++) {
-      try {
-        return await db.transaction(async (tx) => {
+    return withRetry(
+      () =>
+        db.transaction(async (tx) => {
           const pausedExecution = await tx
             .select()
             .from(pausedExecutions)
@@ -192,19 +185,19 @@ export class PauseResumeManager {
             .then((rows) => rows[0])
 
           if (!pausedExecution) {
-            throw new Error('Paused execution not found or already resumed')
+            throw new PausedExecutionNotFoundError()
           }
 
           const pausePoints = pausedExecution.pausePoints as Record<string, any>
           const pausePoint = pausePoints?.[contextId]
           if (!pausePoint) {
-            throw new Error('Pause point not found for execution')
+            throw new PausePointNotFoundError()
           }
           if (pausePoint.resumeStatus !== 'paused') {
-            throw new Error('Pause point already resumed or in progress')
+            throw new PausePointNotPausedError()
           }
           if (!pausePoint.snapshotReady) {
-            throw new Error('Snapshot not ready; execution still finalizing pause')
+            throw new PauseSnapshotNotReadyError()
           }
 
           const activeResume = await tx
@@ -295,27 +288,29 @@ export class PauseResumeManager {
             resumeInput,
             userId,
           }
-        })
-      } catch (error) {
-        lastError = error
-        const shouldRetry = _is_transient_resume_lookup_error(error)
-        if (!shouldRetry || attempt >= _RESUME_LOOKUP_MAX_ATTEMPTS) {
-          throw error
-        }
-        logger.warn(
-          `Transient resume lookup failure; retrying (attempt ${attempt}/${_RESUME_LOOKUP_MAX_ATTEMPTS})`,
-          {
-            executionId,
-            contextId,
-            delayMs,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        )
-        await _sleep(delayMs)
-        delayMs = Math.min(delayMs * 2, _RESUME_LOOKUP_MAX_DELAY_MS)
+        }),
+      {
+        maxAttempts: _RESUME_LOOKUP_MAX_ATTEMPTS,
+        initialDelayMs: _RESUME_LOOKUP_INITIAL_DELAY_MS,
+        maxDelayMs: _RESUME_LOOKUP_MAX_DELAY_MS,
+        backoffMultiplier: 2,
+        jitterRatio: 0,
+        isRetryable: (error) =>
+          error instanceof PausedExecutionNotFoundError ||
+          error instanceof PauseSnapshotNotReadyError,
+        onRetry: ({ attempt, error, delayMs }) => {
+          logger.warn(
+            `Transient resume lookup failure; retrying (attempt ${attempt}/${_RESUME_LOOKUP_MAX_ATTEMPTS})`,
+            {
+              executionId,
+              contextId,
+              delayMs,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          )
+        },
       }
-    }
-    throw lastError
+    )
   }
 
   static async startResumeExecution(args: StartResumeExecutionArgs): Promise<void> {
