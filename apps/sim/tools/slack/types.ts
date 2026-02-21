@@ -517,6 +517,7 @@ export interface SlackMessageParams extends SlackBaseParams {
   userId?: string
   text: string
   threadTs?: string
+  blocks?: string
   files?: UserFile[]
 }
 
@@ -546,6 +547,7 @@ export interface SlackUpdateMessageParams extends SlackBaseParams {
   channel: string
   timestamp: string
   text: string
+  blocks?: string
 }
 
 export interface SlackDeleteMessageParams extends SlackBaseParams {
@@ -582,6 +584,14 @@ export interface SlackGetUserParams extends SlackBaseParams {
 export interface SlackGetMessageParams extends SlackBaseParams {
   channel: string
   timestamp: string
+}
+
+export interface SlackEphemeralMessageParams extends SlackBaseParams {
+  channel: string
+  user: string
+  text: string
+  threadTs?: string
+  blocks?: string
 }
 
 export interface SlackGetThreadParams extends SlackBaseParams {
@@ -831,6 +841,13 @@ export interface SlackGetMessageResponse extends ToolResponse {
   }
 }
 
+export interface SlackEphemeralMessageResponse extends ToolResponse {
+  output: {
+    messageTs: string
+    channel: string
+  }
+}
+
 export interface SlackGetThreadResponse extends ToolResponse {
   output: {
     parentMessage: SlackMessage
@@ -853,5 +870,6 @@ export type SlackResponse =
   | SlackListMembersResponse
   | SlackListUsersResponse
   | SlackGetUserResponse
+  | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse

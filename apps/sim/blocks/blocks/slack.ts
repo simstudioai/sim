@@ -9,10 +9,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
   description:
-    'Send, update, delete messages, add reactions in Slack or trigger workflows from Slack events',
+    'Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send, update, and delete messages, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -25,6 +25,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Send Message', id: 'send' },
+        { label: 'Send Ephemeral Message', id: 'ephemeral' },
         { label: 'Create Canvas', id: 'canvas' },
         { label: 'Read Messages', id: 'read' },
         { label: 'Get Message', id: 'get_message' },
@@ -116,15 +117,21 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Select Slack channel',
       mode: 'basic',
       dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
-      condition: {
-        field: 'operation',
-        value: ['list_channels', 'list_users', 'get_user'],
-        not: true,
-        and: {
-          field: 'destinationType',
-          value: 'dm',
+      condition: (values?: Record<string, unknown>) => {
+        const op = values?.operation as string
+        if (op === 'ephemeral') {
+          return { field: 'operation', value: 'ephemeral' }
+        }
+        return {
+          field: 'operation',
+          value: ['list_channels', 'list_users', 'get_user'],
           not: true,
-        },
+          and: {
+            field: 'destinationType',
+            value: 'dm',
+            not: true,
+          },
+        }
       },
       required: true,
     },
@@ -135,15 +142,21 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       canonicalParamId: 'channel',
       placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['list_channels', 'list_users', 'get_user'],
-        not: true,
-        and: {
-          field: 'destinationType',
-          value: 'dm',
+      condition: (values?: Record<string, unknown>) => {
+        const op = values?.operation as string
+        if (op === 'ephemeral') {
+          return { field: 'operation', value: 'ephemeral' }
+        }
+        return {
+          field: 'operation',
+          value: ['list_channels', 'list_users', 'get_user'],
           not: true,
-        },
+          and: {
+            field: 'destinationType',
+            value: 'dm',
+            not: true,
+          },
+        }
       },
       required: true,
     },
@@ -176,15 +189,108 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       required: true,
     },
     {
+      id: 'ephemeralUser',
+      title: 'Target User',
+      type: 'short-input',
+      placeholder: 'User ID who will see the message (e.g., U1234567890)',
+      condition: {
+        field: 'operation',
+        value: 'ephemeral',
+      },
+      required: true,
+    },
+    {
+      id: 'messageFormat',
+      title: 'Message Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'Block Kit', id: 'blocks' },
+      ],
+      value: () => 'text',
+      condition: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+      },
+    },
+    {
       id: 'text',
       title: 'Message',
       type: 'long-input',
       placeholder: 'Enter your message (supports Slack mrkdwn)',
       condition: {
         field: 'operation',
-        value: 'send',
+        value: ['send', 'ephemeral'],
+        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['send', 'ephemeral'],
+        and: { field: 'messageFormat', value: 'blocks', not: true },
+      },
+    },
+    {
+      id: 'blocks',
+      title: 'Block Kit Blocks',
+      type: 'code',
+      language: 'json',
+      placeholder: 'JSON array of Block Kit blocks',
+      condition: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+        and: { field: 'messageFormat', value: 'blocks' },
+      },
+      required: {
+        field: 'operation',
+        value: ['send', 'ephemeral', 'update'],
+        and: { field: 'messageFormat', value: 'blocks' },
+      },
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at Slack Block Kit.
+Generate ONLY a valid JSON array of Block Kit blocks based on the user's request.
+The output MUST be a JSON array starting with [ and ending with ].
+
+Current blocks: {context}
+
+Available block types for messages:
+- "section": Displays text with an optional accessory element. Text uses { "type": "mrkdwn", "text": "..." } or { "type": "plain_text", "text": "..." }.
+- "header": Large text header. Text must be plain_text.
+- "divider": A horizontal rule separator. No fields needed besides type.
+- "image": Displays an image. Requires "image_url" and "alt_text".
+- "context": Contextual info with an "elements" array of image and text objects.
+- "actions": Interactive elements like buttons. Each button needs "type": "button", a "text" object, and an "action_id".
+- "rich_text": Structured rich text with "elements" array of rich_text_section objects.
+
+Example output:
+[
+  {
+    "type": "header",
+    "text": { "type": "plain_text", "text": "Order Confirmation" }
+  },
+  {
+    "type": "section",
+    "text": { "type": "mrkdwn", "text": "Your order *#1234* has been confirmed." }
+  },
+  { "type": "divider" },
+  {
+    "type": "actions",
+    "elements": [
+      {
+        "type": "button",
+        "text": { "type": "plain_text", "text": "View Order" },
+        "action_id": "view_order",
+        "url": "https://example.com/orders/1234"
+      }
+    ]
+  }
+]
+
+You can reference workflow variables using angle brackets, e.g., <blockName.output>.
+Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
+        placeholder: 'Describe the Block Kit layout you want to create...',
+      },
     },
     {
       id: 'threadTs',
@@ -193,7 +299,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Reply to thread (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'send',
+        value: ['send', 'ephemeral'],
       },
       required: false,
     },
@@ -456,8 +562,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: {
         field: 'operation',
         value: 'update',
+        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: 'update',
+        and: { field: 'messageFormat', value: 'blocks', not: true },
+      },
     },
     // Delete Message specific fields
     {
@@ -499,6 +610,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   tools: {
     access: [
       'slack_message',
+      'slack_ephemeral_message',
       'slack_canvas',
       'slack_message_reader',
       'slack_get_message',
@@ -517,6 +629,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         switch (params.operation) {
           case 'send':
             return 'slack_message'
+          case 'ephemeral':
+            return 'slack_ephemeral_message'
           case 'canvas':
             return 'slack_canvas'
           case 'read':
@@ -554,13 +668,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           destinationType,
           channel,
           dmUserId,
+          messageFormat,
           text,
           title,
           content,
           limit,
           oldest,
           files,
+          blocks,
           threadTs,
+          ephemeralUser,
           updateTimestamp,
           updateText,
           deleteTimestamp,
@@ -602,14 +719,29 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         switch (operation) {
           case 'send': {
-            baseParams.text = text
+            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
             if (threadTs) {
               baseParams.threadTs = threadTs
+            }
+            if (blocks) {
+              baseParams.blocks = blocks
             }
             // files is the canonical param from attachmentFiles (basic) or files (advanced)
             const normalizedFiles = normalizeFileInput(files)
             if (normalizedFiles) {
               baseParams.files = normalizedFiles
+            }
+            break
+          }
+
+          case 'ephemeral': {
+            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.user = ephemeralUser ? String(ephemeralUser).trim() : ''
+            if (threadTs) {
+              baseParams.threadTs = threadTs
+            }
+            if (blocks) {
+              baseParams.blocks = blocks
             }
             break
           }
@@ -680,7 +812,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
           case 'update':
             baseParams.timestamp = updateTimestamp
-            baseParams.text = updateText
+            baseParams.text = messageFormat === 'blocks' && !updateText ? ' ' : updateText
+            if (blocks) {
+              baseParams.blocks = blocks
+            }
             break
 
           case 'delete':
@@ -699,6 +834,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    messageFormat: { type: 'string', description: 'Message format: text or blocks' },
     authMethod: { type: 'string', description: 'Authentication method' },
     destinationType: { type: 'string', description: 'Destination type (channel or dm)' },
     credential: { type: 'string', description: 'Slack access token' },
@@ -731,6 +867,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     // List Users inputs
     includeDeleted: { type: 'string', description: 'Include deactivated users (true/false)' },
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
+    // Ephemeral message inputs
+    ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
+    blocks: { type: 'json', description: 'Block Kit layout blocks as a JSON array' },
     // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
     // Get Message inputs
@@ -757,6 +896,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       description: 'Number of files uploaded (when files are attached)',
     },
     files: { type: 'file[]', description: 'Files attached to the message' },
+
+    // slack_ephemeral_message outputs (ephemeral operation)
+    messageTs: {
+      type: 'string',
+      description: 'Timestamp of the ephemeral message (cannot be used to update or delete)',
+    },
 
     // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },

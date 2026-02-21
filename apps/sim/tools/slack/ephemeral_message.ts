@@ -1,14 +1,17 @@
-import type { SlackUpdateMessageParams, SlackUpdateMessageResponse } from '@/tools/slack/types'
-import { MESSAGE_METADATA_OUTPUT_PROPERTIES, MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
+import type {
+  SlackEphemeralMessageParams,
+  SlackEphemeralMessageResponse,
+} from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const slackUpdateMessageTool: ToolConfig<
-  SlackUpdateMessageParams,
-  SlackUpdateMessageResponse
+export const slackEphemeralMessageTool: ToolConfig<
+  SlackEphemeralMessageParams,
+  SlackEphemeralMessageResponse
 > = {
-  id: 'slack_update_message',
-  name: 'Slack Update Message',
-  description: 'Update a message previously sent by the bot in Slack',
+  id: 'slack_ephemeral_message',
+  name: 'Slack Ephemeral Message',
+  description:
+    'Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.',
   version: '1.0.0',
 
   oauth: {
@@ -39,19 +42,27 @@ export const slackUpdateMessageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Channel ID where the message was posted (e.g., C1234567890)',
+      description: 'Slack channel ID (e.g., C1234567890)',
     },
-    timestamp: {
+    user: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Timestamp of the message to update (e.g., 1405894322.002768)',
+      description:
+        'User ID who will see the ephemeral message (e.g., U1234567890). Must be a member of the channel.',
     },
     text: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'New message text (supports Slack mrkdwn formatting)',
+      description: 'Message text to send (supports Slack mrkdwn formatting)',
+    },
+    threadTs: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply.',
     },
     blocks: {
       type: 'json',
@@ -63,16 +74,17 @@ export const slackUpdateMessageTool: ToolConfig<
   },
 
   request: {
-    url: '/api/tools/slack/update-message',
+    url: '/api/tools/slack/send-ephemeral',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: SlackUpdateMessageParams) => ({
+    body: (params: SlackEphemeralMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel,
-      timestamp: params.timestamp,
+      user: params.user?.trim(),
       text: params.text,
+      thread_ts: params.threadTs || undefined,
       blocks:
         typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,
     }),
@@ -80,11 +92,9 @@ export const slackUpdateMessageTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!data.success) {
-      throw new Error(data.error || 'Failed to update message')
+      throw new Error(data.error || 'Failed to send ephemeral message')
     }
-
     return {
       success: true,
       output: data.output,
@@ -92,20 +102,13 @@ export const slackUpdateMessageTool: ToolConfig<
   },
 
   outputs: {
-    message: {
-      type: 'object',
-      description: 'Complete updated message object with all properties returned by Slack',
-      properties: MESSAGE_OUTPUT_PROPERTIES,
+    messageTs: {
+      type: 'string',
+      description: 'Timestamp of the ephemeral message (cannot be used with chat.update)',
     },
-    // Legacy properties for backward compatibility
-    content: { type: 'string', description: 'Success message' },
-    metadata: {
-      type: 'object',
-      description: 'Updated message metadata',
-      properties: {
-        ...MESSAGE_METADATA_OUTPUT_PROPERTIES,
-        text: { type: 'string', description: 'Updated message text' },
-      },
+    channel: {
+      type: 'string',
+      description: 'Channel ID where the ephemeral message was sent',
     },
   },
 }
