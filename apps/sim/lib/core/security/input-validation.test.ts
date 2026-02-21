@@ -569,10 +569,28 @@ describe('validateUrlWithDNS', () => {
       expect(result.error).toContain('https://')
     })
 
-    it('should reject localhost URLs', async () => {
+    it('should accept https localhost URLs', async () => {
       const result = await validateUrlWithDNS('https://localhost/api')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+    })
+
+    it('should accept http localhost URLs', async () => {
+      const result = await validateUrlWithDNS('http://localhost/api')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+    })
+
+    it('should accept IPv4 loopback URLs', async () => {
+      const result = await validateUrlWithDNS('http://127.0.0.1/api')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
+    })
+
+    it('should accept IPv6 loopback URLs', async () => {
+      const result = await validateUrlWithDNS('http://[::1]/api')
+      expect(result.isValid).toBe(true)
+      expect(result.resolvedIP).toBeDefined()
     })
 
     it('should reject private IP URLs', async () => {
@@ -899,16 +917,37 @@ describe('validateExternalUrl', () => {
       expect(result.error).toContain('valid URL')
     })
 
-    it.concurrent('should reject localhost', () => {
+  })
+
+  describe('localhost and loopback addresses', () => {
+    it.concurrent('should accept https localhost', () => {
       const result = validateExternalUrl('https://localhost/api')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.isValid).toBe(true)
     })
 
-    it.concurrent('should reject 127.0.0.1', () => {
+    it.concurrent('should accept http localhost', () => {
+      const result = validateExternalUrl('http://localhost/api')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept https 127.0.0.1', () => {
       const result = validateExternalUrl('https://127.0.0.1/api')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept http 127.0.0.1', () => {
+      const result = validateExternalUrl('http://127.0.0.1/api')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept https IPv6 loopback', () => {
+      const result = validateExternalUrl('https://[::1]/api')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept http IPv6 loopback', () => {
+      const result = validateExternalUrl('http://[::1]/api')
+      expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should reject 0.0.0.0', () => {
@@ -989,9 +1028,9 @@ describe('validateImageUrl', () => {
     expect(result.isValid).toBe(true)
   })
 
-  it.concurrent('should reject localhost URLs', () => {
+  it.concurrent('should accept localhost URLs', () => {
     const result = validateImageUrl('https://localhost/image.png')
-    expect(result.isValid).toBe(false)
+    expect(result.isValid).toBe(true)
   })
 
   it.concurrent('should use imageUrl as default param name', () => {

@@ -664,28 +664,30 @@ export function validateExternalUrl(
     }
   }
 
-  // Only allow https protocol
-  if (parsedUrl.protocol !== 'https:') {
+  const protocol = parsedUrl.protocol
+  const hostname = parsedUrl.hostname.toLowerCase()
+
+  const cleanHostname = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+
+  let isLocalhost = cleanHostname === 'localhost'
+  if (ipaddr.isValid(cleanHostname)) {
+    const processedIP = ipaddr.process(cleanHostname).toString()
+    if (processedIP === '127.0.0.1' || processedIP === '::1') {
+      isLocalhost = true
+    }
+  }
+
+  // Require HTTPS except for localhost development
+  if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost)) {
     return {
       isValid: false,
       error: `${paramName} must use https:// protocol`,
     }
   }
 
-  // Block private IP ranges and localhost
-  const hostname = parsedUrl.hostname.toLowerCase()
-
-  // Block localhost
-  if (hostname === 'localhost') {
-    return {
-      isValid: false,
-      error: `${paramName} cannot point to localhost`,
-    }
-  }
-
-  // Use ipaddr.js to check if hostname is an IP and if it's private/reserved
-  if (ipaddr.isValid(hostname)) {
-    if (isPrivateOrReservedIP(hostname)) {
+  // Block private/reserved IPs while allowing loopback addresses for local development.
+  if (!isLocalhost && ipaddr.isValid(cleanHostname)) {
+    if (isPrivateOrReservedIP(cleanHostname)) {
       return {
         isValid: false,
         error: `${paramName} cannot point to private IP addresses`,

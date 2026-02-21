@@ -65,9 +65,21 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   try {
-    const { address } = await dns.lookup(hostname)
+    const lookupHostname = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+    const { address } = await dns.lookup(lookupHostname, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address)) {
+    const hostnameLower = hostname.toLowerCase()
+
+    let isLocalhost = hostnameLower === 'localhost'
+
+    if (ipaddr.isValid(address)) {
+      const processedIP = ipaddr.process(address).toString()
+      if (processedIP === '127.0.0.1' || processedIP === '::1') {
+        isLocalhost = true
+      }
+    }
+
+    if (isPrivateOrReservedIP(address) && !isLocalhost) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
