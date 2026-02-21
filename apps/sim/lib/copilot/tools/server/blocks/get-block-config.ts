@@ -175,20 +175,9 @@ function extractInputsFromSubBlocks(
     // 2. Have a condition matching the operation
     if (operation) {
       const condition =
-        typeof sb.condition === 'function'
-          ? sb.condition(operation ? { operation } : undefined)
-          : sb.condition
-      if (condition) {
-        if (condition.field === 'operation' && !condition.not) {
-          // This is an operation-specific field
-          const values = Array.isArray(condition.value) ? condition.value : [condition.value]
-          if (!values.includes(operation)) {
-            continue // Skip if doesn't match our operation
-          }
-        } else if (!matchesOperation(condition, operation)) {
-          // Other condition that doesn't match
-          continue
-        }
+        typeof sb.condition === 'function' ? sb.condition({ operation }) : sb.condition
+      if (condition && !matchesOperation(condition, operation)) {
+        continue
       }
     }
 
