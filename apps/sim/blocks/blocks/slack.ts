@@ -233,6 +233,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'blocks',
       title: 'Block Kit Blocks',
       type: 'code',
+      language: 'json',
       placeholder: 'JSON array of Block Kit blocks',
       condition: {
         field: 'operation',
@@ -243,6 +244,54 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: ['send', 'ephemeral', 'update'],
         and: { field: 'messageFormat', value: 'blocks' },
+      },
+      generationType: 'json-object',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        generationType: 'json-object',
+        prompt: `You are an expert at Slack Block Kit.
+Generate ONLY a valid JSON array of Block Kit blocks based on the user's request.
+The output MUST be a JSON array starting with [ and ending with ].
+
+Current blocks: {context}
+
+Available block types for messages:
+- "section": Displays text with an optional accessory element. Text uses { "type": "mrkdwn", "text": "..." } or { "type": "plain_text", "text": "..." }.
+- "header": Large text header. Text must be plain_text.
+- "divider": A horizontal rule separator. No fields needed besides type.
+- "image": Displays an image. Requires "image_url" and "alt_text".
+- "context": Contextual info with an "elements" array of image and text objects.
+- "actions": Interactive elements like buttons. Each button needs "type": "button", a "text" object, and an "action_id".
+- "rich_text": Structured rich text with "elements" array of rich_text_section objects.
+
+Example output:
+[
+  {
+    "type": "header",
+    "text": { "type": "plain_text", "text": "Order Confirmation" }
+  },
+  {
+    "type": "section",
+    "text": { "type": "mrkdwn", "text": "Your order *#1234* has been confirmed." }
+  },
+  { "type": "divider" },
+  {
+    "type": "actions",
+    "elements": [
+      {
+        "type": "button",
+        "text": { "type": "plain_text", "text": "View Order" },
+        "action_id": "view_order",
+        "url": "https://example.com/orders/1234"
+      }
+    ]
+  }
+]
+
+You can reference workflow variables using angle brackets, e.g., <blockName.output>.
+Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
+        placeholder: 'Describe the Block Kit layout you want to create...',
       },
     },
     {
