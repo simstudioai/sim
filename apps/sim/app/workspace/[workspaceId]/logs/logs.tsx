@@ -208,9 +208,10 @@ export default function Logs() {
 
   const selectedLog = useMemo(() => {
     if (!selectedLogFromList) return null
-    if (!activeLogQuery.data || isPreviewOpen) return selectedLogFromList
+    if (!activeLogQuery.data || isPreviewOpen || activeLogQuery.isPlaceholderData)
+      return selectedLogFromList
     return { ...selectedLogFromList, ...activeLogQuery.data }
-  }, [selectedLogFromList, activeLogQuery.data, isPreviewOpen])
+  }, [selectedLogFromList, activeLogQuery.data, activeLogQuery.isPlaceholderData, isPreviewOpen])
 
   const handleLogHover = useCallback(
     (log: WorkflowLog) => {
@@ -650,7 +651,7 @@ export default function Logs() {
         hasActiveFilters={filtersActive}
       />
 
-      {isPreviewOpen && activeLogQuery.data?.executionId && (
+      {isPreviewOpen && !activeLogQuery.isPlaceholderData && activeLogQuery.data?.executionId && (
         <ExecutionSnapshot
           executionId={activeLogQuery.data.executionId}
           traceSpans={activeLogQuery.data.executionData?.traceSpans}
