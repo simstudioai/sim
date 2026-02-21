@@ -261,6 +261,7 @@ function buildUnifiedStartOutput(
   hasStructured: boolean
 ): NormalizedBlockOutput {
   const output: NormalizedBlockOutput = {}
+  const structuredKeys = hasStructured ? new Set(Object.keys(structuredInput)) : null
 
   if (hasStructured) {
     for (const [key, value] of Object.entries(structuredInput)) {
@@ -271,6 +272,7 @@ function buildUnifiedStartOutput(
   if (isPlainObject(workflowInput)) {
     for (const [key, value] of Object.entries(workflowInput)) {
       if (key === 'onUploadError') continue
+      if (structuredKeys?.has(key)) continue
       // Runtime values override defaults (except undefined/null which mean "not provided")
       if (value !== undefined && value !== null) {
         output[key] = value

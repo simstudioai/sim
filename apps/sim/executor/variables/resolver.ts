@@ -147,12 +147,25 @@ export class VariableResolver {
     template: string,
     loopScope?: LoopScope,
     block?: SerializedBlock
-  ): string {
+  ): any {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
+    }
+
+    const blockType = block?.metadata?.id
+    const trimmed = template.trim()
+    const isPureReference = /^<[^<>]+>$/.test(trimmed)
+    const isWorkflowInput =
+      blockType === BlockType.WORKFLOW || blockType === BlockType.WORKFLOW_INPUT
+    if (isWorkflowInput && isPureReference) {
+      const resolved = this.resolveReference(trimmed, resolutionContext)
+      if (resolved !== undefined) {
+        return resolved
+      }
+      return template
     }
 
     let replacementError: Error | null = null
@@ -167,7 +180,6 @@ export class VariableResolver {
           return match
         }
 
-        const blockType = block?.metadata?.id
         const isInTemplateLiteral =
           blockType === BlockType.FUNCTION &&
           template.includes('${') &&
