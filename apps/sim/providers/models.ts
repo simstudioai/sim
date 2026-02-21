@@ -467,25 +467,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
       },
-      {
-        id: 'claude-3-7-sonnet-latest',
-        pricing: {
-          input: 3.0,
-          cachedInput: 0.3,
-          output: 15.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          computerUse: true,
-          maxOutputTokens: 64000,
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'high',
-          },
-        },
-        contextWindow: 200000,
-      },
     ],
   },
   'azure-openai': {
