@@ -91,4 +91,77 @@ describe('VariableResolver', () => {
 
     expect(resolved.conversation_id).toBe('149')
   })
+
+  it.concurrent('preserves nulls and arrays for workflow blocks with pure references', () => {
+    const workflow: SerializedWorkflow = {
+      version: 'test',
+      blocks: [createSerializedBlock({ id: 'webhook', name: 'webhook', type: BlockType.TRIGGER })],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const state = new ExecutionState()
+    state.setBlockOutput('webhook', {
+      items: [1, { a: 2 }, [3]],
+      nothing: null,
+    })
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const ctx = { blockStates: new Map() } as unknown as ExecutionContext
+
+    const workflowBlock = createSerializedBlock({
+      id: 'wf',
+      name: 'Workflow',
+      type: BlockType.WORKFLOW,
+    })
+
+    const resolved = resolver.resolveInputs(
+      ctx,
+      'wf',
+      {
+        inputMapping: {
+          items: '  <webhook.items>  ',
+          nothing: '<webhook.nothing>',
+        },
+      },
+      workflowBlock
+    )
+
+    expect(resolved.inputMapping.items).toEqual([1, { a: 2 }, [3]])
+    expect(resolved.inputMapping.nothing).toBeNull()
+  })
+
+  it.concurrent('still stringifies when a reference is embedded in text', () => {
+    const workflow: SerializedWorkflow = {
+      version: 'test',
+      blocks: [createSerializedBlock({ id: 'webhook', name: 'webhook', type: BlockType.TRIGGER })],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const state = new ExecutionState()
+    state.setBlockOutput('webhook', { conversation_id: 149 })
+
+    const resolver = new VariableResolver(workflow, {}, state)
+    const ctx = { blockStates: new Map() } as unknown as ExecutionContext
+
+    const workflowInputBlock = createSerializedBlock({
+      id: 'wf',
+      name: 'Workflow',
+      type: BlockType.WORKFLOW_INPUT,
+    })
+
+    const resolved = resolver.resolveInputs(
+      ctx,
+      'wf',
+      {
+        label: 'id=<webhook.conversation_id>',
+      },
+      workflowInputBlock
+    )
+
+    expect(resolved.label).toBe('id=149')
+  })
 })

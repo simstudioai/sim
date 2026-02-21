@@ -11,7 +11,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
-import { parseJSON } from '@/executor/utils/json'
+import { parseJSON, parseObjectStrings } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
@@ -81,7 +81,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
       )
 
-      let childWorkflowInput: Record<string, any> = {}
+      let childWorkflowInput: any = {}
 
       if (inputs.inputMapping !== undefined && inputs.inputMapping !== null) {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
@@ -93,7 +93,7 @@ export class WorkflowBlockHandler implements BlockHandler {
             normalized,
             childWorkflow.rawBlocks || {}
           )
-          childWorkflowInput = cleanedMapping as Record<string, any>
+          childWorkflowInput = parseObjectStrings(cleanedMapping)
         } else {
           childWorkflowInput = {}
         }

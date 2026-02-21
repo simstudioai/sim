@@ -248,5 +248,48 @@ describe('start-block utilities', () => {
       expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
       expect(output.is_active).toBe(true)
     })
+
+    it.concurrent(
+      'prefers coerced inputFormat values over duplicated top-level workflowInput keys',
+      () => {
+        const block = createBlock('start_trigger', 'start', {
+          subBlocks: {
+            inputFormat: {
+              value: [
+                { name: 'conversation_id', type: 'number' },
+                { name: 'sender', type: 'object' },
+                { name: 'is_active', type: 'boolean' },
+              ],
+            },
+          },
+        })
+
+        const resolution = {
+          blockId: 'start',
+          block,
+          path: StartBlockPath.UNIFIED,
+        } as const
+
+        const output = buildStartBlockOutput({
+          resolution,
+          workflowInput: {
+            input: {
+              conversation_id: '149',
+              sender: '{"id":10,"email":"user@example.com"}',
+              is_active: 'false',
+            },
+            conversation_id: '150',
+            sender: '{"id":99,"email":"wrong@example.com"}',
+            is_active: 'true',
+            extra: 'keep-me',
+          },
+        })
+
+        expect(output.conversation_id).toBe(149)
+        expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
+        expect(output.is_active).toBe(false)
+        expect(output.extra).toBe('keep-me')
+      }
+    )
   })
 })

@@ -1,21 +1,68 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
-import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
+const executorMocks = vi.hoisted(() => ({
+  execute: vi.fn(),
+  lastArgs: undefined as any,
+}))
+
+vi.mock('@/executor', () => ({
+  Executor: vi.fn().mockImplementation((args: any) => {
+    executorMocks.lastArgs = args
+    return { execute: executorMocks.execute }
+  }),
+}))
+
+vi.mock('@/serializer', () => ({
+  Serializer: class {
+    serializeWorkflow() {
+      return {
+        version: 'test',
+        blocks: [],
+        connections: [],
+        loops: {},
+        parallels: {},
+      }
+    }
+  },
+}))
+
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: vi.fn().mockResolvedValue('test-token'),
+}))
+
+vi.mock('@/executor/utils/lazy-cleanup', () => ({
+  lazyCleanupInputMapping: vi.fn(async (_workflowId: string, _blockId: string, mapping: any) => {
+    return mapping
+  }),
+}))
+
+vi.mock('@/stores/workflows/registry/store', () => ({
+  useWorkflowRegistry: {
+    getState: () => ({ workflows: {} }),
+  },
 }))
 
 // Mock fetch globally
 global.fetch = vi.fn()
 
 describe('WorkflowBlockHandler', () => {
-  let handler: WorkflowBlockHandler
+  let WorkflowBlockHandler: typeof import('@/executor/handlers/workflow/workflow-handler').WorkflowBlockHandler
+  let handler: InstanceType<typeof WorkflowBlockHandler>
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
   let mockFetch: Mock
+
+  beforeAll(async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
+    ;({ WorkflowBlockHandler } = await import('@/executor/handlers/workflow/workflow-handler'))
+  })
+
+  afterAll(() => {
+    vi.unstubAllEnvs()
+  })
 
   beforeEach(() => {
     // Mock window.location.origin for getBaseUrl()
@@ -58,6 +105,7 @@ describe('WorkflowBlockHandler', () => {
 
     // Reset all mocks
     vi.clearAllMocks()
+    executorMocks.lastArgs = undefined
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -70,10 +118,10 @@ describe('WorkflowBlockHandler', () => {
               blocks: [
                 {
                   id: 'starter',
-                  metadata: { id: BlockType.STARTER, name: 'Starter' },
+                  type: BlockType.STARTER,
+                  name: 'Starter',
                   position: { x: 0, y: 0 },
-                  config: { tool: BlockType.STARTER, params: {} },
-                  inputs: {},
+                  subBlocks: {},
                   outputs: {},
                   enabled: true,
                 },
@@ -144,6 +192,39 @@ describe('WorkflowBlockHandler', () => {
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
         'Error in child workflow "child-workflow-id": Network error'
       )
+    })
+
+    it('normalizes stringified JSON values in inputMapping before starting child workflow', async () => {
+      executorMocks.execute.mockResolvedValue({
+        success: true,
+        output: { ok: true },
+      } as any)
+
+      const inputs = {
+        workflowId: 'child-workflow-id',
+        inputMapping: {
+          conversation_id: '149',
+          sender: '{"id":10,"email":"user@example.com"}',
+          is_active: 'true',
+          metadata: '{"nested":"[1,2]"}',
+          nullish: 'null',
+          invalid: '{bad',
+        },
+      }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).resolves.toMatchObject({
+        success: true,
+        childWorkflowName: 'Child Workflow',
+      })
+
+      expect(executorMocks.lastArgs?.workflowInput).toEqual({
+        conversation_id: 149,
+        sender: { id: 10, email: 'user@example.com' },
+        is_active: true,
+        metadata: { nested: [1, 2] },
+        nullish: null,
+        invalid: '{bad',
+      })
     })
   })
 
