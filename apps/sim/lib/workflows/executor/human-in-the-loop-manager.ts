@@ -15,6 +15,22 @@ import type { SerializedConnection } from '@/serializer/types'
 
 const logger = createLogger('HumanInTheLoopManager')
 
+const _RESUME_LOOKUP_MAX_ATTEMPTS = 8
+const _RESUME_LOOKUP_INITIAL_DELAY_MS = 25
+const _RESUME_LOOKUP_MAX_DELAY_MS = 400
+
+function _sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function _is_transient_resume_lookup_error(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error)
+  return (
+    msg.includes('Paused execution not found') ||
+    msg.includes('Snapshot not ready; execution still finalizing pause')
+  )
+}
+
 interface ResumeQueueEntrySummary {
   id: string
   pausedExecutionId: string
@@ -164,120 +180,144 @@ export class PauseResumeManager {
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
     const { executionId, contextId, resumeInput, userId } = args
 
-    return await db.transaction(async (tx) => {
-      const pausedExecution = await tx
-        .select()
-        .from(pausedExecutions)
-        .where(eq(pausedExecutions.executionId, executionId))
-        .for('update')
-        .limit(1)
-        .then((rows) => rows[0])
+    let delayMs = _RESUME_LOOKUP_INITIAL_DELAY_MS
+    let lastError: unknown
+    for (let attempt = 1; attempt <= _RESUME_LOOKUP_MAX_ATTEMPTS; attempt++) {
+      try {
+        return await db.transaction(async (tx) => {
+          const pausedExecution = await tx
+            .select()
+            .from(pausedExecutions)
+            .where(eq(pausedExecutions.executionId, executionId))
+            .for('update')
+            .limit(1)
+            .then((rows) => rows[0])
 
-      if (!pausedExecution) {
-        throw new Error('Paused execution not found or already resumed')
-      }
+          if (!pausedExecution) {
+            throw new Error('Paused execution not found or already resumed')
+          }
 
-      const pausePoints = pausedExecution.pausePoints as Record<string, any>
-      const pausePoint = pausePoints?.[contextId]
-      if (!pausePoint) {
-        throw new Error('Pause point not found for execution')
-      }
-      if (pausePoint.resumeStatus !== 'paused') {
-        throw new Error('Pause point already resumed or in progress')
-      }
-      if (!pausePoint.snapshotReady) {
-        throw new Error('Snapshot not ready; execution still finalizing pause')
-      }
+          const pausePoints = pausedExecution.pausePoints as Record<string, any>
+          const pausePoint = pausePoints?.[contextId]
+          if (!pausePoint) {
+            throw new Error('Pause point not found for execution')
+          }
+          if (pausePoint.resumeStatus !== 'paused') {
+            throw new Error('Pause point already resumed or in progress')
+          }
+          if (!pausePoint.snapshotReady) {
+            throw new Error('Snapshot not ready; execution still finalizing pause')
+          }
 
-      const activeResume = await tx
-        .select({ id: resumeQueue.id })
-        .from(resumeQueue)
-        .where(
-          and(
-            eq(resumeQueue.parentExecutionId, executionId),
-            inArray(resumeQueue.status, ['claimed'] as const)
-          )
-        )
-        .limit(1)
-        .then((rows) => rows[0])
+          const activeResume = await tx
+            .select({ id: resumeQueue.id })
+            .from(resumeQueue)
+            .where(
+              and(
+                eq(resumeQueue.parentExecutionId, executionId),
+                inArray(resumeQueue.status, ['claimed'] as const)
+              )
+            )
+            .limit(1)
+            .then((rows) => rows[0])
 
-      const resumeExecutionId = executionId
-      const now = new Date()
+          const resumeExecutionId = executionId
+          const now = new Date()
 
-      if (activeResume) {
-        const [entry] = await tx
-          .insert(resumeQueue)
-          .values({
-            id: randomUUID(),
+          if (activeResume) {
+            const [entry] = await tx
+              .insert(resumeQueue)
+              .values({
+                id: randomUUID(),
+                pausedExecutionId: pausedExecution.id,
+                parentExecutionId: executionId,
+                newExecutionId: resumeExecutionId,
+                contextId,
+                resumeInput: resumeInput ?? null,
+                status: 'pending',
+                queuedAt: now,
+              })
+              .returning({ id: resumeQueue.id, queuedAt: resumeQueue.queuedAt })
+
+            await tx
+              .update(pausedExecutions)
+              .set({
+                pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`,
+              })
+              .where(eq(pausedExecutions.id, pausedExecution.id))
+
+            pausePoint.resumeStatus = 'queued'
+
+            const [positionRow = { position: 0 }] = await tx
+              .select({ position: sql<number>`count(*)` })
+              .from(resumeQueue)
+              .where(
+                and(
+                  eq(resumeQueue.parentExecutionId, executionId),
+                  eq(resumeQueue.status, 'pending'),
+                  lt(resumeQueue.queuedAt, entry.queuedAt)
+                )
+              )
+
+            return {
+              status: 'queued',
+              resumeExecutionId,
+              queuePosition: Number(positionRow.position ?? 0) + 1,
+            }
+          }
+
+          const resumeEntryId = randomUUID()
+          await tx.insert(resumeQueue).values({
+            id: resumeEntryId,
             pausedExecutionId: pausedExecution.id,
             parentExecutionId: executionId,
             newExecutionId: resumeExecutionId,
             contextId,
             resumeInput: resumeInput ?? null,
-            status: 'pending',
+            status: 'claimed',
             queuedAt: now,
+            claimedAt: now,
           })
-          .returning({ id: resumeQueue.id, queuedAt: resumeQueue.queuedAt })
 
-        await tx
-          .update(pausedExecutions)
-          .set({
-            pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"queued"'::jsonb)`,
-          })
-          .where(eq(pausedExecutions.id, pausedExecution.id))
+          await tx
+            .update(pausedExecutions)
+            .set({
+              pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
+            })
+            .where(eq(pausedExecutions.id, pausedExecution.id))
 
-        pausePoint.resumeStatus = 'queued'
+          pausePoint.resumeStatus = 'resuming'
 
-        const [positionRow = { position: 0 }] = await tx
-          .select({ position: sql<number>`count(*)` })
-          .from(resumeQueue)
-          .where(
-            and(
-              eq(resumeQueue.parentExecutionId, executionId),
-              eq(resumeQueue.status, 'pending'),
-              lt(resumeQueue.queuedAt, entry.queuedAt)
-            )
-          )
-
-        return {
-          status: 'queued',
-          resumeExecutionId,
-          queuePosition: Number(positionRow.position ?? 0) + 1,
-        }
-      }
-
-      const resumeEntryId = randomUUID()
-      await tx.insert(resumeQueue).values({
-        id: resumeEntryId,
-        pausedExecutionId: pausedExecution.id,
-        parentExecutionId: executionId,
-        newExecutionId: resumeExecutionId,
-        contextId,
-        resumeInput: resumeInput ?? null,
-        status: 'claimed',
-        queuedAt: now,
-        claimedAt: now,
-      })
-
-      await tx
-        .update(pausedExecutions)
-        .set({
-          pausePoints: sql`jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
+          return {
+            status: 'starting',
+            resumeExecutionId,
+            resumeEntryId,
+            pausedExecution,
+            contextId,
+            resumeInput,
+            userId,
+          }
         })
-        .where(eq(pausedExecutions.id, pausedExecution.id))
-
-      pausePoint.resumeStatus = 'resuming'
-
-      return {
-        status: 'starting',
-        resumeExecutionId,
-        resumeEntryId,
-        pausedExecution,
-        contextId,
-        resumeInput,
-        userId,
+      } catch (error) {
+        lastError = error
+        const shouldRetry = _is_transient_resume_lookup_error(error)
+        if (!shouldRetry || attempt >= _RESUME_LOOKUP_MAX_ATTEMPTS) {
+          throw error
+        }
+        logger.warn(
+          `Transient resume lookup failure; retrying (attempt ${attempt}/${_RESUME_LOOKUP_MAX_ATTEMPTS})`,
+          {
+            executionId,
+            contextId,
+            delayMs,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        )
+        await _sleep(delayMs)
+        delayMs = Math.min(delayMs * 2, _RESUME_LOOKUP_MAX_DELAY_MS)
       }
-    })
+    }
+    throw lastError
   }
 
   static async startResumeExecution(args: StartResumeExecutionArgs): Promise<void> {
