@@ -245,11 +245,9 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         value: ['send', 'ephemeral', 'update'],
         and: { field: 'messageFormat', value: 'blocks' },
       },
-      generationType: 'json-object',
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        generationType: 'json-object',
         prompt: `You are an expert at Slack Block Kit.
 Generate ONLY a valid JSON array of Block Kit blocks based on the user's request.
 The output MUST be a JSON array starting with [ and ending with ].
