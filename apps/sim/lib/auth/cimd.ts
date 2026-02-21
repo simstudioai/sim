@@ -31,6 +31,7 @@ async function fetchClientMetadata(url: string): Promise<ClientMetadataDocument>
   const res = await secureFetchWithValidation(url, {
     headers: { Accept: 'application/json' },
     timeout: 5000,
+    maxResponseBytes: 256 * 1024,
   })
 
   if (!res.ok) {
@@ -45,6 +46,31 @@ async function fetchClientMetadata(url: string): Promise<ClientMetadataDocument>
 
   if (!Array.isArray(doc.redirect_uris) || doc.redirect_uris.length === 0) {
     throw new Error('CIMD document must contain at least one redirect_uri')
+  }
+
+  for (const uri of doc.redirect_uris) {
+    try {
+      const parsed = new URL(uri)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error(`Invalid redirect_uri scheme: ${parsed.protocol}`)
+      }
+    } catch {
+      throw new Error(`Invalid redirect_uri: ${uri}`)
+    }
+    if (uri.includes(',')) {
+      throw new Error(`redirect_uri must not contain commas: ${uri}`)
+    }
+  }
+
+  if (doc.logo_uri) {
+    try {
+      const logoParsed = new URL(doc.logo_uri)
+      if (logoParsed.protocol !== 'https:') {
+        doc.logo_uri = undefined
+      }
+    } catch {
+      doc.logo_uri = undefined
+    }
   }
 
   if (!doc.client_name || typeof doc.client_name !== 'string') {
