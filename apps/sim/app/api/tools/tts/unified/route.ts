@@ -76,6 +76,9 @@ interface TtsUnifiedRequestBody {
   voiceGuidance?: number
   textGuidance?: number
 
+  // ModelsLab specific
+  voice_id?: string
+
   // Execution context
   workspaceId?: string
   workflowId?: string
@@ -231,6 +234,17 @@ export async function POST(request: NextRequest) {
           voiceGuidance: body.voiceGuidance,
           textGuidance: body.textGuidance,
           sampleRate: body.sampleRate,
+        })
+        audioBuffer = result.audioBuffer
+        format = result.format
+        mimeType = result.mimeType
+      } else if (provider === 'modelslab') {
+        const result = await synthesizeWithModelsLab({
+          text,
+          apiKey,
+          voice_id: body.voice_id,
+          language: body.language,
+          speed: body.speed,
         })
         audioBuffer = result.audioBuffer
         format = result.format
@@ -747,6 +761,106 @@ async function synthesizeWithAzure(
     format,
     mimeType,
   }
+}
+
+async function synthesizeWithModelsLab(params: {
+  text: string
+  apiKey: string
+  voice_id?: string
+  language?: string
+  speed?: number
+}): Promise<{ audioBuffer: Buffer; format: string; mimeType: string }> {
+  const { text, apiKey, voice_id = 'madison', language = 'en', speed = 1.0 } = params
+
+  // Initial TTS request
+  const response = await fetch('https://modelslab.com/api/v6/voice/text_to_speech', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      key: apiKey,
+      prompt: text,
+      voice_id,
+      language,
+      speed,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    const errorMessage = error.message || error.error || response.statusText
+    throw new Error(`ModelsLab TTS API error: ${errorMessage}`)
+  }
+
+  const data = await response.json()
+
+  // Handle async processing
+  if (data.status === 'processing' && data.id) {
+    const requestId = data.id
+    const maxAttempts = 30
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+
+      const fetchResponse = await fetch('https://modelslab.com/api/v6/voice/fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: apiKey,
+          request_id: requestId,
+        }),
+      })
+
+      if (!fetchResponse.ok) {
+        throw new Error(`ModelsLab fetch error: ${fetchResponse.status}`)
+      }
+
+      const fetchData = await fetchResponse.json()
+
+      if (fetchData.status === 'success' && fetchData.output) {
+        const audioUrl = Array.isArray(fetchData.output) ? fetchData.output[0] : fetchData.output
+        const audioResponse = await fetch(audioUrl)
+        if (!audioResponse.ok) {
+          throw new Error(`Failed to download ModelsLab audio: ${audioResponse.status}`)
+        }
+        const arrayBuffer = await audioResponse.arrayBuffer()
+        return {
+          audioBuffer: Buffer.from(arrayBuffer),
+          format: 'mp3',
+          mimeType: 'audio/mpeg',
+        }
+      }
+
+      if (fetchData.status === 'error' || fetchData.status === 'failed') {
+        throw new Error(`ModelsLab TTS generation failed: ${fetchData.message || 'Unknown error'}`)
+      }
+
+      attempts++
+    }
+
+    throw new Error('ModelsLab TTS generation timed out')
+  }
+
+  // Handle immediate success
+  if (data.status === 'success' && data.output) {
+    const audioUrl = Array.isArray(data.output) ? data.output[0] : data.output
+    const audioResponse = await fetch(audioUrl)
+    if (!audioResponse.ok) {
+      throw new Error(`Failed to download ModelsLab audio: ${audioResponse.status}`)
+    }
+    const arrayBuffer = await audioResponse.arrayBuffer()
+    return {
+      audioBuffer: Buffer.from(arrayBuffer),
+      format: 'mp3',
+      mimeType: 'audio/mpeg',
+    }
+  }
+
+  throw new Error(`ModelsLab TTS error: ${data.message || 'Unexpected response format'}`)
 }
 
 async function synthesizeWithPlayHT(
