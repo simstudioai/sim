@@ -442,12 +442,37 @@ export const ComboBox = memo(function ComboBox({
   )
 
   /**
-   * Gets the icon for the currently selected option
+   * Gets the icon for the currently selected option.
+   * Uses prefix/partial matching to show icon while user is typing a search query.
    */
   const selectedOption = useMemo(() => {
-    if (!value) return undefined
-    return comboboxOptions.find((opt) => opt.value === value)
-  }, [comboboxOptions, value])
+    // First try exact match on stored value
+    if (value) {
+      const exactMatch = comboboxOptions.find((opt) => opt.value === value)
+      if (exactMatch) return exactMatch
+    }
+
+    // Try prefix match on input text (while user is typing to search/filter)
+    if (inputValue) {
+      const inputLower = inputValue.toLowerCase()
+      const prefixMatch = comboboxOptions.find(
+        (opt) =>
+          opt.value.toLowerCase().startsWith(inputLower) ||
+          opt.label.toLowerCase().startsWith(inputLower)
+      )
+      if (prefixMatch) return prefixMatch
+
+      // Try contains match as fallback
+      const containsMatch = comboboxOptions.find(
+        (opt) =>
+          opt.value.toLowerCase().includes(inputLower) ||
+          opt.label.toLowerCase().includes(inputLower)
+      )
+      if (containsMatch) return containsMatch
+    }
+
+    return undefined
+  }, [comboboxOptions, value, inputValue])
 
   const selectedOptionIcon = selectedOption?.icon
 
