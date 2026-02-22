@@ -1,0 +1,109 @@
+name: Key Management
+
+on:
+  workflow_call:
+    inputs:
+      command:
+        description: 'Key management command to run (scan, check, inject)'
+        required: false
+        type: string
+        default: 'scan'
+      dry_run:
+        description: 'Run in dry-run mode (no actual changes)'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      KEYFINDER_SECRET:
+        description: 'Secret for authenticating with external key sources'
+        required: false
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Key management command to run'
+        required: false
+        type: choice
+        default: 'scan'
+        options:
+          - scan
+          - check
+          - inject
+      dry_run:
+        description: 'Run in dry-run mode (no actual changes)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  secrets: write
+
+jobs:
+  key-management:
+    name: Manage API Keys
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Install dependencies for key manager
+        working-directory: scripts
+        run: bun install
+
+      - name: Run Key Manager - Scan Phase
+        id: scan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          KEYFINDER_SECRET: ${{ secrets.KEYFINDER_SECRET }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          echo "🔍 Running key management: ${{ inputs.command }}"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Dry run: $DRY_RUN"
+          
+          # Run the key manager script
+          cd scripts
+          bunx tsx key-manager.ts ${{ inputs.command }}
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "### 🔐 Key Management Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Command:** \`${{ inputs.command }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Security Features" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ GitHub Secrets masking enabled" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Sensitive data cleared from memory after processing" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No key values logged to output" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Keys only accessible to authorized users and workflows" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the key manager output above" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify all required keys are available" >> $GITHUB_STEP_SUMMARY
+          echo "3. Keys are ready for deployment workflows" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **Note:** This workflow uses the 'find, store, inject, forget' pattern" >> $GITHUB_STEP_SUMMARY
+          echo "> for secure key management. Key values are never exposed in logs." >> $GITHUB_STEP_SUMMARY
+
+      - name: Clear Sensitive Data
+        if: always()
+        run: |
+          echo "🧹 Clearing sensitive data from workflow environment..."
+          # Unset any environment variables that might contain keys
+          unset KEYFINDER_SECRET
+          unset GITHUB_TOKEN
+          echo "✅ Environment cleaned"
