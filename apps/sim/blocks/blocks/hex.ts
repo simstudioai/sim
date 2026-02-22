@@ -322,13 +322,19 @@ Example:
       },
       params: (params) => {
         const result: Record<string, unknown> = {}
+        const op = params.operation
+
         if (params.limit) result.limit = Number(params.limit)
-        if (params.offset) result.offset = Number(params.offset)
-        if (params.projectStatus) result.status = params.projectStatus
-        if (params.runStatusFilter) result.statusFilter = params.runStatusFilter
-        if (params.groupIdInput) result.groupId = params.groupIdInput
-        if (params.collectionName) result.name = params.collectionName
-        if (params.collectionDescription) result.description = params.collectionDescription
+        if (op === 'get_project_runs' && params.offset) result.offset = Number(params.offset)
+        if (op === 'update_project' && params.projectStatus) result.status = params.projectStatus
+        if (op === 'get_project_runs' && params.runStatusFilter)
+          result.statusFilter = params.runStatusFilter
+        if (op === 'get_group' && params.groupIdInput) result.groupId = params.groupIdInput
+        if (op === 'list_users' && params.groupId) result.groupId = params.groupId
+        if (op === 'create_collection' && params.collectionName) result.name = params.collectionName
+        if (op === 'create_collection' && params.collectionDescription)
+          result.description = params.collectionDescription
+
         return result
       },
     },
