@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const validProviders = ['runway', 'veo', 'luma', 'minimax', 'falai']
+    const validProviders = ['runway', 'veo', 'luma', 'minimax', 'falai', 'modelslab']
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` },
@@ -168,6 +168,23 @@ export async function POST(request: NextRequest) {
           aspectRatio,
           resolution,
           body.promptOptimizer,
+          requestId,
+          logger
+        )
+        videoBuffer = result.buffer
+        width = result.width
+        height = result.height
+        jobId = result.jobId
+        actualDuration = result.duration
+      } else if (provider === 'modelslab') {
+        const result = await generateWithModelsLab(
+          apiKey,
+          prompt,
+          model || 'text2video',
+          body.imageUrl,
+          body.width || 512,
+          body.height || 512,
+          body.num_frames || 16,
           requestId,
           logger
         )
@@ -943,6 +960,131 @@ async function generateWithFalAI(
   }
 
   throw new Error('Fal.ai generation timed out')
+}
+
+async function generateWithModelsLab(
+  apiKey: string,
+  prompt: string,
+  mode: string,
+  imageUrl: string | undefined,
+  width: number,
+  height: number,
+  num_frames: number,
+  requestId: string,
+  logger: ReturnType<typeof createLogger>
+): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
+  logger.info(`[${requestId}] Starting ModelsLab video generation, mode: ${mode}`)
+
+  const isImg2Video = mode === 'img2video'
+  const endpoint = isImg2Video
+    ? 'https://modelslab.com/api/v6/video/img2video'
+    : 'https://modelslab.com/api/v6/video/text2video'
+
+  const requestBody: Record<string, unknown> = {
+    key: apiKey,
+    prompt,
+    output_type: 'mp4',
+    width,
+    height,
+    num_frames,
+  }
+
+  if (isImg2Video && imageUrl) {
+    requestBody.init_image = imageUrl
+  }
+
+  const createResponse = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  })
+
+  if (!createResponse.ok) {
+    const error = await createResponse.text()
+    throw new Error(`ModelsLab API error: ${createResponse.status} - ${error}`)
+  }
+
+  const createData = await createResponse.json()
+
+  logger.info(`[${requestId}] ModelsLab response status: ${createData.status}`)
+
+  // Handle immediate success
+  if (createData.status === 'success' && createData.output) {
+    const videoUrl = Array.isArray(createData.output) ? createData.output[0] : createData.output
+    const videoResponse = await fetch(videoUrl)
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download ModelsLab video: ${videoResponse.status}`)
+    }
+    const arrayBuffer = await videoResponse.arrayBuffer()
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      width,
+      height,
+      jobId: String(createData.id || 'modelslab'),
+      duration: Math.round(num_frames / 8), // approximate: 8fps
+    }
+  }
+
+  // Handle async processing
+  if (createData.status === 'processing' && createData.id) {
+    const jobId = String(createData.id)
+    logger.info(`[${requestId}] ModelsLab job created: ${jobId}`)
+
+    const pollIntervalMs = 5000
+    const maxAttempts = 60
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      await sleep(pollIntervalMs)
+
+      const fetchResponse = await fetch(
+        `https://modelslab.com/api/v6/video/fetch/${jobId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ key: apiKey }),
+        }
+      )
+
+      if (!fetchResponse.ok) {
+        throw new Error(`ModelsLab fetch error: ${fetchResponse.status}`)
+      }
+
+      const fetchData = await fetchResponse.json()
+
+      if (fetchData.status === 'success' && fetchData.output) {
+        logger.info(`[${requestId}] ModelsLab generation completed after ${attempts * 5}s`)
+
+        const videoUrl = Array.isArray(fetchData.output) ? fetchData.output[0] : fetchData.output
+        const videoResponse = await fetch(videoUrl)
+        if (!videoResponse.ok) {
+          throw new Error(`Failed to download ModelsLab video: ${videoResponse.status}`)
+        }
+        const arrayBuffer = await videoResponse.arrayBuffer()
+        return {
+          buffer: Buffer.from(arrayBuffer),
+          width,
+          height,
+          jobId,
+          duration: Math.round(num_frames / 8),
+        }
+      }
+
+      if (fetchData.status === 'error' || fetchData.status === 'failed') {
+        throw new Error(`ModelsLab generation failed: ${fetchData.message || 'Unknown error'}`)
+      }
+
+      attempts++
+    }
+
+    throw new Error('ModelsLab video generation timed out')
+  }
+
+  throw new Error(`ModelsLab API error: ${createData.message || 'Unexpected response format'}`)
 }
 
 function getVideoDimensions(

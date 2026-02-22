@@ -2,7 +2,7 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface VideoParams {
-  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai'
+  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai' | 'modelslab'
   apiKey: string
   model?: string
   prompt: string
@@ -21,6 +21,11 @@ export interface VideoParams {
   }
   endpoint?: string // MiniMax: 'pro' | 'standard'
   promptOptimizer?: boolean // MiniMax and Fal.ai MiniMax models
+  // ModelsLab specific
+  imageUrl?: string // img2video mode
+  width?: number
+  height?: number
+  num_frames?: number
 }
 
 export interface VideoResponse extends ToolResponse {
