@@ -4,7 +4,7 @@ import type {
   TelegramSendPhotoParams,
   TelegramSendPhotoResponse,
 } from '@/tools/telegram/types'
-import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+import { convertMarkdownToHTML, normalizeTelegramMediaParam } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, TelegramSendPhotoResponse> =
@@ -50,9 +50,14 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendPhotoParams) => {
+        const photo = normalizeTelegramMediaParam(params.photo, { single: true })
+        if (typeof photo !== 'string' || !photo) {
+          throw new Error('Photo is required.')
+        }
+
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          photo: params.photo,
+          photo,
         }
 
         if (params.caption) {

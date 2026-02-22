@@ -364,3 +364,72 @@ export function normalizeFileInput(
 
   return files
 }
+
+function extractUrlFromFileLike(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const url = (value as { url?: unknown }).url
+  if (typeof url !== 'string') return undefined
+  const trimmed = url.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
+ * Normalizes an input that can be either:
+ * - a plain string (URL, file_id, etc.)
+ * - a UserFile-like object with a `url` property
+ * - an array of the above
+ * - a JSON stringified object/array (advanced mode template resolution)
+ */
+export function normalizeFileOrUrlInput(
+  value: unknown,
+  options: { single: true; errorMessage?: string }
+): string | undefined
+export function normalizeFileOrUrlInput(
+  value: unknown,
+  options?: { single?: false }
+): string[] | undefined
+export function normalizeFileOrUrlInput(
+  value: unknown,
+  options?: { single?: boolean; errorMessage?: string }
+): string | string[] | undefined {
+  if (value === null || value === undefined) return undefined
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+
+    // Only attempt JSON parsing for object/array payloads (advanced mode may JSON.stringify file objects).
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        value = JSON.parse(trimmed)
+      } catch {
+        // Not valid JSON; treat as a raw media identifier (URL/file_id).
+        return options?.single ? trimmed : [trimmed]
+      }
+    } else {
+      return options?.single ? trimmed : [trimmed]
+    }
+  }
+
+  const values: unknown[] = Array.isArray(value) ? value : [value]
+  const normalized = values
+    .map((v) => {
+      if (typeof v === 'string') {
+        const trimmed = v.trim()
+        return trimmed.length > 0 ? trimmed : undefined
+      }
+      return extractUrlFromFileLike(v)
+    })
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+
+  if (normalized.length === 0) return undefined
+
+  if (options?.single) {
+    if (normalized.length > 1) {
+      throw new Error(options.errorMessage ?? DEFAULT_MULTIPLE_FILES_ERROR)
+    }
+    return normalized[0]
+  }
+
+  return normalized
+}
