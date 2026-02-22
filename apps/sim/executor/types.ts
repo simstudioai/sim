@@ -80,6 +80,9 @@ export interface NormalizedBlockOutput {
   toolCalls?: {
     list: any[]
     count: number
+    omitted?: number
+    truncated?: boolean
+    limit?: number
   }
   files?: UserFile[]
   selectedPath?: {
@@ -144,6 +147,10 @@ export interface ExecutionMetadata {
   credentialAccountUserId?: string
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
+  logTruncation?: {
+    dropped: number
+    limit: number
+  }
   resumeChain?: {
     parentExecutionId?: string
     depth: number
@@ -193,12 +200,15 @@ export interface ExecutionContext {
       iteration: number
       currentIterationOutputs: Map<string, any>
       allIterationOutputs: any[][]
+      allIterationOutputsDroppedCount?: number
+      allIterationOutputsLimit?: number
       maxIterations?: number
       item?: any
       items?: any[]
       condition?: string
       skipFirstConditionCheck?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+      validationError?: string
     }
   >
 

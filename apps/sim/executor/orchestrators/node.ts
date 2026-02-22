@@ -6,6 +6,8 @@ import type { BlockStateController } from '@/executor/execution/types'
 import type { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import { compactValue } from '@/executor/utils/memory'
+import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeExecutionOrchestrator')
@@ -140,7 +142,16 @@ export class NodeExecutionOrchestrator {
           shouldContinue: false,
           shouldExit: true,
           selectedRoute: continuationResult.selectedRoute,
-          totalIterations: continuationResult.aggregatedResults?.length || 0,
+          totalIterations:
+            continuationResult.totalIterations ?? continuationResult.aggregatedResults?.length ?? 0,
+          ...(continuationResult.resultsTruncated
+            ? {
+                resultsTruncated: true,
+                droppedIterations: continuationResult.droppedIterations,
+                retainedIterations: continuationResult.retainedIterations,
+                retentionLimit: continuationResult.retentionLimit,
+              }
+            : {}),
         }
       }
 
@@ -233,7 +244,16 @@ export class NodeExecutionOrchestrator {
     output: NormalizedBlockOutput,
     loopId: string
   ): void {
-    this.loopOrchestrator.storeLoopNodeOutput(ctx, loopId, node.id, output)
+    const blockType = node.block.metadata?.id || ''
+    const filtered = filterOutputForLog(blockType, output, { block: node.block })
+    const compacted = compactValue(filtered, {
+      maxDepth: 6,
+      maxStringLength: 4000,
+      maxArrayLength: 50,
+      maxObjectKeys: 120,
+    }) as NormalizedBlockOutput
+
+    this.loopOrchestrator.storeLoopNodeOutput(ctx, loopId, node.id, compacted)
     this.state.setBlockOutput(node.id, output)
   }
 

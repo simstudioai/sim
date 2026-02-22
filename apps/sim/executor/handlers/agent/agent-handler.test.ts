@@ -1428,6 +1428,43 @@ describe('AgentBlockHandler', () => {
       expect((result as any).toolCalls.list[1].result.success).toBe(true)
     })
 
+    it('should truncate toolCalls list and compact payloads when many tool calls are returned', async () => {
+      const toolCalls = Array.from({ length: 60 }, (_, i) => ({
+        name: `tool_${i}`,
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        duration: 1,
+        arguments: { index: i, payload: 'a'.repeat(5000) },
+        result: 'b'.repeat(5000),
+      }))
+
+      mockExecuteProviderRequest.mockResolvedValueOnce({
+        content: 'Tool call heavy response',
+        model: 'gpt-4o',
+        tokens: { input: 10, output: 15, total: 25 },
+        toolCalls,
+        timing: { total: 100 },
+      })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Do lots of tool calls',
+        apiKey: 'test-api-key',
+      })
+
+      expect((result as any).toolCalls.count).toBe(60)
+      expect((result as any).toolCalls.list).toHaveLength(50)
+      expect((result as any).toolCalls.truncated).toBe(true)
+      expect((result as any).toolCalls.omitted).toBe(10)
+      expect((result as any).toolCalls.limit).toBe(50)
+
+      expect((result as any).toolCalls.list[0].name).toBe('tool_10')
+      expect((result as any).toolCalls.list[49].name).toBe('tool_59')
+
+      expect((result as any).toolCalls.list[0].result).toContain('[truncated')
+      expect((result as any).toolCalls.list[0].arguments.payload).toContain('[truncated')
+    })
+
     it('should handle MCP tool execution errors', async () => {
       mockExecuteTool.mockImplementation((toolId, params) => {
         if (toolId === 'mcp-server1-failing_tool') {

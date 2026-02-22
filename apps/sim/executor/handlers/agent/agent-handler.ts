@@ -30,6 +30,7 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { compactValue } from '@/executor/utils/memory'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -37,6 +38,8 @@ import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
 
 const logger = createLogger('AgentBlockHandler')
+
+const AGENT_TOOL_CALLS_LIST_LIMIT = 50
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -1294,6 +1297,14 @@ export class AgentBlockHandler implements BlockHandler {
     timing?: any
     cost?: any
   }) {
+    const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : []
+    const totalToolCalls = toolCalls.length
+    const slicedToolCalls =
+      totalToolCalls > AGENT_TOOL_CALLS_LIST_LIMIT
+        ? toolCalls.slice(-AGENT_TOOL_CALLS_LIST_LIMIT)
+        : toolCalls
+    const omittedToolCalls = totalToolCalls - slicedToolCalls.length
+
     return {
       tokens: result.tokens || {
         input: DEFAULTS.TOKENS.PROMPT,
@@ -1301,8 +1312,15 @@ export class AgentBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       },
       toolCalls: {
-        list: result.toolCalls?.map(this.formatToolCall.bind(this)) || [],
-        count: result.toolCalls?.length || DEFAULTS.EXECUTION_TIME,
+        list: slicedToolCalls.map(this.formatToolCall.bind(this)),
+        count: totalToolCalls,
+        ...(omittedToolCalls > 0
+          ? {
+              omitted: omittedToolCalls,
+              truncated: true,
+              limit: AGENT_TOOL_CALLS_LIST_LIMIT,
+            }
+          : {}),
       },
       providerTiming: result.timing,
       cost: result.cost,
@@ -1310,16 +1328,22 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private formatToolCall(tc: any) {
-    const toolName = stripCustomToolPrefix(tc.name)
+    const toolName = stripCustomToolPrefix(typeof tc?.name === 'string' ? tc.name : '')
+    const compactOptions = {
+      maxDepth: 6,
+      maxStringLength: 2000,
+      maxArrayLength: 30,
+      maxObjectKeys: 80,
+    } as const
 
     return {
-      ...tc,
       name: toolName,
       startTime: tc.startTime,
       endTime: tc.endTime,
       duration: tc.duration,
-      arguments: tc.arguments || tc.input || {},
-      result: tc.result || tc.output,
+      arguments: compactValue(tc.arguments || tc.input || {}, compactOptions),
+      result: compactValue(tc.result || tc.output, compactOptions),
+      ...(tc?.error ? { error: compactValue(tc.error, compactOptions) } : {}),
     }
   }
 }
