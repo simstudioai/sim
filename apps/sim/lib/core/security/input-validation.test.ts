@@ -916,7 +916,6 @@ describe('validateExternalUrl', () => {
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('valid URL')
     })
-
   })
 
   describe('localhost and loopback addresses', () => {

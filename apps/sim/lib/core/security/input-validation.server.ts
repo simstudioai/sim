@@ -65,7 +65,8 @@ export async function validateUrlWithDNS(
   const hostname = parsedUrl.hostname
 
   try {
-    const lookupHostname = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+    const lookupHostname =
+      hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
     const { address } = await dns.lookup(lookupHostname, { verbatim: true })
 
     const hostnameLower = hostname.toLowerCase()
@@ -201,8 +202,6 @@ export async function secureFetchWithPinnedIP(
 
     const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
 
-    // Remove accept-encoding since Node.js http/https doesn't auto-decompress
-    // Headers are lowercase due to Web Headers API normalization in executeToolRequest
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 
     const requestOptions: http.RequestOptions = {
@@ -212,7 +211,7 @@ export async function secureFetchWithPinnedIP(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
-      timeout: options.timeout || 300000, // Default 5 minutes
+      timeout: options.timeout || 300000,
     }
 
     const protocol = isHttps ? https : http
