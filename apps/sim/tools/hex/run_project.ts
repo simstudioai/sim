@@ -32,13 +32,13 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'If true, validate without executing',
+      description: 'If true, perform a dry run without executing the project',
     },
     updateCache: {
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'If true, update the cached results after execution',
+      description: '(Deprecated) If true, update the cached results after execution',
     },
     updatePublishedResults: {
       type: 'boolean',

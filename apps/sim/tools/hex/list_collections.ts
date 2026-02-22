@@ -19,7 +19,7 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum number of collections to return (1-100, default: 25)',
+        description: 'Maximum number of collections to return (1-500, default: 25)',
       },
       sortBy: {
         type: 'string',

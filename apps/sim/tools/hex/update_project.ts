@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProjectResponse> = {
   id: 'hex_update_project',
   name: 'Hex Update Project',
-  description: 'Update the status of a Hex project (e.g., archive or restore).',
+  description:
+    'Update a Hex project status label (e.g., endorsement or custom workspace statuses).',
   version: '1.0.0',
 
   params: {
@@ -24,7 +25,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'New project status (e.g., ARCHIVED, ACTIVE)',
+      description: 'New project status name (custom workspace status label)',
     },
   },
 

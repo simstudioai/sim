@@ -18,7 +18,7 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of users to return (1-500, default: 25)',
+      description: 'Maximum number of users to return (1-100, default: 25)',
     },
     sortBy: {
       type: 'string',

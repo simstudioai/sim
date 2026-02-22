@@ -42,394 +42,209 @@ Integrate Hex into your workflow. Run projects, check run status, manage collect
 
 ### `hex_cancel_run`
 
+Cancel an active Hex project run.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project |
+| `runId` | string | Yes | The UUID of the run to cancel |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `success` | boolean | Whether the run was successfully cancelled |
 | `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `runId` | string | Run UUID that was cancelled |
 
 ### `hex_create_collection`
 
+Create a new collection in the Hex workspace to organize projects.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `name` | string | Yes | Name for the new collection |
+| `description` | string | No | Optional description for the collection |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `id` | string | Newly created collection UUID |
+| `name` | string | Collection name |
+| `description` | string | Collection description |
+| `creator` | object | Collection creator |
+|   ↳ `email` | string | Creator email |
+|   ↳ `id` | string | Creator UUID |
 
 ### `hex_get_collection`
 
+Retrieve details for a specific Hex collection by its ID.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `collectionId` | string | Yes | The UUID of the collection |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `id` | string | Collection UUID |
+| `name` | string | Collection name |
+| `description` | string | Collection description |
+| `creator` | object | Collection creator |
+|   ↳ `email` | string | Creator email |
+|   ↳ `id` | string | Creator UUID |
 
 ### `hex_get_data_connection`
 
+Retrieve details for a specific data connection including type, description, and configuration flags.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `dataConnectionId` | string | Yes | The UUID of the data connection |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `id` | string | Connection UUID |
+| `name` | string | Connection name |
+| `type` | string | Connection type \(e.g., snowflake, postgres, bigquery\) |
+| `description` | string | Connection description |
+| `connectViaSsh` | boolean | Whether SSH tunneling is enabled |
+| `includeMagic` | boolean | Whether Magic AI features are enabled |
+| `allowWritebackCells` | boolean | Whether writeback cells are allowed |
 
 ### `hex_get_group`
 
+Retrieve details for a specific Hex group.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `groupId` | string | Yes | The UUID of the group |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
+| `id` | string | Group UUID |
+| `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
 
 ### `hex_get_project`
 
+Get metadata and details for a specific Hex project by its ID.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
+| `id` | string | Project UUID |
 | `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
+| `description` | string | Project description |
+| `status` | object | Project status |
+|   ↳ `name` | string | Status name \(e.g., PUBLISHED, DRAFT\) |
 | `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `creator` | object | Project creator |
+|   ↳ `email` | string | Creator email |
+| `owner` | object | Project owner |
+|   ↳ `email` | string | Owner email |
+| `categories` | array | Project categories |
+|   ↳ `name` | string | Category name |
+|   ↳ `description` | string | Category description |
+| `lastEditedAt` | string | ISO 8601 last edited timestamp |
+| `lastPublishedAt` | string | ISO 8601 last published timestamp |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `archivedAt` | string | ISO 8601 archived timestamp |
+| `trashedAt` | string | ISO 8601 trashed timestamp |
 
 ### `hex_get_project_runs`
 
+Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project |
+| `limit` | number | No | Maximum number of runs to return \(1-100, default: 25\) |
+| `offset` | number | No | Offset for paginated results \(default: 0\) |
+| `statusFilter` | string | No | Filter by run status: PENDING, RUNNING, ERRORED, COMPLETED, KILLED, UNABLE_TO_ALLOCATE_KERNEL |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `runs` | array | List of project runs |
+|   ↳ `projectId` | string | Project UUID |
+|   ↳ `runId` | string | Run UUID |
+|   ↳ `runUrl` | string | URL to view the run |
+|   ↳ `status` | string | Run status \(PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL\) |
+|   ↳ `startTime` | string | Run start time |
+|   ↳ `endTime` | string | Run end time |
+|   ↳ `elapsedTime` | number | Elapsed time in seconds |
+|   ↳ `traceId` | string | Trace ID |
+|   ↳ `projectVersion` | number | Project version number |
+| `total` | number | Total number of runs returned |
+| `traceId` | string | Top-level trace ID |
 
 ### `hex_get_queried_tables`
 
+Return the warehouse tables queried by a Hex project, including data connection and table names.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project |
+| `limit` | number | No | Maximum number of tables to return \(1-100\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `tables` | array | List of warehouse tables queried by the project |
+|   ↳ `dataConnectionId` | string | Data connection UUID |
+|   ↳ `dataConnectionName` | string | Data connection name |
+|   ↳ `tableName` | string | Table name |
+| `total` | number | Total number of tables returned |
 
 ### `hex_get_run_status`
 
+Check the status of a Hex project run by its run ID.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project |
+| `runId` | string | Yes | The UUID of the run to check |
 
 #### Output
 
@@ -438,286 +253,162 @@ Integrate Hex into your workflow. Run projects, check run status, manage collect
 | `projectId` | string | Project UUID |
 | `runId` | string | Run UUID |
 | `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
+| `status` | string | Run status \(PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL\) |
+| `startTime` | string | ISO 8601 run start time |
+| `endTime` | string | ISO 8601 run end time |
+| `elapsedTime` | number | Elapsed time in seconds |
 | `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `projectVersion` | number | Project version number |
 
 ### `hex_list_collections`
 
+List all collections in the Hex workspace.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `limit` | number | No | Maximum number of collections to return \(1-500, default: 25\) |
+| `sortBy` | string | No | Sort by field: NAME |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `collections` | array | List of collections |
+|   ↳ `id` | string | Collection UUID |
+|   ↳ `name` | string | Collection name |
+|   ↳ `description` | string | Collection description |
+|   ↳ `creator` | object | Collection creator |
+|     ↳ `email` | string | Creator email |
+|     ↳ `id` | string | Creator UUID |
+| `total` | number | Total number of collections returned |
 
 ### `hex_list_data_connections`
 
+List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `limit` | number | No | Maximum number of connections to return \(1-500, default: 25\) |
+| `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
+| `sortDirection` | string | No | Sort direction: ASC or DESC |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `connections` | array | List of data connections |
+|   ↳ `id` | string | Connection UUID |
+|   ↳ `name` | string | Connection name |
+|   ↳ `type` | string | Connection type \(e.g., athena, bigquery, databricks, postgres, redshift, snowflake\) |
+|   ↳ `description` | string | Connection description |
+|   ↳ `connectViaSsh` | boolean | Whether SSH tunneling is enabled |
+|   ↳ `includeMagic` | boolean | Whether Magic AI features are enabled |
+|   ↳ `allowWritebackCells` | boolean | Whether writeback cells are allowed |
+| `total` | number | Total number of connections returned |
 
 ### `hex_list_groups`
 
+List all groups in the Hex workspace with optional sorting.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `limit` | number | No | Maximum number of groups to return \(1-500, default: 25\) |
+| `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
+| `sortDirection` | string | No | Sort direction: ASC or DESC |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `groups` | array | List of workspace groups |
+|   ↳ `id` | string | Group UUID |
+|   ↳ `name` | string | Group name |
+|   ↳ `createdAt` | string | Creation timestamp |
+| `total` | number | Total number of groups returned |
 
 ### `hex_list_projects`
 
+List all projects in your Hex workspace with optional filtering by status.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `limit` | number | No | Maximum number of projects to return \(1-100\) |
+| `includeArchived` | boolean | No | Include archived projects in results |
+| `statusFilter` | string | No | Filter by status: PUBLISHED, DRAFT, or ALL |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `projects` | array | List of Hex projects |
+|   ↳ `id` | string | Project UUID |
+|   ↳ `title` | string | Project title |
+|   ↳ `description` | string | Project description |
+|   ↳ `status` | object | Project status |
+|     ↳ `name` | string | Status name \(e.g., PUBLISHED, DRAFT\) |
+|   ↳ `type` | string | Project type \(PROJECT or COMPONENT\) |
+|   ↳ `creator` | object | Project creator |
+|     ↳ `email` | string | Creator email |
+|   ↳ `owner` | object | Project owner |
+|     ↳ `email` | string | Owner email |
+|   ↳ `lastEditedAt` | string | Last edited timestamp |
+|   ↳ `lastPublishedAt` | string | Last published timestamp |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+| `total` | number | Total number of projects returned |
 
 ### `hex_list_users`
 
+List all users in the Hex workspace with optional filtering and sorting.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `limit` | number | No | Maximum number of users to return \(1-100, default: 25\) |
+| `sortBy` | string | No | Sort by field: NAME or EMAIL |
+| `sortDirection` | string | No | Sort direction: ASC or DESC |
+| `groupId` | string | No | Filter users by group UUID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `users` | array | List of workspace users |
+|   ↳ `id` | string | User UUID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `role` | string | User role \(ADMIN, MANAGER, EDITOR, EXPLORER, MEMBER, GUEST, EMBEDDED_USER, ANONYMOUS\) |
+| `total` | number | Total number of users returned |
 
 ### `hex_run_project`
 
+Execute a published Hex project. Optionally pass input parameters and control caching behavior.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project to run |
+| `inputParams` | json | No | JSON object of input parameters for the project \(e.g., \{"date": "2024-01-01"\}\) |
+| `dryRun` | boolean | No | If true, perform a dry run without executing the project |
+| `updateCache` | boolean | No | \(Deprecated\) If true, update the cached results after execution |
+| `updatePublishedResults` | boolean | No | If true, update the published app results after execution |
+| `useCachedSqlResults` | boolean | No | If true, use cached SQL results instead of re-running queries |
 
 #### Output
 
@@ -727,85 +418,42 @@ Integrate Hex into your workflow. Run projects, check run status, manage collect
 | `runId` | string | Run UUID |
 | `runUrl` | string | URL to view the run |
 | `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
 | `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
-| `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
-| `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `lastEditedAt` | string | Last edited timestamp |
-| `lastPublishedAt` | string | Last published timestamp |
-| `archivedAt` | string | Archived timestamp |
-| `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
+| `projectVersion` | number | Project version number |
 
 ### `hex_update_project`
 
+Update a Hex project status label (e.g., endorsement or custom workspace statuses).
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
+| `projectId` | string | Yes | The UUID of the Hex project to update |
+| `status` | string | Yes | New project status name \(custom workspace status label\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `projectId` | string | Project UUID |
-| `runId` | string | Run UUID |
-| `runUrl` | string | URL to view the run |
-| `runStatusUrl` | string | URL to check run status |
-| `projectVersion` | number | Project version number |
-| `status` | json | Project status object \(\{ name \}\) or run status string |
-| `startTime` | string | Run start time |
-| `endTime` | string | Run end time |
-| `elapsedTime` | number | Elapsed time in milliseconds |
-| `traceId` | string | Trace ID for debugging |
-| `id` | string | Resource ID |
+| `id` | string | Project UUID |
 | `title` | string | Project title |
-| `name` | string | Resource name |
-| `description` | string | Resource description |
+| `description` | string | Project description |
+| `status` | object | Updated project status |
+|   ↳ `name` | string | Status name \(e.g., PUBLISHED, DRAFT\) |
 | `type` | string | Project type \(PROJECT or COMPONENT\) |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
+| `creator` | object | Project creator |
+|   ↳ `email` | string | Creator email |
+| `owner` | object | Project owner |
+|   ↳ `email` | string | Owner email |
+| `categories` | array | Project categories |
+|   ↳ `name` | string | Category name |
+|   ↳ `description` | string | Category description |
 | `lastEditedAt` | string | Last edited timestamp |
 | `lastPublishedAt` | string | Last published timestamp |
+| `createdAt` | string | Creation timestamp |
 | `archivedAt` | string | Archived timestamp |
 | `trashedAt` | string | Trashed timestamp |
-| `projects` | json | List of projects with id, title, status, type, creator, owner, createdAt |
-| `runs` | json | List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion |
-| `users` | json | List of users with id, name, email, role |
-| `groups` | json | List of groups with id, name, createdAt |
-| `collections` | json | List of collections with id, name, description, creator |
-| `connections` | json | List of data connections with id, name, type, description, connectViaSsh, includeMagic, allowWritebackCells |
-| `tables` | json | List of queried tables with dataConnectionId, dataConnectionName, tableName |
-| `categories` | json | Project categories with name and description |
-| `creator` | json | Creator details \(\{ email, id \}\) |
-| `owner` | json | Owner details \(\{ email \}\) |
-| `total` | number | Total results returned |
-| `success` | boolean | Whether the operation succeeded |
-| `connectViaSsh` | boolean | SSH tunneling enabled |
-| `includeMagic` | boolean | Magic AI features enabled |
-| `allowWritebackCells` | boolean | Writeback cells allowed |
 
 

@@ -95,7 +95,7 @@ export const HEX_RUN_STATUS_OUTPUT_PROPERTIES = {
   },
   startTime: { type: 'string', description: 'ISO 8601 run start time', optional: true },
   endTime: { type: 'string', description: 'ISO 8601 run end time', optional: true },
-  elapsedTime: { type: 'number', description: 'Elapsed time in milliseconds', optional: true },
+  elapsedTime: { type: 'number', description: 'Elapsed time in seconds', optional: true },
   traceId: { type: 'string', description: 'Trace ID for debugging', optional: true },
   projectVersion: { type: 'number', description: 'Project version number', optional: true },
 } as const satisfies Record<string, OutputProperty>

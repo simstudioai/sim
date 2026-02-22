@@ -109,12 +109,8 @@ Example:
     {
       id: 'projectStatus',
       title: 'Status',
-      type: 'dropdown',
-      options: [
-        { label: 'Active', id: 'ACTIVE' },
-        { label: 'Archived', id: 'ARCHIVED' },
-      ],
-      value: () => 'ACTIVE',
+      type: 'short-input',
+      placeholder: 'Enter status name (e.g., custom workspace status label)',
       condition: { field: 'operation', value: 'update_project' },
       required: { field: 'operation', value: 'update_project' },
     },
@@ -344,11 +340,23 @@ Example:
     projectId: { type: 'string', description: 'Project UUID' },
     runId: { type: 'string', description: 'Run UUID' },
     inputParams: { type: 'json', description: 'Input parameters for project run' },
-    dryRun: { type: 'boolean', description: 'Validate without executing' },
-    updateCache: { type: 'boolean', description: 'Update cached results' },
-    updatePublishedResults: { type: 'boolean', description: 'Update published app results' },
-    useCachedSqlResults: { type: 'boolean', description: 'Use cached SQL results' },
-    projectStatus: { type: 'string', description: 'New project status' },
+    dryRun: { type: 'boolean', description: 'Perform a dry run without executing the project' },
+    updateCache: {
+      type: 'boolean',
+      description: '(Deprecated) Update cached results after execution',
+    },
+    updatePublishedResults: {
+      type: 'boolean',
+      description: 'Update published app results after execution',
+    },
+    useCachedSqlResults: {
+      type: 'boolean',
+      description: 'Use cached SQL results instead of re-running queries',
+    },
+    projectStatus: {
+      type: 'string',
+      description: 'New project status name (custom workspace status label)',
+    },
     limit: { type: 'number', description: 'Max number of results to return' },
     offset: { type: 'number', description: 'Offset for paginated results' },
     includeArchived: { type: 'boolean', description: 'Include archived projects' },
@@ -376,7 +384,7 @@ Example:
     },
     startTime: { type: 'string', description: 'Run start time' },
     endTime: { type: 'string', description: 'Run end time' },
-    elapsedTime: { type: 'number', description: 'Elapsed time in milliseconds' },
+    elapsedTime: { type: 'number', description: 'Elapsed time in seconds' },
     traceId: { type: 'string', description: 'Trace ID for debugging' },
     // Project outputs
     id: { type: 'string', description: 'Resource ID' },

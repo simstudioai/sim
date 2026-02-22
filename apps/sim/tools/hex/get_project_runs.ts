@@ -5,7 +5,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
   id: 'hex_get_project_runs',
   name: 'Hex Get Project Runs',
   description:
-    'Retrieve the run history for a Hex project with optional filtering by status and pagination.',
+    'Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.',
   version: '1.0.0',
 
   params: {
@@ -99,7 +99,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
           },
           startTime: { type: 'string', description: 'Run start time', optional: true },
           endTime: { type: 'string', description: 'Run end time', optional: true },
-          elapsedTime: { type: 'number', description: 'Elapsed time in ms', optional: true },
+          elapsedTime: { type: 'number', description: 'Elapsed time in seconds', optional: true },
           traceId: { type: 'string', description: 'Trace ID', optional: true },
           projectVersion: {
             type: 'number',
