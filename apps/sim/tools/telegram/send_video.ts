@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { normalizeTelegramMediaParam } from '@/tools/telegram/media'
 import type {
   TelegramMedia,
   TelegramSendMediaResponse,
@@ -50,9 +51,10 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendVideoParams) => {
+        const video = normalizeTelegramMediaParam(params.video, { label: 'Video' })
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          video: params.video,
+          video,
         }
 
         if (params.caption) {
