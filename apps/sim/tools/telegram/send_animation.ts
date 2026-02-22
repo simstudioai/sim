@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { normalizeTelegramMediaParam } from '@/tools/telegram/media'
 import type {
   TelegramMedia,
   TelegramSendAnimationParams,
@@ -52,9 +53,10 @@ export const telegramSendAnimationTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: TelegramSendAnimationParams) => {
+      const animation = normalizeTelegramMediaParam(params.animation, { label: 'Animation' })
       const body: Record<string, any> = {
         chat_id: params.chatId,
-        animation: params.animation,
+        animation,
       }
 
       if (params.caption) {

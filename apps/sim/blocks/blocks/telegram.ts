@@ -2,6 +2,7 @@ import { TelegramIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeTelegramMediaParam } from '@/tools/telegram/media'
 import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
 
@@ -269,13 +270,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: params.messageId,
             }
           case 'telegram_send_photo': {
-            // photo is the canonical param for both basic (photoFile) and advanced modes
-            const photoSource = normalizeFileInput(params.photo, {
-              single: true,
+            // photo supports both public URLs/file_ids and UserFile objects.
+            // Backwards-compatible aliases (e.g., `withPhoto`) are supported for older saved workflows.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawPhoto = params.photo ?? (params as any).withPhoto ?? (params as any).with_photo
+            const photoSource = normalizeTelegramMediaParam(rawPhoto, {
+              label: 'Photo',
+              errorMessage: 'Photo is required.',
             })
-            if (!photoSource) {
-              throw new Error('Photo is required.')
-            }
             return {
               ...commonParams,
               photo: photoSource,
@@ -283,13 +285,12 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_video': {
-            // video is the canonical param for both basic (videoFile) and advanced modes
-            const videoSource = normalizeFileInput(params.video, {
-              single: true,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawVideo = params.video ?? (params as any).withVideo ?? (params as any).with_video
+            const videoSource = normalizeTelegramMediaParam(rawVideo, {
+              label: 'Video',
+              errorMessage: 'Video is required.',
             })
-            if (!videoSource) {
-              throw new Error('Video is required.')
-            }
             return {
               ...commonParams,
               video: videoSource,
@@ -297,13 +298,12 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_audio': {
-            // audio is the canonical param for both basic (audioFile) and advanced modes
-            const audioSource = normalizeFileInput(params.audio, {
-              single: true,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawAudio = params.audio ?? (params as any).withAudio ?? (params as any).with_audio
+            const audioSource = normalizeTelegramMediaParam(rawAudio, {
+              label: 'Audio',
+              errorMessage: 'Audio is required.',
             })
-            if (!audioSource) {
-              throw new Error('Audio is required.')
-            }
             return {
               ...commonParams,
               audio: audioSource,
@@ -311,13 +311,13 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_animation': {
-            // animation is the canonical param for both basic (animationFile) and advanced modes
-            const animationSource = normalizeFileInput(params.animation, {
-              single: true,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawAnimation =
+              params.animation ?? (params as any).withAnimation ?? (params as any).with_animation
+            const animationSource = normalizeTelegramMediaParam(rawAnimation, {
+              label: 'Animation',
+              errorMessage: 'Animation is required.',
             })
-            if (!animationSource) {
-              throw new Error('Animation is required.')
-            }
             return {
               ...commonParams,
               animation: animationSource,

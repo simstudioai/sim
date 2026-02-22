@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { normalizeTelegramMediaParam } from '@/tools/telegram/media'
 import type {
   TelegramPhoto,
   TelegramSendPhotoParams,
@@ -50,9 +51,10 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendPhotoParams) => {
+        const photo = normalizeTelegramMediaParam(params.photo, { label: 'Photo' })
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          photo: params.photo,
+          photo,
         }
 
         if (params.caption) {

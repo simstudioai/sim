@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { normalizeTelegramMediaParam } from '@/tools/telegram/media'
 import type {
   TelegramAudio,
   TelegramSendAudioParams,
@@ -50,9 +51,10 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
         'Content-Type': 'application/json',
       }),
       body: (params: TelegramSendAudioParams) => {
+        const audio = normalizeTelegramMediaParam(params.audio, { label: 'Audio' })
         const body: Record<string, any> = {
           chat_id: params.chatId,
-          audio: params.audio,
+          audio,
         }
 
         if (params.caption) {
