@@ -20,6 +20,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { updateActiveBlockRefCount } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -329,20 +330,7 @@ export function useWorkflowExecution() {
 
       const updateActiveBlocks = (blockId: string, isActive: boolean) => {
         if (!workflowId) return
-        if (isActive) {
-          const count = activeBlockRefCounts.get(blockId) ?? 0
-          activeBlockRefCounts.set(blockId, count + 1)
-          activeBlocksSet.add(blockId)
-        } else {
-          const count = activeBlockRefCounts.get(blockId) ?? 1
-          const next = count - 1
-          if (next <= 0) {
-            activeBlockRefCounts.delete(blockId)
-            activeBlocksSet.delete(blockId)
-          } else {
-            activeBlockRefCounts.set(blockId, next)
-          }
-        }
+        updateActiveBlockRefCount(activeBlockRefCounts, activeBlocksSet, blockId, isActive)
         setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
 
