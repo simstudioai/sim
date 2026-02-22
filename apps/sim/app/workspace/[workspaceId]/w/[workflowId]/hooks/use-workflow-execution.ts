@@ -20,10 +20,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import {
-  resolveBlockRunStatus,
-  updateActiveBlockRefCount,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import { updateActiveBlockRefCount } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -68,8 +65,6 @@ interface BlockEventHandlerConfig {
   workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
   activeBlockRefCounts: Map<string, number>
-  /** Tracks blocks that have errored in any parallel branch — prevents later success from masking errors. */
-  blockRunErrors: Set<string>
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
@@ -317,7 +312,6 @@ export function useWorkflowExecution() {
         workflowEdges,
         activeBlocksSet,
         activeBlockRefCounts,
-        blockRunErrors,
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
@@ -490,12 +484,7 @@ export function useWorkflowExecution() {
       const onBlockCompleted = (data: BlockCompletedData) => {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
-        if (workflowId)
-          setBlockRunStatus(
-            workflowId,
-            data.blockId,
-            resolveBlockRunStatus(blockRunErrors, data.blockId, 'success')
-          )
+        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
@@ -526,12 +515,7 @@ export function useWorkflowExecution() {
       const onBlockError = (data: BlockErrorData) => {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
-        if (workflowId)
-          setBlockRunStatus(
-            workflowId,
-            data.blockId,
-            resolveBlockRunStatus(blockRunErrors, data.blockId, 'error')
-          )
+        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'error')
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
@@ -1296,7 +1280,6 @@ export function useWorkflowExecution() {
 
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
-      const blockRunErrors = new Set<string>()
       const streamedContent = new Map<string, string>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1310,7 +1293,6 @@ export function useWorkflowExecution() {
           workflowEdges,
           activeBlocksSet,
           activeBlockRefCounts,
-          blockRunErrors,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -1922,7 +1904,6 @@ export function useWorkflowExecution() {
       const executedBlockIds = new Set<string>()
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
-      const blockRunErrors = new Set<string>()
 
       try {
         const blockHandlers = buildBlockEventHandlers({
@@ -1931,7 +1912,6 @@ export function useWorkflowExecution() {
           workflowEdges,
           activeBlocksSet,
           activeBlockRefCounts,
-          blockRunErrors,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -2128,7 +2108,6 @@ export function useWorkflowExecution() {
     const workflowEdges = useWorkflowStore.getState().edges
     const activeBlocksSet = new Set<string>()
     const activeBlockRefCounts = new Map<string, number>()
-    const blockRunErrors = new Set<string>()
     const accumulatedBlockLogs: BlockLog[] = []
     const accumulatedBlockStates = new Map<string, BlockState>()
     const executedBlockIds = new Set<string>()
@@ -2141,7 +2120,6 @@ export function useWorkflowExecution() {
       workflowEdges,
       activeBlocksSet,
       activeBlockRefCounts,
-      blockRunErrors,
       accumulatedBlockLogs,
       accumulatedBlockStates,
       executedBlockIds,
