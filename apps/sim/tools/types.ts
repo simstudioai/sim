@@ -58,6 +58,59 @@ export interface OAuthConfig {
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
 }
 
+export interface RetryStatusRange {
+  min: number
+  max: number
+}
+
+export interface ToolRequestRetryConfig {
+  /**
+   * Enables retry logic for this tool's HTTP request execution.
+   * If disabled, tool requests are executed exactly once.
+   */
+  enabled: boolean
+
+  /** Default number of retries (additional attempts after the first). */
+  maxRetries?: number
+  /** Hard cap for maxRetries after parsing user inputs. */
+  maxRetriesLimit?: number
+
+  /** Initial delay before the first retry (ms). */
+  initialDelayMs?: number
+  /** Maximum delay between retries (ms). */
+  maxDelayMs?: number
+
+  /** Specific HTTP status codes that should be retried. */
+  retryOnStatusCodes?: number[]
+  /** Inclusive status code ranges that should be retried. */
+  retryOnStatusRanges?: RetryStatusRange[]
+
+  /** Retry when a request times out (e.g., AbortController timeout). */
+  retryOnTimeout?: boolean
+  /** Retry on network/connection failures (DNS/connection reset/etc.). */
+  retryOnNetworkError?: boolean
+
+  /** Respect `Retry-After` header when retrying HTTP responses (429/503/etc.). */
+  respectRetryAfter?: boolean
+
+  /**
+   * Methods that are considered safe to retry by default.
+   * If the request method is not listed, retries are disabled unless `nonIdempotent` override is enabled.
+   */
+  retryableMethods?: HttpMethod[]
+
+  /**
+   * Parameter names used to override defaults at runtime.
+   * Useful for blocks that expose retry settings via UI inputs.
+   */
+  paramOverrides?: {
+    retries?: string
+    initialDelayMs?: string
+    maxDelayMs?: string
+    nonIdempotent?: string
+  }
+}
+
 export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
@@ -115,6 +168,7 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    retry?: ToolRequestRetryConfig
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
