@@ -13,6 +13,7 @@ import {
   type NormalizedBlockOutput,
 } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
+import { retainTailInPlace } from '@/executor/utils/memory'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   addSubflowErrorLog,
@@ -28,6 +29,7 @@ import type { SerializedLoop } from '@/serializer/types'
 const logger = createLogger('LoopOrchestrator')
 
 const LOOP_CONDITION_TIMEOUT_MS = 5000
+const LOOP_RESULTS_RETAINED_LIMIT = 100
 
 export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
 
@@ -36,6 +38,11 @@ export interface LoopContinuationResult {
   shouldExit: boolean
   selectedRoute: LoopRoute
   aggregatedResults?: NormalizedBlockOutput[][]
+  totalIterations?: number
+  droppedIterations?: number
+  retainedIterations?: number
+  retentionLimit?: number
+  resultsTruncated?: boolean
 }
 
 export class LoopOrchestrator {
@@ -65,6 +72,8 @@ export class LoopOrchestrator {
       iteration: 0,
       currentIterationOutputs: new Map(),
       allIterationOutputs: [],
+      allIterationOutputsDroppedCount: 0,
+      allIterationOutputsLimit: LOOP_RESULTS_RETAINED_LIMIT,
     }
 
     const loopType = loopConfig.loopType
@@ -253,6 +262,12 @@ export class LoopOrchestrator {
 
     if (iterationResults.length > 0) {
       scope.allIterationOutputs.push(iterationResults)
+      const limit = scope.allIterationOutputsLimit ?? LOOP_RESULTS_RETAINED_LIMIT
+      const { dropped } = retainTailInPlace(scope.allIterationOutputs, limit)
+      if (dropped > 0) {
+        scope.allIterationOutputsDroppedCount =
+          (scope.allIterationOutputsDroppedCount ?? 0) + dropped
+      }
     }
 
     scope.currentIterationOutputs.clear()
@@ -280,7 +295,22 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
-    const output = { results }
+    const droppedIterations = scope.allIterationOutputsDroppedCount ?? 0
+    const retentionLimit = scope.allIterationOutputsLimit ?? LOOP_RESULTS_RETAINED_LIMIT
+    const totalIterations = droppedIterations + results.length
+    const resultsTruncated = droppedIterations > 0
+    const output = {
+      results,
+      totalIterations,
+      ...(resultsTruncated
+        ? {
+            resultsTruncated: true,
+            droppedIterations,
+            retainedIterations: results.length,
+            retentionLimit,
+          }
+        : {}),
+    }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
 
     // Emit onBlockComplete for the loop container so the UI can track it
@@ -300,6 +330,11 @@ export class LoopOrchestrator {
       shouldExit: true,
       selectedRoute: EDGE.LOOP_EXIT,
       aggregatedResults: results,
+      totalIterations,
+      droppedIterations: resultsTruncated ? droppedIterations : 0,
+      retainedIterations: results.length,
+      retentionLimit,
+      resultsTruncated,
     }
   }
 
