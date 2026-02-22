@@ -172,7 +172,7 @@ describe('RateLimiter', () => {
       )
     })
 
-    it('should deny on storage error (fail closed)', async () => {
+    it('should allow on storage error (fail open)', async () => {
       mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
 
       const result = await rateLimiter.checkRateLimitWithSubscription(
@@ -182,8 +182,8 @@ describe('RateLimiter', () => {
         false
       )
 
-      expect(result.allowed).toBe(false)
-      expect(result.remaining).toBe(0)
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(1)
     })
 
     it('should work for all non-manual trigger types', async () => {

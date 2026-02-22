@@ -987,15 +987,8 @@ export async function executeInIsolatedVM(
     }
   }
   if (leaseAcquireResult === 'unavailable') {
-    maybeCleanupOwner(ownerKey)
-    return {
-      result: null,
-      stdout: '',
-      error: {
-        message: 'Code execution is temporarily unavailable. Please try again in a moment.',
-        name: 'Error',
-      },
-    }
+    logger.warn('Distributed lease unavailable, falling back to local execution', { ownerKey })
+    // Continue execution — local pool still enforces per-process concurrency limits
   }
 
   let settled = false

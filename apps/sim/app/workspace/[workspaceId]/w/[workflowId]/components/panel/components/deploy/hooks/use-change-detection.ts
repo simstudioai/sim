@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
+import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -42,44 +43,10 @@ export function useChangeDetection({
   const currentState = useMemo((): WorkflowState | null => {
     if (!workflowId) return null
 
-    const blocksWithSubBlocks: WorkflowState['blocks'] = {}
-    for (const [blockId, block] of Object.entries(blocks)) {
-      const blockSubValues = subBlockValues?.[blockId] || {}
-      const subBlocks: Record<string, any> = {}
-
-      if (block.subBlocks) {
-        for (const [subId, subBlock] of Object.entries(block.subBlocks)) {
-          const storedValue = blockSubValues[subId]
-          subBlocks[subId] = {
-            ...subBlock,
-            value: storedValue !== undefined ? storedValue : subBlock.value,
-          }
-        }
-      }
-
-      if (block.triggerMode) {
-        const triggerConfigValue = blockSubValues?.triggerConfig
-        if (
-          triggerConfigValue &&
-          typeof triggerConfigValue === 'object' &&
-          !subBlocks.triggerConfig
-        ) {
-          subBlocks.triggerConfig = {
-            id: 'triggerConfig',
-            type: 'short-input',
-            value: triggerConfigValue,
-          }
-        }
-      }
-
-      blocksWithSubBlocks[blockId] = {
-        ...block,
-        subBlocks,
-      }
-    }
+    const mergedBlocks = mergeSubblockStateWithValues(blocks, subBlockValues ?? {})
 
     return {
-      blocks: blocksWithSubBlocks,
+      blocks: mergedBlocks,
       edges,
       loops,
       parallels,

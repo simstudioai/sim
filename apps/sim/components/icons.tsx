@@ -5819,3 +5819,15 @@ export function RedisIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function HexIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1450.3 600'>
+      <path
+        fill='#5F509D'
+        fillRule='evenodd'
+        d='m250.11,0v199.49h-50V0H0v600h200.11v-300.69h50v300.69h200.18V0h-200.18Zm249.9,0v600h450.29v-250.23h-200.2v149h-50v-199.46h250.2V0h-450.29Zm200.09,199.49v-99.49h50v99.49h-50Zm550.02,0V0h200.18v150l-100,100.09,100,100.09v249.82h-200.18v-300.69h-50v300.69h-200.11v-249.82l100.11-100.09-100.11-100.09V0h200.11v199.49h50Z'
+      />
+    </svg>
+  )
+}
