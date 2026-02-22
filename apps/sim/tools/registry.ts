@@ -843,6 +843,7 @@ import {
   intercomUpdateContactV2Tool,
   intercomUpdateTicketV2Tool,
 } from '@/tools/intercom'
+import { modelsLabImageTool } from '@/tools/image'
 import { jinaReadUrlTool, jinaSearchTool } from '@/tools/jina'
 import {
   jiraAddAttachmentTool,
@@ -3163,6 +3164,7 @@ export const tools: Record<string, ToolConfig> = {
   datadog_list_downtimes: datadogListDowntimesTool,
   datadog_cancel_downtime: datadogCancelDowntimeTool,
   openai_image: openAIImageTool,
+  image_modelslab: modelsLabImageTool,
   microsoft_teams_read_chat: microsoftTeamsReadChatTool,
   microsoft_teams_write_chat: microsoftTeamsWriteChatTool,
   microsoft_teams_read_channel: microsoftTeamsReadChannelTool,
