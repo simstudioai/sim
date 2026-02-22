@@ -9,6 +9,10 @@ export interface RequestParams {
   pathParams?: Record<string, string>
   formData?: Record<string, string | Blob>
   timeout?: number
+  retries?: number
+  retryDelayMs?: number
+  retryMaxDelayMs?: number
+  retryNonIdempotent?: boolean
 }
 
 export interface RequestResponse extends ToolResponse {

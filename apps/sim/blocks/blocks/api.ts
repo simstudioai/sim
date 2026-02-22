@@ -89,6 +89,38 @@ Example:
         'Request timeout in milliseconds (default: 300000 = 5 minutes, max: 600000 = 10 minutes)',
       mode: 'advanced',
     },
+    {
+      id: 'retries',
+      title: 'Retries',
+      type: 'short-input',
+      placeholder: '2',
+      description:
+        'Number of retry attempts for timeouts, 429 responses, and 5xx errors (default: 2 for GET/PUT/DELETE/HEAD)',
+      mode: 'advanced',
+    },
+    {
+      id: 'retryDelayMs',
+      title: 'Retry delay (ms)',
+      type: 'short-input',
+      placeholder: '500',
+      description: 'Initial retry delay in milliseconds (exponential backoff)',
+      mode: 'advanced',
+    },
+    {
+      id: 'retryMaxDelayMs',
+      title: 'Max retry delay (ms)',
+      type: 'short-input',
+      placeholder: '30000',
+      description: 'Maximum delay between retries in milliseconds',
+      mode: 'advanced',
+    },
+    {
+      id: 'retryNonIdempotent',
+      title: 'Retry non-idempotent methods',
+      type: 'switch',
+      description: 'Allow retries for POST/PATCH requests (may create duplicate requests)',
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: ['http_request'],
@@ -100,6 +132,16 @@ Example:
     body: { type: 'json', description: 'Request body data' },
     params: { type: 'json', description: 'URL query parameters' },
     timeout: { type: 'number', description: 'Request timeout in milliseconds' },
+    retries: { type: 'number', description: 'Number of retry attempts for retryable failures' },
+    retryDelayMs: { type: 'number', description: 'Initial retry delay in milliseconds' },
+    retryMaxDelayMs: {
+      type: 'number',
+      description: 'Maximum delay between retries in milliseconds',
+    },
+    retryNonIdempotent: {
+      type: 'boolean',
+      description: 'Allow retries for non-idempotent methods like POST/PATCH',
+    },
   },
   outputs: {
     data: { type: 'json', description: 'API response data (JSON, text, or other formats)' },
