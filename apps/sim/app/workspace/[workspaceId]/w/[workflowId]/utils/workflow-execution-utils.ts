@@ -6,6 +6,22 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
+ * Returns the run status to persist for a block, using an error-sticky policy.
+ * Once any parallel branch for a block has errored, the block status stays 'error'
+ * even if a later branch completes successfully — preventing failures from being masked.
+ */
+export function resolveBlockRunStatus(
+  erroredBlocks: Set<string>,
+  blockId: string,
+  status: 'success' | 'error'
+): 'success' | 'error' {
+  if (status === 'error') {
+    erroredBlocks.add(blockId)
+  }
+  return erroredBlocks.has(blockId) ? 'error' : 'success'
+}
+
+/**
  * Updates the active blocks set and ref counts for a single block.
  * Ref counting ensures a block stays active until all parallel branches for it complete.
  */
@@ -64,6 +80,7 @@ export async function executeWorkflowWithFullLogging(
 
   const activeBlocksSet = new Set<string>()
   const activeBlockRefCounts = new Map<string, number>()
+  const blockRunErrors = new Set<string>()
 
   const payload: any = {
     input: options.workflowInput,
@@ -154,7 +171,11 @@ export async function executeWorkflowWithFullLogging(
               )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
-              setBlockRunStatus(wfId, event.data.blockId, 'success')
+              setBlockRunStatus(
+                wfId,
+                event.data.blockId,
+                resolveBlockRunStatus(blockRunErrors, event.data.blockId, 'success')
+              )
 
               addConsole({
                 input: event.data.input || {},
@@ -190,7 +211,11 @@ export async function executeWorkflowWithFullLogging(
               )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
-              setBlockRunStatus(wfId, event.data.blockId, 'error')
+              setBlockRunStatus(
+                wfId,
+                event.data.blockId,
+                resolveBlockRunStatus(blockRunErrors, event.data.blockId, 'error')
+              )
 
               addConsole({
                 input: event.data.input || {},
