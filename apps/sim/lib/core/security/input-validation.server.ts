@@ -64,10 +64,31 @@ export async function validateUrlWithDNS(
   const parsedUrl = new URL(url!)
   const hostname = parsedUrl.hostname
 
-  try {
-    const { address } = await dns.lookup(hostname)
+  const hostnameLower = hostname.toLowerCase()
+  const cleanHostname =
+    hostnameLower.startsWith('[') && hostnameLower.endsWith(']')
+      ? hostnameLower.slice(1, -1)
+      : hostnameLower
 
-    if (isPrivateOrReservedIP(address)) {
+  let isLocalhost = cleanHostname === 'localhost'
+  if (ipaddr.isValid(cleanHostname)) {
+    const processedIP = ipaddr.process(cleanHostname).toString()
+    if (processedIP === '127.0.0.1' || processedIP === '::1') {
+      isLocalhost = true
+    }
+  }
+
+  try {
+    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+
+    const resolvedIsLoopback =
+      ipaddr.isValid(address) &&
+      (() => {
+        const ip = ipaddr.process(address).toString()
+        return ip === '127.0.0.1' || ip === '::1'
+      })()
+
+    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -189,8 +210,6 @@ export async function secureFetchWithPinnedIP(
 
     const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
 
-    // Remove accept-encoding since Node.js http/https doesn't auto-decompress
-    // Headers are lowercase due to Web Headers API normalization in executeToolRequest
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
 
     const requestOptions: http.RequestOptions = {
@@ -200,7 +219,7 @@ export async function secureFetchWithPinnedIP(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
-      timeout: options.timeout || 300000, // Default 5 minutes
+      timeout: options.timeout || 300000,
     }
 
     const protocol = isHttps ? https : http
