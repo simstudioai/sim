@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
@@ -231,6 +232,73 @@ const DEPTH_CONFIGS: Record<string, DepthConfig> = {
   },
 }
 
+const SCROLL_BLOCK_RX = '2.59574'
+
+/**
+ * Two-row horizontal block strip for the scroll-driven reveal in the templates section.
+ * Same structural pattern as the hero's top-right blocks with matching colours:
+ * blue (left) → pink (middle) → green (right).
+ */
+const SCROLL_BLOCK_RECTS = [
+  { opacity: 0.6, x: '-34.24', y: '0', width: '34.24', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 1, x: '-17.38', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 1, x: '0', y: '0', width: '16.86', height: '33.73', fill: '#2ABBF8' },
+  { opacity: 0.6, x: '0', y: '0', width: '85.34', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 1, x: '0', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 0.6, x: '34.24', y: '0', width: '34.24', height: '33.73', fill: '#2ABBF8' },
+  { opacity: 1, x: '34.24', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 1, x: '51.62', y: '16.86', width: '16.86', height: '16.86', fill: '#2ABBF8' },
+  { opacity: 1, x: '68.48', y: '0', width: '54.65', height: '16.86', fill: '#FA4EDF' },
+  { opacity: 0.6, x: '106.27', y: '0', width: '34.24', height: '33.73', fill: '#FA4EDF' },
+  { opacity: 0.6, x: '106.27', y: '0', width: '51.10', height: '16.86', fill: '#FA4EDF' },
+  { opacity: 1, x: '123.65', y: '16.86', width: '16.86', height: '16.86', fill: '#FA4EDF' },
+  { opacity: 0.6, x: '157.37', y: '0', width: '34.24', height: '16.86', fill: '#FA4EDF' },
+  { opacity: 1, x: '157.37', y: '0', width: '16.86', height: '16.86', fill: '#FA4EDF' },
+  { opacity: 0.6, x: '209.0', y: '0', width: '68.48', height: '16.86', fill: '#00F701' },
+  { opacity: 0.6, x: '209.14', y: '0', width: '16.86', height: '33.73', fill: '#00F701' },
+  { opacity: 0.6, x: '243.23', y: '0', width: '34.24', height: '33.73', fill: '#00F701' },
+  { opacity: 1, x: '243.23', y: '0', width: '16.86', height: '16.86', fill: '#00F701' },
+  { opacity: 0.6, x: '260.10', y: '0', width: '34.04', height: '16.86', fill: '#00F701' },
+  { opacity: 1, x: '260.61', y: '16.86', width: '16.86', height: '16.86', fill: '#00F701' },
+] as const
+
+const SCROLL_BLOCK_MAX_X = Math.max(...SCROLL_BLOCK_RECTS.map((r) => Number.parseFloat(r.x)))
+const SCROLL_REVEAL_START = 0.05
+const SCROLL_REVEAL_SPAN = 0.7
+const SCROLL_FADE_IN = 0.03
+
+function getScrollBlockThreshold(x: string): number {
+  const normalized = Number.parseFloat(x) / SCROLL_BLOCK_MAX_X
+  return SCROLL_REVEAL_START + (1 - normalized) * SCROLL_REVEAL_SPAN
+}
+
+interface ScrollBlockRectProps {
+  scrollYProgress: MotionValue<number>
+  rect: (typeof SCROLL_BLOCK_RECTS)[number]
+}
+
+/** Renders a single SVG rect whose opacity is driven by scroll progress. */
+function ScrollBlockRect({ scrollYProgress, rect }: ScrollBlockRectProps) {
+  const threshold = getScrollBlockThreshold(rect.x)
+  const opacity = useTransform(
+    scrollYProgress,
+    [threshold, threshold + SCROLL_FADE_IN],
+    [0, rect.opacity]
+  )
+
+  return (
+    <motion.rect
+      x={rect.x}
+      y={rect.y}
+      width={rect.width}
+      height={rect.height}
+      rx={SCROLL_BLOCK_RX}
+      fill={rect.fill}
+      style={{ opacity }}
+    />
+  )
+}
+
 function buildBottomWallStyle(config: DepthConfig) {
   let pos = 0
   const stops: string[] = []
@@ -274,13 +342,24 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
 const TEMPLATES_PANEL_ID = 'templates-panel'
 
 export default function Templates() {
+  const sectionRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start 0.9', 'start 0.2'],
+  })
 
   const activeWorkflow = TEMPLATE_WORKFLOWS[activeIndex]
   const activeDepth = DEPTH_CONFIGS[activeWorkflow.id]
 
   return (
-    <section id='templates' aria-labelledby='templates-heading' className='mt-[40px] mb-[80px]'>
+    <section
+      ref={sectionRef}
+      id='templates'
+      aria-labelledby='templates-heading'
+      className='mt-[40px] mb-[80px]'
+    >
       <p className='sr-only'>
         Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
         processing, release management, meeting follow-ups, resume scanning, email triage,
@@ -298,6 +377,24 @@ export default function Templates() {
         />
 
         <div className='relative overflow-hidden'>
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute top-0 right-0 z-20 hidden lg:block'
+          >
+            <svg
+              width={329}
+              height={34}
+              viewBox='-34 0 329 34'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+              className='h-auto w-full'
+            >
+              {SCROLL_BLOCK_RECTS.map((r, i) => (
+                <ScrollBlockRect key={i} scrollYProgress={scrollYProgress} rect={r} />
+              ))}
+            </svg>
+          </div>
+
           <div className='px-[80px] pt-[100px]'>
             <div className='flex flex-col items-start gap-[20px]'>
               <Badge
@@ -317,12 +414,12 @@ export default function Templates() {
                 id='templates-heading'
                 className='font-[430] font-season text-[40px] text-white leading-[100%] tracking-[-0.02em]'
               >
-                Go from idea to production in minutes.
+                Ship your agent in minutes
               </h2>
 
-              <p className='max-w-[640px] font-[430] font-season text-[#F6F6F0]/50 text-[16px] leading-[125%] tracking-[0.02em]'>
-                1,000+ integrations wired into pre-built templates for every use case—pick one, swap
-                models and tools to fit your stack, and deploy in minutes.
+              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[16px] leading-[125%] tracking-[0.02em]'>
+                Pre-built templates for every use case—pick one, swap <br />
+                models and tools to fit your stack, and deploy.
               </p>
             </div>
           </div>
