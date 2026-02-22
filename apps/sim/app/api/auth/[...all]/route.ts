@@ -1,7 +1,7 @@
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { createAnonymousGetSessionResponse, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return NextResponse.json(createAnonymousSession())
+    return NextResponse.json(createAnonymousGetSessionResponse())
   }
 
   return betterAuthGET(request)
