@@ -81,7 +81,14 @@ export async function validateUrlWithDNS(
   try {
     const { address } = await dns.lookup(cleanHostname, { verbatim: true })
 
-    if (isPrivateOrReservedIP(address) && !isLocalhost) {
+    const resolvedIsLoopback =
+      ipaddr.isValid(address) &&
+      (() => {
+        const ip = ipaddr.process(address).toString()
+        return ip === '127.0.0.1' || ip === '::1'
+      })()
+
+    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
