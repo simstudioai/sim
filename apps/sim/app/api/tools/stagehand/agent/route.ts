@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     }
 
     const modelName =
-      provider === 'anthropic' ? 'anthropic/claude-3-7-sonnet-latest' : 'openai/gpt-4.1'
+      provider === 'anthropic' ? 'anthropic/claude-sonnet-4-5-20250929' : 'openai/gpt-5'
 
     try {
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })

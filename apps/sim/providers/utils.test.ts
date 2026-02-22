@@ -183,7 +183,6 @@ describe('Model Capabilities', () => {
         'gemini-2.5-flash',
         'claude-sonnet-4-0',
         'claude-opus-4-0',
-        'claude-3-7-sonnet-latest',
         'grok-3-latest',
         'grok-3-fast-latest',
         'deepseek-v3',
@@ -260,7 +259,6 @@ describe('Model Capabilities', () => {
       const modelsRange01 = [
         'claude-sonnet-4-0',
         'claude-opus-4-0',
-        'claude-3-7-sonnet-latest',
         'grok-3-latest',
         'grok-3-fast-latest',
       ]
