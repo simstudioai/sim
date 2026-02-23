@@ -261,6 +261,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       ...allBlocks.map((b) => new Date(b.endedAt || b.timestamp).getTime())
     )
     const totalDuration = allBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
+    // Parallel branches run concurrently — use wall-clock time. Loop iterations run serially — use sum.
+    const subflowDuration =
+      iterationType === 'parallel' ? subflowEndMs - subflowStartMs : totalDuration
 
     // Create synthetic subflow parent entry
     // Use the minimum executionOrder from all child blocks for proper ordering
@@ -276,7 +279,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       startedAt: new Date(subflowStartMs).toISOString(),
       executionOrder: subflowExecutionOrder,
       endedAt: new Date(subflowEndMs).toISOString(),
-      durationMs: totalDuration,
+      durationMs: subflowDuration,
       success: !allBlocks.some((b) => b.error),
     }
 
@@ -291,6 +294,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         ...iterBlocks.map((b) => new Date(b.endedAt || b.timestamp).getTime())
       )
       const iterDuration = iterBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
+      // Parallel branches run concurrently — use wall-clock time. Loop iterations run serially — use sum.
+      const iterDisplayDuration =
+        iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
 
       // Use the minimum executionOrder from blocks in this iteration
       const iterExecutionOrder = Math.min(...iterBlocks.map((b) => b.executionOrder))
@@ -305,7 +311,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         startedAt: new Date(iterStartMs).toISOString(),
         executionOrder: iterExecutionOrder,
         endedAt: new Date(iterEndMs).toISOString(),
-        durationMs: iterDuration,
+        durationMs: iterDisplayDuration,
         success: !iterBlocks.some((b) => b.error),
         iterationCurrent: iterGroup.iterationCurrent,
         iterationTotal: iterGroup.iterationTotal,

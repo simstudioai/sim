@@ -124,7 +124,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Create .next/cache directory with correct ownership
 RUN mkdir -p apps/sim/.next/cache && \
-    chown -R nextjs:nodejs /app
+    chown -R nextjs:nodejs apps/sim/.next/cache
 
 # Switch to non-root user
 USER nextjs

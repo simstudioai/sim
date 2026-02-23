@@ -11,6 +11,8 @@ import {
   customSession,
   emailOTP,
   genericOAuth,
+  jwt,
+  oidcProvider,
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
@@ -23,6 +25,12 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import {
+  evictCachedMetadata,
+  isMetadataUrl,
+  resolveClientMetadata,
+  upsertCimdClient,
+} from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -84,6 +92,8 @@ export const auth = betterAuth({
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
+    'https://claude.ai',
+    'https://claude.com',
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -620,11 +630,51 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
+        const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
+        if (clientId && isMetadataUrl(clientId)) {
+          try {
+            const { metadata, fromCache } = await resolveClientMetadata(clientId)
+            if (!fromCache) {
+              try {
+                await upsertCimdClient(metadata)
+              } catch (upsertErr) {
+                evictCachedMetadata(clientId)
+                throw upsertErr
+              }
+            }
+          } catch (err) {
+            logger.warn('CIMD resolution failed', {
+              clientId,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+      }
+
       return
     }),
   },
   plugins: [
     nextCookies(),
+    jwt({
+      jwks: {
+        keyPairConfig: { alg: 'RS256' },
+      },
+      disableSettingJwtHeader: true,
+    }),
+    oidcProvider({
+      loginPage: '/login',
+      consentPage: '/oauth/consent',
+      requirePKCE: true,
+      allowPlainCodeChallengeMethod: false,
+      allowDynamicClientRegistration: true,
+      useJWTPlugin: true,
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
+      metadata: {
+        client_id_metadata_document_supported: true,
+      } as Record<string, unknown>,
+    }),
     oneTimeToken({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
     }),

@@ -679,6 +679,55 @@ async function downloadSlackFiles(
   return downloaded
 }
 
+const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
+
+/**
+ * Fetches the text of a reacted-to message from Slack using the reactions.get API.
+ * Unlike conversations.history, reactions.get works for both top-level messages and
+ * thread replies, since it looks up the item directly by channel + timestamp.
+ * Requires the bot token to have the reactions:read scope.
+ */
+async function fetchSlackMessageText(
+  channel: string,
+  messageTs: string,
+  botToken: string
+): Promise<string> {
+  try {
+    const params = new URLSearchParams({
+      channel,
+      timestamp: messageTs,
+    })
+    const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    })
+
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      type?: string
+      message?: { text?: string }
+    }
+
+    if (!data.ok) {
+      logger.warn('Slack reactions.get failed — message text unavailable', {
+        channel,
+        messageTs,
+        error: data.error,
+      })
+      return ''
+    }
+
+    return data.message?.text ?? ''
+  } catch (error) {
+    logger.warn('Error fetching Slack message text', {
+      channel,
+      messageTs,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return ''
+  }
+}
+
 /**
  * Format webhook input based on provider
  */
@@ -953,6 +1002,23 @@ export async function formatWebhookInput(
       })
     }
 
+    const eventType: string = rawEvent?.type || body?.type || 'unknown'
+    const isReactionEvent = SLACK_REACTION_EVENTS.has(eventType)
+
+    // Reaction events nest channel/ts inside event.item
+    const channel: string = isReactionEvent
+      ? rawEvent?.item?.channel || ''
+      : rawEvent?.channel || ''
+    const messageTs: string = isReactionEvent
+      ? rawEvent?.item?.ts || ''
+      : rawEvent?.ts || rawEvent?.event_ts || ''
+
+    // For reaction events, attempt to fetch the original message text
+    let text: string = rawEvent?.text || ''
+    if (isReactionEvent && channel && messageTs && botToken) {
+      text = await fetchSlackMessageText(channel, messageTs, botToken)
+    }
+
     const rawFiles: any[] = rawEvent?.files ?? []
     const hasFiles = rawFiles.length > 0
 
@@ -965,16 +1031,18 @@ export async function formatWebhookInput(
 
     return {
       event: {
-        event_type: rawEvent?.type || body?.type || 'unknown',
-        channel: rawEvent?.channel || '',
+        event_type: eventType,
+        channel,
         channel_name: '',
         user: rawEvent?.user || '',
         user_name: '',
-        text: rawEvent?.text || '',
-        timestamp: rawEvent?.ts || rawEvent?.event_ts || '',
+        text,
+        timestamp: messageTs,
         thread_ts: rawEvent?.thread_ts || '',
         team_id: body?.team_id || rawEvent?.team || '',
         event_id: body?.event_id || '',
+        reaction: rawEvent?.reaction || '',
+        item_user: rawEvent?.item_user || '',
         hasFiles,
         files,
       },

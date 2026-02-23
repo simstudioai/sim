@@ -63,6 +63,13 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-or-llm',
       description: 'Thread timestamp to reply to (creates thread reply)',
     },
+    blocks: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text.',
+    },
     files: {
       type: 'file[]',
       required: false,
@@ -85,6 +92,10 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
         userId: isDM ? params.dmUserId : params.userId,
         text: params.text,
         thread_ts: params.threadTs || undefined,
+        blocks:
+          typeof params.blocks === 'string'
+            ? JSON.parse(params.blocks)
+            : params.blocks || undefined,
         files: params.files || null,
       }
     },

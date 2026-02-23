@@ -454,6 +454,8 @@ Enables AI-assisted field generation.
 
 ## Tools Configuration
 
+**Important:** `tools.config.tool` runs during serialization before variable resolution. Put `Number()` and other type coercions in `tools.config.params` instead, which runs at execution time after variables are resolved.
+
 **Preferred:** Use tool names directly as dropdown option IDs to avoid switch cases:
 ```typescript
 // Dropdown options use tool IDs directly

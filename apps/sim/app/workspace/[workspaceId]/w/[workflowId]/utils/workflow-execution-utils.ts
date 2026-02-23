@@ -5,6 +5,30 @@ import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+/**
+ * Updates the active blocks set and ref counts for a single block.
+ * Ref counting ensures a block stays active until all parallel branches for it complete.
+ */
+export function updateActiveBlockRefCount(
+  refCounts: Map<string, number>,
+  activeSet: Set<string>,
+  blockId: string,
+  isActive: boolean
+): void {
+  if (isActive) {
+    refCounts.set(blockId, (refCounts.get(blockId) ?? 0) + 1)
+    activeSet.add(blockId)
+  } else {
+    const next = (refCounts.get(blockId) ?? 1) - 1
+    if (next <= 0) {
+      refCounts.delete(blockId)
+      activeSet.delete(blockId)
+    } else {
+      refCounts.set(blockId, next)
+    }
+  }
+}
+
 export interface WorkflowExecutionOptions {
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
@@ -39,6 +63,7 @@ export async function executeWorkflowWithFullLogging(
   const workflowEdges = useWorkflowStore.getState().edges
 
   const activeBlocksSet = new Set<string>()
+  const activeBlockRefCounts = new Map<string, number>()
 
   const payload: any = {
     input: options.workflowInput,
@@ -103,7 +128,12 @@ export async function executeWorkflowWithFullLogging(
 
           switch (event.type) {
             case 'block:started': {
-              activeBlocksSet.add(event.data.blockId)
+              updateActiveBlockRefCount(
+                activeBlockRefCounts,
+                activeBlocksSet,
+                event.data.blockId,
+                true
+              )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               const incomingEdges = workflowEdges.filter(
@@ -115,8 +145,13 @@ export async function executeWorkflowWithFullLogging(
               break
             }
 
-            case 'block:completed':
-              activeBlocksSet.delete(event.data.blockId)
+            case 'block:completed': {
+              updateActiveBlockRefCount(
+                activeBlockRefCounts,
+                activeBlocksSet,
+                event.data.blockId,
+                false
+              )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'success')
@@ -144,9 +179,15 @@ export async function executeWorkflowWithFullLogging(
                 options.onBlockComplete(event.data.blockId, event.data.output).catch(() => {})
               }
               break
+            }
 
-            case 'block:error':
-              activeBlocksSet.delete(event.data.blockId)
+            case 'block:error': {
+              updateActiveBlockRefCount(
+                activeBlockRefCounts,
+                activeBlocksSet,
+                event.data.blockId,
+                false
+              )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'error')
@@ -171,6 +212,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationContainerId: event.data.iterationContainerId,
               })
               break
+            }
 
             case 'execution:completed':
               executionResult = {

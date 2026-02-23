@@ -64,11 +64,6 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     access: ['wikipedia_summary', 'wikipedia_search', 'wikipedia_content', 'wikipedia_random'],
     config: {
       tool: (params) => {
-        // Convert searchLimit to a number for search operation
-        if (params.searchLimit) {
-          params.searchLimit = Number(params.searchLimit)
-        }
-
         switch (params.operation) {
           case 'wikipedia_summary':
             return 'wikipedia_summary'
@@ -81,6 +76,11 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
           default:
             return 'wikipedia_summary'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.searchLimit) result.searchLimit = Number(params.searchLimit)
+        return result
       },
     },
   },

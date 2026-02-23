@@ -602,11 +602,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric fields
-        if (params.limit) {
-          params.limit = Number(params.limit)
-        }
-
         // Return the appropriate tool based on operation
         switch (params.operation) {
           case 'sentry_issues_list':
@@ -636,6 +631,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           default:
             return 'sentry_issues_list'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        return result
       },
     },
   },

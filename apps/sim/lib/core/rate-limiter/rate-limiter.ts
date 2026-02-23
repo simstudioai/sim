@@ -100,17 +100,16 @@ export class RateLimiter {
         retryAfterMs: result.retryAfterMs,
       }
     } catch (error) {
-      logger.error('Rate limit storage error - failing closed (denying request)', {
+      logger.error('Rate limit storage error - failing open (allowing request)', {
         error: error instanceof Error ? error.message : String(error),
         userId,
         triggerType,
         isAsync,
       })
       return {
-        allowed: false,
-        remaining: 0,
+        allowed: true,
+        remaining: 1,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
-        retryAfterMs: RATE_LIMIT_WINDOW_MS,
       }
     }
   }

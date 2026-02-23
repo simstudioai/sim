@@ -17,6 +17,7 @@ const SlackSendMessageSchema = z
     userId: z.string().optional().nullable(),
     text: z.string().min(1, 'Message text is required'),
     thread_ts: z.string().optional().nullable(),
+    blocks: z.array(z.record(z.unknown())).optional().nullable(),
     files: RawFileInputArraySchema.optional().nullable(),
   })
   .refine((data) => data.channel || data.userId, {
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
         userId: validatedData.userId ?? undefined,
         text: validatedData.text,
         threadTs: validatedData.thread_ts ?? undefined,
+        blocks: validatedData.blocks ?? undefined,
         files: validatedData.files ?? undefined,
       },
       requestId,

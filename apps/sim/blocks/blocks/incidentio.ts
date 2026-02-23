@@ -826,16 +826,6 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     ],
     config: {
       tool: (params) => {
-        // Convert page_size to a number if provided
-        if (params.page_size) {
-          params.page_size = Number(params.page_size)
-        }
-
-        // Convert notify_incident_channel from string to boolean
-        if (params.notify_incident_channel !== undefined) {
-          params.notify_incident_channel = params.notify_incident_channel === 'true'
-        }
-
         switch (params.operation) {
           case 'incidentio_incidents_list':
             return 'incidentio_incidents_list'
@@ -928,6 +918,14 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
           default:
             return 'incidentio_incidents_list'
         }
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.page_size) result.page_size = Number(params.page_size)
+        if (params.notify_incident_channel !== undefined) {
+          result.notify_incident_channel = params.notify_incident_channel === 'true'
+        }
+        return result
       },
     },
   },

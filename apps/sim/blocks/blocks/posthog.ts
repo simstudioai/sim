@@ -1185,22 +1185,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ],
     config: {
       tool: (params) => {
-        // Convert numeric parameters
-        if (params.limit) params.limit = Number(params.limit)
-        if (params.offset) params.offset = Number(params.offset)
-        if (params.rolloutPercentage) params.rolloutPercentage = Number(params.rolloutPercentage)
-
-        // Map projectIdParam to projectId for get_project operation
+        // Field renames in tool() are safe (they copy values, not coerce types)
+        // and are needed for serialization-time validation of required fields
         if (params.operation === 'posthog_get_project' && params.projectIdParam) {
           params.projectId = params.projectIdParam
         }
-
-        // Map personalApiKey to apiKey for all private endpoint tools
         if (params.personalApiKey) {
           params.apiKey = params.personalApiKey
         }
 
-        // Map featureFlagId to flagId for feature flag operations
         const flagOps = [
           'posthog_get_feature_flag',
           'posthog_update_feature_flag',
@@ -1210,7 +1203,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.flagId = params.featureFlagId
         }
 
-        // Map surveyType to type for survey operations
         if (
           (params.operation === 'posthog_create_survey' ||
             params.operation === 'posthog_update_survey') &&
@@ -1219,37 +1211,30 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.type = params.surveyType
         }
 
-        // Map isStatic for cohorts
         if (params.operation === 'posthog_create_cohort' && params.isStatic !== undefined) {
           params.is_static = params.isStatic
         }
 
-        // Map dateMarker to date_marker for annotations
         if (params.operation === 'posthog_create_annotation' && params.dateMarker) {
           params.date_marker = params.dateMarker
         }
 
-        // Map propertyType to property_type
         if (params.operation === 'posthog_update_property_definition' && params.propertyType) {
           params.property_type = params.propertyType
         }
 
-        // Map insightQuery to query for insights
         if (params.operation === 'posthog_create_insight' && params.insightQuery) {
           params.query = params.insightQuery
         }
 
-        // Map insightTags to tags for insights
         if (params.operation === 'posthog_create_insight' && params.insightTags) {
           params.tags = params.insightTags
         }
 
-        // Map distinctIdFilter to distinctId for list_persons
         if (params.operation === 'posthog_list_persons' && params.distinctIdFilter) {
           params.distinctId = params.distinctIdFilter
         }
 
-        // Map experiment date fields
         if (params.operation === 'posthog_create_experiment') {
           if (params.experimentStartDate) {
             params.startDate = params.experimentStartDate
@@ -1259,7 +1244,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
         }
 
-        // Map survey date fields
         if (
           params.operation === 'posthog_create_survey' ||
           params.operation === 'posthog_update_survey'
@@ -1272,12 +1256,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
         }
 
-        // Convert responsesLimit to number
-        if (params.responsesLimit) {
-          params.responsesLimit = Number(params.responsesLimit)
-        }
-
         return params.operation as string
+      },
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        if (params.limit) result.limit = Number(params.limit)
+        if (params.offset) result.offset = Number(params.offset)
+        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
+        if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
+
+        return result
       },
     },
   },

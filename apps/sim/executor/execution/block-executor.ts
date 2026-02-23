@@ -428,7 +428,7 @@ export class BlockExecutor {
     block: SerializedBlock,
     executionOrder: number
   ): void {
-    const blockId = node.id
+    const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
@@ -456,7 +456,7 @@ export class BlockExecutor {
     executionOrder: number,
     endedAt: string
   ): void {
-    const blockId = node.id
+    const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 

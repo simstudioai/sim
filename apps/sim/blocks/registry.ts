@@ -55,6 +55,7 @@ import { GrafanaBlock } from '@/blocks/blocks/grafana'
 import { GrainBlock } from '@/blocks/blocks/grain'
 import { GreptileBlock } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { HexBlock } from '@/blocks/blocks/hex'
 import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
@@ -139,7 +140,6 @@ import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
-import { TableBlock } from '@/blocks/blocks/table'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
@@ -241,6 +241,7 @@ export const registry: Record<string, BlockConfig> = {
   grain: GrainBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
+  hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
@@ -331,7 +332,8 @@ export const registry: Record<string, BlockConfig> = {
   stt: SttBlock,
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
-  table: TableBlock,
+  // TODO: Uncomment when working on tables
+  // table: TableBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   textract: TextractBlock,

@@ -2,7 +2,7 @@ import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
-import type { ResolutionContext } from './reference'
+import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/blocks/registry', async () => {
@@ -134,15 +134,18 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.items.1.id>', ctx)).toBe(2)
     })
 
-    it.concurrent('should return undefined for non-existent path when no schema defined', () => {
-      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        source: { existing: 'value' },
-      })
+    it.concurrent(
+      'should return RESOLVED_EMPTY for non-existent path when no schema defined',
+      () => {
+        const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          source: { existing: 'value' },
+        })
 
-      expect(resolver.resolve('<source.nonexistent>', ctx)).toBeUndefined()
-    })
+        expect(resolver.resolve('<source.nonexistent>', ctx)).toBe(RESOLVED_EMPTY)
+      }
+    )
 
     it.concurrent('should throw error for path not in output schema', () => {
       const workflow = createTestWorkflow([
@@ -162,7 +165,7 @@ describe('BlockResolver', () => {
       expect(() => resolver.resolve('<source.invalidField>', ctx)).toThrow(/Available fields:/)
     })
 
-    it.concurrent('should return undefined for path in schema but missing in data', () => {
+    it.concurrent('should return RESOLVED_EMPTY for path in schema but missing in data', () => {
       const workflow = createTestWorkflow([
         {
           id: 'source',
@@ -175,7 +178,7 @@ describe('BlockResolver', () => {
       })
 
       expect(resolver.resolve('<source.stdout>', ctx)).toBe('log output')
-      expect(resolver.resolve('<source.result>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<source.result>', ctx)).toBe(RESOLVED_EMPTY)
     })
 
     it.concurrent(
@@ -191,7 +194,7 @@ describe('BlockResolver', () => {
         const resolver = new BlockResolver(workflow)
         const ctx = createTestContext('current', {})
 
-        expect(resolver.resolve('<workflow.childTraceSpans>', ctx)).toBeUndefined()
+        expect(resolver.resolve('<workflow.childTraceSpans>', ctx)).toBe(RESOLVED_EMPTY)
       }
     )
 
@@ -208,7 +211,7 @@ describe('BlockResolver', () => {
         const resolver = new BlockResolver(workflow)
         const ctx = createTestContext('current', {})
 
-        expect(resolver.resolve('<workflowinput.childTraceSpans>', ctx)).toBeUndefined()
+        expect(resolver.resolve('<workflowinput.childTraceSpans>', ctx)).toBe(RESOLVED_EMPTY)
       }
     )
 
@@ -225,18 +228,33 @@ describe('BlockResolver', () => {
         const resolver = new BlockResolver(workflow)
         const ctx = createTestContext('current', {})
 
-        expect(resolver.resolve('<hitl.response>', ctx)).toBeUndefined()
-        expect(resolver.resolve('<hitl.submission>', ctx)).toBeUndefined()
-        expect(resolver.resolve('<hitl.resumeInput>', ctx)).toBeUndefined()
+        expect(resolver.resolve('<hitl.response>', ctx)).toBe(RESOLVED_EMPTY)
+        expect(resolver.resolve('<hitl.submission>', ctx)).toBe(RESOLVED_EMPTY)
+        expect(resolver.resolve('<hitl.resumeInput>', ctx)).toBe(RESOLVED_EMPTY)
       }
     )
 
-    it.concurrent('should return undefined for non-existent block', () => {
+    it.concurrent('should return undefined for block not in workflow', () => {
       const workflow = createTestWorkflow([{ id: 'existing' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {})
 
       expect(resolver.resolve('<nonexistent>', ctx)).toBeUndefined()
+    })
+
+    it.concurrent('should return RESOLVED_EMPTY for block in workflow that did not execute', () => {
+      const workflow = createTestWorkflow([
+        { id: 'start-block', name: 'Start', type: 'start_trigger' },
+        { id: 'slack-block', name: 'Slack', type: 'slack_trigger' },
+      ])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        'slack-block': { message: 'hello from slack' },
+      })
+
+      expect(resolver.resolve('<slack.message>', ctx)).toBe('hello from slack')
+      expect(resolver.resolve('<start>', ctx)).toBe(RESOLVED_EMPTY)
+      expect(resolver.resolve('<start.input>', ctx)).toBe(RESOLVED_EMPTY)
     })
 
     it.concurrent('should fall back to context blockStates', () => {
@@ -1012,24 +1030,24 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.other>', ctx)).toBe('exists')
     })
 
-    it.concurrent('should handle output with undefined values', () => {
+    it.concurrent('should return RESOLVED_EMPTY for output with undefined values', () => {
       const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { value: undefined, other: 'exists' },
       })
 
-      expect(resolver.resolve('<source.value>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<source.value>', ctx)).toBe(RESOLVED_EMPTY)
     })
 
-    it.concurrent('should return undefined for deeply nested non-existent path', () => {
+    it.concurrent('should return RESOLVED_EMPTY for deeply nested non-existent path', () => {
       const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { level1: { level2: {} } },
       })
 
-      expect(resolver.resolve('<source.level1.level2.level3>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<source.level1.level2.level3>', ctx)).toBe(RESOLVED_EMPTY)
     })
   })
 })
