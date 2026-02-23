@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const credentials = await db
       .select()
       .from(account)
-      .where(and(eq(account.id, resolved.accountId), eq(account.userId, session.user.id)))
+      .where(eq(account.id, resolved.accountId))
       .limit(1)
 
     if (!credentials.length) {
@@ -57,15 +57,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    const credential = credentials[0]
+    const accountRow = credentials[0]
 
     logger.info(
-      `[${requestId}] Using credential: ${credential.id}, provider: ${credential.providerId}`
+      `[${requestId}] Using credential: ${accountRow.id}, provider: ${accountRow.providerId}`
     )
 
     const accessToken = await refreshAccessTokenIfNeeded(
       resolved.accountId,
-      session.user.id,
+      accountRow.userId,
       requestId
     )
 
