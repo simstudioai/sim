@@ -383,6 +383,9 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -406,6 +409,9 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -425,6 +431,9 @@ export function useWorkflowExecution() {
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
             iterationContainerId: data.iterationContainerId,
+            childWorkflowBlockId: data.childWorkflowBlockId,
+            childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
@@ -447,6 +456,9 @@ export function useWorkflowExecution() {
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
             iterationContainerId: data.iterationContainerId,
+            childWorkflowBlockId: data.childWorkflowBlockId,
+            childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
@@ -478,6 +490,8 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
         })
       }
 
@@ -535,7 +549,27 @@ export function useWorkflowExecution() {
         }
       }
 
-      return { onBlockStarted, onBlockCompleted, onBlockError }
+      const onBlockChildWorkflowStarted = (data: {
+        blockId: string
+        childWorkflowInstanceId: string
+        iterationCurrent?: number
+        iterationContainerId?: string
+      }) => {
+        if (isStaleExecution()) return
+        updateConsole(
+          data.blockId,
+          {
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...(data.iterationCurrent !== undefined && { iterationCurrent: data.iterationCurrent }),
+            ...(data.iterationContainerId !== undefined && {
+              iterationContainerId: data.iterationContainerId,
+            }),
+          },
+          executionIdRef.current
+        )
+      }
+
+      return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
     },
     [addConsole, setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, updateConsole]
   )
@@ -1335,6 +1369,7 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: blockHandlers.onBlockError,
+            onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
               const existing = streamedContent.get(data.blockId) || ''
@@ -1932,6 +1967,7 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: blockHandlers.onBlockError,
+            onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onExecutionCompleted: (data) => {
               if (data.success) {
@@ -2159,6 +2195,10 @@ export function useWorkflowExecution() {
           onBlockError: (data) => {
             clearOnce()
             handlers.onBlockError(data)
+          },
+          onBlockChildWorkflowStarted: (data) => {
+            clearOnce()
+            handlers.onBlockChildWorkflowStarted(data)
           },
           onExecutionCompleted: () => {
             const currentId = useExecutionStore

@@ -41,6 +41,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
 import { ROW_STYLES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import {
+  collectExpandableNodeIds,
   type EntryNode,
   type ExecutionGroup,
   flattenBlockEntriesOnly,
@@ -66,6 +67,21 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
 const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
 const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
+
+/** Returns true if any node in the subtree has an error */
+function hasErrorInTree(nodes: EntryNode[]): boolean {
+  return nodes.some((n) => Boolean(n.entry.error) || hasErrorInTree(n.children))
+}
+
+/** Returns true if any node in the subtree is currently running */
+function hasRunningInTree(nodes: EntryNode[]): boolean {
+  return nodes.some((n) => Boolean(n.entry.isRunning) || hasRunningInTree(n.children))
+}
+
+/** Returns true if any node in the subtree was canceled */
+function hasCanceledInTree(nodes: EntryNode[]): boolean {
+  return nodes.some((n) => Boolean(n.entry.isCanceled) || hasCanceledInTree(n.children))
+}
 
 /**
  * Block row component for displaying actual block entries
@@ -339,6 +355,122 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
 })
 
 /**
+ * Workflow node component - shows workflow block header with nested child blocks
+ */
+const WorkflowNodeRow = memo(function WorkflowNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}) {
+  const { entry, children } = node
+  const BlockIcon = getBlockIcon(entry.blockType)
+  const bgColor = getBlockColor(entry.blockType)
+  const nodeId = entry.id
+  const isExpanded = expandedNodes.has(nodeId)
+  const hasChildren = children.length > 0
+  const isSelected = selectedEntryId === entry.id
+
+  const hasError = useMemo(
+    () => Boolean(entry.error) || hasErrorInTree(children),
+    [entry.error, children]
+  )
+  const hasRunningDescendant = useMemo(
+    () => Boolean(entry.isRunning) || hasRunningInTree(children),
+    [entry.isRunning, children]
+  )
+  const hasCanceledDescendant = useMemo(
+    () => (Boolean(entry.isCanceled) || hasCanceledInTree(children)) && !hasRunningDescendant,
+    [entry.isCanceled, children, hasRunningDescendant]
+  )
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Workflow Block Header */}
+      <div
+        className={clsx(
+          ROW_STYLES.base,
+          'h-[26px]',
+          isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
+        )}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!isSelected) onSelectEntry(entry)
+          if (hasChildren) onToggleNode(nodeId)
+        }}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <div
+            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            style={{ background: bgColor }}
+          >
+            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+          </div>
+          <span
+            className={clsx(
+              'min-w-0 truncate font-medium text-[13px]',
+              hasError
+                ? 'text-[var(--text-error)]'
+                : isSelected || isExpanded
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            )}
+          >
+            {entry.blockName}
+          </span>
+          {hasChildren && (
+            <ChevronDown
+              className={clsx(
+                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                !isExpanded && '-rotate-90'
+              )}
+            />
+          )}
+        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 font-medium text-[13px]',
+            !hasRunningDescendant &&
+              (hasCanceledDescendant
+                ? 'text-[var(--text-secondary)]'
+                : 'text-[var(--text-tertiary)]')
+          )}
+        >
+          <StatusDisplay
+            isRunning={hasRunningDescendant}
+            isCanceled={hasCanceledDescendant}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+          />
+        </span>
+      </div>
+
+      {/* Nested Child Blocks — rendered through EntryNodeRow for full loop/parallel support */}
+      {isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((child) => (
+            <EntryNodeRow
+              key={child.entry.id}
+              node={child}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
  * Entry node component - dispatches to appropriate component based on node type
  */
 const EntryNodeRow = memo(function EntryNodeRow({
@@ -359,6 +491,18 @@ const EntryNodeRow = memo(function EntryNodeRow({
   if (nodeType === 'subflow') {
     return (
       <SubflowNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
+      />
+    )
+  }
+
+  if (nodeType === 'workflow') {
+    return (
+      <WorkflowNodeRow
         node={node}
         selectedEntryId={selectedEntryId}
         onSelectEntry={onSelectEntry}
@@ -659,27 +803,15 @@ export const Terminal = memo(function Terminal() {
   ])
 
   /**
-   * Auto-expand subflows and iterations when new entries arrive.
+   * Auto-expand subflows, iterations, and workflow nodes when new entries arrive.
+   * Recursively walks the full tree so nested nodes (e.g. a workflow block inside
+   * a loop iteration) are also expanded automatically.
    * This always runs regardless of autoSelectEnabled - new runs should always be visible.
    */
   useEffect(() => {
     if (executionGroups.length === 0) return
 
-    const newestExec = executionGroups[0]
-
-    // Collect all node IDs that should be expanded (subflows and their iterations)
-    const nodeIdsToExpand: string[] = []
-    for (const node of newestExec.entryTree) {
-      if (node.nodeType === 'subflow' && node.children.length > 0) {
-        nodeIdsToExpand.push(node.entry.id)
-        // Also expand all iteration children
-        for (const iterNode of node.children) {
-          if (iterNode.nodeType === 'iteration') {
-            nodeIdsToExpand.push(iterNode.entry.id)
-          }
-        }
-      }
-    }
+    const nodeIdsToExpand = collectExpandableNodeIds(executionGroups[0].entryTree)
 
     if (nodeIdsToExpand.length > 0) {
       setExpandedNodes((prev) => {

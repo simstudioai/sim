@@ -38,6 +38,7 @@ import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  ChildWorkflowContext,
   ExecutionMetadata,
   IterationContext,
   SerializableExecutionState,
@@ -742,7 +743,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockName: string,
             blockType: string,
             executionOrder: number,
-            iterationContext?: IterationContext
+            iterationContext?: IterationContext,
+            childWorkflowContext?: ChildWorkflowContext
           ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
             sendEvent({
@@ -761,6 +763,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   iterationType: iterationContext.iterationType,
                   iterationContainerId: iterationContext.iterationContainerId,
                 }),
+                ...(childWorkflowContext && {
+                  childWorkflowBlockId: childWorkflowContext.parentBlockId,
+                  childWorkflowName: childWorkflowContext.workflowName,
+                }),
               },
             })
           }
@@ -770,9 +776,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockName: string,
             blockType: string,
             callbackData: any,
-            iterationContext?: IterationContext
+            iterationContext?: IterationContext,
+            childWorkflowContext?: ChildWorkflowContext
           ) => {
             const hasError = callbackData.output?.error
+            const childWorkflowData = childWorkflowContext
+              ? {
+                  childWorkflowBlockId: childWorkflowContext.parentBlockId,
+                  childWorkflowName: childWorkflowContext.workflowName,
+                }
+              : {}
+
+            const instanceData = callbackData.childWorkflowInstanceId
+              ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
+              : {}
 
             if (hasError) {
               logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
@@ -802,6 +819,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationType: iterationContext.iterationType,
                     iterationContainerId: iterationContext.iterationContainerId,
                   }),
+                  ...childWorkflowData,
+                  ...instanceData,
                 },
               })
             } else {
@@ -831,6 +850,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationType: iterationContext.iterationType,
                     iterationContainerId: iterationContext.iterationContainerId,
                   }),
+                  ...childWorkflowData,
+                  ...instanceData,
                 },
               })
             }
@@ -898,12 +919,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             selectedOutputs
           )
 
+          const onChildWorkflowInstanceReady = (
+            blockId: string,
+            childWorkflowInstanceId: string,
+            iterationContext?: IterationContext
+          ) => {
+            sendEvent({
+              type: 'block:childWorkflowStarted',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                blockId,
+                childWorkflowInstanceId,
+                ...(iterationContext && {
+                  iterationCurrent: iterationContext.iterationCurrent,
+                  iterationContainerId: iterationContext.iterationContainerId,
+                }),
+              },
+            })
+          }
+
           const result = await executeWorkflowCore({
             snapshot,
             callbacks: {
               onBlockStart,
               onBlockComplete,
               onStream,
+              onChildWorkflowInstanceReady,
             },
             loggingSession,
             abortSignal: timeoutController.signal,

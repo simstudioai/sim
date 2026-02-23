@@ -619,7 +619,6 @@ function cleanupWorker(workerId: number) {
   workerInfo.activeExecutions = 0
 
   workers.delete(workerId)
-  logger.info('Worker removed from pool', { workerId, poolSize: workers.size })
 }
 
 function resetWorkerIdleTimeout(workerId: number) {
@@ -635,7 +634,6 @@ function resetWorkerIdleTimeout(workerId: number) {
     workerInfo.idleTimeout = setTimeout(() => {
       const w = workers.get(workerId)
       if (w && w.activeExecutions === 0) {
-        logger.info('Cleaning up idle worker', { workerId })
         cleanupWorker(workerId)
       }
     }, WORKER_IDLE_TIMEOUT_MS)

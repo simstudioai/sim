@@ -173,6 +173,9 @@ export async function executeWorkflowWithFullLogging(
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
                 iterationContainerId: event.data.iterationContainerId,
+                childWorkflowBlockId: event.data.childWorkflowBlockId,
+                childWorkflowName: event.data.childWorkflowName,
+                childWorkflowInstanceId: event.data.childWorkflowInstanceId,
               })
 
               if (options.onBlockComplete) {
@@ -210,7 +213,28 @@ export async function executeWorkflowWithFullLogging(
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
                 iterationContainerId: event.data.iterationContainerId,
+                childWorkflowBlockId: event.data.childWorkflowBlockId,
+                childWorkflowName: event.data.childWorkflowName,
+                childWorkflowInstanceId: event.data.childWorkflowInstanceId,
               })
+              break
+            }
+
+            case 'block:childWorkflowStarted': {
+              const { updateConsole } = useTerminalConsoleStore.getState()
+              updateConsole(
+                event.data.blockId,
+                {
+                  childWorkflowInstanceId: event.data.childWorkflowInstanceId,
+                  ...(event.data.iterationCurrent !== undefined && {
+                    iterationCurrent: event.data.iterationCurrent,
+                  }),
+                  ...(event.data.iterationContainerId !== undefined && {
+                    iterationContainerId: event.data.iterationContainerId,
+                  }),
+                },
+                executionId
+              )
               break
             }
 

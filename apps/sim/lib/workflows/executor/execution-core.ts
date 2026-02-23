@@ -20,6 +20,7 @@ import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
@@ -128,7 +129,7 @@ export async function executeWorkflowCore(
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
-  const { onBlockStart, onBlockComplete, onStream } = callbacks
+  const { onBlockStart, onBlockComplete, onStream, onChildWorkflowInstanceReady } = callbacks
 
   const providedWorkspaceId = metadata.workspaceId
   if (!providedWorkspaceId) {
@@ -287,11 +288,19 @@ export async function executeWorkflowCore(
         startedAt: string
         endedAt: string
       },
-      iterationContext?: IterationContext
+      iterationContext?: IterationContext,
+      childWorkflowContext?: ChildWorkflowContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
       if (onBlockComplete) {
-        await onBlockComplete(blockId, blockName, blockType, output, iterationContext)
+        await onBlockComplete(
+          blockId,
+          blockName,
+          blockType,
+          output,
+          iterationContext,
+          childWorkflowContext
+        )
       }
     }
 
@@ -320,6 +329,7 @@ export async function executeWorkflowCore(
       includeFileBase64,
       base64MaxBytes,
       stopAfterBlockId: resolvedStopAfterBlockId,
+      onChildWorkflowInstanceReady,
     }
 
     const executorInstance = new Executor({

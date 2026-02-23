@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import type {
+  BlockChildWorkflowStartedData,
   BlockCompletedData,
   BlockErrorData,
   BlockStartedData,
@@ -83,6 +84,9 @@ async function processSSEStream(
             case 'block:error':
               callbacks.onBlockError?.(event.data)
               break
+            case 'block:childWorkflowStarted':
+              callbacks.onBlockChildWorkflowStarted?.(event.data)
+              break
             case 'stream:chunk':
               callbacks.onStreamChunk?.(event.data)
               break
@@ -110,6 +114,7 @@ export interface ExecutionStreamCallbacks {
   onBlockStarted?: (data: BlockStartedData) => void
   onBlockCompleted?: (data: BlockCompletedData) => void
   onBlockError?: (data: BlockErrorData) => void
+  onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void
   onStreamChunk?: (data: StreamChunkData) => void
   onStreamDone?: (data: StreamDoneData) => void
 }
