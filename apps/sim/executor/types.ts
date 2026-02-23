@@ -1,7 +1,11 @@
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
-import type { SerializableExecutionState } from '@/executor/execution/types'
+import type {
+  ChildWorkflowContext,
+  IterationContext,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -239,14 +243,21 @@ export interface ExecutionContext {
     blockId: string,
     blockName: string,
     blockType: string,
-    executionOrder: number
+    executionOrder: number,
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
     blockType: string,
-    output: any
+    output: any,
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
+
+  /** Context identifying this execution as a child of a workflow block */
+  childWorkflowContext?: ChildWorkflowContext
 
   /**
    * AbortSignal for cancellation support.

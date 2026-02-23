@@ -20,6 +20,7 @@ import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
@@ -287,11 +288,19 @@ export async function executeWorkflowCore(
         startedAt: string
         endedAt: string
       },
-      iterationContext?: IterationContext
+      iterationContext?: IterationContext,
+      childWorkflowContext?: ChildWorkflowContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
       if (onBlockComplete) {
-        await onBlockComplete(blockId, blockName, blockType, output, iterationContext)
+        await onBlockComplete(
+          blockId,
+          blockName,
+          blockType,
+          output,
+          iterationContext,
+          childWorkflowContext
+        )
       }
     }
 

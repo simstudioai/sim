@@ -173,6 +173,8 @@ export async function executeWorkflowWithFullLogging(
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
                 iterationContainerId: event.data.iterationContainerId,
+                childWorkflowBlockId: event.data.childWorkflowBlockId,
+                childWorkflowName: event.data.childWorkflowName,
               })
 
               if (options.onBlockComplete) {
@@ -210,6 +212,8 @@ export async function executeWorkflowWithFullLogging(
                 iterationTotal: event.data.iterationTotal,
                 iterationType: event.data.iterationType,
                 iterationContainerId: event.data.iterationContainerId,
+                childWorkflowBlockId: event.data.childWorkflowBlockId,
+                childWorkflowName: event.data.childWorkflowName,
               })
               break
             }

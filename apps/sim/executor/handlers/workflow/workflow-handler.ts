@@ -115,6 +115,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
       childWorkflowSnapshotId = childSnapshotResult.snapshot.id
 
+      const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
+      const shouldPropagateCallbacks = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -127,6 +130,17 @@ export class WorkflowBlockHandler implements BlockHandler {
           userId: ctx.userId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
+          ...(shouldPropagateCallbacks && {
+            onBlockStart: ctx.onBlockStart,
+            onBlockComplete: ctx.onBlockComplete,
+            onStream: ctx.onStream as ((streamingExecution: unknown) => Promise<void>) | undefined,
+            childWorkflowContext: {
+              parentBlockId: block.id,
+              workflowName: childWorkflowName,
+              workflowId,
+              depth: childDepth,
+            },
+          }),
         },
       })
 

@@ -1,5 +1,12 @@
 import type React from 'react'
-import { AlertTriangleIcon, BanIcon, RepeatIcon, SplitIcon, XCircleIcon } from 'lucide-react'
+import {
+  AlertTriangleIcon,
+  BanIcon,
+  NetworkIcon,
+  RepeatIcon,
+  SplitIcon,
+  XCircleIcon,
+} from 'lucide-react'
 import { getBlock } from '@/blocks'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -11,6 +18,8 @@ const SUBFLOW_COLORS = {
   loop: '#2FB3FF',
   parallel: '#FEE12B',
 } as const
+
+const WORKFLOW_COLOR = '#8b5cf6'
 
 /**
  * Special block type colors for errors and system messages
@@ -39,6 +48,10 @@ export function getBlockIcon(
 
   if (blockType === 'parallel') {
     return SplitIcon
+  }
+
+  if (blockType === 'workflow') {
+    return NetworkIcon
   }
 
   if (blockType === 'error') {
@@ -71,6 +84,9 @@ export function getBlockColor(blockType: string): string {
   if (blockType === 'parallel') {
     return SUBFLOW_COLORS.parallel
   }
+  if (blockType === 'workflow') {
+    return WORKFLOW_COLOR
+  }
   // Special block types for errors and system messages
   if (blockType === 'error') {
     return SPECIAL_BLOCK_COLORS.error
@@ -82,6 +98,14 @@ export function getBlockColor(blockType: string): string {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
+}
+
+/**
+ * Checks if a block type is a child workflow node
+ */
+export function isWorkflowBlockType(blockType: string): boolean {
+  const t = blockType?.toLowerCase()
+  return t === 'workflow' || t === 'workflow_input'
 }
 
 /**
@@ -120,7 +144,7 @@ export function isSubflowBlockType(blockType: string): boolean {
 /**
  * Node type for the tree structure
  */
-export type EntryNodeType = 'block' | 'subflow' | 'iteration'
+export type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
 
 /**
  * Entry node for tree structure - represents a block, subflow, or iteration
@@ -169,21 +193,59 @@ interface IterationGroup {
 }
 
 /**
+ * Recursively collects all descendant entries owned by a workflow block.
+ * This includes direct children and the children of any nested workflow blocks,
+ * enabling correct tree construction for deeply-nested child workflows.
+ */
+function collectWorkflowDescendants(
+  workflowBlockId: string,
+  workflowChildGroups: Map<string, ConsoleEntry[]>
+): ConsoleEntry[] {
+  const direct = workflowChildGroups.get(workflowBlockId) ?? []
+  const result = [...direct]
+  for (const entry of direct) {
+    if (isWorkflowBlockType(entry.blockType)) {
+      result.push(...collectWorkflowDescendants(entry.blockId, workflowChildGroups))
+    }
+  }
+  return result
+}
+
+/**
  * Builds a tree structure from flat entries.
  * Groups iteration entries by (iterationType, iterationContainerId, iterationCurrent), showing all blocks
  * that executed within each iteration.
  * Sorts by start time to ensure chronological order.
  */
 function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
-  // Separate regular blocks from iteration entries
+  // Separate entries into three buckets:
+  // 1. Iteration entries (loop/parallel children)
+  // 2. Workflow child entries (blocks inside a child workflow)
+  // 3. Regular blocks
   const regularBlocks: ConsoleEntry[] = []
   const iterationEntries: ConsoleEntry[] = []
+  const workflowChildEntries: ConsoleEntry[] = []
 
   for (const entry of entries) {
-    if (entry.iterationType && entry.iterationCurrent !== undefined) {
+    if (entry.childWorkflowBlockId) {
+      // Child workflow entries take priority over iteration classification
+      workflowChildEntries.push(entry)
+    } else if (entry.iterationType && entry.iterationCurrent !== undefined) {
       iterationEntries.push(entry)
     } else {
       regularBlocks.push(entry)
+    }
+  }
+
+  // Group workflow child entries by the parent workflow block ID
+  const workflowChildGroups = new Map<string, ConsoleEntry[]>()
+  for (const entry of workflowChildEntries) {
+    const parentId = entry.childWorkflowBlockId!
+    const group = workflowChildGroups.get(parentId)
+    if (group) {
+      group.push(entry)
+    } else {
+      workflowChildGroups.set(parentId, [entry])
     }
   }
 
@@ -344,17 +406,58 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     })
   }
 
-  // Build nodes for regular blocks
-  const regularNodes: EntryNode[] = regularBlocks.map((entry) => ({
+  // Build workflow nodes for regular blocks that are workflow block types
+  const workflowNodes: EntryNode[] = []
+  const remainingRegularBlocks: ConsoleEntry[] = []
+
+  for (const block of regularBlocks) {
+    if (isWorkflowBlockType(block.blockType)) {
+      const allDescendants = collectWorkflowDescendants(block.blockId, workflowChildGroups)
+      const rawChildren = allDescendants.map((c) => ({
+        ...c,
+        childWorkflowBlockId:
+          c.childWorkflowBlockId === block.blockId ? undefined : c.childWorkflowBlockId,
+      }))
+      const children = buildEntryTree(rawChildren)
+      workflowNodes.push({ entry: block, children, nodeType: 'workflow' as const })
+    } else {
+      remainingRegularBlocks.push(block)
+    }
+  }
+
+  // Build nodes for remaining regular blocks
+  const regularNodes: EntryNode[] = remainingRegularBlocks.map((entry) => ({
     entry,
     children: [],
     nodeType: 'block' as const,
   }))
 
   // Combine all nodes and sort by executionOrder ascending (oldest first, top-down)
-  const allNodes = [...subflowNodes, ...regularNodes]
+  const allNodes = [...subflowNodes, ...workflowNodes, ...regularNodes]
   allNodes.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
   return allNodes
+}
+
+/**
+ * Recursively collects IDs of all nodes that should be auto-expanded.
+ * Includes subflow, iteration, and workflow nodes that have children.
+ */
+export function collectExpandableNodeIds(nodes: EntryNode[]): string[] {
+  const ids: string[] = []
+  for (const node of nodes) {
+    if (
+      (node.nodeType === 'subflow' ||
+        node.nodeType === 'iteration' ||
+        node.nodeType === 'workflow') &&
+      node.children.length > 0
+    ) {
+      ids.push(node.entry.id)
+    }
+    if (node.children.length > 0) {
+      ids.push(...collectExpandableNodeIds(node.children))
+    }
+  }
+  return ids
 }
 
 /**
@@ -464,7 +567,7 @@ export function flattenBlockEntriesOnly(
 ): NavigableBlockEntry[] {
   const result: NavigableBlockEntry[] = []
   for (const node of nodes) {
-    if (node.nodeType === 'block') {
+    if (node.nodeType === 'block' || node.nodeType === 'workflow') {
       result.push({
         entry: node.entry,
         executionId,

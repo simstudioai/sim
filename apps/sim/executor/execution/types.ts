@@ -54,6 +54,17 @@ export interface IterationContext {
   iterationContainerId?: string
 }
 
+export interface ChildWorkflowContext {
+  /** The workflow block's ID in the parent execution */
+  parentBlockId: string
+  /** Display name of the child workflow */
+  workflowName: string
+  /** Child workflow ID */
+  workflowId: string
+  /** Nesting depth (1 = first level child) */
+  depth: number
+}
+
 export interface ExecutionCallbacks {
   onStream?: (streamingExec: any) => Promise<void>
   onBlockStart?: (
@@ -61,14 +72,16 @@ export interface ExecutionCallbacks {
     blockName: string,
     blockType: string,
     executionOrder: number,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
     blockType: string,
     output: any,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
 }
 
@@ -105,7 +118,8 @@ export interface ContextExtensions {
     blockName: string,
     blockType: string,
     executionOrder: number,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -119,8 +133,12 @@ export interface ContextExtensions {
       executionOrder: number
       endedAt: string
     },
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
+
+  /** Context identifying this execution as a child of a workflow block */
+  childWorkflowContext?: ChildWorkflowContext
 
   /**
    * Run-from-block configuration. When provided, executor runs in partial

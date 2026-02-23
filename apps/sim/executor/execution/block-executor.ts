@@ -440,7 +440,8 @@ export class BlockExecutor {
         blockName,
         blockType,
         executionOrder,
-        iterationContext
+        iterationContext,
+        ctx.childWorkflowContext
       )
     }
   }
@@ -475,7 +476,8 @@ export class BlockExecutor {
           executionOrder,
           endedAt,
         },
-        iterationContext
+        iterationContext,
+        ctx.childWorkflowContext
       )
     }
   }
