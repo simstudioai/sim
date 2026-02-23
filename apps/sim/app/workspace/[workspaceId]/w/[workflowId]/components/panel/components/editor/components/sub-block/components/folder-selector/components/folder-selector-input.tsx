@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -47,10 +46,6 @@ export function FolderSelectorInput({
     subBlock.canonicalParamId === 'copyDestinationId' ||
     subBlock.id === 'copyDestinationFolder' ||
     subBlock.id === 'manualCopyDestinationFolder'
-  const { isForeignCredential } = useForeignCredential(
-    effectiveProviderId,
-    (connectedCredential as string) || ''
-  )
 
   // Central dependsOn gating
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
@@ -119,9 +114,7 @@ export function FolderSelectorInput({
       selectorContext={
         selectorResolution?.context ?? { credentialId, workflowId: activeWorkflowId || '' }
       }
-      disabled={
-        finalDisabled || isForeignCredential || missingCredential || !selectorResolution?.key
-      }
+      disabled={finalDisabled || missingCredential || !selectorResolution?.key}
       isPreview={isPreview}
       previewValue={previewValue ?? null}
       placeholder={subBlock.placeholder || 'Select folder'}

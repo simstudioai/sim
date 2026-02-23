@@ -25,6 +25,7 @@ import { db } from '@sim/db'
 import { permissions, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -214,6 +215,8 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (_, context) => {
     }
 
     await db.delete(permissions).where(eq(permissions.id, memberId))
+
+    await revokeWorkspaceCredentialMemberships(workspaceId, existingMember.userId)
 
     logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
       userId: existingMember.userId,

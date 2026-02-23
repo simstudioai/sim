@@ -36,6 +36,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       id: 'credential',
       title: 'Google Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'google-sheets',
       requiredScopes: [
@@ -43,6 +45,15 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Spreadsheet Selector
     {
@@ -246,7 +257,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, ...rest } = params
+        const { oauthCredential, values, spreadsheetId, ...rest } = params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
@@ -260,14 +271,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
-          credential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Sheets access token' },
+    oauthCredential: { type: 'string', description: 'Google Sheets access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     range: { type: 'string', description: 'Cell range' },
     values: { type: 'string', description: 'Cell values data' },
@@ -323,6 +334,8 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       id: 'credential',
       title: 'Google Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       required: true,
       serviceId: 'google-sheets',
       requiredScopes: [
@@ -330,6 +343,15 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
         'https://www.googleapis.com/auth/drive',
       ],
       placeholder: 'Select Google account',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
     },
     // Spreadsheet Selector (basic mode) - not for create operation
     {
@@ -715,7 +737,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       }),
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           values,
           spreadsheetId,
           sheetName,
@@ -739,7 +761,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             title: (title as string)?.trim(),
             sheetTitles: sheetTitlesArray,
-            credential,
+            oauthCredential,
           }
         }
 
@@ -753,7 +775,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         if (operation === 'get_info') {
           return {
             spreadsheetId: effectiveSpreadsheetId,
-            credential,
+            oauthCredential,
           }
         }
 
@@ -763,7 +785,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
-            credential,
+            oauthCredential,
           }
         }
 
@@ -774,7 +796,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             ...rest,
             spreadsheetId: effectiveSpreadsheetId,
             data: parsedData,
-            credential,
+            oauthCredential,
           }
         }
 
@@ -784,7 +806,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
-            credential,
+            oauthCredential,
           }
         }
 
@@ -794,7 +816,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             sourceSpreadsheetId: effectiveSpreadsheetId,
             sheetId: Number.parseInt(sheetId as string, 10),
             destinationSpreadsheetId: (destinationSpreadsheetId as string)?.trim(),
-            credential,
+            oauthCredential,
           }
         }
 
@@ -813,14 +835,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           sheetName: effectiveSheetName,
           cellRange: cellRange ? (cellRange as string).trim() : undefined,
           values: parsedValues,
-          credential,
+          oauthCredential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Google Sheets access token' },
+    oauthCredential: { type: 'string', description: 'Google Sheets access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },

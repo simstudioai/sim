@@ -16,6 +16,7 @@ const logger = createLogger('OAuthDisconnectAPI')
 const disconnectSchema = z.object({
   provider: z.string({ required_error: 'Provider is required' }).min(1, 'Provider is required'),
   providerId: z.string().optional(),
+  accountId: z.string().optional(),
 })
 
 /**
@@ -51,15 +52,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { provider, providerId } = parseResult.data
+    const { provider, providerId, accountId } = parseResult.data
 
     logger.info(`[${requestId}] Processing OAuth disconnect request`, {
       provider,
       hasProviderId: !!providerId,
     })
 
-    // If a specific providerId is provided, delete only that account
-    if (providerId) {
+    // If a specific account row ID is provided, delete that exact account
+    if (accountId) {
+      await db
+        .delete(account)
+        .where(and(eq(account.userId, session.user.id), eq(account.id, accountId)))
+    } else if (providerId) {
+      // If a specific providerId is provided, delete accounts for that provider ID
       await db
         .delete(account)
         .where(and(eq(account.userId, session.user.id), eq(account.providerId, providerId)))

@@ -6,7 +6,6 @@ import { Tooltip } from '@/components/emcn'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -85,11 +84,6 @@ export function SlackSelectorInput({
       ? (effectiveBotToken as string) || ''
       : (effectiveCredential as string) || ''
 
-  const { isForeignCredential } = useForeignCredential(
-    effectiveProviderId,
-    (effectiveAuthMethod as string) === 'bot_token' ? '' : (effectiveCredential as string) || ''
-  )
-
   useEffect(() => {
     const val = isPreview && previewValue !== undefined ? previewValue : storeValue
     if (typeof val === 'string') {
@@ -99,7 +93,7 @@ export function SlackSelectorInput({
 
   const requiresCredential = dependsOn.includes('credential')
   const missingCredential = !credential || credential.trim().length === 0
-  const shouldForceDisable = requiresCredential && (missingCredential || isForeignCredential)
+  const shouldForceDisable = requiresCredential && missingCredential
 
   const context: SelectorContext = useMemo(
     () => ({
@@ -136,7 +130,7 @@ export function SlackSelectorInput({
             subBlock={subBlock}
             selectorKey={config.selectorKey}
             selectorContext={context}
-            disabled={finalDisabled || shouldForceDisable || isForeignCredential}
+            disabled={finalDisabled || shouldForceDisable}
             isPreview={isPreview}
             previewValue={previewValue ?? null}
             placeholder={subBlock.placeholder || config.placeholder}

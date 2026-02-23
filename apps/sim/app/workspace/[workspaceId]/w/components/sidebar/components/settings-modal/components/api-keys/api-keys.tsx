@@ -31,10 +31,9 @@ const logger = createLogger('ApiKeys')
 
 interface ApiKeysProps {
   onOpenChange?: (open: boolean) => void
-  registerCloseHandler?: (handler: (open: boolean) => void) => void
 }
 
-export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
+export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
   const params = useParams()
@@ -117,12 +116,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const handleModalClose = (open: boolean) => {
     onOpenChange?.(open)
   }
-
-  useEffect(() => {
-    if (registerCloseHandler) {
-      registerCloseHandler(handleModalClose)
-    }
-  }, [registerCloseHandler])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {

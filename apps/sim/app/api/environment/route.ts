@@ -8,6 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/stores/settings/environment'
 
 const logger = createLogger('EnvironmentAPI')
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date(),
           },
         })
+
+      await syncPersonalEnvCredentialsForUser({
+        userId: session.user.id,
+        envKeys: Object.keys(variables),
+      })
 
       recordAudit({
         actorId: session.user.id,

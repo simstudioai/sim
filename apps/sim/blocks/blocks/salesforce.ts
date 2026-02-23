@@ -62,9 +62,20 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       id: 'credential',
       title: 'Salesforce Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'salesforce',
       requiredScopes: ['api', 'refresh_token', 'openid', 'offline_access'],
       placeholder: 'Select Salesforce account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Salesforce Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     // Common fields for GET operations
@@ -614,8 +625,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         }
       },
       params: (params) => {
-        const { credential, operation, ...rest } = params
-        const cleanParams: Record<string, any> = { credential }
+        const { oauthCredential, operation, ...rest } = params
+        const cleanParams: Record<string, any> = { oauthCredential }
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
             cleanParams[key] = value
@@ -627,7 +638,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'Salesforce credential' },
+    oauthCredential: { type: 'string', description: 'Salesforce credential' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },

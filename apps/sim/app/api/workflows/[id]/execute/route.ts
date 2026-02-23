@@ -537,6 +537,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           useDraftState: shouldUseDraftState,
           startTime: new Date().toISOString(),
           isClientSession,
+          enforceCredentialAccess: useAuthenticatedUserAsActor,
           workflowStateOverride: effectiveWorkflowStateOverride,
         }
 
@@ -906,6 +907,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
             isClientSession,
+            enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
           }
 

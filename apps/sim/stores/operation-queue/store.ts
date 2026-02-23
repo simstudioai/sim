@@ -2,6 +2,16 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import type { OperationQueueState, QueuedOperation } from './types'
 
+function isBlockStillPresent(blockId: string | undefined): boolean {
+  if (!blockId) return true
+  try {
+    const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
+    return Boolean(useWorkflowStore.getState().blocks[blockId])
+  } catch {
+    return true
+  }
+}
+
 const logger = createLogger('OperationQueue')
 
 /** Timeout for subblock/variable operations before considering them failed */
@@ -220,6 +230,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     }
 
     if (!retryable) {
+      const targetBlockId = operation.operation.payload?.blockId || operation.operation.payload?.id
+      if (targetBlockId && !isBlockStillPresent(targetBlockId)) {
+        logger.debug('Dropping failed operation for deleted block', {
+          operationId,
+          blockId: targetBlockId,
+        })
+        set((s) => ({
+          operations: s.operations.filter((op) => op.id !== operationId),
+          isProcessing: false,
+        }))
+        get().processNextOperation()
+        return
+      }
+
       logger.error(
         'Operation failed with non-retryable error - state out of sync, triggering offline mode',
         {

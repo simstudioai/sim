@@ -311,6 +311,7 @@ export async function executeWorkflowCore(
       workspaceId: providedWorkspaceId,
       userId,
       isDeployedContext: !metadata.isClientSession,
+      enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
       onBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

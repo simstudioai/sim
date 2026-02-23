@@ -942,8 +942,10 @@ export function getSubBlocksForToolInput(
         // Infer from structural checks
         if (STRUCTURAL_SUBBLOCK_IDS.has(sb.id)) {
           visibility = 'hidden'
-        } else if (AUTH_SUBBLOCK_TYPES.has(sb.type)) {
+        } else if (AUTH_SUBBLOCK_TYPES.has(sb.type) && sb.canonicalParamId !== 'oauthCredential') {
           visibility = 'hidden'
+        } else if (sb.canonicalParamId === 'oauthCredential') {
+          visibility = 'user-only'
         } else if (
           sb.password &&
           (sb.id === 'botToken' || sb.id === 'accessToken' || sb.id === 'apiKey')

@@ -65,9 +65,20 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       id: 'credential',
       title: 'WordPress Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'wordpress',
       requiredScopes: ['global'],
       placeholder: 'Select WordPress account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'WordPress Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
 
@@ -667,7 +678,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       params: (params) => {
         // OAuth authentication for WordPress.com
         const baseParams: Record<string, any> = {
-          credential: params.credential,
+          credential: params.oauthCredential,
           siteId: params.siteId,
         }
 
@@ -890,6 +901,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: { type: 'string', description: 'WordPress OAuth credential' },
     siteId: { type: 'string', description: 'WordPress.com site ID or domain' },
     // Post inputs
     postId: { type: 'number', description: 'Post ID' },

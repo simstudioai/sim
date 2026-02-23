@@ -48,16 +48,21 @@ export async function GET(request: NextRequest) {
 
     const shopData = await shopResponse.json()
     const shopInfo = shopData.shop
+    const stableAccountId = shopInfo.id?.toString() || shopDomain
 
     const existing = await db.query.account.findFirst({
-      where: and(eq(account.userId, session.user.id), eq(account.providerId, 'shopify')),
+      where: and(
+        eq(account.userId, session.user.id),
+        eq(account.providerId, 'shopify'),
+        eq(account.accountId, stableAccountId)
+      ),
     })
 
     const now = new Date()
 
     const accountData = {
       accessToken: accessToken,
-      accountId: shopInfo.id?.toString() || shopDomain,
+      accountId: stableAccountId,
       scope: scope || '',
       updatedAt: now,
       idToken: shopDomain,
