@@ -100,7 +100,16 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
 
     const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
 
-    const { blocks: migratedBlocks } = await migrateCredentialIds(state.blocks || {})
+    const [wfRow] = await db
+      .select({ workspaceId: workflow.workspaceId })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    const { blocks: migratedBlocks } = await migrateCredentialIds(
+      state.blocks || {},
+      wfRow?.workspaceId ?? undefined
+    )
 
     return {
       blocks: migratedBlocks,
@@ -196,7 +205,8 @@ const CREDENTIAL_SUBBLOCK_IDS = new Set(['credential', 'triggerCredentials'])
  * Also migrates `tool.params.credential` in agent block tool arrays.
  */
 async function migrateCredentialIds(
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  workspaceId?: string
 ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
   const potentialLegacyIds = new Set<string>()
 
@@ -227,10 +237,15 @@ async function migrateCredentialIds(
     return { blocks, migrated: false }
   }
 
+  const conditions = [inArray(credential.accountId, [...potentialLegacyIds])]
+  if (workspaceId) {
+    conditions.push(eq(credential.workspaceId, workspaceId))
+  }
+
   const rows = await db
     .select({ id: credential.id, accountId: credential.accountId })
     .from(credential)
-    .where(inArray(credential.accountId, [...potentialLegacyIds]))
+    .where(and(...conditions))
 
   if (rows.length === 0) {
     return { blocks, migrated: false }
@@ -287,11 +302,15 @@ export async function loadWorkflowFromNormalizedTables(
   workflowId: string
 ): Promise<NormalizedWorkflowData | null> {
   try {
-    // Load all components in parallel
-    const [blocks, edges, subflows] = await Promise.all([
+    const [blocks, edges, subflows, [workflowRow]] = await Promise.all([
       db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
       db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
       db.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+      db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1),
     ])
 
     // If no blocks found, assume this workflow hasn't been migrated yet
@@ -334,7 +353,7 @@ export async function loadWorkflowFromNormalizedTables(
 
     // Migrate legacy account.id → credential.id in OAuth subblocks
     const { blocks: credMigratedBlocks, migrated: credentialsMigrated } =
-      await migrateCredentialIds(migratedBlocks)
+      await migrateCredentialIds(migratedBlocks, workflowRow?.workspaceId ?? undefined)
 
     if (credentialsMigrated) {
       Promise.resolve().then(async () => {
