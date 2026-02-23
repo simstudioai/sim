@@ -5,7 +5,11 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { validateAirtableId, validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 
 const teamsLogger = createLogger('TeamsSubscription')
 const telegramLogger = createLogger('TelegramWebhook')
@@ -25,14 +29,21 @@ function getNotificationUrl(webhook: any): string {
   return `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
 }
 
-async function getCredentialOwnerUserId(
+async function getCredentialOwner(
   credentialId: string,
   requestId: string
-): Promise<string | null> {
+): Promise<{ userId: string; accountId: string } | null> {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    providerSubscriptionsLogger.warn(
+      `[${requestId}] Failed to resolve OAuth account for credentialId ${credentialId}`
+    )
+    return null
+  }
   const [credentialRecord] = await db
     .select({ userId: account.userId })
     .from(account)
-    .where(eq(account.id, credentialId))
+    .where(eq(account.id, resolved.accountId))
     .limit(1)
 
   if (!credentialRecord?.userId) {
@@ -42,7 +53,7 @@ async function getCredentialOwnerUserId(
     return null
   }
 
-  return credentialRecord.userId
+  return { userId: credentialRecord.userId, accountId: resolved.accountId }
 }
 
 /**
@@ -80,9 +91,9 @@ export async function createTeamsSubscription(
     )
   }
 
-  const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
-  const accessToken = credentialOwnerUserId
-    ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+  const credentialOwner = await getCredentialOwner(credentialId, requestId)
+  const accessToken = credentialOwner
+    ? await refreshAccessTokenIfNeeded(credentialOwner.accountId, credentialOwner.userId, requestId)
     : null
   if (!accessToken) {
     teamsLogger.error(
@@ -216,9 +227,13 @@ export async function deleteTeamsSubscription(
       return
     }
 
-    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
-    const accessToken = credentialOwnerUserId
-      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+    const credentialOwner = await getCredentialOwner(credentialId, requestId)
+    const accessToken = credentialOwner
+      ? await refreshAccessTokenIfNeeded(
+          credentialOwner.accountId,
+          credentialOwner.userId,
+          requestId
+        )
       : null
     if (!accessToken) {
       teamsLogger.warn(
@@ -407,9 +422,13 @@ export async function deleteAirtableWebhook(
       return
     }
 
-    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
-    const accessToken = credentialOwnerUserId
-      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+    const credentialOwner = await getCredentialOwner(credentialId, requestId)
+    const accessToken = credentialOwner
+      ? await refreshAccessTokenIfNeeded(
+          credentialOwner.accountId,
+          credentialOwner.userId,
+          requestId
+        )
       : null
     if (!accessToken) {
       airtableLogger.warn(
@@ -917,9 +936,13 @@ export async function deleteWebflowWebhook(
       return
     }
 
-    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
-    const accessToken = credentialOwnerUserId
-      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+    const credentialOwner = await getCredentialOwner(credentialId, requestId)
+    const accessToken = credentialOwner
+      ? await refreshAccessTokenIfNeeded(
+          credentialOwner.accountId,
+          credentialOwner.userId,
+          requestId
+        )
       : null
     if (!accessToken) {
       webflowLogger.warn(
@@ -1229,12 +1252,14 @@ export async function createAirtableWebhookSubscription(
       throw new Error(tableIdValidation.error)
     }
 
-    const credentialOwnerUserId = credentialId
-      ? await getCredentialOwnerUserId(credentialId, requestId)
-      : null
+    const credentialOwner = credentialId ? await getCredentialOwner(credentialId, requestId) : null
     const accessToken = credentialId
-      ? credentialOwnerUserId
-        ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+      ? credentialOwner
+        ? await refreshAccessTokenIfNeeded(
+            credentialOwner.accountId,
+            credentialOwner.userId,
+            requestId
+          )
         : null
       : await getOAuthToken(userId, 'airtable')
     if (!accessToken) {
@@ -1480,12 +1505,14 @@ export async function createWebflowWebhookSubscription(
       throw new Error('Trigger type is required to create Webflow webhook')
     }
 
-    const credentialOwnerUserId = credentialId
-      ? await getCredentialOwnerUserId(credentialId, requestId)
-      : null
+    const credentialOwner = credentialId ? await getCredentialOwner(credentialId, requestId) : null
     const accessToken = credentialId
-      ? credentialOwnerUserId
-        ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+      ? credentialOwner
+        ? await refreshAccessTokenIfNeeded(
+            credentialOwner.accountId,
+            credentialOwner.userId,
+            requestId
+          )
         : null
       : await getOAuthToken(userId, 'webflow')
     if (!accessToken) {

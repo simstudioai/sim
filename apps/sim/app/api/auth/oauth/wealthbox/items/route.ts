@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,8 +47,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get the credential from the database
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved) {
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const credentials = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
 
     if (!credentials.length) {
       logger.warn(`[${requestId}] Credential not found`, { credentialId })
@@ -57,7 +65,6 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: credential.userId,
@@ -66,8 +73,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolved.accountId,
+      session.user.id,
+      requestId
+    )
 
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to obtain valid access token`)

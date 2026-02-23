@@ -3,7 +3,7 @@ import { account, mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -1103,15 +1103,20 @@ export class AgentBlockHandler implements BlockHandler {
 
     logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
 
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved) {
+      throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
+    }
+
     const credential = await db.query.account.findFirst({
-      where: eq(account.id, credentialId),
+      where: eq(account.id, resolved.accountId),
     })
 
     if (!credential) {
       throw new Error(`Vertex AI credential not found: ${credentialId}`)
     }
 
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
 
     if (!accessToken) {
       throw new Error('Failed to get Vertex AI access token')

@@ -25,6 +25,7 @@ import {
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
@@ -992,10 +993,17 @@ export async function queueWebhookExecution(
     const credentialId = providerConfig.credentialId as string | undefined
     let credentialAccountUserId: string | undefined
     if (credentialId) {
+      const resolved = await resolveOAuthAccountId(credentialId)
+      if (!resolved) {
+        logger.error(
+          `[${options.requestId}] Failed to resolve OAuth account for credential ${credentialId}`
+        )
+        return formatProviderErrorResponse(foundWebhook, 'Failed to resolve credential', 500)
+      }
       const [credentialRecord] = await db
         .select({ userId: account.userId })
         .from(account)
-        .where(eq(account.id, credentialId))
+        .where(eq(account.id, resolved.accountId))
         .limit(1)
       credentialAccountUserId = credentialRecord?.userId
     }
