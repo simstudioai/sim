@@ -89,13 +89,7 @@ export function getRedisClient(): Redis | null {
 
       retryStrategy: (times) => {
         if (times > 10) {
-          // Log at the transition point and every 20 attempts (~10 min) to avoid unbounded log volume
-          if (times === 11 || times % 20 === 0) {
-            logger.error('Redis reconnection stalled — retrying every 30s', {
-              attempt: times,
-              nextRetryMs: 30000,
-            })
-          }
+          logger.error(`Redis reconnection attempt ${times}`, { nextRetryMs: 30000 })
           return 30000
         }
         const base = Math.min(1000 * 2 ** (times - 1), 10000)
