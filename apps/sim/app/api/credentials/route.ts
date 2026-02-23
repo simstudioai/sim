@@ -220,11 +220,7 @@ export async function GET(request: NextRequest) {
       await syncWorkspaceOAuthCredentialsForUser({ workspaceId, userId: session.user.id })
     }
 
-    const whereClauses = [
-      eq(credential.workspaceId, workspaceId),
-      eq(credentialMember.userId, session.user.id),
-      eq(credentialMember.status, 'active'),
-    ]
+    const whereClauses = [eq(credential.workspaceId, workspaceId)]
 
     if (type) {
       whereClauses.push(eq(credential.type, type))
@@ -458,7 +454,10 @@ export async function POST(request: NextRequest) {
               id: crypto.randomUUID(),
               credentialId,
               userId: memberUserId,
-              role: memberUserId === workspaceRow.ownerId ? 'admin' : 'member',
+              role:
+                memberUserId === workspaceRow.ownerId || memberUserId === session.user.id
+                  ? 'admin'
+                  : 'member',
               status: 'active',
               joinedAt: now,
               invitedBy: session.user.id,
