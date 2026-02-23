@@ -1243,6 +1243,21 @@ export function useCollaborativeWorkflow() {
       // ALWAYS update local store first for immediate UI feedback
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
 
+      if (activeWorkflowId) {
+        const operationId = crypto.randomUUID()
+
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: SUBBLOCK_OPERATIONS.UPDATE,
+            target: OPERATION_TARGETS.SUBBLOCK,
+            payload: { blockId, subblockId, value },
+          },
+          workflowId: activeWorkflowId,
+          userId: session?.user?.id || 'unknown',
+        })
+      }
+
       // Handle dependent subblock clearing (recursive calls)
       try {
         const visited = options?._visited || new Set<string>()
@@ -1256,34 +1271,20 @@ export function useCollaborativeWorkflow() {
           )
           for (const dep of dependents) {
             if (!dep?.id || dep.id === subblockId) continue
+            const currentDepValue = useSubBlockStore.getState().getValue(blockId, dep.id)
+            if (
+              currentDepValue === '' ||
+              currentDepValue === null ||
+              currentDepValue === undefined
+            ) {
+              continue
+            }
             collaborativeSetSubblockValue(blockId, dep.id, '', { _visited: visited })
           }
         }
       } catch {
         // Best-effort; do not block on clearing
       }
-
-      // Queue socket operation if we have an active workflow
-      if (!activeWorkflowId) {
-        logger.debug('Local update applied, skipping socket queue - no active workflow', {
-          blockId,
-          subblockId,
-        })
-        return
-      }
-
-      const operationId = crypto.randomUUID()
-
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: SUBBLOCK_OPERATIONS.UPDATE,
-          target: OPERATION_TARGETS.SUBBLOCK,
-          payload: { blockId, subblockId, value },
-        },
-        workflowId: activeWorkflowId,
-        userId: session?.user?.id || 'unknown',
-      })
     },
     [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
   )
