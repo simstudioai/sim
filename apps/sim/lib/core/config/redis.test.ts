@@ -29,9 +29,8 @@ describe('redis config', () => {
       getRedisClient()
 
       mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
       expect(listener).toHaveBeenCalledTimes(1)
     })
@@ -44,9 +43,9 @@ describe('redis config', () => {
       getRedisClient()
       mockRedisInstance.ping.mockResolvedValue('PONG')
 
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
       expect(listener).not.toHaveBeenCalled()
     })
@@ -58,34 +57,29 @@ describe('redis config', () => {
 
       getRedisClient()
 
-      // 2 failures then a success — should reset counter
+      // 1 failure then a success — should reset counter
       mockRedisInstance.ping.mockRejectedValueOnce(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000)
-      mockRedisInstance.ping.mockRejectedValueOnce(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
       mockRedisInstance.ping.mockResolvedValueOnce('PONG')
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
-      // 2 more failures — should NOT trigger reconnect (counter was reset)
+      // 1 more failure — should NOT trigger reconnect (counter was reset)
       mockRedisInstance.ping.mockRejectedValueOnce(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000)
-      mockRedisInstance.ping.mockRejectedValueOnce(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
       expect(listener).not.toHaveBeenCalled()
     })
 
-    it('should call disconnect(true) after 3 consecutive PING failures', async () => {
+    it('should call disconnect(true) after 2 consecutive PING failures', async () => {
       const { getRedisClient } = await import('./redis')
       getRedisClient()
 
       mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
       expect(mockRedisInstance.disconnect).not.toHaveBeenCalled()
 
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
       expect(mockRedisInstance.disconnect).toHaveBeenCalledWith(true)
     })
 
@@ -100,9 +94,8 @@ describe('redis config', () => {
 
       getRedisClient()
       mockRedisInstance.ping.mockRejectedValue(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
 
       expect(badListener).toHaveBeenCalledTimes(1)
       expect(goodListener).toHaveBeenCalledTimes(1)
@@ -119,7 +112,7 @@ describe('redis config', () => {
 
       // After closing, PING failures should not trigger disconnect
       mockRedisInstance.ping.mockRejectedValue(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(30_000 * 5)
+      await vi.advanceTimersByTimeAsync(15_000 * 5)
       expect(mockRedisInstance.disconnect).not.toHaveBeenCalled()
     })
   })
