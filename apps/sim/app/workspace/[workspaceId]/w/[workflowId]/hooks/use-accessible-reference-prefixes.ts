@@ -5,15 +5,14 @@ import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/sanitization/referenc
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
+import type { Loop } from '@/stores/workflows/workflow/types'
 
 export function useAccessibleReferencePrefixes(blockId?: string | null): Set<string> | undefined {
-  const { blocks, edges, loops, parallels } = useWorkflowStore(
+  const { blocks, edges, loops } = useWorkflowStore(
     useShallow((state) => ({
       blocks: state.blocks,
       edges: state.edges,
       loops: state.loops || {},
-      parallels: state.parallels || {},
     }))
   )
 
@@ -40,14 +39,6 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
       }
     })
 
-    const parallelValues = Object.values(parallels as Record<string, Parallel>)
-    parallelValues.forEach((parallel) => {
-      if (!parallel?.nodes) return
-      if (parallel.nodes.includes(blockId)) {
-        accessibleIds.add(parallel.id)
-      }
-    })
-
     const prefixes = new Set<string>()
     accessibleIds.forEach((id) => {
       prefixes.add(normalizeName(id))
@@ -60,5 +51,5 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     SYSTEM_REFERENCE_PREFIXES.forEach((prefix) => prefixes.add(prefix))
 
     return prefixes
-  }, [blockId, blocks, edges, loops, parallels])
+  }, [blockId, blocks, edges, loops])
 }
