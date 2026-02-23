@@ -445,7 +445,10 @@ export function regenerateBlockIds(
     blockIdMap.set(oldId, newId)
 
     const oldNormalizedName = normalizeName(block.name)
-    const newName = uniqueNameFn(block.name, allBlocksForNaming)
+    const nameConflicts = Object.values(allBlocksForNaming).some(
+      (existing) => normalizeName(existing.name) === oldNormalizedName
+    )
+    const newName = nameConflicts ? uniqueNameFn(block.name, allBlocksForNaming) : block.name
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 
