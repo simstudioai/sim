@@ -259,6 +259,13 @@ export interface ExecutionContext {
   /** Context identifying this execution as a child of a workflow block */
   childWorkflowContext?: ChildWorkflowContext
 
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => void
+
   /**
    * AbortSignal for cancellation support.
    * When the signal is aborted, execution should stop gracefully.
@@ -361,6 +368,8 @@ export interface BlockHandler {
       parallelId?: string
       branchIndex?: number
       branchTotal?: number
+      originalBlockId?: string
+      isLoopNode?: boolean
     }
   ) => Promise<BlockOutput | StreamingExecution>
 }

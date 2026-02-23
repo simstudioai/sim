@@ -220,6 +220,24 @@ export async function executeWorkflowWithFullLogging(
               break
             }
 
+            case 'block:childWorkflowStarted': {
+              const { updateConsole } = useTerminalConsoleStore.getState()
+              updateConsole(
+                event.data.blockId,
+                {
+                  childWorkflowInstanceId: event.data.childWorkflowInstanceId,
+                  ...(event.data.iterationCurrent !== undefined && {
+                    iterationCurrent: event.data.iterationCurrent,
+                  }),
+                  ...(event.data.iterationContainerId !== undefined && {
+                    iterationContainerId: event.data.iterationContainerId,
+                  }),
+                },
+                executionId
+              )
+              break
+            }
+
             case 'execution:completed':
               executionResult = {
                 success: event.data.success,

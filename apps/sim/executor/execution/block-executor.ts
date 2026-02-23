@@ -208,6 +208,8 @@ export class BlockExecutor {
     parallelId?: string
     branchIndex?: number
     branchTotal?: number
+    originalBlockId?: string
+    isLoopNode?: boolean
   } {
     const metadata = node?.metadata ?? {}
     return {
@@ -216,6 +218,8 @@ export class BlockExecutor {
       parallelId: metadata.parallelId,
       branchIndex: metadata.branchIndex,
       branchTotal: metadata.branchTotal,
+      originalBlockId: metadata.originalBlockId,
+      isLoopNode: metadata.isLoopNode,
     }
   }
 

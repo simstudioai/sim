@@ -83,6 +83,12 @@ export interface ExecutionCallbacks {
     iterationContext?: IterationContext,
     childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => void
 }
 
 export interface ContextExtensions {
@@ -141,6 +147,13 @@ export interface ContextExtensions {
 
   /** Context identifying this execution as a child of a workflow block */
   childWorkflowContext?: ChildWorkflowContext
+
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => void
 
   /**
    * Run-from-block configuration. When provided, executor runs in partial

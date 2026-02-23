@@ -9,6 +9,7 @@ export type ExecutionEventType =
   | 'block:started'
   | 'block:completed'
   | 'block:error'
+  | 'block:childWorkflowStarted'
   | 'stream:chunk'
   | 'stream:done'
 
@@ -142,6 +143,22 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
 }
 
 /**
+ * Block child workflow started event — fires when a workflow block generates its instanceId,
+ * before child execution begins. Allows clients to pre-associate the running entry with
+ * the instanceId so child block events can be correlated in real-time.
+ */
+export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
+  type: 'block:childWorkflowStarted'
+  workflowId: string
+  data: {
+    blockId: string
+    childWorkflowInstanceId: string
+    iterationCurrent?: number
+    iterationContainerId?: string
+  }
+}
+
+/**
  * Stream chunk event (for agent blocks)
  */
 export interface StreamChunkEvent extends BaseExecutionEvent {
@@ -175,6 +192,7 @@ export type ExecutionEvent =
   | BlockStartedEvent
   | BlockCompletedEvent
   | BlockErrorEvent
+  | BlockChildWorkflowStartedEvent
   | StreamChunkEvent
   | StreamDoneEvent
 
@@ -185,6 +203,7 @@ export type ExecutionCancelledData = ExecutionCancelledEvent['data']
 export type BlockStartedData = BlockStartedEvent['data']
 export type BlockCompletedData = BlockCompletedEvent['data']
 export type BlockErrorData = BlockErrorEvent['data']
+export type BlockChildWorkflowStartedData = BlockChildWorkflowStartedEvent['data']
 export type StreamChunkData = StreamChunkEvent['data']
 export type StreamDoneData = StreamDoneEvent['data']
 
@@ -374,5 +393,26 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     }
   }
 
-  return { sendEvent, onBlockStart, onBlockComplete, onStream }
+  const onChildWorkflowInstanceReady = (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => {
+    sendEvent({
+      type: 'block:childWorkflowStarted',
+      timestamp: new Date().toISOString(),
+      executionId,
+      workflowId,
+      data: {
+        blockId,
+        childWorkflowInstanceId,
+        ...(iterationContext && {
+          iterationCurrent: iterationContext.iterationCurrent,
+          iterationContainerId: iterationContext.iterationContainerId,
+        }),
+      },
+    })
+  }
+
+  return { sendEvent, onBlockStart, onBlockComplete, onStream, onChildWorkflowInstanceReady }
 }

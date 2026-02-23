@@ -322,6 +322,7 @@ export class DAGExecutor {
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
+      onChildWorkflowInstanceReady: this.contextExtensions.onChildWorkflowInstanceReady,
       abortSignal: this.contextExtensions.abortSignal,
       childWorkflowContext: this.contextExtensions.childWorkflowContext,
       includeFileBase64: this.contextExtensions.includeFileBase64,

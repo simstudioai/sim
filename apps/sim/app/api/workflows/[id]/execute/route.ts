@@ -919,12 +919,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             selectedOutputs
           )
 
+          const onChildWorkflowInstanceReady = (
+            blockId: string,
+            childWorkflowInstanceId: string,
+            iterationContext?: IterationContext
+          ) => {
+            sendEvent({
+              type: 'block:childWorkflowStarted',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                blockId,
+                childWorkflowInstanceId,
+                ...(iterationContext && {
+                  iterationCurrent: iterationContext.iterationCurrent,
+                  iterationContainerId: iterationContext.iterationContainerId,
+                }),
+              },
+            })
+          }
+
           const result = await executeWorkflowCore({
             snapshot,
             callbacks: {
               onBlockStart,
               onBlockComplete,
               onStream,
+              onChildWorkflowInstanceReady,
             },
             loggingSession,
             abortSignal: timeoutController.signal,
