@@ -1004,6 +1004,7 @@ export class AgentBlockHandler implements BlockHandler {
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
       stream: streaming,
       messages: messages?.map(({ executionId, ...msg }) => msg),
       environmentVariables: ctx.environmentVariables || {},
