@@ -329,6 +329,9 @@ describe('Database Helpers', () => {
             if (callCount === 3) {
               return Promise.resolve(mockSubflowsFromDb)
             }
+            if (callCount === 4) {
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
+            }
             return Promise.resolve([])
           }),
         }),
@@ -431,6 +434,8 @@ describe('Database Helpers', () => {
             if (callCount === 1) return Promise.resolve(mockBlocksFromDb)
             if (callCount === 2) return Promise.resolve(mockEdgesFromDb)
             if (callCount === 3) return Promise.resolve(subflowsWithUnknownType)
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -469,6 +474,8 @@ describe('Database Helpers', () => {
             if (callCount === 1) return Promise.resolve(malformedBlocks)
             if (callCount === 2) return Promise.resolve([])
             if (callCount === 3) return Promise.resolve([])
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -851,6 +858,8 @@ describe('Database Helpers', () => {
             if (callCount === 1) return Promise.resolve(testBlocks)
             if (callCount === 2) return Promise.resolve([])
             if (callCount === 3) return Promise.resolve([])
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -888,6 +897,8 @@ describe('Database Helpers', () => {
           where: vi.fn().mockImplementation(() => {
             callCount++
             if (callCount === 1) return Promise.resolve(blocksWithDefaultValues)
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -957,6 +968,8 @@ describe('Database Helpers', () => {
             if (callCount === 1) return Promise.resolve([originalBlock, duplicatedBlock])
             if (callCount === 2) return Promise.resolve([])
             if (callCount === 3) return Promise.resolve([])
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -1053,6 +1066,8 @@ describe('Database Helpers', () => {
           where: vi.fn().mockImplementation(() => {
             callCount++
             if (callCount === 1) return Promise.resolve([basicBlock, advancedBlock])
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
@@ -1137,6 +1152,8 @@ describe('Database Helpers', () => {
                 },
               ])
             }
+            if (callCount === 4)
+              return { limit: vi.fn().mockResolvedValue([{ workspaceId: 'test-workspace-id' }]) }
             return Promise.resolve([])
           }),
         }),
