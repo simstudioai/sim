@@ -153,7 +153,7 @@ const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'credentials', label: 'Credentials', icon: Connections, section: 'tools' },
+  { id: 'credentials', label: 'Credentials', icon: Connections, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },

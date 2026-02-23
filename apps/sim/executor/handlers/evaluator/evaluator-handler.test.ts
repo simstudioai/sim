@@ -1,6 +1,16 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+vi.mock('@/app/api/auth/oauth/utils', () => ({
+  resolveOAuthAccountId: vi
+    .fn()
+    .mockResolvedValue({ accountId: 'test-vertex-credential-id', usedCredentialTable: false }),
+  refreshTokenIfNeeded: vi
+    .fn()
+    .mockResolvedValue({ accessToken: 'mock-access-token', refreshed: false }),
+}))
+
 import { BlockType } from '@/executor/constants'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import type { ExecutionContext } from '@/executor/types'

@@ -17,6 +17,7 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getCredentialsForCredentialSet,
   refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -228,16 +229,25 @@ async function formatTeamsGraphNotification(
     })
   } else {
     try {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+      const resolved = await resolveOAuthAccountId(credentialId)
+      if (!resolved) {
+        logger.error('Teams credential could not be resolved', { credentialId })
       } else {
-        const effectiveUserId = rows[0].userId
-        accessToken = await refreshAccessTokenIfNeeded(
-          credentialId,
-          effectiveUserId,
-          'teams-graph-notification'
-        )
+        const rows = await db
+          .select()
+          .from(account)
+          .where(eq(account.id, resolved.accountId))
+          .limit(1)
+        if (rows.length === 0) {
+          logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+        } else {
+          const effectiveUserId = rows[0].userId
+          accessToken = await refreshAccessTokenIfNeeded(
+            resolved.accountId,
+            effectiveUserId,
+            'teams-graph-notification'
+          )
+        }
       }
 
       if (accessToken) {
@@ -1657,9 +1667,21 @@ export async function fetchAndProcessAirtablePayloads(
       return
     }
 
+    const resolvedAirtable = await resolveOAuthAccountId(credentialId)
+    if (!resolvedAirtable) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Airtable webhook`
+      )
+      return
+    }
+
     let ownerUserId: string | null = null
     try {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      const rows = await db
+        .select()
+        .from(account)
+        .where(eq(account.id, resolvedAirtable.accountId))
+        .limit(1)
       ownerUserId = rows.length ? rows[0].userId : null
     } catch (_e) {
       ownerUserId = null
@@ -1717,7 +1739,11 @@ export async function fetchAndProcessAirtablePayloads(
 
     let accessToken: string | null = null
     try {
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+      accessToken = await refreshAccessTokenIfNeeded(
+        resolvedAirtable.accountId,
+        ownerUserId,
+        requestId
+      )
       if (!accessToken) {
         logger.error(
           `[${requestId}] Failed to obtain valid Airtable access token via credential ${credentialId}.`
@@ -2443,8 +2469,19 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
       return false
     }
 
-    // Verify credential exists and get userId
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolvedGmail = await resolveOAuthAccountId(credentialId)
+    if (!resolvedGmail) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Gmail webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const rows = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolvedGmail.accountId))
+      .limit(1)
     if (rows.length === 0) {
       logger.error(
         `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
@@ -2454,8 +2491,11 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
 
     const effectiveUserId = rows[0].userId
 
-    // Verify token can be refreshed
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolvedGmail.accountId,
+      effectiveUserId,
+      requestId
+    )
     if (!accessToken) {
       logger.error(
         `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
@@ -2529,8 +2569,19 @@ export async function configureOutlookPolling(
       return false
     }
 
-    // Verify credential exists and get userId
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolvedOutlook = await resolveOAuthAccountId(credentialId)
+    if (!resolvedOutlook) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Outlook webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const rows = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolvedOutlook.accountId))
+      .limit(1)
     if (rows.length === 0) {
       logger.error(
         `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
@@ -2540,8 +2591,11 @@ export async function configureOutlookPolling(
 
     const effectiveUserId = rows[0].userId
 
-    // Verify token can be refreshed
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolvedOutlook.accountId,
+      effectiveUserId,
+      requestId
+    )
     if (!accessToken) {
       logger.error(
         `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
