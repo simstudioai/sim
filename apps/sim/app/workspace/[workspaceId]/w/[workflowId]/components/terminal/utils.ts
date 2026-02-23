@@ -384,12 +384,23 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         iterationContainerId: iterGroup.iterationContainerId,
       }
 
-      // Block nodes within this iteration
-      const blockNodes: EntryNode[] = iterBlocks.map((block) => ({
-        entry: block,
-        children: [],
-        nodeType: 'block' as const,
-      }))
+      // Block nodes within this iteration — workflow blocks get their full subtree
+      const blockNodes: EntryNode[] = iterBlocks.map((block) => {
+        if (isWorkflowBlockType(block.blockType)) {
+          const allDescendants = collectWorkflowDescendants(block.blockId, workflowChildGroups)
+          const rawChildren = allDescendants.map((c) => ({
+            ...c,
+            childWorkflowBlockId:
+              c.childWorkflowBlockId === block.blockId ? undefined : c.childWorkflowBlockId,
+          }))
+          return {
+            entry: block,
+            children: buildEntryTree(rawChildren),
+            nodeType: 'workflow' as const,
+          }
+        }
+        return { entry: block, children: [], nodeType: 'block' as const }
+      })
 
       return {
         entry: syntheticIteration,
