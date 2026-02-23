@@ -199,13 +199,16 @@ interface IterationGroup {
  */
 function collectWorkflowDescendants(
   workflowBlockId: string,
-  workflowChildGroups: Map<string, ConsoleEntry[]>
+  workflowChildGroups: Map<string, ConsoleEntry[]>,
+  visited: Set<string> = new Set()
 ): ConsoleEntry[] {
+  if (visited.has(workflowBlockId)) return []
+  visited.add(workflowBlockId)
   const direct = workflowChildGroups.get(workflowBlockId) ?? []
   const result = [...direct]
   for (const entry of direct) {
     if (isWorkflowBlockType(entry.blockType)) {
-      result.push(...collectWorkflowDescendants(entry.blockId, workflowChildGroups))
+      result.push(...collectWorkflowDescendants(entry.blockId, workflowChildGroups, visited))
     }
   }
   return result

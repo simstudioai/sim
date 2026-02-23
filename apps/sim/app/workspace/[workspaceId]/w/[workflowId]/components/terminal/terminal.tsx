@@ -382,10 +382,13 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
     () => Boolean(entry.error) || hasErrorInTree(children),
     [entry.error, children]
   )
-  const hasRunningDescendant = useMemo(() => hasRunningInTree(children), [children])
+  const hasRunningDescendant = useMemo(
+    () => Boolean(entry.isRunning) || hasRunningInTree(children),
+    [entry.isRunning, children]
+  )
   const hasCanceledDescendant = useMemo(
-    () => hasCanceledInTree(children) && !hasRunningDescendant,
-    [children, hasRunningDescendant]
+    () => (Boolean(entry.isCanceled) || hasCanceledInTree(children)) && !hasRunningDescendant,
+    [entry.isCanceled, children, hasRunningDescendant]
   )
 
   return (
