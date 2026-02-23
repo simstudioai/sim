@@ -527,9 +527,266 @@ describe('regenerateBlockIds', () => {
     const newBlocks = Object.values(result.blocks)
     expect(newBlocks).toHaveLength(2)
 
-    // All pasted blocks should be unlocked so users can edit them
     for (const block of newBlocks) {
       expect(block.locked).toBe(false)
     }
+  })
+
+  it('should preserve original name when no conflicting block exists', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+    expect(newBlocks[0].name).toBe('Agent 1')
+  })
+
+  it('should preserve original name with number suffix when no conflict', () => {
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 3',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    expect(Object.values(result.blocks)[0].name).toBe('Agent 3')
+  })
+
+  it('should increment name when an exact match exists in destination', () => {
+    const existingBlocks = {
+      existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
+    }
+
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    expect(Object.values(result.blocks)[0].name).toBe('Agent 2')
+  })
+
+  it('should preserve name when only a different-numbered sibling exists', () => {
+    const existingBlocks = {
+      existing: createAgentBlock({ id: 'existing', name: 'Agent 2' }),
+    }
+
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 5',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    expect(Object.values(result.blocks)[0].name).toBe('Agent 5')
+  })
+
+  it('should preserve names for multiple blocks when no conflicts', () => {
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+      'block-2': createFunctionBlock({
+        id: 'block-2',
+        name: 'Function 3',
+        position: { x: 200, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    const agentBlock = newBlocks.find((b) => b.type === 'agent')
+    const functionBlock = newBlocks.find((b) => b.type === 'function')
+
+    expect(agentBlock!.name).toBe('Agent 1')
+    expect(functionBlock!.name).toBe('Function 3')
+  })
+
+  it('should handle mixed conflicts: preserve non-conflicting, increment conflicting', () => {
+    const existingBlocks = {
+      existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
+    }
+
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+      'block-2': createFunctionBlock({
+        id: 'block-2',
+        name: 'Function 1',
+        position: { x: 200, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    const agentBlock = newBlocks.find((b) => b.type === 'agent')
+    const functionBlock = newBlocks.find((b) => b.type === 'function')
+
+    expect(agentBlock!.name).toBe('Agent 2')
+    expect(functionBlock!.name).toBe('Function 1')
+  })
+
+  it('should detect conflicts case-insensitively', () => {
+    const existingBlocks = {
+      existing: createBlock({ id: 'existing', name: 'api 1' }),
+    }
+
+    const blocksToCopy = {
+      'block-1': createBlock({
+        id: 'block-1',
+        name: 'API 1',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      existingBlocks,
+      getUniqueBlockName
+    )
+
+    expect(Object.values(result.blocks)[0].name).toBe('API 2')
+  })
+
+  it('should preserve name without number suffix when no conflict', () => {
+    const blocksToCopy = {
+      'block-1': createBlock({
+        id: 'block-1',
+        name: 'Custom Block',
+        position: { x: 100, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    expect(Object.values(result.blocks)[0].name).toBe('Custom Block')
+  })
+
+  it('should avoid collisions between pasted blocks themselves', () => {
+    const blocksToCopy = {
+      'block-1': createAgentBlock({
+        id: 'block-1',
+        name: 'Agent 1',
+        position: { x: 100, y: 100 },
+      }),
+      'block-2': createAgentBlock({
+        id: 'block-2',
+        name: 'Agent 1',
+        position: { x: 200, y: 100 },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    const names = newBlocks.map((b) => b.name)
+
+    expect(names).toHaveLength(2)
+    expect(new Set(names).size).toBe(2)
+    expect(names).toContain('Agent 1')
+    expect(names).toContain('Agent 2')
   })
 })
