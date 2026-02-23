@@ -157,9 +157,13 @@ export class WorkflowBlockHandler implements BlockHandler {
       const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
       const shouldPropagateCallbacks = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
 
-      if (nodeMetadata && shouldPropagateCallbacks) {
-        const effectiveBlockId = nodeMetadata.originalBlockId ?? nodeMetadata.nodeId
-        const iterationContext = this.getIterationContext(ctx, nodeMetadata)
+      if (shouldPropagateCallbacks) {
+        const effectiveBlockId = nodeMetadata
+          ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
+          : block.id
+        const iterationContext = nodeMetadata
+          ? this.getIterationContext(ctx, nodeMetadata)
+          : undefined
         ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
       }
 
