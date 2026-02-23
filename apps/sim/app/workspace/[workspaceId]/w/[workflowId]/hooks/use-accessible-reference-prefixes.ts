@@ -37,11 +37,6 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
       if (!loop?.nodes) return
       if (loop.nodes.includes(blockId)) {
         accessibleIds.add(loop.id)
-        loop.nodes.forEach((nodeId) => {
-          if (ancestorIds.includes(nodeId)) {
-            accessibleIds.add(nodeId)
-          }
-        })
       }
     })
 
