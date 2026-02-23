@@ -787,6 +787,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 }
               : {}
 
+            // Extract per-invocation instance ID and strip from user-visible output
+            const childWorkflowInstanceId: string | undefined =
+              callbackData.output?._childWorkflowInstanceId
+            const instanceData = childWorkflowInstanceId ? { childWorkflowInstanceId } : {}
+
             if (hasError) {
               logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
                 blockId,
@@ -816,6 +821,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationContainerId: iterationContext.iterationContainerId,
                   }),
                   ...childWorkflowData,
+                  ...instanceData,
                 },
               })
             } else {
@@ -824,6 +830,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 blockName,
                 blockType,
               })
+              const { _childWorkflowInstanceId: _stripped, ...strippedOutput } =
+                callbackData.output ?? {}
               sendEvent({
                 type: 'block:completed',
                 timestamp: new Date().toISOString(),
@@ -834,7 +842,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockName,
                   blockType,
                   input: callbackData.input,
-                  output: callbackData.output,
+                  output: strippedOutput,
                   durationMs: callbackData.executionTime || 0,
                   startedAt: callbackData.startedAt,
                   executionOrder: callbackData.executionOrder,
@@ -846,6 +854,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationContainerId: iterationContext.iterationContainerId,
                   }),
                   ...childWorkflowData,
+                  ...instanceData,
                 },
               })
             }

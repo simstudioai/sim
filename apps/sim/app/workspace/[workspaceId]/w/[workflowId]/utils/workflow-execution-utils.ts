@@ -175,6 +175,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationContainerId: event.data.iterationContainerId,
                 childWorkflowBlockId: event.data.childWorkflowBlockId,
                 childWorkflowName: event.data.childWorkflowName,
+                childWorkflowInstanceId: event.data.childWorkflowInstanceId,
               })
 
               if (options.onBlockComplete) {
@@ -214,6 +215,7 @@ export async function executeWorkflowWithFullLogging(
                 iterationContainerId: event.data.iterationContainerId,
                 childWorkflowBlockId: event.data.childWorkflowBlockId,
                 childWorkflowName: event.data.childWorkflowName,
+                childWorkflowInstanceId: event.data.childWorkflowInstanceId,
               })
               break
             }

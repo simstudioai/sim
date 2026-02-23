@@ -249,6 +249,9 @@ export class BlockExecutor {
       if (error.childWorkflowSnapshotId) {
         errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
       }
+      if (error.childWorkflowInstanceId) {
+        errorOutput._childWorkflowInstanceId = error.childWorkflowInstanceId
+      }
     }
 
     this.state.setBlockOutput(node.id, errorOutput, duration)

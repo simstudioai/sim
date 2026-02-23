@@ -428,6 +428,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 updatedEntry.childWorkflowName = update.childWorkflowName
               }
 
+              if (update.childWorkflowInstanceId !== undefined) {
+                updatedEntry.childWorkflowInstanceId = update.childWorkflowInstanceId
+              }
+
               return updatedEntry
             })
 

@@ -58,6 +58,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     const workflowMetadata = workflows[workflowId]
     let childWorkflowName = workflowMetadata?.name || workflowId
 
+    // Unique ID per invocation — used to correlate child block events with this specific
+    // workflow block execution, preventing cross-iteration child mixing in loop contexts.
+    const instanceId = crypto.randomUUID()
+
     let childWorkflowSnapshotId: string | undefined
     try {
       const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
@@ -135,7 +139,7 @@ export class WorkflowBlockHandler implements BlockHandler {
             onBlockComplete: ctx.onBlockComplete,
             onStream: ctx.onStream as ((streamingExecution: unknown) => Promise<void>) | undefined,
             childWorkflowContext: {
-              parentBlockId: block.id,
+              parentBlockId: instanceId,
               workflowName: childWorkflowName,
               workflowId,
               depth: childDepth,
@@ -162,6 +166,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowId,
         childWorkflowName,
         duration,
+        instanceId,
         childTraceSpans,
         childWorkflowSnapshotId
       )
@@ -197,6 +202,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans,
         executionResult,
         childWorkflowSnapshotId,
+        childWorkflowInstanceId: instanceId,
         cause: error instanceof Error ? error : undefined,
       })
     }
@@ -539,6 +545,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number,
+    instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
     childWorkflowSnapshotId?: string
   ): BlockOutput {
@@ -552,6 +559,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         childTraceSpans: childTraceSpans || [],
         childWorkflowSnapshotId,
+        childWorkflowInstanceId: instanceId,
       })
     }
 
@@ -562,6 +570,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
       result,
       childTraceSpans: childTraceSpans || [],
+      _childWorkflowInstanceId: instanceId,
     } as Record<string, any>
   }
 }

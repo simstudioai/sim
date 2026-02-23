@@ -198,17 +198,25 @@ interface IterationGroup {
  * enabling correct tree construction for deeply-nested child workflows.
  */
 function collectWorkflowDescendants(
-  workflowBlockId: string,
+  instanceKey: string,
   workflowChildGroups: Map<string, ConsoleEntry[]>,
   visited: Set<string> = new Set()
 ): ConsoleEntry[] {
-  if (visited.has(workflowBlockId)) return []
-  visited.add(workflowBlockId)
-  const direct = workflowChildGroups.get(workflowBlockId) ?? []
+  if (visited.has(instanceKey)) return []
+  visited.add(instanceKey)
+  const direct = workflowChildGroups.get(instanceKey) ?? []
   const result = [...direct]
   for (const entry of direct) {
     if (isWorkflowBlockType(entry.blockType)) {
-      result.push(...collectWorkflowDescendants(entry.blockId, workflowChildGroups, visited))
+      // Use childWorkflowInstanceId when available (unique per-invocation) to correctly
+      // separate children across loop iterations of the same workflow block.
+      result.push(
+        ...collectWorkflowDescendants(
+          entry.childWorkflowInstanceId ?? entry.blockId,
+          workflowChildGroups,
+          visited
+        )
+      )
     }
   }
   return result
@@ -387,11 +395,12 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       // Block nodes within this iteration — workflow blocks get their full subtree
       const blockNodes: EntryNode[] = iterBlocks.map((block) => {
         if (isWorkflowBlockType(block.blockType)) {
-          const allDescendants = collectWorkflowDescendants(block.blockId, workflowChildGroups)
+          const instanceKey = block.childWorkflowInstanceId ?? block.blockId
+          const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
           const rawChildren = allDescendants.map((c) => ({
             ...c,
             childWorkflowBlockId:
-              c.childWorkflowBlockId === block.blockId ? undefined : c.childWorkflowBlockId,
+              c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
           }))
           return {
             entry: block,
@@ -426,11 +435,12 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
 
   for (const block of regularBlocks) {
     if (isWorkflowBlockType(block.blockType)) {
-      const allDescendants = collectWorkflowDescendants(block.blockId, workflowChildGroups)
+      const instanceKey = block.childWorkflowInstanceId ?? block.blockId
+      const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
       const rawChildren = allDescendants.map((c) => ({
         ...c,
         childWorkflowBlockId:
-          c.childWorkflowBlockId === block.blockId ? undefined : c.childWorkflowBlockId,
+          c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
       }))
       const children = buildEntryTree(rawChildren)
       workflowNodes.push({ entry: block, children, nodeType: 'workflow' as const })

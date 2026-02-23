@@ -109,6 +109,8 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     iterationContainerId?: string
     childWorkflowBlockId?: string
     childWorkflowName?: string
+    /** Per-invocation unique ID for correlating child block events with this workflow block. */
+    childWorkflowInstanceId?: string
   }
 }
 
@@ -134,6 +136,8 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     iterationContainerId?: string
     childWorkflowBlockId?: string
     childWorkflowName?: string
+    /** Per-invocation unique ID for correlating child block events with this workflow block. */
+    childWorkflowInstanceId?: string
   }
 }
 
@@ -287,6 +291,11 @@ export function createSSECallbacks(options: SSECallbackOptions) {
         }
       : {}
 
+    // Extract per-invocation instance ID and strip from user-visible output
+    const childWorkflowInstanceId: string | undefined =
+      callbackData.output?._childWorkflowInstanceId
+    const instanceData = childWorkflowInstanceId ? { childWorkflowInstanceId } : {}
+
     if (hasError) {
       sendEvent({
         type: 'block:error',
@@ -305,9 +314,11 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           endedAt: callbackData.endedAt,
           ...iterationData,
           ...childWorkflowData,
+          ...instanceData,
         },
       })
     } else {
+      const { _childWorkflowInstanceId: _stripped, ...strippedOutput } = callbackData.output ?? {}
       sendEvent({
         type: 'block:completed',
         timestamp: new Date().toISOString(),
@@ -318,13 +329,14 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           blockName,
           blockType,
           input: callbackData.input,
-          output: callbackData.output,
+          output: strippedOutput,
           durationMs: callbackData.executionTime || 0,
           startedAt: callbackData.startedAt,
           executionOrder: callbackData.executionOrder,
           endedAt: callbackData.endedAt,
           ...iterationData,
           ...childWorkflowData,
+          ...instanceData,
         },
       })
     }

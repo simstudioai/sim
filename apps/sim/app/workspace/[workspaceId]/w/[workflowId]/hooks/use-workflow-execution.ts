@@ -385,6 +385,7 @@ export function useWorkflowExecution() {
           iterationContainerId: data.iterationContainerId,
           childWorkflowBlockId: data.childWorkflowBlockId,
           childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -410,6 +411,7 @@ export function useWorkflowExecution() {
           iterationContainerId: data.iterationContainerId,
           childWorkflowBlockId: data.childWorkflowBlockId,
           childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -431,6 +433,7 @@ export function useWorkflowExecution() {
             iterationContainerId: data.iterationContainerId,
             childWorkflowBlockId: data.childWorkflowBlockId,
             childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
@@ -455,6 +458,7 @@ export function useWorkflowExecution() {
             iterationContainerId: data.iterationContainerId,
             childWorkflowBlockId: data.childWorkflowBlockId,
             childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
