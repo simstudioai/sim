@@ -302,6 +302,12 @@ export interface ExecutionContext {
   stopAfterBlockId?: string
 
   /**
+   * Ordered list of workflow IDs in the current call chain, used for cycle detection.
+   * Passed to outgoing HTTP requests via the X-Sim-Via header.
+   */
+  callChain?: string[]
+
+  /**
    * Counter for generating monotonically increasing execution order values.
    * Starts at 0 and increments for each block. Use getNextExecutionOrder() to access.
    */

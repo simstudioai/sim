@@ -75,6 +75,7 @@ export class ApiBlockHandler implements BlockHandler {
             userId: ctx.userId,
             isDeployedContext: ctx.isDeployedContext,
             enforceCredentialAccess: ctx.enforceCredentialAccess,
+            callChain: ctx.callChain,
           },
         },
         false,

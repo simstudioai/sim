@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { buildNextCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -180,6 +181,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           userId: ctx.userId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
+          callChain: buildNextCallChain(ctx.callChain || [], workflowId),
           ...(shouldPropagateCallbacks && {
             onBlockStart: ctx.onBlockStart,
             onBlockComplete: ctx.onBlockComplete,

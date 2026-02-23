@@ -1,4 +1,5 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
@@ -6,11 +7,13 @@ import type { TableRow } from '@/tools/types'
  * Creates a set of default headers used in HTTP requests
  * @param customHeaders Additional user-provided headers to include
  * @param url Target URL for the request (used for setting Host header)
+ * @param callChain Optional workflow call chain for cycle detection
  * @returns Record of HTTP headers
  */
 export const getDefaultHeaders = (
   customHeaders: Record<string, string> = {},
-  url?: string
+  url?: string,
+  callChain?: string[]
 ): Record<string, string> => {
   const headers: Record<string, string> = {
     'User-Agent':
@@ -35,6 +38,10 @@ export const getDefaultHeaders = (
     } catch (_e) {
       // Invalid URL, will be caught later
     }
+  }
+
+  if (callChain && callChain.length > 0) {
+    headers[SIM_VIA_HEADER] = serializeCallChain(callChain)
   }
 
   return headers
