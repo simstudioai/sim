@@ -317,7 +317,10 @@ async function tryAcquireDistributedLease(
     ])
     return Number(result) === 1 ? 'acquired' : 'limit_exceeded'
   } catch (error) {
-    logger.error('Failed to acquire distributed owner lease', { ownerKey, error })
+    logger.warn('Failed to acquire distributed owner lease — falling back to local execution', {
+      ownerKey,
+      error,
+    })
     return 'unavailable'
   } finally {
     clearTimeout(deadlineTimer)
