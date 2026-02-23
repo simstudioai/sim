@@ -24,7 +24,6 @@ import { useCredentialSets } from '@/hooks/queries/credential-sets'
 import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -55,7 +54,6 @@ export function CredentialSelector({
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const requiredScopes = subBlock.requiredScopes || []
   const label = subBlock.placeholder || 'Select credential'
@@ -136,11 +134,6 @@ export function CredentialSelector({
         if (!response.ok || cancelled) return
         const data = await response.json()
         if (!cancelled && data.credential?.displayName) {
-          if (data.credential.id !== selectedId) {
-            collaborativeSetSubblockValue(blockId, subBlock.id, data.credential.id, {
-              skipDependsOn: true,
-            })
-          }
           setInaccessibleCredentialName(data.credential.displayName)
         }
       } catch {

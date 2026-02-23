@@ -1232,12 +1232,7 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeSetSubblockValue = useCallback(
-    (
-      blockId: string,
-      subblockId: string,
-      value: any,
-      options?: { _visited?: Set<string>; skipDependsOn?: boolean }
-    ) => {
+    (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
       if (isApplyingRemoteChange.current) return
 
       if (isBaselineDiffView) {
@@ -1262,8 +1257,6 @@ export function useCollaborativeWorkflow() {
           userId: session?.user?.id || 'unknown',
         })
       }
-
-      if (options?.skipDependsOn) return
 
       // Handle dependent subblock clearing (recursive calls)
       try {
