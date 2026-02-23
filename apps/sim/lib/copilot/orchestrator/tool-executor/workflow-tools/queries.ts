@@ -14,7 +14,6 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
@@ -457,20 +456,9 @@ export async function executeGetBlockUpstreamReferences(
       const accessibleIds = new Set<string>(ancestorIds)
       accessibleIds.add(blockId)
 
-      const starterBlock = Object.values(blocks).find((b) => isInputDefinitionTrigger(b.type))
-      if (starterBlock && ancestorIds.includes(starterBlock.id)) {
-        accessibleIds.add(starterBlock.id)
-      }
+      containingLoopIds.forEach((loopId) => accessibleIds.add(loopId))
 
-      containingLoopIds.forEach((loopId) => {
-        accessibleIds.add(loopId)
-        loops[loopId]?.nodes?.forEach((nodeId: string) => accessibleIds.add(nodeId))
-      })
-
-      containingParallelIds.forEach((parallelId) => {
-        accessibleIds.add(parallelId)
-        parallels[parallelId]?.nodes?.forEach((nodeId: string) => accessibleIds.add(nodeId))
-      })
+      containingParallelIds.forEach((parallelId) => accessibleIds.add(parallelId))
 
       const accessibleBlocks: AccessibleBlockEntry[] = []
 

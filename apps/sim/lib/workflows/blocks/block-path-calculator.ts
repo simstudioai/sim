@@ -1,5 +1,3 @@
-import type { SerializedWorkflow } from '@/serializer/types'
-
 /**
  * Shared utility for calculating block paths and accessible connections.
  * Used by both frontend (useBlockConnections) and backend (InputResolver) to ensure consistency.
@@ -64,37 +62,5 @@ export class BlockPathCalculator {
     }
 
     return Array.from(pathNodes)
-  }
-
-  /**
-   * Calculates accessible blocks for all blocks in a workflow.
-   * This ensures consistent block reference resolution across frontend and backend.
-   *
-   * @param workflow - The serialized workflow
-   * @returns Map of block ID to Set of accessible block IDs
-   */
-  static calculateAccessibleBlocksForWorkflow(
-    workflow: SerializedWorkflow
-  ): Map<string, Set<string>> {
-    const accessibleMap = new Map<string, Set<string>>()
-
-    for (const block of workflow.blocks) {
-      const accessibleBlocks = new Set<string>()
-
-      // Find all blocks along paths leading to this block
-      const pathNodes = BlockPathCalculator.findAllPathNodes(workflow.connections, block.id)
-      pathNodes.forEach((nodeId) => accessibleBlocks.add(nodeId))
-
-      // Only add starter block if it's actually upstream (already in pathNodes)
-      // Don't add it just because it exists on the canvas
-      const starterBlock = workflow.blocks.find((b) => b.metadata?.id === 'starter')
-      if (starterBlock && starterBlock.id !== block.id && pathNodes.includes(starterBlock.id)) {
-        accessibleBlocks.add(starterBlock.id)
-      }
-
-      accessibleMap.set(block.id, accessibleBlocks)
-    }
-
-    return accessibleMap
   }
 }
