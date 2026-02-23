@@ -293,12 +293,13 @@ async function tryAcquireDistributedLease(
     return 1
   `
 
-  const deadline = new Promise<never>((_, reject) =>
-    setTimeout(
+  let deadlineTimer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
       () => reject(new Error(`Redis lease timed out after ${LEASE_REDIS_DEADLINE_MS}ms`)),
       LEASE_REDIS_DEADLINE_MS
     )
-  )
+  })
 
   try {
     const result = await Promise.race([
@@ -318,6 +319,8 @@ async function tryAcquireDistributedLease(
   } catch (error) {
     logger.error('Failed to acquire distributed owner lease', { ownerKey, error })
     return 'unavailable'
+  } finally {
+    clearTimeout(deadlineTimer)
   }
 }
 
