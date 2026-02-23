@@ -132,6 +132,8 @@ export interface ContextExtensions {
       startedAt: string
       executionOrder: number
       endedAt: string
+      /** Per-invocation unique ID linking this workflow block execution to its child block events. */
+      childWorkflowInstanceId?: string
     },
     iterationContext?: IterationContext,
     childWorkflowContext?: ChildWorkflowContext

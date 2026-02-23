@@ -166,6 +166,9 @@ export class BlockExecutor {
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel && blockLog) {
+        const childWorkflowInstanceId = normalizedOutput._childWorkflowInstanceId as
+          | string
+          | undefined
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
@@ -178,7 +181,8 @@ export class BlockExecutor {
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
-          blockLog.endedAt
+          blockLog.endedAt,
+          childWorkflowInstanceId
         )
       }
 
@@ -249,9 +253,6 @@ export class BlockExecutor {
       if (error.childWorkflowSnapshotId) {
         errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
       }
-      if (error.childWorkflowInstanceId) {
-        errorOutput._childWorkflowInstanceId = error.childWorkflowInstanceId
-      }
     }
 
     this.state.setBlockOutput(node.id, errorOutput, duration)
@@ -279,6 +280,9 @@ export class BlockExecutor {
     )
 
     if (!isSentinel && blockLog) {
+      const childWorkflowInstanceId = ChildWorkflowError.isChildWorkflowError(error)
+        ? error.childWorkflowInstanceId
+        : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       this.callOnBlockComplete(
         ctx,
@@ -289,7 +293,8 @@ export class BlockExecutor {
         duration,
         blockLog.startedAt,
         blockLog.executionOrder,
-        blockLog.endedAt
+        blockLog.endedAt,
+        childWorkflowInstanceId
       )
     }
 
@@ -458,7 +463,8 @@ export class BlockExecutor {
     duration: number,
     startedAt: string,
     executionOrder: number,
-    endedAt: string
+    endedAt: string,
+    childWorkflowInstanceId?: string
   ): void {
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
@@ -478,6 +484,7 @@ export class BlockExecutor {
           startedAt,
           executionOrder,
           endedAt,
+          childWorkflowInstanceId,
         },
         iterationContext,
         ctx.childWorkflowContext

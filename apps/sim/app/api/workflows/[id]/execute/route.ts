@@ -787,10 +787,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 }
               : {}
 
-            // Extract per-invocation instance ID and strip from user-visible output
-            const childWorkflowInstanceId: string | undefined =
-              callbackData.output?._childWorkflowInstanceId
-            const instanceData = childWorkflowInstanceId ? { childWorkflowInstanceId } : {}
+            const instanceData = callbackData.childWorkflowInstanceId
+              ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
+              : {}
 
             if (hasError) {
               logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
@@ -830,8 +829,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 blockName,
                 blockType,
               })
-              const { _childWorkflowInstanceId: _stripped, ...strippedOutput } =
-                callbackData.output ?? {}
               sendEvent({
                 type: 'block:completed',
                 timestamp: new Date().toISOString(),
@@ -842,7 +839,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   blockName,
                   blockType,
                   input: callbackData.input,
-                  output: strippedOutput,
+                  output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
                   startedAt: callbackData.startedAt,
                   executionOrder: callbackData.executionOrder,

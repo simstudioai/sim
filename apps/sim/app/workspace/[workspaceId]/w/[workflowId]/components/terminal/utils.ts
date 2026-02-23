@@ -101,7 +101,9 @@ export function getBlockColor(blockType: string): string {
 }
 
 /**
- * Checks if a block type is a child workflow node
+ * Checks if a block type is a workflow-calling block (calls a child workflow).
+ * Covers both `workflow` (new) and `workflow_input` (legacy) block variants —
+ * both are handled by WorkflowBlockHandler and emit child workflow events.
  */
 export function isWorkflowBlockType(blockType: string): boolean {
   const t = blockType?.toLowerCase()
