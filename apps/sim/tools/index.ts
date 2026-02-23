@@ -7,6 +7,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
@@ -673,6 +674,13 @@ async function executeToolRequest(
 
     const headers = new Headers(requestParams.headers)
     await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId)
+
+    if (isInternalRoute) {
+      const callChain = params._context?.callChain as string[] | undefined
+      if (callChain && callChain.length > 0) {
+        headers.set(SIM_VIA_HEADER, serializeCallChain(callChain))
+      }
+    }
 
     // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)

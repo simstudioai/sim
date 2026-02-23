@@ -12,6 +12,12 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  buildNextCallChain,
+  parseCallChain,
+  SIM_VIA_HEADER,
+  validateCallChain,
+} from '@/lib/execution/call-chain'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -155,10 +161,11 @@ type AsyncExecutionParams = {
   input: any
   triggerType: CoreTriggerType
   executionId: string
+  callChain?: string[]
 }
 
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
-  const { requestId, workflowId, userId, input, triggerType, executionId } = params
+  const { requestId, workflowId, userId, input, triggerType, executionId, callChain } = params
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
@@ -166,6 +173,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     input,
     triggerType,
     executionId,
+    callChain,
   }
 
   try {
@@ -235,6 +243,14 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id: workflowId } = await params
+
+  const incomingCallChain = parseCallChain(req.headers.get(SIM_VIA_HEADER))
+  const callChainError = validateCallChain(incomingCallChain)
+  if (callChainError) {
+    logger.warn(`[${requestId}] Call chain rejected for workflow ${workflowId}: ${callChainError}`)
+    return NextResponse.json({ error: callChainError }, { status: 409 })
+  }
+  const callChain = buildNextCallChain(incomingCallChain, workflowId)
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -433,6 +449,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         input,
         triggerType: loggingTriggerType,
         executionId,
+        callChain,
       })
     }
 
@@ -539,6 +556,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           isClientSession,
           enforceCredentialAccess: useAuthenticatedUserAsActor,
           workflowStateOverride: effectiveWorkflowStateOverride,
+          callChain,
         }
 
         const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
@@ -909,6 +927,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             isClientSession,
             enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
+            callChain,
           }
 
           const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}

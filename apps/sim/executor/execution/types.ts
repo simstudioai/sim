@@ -27,6 +27,7 @@ export interface ExecutionMetadata {
     parallels?: Record<string, any>
     deploymentVersionId?: string
   }
+  callChain?: string[]
 }
 
 export interface SerializableExecutionState {
@@ -167,6 +168,12 @@ export interface ContextExtensions {
    * Stop execution after this block completes. Used for "run until block" feature.
    */
   stopAfterBlockId?: string
+
+  /**
+   * Ordered list of workflow IDs in the current call chain, used for cycle detection.
+   * Each hop appends the current workflow ID before making outgoing requests.
+   */
+  callChain?: string[]
 }
 
 export interface WorkflowInput {

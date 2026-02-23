@@ -331,6 +331,7 @@ export async function executeWorkflowCore(
       base64MaxBytes,
       stopAfterBlockId: resolvedStopAfterBlockId,
       onChildWorkflowInstanceReady,
+      callChain: metadata.callChain,
     }
 
     const executorInstance = new Executor({
