@@ -45,6 +45,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
+    if (resolved.workspaceId) {
+      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
+      const perm = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        resolved.workspaceId
+      )
+      if (perm === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     const credentials = await db
       .select()
       .from(account)

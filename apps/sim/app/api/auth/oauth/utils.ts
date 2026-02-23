@@ -27,16 +27,17 @@ interface AccountInsertData {
 
 /**
  * Resolves a credential ID to its underlying account ID.
- * If `credentialId` matches a `credential` row, returns its `accountId`.
+ * If `credentialId` matches a `credential` row, returns its `accountId` and `workspaceId`.
  * Otherwise assumes `credentialId` is already a raw `account.id` (legacy).
  */
 export async function resolveOAuthAccountId(
   credentialId: string
-): Promise<{ accountId: string; usedCredentialTable: boolean } | null> {
+): Promise<{ accountId: string; workspaceId?: string; usedCredentialTable: boolean } | null> {
   const [credentialRow] = await db
     .select({
       type: credential.type,
       accountId: credential.accountId,
+      workspaceId: credential.workspaceId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -46,7 +47,11 @@ export async function resolveOAuthAccountId(
     if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
       return null
     }
-    return { accountId: credentialRow.accountId, usedCredentialTable: true }
+    return {
+      accountId: credentialRow.accountId,
+      workspaceId: credentialRow.workspaceId,
+      usedCredentialTable: true,
+    }
   }
 
   return { accountId: credentialId, usedCredentialTable: false }
