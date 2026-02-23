@@ -106,10 +106,10 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
       .where(eq(workflow.id, workflowId))
       .limit(1)
 
-    const { blocks: migratedBlocks } = await migrateCredentialIds(
-      state.blocks || {},
-      wfRow?.workspaceId ?? undefined
-    )
+    const resolvedBlocks = state.blocks || {}
+    const { blocks: migratedBlocks } = wfRow?.workspaceId
+      ? await migrateCredentialIds(resolvedBlocks, wfRow.workspaceId)
+      : { blocks: resolvedBlocks }
 
     return {
       blocks: migratedBlocks,
@@ -206,7 +206,7 @@ const CREDENTIAL_SUBBLOCK_IDS = new Set(['credential', 'triggerCredentials'])
  */
 async function migrateCredentialIds(
   blocks: Record<string, BlockState>,
-  workspaceId?: string
+  workspaceId: string
 ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
   const potentialLegacyIds = new Set<string>()
 
@@ -237,15 +237,15 @@ async function migrateCredentialIds(
     return { blocks, migrated: false }
   }
 
-  const conditions = [inArray(credential.accountId, [...potentialLegacyIds])]
-  if (workspaceId) {
-    conditions.push(eq(credential.workspaceId, workspaceId))
-  }
-
   const rows = await db
     .select({ id: credential.id, accountId: credential.accountId })
     .from(credential)
-    .where(and(...conditions))
+    .where(
+      and(
+        inArray(credential.accountId, [...potentialLegacyIds]),
+        eq(credential.workspaceId, workspaceId)
+      )
+    )
 
   if (rows.length === 0) {
     return { blocks, migrated: false }
@@ -291,7 +291,11 @@ async function migrateCredentialIds(
     })
   )
 
-  return { blocks: migratedBlocks, migrated: true }
+  const anyBlockChanged = Object.keys(migratedBlocks).some(
+    (id) => migratedBlocks[id] !== blocks[id]
+  )
+
+  return { blocks: migratedBlocks, migrated: anyBlockChanged }
 }
 
 /**
@@ -352,8 +356,9 @@ export async function loadWorkflowFromNormalizedTables(
     const migratedBlocks = migrateAgentBlocksToMessagesFormat(sanitizedBlocks)
 
     // Migrate legacy account.id → credential.id in OAuth subblocks
-    const { blocks: credMigratedBlocks, migrated: credentialsMigrated } =
-      await migrateCredentialIds(migratedBlocks, workflowRow?.workspaceId ?? undefined)
+    const { blocks: credMigratedBlocks, migrated: credentialsMigrated } = workflowRow?.workspaceId
+      ? await migrateCredentialIds(migratedBlocks, workflowRow.workspaceId)
+      : { blocks: migratedBlocks, migrated: false }
 
     if (credentialsMigrated) {
       Promise.resolve().then(async () => {
