@@ -169,7 +169,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
-      const depthError = validateCallChain(ctx.callChain || [])
+      const depthError = validateCallChain(childCallChain)
       if (depthError) {
         throw new ChildWorkflowError({
           message: depthError,
