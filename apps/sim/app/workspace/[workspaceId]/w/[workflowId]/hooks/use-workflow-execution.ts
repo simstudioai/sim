@@ -20,6 +20,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { updateActiveBlockRefCount } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -63,6 +64,7 @@ interface BlockEventHandlerConfig {
   executionIdRef: { current: string }
   workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
+  activeBlockRefCounts: Map<string, number>
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
@@ -309,6 +311,7 @@ export function useWorkflowExecution() {
         executionIdRef,
         workflowEdges,
         activeBlocksSet,
+        activeBlockRefCounts,
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
@@ -327,11 +330,7 @@ export function useWorkflowExecution() {
 
       const updateActiveBlocks = (blockId: string, isActive: boolean) => {
         if (!workflowId) return
-        if (isActive) {
-          activeBlocksSet.add(blockId)
-        } else {
-          activeBlocksSet.delete(blockId)
-        }
+        updateActiveBlockRefCount(activeBlockRefCounts, activeBlocksSet, blockId, isActive)
         setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
 
@@ -384,6 +383,9 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -407,6 +409,9 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
         })
       }
 
@@ -426,6 +431,9 @@ export function useWorkflowExecution() {
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
             iterationContainerId: data.iterationContainerId,
+            childWorkflowBlockId: data.childWorkflowBlockId,
+            childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
@@ -448,6 +456,9 @@ export function useWorkflowExecution() {
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
             iterationContainerId: data.iterationContainerId,
+            childWorkflowBlockId: data.childWorkflowBlockId,
+            childWorkflowName: data.childWorkflowName,
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
           },
           executionIdRef.current
         )
@@ -479,6 +490,8 @@ export function useWorkflowExecution() {
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
           iterationContainerId: data.iterationContainerId,
+          childWorkflowBlockId: data.childWorkflowBlockId,
+          childWorkflowName: data.childWorkflowName,
         })
       }
 
@@ -536,7 +549,27 @@ export function useWorkflowExecution() {
         }
       }
 
-      return { onBlockStarted, onBlockCompleted, onBlockError }
+      const onBlockChildWorkflowStarted = (data: {
+        blockId: string
+        childWorkflowInstanceId: string
+        iterationCurrent?: number
+        iterationContainerId?: string
+      }) => {
+        if (isStaleExecution()) return
+        updateConsole(
+          data.blockId,
+          {
+            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...(data.iterationCurrent !== undefined && { iterationCurrent: data.iterationCurrent }),
+            ...(data.iterationContainerId !== undefined && {
+              iterationContainerId: data.iterationContainerId,
+            }),
+          },
+          executionIdRef.current
+        )
+      }
+
+      return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
     },
     [addConsole, setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, updateConsole]
   )
@@ -1280,6 +1313,7 @@ export function useWorkflowExecution() {
       }
 
       const activeBlocksSet = new Set<string>()
+      const activeBlockRefCounts = new Map<string, number>()
       const streamedContent = new Map<string, string>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1292,6 +1326,7 @@ export function useWorkflowExecution() {
           executionIdRef,
           workflowEdges,
           activeBlocksSet,
+          activeBlockRefCounts,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -1334,6 +1369,7 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: blockHandlers.onBlockError,
+            onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
               const existing = streamedContent.get(data.blockId) || ''
@@ -1902,6 +1938,7 @@ export function useWorkflowExecution() {
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
       const activeBlocksSet = new Set<string>()
+      const activeBlockRefCounts = new Map<string, number>()
 
       try {
         const blockHandlers = buildBlockEventHandlers({
@@ -1909,6 +1946,7 @@ export function useWorkflowExecution() {
           executionIdRef,
           workflowEdges,
           activeBlocksSet,
+          activeBlockRefCounts,
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
@@ -1929,6 +1967,7 @@ export function useWorkflowExecution() {
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
             onBlockError: blockHandlers.onBlockError,
+            onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onExecutionCompleted: (data) => {
               if (data.success) {
@@ -2104,6 +2143,7 @@ export function useWorkflowExecution() {
 
     const workflowEdges = useWorkflowStore.getState().edges
     const activeBlocksSet = new Set<string>()
+    const activeBlockRefCounts = new Map<string, number>()
     const accumulatedBlockLogs: BlockLog[] = []
     const accumulatedBlockStates = new Map<string, BlockState>()
     const executedBlockIds = new Set<string>()
@@ -2115,6 +2155,7 @@ export function useWorkflowExecution() {
       executionIdRef,
       workflowEdges,
       activeBlocksSet,
+      activeBlockRefCounts,
       accumulatedBlockLogs,
       accumulatedBlockStates,
       executedBlockIds,
@@ -2154,6 +2195,10 @@ export function useWorkflowExecution() {
           onBlockError: (data) => {
             clearOnce()
             handlers.onBlockError(data)
+          },
+          onBlockChildWorkflowStarted: (data) => {
+            clearOnce()
+            handlers.onBlockChildWorkflowStarted(data)
           },
           onExecutionCompleted: () => {
             const currentId = useExecutionStore

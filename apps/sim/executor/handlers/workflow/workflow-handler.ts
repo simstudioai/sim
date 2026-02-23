@@ -6,6 +6,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import type { IterationContext } from '@/executor/execution/types'
 import type {
   BlockHandler,
   ExecutionContext,
@@ -45,6 +46,40 @@ export class WorkflowBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
+    return this._executeCore(ctx, block, inputs)
+  }
+
+  async executeWithNode(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    nodeMetadata: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+      originalBlockId?: string
+      isLoopNode?: boolean
+    }
+  ): Promise<BlockOutput | StreamingExecution> {
+    return this._executeCore(ctx, block, inputs, nodeMetadata)
+  }
+
+  private async _executeCore(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    nodeMetadata?: {
+      nodeId: string
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+      originalBlockId?: string
+      isLoopNode?: boolean
+    }
+  ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
 
     const workflowId = inputs.workflowId
@@ -57,6 +92,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     const { workflows } = useWorkflowRegistry.getState()
     const workflowMetadata = workflows[workflowId]
     let childWorkflowName = workflowMetadata?.name || workflowId
+
+    // Unique ID per invocation — used to correlate child block events with this specific
+    // workflow block execution, preventing cross-iteration child mixing in loop contexts.
+    const instanceId = crypto.randomUUID()
 
     let childWorkflowSnapshotId: string | undefined
     try {
@@ -115,6 +154,19 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
       childWorkflowSnapshotId = childSnapshotResult.snapshot.id
 
+      const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
+      const shouldPropagateCallbacks = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
+
+      if (shouldPropagateCallbacks) {
+        const effectiveBlockId = nodeMetadata
+          ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
+          : block.id
+        const iterationContext = nodeMetadata
+          ? this.getIterationContext(ctx, nodeMetadata)
+          : undefined
+        ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
+      }
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -127,6 +179,18 @@ export class WorkflowBlockHandler implements BlockHandler {
           userId: ctx.userId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
+          ...(shouldPropagateCallbacks && {
+            onBlockStart: ctx.onBlockStart,
+            onBlockComplete: ctx.onBlockComplete,
+            onStream: ctx.onStream as ((streamingExecution: unknown) => Promise<void>) | undefined,
+            onChildWorkflowInstanceReady: ctx.onChildWorkflowInstanceReady,
+            childWorkflowContext: {
+              parentBlockId: instanceId,
+              workflowName: childWorkflowName,
+              workflowId,
+              depth: childDepth,
+            },
+          }),
         },
       })
 
@@ -148,6 +212,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowId,
         childWorkflowName,
         duration,
+        instanceId,
         childTraceSpans,
         childWorkflowSnapshotId
       )
@@ -183,9 +248,44 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans,
         executionResult,
         childWorkflowSnapshotId,
+        childWorkflowInstanceId: instanceId,
         cause: error instanceof Error ? error : undefined,
       })
     }
+  }
+
+  private getIterationContext(
+    ctx: ExecutionContext,
+    nodeMetadata: {
+      loopId?: string
+      parallelId?: string
+      branchIndex?: number
+      branchTotal?: number
+      isLoopNode?: boolean
+    }
+  ): IterationContext | undefined {
+    if (nodeMetadata.branchIndex !== undefined && nodeMetadata.branchTotal !== undefined) {
+      return {
+        iterationCurrent: nodeMetadata.branchIndex,
+        iterationTotal: nodeMetadata.branchTotal,
+        iterationType: 'parallel',
+        iterationContainerId: nodeMetadata.parallelId,
+      }
+    }
+
+    if (nodeMetadata.isLoopNode && nodeMetadata.loopId) {
+      const loopScope = ctx.loopExecutions?.get(nodeMetadata.loopId)
+      if (loopScope && loopScope.iteration !== undefined) {
+        return {
+          iterationCurrent: loopScope.iteration,
+          iterationTotal: loopScope.maxIterations,
+          iterationType: 'loop',
+          iterationContainerId: nodeMetadata.loopId,
+        }
+      }
+    }
+
+    return undefined
   }
 
   /**
@@ -525,6 +625,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number,
+    instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
     childWorkflowSnapshotId?: string
   ): BlockOutput {
@@ -538,6 +639,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         childTraceSpans: childTraceSpans || [],
         childWorkflowSnapshotId,
+        childWorkflowInstanceId: instanceId,
       })
     }
 
@@ -548,6 +650,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
       result,
       childTraceSpans: childTraceSpans || [],
+      _childWorkflowInstanceId: instanceId,
     } as Record<string, any>
   }
 }

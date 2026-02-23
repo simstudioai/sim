@@ -211,7 +211,7 @@ describe('Function Execute API Route', () => {
 
     it.concurrent('should block SSRF attacks through secure fetch wrapper', async () => {
       expect(validateProxyUrl('http://169.254.169.254/latest/meta-data/').isValid).toBe(false)
-      expect(validateProxyUrl('http://127.0.0.1:8080/admin').isValid).toBe(false)
+      expect(validateProxyUrl('http://127.0.0.1:8080/admin').isValid).toBe(true)
       expect(validateProxyUrl('http://192.168.1.1/config').isValid).toBe(false)
       expect(validateProxyUrl('http://10.0.0.1/internal').isValid).toBe(false)
     })

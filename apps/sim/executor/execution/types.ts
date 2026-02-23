@@ -54,6 +54,17 @@ export interface IterationContext {
   iterationContainerId?: string
 }
 
+export interface ChildWorkflowContext {
+  /** The workflow block's ID in the parent execution */
+  parentBlockId: string
+  /** Display name of the child workflow */
+  workflowName: string
+  /** Child workflow ID */
+  workflowId: string
+  /** Nesting depth (1 = first level child) */
+  depth: number
+}
+
 export interface ExecutionCallbacks {
   onStream?: (streamingExec: any) => Promise<void>
   onBlockStart?: (
@@ -61,15 +72,23 @@ export interface ExecutionCallbacks {
     blockName: string,
     blockType: string,
     executionOrder: number,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
     blockType: string,
     output: any,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => void
 }
 
 export interface ContextExtensions {
@@ -105,7 +124,8 @@ export interface ContextExtensions {
     blockName: string,
     blockType: string,
     executionOrder: number,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -118,9 +138,22 @@ export interface ContextExtensions {
       startedAt: string
       executionOrder: number
       endedAt: string
+      /** Per-invocation unique ID linking this workflow block execution to its child block events. */
+      childWorkflowInstanceId?: string
     },
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
+
+  /** Context identifying this execution as a child of a workflow block */
+  childWorkflowContext?: ChildWorkflowContext
+
+  /** Fires immediately after instanceId is generated, before child execution begins. */
+  onChildWorkflowInstanceReady?: (
+    blockId: string,
+    childWorkflowInstanceId: string,
+    iterationContext?: IterationContext
+  ) => void
 
   /**
    * Run-from-block configuration. When provided, executor runs in partial
