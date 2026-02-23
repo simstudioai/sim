@@ -8,6 +8,7 @@ import {
   XCircleIcon,
 } from 'lucide-react'
 import { getBlock } from '@/blocks'
+import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 
@@ -98,16 +99,6 @@ export function getBlockColor(blockType: string): string {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
-}
-
-/**
- * Checks if a block type is a workflow-calling block (calls a child workflow).
- * Covers both `workflow` (new) and `workflow_input` (legacy) block variants —
- * both are handled by WorkflowBlockHandler and emit child workflow events.
- */
-export function isWorkflowBlockType(blockType: string): boolean {
-  const t = blockType?.toLowerCase()
-  return t === 'workflow' || t === 'workflow_input'
 }
 
 /**
