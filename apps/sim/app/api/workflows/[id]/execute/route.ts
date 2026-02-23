@@ -245,7 +245,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: workflowId } = await params
 
   const incomingCallChain = parseCallChain(req.headers.get(SIM_VIA_HEADER))
-  const callChainError = validateCallChain(incomingCallChain, workflowId)
+  const callChainError = validateCallChain(incomingCallChain)
   if (callChainError) {
     logger.warn(`[${requestId}] Call chain rejected for workflow ${workflowId}: ${callChainError}`)
     return NextResponse.json({ error: callChainError }, { status: 409 })

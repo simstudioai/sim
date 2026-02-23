@@ -69,8 +69,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     headers: (params: RequestParams) => {
       const headers = transformTable(params.headers || null)
       const processedUrl = processUrl(params.url, params.pathParams, params.params)
-      const callChain = (params as any)._context?.callChain as string[] | undefined
-      const allHeaders = getDefaultHeaders(headers, processedUrl, callChain)
+      const allHeaders = getDefaultHeaders(headers, processedUrl)
 
       // Set appropriate Content-Type only if not already specified by user
       if (params.formData) {

@@ -1,9 +1,9 @@
 /**
  * Workflow call chain detection using the Via-style pattern.
  *
- * Prevents infinite execution loops when workflows call themselves (directly or
- * indirectly) via API or MCP endpoints. Each hop appends the current workflow ID
- * to the `X-Sim-Via` header; on ingress the chain is checked for cycles and depth.
+ * Prevents infinite execution loops when workflows call each other via API or
+ * MCP endpoints. Each hop appends the current workflow ID to the `X-Sim-Via`
+ * header; on ingress the chain is checked for depth.
  */
 
 export const SIM_VIA_HEADER = 'X-Sim-Via'
@@ -31,16 +31,11 @@ export function serializeCallChain(chain: string[]): string {
 }
 
 /**
- * Validates that appending `workflowId` to `chain` would not create a cycle
- * or exceed the maximum depth. Returns an error message string if invalid,
- * or `null` if the chain is safe to extend.
+ * Validates that the call chain has not exceeded the maximum depth.
+ * Returns an error message string if invalid, or `null` if the chain is
+ * safe to extend.
  */
-export function validateCallChain(chain: string[], workflowId: string): string | null {
-  if (chain.includes(workflowId)) {
-    const cycleVisualization = [...chain, workflowId].join(' → ')
-    return `Workflow cycle detected: ${cycleVisualization}. A workflow cannot call itself directly or indirectly.`
-  }
-
+export function validateCallChain(chain: string[]): string | null {
   if (chain.length >= MAX_CALL_CHAIN_DEPTH) {
     return `Maximum workflow call chain depth (${MAX_CALL_CHAIN_DEPTH}) exceeded.`
   }

@@ -74,34 +74,20 @@ describe('call-chain', () => {
 
   describe('validateCallChain', () => {
     it('returns null for an empty chain', () => {
-      expect(validateCallChain([], 'wf-a')).toBeNull()
+      expect(validateCallChain([])).toBeNull()
     })
 
-    it('returns null when workflow is not in chain', () => {
-      expect(validateCallChain(['wf-a', 'wf-b'], 'wf-c')).toBeNull()
+    it('returns null when chain is under max depth', () => {
+      expect(validateCallChain(['wf-a', 'wf-b'])).toBeNull()
     })
 
-    it('detects direct self-call (A → A)', () => {
-      const error = validateCallChain(['wf-a'], 'wf-a')
-      expect(error).toContain('Workflow cycle detected')
-      expect(error).toContain('wf-a → wf-a')
-    })
-
-    it('detects indirect cycle (A → B → A)', () => {
-      const error = validateCallChain(['wf-a', 'wf-b'], 'wf-a')
-      expect(error).toContain('Workflow cycle detected')
-      expect(error).toContain('wf-a → wf-b → wf-a')
-    })
-
-    it('detects cycle mid-chain (A → B → C → B)', () => {
-      const error = validateCallChain(['wf-a', 'wf-b', 'wf-c'], 'wf-b')
-      expect(error).toContain('Workflow cycle detected')
-      expect(error).toContain('wf-a → wf-b → wf-c → wf-b')
+    it('allows legitimate self-recursion', () => {
+      expect(validateCallChain(['wf-a', 'wf-a', 'wf-a'])).toBeNull()
     })
 
     it('returns depth error when chain is at max depth', () => {
       const chain = Array.from({ length: MAX_CALL_CHAIN_DEPTH }, (_, i) => `wf-${i}`)
-      const error = validateCallChain(chain, 'wf-new')
+      const error = validateCallChain(chain)
       expect(error).toContain(
         `Maximum workflow call chain depth (${MAX_CALL_CHAIN_DEPTH}) exceeded`
       )
@@ -109,13 +95,7 @@ describe('call-chain', () => {
 
     it('allows chain just under max depth', () => {
       const chain = Array.from({ length: MAX_CALL_CHAIN_DEPTH - 1 }, (_, i) => `wf-${i}`)
-      expect(validateCallChain(chain, 'wf-new')).toBeNull()
-    })
-
-    it('prioritizes cycle detection over depth check', () => {
-      const chain = Array.from({ length: MAX_CALL_CHAIN_DEPTH }, (_, i) => `wf-${i}`)
-      const error = validateCallChain(chain, 'wf-0')
-      expect(error).toContain('Workflow cycle detected')
+      expect(validateCallChain(chain)).toBeNull()
     })
   })
 

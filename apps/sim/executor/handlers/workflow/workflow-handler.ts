@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { buildNextCallChain } from '@/lib/execution/call-chain'
+import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -168,6 +168,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
       }
 
+      const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
+      const depthError = validateCallChain(ctx.callChain || [])
+      if (depthError) {
+        throw new ChildWorkflowError({
+          message: depthError,
+          childWorkflowName,
+        })
+      }
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -181,7 +190,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           userId: ctx.userId,
           executionId: ctx.executionId,
           abortSignal: ctx.abortSignal,
-          callChain: buildNextCallChain(ctx.callChain || [], workflowId),
+          callChain: childCallChain,
           ...(shouldPropagateCallbacks && {
             onBlockStart: ctx.onBlockStart,
             onBlockComplete: ctx.onBlockComplete,
