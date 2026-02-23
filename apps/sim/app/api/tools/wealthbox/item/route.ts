@@ -80,19 +80,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    const credential = credentials[0]
-
-    if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    const accountRow = credentials[0]
 
     const accessToken = await refreshAccessTokenIfNeeded(
       resolved.accountId,
-      session.user.id,
+      accountRow.userId,
       requestId
     )
 
