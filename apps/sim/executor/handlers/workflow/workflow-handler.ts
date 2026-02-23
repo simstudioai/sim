@@ -260,7 +260,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       isLoopNode?: boolean
     }
   ): IterationContext | undefined {
-    if (nodeMetadata.branchIndex !== undefined && nodeMetadata.parallelId !== undefined) {
+    if (nodeMetadata.branchIndex !== undefined && nodeMetadata.branchTotal !== undefined) {
       return {
         iterationCurrent: nodeMetadata.branchIndex,
         iterationTotal: nodeMetadata.branchTotal,
