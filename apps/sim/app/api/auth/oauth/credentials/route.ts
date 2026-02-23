@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
-import { account, credential, credentialMember, user } from '@sim/db/schema'
+import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
-import { evaluateScopeCoverage, type OAuthProvider, parseProvider } from '@/lib/oauth'
+import { evaluateScopeCoverage } from '@/lib/oauth'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -31,12 +30,6 @@ const credentialsQuerySchema = z
     message: 'Provider or credentialId is required',
     path: ['provider'],
   })
-
-interface GoogleIdToken {
-  email?: string
-  sub?: string
-  name?: string
-}
 
 function toCredentialResponse(
   id: string,
@@ -62,53 +55,6 @@ function toCredentialResponse(
     extraScopes: scopeEvaluation.extraScopes,
     requiresReauthorization: scopeEvaluation.requiresReauthorization,
   }
-}
-
-async function getFallbackDisplayName(
-  requestId: string,
-  providerParam: string | null | undefined,
-  accountRow: {
-    idToken: string | null
-    accountId: string
-    userId: string
-  }
-) {
-  const providerForParse = (providerParam || 'google') as OAuthProvider
-  const { baseProvider } = parseProvider(providerForParse)
-
-  if (accountRow.idToken) {
-    try {
-      const decoded = jwtDecode<GoogleIdToken>(accountRow.idToken)
-      if (decoded.email) return decoded.email
-      if (decoded.name) return decoded.name
-    } catch (_error) {
-      logger.warn(`[${requestId}] Error decoding ID token`, {
-        accountId: accountRow.accountId,
-      })
-    }
-  }
-
-  if (baseProvider === 'github') {
-    return `${accountRow.accountId} (GitHub)`
-  }
-
-  try {
-    const userRecord = await db
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, accountRow.userId))
-      .limit(1)
-
-    if (userRecord.length > 0) {
-      return userRecord[0].email
-    }
-  } catch (_error) {
-    logger.warn(`[${requestId}] Error fetching user email`, {
-      userId: accountRow.userId,
-    })
-  }
-
-  return `${accountRow.accountId} (${baseProvider})`
 }
 
 /**
@@ -192,8 +138,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
-
-    let accountsData
 
     if (credentialId) {
       const [platformCredential] = await db
@@ -303,29 +247,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (credentialId && workflowId) {
-      accountsData = await db.select().from(account).where(eq(account.id, credentialId))
-    } else if (credentialId) {
-      accountsData = await db
-        .select()
-        .from(account)
-        .where(and(eq(account.userId, requesterUserId), eq(account.id, credentialId)))
-    } else {
-      accountsData = await db
-        .select()
-        .from(account)
-        .where(and(eq(account.userId, requesterUserId), eq(account.providerId, providerParam!)))
-    }
-
-    // Transform accounts into credentials
-    const credentials = await Promise.all(
-      accountsData.map(async (acc) => {
-        const displayName = await getFallbackDisplayName(requestId, providerParam, acc)
-        return toCredentialResponse(acc.id, displayName, acc.providerId, acc.updatedAt, acc.scope)
-      })
-    )
-
-    return NextResponse.json({ credentials }, { status: 200 })
+    return NextResponse.json({ credentials: [] }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching OAuth credentials`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
