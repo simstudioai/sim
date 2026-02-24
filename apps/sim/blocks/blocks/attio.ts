@@ -164,7 +164,7 @@ Return ONLY the JSON object with Attio attribute values. No explanations, no mar
 Keys are attribute slugs. Most text attributes use array-of-objects format [{"value": "..."}]. Special attributes have their own format.
 
 ### COMMON PEOPLE ATTRIBUTES
-- name: {"first_name": "...", "last_name": "..."} (plain object, NOT an array)
+- name: [{"first_name": "...", "last_name": "...", "full_name": "..."}] (personal-name type, full_name is required)
 - email_addresses: [{"email_address": "..."}]
 - phone_numbers: [{"original_phone_number": "...", "country_code": "US"}]
 - job_title: [{"value": "..."}]
@@ -179,7 +179,7 @@ Keys are attribute slugs. Most text attributes use array-of-objects format [{"va
 - primary_location: [{"line_1": "...", "locality": "...", "region": "...", "postcode": "...", "country_code": "US"}]
 
 ### EXAMPLES
-Person: {"name": {"first_name": "John", "last_name": "Doe"}, "email_addresses": [{"email_address": "john@example.com"}], "job_title": [{"value": "Engineer"}]}
+Person: {"name": [{"first_name": "John", "last_name": "Doe", "full_name": "John Doe"}], "email_addresses": [{"email_address": "john@example.com"}], "job_title": [{"value": "Engineer"}]}
 Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}`,
         placeholder: 'Describe the record values you want to set...',
         generationType: 'json-object',
