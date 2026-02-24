@@ -161,21 +161,25 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
 Return ONLY the JSON object with Attio attribute values. No explanations, no markdown, no extra text.
 
 ### ATTIO VALUES STRUCTURE
-Keys are attribute slugs, values follow Attio's attribute format. Simple values can be strings; complex values are arrays of objects.
+Keys are attribute slugs. Most text attributes use array-of-objects format [{"value": "..."}]. Special attributes have their own format.
 
 ### COMMON PEOPLE ATTRIBUTES
-- name: [{"first_name": "...", "last_name": "..."}]
+- name: {"first_name": "...", "last_name": "..."} (plain object, NOT an array)
 - email_addresses: [{"email_address": "..."}]
 - phone_numbers: [{"original_phone_number": "...", "country_code": "US"}]
-- job_title, description, linkedin, twitter
+- job_title: [{"value": "..."}]
+- description: [{"value": "..."}]
+- linkedin: [{"value": "https://linkedin.com/in/..."}]
+- twitter: [{"value": "@handle"}]
 
 ### COMMON COMPANY ATTRIBUTES
 - name: [{"value": "..."}]
 - domains: [{"domain": "..."}]
-- description, primary_location, categories
+- description: [{"value": "..."}]
+- primary_location: [{"line_1": "...", "locality": "...", "region": "...", "postcode": "...", "country_code": "US"}]
 
 ### EXAMPLES
-Person: {"name": {"first_name": "John", "last_name": "Doe"}, "email_addresses": [{"email_address": "john@example.com"}]}
+Person: {"name": {"first_name": "John", "last_name": "Doe"}, "email_addresses": [{"email_address": "john@example.com"}], "job_title": [{"value": "Engineer"}]}
 Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}`,
         placeholder: 'Describe the record values you want to set...',
         generationType: 'json-object',
