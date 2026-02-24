@@ -709,7 +709,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'confluence') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       const signature = request.headers.get('X-Hub-Signature')
