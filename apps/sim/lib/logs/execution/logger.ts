@@ -359,9 +359,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
               .leftJoin(userStats, eq(member.userId, userStats.userId))
               .where(eq(member.organizationId, sub.referenceId))
               .limit(1)
-            const orgUsageBeforeNum = Number.parseFloat(
-              (orgUsageBefore as any)?.toString?.() || '0'
-            )
+            const orgUsageBeforeNum = Number.parseFloat(String(orgUsageBefore ?? '0'))
 
             await this.updateUserStats(
               updatedLog.workflowId,
@@ -433,7 +431,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       endedAt: updatedLog.endedAt?.toISOString() || endedAt,
       totalDurationMs: updatedLog.totalDurationMs || totalDurationMs,
       executionData: updatedLog.executionData as WorkflowExecutionLog['executionData'],
-      cost: updatedLog.cost as any,
+      cost: updatedLog.cost as WorkflowExecutionLog['cost'],
       createdAt: updatedLog.createdAt.toISOString(),
     }
 
@@ -467,7 +465,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       endedAt: workflowLog.endedAt?.toISOString() || workflowLog.startedAt.toISOString(),
       totalDurationMs: workflowLog.totalDurationMs || 0,
       executionData: workflowLog.executionData as WorkflowExecutionLog['executionData'],
-      cost: workflowLog.cost as any,
+      cost: workflowLog.cost as WorkflowExecutionLog['cost'],
       createdAt: workflowLog.createdAt.toISOString(),
     }
   }

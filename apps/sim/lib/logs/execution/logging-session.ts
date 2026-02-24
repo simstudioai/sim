@@ -186,7 +186,7 @@ export class LoggingSession {
         .limit(1)
 
       if (existing?.cost) {
-        const cost = existing.cost as any
+        const cost = existing.cost as AccumulatedCost
         this.accumulatedCost = {
           total: cost.total || BASE_EXECUTION_CHARGE,
           input: cost.input || 0,
