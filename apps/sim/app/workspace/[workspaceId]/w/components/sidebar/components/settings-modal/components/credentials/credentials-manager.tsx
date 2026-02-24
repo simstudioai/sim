@@ -277,6 +277,7 @@ export function CredentialsManager() {
       oauthConnections.map((service) => ({
         value: service.providerId,
         label: service.name,
+        icon: getServiceConfigByProviderId(service.providerId)?.icon,
       })),
     [oauthConnections]
   )
@@ -786,20 +787,22 @@ export function CredentialsManager() {
 
     try {
       if (credentialToDelete.type === 'oauth') {
-        if (credentialToDelete.accountId && credentialToDelete.providerId) {
-          await disconnectOAuthService.mutateAsync({
-            provider: credentialToDelete.providerId.split('-')[0] || credentialToDelete.providerId,
-            providerId: credentialToDelete.providerId,
-            serviceId: credentialToDelete.providerId,
-            accountId: credentialToDelete.accountId,
-          })
-          await refetchCredentials()
-          window.dispatchEvent(
-            new CustomEvent('oauth-credentials-updated', {
-              detail: { providerId: credentialToDelete.providerId, workspaceId },
-            })
-          )
+        if (!credentialToDelete.accountId || !credentialToDelete.providerId) {
+          logger.error('Cannot disconnect OAuth credential: missing accountId or providerId')
+          return
         }
+        await disconnectOAuthService.mutateAsync({
+          provider: credentialToDelete.providerId.split('-')[0] || credentialToDelete.providerId,
+          providerId: credentialToDelete.providerId,
+          serviceId: credentialToDelete.providerId,
+          accountId: credentialToDelete.accountId,
+        })
+        await refetchCredentials()
+        window.dispatchEvent(
+          new CustomEvent('oauth-credentials-updated', {
+            detail: { providerId: credentialToDelete.providerId, workspaceId },
+          })
+        )
       } else {
         await deleteCredential.mutateAsync(credentialToDelete.id)
       }
@@ -1016,10 +1019,33 @@ export function CredentialsManager() {
               </div>
             </div>
 
+            {createType === 'secret' && (
+              <div>
+                <Label>Mode</Label>
+                <div className='mt-[6px]'>
+                  <Combobox
+                    options={[
+                      { value: 'single', label: 'Single' },
+                      { value: 'bulk', label: 'Bulk' },
+                    ]}
+                    value={createSecretInputMode === 'single' ? 'Single' : 'Bulk'}
+                    selectedValue={createSecretInputMode}
+                    onChange={(value) => {
+                      setCreateSecretInputMode(value as SecretInputMode)
+                      setCreateError(null)
+                    }}
+                    placeholder='Select mode'
+                  />
+                </div>
+              </div>
+            )}
+
             {createType === 'oauth' ? (
               <div className='flex flex-col gap-[10px]'>
                 <div>
-                  <Label>Display name</Label>
+                  <Label>
+                    Display name<span className='ml-1'>*</span>
+                  </Label>
                   <Input
                     value={createDisplayName}
                     onChange={(event) => setCreateDisplayName(event.target.value)}
@@ -1040,7 +1066,7 @@ export function CredentialsManager() {
                   />
                 </div>
                 <div>
-                  <Label>OAuth service</Label>
+                  <Label>Account</Label>
                   <div className='mt-[6px]'>
                     <Combobox
                       options={oauthServiceOptions}
@@ -1051,6 +1077,27 @@ export function CredentialsManager() {
                       selectedValue={createOAuthProviderId}
                       onChange={setCreateOAuthProviderId}
                       placeholder='Select OAuth service'
+                      searchable
+                      searchPlaceholder='Search services...'
+                      overlayContent={
+                        createOAuthProviderId
+                          ? (() => {
+                              const config = getServiceConfigByProviderId(createOAuthProviderId)
+                              const label =
+                                oauthServiceOptions.find((o) => o.value === createOAuthProviderId)
+                                  ?.label || ''
+                              return (
+                                <div className='flex items-center gap-[8px]'>
+                                  {config &&
+                                    createElement(config.icon, {
+                                      className: 'h-[14px] w-[14px] flex-shrink-0',
+                                    })}
+                                  <span className='truncate'>{label}</span>
+                                </div>
+                              )
+                            })()
+                          : undefined
+                      }
                     />
                   </div>
                 </div>
@@ -1071,56 +1118,36 @@ export function CredentialsManager() {
               <div className='flex flex-col gap-[10px]'>
                 <div>
                   <Label className='block'>Scope</Label>
-                  <div className='mt-[6px]'>
-                    <ButtonGroup
-                      value={createSecretScope}
-                      onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
+                  <ButtonGroup
+                    value={createSecretScope}
+                    onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
+                    className='mt-[6px]'
+                  >
+                    <ButtonGroupItem
+                      value='workspace'
+                      className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
                     >
-                      <ButtonGroupItem
-                        value='workspace'
-                        className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
-                      >
-                        Workspace
-                      </ButtonGroupItem>
-                      <ButtonGroupItem
-                        value='personal'
-                        className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
-                      >
-                        Personal
-                      </ButtonGroupItem>
-                    </ButtonGroup>
-                  </div>
-                </div>
-                <div>
-                  <Label className='block'>Mode</Label>
-                  <div className='mt-[6px]'>
-                    <ButtonGroup
-                      value={createSecretInputMode}
-                      onValueChange={(value) => {
-                        setCreateSecretInputMode(value as SecretInputMode)
-                        setCreateError(null)
-                      }}
+                      Workspace
+                    </ButtonGroupItem>
+                    <ButtonGroupItem
+                      value='personal'
+                      className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
                     >
-                      <ButtonGroupItem
-                        value='single'
-                        className='h-[28px] min-w-[56px] px-[10px] py-0 text-[12px]'
-                      >
-                        Single
-                      </ButtonGroupItem>
-                      <ButtonGroupItem
-                        value='bulk'
-                        className='h-[28px] min-w-[56px] px-[10px] py-0 text-[12px]'
-                      >
-                        Bulk
-                      </ButtonGroupItem>
-                    </ButtonGroup>
-                  </div>
+                      Personal
+                    </ButtonGroupItem>
+                  </ButtonGroup>
+                  <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
+                    {createSecretScope === 'workspace'
+                      ? 'Shared across the workspace. All members can use it.'
+                      : 'Only visible to you. Other members cannot use it.'}
+                  </p>
                 </div>
-
                 {createSecretInputMode === 'single' ? (
                   <>
                     <div>
-                      <Label>Secret key</Label>
+                      <Label>
+                        Secret key<span className='ml-1'>*</span>
+                      </Label>
                       <Input
                         value={createEnvKey}
                         onChange={(event) => {
@@ -1140,7 +1167,9 @@ export function CredentialsManager() {
                       </p>
                     </div>
                     <div>
-                      <Label>Secret value</Label>
+                      <Label>
+                        Secret value<span className='ml-1'>*</span>
+                      </Label>
                       <Input
                         type='password'
                         value={createEnvValue}
@@ -1713,32 +1742,46 @@ export function CredentialsManager() {
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
-              {sortedCredentials.map((credential) => (
-                <div key={credential.id} className='flex items-center justify-between gap-[12px]'>
-                  <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                    <span className='truncate font-medium text-[14px]'>
-                      {credential.displayName}
-                    </span>
-                    <p className='truncate text-[13px] text-[var(--text-muted)]'>
-                      {credential.description || 'No description'}
-                    </p>
-                  </div>
-                  <div className='flex flex-shrink-0 items-center gap-[4px]'>
-                    <Button variant='default' onClick={() => handleSelectCredential(credential)}>
-                      Details
-                    </Button>
-                    {credential.role === 'admin' && (
-                      <Button
-                        variant='ghost'
-                        onClick={() => handleDeleteClick(credential)}
-                        disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
-                      >
-                        Delete
+              {sortedCredentials.map((credential) => {
+                const serviceConfig =
+                  credential.type === 'oauth' && credential.providerId
+                    ? getServiceConfigByProviderId(credential.providerId)
+                    : null
+
+                return (
+                  <div key={credential.id} className='flex items-center justify-between gap-[12px]'>
+                    <div className='flex min-w-0 items-center gap-[10px]'>
+                      {serviceConfig && (
+                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                          {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
+                        </div>
+                      )}
+                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                        <span className='truncate font-medium text-[14px]'>
+                          {credential.displayName}
+                        </span>
+                        <p className='truncate text-[13px] text-[var(--text-muted)]'>
+                          {credential.description || 'No description'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className='flex flex-shrink-0 items-center gap-[4px]'>
+                      <Button variant='default' onClick={() => handleSelectCredential(credential)}>
+                        Details
                       </Button>
-                    )}
+                      {credential.role === 'admin' && (
+                        <Button
+                          variant='ghost'
+                          onClick={() => handleDeleteClick(credential)}
+                          disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
                   No credentials found matching &ldquo;{searchTerm}&rdquo;
