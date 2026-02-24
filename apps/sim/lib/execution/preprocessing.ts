@@ -340,7 +340,6 @@ export async function preprocessExecution(
         },
       }
     }
-  } else {
   }
 
   // ========== STEP 6: Check Rate Limits ==========

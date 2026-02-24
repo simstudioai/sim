@@ -36,7 +36,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const response = createErrorResponse(error.message, error.status)
         return addNoCacheHeaders(response)
       }
-    } else {
     }
 
     let deployedState = null

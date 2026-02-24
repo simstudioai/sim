@@ -449,7 +449,6 @@ async function executeWebhookJobInternal(
             })
             safeAssign(input, processedInput as Record<string, unknown>)
           }
-        } else {
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
