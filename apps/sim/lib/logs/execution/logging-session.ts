@@ -689,6 +689,7 @@ export class LoggingSession {
   }
 
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
+    if (this.completionPromise) return this.completionPromise
     this.completionPromise = this._safeCompleteImpl(params)
     return this.completionPromise
   }
@@ -713,6 +714,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
+    if (this.completionPromise) return this.completionPromise
     this.completionPromise = this._safeCompleteWithErrorImpl(params)
     return this.completionPromise
   }
@@ -739,6 +741,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithCancellation(params?: SessionCancelledParams): Promise<void> {
+    if (this.completionPromise) return this.completionPromise
     this.completionPromise = this._safeCompleteWithCancellationImpl(params)
     return this.completionPromise
   }
@@ -764,6 +767,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithPause(params?: SessionPausedParams): Promise<void> {
+    if (this.completionPromise) return this.completionPromise
     this.completionPromise = this._safeCompleteWithPauseImpl(params)
     return this.completionPromise
   }
