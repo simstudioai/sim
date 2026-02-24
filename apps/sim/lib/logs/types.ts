@@ -337,7 +337,6 @@ export interface BatchInsertResult<T> {
 export interface SnapshotService {
   createSnapshot(workflowId: string, state: WorkflowState): Promise<WorkflowExecutionSnapshot>
   getSnapshot(id: string): Promise<WorkflowExecutionSnapshot | null>
-  getSnapshotByHash(workflowId: string, hash: string): Promise<WorkflowExecutionSnapshot | null>
   computeStateHash(state: WorkflowState): string
   cleanupOrphanedSnapshots(olderThanDays: number): Promise<number>
 }

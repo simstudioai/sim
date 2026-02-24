@@ -82,30 +82,6 @@ export class SnapshotService implements ISnapshotService {
     }
   }
 
-  async getSnapshotByHash(
-    workflowId: string,
-    hash: string
-  ): Promise<WorkflowExecutionSnapshot | null> {
-    const [snapshot] = await db
-      .select()
-      .from(workflowExecutionSnapshots)
-      .where(
-        and(
-          eq(workflowExecutionSnapshots.workflowId, workflowId),
-          eq(workflowExecutionSnapshots.stateHash, hash)
-        )
-      )
-      .limit(1)
-
-    if (!snapshot) return null
-
-    return {
-      ...snapshot,
-      stateData: snapshot.stateData as WorkflowState,
-      createdAt: snapshot.createdAt.toISOString(),
-    }
-  }
-
   computeStateHash(state: WorkflowState): string {
     const normalizedState = normalizeWorkflowState(state)
     const stateString = normalizedStringify(normalizedState)
