@@ -89,6 +89,8 @@ export class LoggingSession {
   private workflowState?: WorkflowState
   private isResume = false
   private completed = false
+  /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
+  private completing = false
   private accumulatedCost: AccumulatedCost = {
     total: BASE_EXECUTION_CHARGE,
     input: 0,
@@ -267,9 +269,10 @@ export class LoggingSession {
   }
 
   async complete(params: SessionCompleteParams = {}): Promise<void> {
-    if (this.completed) {
+    if (this.completed || this.completing) {
       return
     }
+    this.completing = true
 
     const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput, executionState } =
       params
@@ -341,6 +344,7 @@ export class LoggingSession {
         logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (error) {
+      this.completing = false
       logger.error(`Failed to complete logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -353,9 +357,10 @@ export class LoggingSession {
   }
 
   async completeWithError(params: SessionErrorCompleteParams = {}): Promise<void> {
-    if (this.completed) {
+    if (this.completed || this.completing) {
       return
     }
+    this.completing = true
 
     try {
       const { endedAt, totalDurationMs, error, traceSpans, skipCost } = params
@@ -455,6 +460,7 @@ export class LoggingSession {
         )
       }
     } catch (enhancedError) {
+      this.completing = false
       logger.error(`Failed to complete error logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -467,9 +473,10 @@ export class LoggingSession {
   }
 
   async completeWithCancellation(params: SessionCancelledParams = {}): Promise<void> {
-    if (this.completed) {
+    if (this.completed || this.completing) {
       return
     }
+    this.completing = true
 
     try {
       const { endedAt, totalDurationMs, traceSpans } = params
@@ -540,6 +547,7 @@ export class LoggingSession {
         )
       }
     } catch (cancelError) {
+      this.completing = false
       logger.error(`Failed to complete cancelled logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -810,9 +818,10 @@ export class LoggingSession {
     isError: boolean
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
-    if (this.completed) {
+    if (this.completed || this.completing) {
       return
     }
+    this.completing = true
 
     logger.warn(
       `[${this.requestId || 'unknown'}] Logging completion failed for execution ${this.executionId} - attempting cost-only fallback`
