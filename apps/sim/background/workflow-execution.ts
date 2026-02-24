@@ -7,7 +7,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -79,10 +78,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       variables: {},
     })
 
-    const workflow = await getWorkflowById(workflowId)
-    if (!workflow) {
-      throw new Error(`Workflow ${workflowId} not found after preprocessing`)
-    }
+    const workflow = preprocessResult.workflowRecord!
 
     const metadata: ExecutionMetadata = {
       requestId,

@@ -6,6 +6,8 @@ import { checkEnterprisePlan, checkProPlan, checkTeamPlan } from '@/lib/billing/
 
 const logger = createLogger('PlanLookup')
 
+export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
+
 /**
  * Get the highest priority active subscription for a user
  * Priority: Enterprise > Team > Pro > Free

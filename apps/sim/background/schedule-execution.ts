@@ -133,7 +133,10 @@ async function runWorkflowExecution({
 }): Promise<RunWorkflowResult> {
   try {
     logger.debug(`[${requestId}] Loading deployed workflow ${payload.workflowId}`)
-    const deployedData = await loadDeployedWorkflowState(payload.workflowId)
+    const deployedData = await loadDeployedWorkflowState(
+      payload.workflowId,
+      workflowRecord.workspaceId ?? undefined
+    )
 
     const blocks = deployedData.blocks
     const { deploymentVersionId } = deployedData
