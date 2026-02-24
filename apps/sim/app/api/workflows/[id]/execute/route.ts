@@ -254,10 +254,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+
+    let userId: string
+    let isPublicApiAccess = false
+
     if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      const hasExplicitCredentials =
+        req.headers.has('x-api-key') || req.headers.get('authorization')?.startsWith('Bearer ')
+      if (hasExplicitCredentials) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
+      const { db: dbClient, workflow: workflowTable } = await import('@sim/db')
+      const { eq } = await import('drizzle-orm')
+      const [wf] = await dbClient
+        .select({
+          isPublicApi: workflowTable.isPublicApi,
+          isDeployed: workflowTable.isDeployed,
+          userId: workflowTable.userId,
+        })
+        .from(workflowTable)
+        .where(eq(workflowTable.id, workflowId))
+        .limit(1)
+
+      if (!wf?.isPublicApi || !wf.isDeployed) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
+      const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
+      if (isPublicApiDisabled) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
+      const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+      const ownerConfig = await getUserPermissionConfig(wf.userId)
+      if (ownerConfig?.disablePublicApi) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
+      userId = wf.userId
+      isPublicApiAccess = true
+    } else {
+      userId = auth.userId
     }
-    const userId = auth.userId
 
     let body: any = {}
     try {
@@ -284,7 +323,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const defaultTriggerType = auth.authType === 'api_key' ? 'api' : 'manual'
+    const defaultTriggerType = isPublicApiAccess || auth.authType === 'api_key' ? 'api' : 'manual'
 
     const {
       selectedOutputs,
@@ -305,7 +344,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
       | undefined
     if (rawRunFromBlock) {
-      if (rawRunFromBlock.sourceSnapshot) {
+      if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
+        // Public API callers cannot inject arbitrary block state via sourceSnapshot.
+        // They must use executionId to resume from a server-stored execution state.
         resolvedRunFromBlock = {
           startBlockId: rawRunFromBlock.startBlockId,
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
@@ -341,7 +382,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
     const input =
-      auth.authType === 'api_key' || auth.authType === 'internal_jwt'
+      isPublicApiAccess || auth.authType === 'api_key' || auth.authType === 'internal_jwt'
         ? (() => {
             const {
               selectedOutputs,
@@ -360,7 +401,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })()
         : validatedInput
 
-    const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+    // Public API callers must not inject arbitrary workflow state overrides (code injection risk).
+    // stopAfterBlockId and runFromBlock are safe — they control execution flow within the deployed state.
+    const sanitizedWorkflowStateOverride = isPublicApiAccess ? undefined : workflowStateOverride
+
+    // Public API callers always execute the deployed state, never the draft.
+    const shouldUseDraftState = isPublicApiAccess
+      ? false
+      : (useDraftState ?? auth.authType === 'session')
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
       userId,
@@ -533,7 +581,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const effectiveWorkflowStateOverride = workflowStateOverride || cachedWorkflowData || undefined
+    const effectiveWorkflowStateOverride =
+      sanitizedWorkflowStateOverride || cachedWorkflowData || undefined
 
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)

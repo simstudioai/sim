@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Input,
   Label,
   Modal,
@@ -16,6 +18,8 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -40,13 +44,20 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   )
   const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
 
+  const { data: deploymentData } = useDeploymentInfo(workflowId, { enabled: open })
+  const updatePublicApiMutation = useUpdatePublicApi()
+  const { isPublicApiDisabled } = usePermissionConfig()
+
   const [description, setDescription] = useState('')
   const [paramDescriptions, setParamDescriptions] = useState<Record<string, string>>({})
+  const [accessMode, setAccessMode] = useState<'api_key' | 'public'>('api_key')
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
 
   const initialDescriptionRef = useRef('')
   const initialParamDescriptionsRef = useRef<Record<string, string>>({})
+  const initialAccessModeRef = useRef<'api_key' | 'public'>('api_key')
 
   const starterBlockId = useMemo(() => {
     for (const [blockId, block] of Object.entries(blocks)) {
@@ -71,6 +82,8 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     return normalizeInputFormatValue(blockValue) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
 
+  const accessModeInitializedRef = useRef(false)
+
   useEffect(() => {
     if (open) {
       const normalizedDesc = workflowMetadata?.description?.toLowerCase().trim()
@@ -92,11 +105,24 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
       setParamDescriptions(descriptions)
       initialParamDescriptionsRef.current = { ...descriptions }
+
+      setSaveError(null)
+      accessModeInitializedRef.current = false
     }
   }, [open, workflowMetadata, inputFormat])
 
+  useEffect(() => {
+    if (open && deploymentData && !accessModeInitializedRef.current) {
+      const initialAccess = deploymentData.isPublicApi ? 'public' : 'api_key'
+      setAccessMode(initialAccess)
+      initialAccessModeRef.current = initialAccess
+      accessModeInitializedRef.current = true
+    }
+  }, [open, deploymentData])
+
   const hasChanges = useMemo(() => {
     if (description.trim() !== initialDescriptionRef.current.trim()) return true
+    if (accessMode !== initialAccessModeRef.current) return true
 
     for (const field of inputFormat) {
       const currentValue = (paramDescriptions[field.name] || '').trim()
@@ -105,7 +131,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }
 
     return false
-  }, [description, paramDescriptions, inputFormat])
+  }, [description, paramDescriptions, inputFormat, accessMode])
 
   const handleParamDescriptionChange = (fieldName: string, value: string) => {
     setParamDescriptions((prev) => ({
@@ -126,6 +152,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     setShowUnsavedChangesAlert(false)
     setDescription(initialDescriptionRef.current)
     setParamDescriptions({ ...initialParamDescriptionsRef.current })
+    setAccessMode(initialAccessModeRef.current)
     onOpenChange(false)
   }, [onOpenChange])
 
@@ -138,7 +165,15 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }
 
     setIsSaving(true)
+    setSaveError(null)
     try {
+      if (accessMode !== initialAccessModeRef.current) {
+        await updatePublicApiMutation.mutateAsync({
+          workflowId,
+          isPublicApi: accessMode === 'public',
+        })
+      }
+
       if (description.trim() !== (workflowMetadata?.description || '')) {
         updateWorkflow(workflowId, { description: description.trim() || 'New workflow' })
       }
@@ -152,6 +187,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
 
       onOpenChange(false)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update access settings'
+      setSaveError(message)
     } finally {
       setIsSaving(false)
     }
@@ -165,6 +203,8 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     paramDescriptions,
     setValue,
     onOpenChange,
+    accessMode,
+    updatePublicApiMutation,
   ])
 
   return (
@@ -186,6 +226,26 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+
+            {!isPublicApiDisabled && (
+              <div>
+                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                  Access
+                </Label>
+                <ButtonGroup
+                  value={accessMode}
+                  onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
+                >
+                  <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
+                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                </ButtonGroup>
+                <p className='mt-1 text-[12px] text-[var(--text-secondary)]'>
+                  {accessMode === 'public'
+                    ? 'Anyone can call this API without authentication. You will be billed for all usage.'
+                    : 'Requires a valid API key to call this endpoint.'}
+                </p>
+              </div>
+            )}
 
             {inputFormat.length > 0 && (
               <div>
@@ -227,6 +287,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             )}
           </ModalBody>
           <ModalFooter>
+            {saveError && (
+              <p className='mr-auto text-[12px] text-[var(--text-error)]'>{saveError}</p>
+            )}
             <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
               Cancel
             </Button>
