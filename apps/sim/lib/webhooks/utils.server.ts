@@ -1225,7 +1225,22 @@ export async function formatWebhookInput(
     if (triggerId?.startsWith('confluence_label_')) {
       return extractLabelData(body)
     }
-    // Default: page events and generic webhook
+    // Generic webhook — preserve all entity fields since event type varies
+    if (triggerId === 'confluence_webhook') {
+      return {
+        timestamp: body.timestamp,
+        userAccountId: body.userAccountId,
+        accountType: body.accountType,
+        page: body.page || null,
+        comment: body.comment || null,
+        blog: body.blog || body.blogpost || null,
+        attachment: body.attachment || null,
+        space: body.space || null,
+        label: body.label || null,
+        content: body.content || null,
+      }
+    }
+    // Default: page events
     return extractPageData(body)
   }
 
