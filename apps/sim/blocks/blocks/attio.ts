@@ -175,7 +175,7 @@ Keys are attribute slugs, values follow Attio's attribute format. Simple values 
 - description, primary_location, categories
 
 ### EXAMPLES
-Person: {"name": [{"first_name": "John", "last_name": "Doe"}], "email_addresses": [{"email_address": "john@example.com"}]}
+Person: {"name": {"first_name": "John", "last_name": "Doe"}, "email_addresses": [{"email_address": "john@example.com"}]}
 Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}`,
         placeholder: 'Describe the record values you want to set...',
         generationType: 'json-object',
