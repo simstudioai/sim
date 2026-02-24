@@ -1179,6 +1179,18 @@ export function AlgoliaIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AttioIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>
+      <rect width='24' height='24' rx='4' fill='#000000' />
+      <path
+        d='M12 4L4 20h4l4-8 4 8h4L12 4z'
+        fill='#FFFFFF'
+      />
+    </svg>
+  )
+}
+
 export function GoogleBooksIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 478.633 540.068'>

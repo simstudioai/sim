@@ -26,6 +26,13 @@ import {
 } from '@/tools/airtable'
 import { airweaveSearchTool } from '@/tools/airweave'
 import {
+  attioCreateRecordTool,
+  attioGetRecordTool,
+  attioListRecordsTool,
+  attioSearchRecordsTool,
+  attioUpdateRecordTool,
+} from '@/tools/attio'
+import {
   algoliaAddRecordTool,
   algoliaBatchOperationsTool,
   algoliaBrowseRecordsTool,
@@ -2038,6 +2045,11 @@ export const tools: Record<string, ToolConfig> = {
   a2a_send_message: a2aSendMessageTool,
   a2a_set_push_notification: a2aSetPushNotificationTool,
   airweave_search: airweaveSearchTool,
+  attio_create_record: attioCreateRecordTool,
+  attio_get_record: attioGetRecordTool,
+  attio_list_records: attioListRecordsTool,
+  attio_search_records: attioSearchRecordsTool,
+  attio_update_record: attioUpdateRecordTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,

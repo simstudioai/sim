@@ -240,6 +240,8 @@ export const env = createEnv({
     JIRA_CLIENT_SECRET:                    z.string().optional(),                  // Atlassian Jira OAuth client secret
     ASANA_CLIENT_ID:                       z.string().optional(),                  // Asana OAuth client ID
     ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
+    ATTIO_CLIENT_ID:                       z.string().optional(),                  // Attio OAuth client ID
+    ATTIO_CLIENT_SECRET:                   z.string().optional(),                  // Attio OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
     APOLLO_API_KEY:                        z.string().optional(),                  // Apollo API key (optional system-wide config)
