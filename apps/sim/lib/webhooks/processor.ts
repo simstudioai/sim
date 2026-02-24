@@ -609,7 +609,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'linear') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       const signature = request.headers.get('Linear-Signature')
@@ -684,7 +684,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'jira') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       const signature = request.headers.get('X-Hub-Signature')
@@ -734,7 +734,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'github') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       // GitHub supports both SHA-256 (preferred) and SHA-1 (legacy)
