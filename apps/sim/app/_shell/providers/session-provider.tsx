@@ -5,6 +5,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import posthog from 'posthog-js'
 import { client } from '@/lib/auth/auth-client'
+import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
 
 export type AppSession = {
   user: {
@@ -45,7 +46,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const res = bypassCache
         ? await client.getSession({ query: { disableCookieCache: true } })
         : await client.getSession()
-      setData(res?.data ?? null)
+      const session = extractSessionDataFromAuthClientResult(res) as AppSession
+      setData(session)
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to fetch session'))
     } finally {
