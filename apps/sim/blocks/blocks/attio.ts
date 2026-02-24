@@ -916,11 +916,30 @@ workspace-member.created
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Max results (optional)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
           'list_records',
           'search_records',
+          'list_notes',
+          'list_tasks',
+          'query_list_entries',
+          'list_threads',
+          'list_webhooks',
+        ],
+      },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Number of results to skip (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_records',
           'list_notes',
           'list_tasks',
           'query_list_entries',
@@ -1107,6 +1126,7 @@ workspace-member.created
 
         // Shared params
         if (params.limit) cleanParams.limit = Number(params.limit)
+        if (params.offset) cleanParams.offset = Number(params.offset)
 
         return cleanParams
       },
@@ -1168,6 +1188,7 @@ workspace-member.created
     webhookTargetUrl: { type: 'string', description: 'Webhook target URL' },
     webhookSubscriptions: { type: 'json', description: 'Webhook event subscriptions' },
     limit: { type: 'string', description: 'Maximum number of results' },
+    offset: { type: 'string', description: 'Number of results to skip for pagination' },
   },
 
   outputs: {
