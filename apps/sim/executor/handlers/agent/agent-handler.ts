@@ -1086,6 +1086,7 @@ export class AgentBlockHandler implements BlockHandler {
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
         previousInteractionId: providerRequest.previousInteractionId,
+        abortSignal: ctx.abortSignal,
       })
 
       return this.processProviderResponse(response, block, responseFormat)

@@ -265,6 +265,7 @@ export async function executeResponsesProviderRequest(
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(body),
+      signal: request.abortSignal,
     })
 
     if (!response.ok) {
@@ -286,6 +287,7 @@ export async function executeResponsesProviderRequest(
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(initialInput, { stream: true })),
+        signal: request.abortSignal,
       })
 
       if (!streamResponse.ok) {
@@ -704,6 +706,7 @@ export async function executeResponsesProviderRequest(
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(currentInput, streamOverrides)),
+        signal: request.abortSignal,
       })
 
       if (!streamResponse.ok) {

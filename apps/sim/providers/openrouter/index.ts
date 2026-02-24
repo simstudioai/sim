@@ -157,7 +157,10 @@ export const openRouterProvider: ProviderConfig = {
           stream: true,
           stream_options: { include_usage: true },
         }
-        const streamResponse = await client.chat.completions.create(streamingParams)
+        const streamResponse = await client.chat.completions.create(
+          streamingParams,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
@@ -231,7 +234,10 @@ export const openRouterProvider: ProviderConfig = {
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await client.chat.completions.create(payload)
+      let currentResponse = await client.chat.completions.create(
+        payload,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -400,7 +406,10 @@ export const openRouterProvider: ProviderConfig = {
         }
 
         const nextModelStartTime = Date.now()
-        currentResponse = await client.chat.completions.create(nextPayload)
+        currentResponse = await client.chat.completions.create(
+          nextPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
         const nextForcedToolResult = checkForForcedToolUsage(
           currentResponse,
           nextPayload.tool_choice,
@@ -450,7 +459,10 @@ export const openRouterProvider: ProviderConfig = {
           )
         }
 
-        const streamResponse = await client.chat.completions.create(streamingParams)
+        const streamResponse = await client.chat.completions.create(
+          streamingParams,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
@@ -533,7 +545,10 @@ export const openRouterProvider: ProviderConfig = {
         )
 
         const finalStartTime = Date.now()
-        const finalResponse = await client.chat.completions.create(finalPayload)
+        const finalResponse = await client.chat.completions.create(
+          finalPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
         const finalEndTime = Date.now()
         const finalDuration = finalEndTime - finalStartTime
 

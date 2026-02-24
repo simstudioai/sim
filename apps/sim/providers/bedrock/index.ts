@@ -284,7 +284,10 @@ export const bedrockProvider: ProviderConfig = {
         inferenceConfig,
       })
 
-      const streamResponse = await client.send(command)
+      const streamResponse = await client.send(
+        command,
+        request.abortSignal ? { abortSignal: request.abortSignal } : undefined
+      )
 
       if (!streamResponse.stream) {
         throw new Error('No stream returned from Bedrock')
@@ -379,7 +382,10 @@ export const bedrockProvider: ProviderConfig = {
         toolConfig,
       })
 
-      let currentResponse = await client.send(command)
+      let currentResponse = await client.send(
+        command,
+        request.abortSignal ? { abortSignal: request.abortSignal } : undefined
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -628,7 +634,10 @@ export const bedrockProvider: ProviderConfig = {
             : undefined,
         })
 
-        currentResponse = await client.send(nextCommand)
+        currentResponse = await client.send(
+          nextCommand,
+          request.abortSignal ? { abortSignal: request.abortSignal } : undefined
+        )
 
         const nextToolUseContentBlocks = (currentResponse.output?.message?.content || []).filter(
           (block): block is ContentBlock & { toolUse: ToolUseBlock } => 'toolUse' in block
@@ -696,7 +705,10 @@ export const bedrockProvider: ProviderConfig = {
           },
         })
 
-        const structuredResponse = await client.send(structuredOutputCommand)
+        const structuredResponse = await client.send(
+          structuredOutputCommand,
+          request.abortSignal ? { abortSignal: request.abortSignal } : undefined
+        )
         const structuredOutputEndTime = Date.now()
 
         timeSegments.push({
@@ -782,7 +794,10 @@ export const bedrockProvider: ProviderConfig = {
           toolConfig: streamToolConfig,
         })
 
-        const streamResponse = await client.send(streamCommand)
+        const streamResponse = await client.send(
+          streamCommand,
+          request.abortSignal ? { abortSignal: request.abortSignal } : undefined
+        )
 
         if (!streamResponse.stream) {
           throw new Error('No stream returned from Bedrock')
