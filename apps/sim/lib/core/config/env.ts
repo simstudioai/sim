@@ -281,6 +281,8 @@ export const env = createEnv({
     SPOTIFY_CLIENT_ID:                     z.string().optional(),                  // Spotify OAuth client ID
     SPOTIFY_CLIENT_SECRET:                 z.string().optional(),                  // Spotify OAuth client secret
     CALCOM_CLIENT_ID:                      z.string().optional(),                  // Cal.com OAuth client ID
+    ATTIO_CLIENT_ID:                       z.string().optional(),                  // Attio OAuth client ID
+    ATTIO_CLIENT_SECRET:                   z.string().optional(),                  // Attio OAuth client secret
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution

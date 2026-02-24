@@ -503,6 +503,7 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'attio',
         'shopify',
         'trello',
         'calcom',
@@ -2232,6 +2233,69 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'attio',
+          clientId: env.ATTIO_CLIENT_ID as string,
+          clientSecret: env.ATTIO_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.attio.com/authorize',
+          tokenUrl: 'https://app.attio.com/oauth/token',
+          scopes: [
+            'record_permission:read-write',
+            'object_configuration:read-write',
+            'list_configuration:read-write',
+            'list_entry:read-write',
+            'note:read-write',
+            'task:read-write',
+            'comment:read-write',
+            'user_management:read',
+            'webhook:read-write',
+          ],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/attio`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.attio.com/v2/workspace_members', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Attio API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Attio API error: ${response.status} ${response.statusText}`)
+              }
+
+              const { data } = await response.json()
+
+              if (!data || data.length === 0) {
+                throw new Error('No workspace members found in Attio response')
+              }
+
+              const member = data[0]
+
+              return {
+                id: `${member.id.workspace_member_id}-${crypto.randomUUID()}`,
+                email: member.email_address,
+                name:
+                  `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() ||
+                  member.email_address,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: member.avatar_url || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in Attio getUserInfo:', error)
               throw error
             }
           },

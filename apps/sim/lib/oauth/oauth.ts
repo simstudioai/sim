@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import {
   AirtableIcon,
   AsanaIcon,
+  AttioIcon,
   CalComIcon,
   ConfluenceIcon,
   DropboxIcon,
@@ -629,6 +630,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'asana',
   },
+  attio: {
+    name: 'Attio',
+    icon: AttioIcon,
+    services: {
+      attio: {
+        name: 'Attio',
+        description: 'Manage records, notes, tasks, lists, comments, and more in Attio CRM.',
+        providerId: 'attio',
+        icon: AttioIcon,
+        baseProviderIcon: AttioIcon,
+        scopes: [
+          'record_permission:read-write',
+          'object_configuration:read-write',
+          'list_configuration:read-write',
+          'list_entry:read-write',
+          'note:read-write',
+          'task:read-write',
+          'comment:read-write',
+          'user_management:read',
+          'webhook:read-write',
+        ],
+      },
+    },
+    defaultService: 'attio',
+  },
   calcom: {
     name: 'Cal.com',
     icon: CalComIcon,
@@ -964,6 +990,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'attio': {
+      const { clientId, clientSecret } = getCredentials(
+        env.ATTIO_CLIENT_ID,
+        env.ATTIO_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://app.attio.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
       }
     }
     case 'dropbox': {

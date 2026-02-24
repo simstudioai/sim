@@ -946,6 +946,28 @@ export async function queueWebhookExecution(
       }
     }
 
+    if (foundWebhook.provider === 'attio') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && triggerId !== 'attio_webhook') {
+        const { isAttioPayloadMatch } = await import('@/triggers/attio/utils')
+        if (!isAttioPayloadMatch(triggerId, body)) {
+          const eventType = body?.event_type as string | undefined
+          logger.debug(
+            `[${options.requestId}] Attio event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
+            {
+              webhookId: foundWebhook.id,
+              workflowId: foundWorkflow.id,
+              triggerId,
+              receivedEvent: eventType,
+            }
+          )
+          return NextResponse.json({ status: 'skipped', reason: 'event_type_mismatch' })
+        }
+      }
+    }
+
     if (foundWebhook.provider === 'hubspot') {
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
       const triggerId = providerConfig.triggerId as string | undefined
