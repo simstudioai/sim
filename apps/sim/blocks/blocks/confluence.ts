@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
+import { getTrigger } from '@/triggers'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
@@ -838,7 +839,46 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         ],
       },
     },
+
+    // Trigger subBlocks
+    ...getTrigger('confluence_page_created').subBlocks,
+    ...getTrigger('confluence_page_updated').subBlocks,
+    ...getTrigger('confluence_page_removed').subBlocks,
+    ...getTrigger('confluence_page_moved').subBlocks,
+    ...getTrigger('confluence_comment_created').subBlocks,
+    ...getTrigger('confluence_comment_removed').subBlocks,
+    ...getTrigger('confluence_blog_created').subBlocks,
+    ...getTrigger('confluence_blog_updated').subBlocks,
+    ...getTrigger('confluence_blog_removed').subBlocks,
+    ...getTrigger('confluence_attachment_created').subBlocks,
+    ...getTrigger('confluence_attachment_removed').subBlocks,
+    ...getTrigger('confluence_space_created').subBlocks,
+    ...getTrigger('confluence_space_updated').subBlocks,
+    ...getTrigger('confluence_label_added').subBlocks,
+    ...getTrigger('confluence_label_removed').subBlocks,
+    ...getTrigger('confluence_webhook').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'confluence_page_created',
+      'confluence_page_updated',
+      'confluence_page_removed',
+      'confluence_page_moved',
+      'confluence_comment_created',
+      'confluence_comment_removed',
+      'confluence_blog_created',
+      'confluence_blog_updated',
+      'confluence_blog_removed',
+      'confluence_attachment_created',
+      'confluence_attachment_removed',
+      'confluence_space_created',
+      'confluence_space_updated',
+      'confluence_label_added',
+      'confluence_label_removed',
+      'confluence_webhook',
+    ],
+  },
   tools: {
     access: [
       // Page Tools
