@@ -138,14 +138,20 @@ const ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS = 21333
  */
 async function createMessage(
   anthropic: Anthropic,
-  payload: AnthropicPayload
+  payload: AnthropicPayload,
+  abortSignal?: AbortSignal
 ): Promise<Anthropic.Messages.Message> {
+  const options = abortSignal ? { signal: abortSignal } : undefined
   if (payload.max_tokens > ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS && !payload.stream) {
-    const stream = anthropic.messages.stream(payload as Anthropic.Messages.MessageStreamParams)
+    const stream = anthropic.messages.stream(
+      payload as Anthropic.Messages.MessageStreamParams,
+      options
+    )
     return stream.finalMessage()
   }
   return anthropic.messages.create(
-    payload as Anthropic.Messages.MessageCreateParamsNonStreaming
+    payload as Anthropic.Messages.MessageCreateParamsNonStreaming,
+    options
   ) as Promise<Anthropic.Messages.Message>
 }
 
@@ -367,10 +373,13 @@ export async function executeAnthropicProviderRequest(
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-    const streamResponse = await anthropic.messages.create({
-      ...payload,
-      stream: true,
-    } as Anthropic.Messages.MessageCreateParamsStreaming)
+    const streamResponse = await anthropic.messages.create(
+      {
+        ...payload,
+        stream: true,
+      } as Anthropic.Messages.MessageCreateParamsStreaming,
+      request.abortSignal ? { signal: request.abortSignal } : undefined
+    )
 
     const streamingResult = {
       stream: createReadableStreamFromAnthropicStream(
@@ -461,7 +470,7 @@ export async function executeAnthropicProviderRequest(
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await createMessage(anthropic, payload)
+      let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -708,7 +717,7 @@ export async function executeAnthropicProviderRequest(
 
           const nextModelStartTime = Date.now()
 
-          currentResponse = await createMessage(anthropic, nextPayload)
+          currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
 
           const nextCheckResult = checkForForcedToolUsage(
             currentResponse,
@@ -758,7 +767,8 @@ export async function executeAnthropicProviderRequest(
       }
 
       const streamResponse = await anthropic.messages.create(
-        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming
+        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
       const streamingResult = {
@@ -860,7 +870,7 @@ export async function executeAnthropicProviderRequest(
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await createMessage(anthropic, payload)
+    let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -1118,7 +1128,7 @@ export async function executeAnthropicProviderRequest(
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await createMessage(anthropic, nextPayload)
+        currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
 
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,
@@ -1182,7 +1192,8 @@ export async function executeAnthropicProviderRequest(
       }
 
       const streamResponse = await anthropic.messages.create(
-        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming
+        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
       const streamingResult = {

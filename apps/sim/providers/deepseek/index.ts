@@ -114,10 +114,13 @@ export const deepseekProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for DeepSeek request (no tools)')
 
-        const streamResponse = await deepseek.chat.completions.create({
-          ...payload,
-          stream: true,
-        })
+        const streamResponse = await deepseek.chat.completions.create(
+          {
+            ...payload,
+            stream: true,
+          },
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
 
         const streamingResult = {
           stream: createReadableStreamFromDeepseekStream(
@@ -183,7 +186,10 @@ export const deepseekProvider: ProviderConfig = {
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await deepseek.chat.completions.create(payload)
+      let currentResponse = await deepseek.chat.completions.create(
+        payload,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -375,7 +381,10 @@ export const deepseekProvider: ProviderConfig = {
           }
 
           const nextModelStartTime = Date.now()
-          currentResponse = await deepseek.chat.completions.create(nextPayload)
+          currentResponse = await deepseek.chat.completions.create(
+            nextPayload,
+            request.abortSignal ? { signal: request.abortSignal } : undefined
+          )
 
           if (
             typeof nextPayload.tool_choice === 'object' &&
@@ -439,7 +448,10 @@ export const deepseekProvider: ProviderConfig = {
           stream: true,
         }
 
-        const streamResponse = await deepseek.chat.completions.create(streamingPayload)
+        const streamResponse = await deepseek.chat.completions.create(
+          streamingPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 

@@ -118,10 +118,13 @@ export const groqProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      const streamResponse = await groq.chat.completions.create({
-        ...payload,
-        stream: true,
-      })
+      const streamResponse = await groq.chat.completions.create(
+        {
+          ...payload,
+          stream: true,
+        },
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
 
       const streamingResult = {
         stream: createReadableStreamFromGroqStream(streamResponse as any, (content, usage) => {
@@ -185,7 +188,10 @@ export const groqProvider: ProviderConfig = {
     try {
       const initialCallTime = Date.now()
 
-      let currentResponse = await groq.chat.completions.create(payload)
+      let currentResponse = await groq.chat.completions.create(
+        payload,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -355,7 +361,10 @@ export const groqProvider: ProviderConfig = {
           }
 
           const nextModelStartTime = Date.now()
-          currentResponse = await groq.chat.completions.create(nextPayload)
+          currentResponse = await groq.chat.completions.create(
+            nextPayload,
+            request.abortSignal ? { signal: request.abortSignal } : undefined
+          )
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -396,7 +405,10 @@ export const groqProvider: ProviderConfig = {
           stream: true,
         }
 
-        const streamResponse = await groq.chat.completions.create(streamingPayload)
+        const streamResponse = await groq.chat.completions.create(
+          streamingPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 

@@ -882,6 +882,9 @@ export async function executeGeminiRequest(
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}
 
+    if (request.abortSignal) {
+      geminiConfig.abortSignal = request.abortSignal
+    }
     if (request.temperature !== undefined) {
       geminiConfig.temperature = request.temperature
     }
