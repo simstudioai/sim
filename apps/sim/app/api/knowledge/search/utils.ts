@@ -1,10 +1,7 @@
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-
-const logger = createLogger('KnowledgeSearchUtils')
 
 export async function getDocumentNamesByIds(
   documentIds: string[]
@@ -140,16 +137,11 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
   const { tagSlot, fieldType, operator, value, valueTo } = filter
 
   if (!isTagSlotKey(tagSlot)) {
-    logger.debug(`[getStructuredTagFilters] Unknown tag slot: ${tagSlot}`)
     return null
   }
 
   const column = embeddingTable[tagSlot]
   if (!column) return null
-
-  logger.debug(
-    `[getStructuredTagFilters] Processing ${tagSlot} (${fieldType}) ${operator} ${value}`
-  )
 
   // Handle text operators
   if (fieldType === 'text') {
@@ -208,7 +200,6 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     const dateStr = String(value)
     // Validate YYYY-MM-DD format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      logger.debug(`[getStructuredTagFilters] Invalid date format: ${dateStr}, expected YYYY-MM-DD`)
       return null
     }
 
@@ -287,9 +278,6 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
       conditions.push(slotConditions[0])
     } else {
       // Multiple conditions for same slot - OR them together
-      logger.debug(
-        `[getStructuredTagFilters] OR'ing ${slotConditions.length} conditions for ${slot}`
-      )
       conditions.push(sql`(${sql.join(slotConditions, sql` OR `)})`)
     }
   }
@@ -380,8 +368,6 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     throw new Error('Tag filters are required for tag-only search')
   }
 
-  logger.debug(`[handleTagOnlySearch] Executing tag-only search with filters:`, structuredFilters)
-
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
 
@@ -430,8 +416,6 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   if (!queryVector || !distanceThreshold) {
     throw new Error('Query vector and distance threshold are required for vector-only search')
   }
-
-  logger.debug(`[handleVectorOnlySearch] Executing vector-only search`)
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
@@ -489,22 +473,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
     throw new Error('Query vector and distance threshold are required for tag and vector search')
   }
 
-  logger.debug(
-    `[handleTagAndVectorSearch] Executing tag + vector search with filters:`,
-    structuredFilters
-  )
-
   // Step 1: Filter by tags first
   const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, structuredFilters)
 
   if (tagFilteredIds.length === 0) {
-    logger.debug(`[handleTagAndVectorSearch] No results found after tag filtering`)
     return []
   }
-
-  logger.debug(
-    `[handleTagAndVectorSearch] Found ${tagFilteredIds.length} results after tag filtering`
-  )
 
   // Step 2: Perform vector search only on tag-filtered results
   return await executeVectorSearchOnIds(

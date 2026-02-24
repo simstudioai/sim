@@ -26,7 +26,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id: scheduleId } = await params
-    logger.debug(`[${requestId}] Reactivating schedule with ID: ${scheduleId}`)
 
     const session = await getSession()
     if (!session?.user?.id) {

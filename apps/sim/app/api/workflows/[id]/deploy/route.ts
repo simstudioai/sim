@@ -22,6 +22,7 @@ import {
 } from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeployAPI')
 
@@ -33,8 +34,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Fetching deployment info for workflow: ${id}`)
-
     const { error, workflow: workflowData } = await validateWorkflowPermissions(
       id,
       requestId,
@@ -86,7 +85,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           variables: workflowRecord?.variables || {},
         }
         const { hasWorkflowChanged } = await import('@/lib/workflows/comparison')
-        needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
+        needsRedeployment = hasWorkflowChanged(
+          currentState as WorkflowState,
+          active.state as WorkflowState
+        )
       }
     }
 
@@ -112,8 +114,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Deploying workflow: ${id}`)
-
     const {
       error,
       session,
@@ -355,8 +355,6 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
-
     const {
       error,
       session,

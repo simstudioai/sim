@@ -51,7 +51,6 @@ export async function GET(request: NextRequest) {
         lastQueuedAt: workflowSchedule.lastQueuedAt,
       })
 
-    logger.debug(`[${requestId}] Successfully queried schedules: ${dueSchedules.length} found`)
     logger.info(`[${requestId}] Processing ${dueSchedules.length} due scheduled workflows`)
 
     const jobQueue = await getJobQueue()

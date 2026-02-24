@@ -7,6 +7,7 @@ import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowStatusAPI')
 
@@ -64,7 +65,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .limit(1)
 
       if (active?.state) {
-        needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
+        needsRedeployment = hasWorkflowChanged(
+          currentState as WorkflowState,
+          active.state as WorkflowState
+        )
       }
     }
 

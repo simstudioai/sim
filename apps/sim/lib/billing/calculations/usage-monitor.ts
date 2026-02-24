@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -21,7 +22,10 @@ interface UsageData {
  * Checks a user's cost usage against their subscription plan limit
  * and returns usage information including whether they're approaching the limit
  */
-export async function checkUsageStatus(userId: string): Promise<UsageData> {
+export async function checkUsageStatus(
+  userId: string,
+  preloadedSubscription?: HighestPrioritySubscription
+): Promise<UsageData> {
   try {
     // If billing is disabled, always return permissive limits
     if (!isBillingEnabled) {
@@ -42,7 +46,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     }
 
     // Get usage limit from user_stats (per-user cap)
-    const limit = await getUserUsageLimit(userId)
+    const limit = await getUserUsageLimit(userId, preloadedSubscription)
     logger.info('Using stored usage limit', { userId, limit })
 
     // Get actual usage from the database
@@ -228,7 +232,10 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
  * @param userId The ID of the user to check
  * @returns An object containing the exceeded status and usage details
  */
-export async function checkServerSideUsageLimits(userId: string): Promise<{
+export async function checkServerSideUsageLimits(
+  userId: string,
+  preloadedSubscription?: HighestPrioritySubscription
+): Promise<{
   isExceeded: boolean
   currentUsage: number
   limit: number
@@ -314,7 +321,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       }
     }
 
-    const usageData = await checkUsageStatus(userId)
+    const usageData = await checkUsageStatus(userId, preloadedSubscription)
 
     return {
       isExceeded: usageData.isExceeded,

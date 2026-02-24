@@ -34,10 +34,6 @@ export async function GET(
 
     const authenticatedUserId = authResult.userId
 
-    logger.debug(
-      `[${requestId}] Fetching execution data for: ${executionId} (auth: ${authResult.authType})`
-    )
-
     const [workflowLog] = await db
       .select({
         id: workflowExecutionLogs.id,
@@ -124,11 +120,6 @@ export async function GET(
         cost: workflowLog.cost || null,
       },
     }
-
-    logger.debug(`[${requestId}] Successfully fetched execution data for: ${executionId}`)
-    logger.debug(
-      `[${requestId}] Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
-    )
 
     return NextResponse.json(response)
   } catch (error) {

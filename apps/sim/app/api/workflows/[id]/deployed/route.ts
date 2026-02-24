@@ -21,8 +21,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Fetching deployed state for workflow: ${id}`)
-
     const authHeader = request.headers.get('authorization')
     let isInternalCall = false
 
@@ -38,8 +36,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const response = createErrorResponse(error.message, error.status)
         return addNoCacheHeaders(response)
       }
-    } else {
-      logger.debug(`[${requestId}] Internal API call for deployed workflow: ${id}`)
     }
 
     let deployedState = null
@@ -52,7 +48,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         parallels: data.parallels,
         variables: data.variables,
       }
-    } catch {
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to load deployed state for workflow ${id}`, { error })
       deployedState = null
     }
 

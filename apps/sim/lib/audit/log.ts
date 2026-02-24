@@ -215,7 +215,7 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
       actorName = row?.name ?? undefined
       actorEmail = row?.email ?? undefined
     } catch (error) {
-      logger.debug('Failed to resolve actor info', { error, actorId: params.actorId })
+      logger.warn('Failed to resolve actor info', { error, actorId: params.actorId })
     }
   }
 

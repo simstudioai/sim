@@ -76,7 +76,10 @@ export async function blockExistsInDeployment(
   }
 }
 
-export async function loadDeployedWorkflowState(workflowId: string): Promise<DeployedWorkflowData> {
+export async function loadDeployedWorkflowState(
+  workflowId: string,
+  providedWorkspaceId?: string
+): Promise<DeployedWorkflowData> {
   try {
     const [active] = await db
       .select({
@@ -100,15 +103,19 @@ export async function loadDeployedWorkflowState(workflowId: string): Promise<Dep
 
     const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
 
-    const [wfRow] = await db
-      .select({ workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    let resolvedWorkspaceId = providedWorkspaceId
+    if (!resolvedWorkspaceId) {
+      const [wfRow] = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+      resolvedWorkspaceId = wfRow?.workspaceId ?? undefined
+    }
 
     const resolvedBlocks = state.blocks || {}
-    const { blocks: migratedBlocks } = wfRow?.workspaceId
-      ? await migrateCredentialIds(resolvedBlocks, wfRow.workspaceId)
+    const { blocks: migratedBlocks } = resolvedWorkspaceId
+      ? await migrateCredentialIds(resolvedBlocks, resolvedWorkspaceId)
       : { blocks: resolvedBlocks }
 
     return {

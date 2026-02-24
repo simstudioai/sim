@@ -112,7 +112,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    logger.debug(`[${requestId}] Fetching workspace-accessible webhooks for ${session.user.id}`)
     const workspacePermissionRows = await db
       .select({ workspaceId: permissions.entityId })
       .from(permissions)

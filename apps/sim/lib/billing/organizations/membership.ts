@@ -154,7 +154,6 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
         .where(eq(subscriptionTable.id, personalPro.id))
 
       result.restored = true
-
       logger.info('Restored personal Pro subscription', {
         userId,
         subscriptionId: personalPro.id,

@@ -318,7 +318,6 @@ class McpService {
         try {
           const cached = await this.cacheAdapter.get(cacheKey)
           if (cached) {
-            logger.debug(`[${requestId}] Using cached tools for user ${userId}`)
             return cached.tools
           }
         } catch (error) {

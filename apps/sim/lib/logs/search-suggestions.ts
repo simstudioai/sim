@@ -433,7 +433,7 @@ export class SearchSuggestions {
         value: `date:${partial}`,
         label: `${this.formatDateLabel(startDate)} to ${this.formatDateLabel(endDate)}`,
         description: 'Custom date range',
-        category: 'date' as any,
+        category: 'date',
       })
       return suggestions
     }
@@ -446,7 +446,7 @@ export class SearchSuggestions {
         value: `date:${startDate}..`,
         label: `${this.formatDateLabel(startDate)} to ...`,
         description: 'Type end date (YYYY-MM-DD)',
-        category: 'date' as any,
+        category: 'date',
       })
       return suggestions
     }
@@ -458,7 +458,7 @@ export class SearchSuggestions {
         value: `date:${partial}`,
         label: `Year ${partial}`,
         description: 'All logs from this year',
-        category: 'date' as any,
+        category: 'date',
       })
       return suggestions
     }
@@ -486,7 +486,7 @@ export class SearchSuggestions {
         value: `date:${partial}`,
         label: `${monthName} ${year}`,
         description: 'All logs from this month',
-        category: 'date' as any,
+        category: 'date',
       })
       return suggestions
     }
@@ -500,7 +500,7 @@ export class SearchSuggestions {
           value: `date:${partial}`,
           label: this.formatDateLabel(partial),
           description: 'Single date',
-          category: 'date' as any,
+          category: 'date',
         })
         // Also suggest starting a range
         suggestions.push({
@@ -508,7 +508,7 @@ export class SearchSuggestions {
           value: `date:${partial}..`,
           label: `${this.formatDateLabel(partial)} to ...`,
           description: 'Start a date range',
-          category: 'date' as any,
+          category: 'date',
         })
       }
       return suggestions
@@ -521,7 +521,7 @@ export class SearchSuggestions {
         value: `date:${partial}`,
         label: partial,
         description: 'Continue typing: YYYY, YYYY-MM, or YYYY-MM-DD',
-        category: 'date' as any,
+        category: 'date',
       })
     }
 

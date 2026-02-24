@@ -3,6 +3,7 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
@@ -39,6 +40,8 @@ export interface PreprocessExecutionOptions {
   useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
   /** @deprecated No longer used - background/async executions always use deployed state */
   useDraftState?: boolean
+  /** Pre-fetched workflow record to skip the Step 1 DB query. Must be a full workflow table row. */
+  workflowRecord?: WorkflowRecord
 }
 
 /**
@@ -66,7 +69,7 @@ export interface PreprocessExecutionResult {
 }
 
 type WorkflowRecord = typeof workflow.$inferSelect
-type SubscriptionInfo = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
+type SubscriptionInfo = HighestPrioritySubscription
 
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
@@ -84,6 +87,7 @@ export async function preprocessExecution(
     loggingSession: providedLoggingSession,
     isResumeContext: _isResumeContext = false,
     useAuthenticatedUserAsActor = false,
+    workflowRecord: prefetchedWorkflowRecord,
   } = options
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
@@ -94,57 +98,68 @@ export async function preprocessExecution(
   })
 
   // ========== STEP 1: Validate Workflow Exists ==========
-  let workflowRecord: WorkflowRecord | null = null
-  try {
-    const records = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+  if (prefetchedWorkflowRecord && prefetchedWorkflowRecord.id !== workflowId) {
+    logger.error(`[${requestId}] Prefetched workflow record ID mismatch`, {
+      expected: workflowId,
+      received: prefetchedWorkflowRecord.id,
+    })
+    throw new Error(
+      `Prefetched workflow record ID mismatch: expected ${workflowId}, got ${prefetchedWorkflowRecord.id}`
+    )
+  }
+  let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
+  if (!workflowRecord) {
+    try {
+      const records = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
 
-    if (records.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+      if (records.length === 0) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+
+        await logPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: 'unknown',
+          workspaceId: '',
+          errorMessage:
+            'Workflow not found. The workflow may have been deleted or is no longer accessible.',
+          loggingSession: providedLoggingSession,
+        })
+
+        return {
+          success: false,
+          error: {
+            message: 'Workflow not found',
+            statusCode: 404,
+            logCreated: true,
+          },
+        }
+      }
+
+      workflowRecord = records[0]
+    } catch (error) {
+      logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
 
       await logPreprocessingError({
         workflowId,
         executionId,
         triggerType,
         requestId,
-        userId: 'unknown',
-        workspaceId: '',
-        errorMessage:
-          'Workflow not found. The workflow may have been deleted or is no longer accessible.',
+        userId: userId || 'unknown',
+        workspaceId: providedWorkspaceId || '',
+        errorMessage: 'Internal error while fetching workflow',
         loggingSession: providedLoggingSession,
       })
 
       return {
         success: false,
         error: {
-          message: 'Workflow not found',
-          statusCode: 404,
+          message: 'Internal error while fetching workflow',
+          statusCode: 500,
           logCreated: true,
         },
       }
-    }
-
-    workflowRecord = records[0]
-  } catch (error) {
-    logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
-
-    await logPreprocessingError({
-      workflowId,
-      executionId,
-      triggerType,
-      requestId,
-      userId: userId || 'unknown',
-      workspaceId: providedWorkspaceId || '',
-      errorMessage: 'Internal error while fetching workflow',
-      loggingSession: providedLoggingSession,
-    })
-
-    return {
-      success: false,
-      error: {
-        message: 'Internal error while fetching workflow',
-        statusCode: 500,
-        logCreated: true,
-      },
     }
   }
 
@@ -249,20 +264,77 @@ export async function preprocessExecution(
     }
   }
 
-  // ========== STEP 4: Get User Subscription ==========
-  let userSubscription: SubscriptionInfo = null
-  try {
-    userSubscription = await getHighestPrioritySubscription(actorUserId)
-    logger.debug(`[${requestId}] User subscription retrieved`, {
-      actorUserId,
-      hasSub: !!userSubscription,
-      plan: userSubscription?.plan,
-    })
-  } catch (error) {
-    logger.error(`[${requestId}] Error fetching subscription`, { error, actorUserId })
+  // ========== STEP 4: Get Subscription ==========
+  const userSubscription = await getHighestPrioritySubscription(actorUserId)
+
+  // ========== STEP 5: Check Usage Limits ==========
+  if (!skipUsageLimits) {
+    try {
+      const usageCheck = await checkServerSideUsageLimits(actorUserId, userSubscription)
+      if (usageCheck.isExceeded) {
+        logger.warn(
+          `[${requestId}] User ${actorUserId} has exceeded usage limits. Blocking execution.`,
+          {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId,
+            triggerType,
+          }
+        )
+
+        await logPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage:
+            usageCheck.message ||
+            `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
+          loggingSession: providedLoggingSession,
+        })
+
+        return {
+          success: false,
+          error: {
+            message:
+              usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            statusCode: 402,
+            logCreated: true,
+          },
+        }
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error checking usage limits`, {
+        error,
+        actorUserId,
+      })
+
+      await logPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage:
+          'Unable to determine usage limits. Execution blocked for security. Please contact support.',
+        loggingSession: providedLoggingSession,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Unable to determine usage limits. Execution blocked for security.',
+          statusCode: 500,
+          logCreated: true,
+        },
+      }
+    }
   }
 
-  // ========== STEP 5: Check Rate Limits ==========
+  // ========== STEP 6: Check Rate Limits ==========
   let rateLimitInfo: { allowed: boolean; remaining: number; resetAt: Date } | undefined
 
   if (checkRateLimit) {
@@ -302,10 +374,6 @@ export async function preprocessExecution(
           },
         }
       }
-
-      logger.debug(`[${requestId}] Rate limit check passed`, {
-        remaining: rateLimitInfo.remaining,
-      })
     } catch (error) {
       logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
 
@@ -329,78 +397,6 @@ export async function preprocessExecution(
         },
       }
     }
-  }
-
-  // ========== STEP 6: Check Usage Limits (CRITICAL) ==========
-  if (!skipUsageLimits) {
-    try {
-      const usageCheck = await checkServerSideUsageLimits(actorUserId)
-
-      if (usageCheck.isExceeded) {
-        logger.warn(
-          `[${requestId}] User ${actorUserId} has exceeded usage limits. Blocking execution.`,
-          {
-            currentUsage: usageCheck.currentUsage,
-            limit: usageCheck.limit,
-            workflowId,
-            triggerType,
-          }
-        )
-
-        await logPreprocessingError({
-          workflowId,
-          executionId,
-          triggerType,
-          requestId,
-          userId: actorUserId,
-          workspaceId,
-          errorMessage:
-            usageCheck.message ||
-            `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
-          loggingSession: providedLoggingSession,
-        })
-
-        return {
-          success: false,
-          error: {
-            message:
-              usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-            statusCode: 402,
-            logCreated: true,
-          },
-        }
-      }
-
-      logger.debug(`[${requestId}] Usage limit check passed`, {
-        currentUsage: usageCheck.currentUsage,
-        limit: usageCheck.limit,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error checking usage limits`, { error, actorUserId })
-
-      await logPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: actorUserId,
-        workspaceId,
-        errorMessage:
-          'Unable to determine usage limits. Execution blocked for security. Please contact support.',
-        loggingSession: providedLoggingSession,
-      })
-
-      return {
-        success: false,
-        error: {
-          message: 'Unable to determine usage limits. Execution blocked for security.',
-          statusCode: 500,
-          logCreated: true,
-        },
-      }
-    }
-  } else {
-    logger.debug(`[${requestId}] Skipping usage limits check (test mode)`)
   }
 
   // ========== SUCCESS: All Checks Passed ==========
@@ -461,7 +457,7 @@ async function logPreprocessingError(params: {
 
   try {
     const session =
-      loggingSession || new LoggingSession(workflowId, executionId, triggerType as any, requestId)
+      loggingSession || new LoggingSession(workflowId, executionId, triggerType, requestId)
 
     await session.safeStart({
       userId,
@@ -476,11 +472,6 @@ async function logPreprocessingError(params: {
       },
       traceSpans: [],
       skipCost: true, // Preprocessing errors should not charge - no execution occurred
-    })
-
-    logger.debug(`[${requestId}] Logged preprocessing error to database`, {
-      workflowId,
-      executionId,
     })
   } catch (error) {
     logger.error(`[${requestId}] Failed to log preprocessing error`, {

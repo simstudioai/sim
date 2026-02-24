@@ -95,11 +95,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = CreateCreatorProfileSchema.parse(body)
 
-    logger.debug(`[${requestId}] Creating creator profile:`, {
-      referenceType: data.referenceType,
-      referenceId: data.referenceId,
-    })
-
     // Validate permissions
     if (data.referenceType === 'user') {
       if (data.referenceId !== session.user.id) {

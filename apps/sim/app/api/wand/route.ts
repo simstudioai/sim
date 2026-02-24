@@ -103,12 +103,10 @@ async function updateUserStatsForWand(
   isBYOK = false
 ): Promise<void> {
   if (!isBillingEnabled) {
-    logger.debug(`[${requestId}] Billing is disabled, skipping wand usage cost update`)
     return
   }
 
   if (!usage.total_tokens || usage.total_tokens <= 0) {
-    logger.debug(`[${requestId}] No tokens to update in user stats`)
     return
   }
 
@@ -145,13 +143,6 @@ async function updateUserStatsForWand(
         lastActive: new Date(),
       })
       .where(eq(userStats.userId, userId))
-
-    logger.debug(`[${requestId}] Updated user stats for wand usage`, {
-      userId,
-      tokensUsed: totalTokens,
-      costAdded: costToStore,
-      isBYOK,
-    })
 
     await logModelUsage({
       userId,
@@ -291,23 +282,8 @@ export async function POST(req: NextRequest) {
 
     messages.push({ role: 'user', content: prompt })
 
-    logger.debug(
-      `[${requestId}] Calling ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} API for wand generation`,
-      {
-        stream,
-        historyLength: history.length,
-        endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
-        model: useWandAzure ? wandModelName : 'gpt-4o',
-        apiVersion: useWandAzure ? azureApiVersion : 'N/A',
-      }
-    )
-
     if (stream) {
       try {
-        logger.debug(
-          `[${requestId}] Starting streaming request to ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'}`
-        )
-
         logger.info(
           `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
         )
@@ -326,8 +302,6 @@ export async function POST(req: NextRequest) {
         } else {
           headers.Authorization = `Bearer ${activeOpenAIKey}`
         }
-
-        logger.debug(`[${requestId}] Making streaming request to: ${apiUrl}`)
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -429,7 +403,6 @@ export async function POST(req: NextRequest) {
                   try {
                     parsed = JSON.parse(data)
                   } catch (parseError) {
-                    logger.debug(`[${requestId}] Skipped non-JSON line: ${data.substring(0, 100)}`)
                     continue
                   }
 
