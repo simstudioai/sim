@@ -54,12 +54,6 @@ async function queryKnowledgeBase(
   authHeaders?: { cookie?: string; authorization?: string }
 ): Promise<string[]> {
   try {
-    logger.info(`[${requestId}] Querying knowledge base`, {
-      knowledgeBaseId,
-      query: query.substring(0, 100),
-      topK,
-    })
-
     // Call the knowledge base search API directly
     const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
 
@@ -89,8 +83,6 @@ async function queryKnowledgeBase(
     const results = result.data?.results || []
 
     const chunks = results.map((r: any) => r.content || '').filter((c: string) => c.length > 0)
-
-    logger.info(`[${requestId}] Retrieved ${chunks.length} chunks from knowledge base`)
 
     return chunks
   } catch (error: any) {
@@ -194,7 +186,6 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
     }
 
     const content = response.content.trim()
-    logger.debug(`[${requestId}] LLM response:`, { content })
 
     let jsonContent = content
 

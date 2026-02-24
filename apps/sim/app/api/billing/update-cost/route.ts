@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
-      logger.debug(`[${requestId}] Billing is disabled, skipping cost update`)
       return NextResponse.json({
         success: true,
         message: 'Billing disabled, cost update skipped',

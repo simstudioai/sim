@@ -474,7 +474,6 @@ function buildGmailSearchQuery(config: {
 async function searchEmails(accessToken: string, config: GmailWebhookConfig, requestId: string) {
   try {
     const baseQuery = buildGmailSearchQuery(config)
-    logger.debug(`[${requestId}] Gmail search query: ${baseQuery}`)
 
     let timeConstraint = ''
 
@@ -491,24 +490,18 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
         const timestamp = Math.floor(cutoffTime.getTime() / 1000)
 
         timeConstraint = ` after:${timestamp}`
-        logger.debug(`[${requestId}] Using timestamp-based query with ${bufferSeconds}s buffer`)
       } else if (minutesSinceLastCheck < 24 * 60) {
         const hours = Math.ceil(minutesSinceLastCheck / 60) + 1 // Round up and add 1 hour buffer
         timeConstraint = ` newer_than:${hours}h`
-        logger.debug(`[${requestId}] Using hour-based query: newer_than:${hours}h`)
       } else {
         const days = Math.min(Math.ceil(minutesSinceLastCheck / (24 * 60)), 7) + 1
         timeConstraint = ` newer_than:${days}d`
-        logger.debug(`[${requestId}] Using day-based query: newer_than:${days}d`)
       }
     } else {
       timeConstraint = ' newer_than:1d'
-      logger.debug(`[${requestId}] No last check time, using default: newer_than:1d`)
     }
 
     const query = `${baseQuery}${timeConstraint}`
-
-    logger.info(`[${requestId}] Searching for emails with query: ${query}`)
 
     const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${config.maxEmailsPerPoll || 25}`
 
@@ -562,7 +555,6 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
 
     if (emails.length > 0 && emails[0].historyId) {
       latestHistoryId = emails[0].historyId
-      logger.debug(`[${requestId}] Updated historyId to ${latestHistoryId}`)
     }
 
     return { emails, latestHistoryId }
@@ -703,10 +695,6 @@ async function processEmails(
             timestamp: new Date().toISOString(),
             ...(config.includeRawEmail ? { rawEmail: email } : {}),
           }
-
-          logger.debug(
-            `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
-          )
 
           const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 

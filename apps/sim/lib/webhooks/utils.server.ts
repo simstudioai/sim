@@ -67,7 +67,6 @@ export async function handleWhatsAppVerification(
       const verificationToken = providerConfig.verificationToken
 
       if (!verificationToken) {
-        logger.debug(`[${requestId}] Webhook ${wh.id} has no verification token, skipping`)
         continue
       }
 
@@ -1599,7 +1598,6 @@ export function verifyProviderWebhook(
     case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
       const userAgent = request.headers.get('user-agent') || ''
-      logger.debug(`[${requestId}] Telegram webhook request received with User-Agent: ${userAgent}`)
 
       if (!userAgent) {
         logger.warn(
@@ -1612,8 +1610,6 @@ export function verifyProviderWebhook(
         request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
         request.headers.get('x-real-ip') ||
         'unknown'
-
-      logger.debug(`[${requestId}] Telegram webhook request from IP: ${clientIp}`)
 
       break
     }
@@ -1774,14 +1770,8 @@ export async function fetchAndProcessAirtablePayloads(
 
     if (storedCursor && typeof storedCursor === 'number') {
       currentCursor = storedCursor
-      logger.debug(
-        `[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`
-      )
     } else {
       currentCursor = null
-      logger.debug(
-        `[${requestId}] No valid stored cursor for webhook ${webhookData.id}, starting from beginning`
-      )
     }
 
     let accessToken: string | null = null
@@ -1797,8 +1787,6 @@ export async function fetchAndProcessAirtablePayloads(
         )
         throw new Error('Airtable access token not found.')
       }
-
-      logger.info(`[${requestId}] Successfully obtained Airtable access token`)
     } catch (tokenError: any) {
       logger.error(
         `[${requestId}] Failed to get Airtable OAuth token for credential ${credentialId}`,
@@ -1818,10 +1806,6 @@ export async function fetchAndProcessAirtablePayloads(
       apiCallCount++
       // Safety break
       if (apiCallCount > 10) {
-        logger.warn(`[${requestId}] Reached maximum polling limit (10 calls)`, {
-          webhookId: webhookData.id,
-          consolidatedCount: consolidatedChangesMap.size,
-        })
         mightHaveMore = false
         break
       }
@@ -1833,11 +1817,6 @@ export async function fetchAndProcessAirtablePayloads(
       }
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
-      logger.debug(`[${requestId}] Fetching Airtable payloads (call ${apiCallCount})`, {
-        url: fullUrl,
-        webhookId: webhookData.id,
-      })
-
       try {
         const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
@@ -1846,14 +1825,6 @@ export async function fetchAndProcessAirtablePayloads(
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-        })
-
-        // DEBUG: Log API response time
-        logger.debug(`[${requestId}] TRACE: Airtable API response received`, {
-          status: response.status,
-          duration: `${Date.now() - fetchStartTime}ms`,
-          hasBody: true,
-          apiCall: apiCallCount,
         })
 
         const responseBody = await response.json()
@@ -1877,9 +1848,6 @@ export async function fetchAndProcessAirtablePayloads(
         }
 
         const receivedPayloads = responseBody.payloads || []
-        logger.debug(
-          `[${requestId}] Received ${receivedPayloads.length} payloads from Airtable (call ${apiCallCount})`
-        )
 
         // --- Process and Consolidate Changes ---
         if (receivedPayloads.length > 0) {
@@ -1891,13 +1859,6 @@ export async function fetchAndProcessAirtablePayloads(
           let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
-              // DEBUG: Log tables being processed
-              const tableIds = Object.keys(payload.changedTablesById)
-              logger.debug(`[${requestId}] TRACE: Processing changes for tables`, {
-                tables: tableIds,
-                payloadTimestamp: payload.timestamp,
-              })
-
               for (const [tableId, tableChangesUntyped] of Object.entries(
                 payload.changedTablesById
               )) {
@@ -1907,10 +1868,6 @@ export async function fetchAndProcessAirtablePayloads(
                 if (tableChanges.createdRecordsById) {
                   const createdCount = Object.keys(tableChanges.createdRecordsById).length
                   changeCount += createdCount
-                  // DEBUG: Log created records count
-                  logger.debug(
-                    `[${requestId}] TRACE: Processing ${createdCount} created records for table ${tableId}`
-                  )
 
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.createdRecordsById
@@ -1940,10 +1897,6 @@ export async function fetchAndProcessAirtablePayloads(
                 if (tableChanges.changedRecordsById) {
                   const updatedCount = Object.keys(tableChanges.changedRecordsById).length
                   changeCount += updatedCount
-                  // DEBUG: Log updated records count
-                  logger.debug(
-                    `[${requestId}] TRACE: Processing ${updatedCount} updated records for table ${tableId}`
-                  )
 
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.changedRecordsById
@@ -1980,21 +1933,12 @@ export async function fetchAndProcessAirtablePayloads(
               }
             }
           }
-
-          // DEBUG: Log totals for this batch
-          logger.debug(
-            `[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount})`,
-            {
-              currentMapSize: consolidatedChangesMap.size,
-            }
-          )
         }
 
         const nextCursor = responseBody.cursor
         mightHaveMore = responseBody.mightHaveMore || false
 
         if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
-          logger.debug(`[${requestId}] Updating cursor from ${currentCursor} to ${nextCursor}`)
           currentCursor = nextCursor
 
           // Follow exactly the old implementation - use awaited update instead of parallel
@@ -2031,7 +1975,6 @@ export async function fetchAndProcessAirtablePayloads(
           })
           mightHaveMore = false
         } else if (nextCursor === currentCursor) {
-          logger.debug(`[${requestId}] Cursor hasn't changed (${currentCursor}), stopping poll`)
           mightHaveMore = false // Explicitly stop if cursor hasn't changed
         }
       } catch (fetchError: any) {
@@ -2123,14 +2066,6 @@ export async function fetchAndProcessAirtablePayloads(
     )
     // Error logging handled by logging session
   }
-
-  // DEBUG: Log function completion
-  logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads completed`, {
-    totalFetched: payloadsFetched,
-    totalApiCalls: apiCallCount,
-    totalChanges: consolidatedChangesMap.size,
-    timestamp: new Date().toISOString(),
-  })
 }
 
 // Define an interface for AirtableChange

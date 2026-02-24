@@ -58,8 +58,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    logger.debug(`[${requestId}] Adding star for template: ${id}, user: ${session.user.id}`)
-
     // Verify the template exists
     const templateExists = await db
       .select({ id: templates.id })
@@ -132,8 +130,6 @@ export async function DELETE(
       logger.warn(`[${requestId}] Unauthorized unstar attempt for template: ${id}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    logger.debug(`[${requestId}] Removing star for template: ${id}, user: ${session.user.id}`)
 
     // Check if the star exists
     const existingStar = await db

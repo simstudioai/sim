@@ -172,9 +172,7 @@ export const POST = withMcpAuth('write')(
         if (client) {
           try {
             await client.disconnect()
-          } catch (disconnectError) {
-            logger.debug(`[${requestId}] Test client disconnect error (expected):`, disconnectError)
-          }
+          } catch (disconnectError) {}
         }
       }
 

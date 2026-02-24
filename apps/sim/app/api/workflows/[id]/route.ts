@@ -77,18 +77,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    logger.debug(`[${requestId}] Attempting to load workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
     if (normalizedData) {
-      logger.debug(`[${requestId}] Found normalized data for workflow ${workflowId}:`, {
-        blocksCount: Object.keys(normalizedData.blocks).length,
-        edgesCount: normalizedData.edges.length,
-        loopsCount: Object.keys(normalizedData.loops).length,
-        parallelsCount: Object.keys(normalizedData.parallels).length,
-        loops: normalizedData.loops,
-      })
-
       const finalWorkflowData = {
         ...workflowData,
         state: {

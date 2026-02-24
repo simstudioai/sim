@@ -45,10 +45,6 @@ async function applyScheduleUpdate(
 ) {
   try {
     await db.update(workflowSchedule).set(updates).where(eq(workflowSchedule.id, scheduleId))
-
-    if (successLog) {
-      logger.debug(`[${requestId}] ${successLog}`)
-    }
   } catch (error) {
     logger.error(`[${requestId}] ${context}`, error)
   }
@@ -132,7 +128,6 @@ async function runWorkflowExecution({
   asyncTimeout?: number
 }): Promise<RunWorkflowResult> {
   try {
-    logger.debug(`[${requestId}] Loading deployed workflow ${payload.workflowId}`)
     const deployedData = await loadDeployedWorkflowState(
       payload.workflowId,
       workflowRecord.workspaceId ?? undefined

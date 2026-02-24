@@ -58,8 +58,6 @@ export async function POST(
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Processing form submission for identifier: ${identifier}`)
-
     let parsedBody
     try {
       const rawBody = await request.json()
@@ -300,8 +298,6 @@ export async function GET(
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Fetching form info for identifier: ${identifier}`)
-
     const deploymentResult = await db
       .select({
         id: form.id,

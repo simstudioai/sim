@@ -68,7 +68,6 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
       .where(eq(workflowMcpTool.workflowId, workflowId))
 
     if (tools.length === 0) {
-      logger.debug(`[${requestId}] No MCP tools to sync for workflow: ${workflowId}`)
       return
     }
 

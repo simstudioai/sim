@@ -117,8 +117,6 @@ export async function POST(
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Processing OTP request for identifier: ${identifier}`)
-
     const body = await request.json()
     const { email } = otpRequestSchema.parse(body)
 
@@ -211,8 +209,6 @@ export async function PUT(
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Verifying OTP for identifier: ${identifier}`)
-
     const body = await request.json()
     const { email, otp } = otpVerifySchema.parse(body)
 

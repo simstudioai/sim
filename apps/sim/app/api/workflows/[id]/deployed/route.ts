@@ -21,8 +21,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Fetching deployed state for workflow: ${id}`)
-
     const authHeader = request.headers.get('authorization')
     let isInternalCall = false
 
@@ -39,7 +37,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return addNoCacheHeaders(response)
       }
     } else {
-      logger.debug(`[${requestId}] Internal API call for deployed workflow: ${id}`)
     }
 
     let deployedState = null

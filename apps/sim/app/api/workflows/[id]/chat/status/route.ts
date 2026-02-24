@@ -35,8 +35,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    logger.debug(`[${requestId}] Checking chat deployment status for workflow: ${id}`)
-
     // Find any active chat deployments for this workflow
     const deploymentResults = await db
       .select({

@@ -107,7 +107,6 @@ export async function parseWebhookBody(
 
     // Allow empty body - some webhooks send empty payloads
     if (!rawBody || rawBody.length === 0) {
-      logger.debug(`[${requestId}] Received request with empty body, treating as empty object`)
       return { body: {}, rawBody: '' }
     }
   } catch (bodyError) {
@@ -127,19 +126,15 @@ export async function parseWebhookBody(
 
       if (payloadString) {
         body = JSON.parse(payloadString)
-        logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
       } else {
         body = Object.fromEntries(formData.entries())
-        logger.debug(`[${requestId}] Parsed form-encoded webhook data (direct fields)`)
       }
     } else {
       body = JSON.parse(rawBody)
-      logger.debug(`[${requestId}] Parsed JSON webhook payload`)
     }
 
     // Allow empty JSON objects - some webhooks send empty payloads
     if (Object.keys(body).length === 0) {
-      logger.debug(`[${requestId}] Received empty JSON object`)
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse webhook body`, {
@@ -499,8 +494,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Microsoft Teams HMAC signature verified successfully`)
     }
   }
 
@@ -578,8 +571,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Twilio signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Twilio Voice signature verified successfully`)
     }
   }
 
@@ -603,8 +594,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Typeform signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Typeform signature verified successfully`)
     }
   }
 
@@ -628,8 +617,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Linear signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Linear signature verified successfully`)
     }
   }
 
@@ -653,8 +640,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Circleback signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Circleback signature verified successfully`)
     }
   }
 
@@ -678,8 +663,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Cal.com signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Cal.com signature verified successfully`)
     }
   }
 
@@ -703,8 +686,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Jira signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Jira signature verified successfully`)
     }
   }
 
@@ -728,8 +709,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Confluence signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Confluence signature verified successfully`)
     }
   }
 
@@ -757,10 +736,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid GitHub signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] GitHub signature verified successfully`, {
-        usingSha256: !!signature256,
-      })
     }
   }
 
@@ -784,8 +759,6 @@ export async function verifyProviderAuth(
         })
         return new NextResponse('Unauthorized - Invalid Fireflies signature', { status: 401 })
       }
-
-      logger.debug(`[${requestId}] Fireflies signature verified successfully`)
     }
   }
 
@@ -869,10 +842,6 @@ export async function checkWebhookPreprocessing(
 
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
     }
-
-    logger.debug(`[${requestId}] Webhook preprocessing passed`, {
-      provider: foundWebhook.provider,
-    })
 
     return null
   } catch (preprocessError) {

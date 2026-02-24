@@ -34,8 +34,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Fetching deployment info for workflow: ${id}`)
-
     const { error, workflow: workflowData } = await validateWorkflowPermissions(
       id,
       requestId,
@@ -116,8 +114,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Deploying workflow: ${id}`)
-
     const {
       error,
       session,
@@ -359,8 +355,6 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
-
     const {
       error,
       session,

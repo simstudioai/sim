@@ -268,11 +268,6 @@ export async function preprocessExecution(
   let userSubscription: SubscriptionInfo = null
   try {
     userSubscription = await getHighestPrioritySubscription(actorUserId)
-    logger.debug(`[${requestId}] User subscription retrieved`, {
-      actorUserId,
-      hasSub: !!userSubscription,
-      plan: userSubscription?.plan,
-    })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching subscription`, {
       error,
@@ -318,11 +313,6 @@ export async function preprocessExecution(
           },
         }
       }
-
-      logger.debug(`[${requestId}] Usage limit check passed`, {
-        currentUsage: usageCheck.currentUsage,
-        limit: usageCheck.limit,
-      })
     } catch (error) {
       logger.error(`[${requestId}] Error checking usage limits`, {
         error,
@@ -351,7 +341,6 @@ export async function preprocessExecution(
       }
     }
   } else {
-    logger.debug(`[${requestId}] Skipping usage limits check (test mode)`)
   }
 
   // ========== STEP 6: Check Rate Limits ==========
@@ -394,10 +383,6 @@ export async function preprocessExecution(
           },
         }
       }
-
-      logger.debug(`[${requestId}] Rate limit check passed`, {
-        remaining: rateLimitInfo.remaining,
-      })
     } catch (error) {
       logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
 
@@ -496,11 +481,6 @@ async function logPreprocessingError(params: {
       },
       traceSpans: [],
       skipCost: true, // Preprocessing errors should not charge - no execution occurred
-    })
-
-    logger.debug(`[${requestId}] Logged preprocessing error to database`, {
-      workflowId,
-      executionId,
     })
   } catch (error) {
     logger.error(`[${requestId}] Failed to log preprocessing error`, {

@@ -24,8 +24,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const session = await getSession()
 
-    logger.debug(`[${requestId}] Fetching template: ${id}`)
-
     const result = await db
       .select({
         template: templates,
@@ -74,8 +72,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             views: sql`${templates.views} + 1`,
           })
           .where(eq(templates.id, id))
-
-        logger.debug(`[${requestId}] Incremented view count for template: ${id}`)
       } catch (viewError) {
         logger.warn(`[${requestId}] Failed to increment view count for template: ${id}`, viewError)
       }
