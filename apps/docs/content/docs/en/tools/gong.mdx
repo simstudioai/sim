@@ -376,7 +376,7 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 |   ↳ `callsReceivedFeedback` | number | Number of recorded calls the user received feedback on |
 |   ↳ `callsRequestedFeedback` | number | Number of recorded calls the user requested feedback on |
 |   ↳ `callsScorecardsFilled` | number | Number of scorecards the user completed |
-|   ↳ `callsScorecardsReceived` | number | Number of calls where someone filled a scorecard on the user\ |
+|   ↳ `callsScorecardsReceived` | number | Number of calls where someone filled a scorecard on the user's calls |
 |   ↳ `ownCallsListenedTo` | number | Number of the user's own calls the user listened to |
 |   ↳ `othersCallsListenedTo` | number | Number of other users' calls the user listened to |
 |   ↳ `callsSharedInternally` | number | Number of calls the user shared internally |
@@ -384,7 +384,7 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 |   ↳ `callsCommentsGiven` | number | Number of calls where the user provided at least one comment |
 |   ↳ `callsCommentsReceived` | number | Number of calls where the user received at least one comment |
 |   ↳ `callsMarkedAsFeedbackGiven` | number | Number of calls where the user selected Mark as reviewed |
-|   ↳ `callsMarkedAsFeedbackReceived` | number | Number of calls where others selected Mark as reviewed on the user\ |
+|   ↳ `callsMarkedAsFeedbackReceived` | number | Number of calls where others selected Mark as reviewed on the user's calls |
 | `timeZone` | string | The company's defined timezone in Gong |
 | `fromDateTime` | string | Start of results in ISO-8601 format |
 | `toDateTime` | string | End of results in ISO-8601 format |
@@ -715,7 +715,7 @@ Find all references to an email address in Gong (calls, email messages, meetings
 |     ↳ `fields` | array | Object fields |
 |       ↳ `name` | string | Field name |
 |       ↳ `value` | json | Field value |
-| `customerEngagement` | array | Event type |
+| `customerEngagement` | array | Customer engagement events \(such as viewing external shared calls\) |
 |   ↳ `eventType` | string | Event type |
 |   ↳ `eventName` | string | Event name |
 |   ↳ `timestamp` | string | Date and time the event occurred in ISO-8601 format |
