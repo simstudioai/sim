@@ -1197,6 +1197,53 @@ export async function formatWebhookInput(
     return extractIssueData(body)
   }
 
+  if (foundWebhook.provider === 'confluence') {
+    const {
+      extractPageData,
+      extractCommentData,
+      extractBlogData,
+      extractAttachmentData,
+      extractSpaceData,
+      extractLabelData,
+    } = await import('@/triggers/confluence/utils')
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    if (triggerId?.startsWith('confluence_comment_')) {
+      return extractCommentData(body)
+    }
+    if (triggerId?.startsWith('confluence_blog_')) {
+      return extractBlogData(body)
+    }
+    if (triggerId?.startsWith('confluence_attachment_')) {
+      return extractAttachmentData(body)
+    }
+    if (triggerId?.startsWith('confluence_space_')) {
+      return extractSpaceData(body)
+    }
+    if (triggerId?.startsWith('confluence_label_')) {
+      return extractLabelData(body)
+    }
+    // Generic webhook — preserve all entity fields since event type varies
+    if (triggerId === 'confluence_webhook') {
+      return {
+        timestamp: body.timestamp,
+        userAccountId: body.userAccountId,
+        accountType: body.accountType,
+        page: body.page || null,
+        comment: body.comment || null,
+        blog: body.blog || body.blogpost || null,
+        attachment: body.attachment || null,
+        space: body.space || null,
+        label: body.label || null,
+        content: body.content || null,
+      }
+    }
+    // Default: page events
+    return extractPageData(body)
+  }
+
   if (foundWebhook.provider === 'stripe') {
     return body
   }

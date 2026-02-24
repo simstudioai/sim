@@ -28,6 +28,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
 import { isJiraEventMatch } from '@/triggers/jira/utils'
@@ -608,7 +609,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'linear') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       const signature = request.headers.get('Linear-Signature')
@@ -683,7 +684,7 @@ export async function verifyProviderAuth(
   }
 
   if (foundWebhook.provider === 'jira') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       const signature = request.headers.get('X-Hub-Signature')
@@ -707,8 +708,33 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'confluence') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('X-Hub-Signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Confluence webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Confluence signature', { status: 401 })
+      }
+
+      const isValidSignature = validateJiraSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Confluence signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Confluence signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Confluence signature verified successfully`)
+    }
+  }
+
   if (foundWebhook.provider === 'github') {
-    const secret = providerConfig.secret as string | undefined
+    const secret = providerConfig.webhookSecret as string | undefined
 
     if (secret) {
       // GitHub supports both SHA-256 (preferred) and SHA-1 (legacy)
@@ -927,6 +953,27 @@ export async function queueWebhookExecution(
             message: 'Event type does not match trigger configuration. Ignoring.',
           })
         }
+      }
+    }
+
+    if (foundWebhook.provider === 'confluence') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (triggerId && !isConfluencePayloadMatch(triggerId, body)) {
+        logger.debug(
+          `[${options.requestId}] Confluence payload mismatch for trigger ${triggerId}. Skipping execution.`,
+          {
+            webhookId: foundWebhook.id,
+            workflowId: foundWorkflow.id,
+            triggerId,
+            bodyKeys: Object.keys(body),
+          }
+        )
+
+        return NextResponse.json({
+          message: 'Payload does not match trigger configuration. Ignoring.',
+        })
       }
     }
 
