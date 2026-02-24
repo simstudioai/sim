@@ -189,7 +189,7 @@ Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}
       id: 'filter',
       title: 'Filter',
       type: 'code',
-      placeholder: '{"name": "John Smith"} (optional)',
+      placeholder: '{"name": "John Smith"}',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
         enabled: true,
@@ -220,7 +220,7 @@ Empty (list all): {}`,
       id: 'sorts',
       title: 'Sort',
       type: 'code',
-      placeholder: '[{"direction":"asc","attribute":"name"}] (optional)',
+      placeholder: '[{"direction":"asc","attribute":"name"}]',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
         enabled: true,
@@ -336,7 +336,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'noteMeetingId',
       title: 'Meeting ID',
       type: 'short-input',
-      placeholder: 'Link to a meeting (optional)',
+      placeholder: 'Link to a meeting',
       condition: { field: 'operation', value: 'create_note' },
       mode: 'advanced',
     },
@@ -362,7 +362,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'taskDeadline',
       title: 'Deadline',
       type: 'short-input',
-      placeholder: '2024-12-01T15:00:00.000Z (optional)',
+      placeholder: '2024-12-01T15:00:00.000Z',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -399,7 +399,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'taskLinkedRecords',
       title: 'Linked Records',
       type: 'code',
-      placeholder: '[{"target_object":"people","target_record_id":"..."}] (optional)',
+      placeholder: '[{"target_object":"people","target_record_id":"..."}]',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -426,7 +426,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       title: 'Assignees',
       type: 'code',
       placeholder:
-        '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}] (optional)',
+        '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}]',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -460,21 +460,21 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'taskFilterObject',
       title: 'Linked Object Type',
       type: 'short-input',
-      placeholder: 'e.g. people, companies (optional)',
+      placeholder: 'e.g. people, companies',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
       id: 'taskFilterRecordId',
       title: 'Linked Record ID',
       type: 'short-input',
-      placeholder: 'Filter by linked record ID (optional)',
+      placeholder: 'Filter by linked record ID',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
       id: 'taskFilterAssignee',
       title: 'Assignee',
       type: 'short-input',
-      placeholder: 'Filter by assignee email or ID (optional)',
+      placeholder: 'Filter by assignee email or ID',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
@@ -627,7 +627,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'entryValues',
       title: 'Entry Values',
       type: 'code',
-      placeholder: '{"attribute_slug": "value"} (optional)',
+      placeholder: '{"attribute_slug": "value"}',
       condition: {
         field: 'operation',
         value: ['create_list_entry', 'update_list_entry'],
@@ -657,7 +657,7 @@ Keys are list attribute slugs. Values follow Attio attribute format.
       id: 'entryFilter',
       title: 'Filter',
       type: 'code',
-      placeholder: '{"attribute": {"$operator": "value"}} (optional)',
+      placeholder: '{"attribute": {"$operator": "value"}}',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
         enabled: true,
@@ -684,7 +684,7 @@ Logical: $and, $or, $not
       id: 'entrySorts',
       title: 'Sort',
       type: 'code',
-      placeholder: '[{"direction":"asc","attribute":"created_at"}] (optional)',
+      placeholder: '[{"direction":"asc","attribute":"created_at"}]',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
         enabled: true,
@@ -823,7 +823,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'threadFilterRecordId',
       title: 'Record ID',
       type: 'short-input',
-      placeholder: 'Filter by record ID (optional)',
+      placeholder: 'Filter by record ID',
       condition: { field: 'operation', value: 'list_threads' },
     },
     {
@@ -837,7 +837,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'threadFilterEntryId',
       title: 'Entry ID',
       type: 'short-input',
-      placeholder: 'Filter by entry ID (optional)',
+      placeholder: 'Filter by entry ID',
       condition: { field: 'operation', value: 'list_threads' },
     },
     {
@@ -915,7 +915,7 @@ workspace-member.created
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max results (optional)',
+      placeholder: 'Max results',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -934,7 +934,7 @@ workspace-member.created
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
-      placeholder: 'Number of results to skip (optional)',
+      placeholder: 'Number of results to skip',
       mode: 'advanced',
       condition: {
         field: 'operation',
