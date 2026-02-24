@@ -1,38 +1,25 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-/**
- * Shared trigger dropdown options for all Confluence triggers
- */
 export const confluenceTriggerOptions = [
-  // Page Events
   { label: 'Page Created', id: 'confluence_page_created' },
   { label: 'Page Updated', id: 'confluence_page_updated' },
   { label: 'Page Removed', id: 'confluence_page_removed' },
   { label: 'Page Moved', id: 'confluence_page_moved' },
-  // Comment Events
   { label: 'Comment Created', id: 'confluence_comment_created' },
   { label: 'Comment Removed', id: 'confluence_comment_removed' },
-  // Blog Events
   { label: 'Blog Post Created', id: 'confluence_blog_created' },
   { label: 'Blog Post Updated', id: 'confluence_blog_updated' },
   { label: 'Blog Post Removed', id: 'confluence_blog_removed' },
-  // Attachment Events
   { label: 'Attachment Created', id: 'confluence_attachment_created' },
   { label: 'Attachment Removed', id: 'confluence_attachment_removed' },
-  // Space Events
   { label: 'Space Created', id: 'confluence_space_created' },
   { label: 'Space Updated', id: 'confluence_space_updated' },
-  // Label Events
   { label: 'Label Added', id: 'confluence_label_added' },
   { label: 'Label Removed', id: 'confluence_label_removed' },
-  // Generic
   { label: 'Generic Webhook (All Events)', id: 'confluence_webhook' },
 ]
 
-/**
- * Generates setup instructions for Confluence webhooks
- */
 export function confluenceSetupInstructions(eventType: string): string {
   const instructions = [
     '<strong>Note:</strong> You must have admin permissions in your Confluence workspace to create webhooks. See the <a href="https://developer.atlassian.com/cloud/confluence/modules/webhook/" target="_blank" rel="noopener noreferrer">Confluence webhook documentation</a> for details.',
@@ -52,9 +39,6 @@ export function confluenceSetupInstructions(eventType: string): string {
     .join('')
 }
 
-/**
- * Extra fields shared across Confluence triggers (webhook secret + optional domain)
- */
 export function buildConfluenceExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
@@ -82,10 +66,6 @@ export function buildConfluenceExtraFields(triggerId: string): SubBlockConfig[] 
   ]
 }
 
-/**
- * Extra fields for attachment triggers that support file downloads.
- * Adds email, API token, and include toggle on top of the base fields.
- */
 export function buildConfluenceAttachmentExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     ...buildConfluenceExtraFields(triggerId),
@@ -128,7 +108,6 @@ export function buildConfluenceAttachmentExtraFields(triggerId: string): SubBloc
 
 /**
  * Base webhook outputs common to all Confluence triggers.
- * Maps to the actual top-level fields in the Confluence webhook payload.
  */
 function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
   return {
@@ -148,28 +127,30 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
- * Shared content-entity output fields present on page, blog, comment, and attachment objects
- * in the actual Confluence webhook payload.
+ * Shared content-entity output fields present on page, blog, comment, and attachment objects.
  */
 function buildContentEntityFields(): Record<string, TriggerOutput> {
   return {
     id: { type: 'number', description: 'Content ID' },
     title: { type: 'string', description: 'Content title' },
-    contentType: { type: 'string', description: 'Content type (page, blogpost, comment, attachment)' },
+    contentType: {
+      type: 'string',
+      description: 'Content type (page, blogpost, comment, attachment)',
+    },
     version: { type: 'number', description: 'Version number' },
     spaceKey: { type: 'string', description: 'Space key the content belongs to' },
     creatorAccountId: { type: 'string', description: 'Account ID of the creator' },
     lastModifierAccountId: { type: 'string', description: 'Account ID of the last modifier' },
     self: { type: 'string', description: 'URL link to the content' },
     creationDate: { type: 'number', description: 'Creation timestamp (Unix epoch milliseconds)' },
-    modificationDate: { type: 'number', description: 'Last modification timestamp (Unix epoch milliseconds)' },
+    modificationDate: {
+      type: 'number',
+      description: 'Last modification timestamp (Unix epoch milliseconds)',
+    },
   }
 }
 
-/**
- * Page-related outputs for page events.
- * Matches the actual Confluence webhook payload for page_created, page_updated, etc.
- */
+/** Page-related outputs for page events. */
 export function buildPageOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -177,11 +158,7 @@ export function buildPageOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Comment-related outputs for comment events.
- * Matches the actual Confluence webhook payload for comment_created, comment_removed.
- * The comment object contains a `parent` field with the full parent page/blog object.
- */
+/** Comment-related outputs for comment events. */
 export function buildCommentOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -198,10 +175,7 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Blog post outputs for blog events.
- * Matches the actual Confluence webhook payload for blog_created, blog_updated, etc.
- */
+/** Blog post outputs for blog events. */
 export function buildBlogOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -209,10 +183,7 @@ export function buildBlogOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Attachment-related outputs for attachment events.
- * Matches the actual Confluence webhook payload for attachment_created, attachment_removed.
- */
+/** Attachment-related outputs for attachment events. */
 export function buildAttachmentOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -234,10 +205,7 @@ export function buildAttachmentOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Space-related outputs for space events.
- * Matches the actual Confluence webhook payload for space_created, space_updated.
- */
+/** Space-related outputs for space events. */
 export function buildSpaceOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -249,10 +217,7 @@ export function buildSpaceOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Label-related outputs for label events.
- * Matches the actual Confluence webhook payload for label_added, label_removed.
- */
+/** Label-related outputs for label events. */
 export function buildLabelOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -269,10 +234,7 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Combined outputs for the generic webhook trigger (all events).
- * Uses json type for entity fields since the shape varies by event type.
- */
+/** Combined outputs for the generic webhook trigger (all events). */
 export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
@@ -291,9 +253,6 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
   }
 }
 
-/**
- * Extracts page data from a Confluence webhook payload.
- */
 export function extractPageData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -303,9 +262,6 @@ export function extractPageData(body: any) {
   }
 }
 
-/**
- * Extracts comment data from a Confluence webhook payload.
- */
 export function extractCommentData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -315,9 +271,6 @@ export function extractCommentData(body: any) {
   }
 }
 
-/**
- * Extracts blog post data from a Confluence webhook payload.
- */
 export function extractBlogData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -327,9 +280,6 @@ export function extractBlogData(body: any) {
   }
 }
 
-/**
- * Extracts attachment data from a Confluence webhook payload.
- */
 export function extractAttachmentData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -339,9 +289,6 @@ export function extractAttachmentData(body: any) {
   }
 }
 
-/**
- * Extracts space data from a Confluence webhook payload.
- */
 export function extractSpaceData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -351,9 +298,6 @@ export function extractSpaceData(body: any) {
   }
 }
 
-/**
- * Extracts label data from a Confluence webhook payload.
- */
 export function extractLabelData(body: any) {
   return {
     timestamp: body.timestamp,
@@ -365,43 +309,52 @@ export function extractLabelData(body: any) {
 }
 
 /**
- * Checks if a Confluence webhook event matches a specific trigger
+ * Infers the entity category from a Confluence webhook payload.
+ * Unlike Jira, Confluence payloads have no `event`/`webhookEvent` field —
+ * we detect the category by which entity key is present in the body.
  */
-export function isConfluenceEventMatch(triggerId: string, event: string): boolean {
-  const eventMappings: Record<string, string[]> = {
-    // Page events
-    confluence_page_created: ['page_created'],
-    confluence_page_updated: ['page_updated'],
-    confluence_page_removed: ['page_removed', 'page_trashed'],
-    confluence_page_moved: ['page_moved'],
-    // Comment events
-    confluence_comment_created: ['comment_created'],
-    confluence_comment_removed: ['comment_removed'],
-    // Blog events
-    confluence_blog_created: ['blog_created'],
-    confluence_blog_updated: ['blog_updated'],
-    confluence_blog_removed: ['blog_removed', 'blog_trashed'],
-    // Attachment events
-    confluence_attachment_created: ['attachment_created'],
-    confluence_attachment_removed: ['attachment_removed', 'attachment_trashed'],
-    // Space events
-    confluence_space_created: ['space_created'],
-    confluence_space_updated: ['space_updated'],
-    // Label events
-    confluence_label_added: ['label_added', 'label_created'],
-    confluence_label_removed: ['label_removed', 'label_deleted'],
-    // Generic webhook accepts all events
-    confluence_webhook: ['*'],
-  }
+export function inferConfluenceEntityCategory(body: Record<string, unknown>): string | null {
+  if (body.comment) return 'comment'
+  if (body.attachment) return 'attachment'
+  if (body.blog || body.blogpost) return 'blog'
+  if (body.label) return 'label'
+  if (body.page) return 'page'
+  if (body.space) return 'space'
+  return null
+}
 
-  const expectedEvents = eventMappings[triggerId]
-  if (!expectedEvents) {
-    return false
-  }
-
-  if (expectedEvents.includes('*')) {
+/** Checks if a Confluence webhook payload matches a trigger's expected entity category. */
+export function isConfluencePayloadMatch(
+  triggerId: string,
+  body: Record<string, unknown>
+): boolean {
+  if (triggerId === 'confluence_webhook') {
     return true
   }
 
-  return expectedEvents.includes(event)
+  const triggerCategoryMap: Record<string, string> = {
+    confluence_page_created: 'page',
+    confluence_page_updated: 'page',
+    confluence_page_removed: 'page',
+    confluence_page_moved: 'page',
+    confluence_comment_created: 'comment',
+    confluence_comment_removed: 'comment',
+    confluence_blog_created: 'blog',
+    confluence_blog_updated: 'blog',
+    confluence_blog_removed: 'blog',
+    confluence_attachment_created: 'attachment',
+    confluence_attachment_removed: 'attachment',
+    confluence_space_created: 'space',
+    confluence_space_updated: 'space',
+    confluence_label_added: 'label',
+    confluence_label_removed: 'label',
+  }
+
+  const expectedCategory = triggerCategoryMap[triggerId]
+  if (!expectedCategory) {
+    return false
+  }
+
+  const actualCategory = inferConfluenceEntityCategory(body)
+  return actualCategory === expectedCategory
 }

@@ -28,7 +28,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
-import { isConfluenceEventMatch } from '@/triggers/confluence/utils'
+import { isConfluencePayloadMatch } from '@/triggers/confluence/utils'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
 import { isJiraEventMatch } from '@/triggers/jira/utils'
@@ -956,31 +956,24 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Confluence event filtering for event-specific triggers
     if (foundWebhook.provider === 'confluence') {
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
       const triggerId = providerConfig.triggerId as string | undefined
 
-      if (triggerId && triggerId !== 'confluence_webhook') {
-        // Confluence may use `event`, `webhookEvent`, or neither — check both
-        const event = (body.event || body.webhookEvent) as string | undefined
+      if (triggerId && !isConfluencePayloadMatch(triggerId, body)) {
+        logger.debug(
+          `[${options.requestId}] Confluence payload mismatch for trigger ${triggerId}. Skipping execution.`,
+          {
+            webhookId: foundWebhook.id,
+            workflowId: foundWorkflow.id,
+            triggerId,
+            bodyKeys: Object.keys(body),
+          }
+        )
 
-        if (event && !isConfluenceEventMatch(triggerId, event)) {
-          logger.debug(
-            `[${options.requestId}] Confluence event mismatch for trigger ${triggerId}. Event: ${event}. Skipping execution.`,
-            {
-              webhookId: foundWebhook.id,
-              workflowId: foundWorkflow.id,
-              triggerId,
-              receivedEvent: event,
-            }
-          )
-
-          // Return 200 OK to prevent Confluence from retrying
-          return NextResponse.json({
-            message: 'Event type does not match trigger configuration. Ignoring.',
-          })
-        }
+        return NextResponse.json({
+          message: 'Payload does not match trigger configuration. Ignoring.',
+        })
       }
     }
 
