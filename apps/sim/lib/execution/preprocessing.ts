@@ -97,6 +97,15 @@ export async function preprocessExecution(
   })
 
   // ========== STEP 1: Validate Workflow Exists ==========
+  if (prefetchedWorkflowRecord && prefetchedWorkflowRecord.id !== workflowId) {
+    logger.error(`[${requestId}] Prefetched workflow record ID mismatch`, {
+      expected: workflowId,
+      received: prefetchedWorkflowRecord.id,
+    })
+    throw new Error(
+      `Prefetched workflow record ID mismatch: expected ${workflowId}, got ${prefetchedWorkflowRecord.id}`
+    )
+  }
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
     try {
