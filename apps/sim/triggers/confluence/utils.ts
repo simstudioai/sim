@@ -309,11 +309,51 @@ export function extractLabelData(body: any) {
 }
 
 /**
- * Infers the entity category from a Confluence webhook payload.
- * Unlike Jira, Confluence payloads have no `event`/`webhookEvent` field —
- * we detect the category by which entity key is present in the body.
+ * Maps trigger IDs to the exact Confluence event strings they accept.
+ * Admin REST API webhooks include an `event` field (e.g. `"event": "page_created"`).
+ * Connect app webhooks do NOT — for those we fall back to entity-category matching.
  */
-export function inferConfluenceEntityCategory(body: Record<string, unknown>): string | null {
+const TRIGGER_EVENT_MAP: Record<string, string[]> = {
+  confluence_page_created: ['page_created'],
+  confluence_page_updated: ['page_updated'],
+  confluence_page_removed: ['page_removed', 'page_trashed'],
+  confluence_page_moved: ['page_moved'],
+  confluence_comment_created: ['comment_created'],
+  confluence_comment_removed: ['comment_removed'],
+  confluence_blog_created: ['blog_created'],
+  confluence_blog_updated: ['blog_updated'],
+  confluence_blog_removed: ['blog_removed', 'blog_trashed'],
+  confluence_attachment_created: ['attachment_created'],
+  confluence_attachment_removed: ['attachment_removed', 'attachment_trashed'],
+  confluence_space_created: ['space_created'],
+  confluence_space_updated: ['space_updated'],
+  confluence_label_added: ['label_added', 'label_created'],
+  confluence_label_removed: ['label_removed', 'label_deleted'],
+}
+
+const TRIGGER_CATEGORY_MAP: Record<string, string> = {
+  confluence_page_created: 'page',
+  confluence_page_updated: 'page',
+  confluence_page_removed: 'page',
+  confluence_page_moved: 'page',
+  confluence_comment_created: 'comment',
+  confluence_comment_removed: 'comment',
+  confluence_blog_created: 'blog',
+  confluence_blog_updated: 'blog',
+  confluence_blog_removed: 'blog',
+  confluence_attachment_created: 'attachment',
+  confluence_attachment_removed: 'attachment',
+  confluence_space_created: 'space',
+  confluence_space_updated: 'space',
+  confluence_label_added: 'label',
+  confluence_label_removed: 'label',
+}
+
+/**
+ * Infers the entity category from a Confluence webhook payload by checking
+ * which entity key is present in the body.
+ */
+function inferEntityCategory(body: Record<string, unknown>): string | null {
   if (body.comment) return 'comment'
   if (body.attachment) return 'attachment'
   if (body.blog || body.blogpost) return 'blog'
@@ -323,7 +363,13 @@ export function inferConfluenceEntityCategory(body: Record<string, unknown>): st
   return null
 }
 
-/** Checks if a Confluence webhook payload matches a trigger's expected entity category. */
+/**
+ * Checks if a Confluence webhook payload matches a trigger.
+ *
+ * Admin REST API webhooks (Settings > Webhooks) include an `event` field
+ * for exact action-level matching. Connect app webhooks omit it, so we
+ * fall back to entity-category matching (page vs comment vs blog, etc.).
+ */
 export function isConfluencePayloadMatch(
   triggerId: string,
   body: Record<string, unknown>
@@ -332,29 +378,15 @@ export function isConfluencePayloadMatch(
     return true
   }
 
-  const triggerCategoryMap: Record<string, string> = {
-    confluence_page_created: 'page',
-    confluence_page_updated: 'page',
-    confluence_page_removed: 'page',
-    confluence_page_moved: 'page',
-    confluence_comment_created: 'comment',
-    confluence_comment_removed: 'comment',
-    confluence_blog_created: 'blog',
-    confluence_blog_updated: 'blog',
-    confluence_blog_removed: 'blog',
-    confluence_attachment_created: 'attachment',
-    confluence_attachment_removed: 'attachment',
-    confluence_space_created: 'space',
-    confluence_space_updated: 'space',
-    confluence_label_added: 'label',
-    confluence_label_removed: 'label',
+  const event = body.event as string | undefined
+  if (event) {
+    const acceptedEvents = TRIGGER_EVENT_MAP[triggerId]
+    return acceptedEvents ? acceptedEvents.includes(event) : false
   }
 
-  const expectedCategory = triggerCategoryMap[triggerId]
+  const expectedCategory = TRIGGER_CATEGORY_MAP[triggerId]
   if (!expectedCategory) {
     return false
   }
-
-  const actualCategory = inferConfluenceEntityCategory(body)
-  return actualCategory === expectedCategory
+  return inferEntityCategory(body) === expectedCategory
 }
