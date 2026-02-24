@@ -76,7 +76,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         field: 'operation',
         value: ['list_calls'],
       },
-      required: { field: 'operation', value: 'list_calls' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -347,6 +347,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           'get_extensive_calls',
           'list_library_folders',
           'list_flows',
+          'list_trackers',
         ],
       },
       mode: 'advanced',
