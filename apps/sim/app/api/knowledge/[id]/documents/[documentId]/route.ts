@@ -281,6 +281,7 @@ export async function DELETE(
       resourceId: documentId,
       resourceName: accessCheck.document?.filename,
       description: `Deleted document "${documentId}" from knowledge base "${knowledgeBaseId}"`,
+      metadata: { fileName: accessCheck.document?.filename },
       request: req,
     })
 

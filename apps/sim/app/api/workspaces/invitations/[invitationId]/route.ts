@@ -189,6 +189,7 @@ export async function GET(
         actorEmail: session.user.email ?? undefined,
         resourceName: workspaceDetails.name,
         description: `Accepted workspace invitation to "${workspaceDetails.name}"`,
+        metadata: { targetEmail: invitation.email },
         request: req,
       })
 
@@ -255,7 +256,7 @@ export async function DELETE(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Revoked workspace invitation for ${invitation.email}`,
-      metadata: { invitationId, email: invitation.email },
+      metadata: { invitationId, targetEmail: invitation.email },
       request: _request,
     })
 

@@ -148,6 +148,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
       description: `Duplicated folder "${sourceFolder.name}" as "${name}"`,
+      metadata: {
+        sourceId: sourceFolder.id,
+        affected: { workflows: workflowStats.succeeded, folders: folderMapping.size },
+      },
       request: req,
     })
 

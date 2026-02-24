@@ -598,7 +598,12 @@ export async function PUT(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Organization invitation ${status} for ${orgInvitation.email}`,
-      metadata: { invitationId, email: orgInvitation.email, status },
+      metadata: {
+        invitationId,
+        targetEmail: orgInvitation.email,
+        targetRole: orgInvitation.role,
+        status,
+      },
       request: req,
     })
 

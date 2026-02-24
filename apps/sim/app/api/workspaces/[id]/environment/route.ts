@@ -140,7 +140,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       resourceType: AuditResourceType.ENVIRONMENT,
       resourceId: workspaceId,
       description: `Updated environment variables`,
-      metadata: { keysUpdated: Object.keys(variables) },
+      metadata: { variableCount: Object.keys(variables).length },
       request,
     })
 

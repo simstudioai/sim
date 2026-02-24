@@ -347,6 +347,9 @@ export async function DELETE(
       resourceId: workflowId,
       resourceName: workflowData.name,
       description: `Deleted workflow "${workflowData.name}"`,
+      metadata: {
+        deleteTemplates: deleteTemplatesParam === 'delete',
+      },
       request,
     })
 
