@@ -265,15 +265,7 @@ export async function preprocessExecution(
   }
 
   // ========== STEP 4: Get Subscription ==========
-  let userSubscription: SubscriptionInfo = null
-  try {
-    userSubscription = await getHighestPrioritySubscription(actorUserId)
-  } catch (error) {
-    logger.error(`[${requestId}] Error fetching subscription`, {
-      error,
-      actorUserId,
-    })
-  }
+  const userSubscription = await getHighestPrioritySubscription(actorUserId)
 
   // ========== STEP 5: Check Usage Limits ==========
   if (!skipUsageLimits) {
