@@ -222,6 +222,12 @@ interface BlockData {
   position: { x: number; y: number }
 }
 
+interface PendingConnectionContext {
+  sourceNodeId: string
+  sourceHandleId?: string
+  dropPosition: { x: number; y: number }
+}
+
 /**
  * Main workflow canvas content component.
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
@@ -254,6 +260,7 @@ const WorkflowContent = React.memo(() => {
   const workflowIdParam = params.workflowId as string
 
   const addNotification = useNotificationStore((state) => state.addNotification)
+  const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
 
   useEffect(() => {
     const OAUTH_CONNECT_PENDING_KEY = 'sim.oauth-connect-pending'
@@ -506,10 +513,35 @@ const WorkflowContent = React.memo(() => {
     )
 
   /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
-  const connectionSourceRef = useRef<{ nodeId: string; handleId: string } | null>(null)
+  const connectionSourceRef = useRef<{ nodeId: string; handleId?: string } | null>(null)
 
   /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
   const connectionCompletedRef = useRef(false)
+
+  /** Stores pending context for edge-drag-to-create flow until a block is selected. */
+  const pendingConnectionContextRef = useRef<PendingConnectionContext | null>(null)
+
+  const setPendingConnectionContext = useCallback((context: PendingConnectionContext) => {
+    pendingConnectionContextRef.current = context
+  }, [])
+
+  const clearPendingConnectionContext = useCallback(() => {
+    pendingConnectionContextRef.current = null
+  }, [])
+
+  const consumePendingConnectionContext = useCallback(() => {
+    const context = pendingConnectionContextRef.current
+    pendingConnectionContextRef.current = null
+    return context
+  }, [])
+
+  const wasSearchModalOpenRef = useRef(isSearchModalOpen)
+  useEffect(() => {
+    if (wasSearchModalOpenRef.current && !isSearchModalOpen) {
+      clearPendingConnectionContext()
+    }
+    wasSearchModalOpenRef.current = isSearchModalOpen
+  }, [isSearchModalOpen, clearPendingConnectionContext])
 
   /** Stores start positions for multi-node drag undo/redo recording. */
   const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
@@ -1444,6 +1476,69 @@ const WorkflowContent = React.memo(() => {
     []
   )
 
+  /**
+   * Creates an explicit edge from a pending edge-drag context to a newly created block.
+   * Returns undefined if the connection would violate subflow boundary rules.
+   */
+  const createPendingConnectionEdge = useCallback(
+    (
+      pendingConnection: PendingConnectionContext,
+      targetBlockId: string,
+      targetParentId: string | null
+    ): Edge | undefined => {
+      const sourceBlock = blocks[pendingConnection.sourceNodeId]
+      if (!sourceBlock) return undefined
+
+      const sourceHandle =
+        pendingConnection.sourceHandleId ||
+        determineSourceHandle({
+          id: pendingConnection.sourceNodeId,
+          type: sourceBlock.type,
+        })
+
+      const sourceParentId =
+        sourceBlock.data?.parentId ||
+        (sourceHandle === 'loop-start-source' || sourceHandle === 'parallel-start-source'
+          ? pendingConnection.sourceNodeId
+          : undefined)
+
+      const normalizedTargetParentId = targetParentId || undefined
+
+      // Mirror onConnect container-boundary rules for edge-drag-to-create flow.
+      if (
+        (sourceParentId && !normalizedTargetParentId) ||
+        (!sourceParentId && normalizedTargetParentId) ||
+        (sourceParentId && normalizedTargetParentId && sourceParentId !== normalizedTargetParentId)
+      ) {
+        addNotification({
+          level: 'info',
+          message: 'Block added, but connection was skipped due to subflow boundary rules.',
+          workflowId: activeWorkflowId || undefined,
+        })
+        return undefined
+      }
+
+      const isInsideContainer = Boolean(sourceParentId) || Boolean(normalizedTargetParentId)
+      const parentId = sourceParentId || normalizedTargetParentId
+
+      return {
+        id: crypto.randomUUID(),
+        source: pendingConnection.sourceNodeId,
+        sourceHandle,
+        target: targetBlockId,
+        targetHandle: 'target',
+        type: 'workflowEdge',
+        data: isInsideContainer
+          ? {
+              parentId,
+              isInsideContainer,
+            }
+          : undefined,
+      }
+    },
+    [blocks, determineSourceHandle, addNotification, activeWorkflowId]
+  )
+
   /** Gets the appropriate start handle for a container node (loop or parallel). */
   const getContainerStartHandle = useCallback(
     (containerId: string): string => {
@@ -1600,7 +1695,15 @@ const WorkflowContent = React.memo(() => {
    * @param position - Drop position in ReactFlow coordinates.
    */
   const handleToolbarDrop = useCallback(
-    (data: { type: string; enableTriggerMode?: boolean }, position: { x: number; y: number }) => {
+    (
+      data: {
+        type: string
+        enableTriggerMode?: boolean
+        presetOperation?: string
+        pendingConnectionContext?: PendingConnectionContext
+      },
+      position: { x: number; y: number }
+    ) => {
       if (!data.type || data.type === 'connectionBlock') return
 
       try {
@@ -1614,9 +1717,11 @@ const WorkflowContent = React.memo(() => {
           const baseName = data.type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-            targetParentId: null,
-          })
+          const autoConnectEdge = data.pendingConnectionContext
+            ? createPendingConnectionEdge(data.pendingConnectionContext, id, null)
+            : tryCreateAutoConnectEdge(position, id, {
+                targetParentId: null,
+              })
 
           addBlock(
             id,
@@ -1684,11 +1789,13 @@ const WorkflowContent = React.memo(() => {
             .filter((b) => b.data?.parentId === containerInfo.loopId)
             .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-            targetParentId: containerInfo.loopId,
-            existingChildBlocks,
-            containerId: containerInfo.loopId,
-          })
+          const autoConnectEdge = data.pendingConnectionContext
+            ? createPendingConnectionEdge(data.pendingConnectionContext, id, containerInfo.loopId)
+            : tryCreateAutoConnectEdge(relativePosition, id, {
+                targetParentId: containerInfo.loopId,
+                existingChildBlocks,
+                containerId: containerInfo.loopId,
+              })
 
           // Add block with parent info AND autoConnectEdge (atomic operation)
           addBlock(
@@ -1702,7 +1809,9 @@ const WorkflowContent = React.memo(() => {
             },
             containerInfo.loopId,
             'parent',
-            autoConnectEdge
+            autoConnectEdge,
+            undefined,
+            data.presetOperation ? { operation: data.presetOperation } : undefined
           )
 
           // Resize the container node to fit the new block
@@ -1712,9 +1821,11 @@ const WorkflowContent = React.memo(() => {
           // Centralized trigger constraints
           if (checkTriggerConstraints(data.type)) return
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-            targetParentId: null,
-          })
+          const autoConnectEdge = data.pendingConnectionContext
+            ? createPendingConnectionEdge(data.pendingConnectionContext, id, null)
+            : tryCreateAutoConnectEdge(position, id, {
+                targetParentId: null,
+              })
 
           // Regular canvas drop with auto-connect edge
           // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
@@ -1728,7 +1839,8 @@ const WorkflowContent = React.memo(() => {
             undefined,
             undefined,
             autoConnectEdge,
-            enableTriggerMode
+            enableTriggerMode,
+            data.presetOperation ? { operation: data.presetOperation } : undefined
           )
         }
       } catch (err) {
@@ -1743,6 +1855,7 @@ const WorkflowContent = React.memo(() => {
       addNotification,
       activeWorkflowId,
       tryCreateAutoConnectEdge,
+      createPendingConnectionEdge,
       checkTriggerConstraints,
     ]
   )
@@ -1759,6 +1872,20 @@ const WorkflowContent = React.memo(() => {
 
       if (!type) return
       if (type === 'connectionBlock') return
+
+      const pendingConnectionContext = consumePendingConnectionContext()
+      if (pendingConnectionContext) {
+        handleToolbarDrop(
+          {
+            type,
+            enableTriggerMode,
+            presetOperation,
+            pendingConnectionContext,
+          },
+          pendingConnectionContext.dropPosition
+        )
+        return
+      }
 
       const basePosition = getViewportCenter()
 
@@ -1829,6 +1956,8 @@ const WorkflowContent = React.memo(() => {
       )
     }
   }, [
+    consumePendingConnectionContext,
+    handleToolbarDrop,
     getViewportCenter,
     blocks,
     addBlock,
@@ -2762,6 +2891,14 @@ const WorkflowContent = React.memo(() => {
         x: clientPos.clientX,
         y: clientPos.clientY,
       })
+      const canvasElement = document.querySelector('.workflow-container') as HTMLElement | null
+      const canvasBounds = canvasElement?.getBoundingClientRect()
+      const isDropInsideCanvas = canvasBounds
+        ? clientPos.clientX >= canvasBounds.left &&
+          clientPos.clientX <= canvasBounds.right &&
+          clientPos.clientY >= canvasBounds.top &&
+          clientPos.clientY <= canvasBounds.bottom
+        : false
 
       // Find node under cursor
       const targetNode = findNodeAtPosition(flowPosition)
@@ -2774,11 +2911,19 @@ const WorkflowContent = React.memo(() => {
           target: targetNode.id,
           targetHandle: 'target',
         })
+      } else if (isDropInsideCanvas) {
+        // Edge dropped on empty canvas: open block search and remember context.
+        setPendingConnectionContext({
+          sourceNodeId: source.nodeId,
+          sourceHandleId: source.handleId,
+          dropPosition: flowPosition,
+        })
+        useSearchModalStore.getState().open()
       }
 
       connectionSourceRef.current = null
     },
-    [screenToFlowPosition, findNodeAtPosition, onConnect]
+    [screenToFlowPosition, findNodeAtPosition, onConnect, setPendingConnectionContext]
   )
 
   /** Handles node drag to detect container intersections and update highlighting. */
