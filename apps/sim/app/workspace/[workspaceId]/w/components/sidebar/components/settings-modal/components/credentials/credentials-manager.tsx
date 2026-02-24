@@ -775,20 +775,6 @@ export function CredentialsManager() {
     }
   }
 
-  const handleDeleteCredential = async () => {
-    if (!selectedCredential) return
-    if (selectedCredential.type === 'oauth') {
-      await handleDisconnectSelectedCredential()
-      return
-    }
-    try {
-      await deleteCredential.mutateAsync(selectedCredential.id)
-      setSelectedCredentialId(null)
-    } catch (error) {
-      logger.error('Failed to delete credential', error)
-    }
-  }
-
   const handleDeleteClick = (credential: WorkspaceCredential) => {
     setCredentialToDelete(credential)
     setShowDeleteConfirmDialog(true)
@@ -902,31 +888,6 @@ export function CredentialsManager() {
       logger.error('Failed to promote personal secret to workspace', error)
     } finally {
       setIsPromoting(false)
-    }
-  }
-
-  const handleDisconnectSelectedCredential = async () => {
-    if (!selectedCredential || selectedCredential.type !== 'oauth' || !selectedCredential.accountId)
-      return
-    if (!selectedCredential.providerId) return
-
-    try {
-      await disconnectOAuthService.mutateAsync({
-        provider: selectedCredential.providerId.split('-')[0] || selectedCredential.providerId,
-        providerId: selectedCredential.providerId,
-        serviceId: selectedCredential.providerId,
-        accountId: selectedCredential.accountId,
-      })
-
-      setSelectedCredentialId(null)
-      await refetchCredentials()
-      window.dispatchEvent(
-        new CustomEvent('oauth-credentials-updated', {
-          detail: { providerId: selectedCredential.providerId, workspaceId },
-        })
-      )
-    } catch (error) {
-      logger.error('Failed to disconnect credential account', error)
     }
   }
 
@@ -1689,7 +1650,7 @@ export function CredentialsManager() {
                     )}
                   <Button
                     variant='ghost'
-                    onClick={handleDeleteCredential}
+                    onClick={() => handleDeleteClick(selectedCredential)}
                     disabled={
                       deleteCredential.isPending || isPromoting || disconnectOAuthService.isPending
                     }
@@ -1766,13 +1727,15 @@ export function CredentialsManager() {
                     <Button variant='default' onClick={() => handleSelectCredential(credential)}>
                       Details
                     </Button>
-                    <Button
-                      variant='ghost'
-                      onClick={() => handleDeleteClick(credential)}
-                      disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
-                    >
-                      Delete
-                    </Button>
+                    {credential.role === 'admin' && (
+                      <Button
+                        variant='ghost'
+                        onClick={() => handleDeleteClick(credential)}
+                        disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
