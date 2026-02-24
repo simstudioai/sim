@@ -1537,7 +1537,7 @@ export function CredentialsManager() {
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px] rounded-[8px] border border-[var(--border-1)] px-[10px] py-[8px]'
+                        className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px]'
                       >
                         <div className='min-w-0'>
                           <p className='truncate font-medium text-[12px] text-[var(--text-primary)]'>
