@@ -368,7 +368,11 @@ export async function executeWorkflowCore(
         const { traceSpans, totalDuration } = buildTraceSpans(result)
 
         if (result.success && result.status !== 'paused') {
-          await updateWorkflowRunCounts(workflowId)
+          try {
+            await updateWorkflowRunCounts(workflowId)
+          } catch (runCountError) {
+            logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
+          }
         }
 
         if (result.status === 'cancelled') {

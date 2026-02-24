@@ -22,7 +22,6 @@ import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/ev
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -642,6 +641,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.info(`[${requestId}] Non-SSE execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })
+          await loggingSession.waitForCompletion()
           await loggingSession.markAsFailed(timeoutErrorMessage)
 
           return NextResponse.json(
@@ -697,20 +697,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-
-        // Fire-and-forget: execution-core.ts already handles logging via its own
-        // fire-and-forget call. The `completed` guard in LoggingSession prevents
-        // double-writes, so this is a no-op — but we avoid awaiting it to reduce
-        // error-response latency.
-        const { traceSpans, totalDuration } = executionResult
-          ? buildTraceSpans(executionResult)
-          : { traceSpans: [], totalDuration: 0 }
-
-        void loggingSession.safeCompleteWithError({
-          totalDurationMs: totalDuration || executionResult?.metadata?.duration,
-          error: { message: errorMessage },
-          traceSpans,
-        })
 
         return NextResponse.json(
           {
@@ -1041,6 +1027,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
                 executionId,
               })
+              await loggingSession.waitForCompletion()
               await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
             } else {
               try {
@@ -1056,6 +1043,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   executionId,
                   error: pauseError instanceof Error ? pauseError.message : String(pauseError),
                 })
+                await loggingSession.waitForCompletion()
                 await loggingSession.markAsFailed(
                   `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
                 )
@@ -1072,6 +1060,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 timeoutMs: timeoutController.timeoutMs,
               })
 
+              await loggingSession.waitForCompletion()
               await loggingSession.markAsFailed(timeoutErrorMessage)
 
               sendEvent({
@@ -1133,15 +1122,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`, { isTimeout })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-          const { traceSpans, totalDuration } = executionResult
-            ? buildTraceSpans(executionResult)
-            : { traceSpans: [], totalDuration: 0 }
-
-          await loggingSession.safeCompleteWithError({
-            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
-            error: { message: errorMessage },
-            traceSpans,
-          })
 
           sendEvent({
             type: 'execution:error',

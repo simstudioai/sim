@@ -91,6 +91,8 @@ export class LoggingSession {
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
   private completing = false
+  /** Tracks the in-flight completion promise so callers can await it */
+  private completionPromise: Promise<void> | null = null
   private accumulatedCost: AccumulatedCost = {
     total: BASE_EXECUTION_CHARGE,
     input: 0,
@@ -694,7 +696,27 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Wait for any in-flight fire-and-forget completion to finish.
+   * Used by callers (e.g. markAsFailed) that need to ensure completion
+   * has settled before overwriting execution status.
+   */
+  async waitForCompletion(): Promise<void> {
+    if (this.completionPromise) {
+      try {
+        await this.completionPromise
+      } catch {
+        /* already handled by safe* wrapper */
+      }
+    }
+  }
+
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
+    this.completionPromise = this._safeCompleteImpl(params)
+    return this.completionPromise
+  }
+
+  private async _safeCompleteImpl(params: SessionCompleteParams = {}): Promise<void> {
     try {
       await this.complete(params)
     } catch (error) {
@@ -714,6 +736,11 @@ export class LoggingSession {
   }
 
   async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
+    this.completionPromise = this._safeCompleteWithErrorImpl(params)
+    return this.completionPromise
+  }
+
+  private async _safeCompleteWithErrorImpl(params?: SessionErrorCompleteParams): Promise<void> {
     try {
       await this.completeWithError(params)
     } catch (error) {
@@ -735,6 +762,11 @@ export class LoggingSession {
   }
 
   async safeCompleteWithCancellation(params?: SessionCancelledParams): Promise<void> {
+    this.completionPromise = this._safeCompleteWithCancellationImpl(params)
+    return this.completionPromise
+  }
+
+  private async _safeCompleteWithCancellationImpl(params?: SessionCancelledParams): Promise<void> {
     try {
       await this.completeWithCancellation(params)
     } catch (error) {
@@ -755,6 +787,11 @@ export class LoggingSession {
   }
 
   async safeCompleteWithPause(params?: SessionPausedParams): Promise<void> {
+    this.completionPromise = this._safeCompleteWithPauseImpl(params)
+    return this.completionPromise
+  }
+
+  private async _safeCompleteWithPauseImpl(params?: SessionPausedParams): Promise<void> {
     try {
       await this.completeWithPause(params)
     } catch (error) {
