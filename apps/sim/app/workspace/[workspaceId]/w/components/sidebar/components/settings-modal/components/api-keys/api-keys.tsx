@@ -142,7 +142,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
             strokeWidth={2}
           />
           <Input
-            placeholder='Search API keys...'
+            placeholder='Search Sim keys...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -195,7 +195,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                   </div>
                   {workspaceKeys.length === 0 ? (
                     <div className='text-[13px] text-[var(--text-muted)]'>
-                      No workspace API keys yet
+                      No workspace Sim keys yet
                     </div>
                   ) : (
                     workspaceKeys.map((key) => (
@@ -301,7 +301,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                         </div>
                         {isConflict && (
                           <div className='text-[12px] text-[var(--text-error)] leading-tight'>
-                            Workspace API key with the same name overrides this. Rename your
+                            Workspace Sim key with the same name overrides this. Rename your
                             personal key to use it.
                           </div>
                         )}
@@ -317,7 +317,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                 filteredWorkspaceKeys.length === 0 &&
                 (personalKeys.length > 0 || workspaceKeys.length > 0) && (
                   <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                    No API keys found matching "{searchTerm}"
+                    No Sim keys found matching "{searchTerm}"
                   </div>
                 )}
             </>
@@ -331,7 +331,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           <div className='mt-auto flex items-center justify-between'>
             <div className='flex items-center gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Allow personal API keys
+                Allow personal Sim keys
               </span>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -383,7 +383,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete API key</ModalHeader>
+          <ModalHeader>Delete Sim key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Deleting{' '}

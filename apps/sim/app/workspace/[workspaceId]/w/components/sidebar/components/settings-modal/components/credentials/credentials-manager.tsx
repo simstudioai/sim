@@ -2,7 +2,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Check, Copy, Plus, RefreshCw, Search, Share2 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Plus, RefreshCw, Search, Share2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -71,8 +71,8 @@ type SecretScope = 'workspace' | 'personal'
 type SecretInputMode = 'single' | 'bulk'
 
 const createTypeOptions = [
-  { value: 'oauth', label: 'OAuth Account' },
   { value: 'secret', label: 'Secret' },
+  { value: 'oauth', label: 'OAuth Account' },
 ] as const
 
 interface ParsedEnvEntry {
@@ -185,7 +185,7 @@ export function CredentialsManager() {
   const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('admin')
   const [memberUserId, setMemberUserId] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createType, setCreateType] = useState<CreateCredentialType>('oauth')
+  const [createType, setCreateType] = useState<CreateCredentialType>('secret')
   const [createSecretScope, setCreateSecretScope] = useState<SecretScope>('workspace')
   const [createDisplayName, setCreateDisplayName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
@@ -193,7 +193,7 @@ export function CredentialsManager() {
   const [createEnvValue, setCreateEnvValue] = useState('')
   const [createOAuthProviderId, setCreateOAuthProviderId] = useState('')
   const [createSecretInputMode, setCreateSecretInputMode] = useState<SecretInputMode>('single')
-  const [createBulkText, setCreateBulkText] = useState('')
+  const [createBulkEntries, setCreateBulkEntries] = useState<ParsedEnvEntry[]>([])
   const [createError, setCreateError] = useState<string | null>(null)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [selectedEnvValueDraft, setSelectedEnvValueDraft] = useState('')
@@ -550,14 +550,14 @@ export function CredentialsManager() {
   }, [selectedCredential])
 
   const resetCreateForm = () => {
-    setCreateType('oauth')
+    setCreateType('secret')
     setCreateSecretScope('workspace')
     setCreateSecretInputMode('single')
     setCreateDisplayName('')
     setCreateDescription('')
     setCreateEnvKey('')
     setCreateEnvValue('')
-    setCreateBulkText('')
+    setCreateBulkEntries([])
     setCreateOAuthProviderId('')
     setCreateError(null)
     setShowCreateOAuthRequiredModal(false)
@@ -656,7 +656,7 @@ export function CredentialsManager() {
       setShowCreateModal(false)
       resetCreateForm()
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create credential'
+      const message = error instanceof Error ? error.message : 'Failed to create secret'
       setCreateError(message)
       logger.error('Failed to create credential', error)
     }
@@ -666,14 +666,40 @@ export function CredentialsManager() {
     if (!workspaceId) return
     setCreateError(null)
 
-    const { entries, errors } = parseEnvText(createBulkText)
-    if (errors.length > 0) {
-      setCreateError(errors.join('\n'))
+    const entries = createBulkEntries
+      .map((e) => ({ key: e.key.trim(), value: e.value.trim() }))
+      .filter((e) => e.key || e.value)
+
+    if (entries.length === 0) {
+      setCreateError('Add at least one secret.')
       return
     }
 
-    if (entries.length === 0) {
-      setCreateError('No valid KEY=VALUE pairs found. Add one per line, e.g. API_KEY=sk-abc123')
+    const errors: string[] = []
+    const seenKeys = new Set<string>()
+    for (let i = 0; i < entries.length; i++) {
+      const { key, value } = entries[i]
+      if (!key) {
+        errors.push(`Row ${i + 1}: empty key`)
+        continue
+      }
+      if (!isValidEnvVarName(key)) {
+        errors.push(`Row ${i + 1}: "${key}" must contain only letters, numbers, and underscores`)
+        continue
+      }
+      if (!value) {
+        errors.push(`Row ${i + 1}: "${key}" has an empty value`)
+        continue
+      }
+      if (seenKeys.has(key.toUpperCase())) {
+        errors.push(`Row ${i + 1}: duplicate key "${key}"`)
+        continue
+      }
+      seenKeys.add(key.toUpperCase())
+    }
+
+    if (errors.length > 0) {
+      setCreateError(errors.join('\n'))
       return
     }
 
@@ -994,8 +1020,8 @@ export function CredentialsManager() {
         if (!open) resetCreateForm()
       }}
     >
-      <ModalContent size='md'>
-        <ModalHeader>Create Credential</ModalHeader>
+      <ModalContent size='lg'>
+        <ModalHeader>Create Secret</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[12px]'>
             <div>
@@ -1014,31 +1040,10 @@ export function CredentialsManager() {
                     setCreateType(value as CreateCredentialType)
                     setCreateError(null)
                   }}
-                  placeholder='Select credential type'
+                  placeholder='Select type'
                 />
               </div>
             </div>
-
-            {createType === 'secret' && (
-              <div>
-                <Label>Mode</Label>
-                <div className='mt-[6px]'>
-                  <Combobox
-                    options={[
-                      { value: 'single', label: 'Single' },
-                      { value: 'bulk', label: 'Bulk' },
-                    ]}
-                    value={createSecretInputMode === 'single' ? 'Single' : 'Bulk'}
-                    selectedValue={createSecretInputMode}
-                    onChange={(value) => {
-                      setCreateSecretInputMode(value as SecretInputMode)
-                      setCreateError(null)
-                    }}
-                    placeholder='Select mode'
-                  />
-                </div>
-              </div>
-            )}
 
             {createType === 'oauth' ? (
               <div className='flex flex-col gap-[10px]'>
@@ -1049,7 +1054,7 @@ export function CredentialsManager() {
                   <Input
                     value={createDisplayName}
                     onChange={(event) => setCreateDisplayName(event.target.value)}
-                    placeholder='Credential name'
+                    placeholder='Secret name'
                     autoComplete='off'
                     className='mt-[6px]'
                   />
@@ -1106,7 +1111,7 @@ export function CredentialsManager() {
                     <div className='flex items-start gap-[10px]'>
                       <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
                       <p className='text-[12px] text-red-700 dark:text-red-300'>
-                        A credential named{' '}
+                        A secret named{' '}
                         <span className='font-medium'>{existingOAuthDisplayName.displayName}</span>{' '}
                         already exists.
                       </p>
@@ -1116,73 +1121,58 @@ export function CredentialsManager() {
               </div>
             ) : (
               <div className='flex flex-col gap-[10px]'>
-                <div>
-                  <Label className='block'>Scope</Label>
-                  <ButtonGroup
-                    value={createSecretScope}
-                    onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
-                    className='mt-[6px]'
-                  >
-                    <ButtonGroupItem
-                      value='workspace'
-                      className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
-                    >
-                      Workspace
-                    </ButtonGroupItem>
-                    <ButtonGroupItem
-                      value='personal'
-                      className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
-                    >
-                      Personal
-                    </ButtonGroupItem>
-                  </ButtonGroup>
-                  <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                    {createSecretScope === 'workspace'
-                      ? 'Shared across the workspace. All members can use it.'
-                      : 'Only visible to you. Other members cannot use it.'}
-                  </p>
-                </div>
                 {createSecretInputMode === 'single' ? (
                   <>
                     <div>
-                      <Label>
-                        Secret key<span className='ml-1'>*</span>
-                      </Label>
-                      <Input
-                        value={createEnvKey}
-                        onChange={(event) => {
-                          setCreateEnvKey(event.target.value)
-                        }}
-                        placeholder='API_KEY'
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        autoCorrect='off'
-                        spellCheck={false}
-                        data-lpignore='true'
-                        data-1p-ignore='true'
-                        className='mt-[6px]'
-                      />
-                      <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                        Use it in blocks as {'{{KEY}}'}, for example {'{{API_KEY}}'}.
-                      </p>
-                    </div>
-                    <div>
-                      <Label>
-                        Secret value<span className='ml-1'>*</span>
-                      </Label>
-                      <Input
-                        type='password'
-                        value={createEnvValue}
-                        onChange={(event) => setCreateEnvValue(event.target.value)}
-                        placeholder='Enter secret value'
-                        autoComplete='new-password'
-                        autoCapitalize='none'
-                        autoCorrect='off'
-                        spellCheck={false}
-                        data-lpignore='true'
-                        data-1p-ignore='true'
-                        className='mt-[6px]'
-                      />
+                      <div className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-end'>
+                        <Label>
+                          Key<span className='ml-1'>*</span>
+                        </Label>
+                        <div />
+                        <Label>
+                          Value<span className='ml-1'>*</span>
+                        </Label>
+                      </div>
+                      <div className='mt-[8px] grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-center'>
+                        <Input
+                          value={createEnvKey}
+                          onChange={(event) => {
+                            setCreateEnvKey(event.target.value)
+                          }}
+                          onPaste={(event) => {
+                            const pasted = event.clipboardData.getData('text')
+                            if (pasted.includes('=') && pasted.includes('\n')) {
+                              event.preventDefault()
+                              const { entries } = parseEnvText(pasted)
+                              if (entries.length > 0) {
+                                setCreateSecretInputMode('bulk')
+                                setCreateBulkEntries(entries)
+                                setCreateError(null)
+                              }
+                            }
+                          }}
+                          placeholder='API_KEY'
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          autoCorrect='off'
+                          spellCheck={false}
+                          data-lpignore='true'
+                          data-1p-ignore='true'
+                        />
+                        <div />
+                        <Input
+                          type='password'
+                          value={createEnvValue}
+                          onChange={(event) => setCreateEnvValue(event.target.value)}
+                          placeholder='Value'
+                          autoComplete='new-password'
+                          autoCapitalize='none'
+                          autoCorrect='off'
+                          spellCheck={false}
+                          data-lpignore='true'
+                          data-1p-ignore='true'
+                        />
+                      </div>
                     </div>
                     <div>
                       <Label>Description</Label>
@@ -1195,63 +1185,119 @@ export function CredentialsManager() {
                         className='mt-[6px] min-h-[80px] resize-none'
                       />
                     </div>
-
-                    {selectedExistingEnvCredential && (
-                      <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-                        <div className='flex items-start gap-[10px]'>
-                          <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                          <p className='text-[12px] text-red-700 dark:text-red-300'>
-                            A secret with key{' '}
-                            <span className='font-medium'>
-                              {selectedExistingEnvCredential.displayName}
-                            </span>{' '}
-                            already exists.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {!selectedExistingEnvCredential && crossScopeEnvConflict && (
-                      <div className='rounded-[8px] border border-amber-500/50 bg-amber-50 p-[12px] dark:bg-amber-950/30'>
-                        <div className='flex items-start gap-[10px]'>
-                          <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400' />
-                          <p className='text-[12px] text-amber-700 dark:text-amber-300'>
-                            A workspace secret with key{' '}
-                            <span className='font-medium'>{crossScopeEnvConflict.envKey}</span>{' '}
-                            already exists. Workspace secrets take precedence at runtime.
-                          </p>
-                        </div>
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div>
-                    <Label>Secrets</Label>
-                    <Textarea
-                      value={createBulkText}
-                      onChange={(event) => {
-                        setCreateBulkText(event.target.value)
-                        setCreateError(null)
-                      }}
-                      placeholder={
-                        'OPENAI_API_KEY=sk-abc123\nANTHROPIC_API_KEY=sk-ant-xyz\nSTRIPE_SECRET=sk_live_...'
-                      }
-                      autoComplete='off'
-                      spellCheck={false}
-                      className='mt-[6px] min-h-[160px] resize-none font-mono text-[12px]'
-                    />
-                    <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
-                      Paste KEY=VALUE pairs, one per line. Lines starting with # are ignored.
-                    </p>
-                    {createBulkText.trim()
-                      ? (() => {
-                          const { entries } = parseEnvText(createBulkText)
-                          return entries.length > 0 ? (
-                            <p className='mt-[2px] text-[11px] text-[var(--text-secondary)]'>
-                              {entries.length} secret{entries.length === 1 ? '' : 's'} detected
-                            </p>
-                          ) : null
-                        })()
-                      : null}
+                    <Label>Secrets ({createBulkEntries.length})</Label>
+                    <div className='mt-[6px] grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_28px] items-end'>
+                      <span className='text-[11px] text-[var(--text-secondary)]'>Key</span>
+                      <div />
+                      <span className='text-[11px] text-[var(--text-secondary)]'>Value</span>
+                      <div />
+                    </div>
+                    <div className='mt-[4px] flex max-h-[240px] flex-col gap-[4px] overflow-y-auto'>
+                      {createBulkEntries.map((entry, index) => (
+                        <div
+                          key={index}
+                          className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_28px] items-center'
+                        >
+                          <Input
+                            value={entry.key}
+                            onChange={(event) => {
+                              const updated = [...createBulkEntries]
+                              updated[index] = { ...entry, key: event.target.value }
+                              setCreateBulkEntries(updated)
+                            }}
+                            placeholder='KEY'
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            autoCorrect='off'
+                            spellCheck={false}
+                            data-lpignore='true'
+                            data-1p-ignore='true'
+                          />
+                          <div />
+                          <Input
+                            type='password'
+                            value={entry.value}
+                            onChange={(event) => {
+                              const updated = [...createBulkEntries]
+                              updated[index] = { ...entry, value: event.target.value }
+                              setCreateBulkEntries(updated)
+                            }}
+                            placeholder='Value'
+                            autoComplete='new-password'
+                            autoCapitalize='none'
+                            autoCorrect='off'
+                            spellCheck={false}
+                            data-lpignore='true'
+                            data-1p-ignore='true'
+                          />
+                          <Button
+                            variant='ghost'
+                            className='h-[28px] w-[28px] p-0'
+                            onClick={() => {
+                              const updated = createBulkEntries.filter((_, i) => i !== index)
+                              if (updated.length === 0) {
+                                setCreateSecretInputMode('single')
+                              }
+                              setCreateBulkEntries(updated)
+                            }}
+                          >
+                            <X className='h-[12px] w-[12px]' />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <Label className='block'>Scope</Label>
+                  <div className='mt-[8px]'>
+                    <ButtonGroup
+                      value={createSecretScope}
+                      onValueChange={(value) => setCreateSecretScope(value as SecretScope)}
+                    >
+                      <ButtonGroupItem
+                        value='workspace'
+                        className='h-[28px] min-w-[80px] px-[10px] py-0 text-[12px]'
+                      >
+                        Workspace
+                      </ButtonGroupItem>
+                      <ButtonGroupItem
+                        value='personal'
+                        className='h-[28px] min-w-[72px] px-[10px] py-0 text-[12px]'
+                      >
+                        Personal
+                      </ButtonGroupItem>
+                    </ButtonGroup>
+                  </div>
+                </div>
+
+                {selectedExistingEnvCredential && (
+                  <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
+                    <div className='flex items-start gap-[10px]'>
+                      <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+                      <p className='text-[12px] text-red-700 dark:text-red-300'>
+                        A secret with key{' '}
+                        <span className='font-medium'>
+                          {selectedExistingEnvCredential.displayName}
+                        </span>{' '}
+                        already exists.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {!selectedExistingEnvCredential && crossScopeEnvConflict && (
+                  <div className='rounded-[8px] border border-amber-500/50 bg-amber-50 p-[12px] dark:bg-amber-950/30'>
+                    <div className='flex items-start gap-[10px]'>
+                      <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400' />
+                      <p className='text-[12px] text-amber-700 dark:text-amber-300'>
+                        A workspace secret with key{' '}
+                        <span className='font-medium'>{crossScopeEnvConflict.envKey}</span> already
+                        exists. Workspace secrets take precedence at runtime.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1283,7 +1329,7 @@ export function CredentialsManager() {
                   connectOAuthService.isPending ||
                   Boolean(existingOAuthDisplayName)
                 : createSecretInputMode === 'bulk'
-                  ? !createBulkText.trim()
+                  ? createBulkEntries.length === 0
                   : !createEnvKey.trim() ||
                     !createEnvValue.trim() ||
                     Boolean(selectedExistingEnvCredential)) ||
@@ -1329,7 +1375,7 @@ export function CredentialsManager() {
     <Modal open={showDeleteConfirmDialog} onOpenChange={setShowDeleteConfirmDialog}>
       <ModalContent size='sm'>
         <ModalHeader>
-          {credentialToDelete?.type === 'oauth' ? 'Disconnect Credential' : 'Delete Credential'}
+          {credentialToDelete?.type === 'oauth' ? 'Disconnect Secret' : 'Delete Secret'}
         </ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
@@ -1400,7 +1446,7 @@ export function CredentialsManager() {
                             )}
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content>Copy credential ID</Tooltip.Content>
+                        <Tooltip.Content>Copy secret ID</Tooltip.Content>
                       </Tooltip.Root>
                     </div>
                     <Input
@@ -1637,15 +1683,11 @@ export function CredentialsManager() {
 
           <div className='mt-auto flex items-center justify-between'>
             <div className='flex items-center gap-[8px]'>
+              <Button onClick={() => setSelectedCredentialId(null)} variant='active'>
+                Back
+              </Button>
               {isSelectedAdmin && (
                 <>
-                  <Button
-                    variant='default'
-                    onClick={handleSaveDetails}
-                    disabled={!isDetailsDirty || isSavingDetails}
-                  >
-                    {isSavingDetails ? 'Saving...' : 'Save'}
-                  </Button>
                   {selectedCredential.type === 'oauth' && (
                     <Button
                       variant='default'
@@ -1689,9 +1731,15 @@ export function CredentialsManager() {
                 </>
               )}
             </div>
-            <Button onClick={() => setSelectedCredentialId(null)} variant='tertiary'>
-              Back
-            </Button>
+            {isSelectedAdmin && (
+              <Button
+                variant='tertiary'
+                onClick={handleSaveDetails}
+                disabled={!isDetailsDirty || isSavingDetails}
+              >
+                {isSavingDetails ? 'Saving...' : 'Save'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1712,7 +1760,7 @@ export function CredentialsManager() {
               strokeWidth={2}
             />
             <UiInput
-              placeholder='Search credentials...'
+              placeholder='Search secrets...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={credentialsLoading}
@@ -1784,7 +1832,7 @@ export function CredentialsManager() {
               })}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                  No credentials found matching &ldquo;{searchTerm}&rdquo;
+                  No secrets found matching &ldquo;{searchTerm}&rdquo;
                 </div>
               )}
             </div>

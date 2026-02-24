@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import {
   Card,
-  Connections,
   HexSimple,
   Key,
   SModal,
@@ -32,6 +31,7 @@ import {
   SModalSidebarItem,
   SModalSidebarSection,
   SModalSidebarSectionTitle,
+  TerminalWindow,
 } from '@/components/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -153,11 +153,11 @@ const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'credentials', label: 'Credentials', icon: Connections, section: 'account' },
+  { id: 'credentials', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',
@@ -461,7 +461,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
           <DialogPrimitive.Description>
-            Configure your workspace settings, credentials, and preferences
+            Configure your workspace settings, secrets, and preferences
           </DialogPrimitive.Description>
         </VisuallyHidden.Root>
 
