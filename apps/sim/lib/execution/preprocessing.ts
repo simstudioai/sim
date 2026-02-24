@@ -480,7 +480,7 @@ async function logPreprocessingError(params: {
 
   try {
     const session =
-      loggingSession || new LoggingSession(workflowId, executionId, triggerType as any, requestId)
+      loggingSession || new LoggingSession(workflowId, executionId, triggerType, requestId)
 
     await session.safeStart({
       userId,

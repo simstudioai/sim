@@ -702,10 +702,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // fire-and-forget call. The `completed` guard in LoggingSession prevents
         // double-writes, so this is a no-op — but we avoid awaiting it to reduce
         // error-response latency.
+        const { traceSpans, totalDuration } = executionResult
+          ? buildTraceSpans(executionResult)
+          : { traceSpans: [], totalDuration: 0 }
+
         void loggingSession.safeCompleteWithError({
-          totalDurationMs: executionResult?.metadata?.duration,
+          totalDurationMs: totalDuration || executionResult?.metadata?.duration,
           error: { message: errorMessage },
-          traceSpans: executionResult?.logs as any,
+          traceSpans,
         })
 
         return NextResponse.json(
