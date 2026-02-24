@@ -239,34 +239,15 @@ export class LoggingSession {
           workflowState: this.workflowState,
           deploymentVersionId,
         })
-
-        if (this.requestId) {
-          logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
-        }
       } else {
         this.isResume = true
         await this.loadExistingCost()
-        if (this.requestId) {
-          logger.debug(
-            `[${this.requestId}] Resuming logging for existing execution ${this.executionId}`
-          )
-        }
       }
     } catch (error) {
       if (this.requestId) {
         logger.error(`[${this.requestId}] Failed to start logging:`, error)
       }
       throw error
-    }
-  }
-
-  /**
-   * Set up logging on an executor instance
-   * Note: Logging now works through trace spans only, no direct executor integration needed
-   */
-  setupExecutor(executor: any): void {
-    if (this.requestId) {
-      logger.debug(`[${this.requestId}] Logging session ready for execution ${this.executionId}`)
     }
   }
 
@@ -340,10 +321,6 @@ export class LoggingSession {
         } catch (_e) {
           // Silently fail
         }
-      }
-
-      if (this.requestId) {
-        logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (error) {
       this.completing = false

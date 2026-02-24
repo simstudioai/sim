@@ -342,8 +342,6 @@ export async function executeWorkflowCore(
       contextExtensions,
     })
 
-    loggingSession.setupExecutor(executorInstance)
-
     // Convert initial workflow variables to their native types
     if (workflowVariables) {
       for (const [varId, variable] of Object.entries(workflowVariables)) {
