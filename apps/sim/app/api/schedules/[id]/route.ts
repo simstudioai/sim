@@ -116,6 +116,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Reactivated schedule for workflow ${schedule.workflowId}`,
+      metadata: { cronExpression: schedule.cronExpression, timezone: schedule.timezone },
       request,
     })
 

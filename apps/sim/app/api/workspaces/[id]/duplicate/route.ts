@@ -56,6 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       resourceId: result.id,
       resourceName: name,
       description: `Duplicated workspace to "${name}"`,
+      metadata: {
+        sourceWorkspaceId,
+        affected: { workflows: result.workflowsCount, folders: result.foldersCount },
+      },
       request: req,
     })
 

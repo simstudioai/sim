@@ -271,6 +271,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: id,
       resourceName: workflowData?.name,
       description: `Deployed workflow "${workflowData?.name || id}"`,
+      metadata: { version: deploymentVersionId },
       request,
     })
 

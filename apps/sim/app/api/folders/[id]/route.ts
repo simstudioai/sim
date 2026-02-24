@@ -178,6 +178,12 @@ export async function DELETE(
       resourceId: id,
       resourceName: existingFolder.name,
       description: `Deleted folder "${existingFolder.name}"`,
+      metadata: {
+        affected: {
+          workflows: deletionStats.workflows,
+          subfolders: deletionStats.folders - 1,
+        },
+      },
       request,
     })
 

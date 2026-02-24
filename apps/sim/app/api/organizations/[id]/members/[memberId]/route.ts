@@ -173,8 +173,15 @@ export async function PUT(
     }
 
     const targetMember = await db
-      .select()
+      .select({
+        id: member.id,
+        role: member.role,
+        userId: member.userId,
+        email: user.email,
+        name: user.name,
+      })
       .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
       .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
@@ -223,7 +230,12 @@ export async function PUT(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Changed role for member ${memberId} to ${role}`,
-      metadata: { targetUserId: memberId, newRole: role },
+      metadata: {
+        targetUserId: memberId,
+        targetEmail: targetMember[0].email ?? undefined,
+        targetName: targetMember[0].name ?? undefined,
+        changes: [{ field: 'role', from: targetMember[0].role, to: role }],
+      },
       request,
     })
 
@@ -286,8 +298,9 @@ export async function DELETE(
     }
 
     const targetMember = await db
-      .select({ id: member.id, role: member.role })
+      .select({ id: member.id, role: member.role, email: user.email, name: user.name })
       .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
       .where(and(eq(member.organizationId, organizationId), eq(member.userId, targetUserId)))
       .limit(1)
 
@@ -331,7 +344,12 @@ export async function DELETE(
         session.user.id === targetUserId
           ? 'Left the organization'
           : `Removed member ${targetUserId} from organization`,
-      metadata: { targetUserId, wasSelfRemoval: session.user.id === targetUserId },
+      metadata: {
+        targetUserId,
+        targetEmail: targetMember[0].email ?? undefined,
+        targetName: targetMember[0].name ?? undefined,
+        wasSelfRemoval: session.user.id === targetUserId,
+      },
       request,
     })
 

@@ -150,6 +150,7 @@ export async function POST(
     })
 
     recordAudit({
+      workspaceId: null,
       actorId: session.user.id,
       actorName: session.user.name,
       actorEmail: session.user.email,
@@ -158,7 +159,7 @@ export async function POST(
       resourceId: id,
       resourceName: result.set.name,
       description: `Resent credential set invitation to ${invitation.email}`,
-      metadata: { invitationId, email: invitation.email },
+      metadata: { invitationId, targetEmail: invitation.email },
       request: req,
     })
 
