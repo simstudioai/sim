@@ -22,6 +22,7 @@ import {
 } from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeployAPI')
 
@@ -86,7 +87,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           variables: workflowRecord?.variables || {},
         }
         const { hasWorkflowChanged } = await import('@/lib/workflows/comparison')
-        needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
+        needsRedeployment = hasWorkflowChanged(
+          currentState as WorkflowState,
+          active.state as WorkflowState
+        )
       }
     }
 

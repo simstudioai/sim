@@ -3,6 +3,7 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
@@ -68,7 +69,7 @@ export interface PreprocessExecutionResult {
 }
 
 type WorkflowRecord = typeof workflow.$inferSelect
-type SubscriptionInfo = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
+type SubscriptionInfo = HighestPrioritySubscription
 
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
