@@ -641,7 +641,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.info(`[${requestId}] Non-SSE execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })
-          await loggingSession.waitForCompletion()
           await loggingSession.markAsFailed(timeoutErrorMessage)
 
           return NextResponse.json(
@@ -1027,7 +1026,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
                 executionId,
               })
-              await loggingSession.waitForCompletion()
               await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
             } else {
               try {
@@ -1043,7 +1041,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   executionId,
                   error: pauseError instanceof Error ? pauseError.message : String(pauseError),
                 })
-                await loggingSession.waitForCompletion()
                 await loggingSession.markAsFailed(
                   `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
                 )
@@ -1060,7 +1057,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 timeoutMs: timeoutController.timeoutMs,
               })
 
-              await loggingSession.waitForCompletion()
               await loggingSession.markAsFailed(timeoutErrorMessage)
 
               sendEvent({

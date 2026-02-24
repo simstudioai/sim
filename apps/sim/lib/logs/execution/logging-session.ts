@@ -675,8 +675,8 @@ export class LoggingSession {
 
   /**
    * Wait for any in-flight fire-and-forget completion to finish.
-   * Used by callers (e.g. markAsFailed) that need to ensure completion
-   * has settled before overwriting execution status.
+   * Called internally by markAsFailed to ensure completion has settled
+   * before overwriting execution status.
    */
   async waitForCompletion(): Promise<void> {
     if (this.completionPromise) {
@@ -793,6 +793,7 @@ export class LoggingSession {
   }
 
   async markAsFailed(errorMessage?: string): Promise<void> {
+    await this.waitForCompletion()
     await LoggingSession.markExecutionAsFailed(this.executionId, errorMessage, this.requestId)
   }
 
