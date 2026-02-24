@@ -139,7 +139,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
     {
       id: 'values',
       title: 'Values',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{"name": "Acme Corp", "domains": [{"domain": "acme.com"}]}',
       condition: {
         field: 'operation',
@@ -184,7 +184,7 @@ Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}
     {
       id: 'filter',
       title: 'Filter',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{"name": "John Smith"} (optional)',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
@@ -215,7 +215,7 @@ Empty (list all): {}`,
     {
       id: 'sorts',
       title: 'Sort',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"direction":"asc","attribute":"name"}] (optional)',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
@@ -394,7 +394,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
     {
       id: 'taskLinkedRecords',
       title: 'Linked Records',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"target_object":"people","target_record_id":"..."}] (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
@@ -420,7 +420,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
     {
       id: 'taskAssignees',
       title: 'Assignees',
-      type: 'long-input',
+      type: 'code',
       placeholder:
         '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}] (optional)',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
@@ -622,7 +622,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
     {
       id: 'entryValues',
       title: 'Entry Values',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{"attribute_slug": "value"} (optional)',
       condition: {
         field: 'operation',
@@ -652,7 +652,7 @@ Keys are list attribute slugs. Values follow Attio attribute format.
     {
       id: 'entryFilter',
       title: 'Filter',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{"attribute": {"$operator": "value"}} (optional)',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
@@ -679,7 +679,7 @@ Logical: $and, $or, $not
     {
       id: 'entrySorts',
       title: 'Sort',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"direction":"asc","attribute":"created_at"}] (optional)',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
@@ -870,7 +870,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
     {
       id: 'webhookSubscriptions',
       title: 'Subscriptions',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"event_type":"record.created","filter":{"object_id":"..."}}]',
       condition: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
       required: { field: 'operation', value: 'create_webhook' },
