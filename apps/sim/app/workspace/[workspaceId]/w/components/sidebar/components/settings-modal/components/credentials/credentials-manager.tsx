@@ -204,6 +204,7 @@ export function CredentialsManager() {
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
   const [credentialToDelete, setCredentialToDelete] = useState<WorkspaceCredential | null>(null)
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
 
@@ -804,16 +805,19 @@ export function CredentialsManager() {
 
   const handleDeleteClick = (credential: WorkspaceCredential) => {
     setCredentialToDelete(credential)
+    setDeleteError(null)
     setShowDeleteConfirmDialog(true)
   }
 
   const handleConfirmDelete = async () => {
     if (!credentialToDelete) return
-    setShowDeleteConfirmDialog(false)
+    setDeleteError(null)
 
     try {
       if (credentialToDelete.type === 'oauth') {
         if (!credentialToDelete.accountId || !credentialToDelete.providerId) {
+          const errorMessage = 'Cannot disconnect: missing account information. Please try reconnecting this credential first.'
+          setDeleteError(errorMessage)
           logger.error('Cannot disconnect OAuth credential: missing accountId or providerId')
           return
         }
@@ -835,10 +839,12 @@ export function CredentialsManager() {
       if (selectedCredentialId === credentialToDelete.id) {
         setSelectedCredentialId(null)
       }
-    } catch (error) {
-      logger.error('Failed to delete credential', error)
-    } finally {
+      setShowDeleteConfirmDialog(false)
       setCredentialToDelete(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete credential'
+      setDeleteError(message)
+      logger.error('Failed to delete credential', error)
     }
   }
 
@@ -1371,8 +1377,14 @@ export function CredentialsManager() {
     />
   )
 
+  const handleCloseDeleteDialog = () => {
+    setShowDeleteConfirmDialog(false)
+    setCredentialToDelete(null)
+    setDeleteError(null)
+  }
+
   const deleteConfirmDialogJsx = (
-    <Modal open={showDeleteConfirmDialog} onOpenChange={setShowDeleteConfirmDialog}>
+    <Modal open={showDeleteConfirmDialog} onOpenChange={(open) => !open && handleCloseDeleteDialog()}>
       <ModalContent size='sm'>
         <ModalHeader>
           {credentialToDelete?.type === 'oauth' ? 'Disconnect Secret' : 'Delete Secret'}
@@ -1386,13 +1398,29 @@ export function CredentialsManager() {
             </span>
             ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>
+          {deleteError && (
+            <div className='mt-[12px] rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
+              <div className='flex items-start gap-[10px]'>
+                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+                <p className='text-[12px] text-red-700 dark:text-red-300'>{deleteError}</p>
+              </div>
+            </div>
+          )}
         </ModalBody>
         <ModalFooter>
-          <Button variant='default' onClick={() => setShowDeleteConfirmDialog(false)}>
+          <Button variant='default' onClick={handleCloseDeleteDialog}>
             Cancel
           </Button>
-          <Button variant='destructive' onClick={handleConfirmDelete}>
-            {credentialToDelete?.type === 'oauth' ? 'Disconnect' : 'Delete'}
+          <Button
+            variant='destructive'
+            onClick={handleConfirmDelete}
+            disabled={deleteCredential.isPending || disconnectOAuthService.isPending}
+          >
+            {deleteCredential.isPending || disconnectOAuthService.isPending
+              ? 'Deleting...'
+              : credentialToDelete?.type === 'oauth'
+                ? 'Disconnect'
+                : 'Delete'}
           </Button>
         </ModalFooter>
       </ModalContent>
