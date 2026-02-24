@@ -265,7 +265,7 @@ export async function preprocessExecution(
   }
 
   // ========== STEP 4: Get Subscription ==========
-  let userSubscription: SubscriptionInfo | undefined
+  let userSubscription: SubscriptionInfo = null
   try {
     userSubscription = await getHighestPrioritySubscription(actorUserId)
   } catch (error) {
@@ -350,7 +350,7 @@ export async function preprocessExecution(
       const rateLimiter = new RateLimiter()
       rateLimitInfo = await rateLimiter.checkRateLimitWithSubscription(
         actorUserId,
-        userSubscription ?? null,
+        userSubscription,
         triggerType,
         false // not async
       )
@@ -419,7 +419,7 @@ export async function preprocessExecution(
     success: true,
     actorUserId,
     workflowRecord,
-    userSubscription: userSubscription ?? null,
+    userSubscription,
     rateLimitInfo,
     executionTimeout: {
       sync: getExecutionTimeout(plan, 'sync'),
