@@ -879,6 +879,7 @@ export class LoggingSession {
         `[${this.requestId || 'unknown'}] Cost-only fallback succeeded for execution ${this.executionId}`
       )
     } catch (fallbackError) {
+      this.completing = false
       logger.error(
         `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
         { error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError) }
