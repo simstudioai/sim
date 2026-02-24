@@ -48,7 +48,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         parallels: data.parallels,
         variables: data.variables,
       }
-    } catch {
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to load deployed state for workflow ${id}`, { error })
       deployedState = null
     }
 

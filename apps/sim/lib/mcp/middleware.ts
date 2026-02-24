@@ -71,7 +71,7 @@ async function validateMcpAuth(
           workspaceId = body.workspaceId
           ;(request as any)._parsedBody = body
         }
-      } catch (error) {}
+      } catch {}
     }
 
     if (!workspaceId) {
