@@ -54,8 +54,8 @@ export const attioListNotesTool: ToolConfig<AttioListNotesParams, AttioListNotes
       const searchParams = new URLSearchParams()
       if (params.parentObject) searchParams.set('parent_object', params.parentObject)
       if (params.parentRecordId) searchParams.set('parent_record_id', params.parentRecordId)
-      if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
-      if (params.offset !== undefined) searchParams.set('offset', String(params.offset))
+      if (params.limit != null) searchParams.set('limit', String(params.limit))
+      if (params.offset != null) searchParams.set('offset', String(params.offset))
       const qs = searchParams.toString()
       return `https://api.attio.com/v2/notes${qs ? `?${qs}` : ''}`
     },

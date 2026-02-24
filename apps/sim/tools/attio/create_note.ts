@@ -83,7 +83,7 @@ export const attioCreateNoteTool: ToolConfig<AttioCreateNoteParams, AttioCreateN
         content: params.content,
       }
       if (params.createdAt) body.created_at = params.createdAt
-      if (params.meetingId !== undefined) body.meeting_id = params.meetingId || null
+      if (params.meetingId != null) body.meeting_id = params.meetingId || null
       return { data: body }
     },
   },

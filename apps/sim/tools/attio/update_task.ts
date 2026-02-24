@@ -64,8 +64,8 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
     }),
     body: (params) => {
       const data: Record<string, unknown> = {}
-      if (params.deadlineAt !== undefined) data.deadline_at = params.deadlineAt || null
-      if (params.isCompleted !== undefined) data.is_completed = params.isCompleted
+      if (params.deadlineAt != null) data.deadline_at = params.deadlineAt || null
+      if (params.isCompleted != null) data.is_completed = params.isCompleted
       if (params.linkedRecords) {
         try {
           data.linked_records =

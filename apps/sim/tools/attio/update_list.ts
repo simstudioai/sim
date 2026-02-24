@@ -66,10 +66,10 @@ export const attioUpdateListTool: ToolConfig<AttioUpdateListParams, AttioUpdateL
     }),
     body: (params) => {
       const data: Record<string, unknown> = {}
-      if (params.name !== undefined) data.name = params.name
-      if (params.apiSlug !== undefined) data.api_slug = params.apiSlug
-      if (params.workspaceAccess !== undefined) data.workspace_access = params.workspaceAccess
-      if (params.workspaceMemberAccess !== undefined) {
+      if (params.name != null) data.name = params.name
+      if (params.apiSlug != null) data.api_slug = params.apiSlug
+      if (params.workspaceAccess != null) data.workspace_access = params.workspaceAccess
+      if (params.workspaceMemberAccess != null) {
         try {
           data.workspace_member_access =
             typeof params.workspaceMemberAccess === 'string'

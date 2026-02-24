@@ -41,8 +41,8 @@ export const attioListWebhooksTool: ToolConfig<AttioListWebhooksParams, AttioLis
     request: {
       url: (params) => {
         const searchParams = new URLSearchParams()
-        if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
-        if (params.offset !== undefined) searchParams.set('offset', String(params.offset))
+        if (params.limit != null) searchParams.set('limit', String(params.limit))
+        if (params.offset != null) searchParams.set('offset', String(params.offset))
         const qs = searchParams.toString()
         return `https://api.attio.com/v2/webhooks${qs ? `?${qs}` : ''}`
       },
