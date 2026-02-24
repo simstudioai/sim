@@ -1197,6 +1197,38 @@ export async function formatWebhookInput(
     return extractIssueData(body)
   }
 
+  if (foundWebhook.provider === 'confluence') {
+    const {
+      extractPageData,
+      extractCommentData,
+      extractBlogData,
+      extractAttachmentData,
+      extractSpaceData,
+      extractLabelData,
+    } = await import('@/triggers/confluence/utils')
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    if (triggerId?.startsWith('confluence_comment_')) {
+      return extractCommentData(body)
+    }
+    if (triggerId?.startsWith('confluence_blog_')) {
+      return extractBlogData(body)
+    }
+    if (triggerId?.startsWith('confluence_attachment_')) {
+      return extractAttachmentData(body)
+    }
+    if (triggerId?.startsWith('confluence_space_')) {
+      return extractSpaceData(body)
+    }
+    if (triggerId?.startsWith('confluence_label_')) {
+      return extractLabelData(body)
+    }
+    // Default: page events and generic webhook
+    return extractPageData(body)
+  }
+
   if (foundWebhook.provider === 'stripe') {
     return body
   }

@@ -127,228 +127,103 @@ export function buildConfluenceAttachmentExtraFields(triggerId: string): SubBloc
 }
 
 /**
- * Base webhook outputs common to all Confluence triggers
+ * Base webhook outputs common to all Confluence triggers.
+ * Maps to the actual top-level fields in the Confluence webhook payload.
  */
 function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
   return {
-    event: {
-      type: 'string',
-      description: 'The webhook event type (e.g., page_created, page_updated, comment_created)',
-    },
     timestamp: {
       type: 'number',
-      description: 'Timestamp of the webhook event',
+      description: 'Timestamp of the webhook event (Unix epoch milliseconds)',
     },
     userAccountId: {
       type: 'string',
       description: 'Account ID of the user who triggered the event',
     },
-  }
-}
-
-/**
- * Page-related outputs for page events
- */
-export function buildPageOutputs(): Record<string, TriggerOutput> {
-  return {
-    ...buildBaseWebhookOutputs(),
-    page: {
-      id: {
-        type: 'string',
-        description: 'Confluence page ID',
-      },
-      title: {
-        type: 'string',
-        description: 'Page title',
-      },
-      contentType: {
-        type: 'string',
-        description: 'Content type (page)',
-      },
-      status: {
-        type: 'string',
-        description: 'Page status (current, draft, trashed)',
-      },
-      space: {
-        key: {
-          type: 'string',
-          description: 'Space key',
-        },
-        name: {
-          type: 'string',
-          description: 'Space name',
-        },
-        id: {
-          type: 'string',
-          description: 'Space ID',
-        },
-      },
-      version: {
-        number: {
-          type: 'number',
-          description: 'Version number',
-        },
-        when: {
-          type: 'string',
-          description: 'Version date (ISO format)',
-        },
-        by: {
-          accountId: {
-            type: 'string',
-            description: 'Author account ID',
-          },
-          displayName: {
-            type: 'string',
-            description: 'Author display name',
-          },
-        },
-      },
+    accountType: {
+      type: 'string',
+      description: 'Account type (e.g., customer)',
     },
   }
 }
 
 /**
- * Comment-related outputs for comment events
+ * Shared content-entity output fields present on page, blog, comment, and attachment objects
+ * in the actual Confluence webhook payload.
+ */
+function buildContentEntityFields(): Record<string, TriggerOutput> {
+  return {
+    id: { type: 'number', description: 'Content ID' },
+    title: { type: 'string', description: 'Content title' },
+    contentType: { type: 'string', description: 'Content type (page, blogpost, comment, attachment)' },
+    version: { type: 'number', description: 'Version number' },
+    spaceKey: { type: 'string', description: 'Space key the content belongs to' },
+    creatorAccountId: { type: 'string', description: 'Account ID of the creator' },
+    lastModifierAccountId: { type: 'string', description: 'Account ID of the last modifier' },
+    self: { type: 'string', description: 'URL link to the content' },
+    creationDate: { type: 'number', description: 'Creation timestamp (Unix epoch milliseconds)' },
+    modificationDate: { type: 'number', description: 'Last modification timestamp (Unix epoch milliseconds)' },
+  }
+}
+
+/**
+ * Page-related outputs for page events.
+ * Matches the actual Confluence webhook payload for page_created, page_updated, etc.
+ */
+export function buildPageOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    page: buildContentEntityFields(),
+  }
+}
+
+/**
+ * Comment-related outputs for comment events.
+ * Matches the actual Confluence webhook payload for comment_created, comment_removed.
+ * The comment object contains a `parent` field with the full parent page/blog object.
  */
 export function buildCommentOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
     comment: {
-      id: {
-        type: 'string',
-        description: 'Comment ID',
-      },
-      body: {
-        type: 'json',
-        description: 'Comment body content',
-      },
-      container: {
-        id: {
-          type: 'string',
-          description: 'Container (page/blog) ID',
-        },
-        title: {
-          type: 'string',
-          description: 'Container title',
-        },
-      },
-      version: {
-        number: {
-          type: 'number',
-          description: 'Comment version number',
-        },
-        when: {
-          type: 'string',
-          description: 'Comment date (ISO format)',
-        },
-        by: {
-          accountId: {
-            type: 'string',
-            description: 'Author account ID',
-          },
-          displayName: {
-            type: 'string',
-            description: 'Author display name',
-          },
-        },
+      ...buildContentEntityFields(),
+      parent: {
+        id: { type: 'number', description: 'Parent page/blog ID' },
+        title: { type: 'string', description: 'Parent page/blog title' },
+        contentType: { type: 'string', description: 'Parent content type (page or blogpost)' },
+        spaceKey: { type: 'string', description: 'Space key of the parent' },
+        self: { type: 'string', description: 'URL link to the parent content' },
       },
     },
   }
 }
 
 /**
- * Blog post outputs for blog events
+ * Blog post outputs for blog events.
+ * Matches the actual Confluence webhook payload for blog_created, blog_updated, etc.
  */
 export function buildBlogOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
-    blog: {
-      id: {
-        type: 'string',
-        description: 'Blog post ID',
-      },
-      title: {
-        type: 'string',
-        description: 'Blog post title',
-      },
-      contentType: {
-        type: 'string',
-        description: 'Content type (blogpost)',
-      },
-      status: {
-        type: 'string',
-        description: 'Blog post status',
-      },
-      space: {
-        key: {
-          type: 'string',
-          description: 'Space key',
-        },
-        name: {
-          type: 'string',
-          description: 'Space name',
-        },
-        id: {
-          type: 'string',
-          description: 'Space ID',
-        },
-      },
-      version: {
-        number: {
-          type: 'number',
-          description: 'Version number',
-        },
-        when: {
-          type: 'string',
-          description: 'Version date (ISO format)',
-        },
-        by: {
-          accountId: {
-            type: 'string',
-            description: 'Author account ID',
-          },
-          displayName: {
-            type: 'string',
-            description: 'Author display name',
-          },
-        },
-      },
-    },
+    blog: buildContentEntityFields(),
   }
 }
 
 /**
- * Attachment-related outputs for attachment events
+ * Attachment-related outputs for attachment events.
+ * Matches the actual Confluence webhook payload for attachment_created, attachment_removed.
  */
 export function buildAttachmentOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
     attachment: {
-      id: {
-        type: 'string',
-        description: 'Attachment ID',
-      },
-      title: {
-        type: 'string',
-        description: 'Attachment file name',
-      },
-      mediaType: {
-        type: 'string',
-        description: 'MIME type of the attachment',
-      },
-      fileSize: {
-        type: 'number',
-        description: 'File size in bytes',
-      },
-      container: {
-        id: {
-          type: 'string',
-          description: 'Container (page/blog) ID',
-        },
-        title: {
-          type: 'string',
-          description: 'Container title',
-        },
+      ...buildContentEntityFields(),
+      mediaType: { type: 'string', description: 'MIME type of the attachment' },
+      fileSize: { type: 'number', description: 'File size in bytes' },
+      parent: {
+        id: { type: 'number', description: 'Container page/blog ID' },
+        title: { type: 'string', description: 'Container page/blog title' },
+        contentType: { type: 'string', description: 'Container content type' },
       },
     },
     files: {
@@ -360,168 +235,132 @@ export function buildAttachmentOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
- * Space-related outputs for space events
+ * Space-related outputs for space events.
+ * Matches the actual Confluence webhook payload for space_created, space_updated.
  */
 export function buildSpaceOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
     space: {
-      id: {
-        type: 'string',
-        description: 'Space ID',
-      },
-      key: {
-        type: 'string',
-        description: 'Space key',
-      },
-      name: {
-        type: 'string',
-        description: 'Space name',
-      },
-      status: {
-        type: 'string',
-        description: 'Space status',
-      },
+      key: { type: 'string', description: 'Space key' },
+      name: { type: 'string', description: 'Space name' },
+      self: { type: 'string', description: 'URL link to the space' },
     },
   }
 }
 
 /**
- * Label-related outputs for label events
+ * Label-related outputs for label events.
+ * Matches the actual Confluence webhook payload for label_added, label_removed.
  */
 export function buildLabelOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
     label: {
-      name: {
-        type: 'string',
-        description: 'Label name',
-      },
-      id: {
-        type: 'string',
-        description: 'Label ID',
-      },
-      prefix: {
-        type: 'string',
-        description: 'Label prefix (global, my, team)',
-      },
+      name: { type: 'string', description: 'Label name' },
+      id: { type: 'string', description: 'Label ID' },
+      prefix: { type: 'string', description: 'Label prefix (global, my, team)' },
     },
     content: {
-      id: {
-        type: 'string',
-        description: 'Content ID the label was added to or removed from',
-      },
-      title: {
-        type: 'string',
-        description: 'Content title',
-      },
+      id: { type: 'number', description: 'Content ID the label was added to or removed from' },
+      title: { type: 'string', description: 'Content title' },
+      contentType: { type: 'string', description: 'Content type (page, blogpost)' },
     },
   }
 }
 
 /**
- * Combined outputs for the generic webhook trigger (all events)
+ * Combined outputs for the generic webhook trigger (all events).
+ * Uses json type for entity fields since the shape varies by event type.
  */
 export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     ...buildBaseWebhookOutputs(),
-    page: {
-      id: {
-        type: 'string',
-        description: 'Page ID (present in page events)',
-      },
-      title: {
-        type: 'string',
-        description: 'Page title',
-      },
-      status: {
-        type: 'string',
-        description: 'Page status',
-      },
-      space: {
-        key: {
-          type: 'string',
-          description: 'Space key',
-        },
-        name: {
-          type: 'string',
-          description: 'Space name',
-        },
-      },
-    },
-    comment: {
-      id: {
-        type: 'string',
-        description: 'Comment ID (present in comment events)',
-      },
-      body: {
-        type: 'json',
-        description: 'Comment body',
-      },
-      container: {
-        id: {
-          type: 'string',
-          description: 'Container ID',
-        },
-        title: {
-          type: 'string',
-          description: 'Container title',
-        },
-      },
-    },
-    blog: {
-      id: {
-        type: 'string',
-        description: 'Blog post ID (present in blog events)',
-      },
-      title: {
-        type: 'string',
-        description: 'Blog post title',
-      },
-      status: {
-        type: 'string',
-        description: 'Blog post status',
-      },
-    },
-    attachment: {
-      id: {
-        type: 'string',
-        description: 'Attachment ID (present in attachment events)',
-      },
-      title: {
-        type: 'string',
-        description: 'Attachment file name',
-      },
-    },
-    space: {
-      id: {
-        type: 'string',
-        description: 'Space ID (present in space events)',
-      },
-      key: {
-        type: 'string',
-        description: 'Space key',
-      },
-      name: {
-        type: 'string',
-        description: 'Space name',
-      },
-    },
-    label: {
-      name: {
-        type: 'string',
-        description: 'Label name (present in label events)',
-      },
-      id: {
-        type: 'string',
-        description: 'Label ID',
-      },
-    },
+    page: { type: 'json', description: 'Page object (present in page events)' },
+    comment: { type: 'json', description: 'Comment object (present in comment events)' },
+    blog: { type: 'json', description: 'Blog post object (present in blog events)' },
+    attachment: { type: 'json', description: 'Attachment object (present in attachment events)' },
+    space: { type: 'json', description: 'Space object (present in space events)' },
+    label: { type: 'json', description: 'Label object (present in label events)' },
+    content: { type: 'json', description: 'Content object (present in label events)' },
     files: {
       type: 'file[]',
       description:
-        'Attachment file content downloaded from Confluence (present in attachment events when includeFileContent is enabled)',
+        'Attachment file content (present in attachment events when includeFileContent is enabled)',
     },
+  }
+}
+
+/**
+ * Extracts page data from a Confluence webhook payload.
+ */
+export function extractPageData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    page: body.page || {},
+  }
+}
+
+/**
+ * Extracts comment data from a Confluence webhook payload.
+ */
+export function extractCommentData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    comment: body.comment || {},
+  }
+}
+
+/**
+ * Extracts blog post data from a Confluence webhook payload.
+ */
+export function extractBlogData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    blog: body.blog || body.blogpost || {},
+  }
+}
+
+/**
+ * Extracts attachment data from a Confluence webhook payload.
+ */
+export function extractAttachmentData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    attachment: body.attachment || {},
+  }
+}
+
+/**
+ * Extracts space data from a Confluence webhook payload.
+ */
+export function extractSpaceData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    space: body.space || {},
+  }
+}
+
+/**
+ * Extracts label data from a Confluence webhook payload.
+ */
+export function extractLabelData(body: any) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    label: body.label || {},
+    content: body.content || body.page || body.blog || {},
   }
 }
 

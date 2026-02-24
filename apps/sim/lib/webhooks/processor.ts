@@ -962,9 +962,10 @@ export async function queueWebhookExecution(
       const triggerId = providerConfig.triggerId as string | undefined
 
       if (triggerId && triggerId !== 'confluence_webhook') {
-        const event = body.event as string | undefined
+        // Confluence may use `event`, `webhookEvent`, or neither — check both
+        const event = (body.event || body.webhookEvent) as string | undefined
 
-        if (!isConfluenceEventMatch(triggerId, event || '')) {
+        if (event && !isConfluenceEventMatch(triggerId, event)) {
           logger.debug(
             `[${options.requestId}] Confluence event mismatch for trigger ${triggerId}. Event: ${event}. Skipping execution.`,
             {
