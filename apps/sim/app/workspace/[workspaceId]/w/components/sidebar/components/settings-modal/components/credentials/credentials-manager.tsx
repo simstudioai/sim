@@ -816,7 +816,8 @@ export function CredentialsManager() {
     try {
       if (credentialToDelete.type === 'oauth') {
         if (!credentialToDelete.accountId || !credentialToDelete.providerId) {
-          const errorMessage = 'Cannot disconnect: missing account information. Please try reconnecting this credential first.'
+          const errorMessage =
+            'Cannot disconnect: missing account information. Please try reconnecting this credential first.'
           setDeleteError(errorMessage)
           logger.error('Cannot disconnect OAuth credential: missing accountId or providerId')
           return
@@ -1384,7 +1385,10 @@ export function CredentialsManager() {
   }
 
   const deleteConfirmDialogJsx = (
-    <Modal open={showDeleteConfirmDialog} onOpenChange={(open) => !open && handleCloseDeleteDialog()}>
+    <Modal
+      open={showDeleteConfirmDialog}
+      onOpenChange={(open) => !open && handleCloseDeleteDialog()}
+    >
       <ModalContent size='sm'>
         <ModalHeader>
           {credentialToDelete?.type === 'oauth' ? 'Disconnect Secret' : 'Delete Secret'}
