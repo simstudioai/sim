@@ -32,6 +32,7 @@ export interface WorkflowDeploymentInfo {
   deployedAt: string | null
   apiKey: string | null
   needsRedeployment: boolean
+  isPublicApi: boolean
 }
 
 /**
@@ -50,6 +51,7 @@ async function fetchDeploymentInfo(workflowId: string): Promise<WorkflowDeployme
     deployedAt: data.deployedAt ?? null,
     apiKey: data.apiKey ?? null,
     needsRedeployment: data.needsRedeployment ?? false,
+    isPublicApi: data.isPublicApi ?? false,
   }
 }
 
@@ -611,6 +613,52 @@ export function useActivateDeploymentVersion() {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.versions(variables.workflowId),
       })
+    },
+  })
+}
+
+/**
+ * Variables for updating public API access
+ */
+interface UpdatePublicApiVariables {
+  workflowId: string
+  isPublicApi: boolean
+}
+
+/**
+ * Mutation hook for toggling a workflow's public API access.
+ * Invalidates deployment info query on success.
+ */
+export function useUpdatePublicApi() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workflowId, isPublicApi }: UpdatePublicApiVariables) => {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublicApi }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update public API setting')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      logger.info('Public API setting updated', {
+        workflowId: variables.workflowId,
+        isPublicApi: variables.isPublicApi,
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(variables.workflowId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to update public API setting', { error })
     },
   })
 }

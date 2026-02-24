@@ -112,6 +112,12 @@ export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
 export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
 
 /**
+ * Is public API access disabled globally
+ * When true, the public API toggle is hidden and public API access is blocked
+ */
+export const isPublicApiDisabled = isTruthy(env.DISABLE_PUBLIC_API)
+
+/**
  * Is React Grab enabled for UI element debugging
  * When true and in development mode, enables React Grab for copying UI element context to clipboard
  */

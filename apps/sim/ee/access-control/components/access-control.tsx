@@ -391,6 +391,12 @@ export function AccessControl() {
         category: 'Collaboration',
         configKey: 'disableInvitations' as const,
       },
+      {
+        id: 'disable-public-api',
+        label: 'Public API',
+        category: 'Features',
+        configKey: 'disablePublicApi' as const,
+      },
     ],
     []
   )
@@ -966,6 +972,7 @@ export function AccessControl() {
                             !editingConfig?.disableSkills &&
                             !editingConfig?.hideTraceSpans &&
                             !editingConfig?.disableInvitations &&
+                            !editingConfig?.disablePublicApi &&
                             !editingConfig?.hideDeployApi &&
                             !editingConfig?.hideDeployMcp &&
                             !editingConfig?.hideDeployA2a &&
@@ -987,6 +994,7 @@ export function AccessControl() {
                                   disableSkills: allVisible,
                                   hideTraceSpans: allVisible,
                                   disableInvitations: allVisible,
+                                  disablePublicApi: allVisible,
                                   hideDeployApi: allVisible,
                                   hideDeployMcp: allVisible,
                                   hideDeployA2a: allVisible,
@@ -1009,6 +1017,7 @@ export function AccessControl() {
                         !editingConfig?.disableSkills &&
                         !editingConfig?.hideTraceSpans &&
                         !editingConfig?.disableInvitations &&
+                        !editingConfig?.disablePublicApi &&
                         !editingConfig?.hideDeployApi &&
                         !editingConfig?.hideDeployMcp &&
                         !editingConfig?.hideDeployA2a &&

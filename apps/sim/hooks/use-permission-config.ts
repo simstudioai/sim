@@ -20,6 +20,7 @@ export interface PermissionConfigResult {
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
   isInvitationsDisabled: boolean
+  isPublicApiDisabled: boolean
 }
 
 interface AllowedIntegrationsResponse {
@@ -116,6 +117,11 @@ export function usePermissionConfig(): PermissionConfigResult {
     return featureFlagDisabled || config.disableInvitations
   }, [config.disableInvitations])
 
+  const isPublicApiDisabled = useMemo(() => {
+    const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_PUBLIC_API'))
+    return featureFlagDisabled || config.disablePublicApi
+  }, [config.disablePublicApi])
+
   const mergedConfig = useMemo(
     () => ({ ...config, allowedIntegrations: mergedAllowedIntegrations }),
     [config, mergedAllowedIntegrations]
@@ -131,6 +137,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isInvitationsDisabled,
+      isPublicApiDisabled,
     }),
     [
       mergedConfig,
@@ -141,6 +148,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isInvitationsDisabled,
+      isPublicApiDisabled,
     ]
   )
 }

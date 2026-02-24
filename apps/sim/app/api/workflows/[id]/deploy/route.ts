@@ -51,6 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         deployedAt: null,
         apiKey: null,
         needsRedeployment: false,
+        isPublicApi: workflowData.isPublicApi ?? false,
       })
     }
 
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
       needsRedeployment,
+      isPublicApi: workflowData.isPublicApi ?? false,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
@@ -298,6 +300,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       fullError: error,
     })
     return createErrorResponse(error.message || 'Failed to deploy workflow', 500)
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = generateRequestId()
+  const { id } = await params
+
+  try {
+    const { error, session } = await validateWorkflowPermissions(id, requestId, 'admin')
+    if (error) {
+      return createErrorResponse(error.message, error.status)
+    }
+
+    const body = await request.json()
+    const { isPublicApi } = body
+
+    if (typeof isPublicApi !== 'boolean') {
+      return createErrorResponse('Invalid request body: isPublicApi must be a boolean', 400)
+    }
+
+    if (isPublicApi) {
+      const { validatePublicApiAllowed, PublicApiNotAllowedError } = await import(
+        '@/ee/access-control/utils/permission-check'
+      )
+      try {
+        await validatePublicApiAllowed(session?.user?.id)
+      } catch (err) {
+        if (err instanceof PublicApiNotAllowedError) {
+          return createErrorResponse('Public API access is disabled', 403)
+        }
+        throw err
+      }
+    }
+
+    await db.update(workflow).set({ isPublicApi }).where(eq(workflow.id, id))
+
+    logger.info(`[${requestId}] Updated isPublicApi for workflow ${id} to ${isPublicApi}`)
+
+    return createSuccessResponse({ isPublicApi })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update deployment settings'
+    logger.error(`[${requestId}] Error updating deployment settings: ${id}`, { error })
+    return createErrorResponse(message, 500)
   }
 }
 
