@@ -8,7 +8,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
   description: 'Query, list, and insert data in Google BigQuery',
   longDescription:
     'Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.',
-  docsLink: 'https://docs.sim.ai/tools/google-bigquery',
+  docsLink: 'https://docs.sim.ai/tools/google_bigquery',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleBigQueryIcon,

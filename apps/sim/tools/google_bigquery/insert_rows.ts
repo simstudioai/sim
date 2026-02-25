@@ -113,12 +113,22 @@ export const insertRowsTool: ToolConfig<
       const parsed = typeof params.rows === 'string' ? JSON.parse(params.rows) : params.rows
       totalRows = Array.isArray(parsed) ? parsed.length : 0
     }
-    const failedIndexes = new Set(insertErrors.map((e: { index: number }) => e.index))
+
+    // When insertErrors is empty, all rows succeeded.
+    // When insertErrors is present and skipInvalidRows is false (default),
+    // the entire batch is rejected — no rows are inserted.
+    let insertedRows = 0
+    if (insertErrors.length === 0) {
+      insertedRows = totalRows
+    } else if (params?.skipInvalidRows) {
+      const failedIndexes = new Set(insertErrors.map((e: { index: number }) => e.index))
+      insertedRows = totalRows - failedIndexes.size
+    }
 
     return {
       success: true,
       output: {
-        insertedRows: totalRows - failedIndexes.size,
+        insertedRows,
         errors,
       },
     }
