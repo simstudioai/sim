@@ -68,9 +68,10 @@ export const attioCreateListTool: ToolConfig<AttioCreateListParams, AttioCreateL
       const data: Record<string, unknown> = {
         name: params.name,
         parent_object: params.parentObject,
+        workspace_access: params.workspaceAccess ?? null,
+        workspace_member_access: [] as unknown[],
       }
       if (params.apiSlug) data.api_slug = params.apiSlug
-      if (params.workspaceAccess) data.workspace_access = params.workspaceAccess
       if (params.workspaceMemberAccess) {
         try {
           data.workspace_member_access =
