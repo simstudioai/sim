@@ -130,6 +130,18 @@ export function createBlockFromParams(
       }
     })
 
+    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const defaultModes: Record<string, 'basic' | 'advanced'> = {}
+    for (const group of Object.values(canonicalIndex.groupsById)) {
+      if (isCanonicalPair(group)) {
+        defaultModes[group.canonicalId] = 'basic'
+      }
+    }
+    if (Object.keys(defaultModes).length > 0) {
+      if (!blockState.data) blockState.data = {}
+      blockState.data.canonicalModes = defaultModes
+    }
+
     if (validatedInputs) {
       updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
     }
