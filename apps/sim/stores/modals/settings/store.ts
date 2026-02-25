@@ -7,6 +7,8 @@ export const useSettingsModalStore = create<SettingsModalState>((set) => ({
   isOpen: false,
   initialSection: null,
   mcpServerId: null,
+  hasUnsavedChanges: false,
+  onCloseAttempt: null,
 
   openModal: (options) =>
     set({
@@ -18,11 +20,23 @@ export const useSettingsModalStore = create<SettingsModalState>((set) => ({
   closeModal: () =>
     set({
       isOpen: false,
+      hasUnsavedChanges: false,
+      onCloseAttempt: null,
     }),
 
   clearInitialState: () =>
     set({
       initialSection: null,
       mcpServerId: null,
+    }),
+
+  setHasUnsavedChanges: (hasChanges) =>
+    set({
+      hasUnsavedChanges: hasChanges,
+    }),
+
+  setOnCloseAttempt: (callback) =>
+    set({
+      onCloseAttempt: callback,
     }),
 }))
