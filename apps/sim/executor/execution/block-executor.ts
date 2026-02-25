@@ -37,6 +37,7 @@ import {
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import { isJSONString } from '@/executor/utils/json'
+import { retainTailInPlace } from '@/executor/utils/memory'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -44,6 +45,7 @@ import type { SubflowType } from '@/stores/workflows/workflow/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
+const BLOCK_LOGS_RETAINED_LIMIT = 5000
 
 export class BlockExecutor {
   constructor(
@@ -74,6 +76,14 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
+      const { dropped } = retainTailInPlace(ctx.blockLogs, BLOCK_LOGS_RETAINED_LIMIT)
+      if (dropped > 0) {
+        const prevDropped = ctx.metadata.logTruncation?.dropped ?? 0
+        ctx.metadata.logTruncation = {
+          dropped: prevDropped + dropped,
+          limit: BLOCK_LOGS_RETAINED_LIMIT,
+        }
+      }
       this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
     }
 

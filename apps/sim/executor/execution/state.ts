@@ -8,6 +8,15 @@ export interface LoopScope {
   iteration: number
   currentIterationOutputs: Map<string, NormalizedBlockOutput>
   allIterationOutputs: NormalizedBlockOutput[][]
+  /**
+   * Number of iteration result entries dropped from the head of `allIterationOutputs`
+   * due to retention limits.
+   */
+  allIterationOutputsDroppedCount?: number
+  /**
+   * Max number of iterations retained in `allIterationOutputs` (tail retention).
+   */
+  allIterationOutputsLimit?: number
   maxIterations?: number
   item?: any
   items?: any[]
