@@ -1,0 +1,60 @@
+---
+title: Google Translate
+description: Translate text using Google Cloud Translation
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_translate"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Translate and detect languages using the Google Cloud Translation API. Supports auto-detection of the source language.
+
+
+
+## Tools
+
+### `google_translate_text`
+
+Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Cloud API key with Cloud Translation API enabled |
+| `text` | string | Yes | The text to translate |
+| `target` | string | Yes | Target language code \(e.g., "es", "fr", "de", "ja"\) |
+| `source` | string | No | Source language code. If omitted, the API will auto-detect the source language. |
+| `format` | string | No | Format of the text: "text" for plain text, "html" for HTML content |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `translatedText` | string | The translated text |
+| `detectedSourceLanguage` | string | The detected source language code \(if source was not specified\) |
+
+### `google_translate_detect`
+
+Detect the language of text using the Google Cloud Translation API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Cloud API key with Cloud Translation API enabled |
+| `text` | string | Yes | The text to detect the language of |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `language` | string | The detected language code \(e.g., "en", "es", "fr"\) |
+| `confidence` | number | Confidence score of the detection |
+
+
