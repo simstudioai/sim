@@ -1200,19 +1200,32 @@ const WorkflowContent = React.memo(() => {
     }
   }, [])
 
-  // Reset notification when switching workflows so it recreates for the new workflow
-  const prevWorkflowIdRef = useRef(activeWorkflowId)
+  // Clear persisted lock notifications on mount/workflow change (prevents duplicates after reload)
+  useEffect(() => {
+    // Reset ref so the main effect creates a fresh notification for the new workflow
+    clearLockNotification()
+
+    if (!activeWorkflowId) return
+    const store = useNotificationStore.getState()
+    const stale = store.notifications.filter(
+      (n) =>
+        n.workflowId === activeWorkflowId &&
+        (n.action?.type === 'unlock-workflow' || n.message.startsWith('This workflow is locked'))
+    )
+    for (const n of stale) {
+      store.removeNotification(n.id)
+    }
+  }, [activeWorkflowId, clearLockNotification])
+
   const prevCanAdminRef = useRef(effectivePermissions.canAdmin)
   useEffect(() => {
     if (!isWorkflowReady) return
 
-    const workflowChanged = prevWorkflowIdRef.current !== activeWorkflowId
     const canAdminChanged = prevCanAdminRef.current !== effectivePermissions.canAdmin
-    prevWorkflowIdRef.current = activeWorkflowId
     prevCanAdminRef.current = effectivePermissions.canAdmin
 
-    // Clear stale notification when workflow or admin status changes
-    if ((workflowChanged || canAdminChanged) && lockNotificationIdRef.current) {
+    // Clear stale notification when admin status changes so it recreates with correct message
+    if (canAdminChanged) {
       clearLockNotification()
     }
 
