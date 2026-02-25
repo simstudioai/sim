@@ -43,10 +43,7 @@ export async function validateEnterpriseAuditAccess(userId: string): Promise<Aut
   if (!membership) {
     return {
       success: false,
-      response: NextResponse.json(
-        { error: 'Not a member of any organization' },
-        { status: 403 }
-      ),
+      response: NextResponse.json({ error: 'Not a member of any organization' }, { status: 403 }),
     }
   }
 

@@ -50,10 +50,10 @@ export const GET = withAdminAuth(async (request) => {
   const startDateFilter = url.searchParams.get('startDate')
   const endDateFilter = url.searchParams.get('endDate')
 
-  if (startDateFilter && isNaN(Date.parse(startDateFilter))) {
+  if (startDateFilter && Number.isNaN(Date.parse(startDateFilter))) {
     return badRequestResponse('Invalid startDate format. Use ISO 8601.')
   }
-  if (endDateFilter && isNaN(Date.parse(endDateFilter))) {
+  if (endDateFilter && Number.isNaN(Date.parse(endDateFilter))) {
     return badRequestResponse('Invalid endDate format. Use ISO 8601.')
   }
 

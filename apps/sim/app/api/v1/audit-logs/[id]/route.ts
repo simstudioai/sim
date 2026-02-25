@@ -24,10 +24,7 @@ const logger = createLogger('V1AuditLogDetailAPI')
 
 export const revalidate = 0
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {

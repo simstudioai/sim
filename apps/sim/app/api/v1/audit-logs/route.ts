@@ -35,7 +35,7 @@ const logger = createLogger('V1AuditLogsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const isoDateString = z.string().refine((val) => !isNaN(Date.parse(val)), {
+const isoDateString = z.string().refine((val) => !Number.isNaN(Date.parse(val)), {
   message: 'Invalid date format. Use ISO 8601.',
 })
 
@@ -145,16 +145,13 @@ export async function GET(request: NextRequest) {
 
     if (params.cursor) {
       const cursorData = decodeCursor(params.cursor)
-      if (cursorData && cursorData.createdAt && cursorData.id) {
+      if (cursorData?.createdAt && cursorData.id) {
         const cursorDate = new Date(cursorData.createdAt)
-        if (!isNaN(cursorDate.getTime())) {
+        if (!Number.isNaN(cursorDate.getTime())) {
           conditions.push(
             or(
               lt(auditLog.createdAt, cursorDate),
-              and(
-                eq(auditLog.createdAt, cursorDate),
-                lt(auditLog.id, cursorData.id)
-              )
+              and(eq(auditLog.createdAt, cursorDate), lt(auditLog.id, cursorData.id))
             )!
           )
         }
@@ -183,11 +180,7 @@ export async function GET(request: NextRequest) {
     const formattedLogs = data.map(formatAuditLogEntry)
 
     const limits = await getUserLimits(userId)
-    const response = createApiResponse(
-      { data: formattedLogs, nextCursor },
-      limits,
-      rateLimit
-    )
+    const response = createApiResponse({ data: formattedLogs, nextCursor }, limits, rateLimit)
 
     return NextResponse.json(response.body, { headers: response.headers })
   } catch (error: unknown) {
