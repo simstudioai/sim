@@ -157,7 +157,11 @@ export const confluenceListTasksTool: ToolConfig<
           pageId: { type: 'string', description: 'Page ID', optional: true },
           blogPostId: { type: 'string', description: 'Blog post ID', optional: true },
           status: { type: 'string', description: 'Task status (complete or incomplete)' },
-          body: { type: 'string', description: 'Task body content in storage format', optional: true },
+          body: {
+            type: 'string',
+            description: 'Task body content in storage format',
+            optional: true,
+          },
           createdBy: { type: 'string', description: 'Creator account ID', optional: true },
           assignedTo: { type: 'string', description: 'Assignee account ID', optional: true },
           completedBy: { type: 'string', description: 'Completer account ID', optional: true },

@@ -124,7 +124,11 @@ export const confluenceGetPageDescendantsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Page ID' },
           title: { type: 'string', description: 'Page title' },
-          type: { type: 'string', description: 'Content type (page, whiteboard, database, etc.)', optional: true },
+          type: {
+            type: 'string',
+            description: 'Content type (page, whiteboard, database, etc.)',
+            optional: true,
+          },
           status: { type: 'string', description: 'Page status', optional: true },
           spaceId: { type: 'string', description: 'Space ID', optional: true },
           parentId: { type: 'string', description: 'Parent page ID', optional: true },
