@@ -1093,7 +1093,12 @@ export async function createAttioWebhookSubscription(
 
     attioLogger.info(
       `[${requestId}] Successfully created webhook in Attio for webhook ${webhookData.id}.`,
-      { attioWebhookId: webhookId }
+      {
+        attioWebhookId: webhookId,
+        targetUrl: notificationUrl,
+        subscriptionCount: subscriptions.length,
+        status: data.status,
+      }
     )
 
     return { externalId: webhookId, webhookSecret: secret || '' }

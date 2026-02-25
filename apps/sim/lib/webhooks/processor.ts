@@ -979,9 +979,10 @@ export async function queueWebhookExecution(
       const triggerId = providerConfig.triggerId as string | undefined
 
       if (triggerId && triggerId !== 'attio_webhook') {
-        const { isAttioPayloadMatch } = await import('@/triggers/attio/utils')
+        const { isAttioPayloadMatch, getAttioEvent } = await import('@/triggers/attio/utils')
         if (!isAttioPayloadMatch(triggerId, body)) {
-          const eventType = body?.event_type as string | undefined
+          const event = getAttioEvent(body)
+          const eventType = event?.event_type as string | undefined
           logger.debug(
             `[${options.requestId}] Attio event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
             {
@@ -989,6 +990,7 @@ export async function queueWebhookExecution(
               workflowId: foundWorkflow.id,
               triggerId,
               receivedEvent: eventType,
+              bodyKeys: Object.keys(body),
             }
           )
           return NextResponse.json({ status: 'skipped', reason: 'event_type_mismatch' })
