@@ -28,7 +28,11 @@ export interface GoogleContactsGetParams extends BaseGoogleContactsParams {
 export interface GoogleContactsListParams extends BaseGoogleContactsParams {
   pageSize?: number
   pageToken?: string
-  sortOrder?: 'LAST_MODIFIED_ASCENDING' | 'LAST_MODIFIED_DESCENDING' | 'FIRST_NAME_ASCENDING' | 'LAST_NAME_ASCENDING'
+  sortOrder?:
+    | 'LAST_MODIFIED_ASCENDING'
+    | 'LAST_MODIFIED_DESCENDING'
+    | 'FIRST_NAME_ASCENDING'
+    | 'LAST_NAME_ASCENDING'
 }
 
 export interface GoogleContactsUpdateParams extends BaseGoogleContactsParams {

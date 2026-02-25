@@ -1237,12 +1237,7 @@ export function GoogleSlidesIcon(props: SVGProps<SVGSVGElement>) {
 
 export function GoogleContactsIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      viewBox='0 0 24 24'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-    >
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <path
         d='M20.16 3H3.84C2.82 3 2 3.82 2 4.84v14.32C2 20.18 2.82 21 3.84 21h16.32c1.02 0 1.84-.82 1.84-1.84V4.84C22 3.82 21.18 3 20.16 3z'
         fill='#F1F3F4'
