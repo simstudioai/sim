@@ -575,7 +575,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'listApiSlug',
       title: 'API Slug',
       type: 'short-input',
-      placeholder: 'e.g. my_list (optional, auto-generated)',
+      placeholder: 'e.g. my_list (auto-generated from name)',
       condition: { field: 'operation', value: ['create_list', 'update_list'] },
       mode: 'advanced',
     },
