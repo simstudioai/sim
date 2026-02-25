@@ -1,14 +1,11 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
-import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -44,7 +41,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
-      finalApiKey = await this.resolveVertexCredential(evaluatorConfig.vertexCredential)
+      finalApiKey = await resolveVertexCredential(
+        evaluatorConfig.vertexCredential,
+        'vertex-evaluator'
+      )
     }
 
     const processedContent = this.processContent(inputs.content)
@@ -234,7 +234,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     if (Object.keys(parsedContent).length === 0) {
       validMetrics.forEach((metric: any) => {
         if (metric?.name) {
-          metricScores[metric.name.toLowerCase()] = DEFAULTS.EXECUTION_TIME
+          metricScores[metric.name.toLowerCase()] = 0
         }
       })
       return metricScores
@@ -273,37 +273,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     logger.warn(`Metric "${metricName}" not found in LLM response`)
-    return DEFAULTS.EXECUTION_TIME
-  }
-
-  /**
-   * Resolves a Vertex AI OAuth credential to an access token
-   */
-  private async resolveVertexCredential(credentialId: string): Promise<string> {
-    const requestId = `vertex-evaluator-${Date.now()}`
-
-    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
-    }
-
-    const credential = await db.query.account.findFirst({
-      where: eq(account.id, resolved.accountId),
-    })
-
-    if (!credential) {
-      throw new Error(`Vertex AI credential not found: ${credentialId}`)
-    }
-
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
-
-    if (!accessToken) {
-      throw new Error('Failed to get Vertex AI access token')
-    }
-
-    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
-    return accessToken
+    return 0
   }
 }

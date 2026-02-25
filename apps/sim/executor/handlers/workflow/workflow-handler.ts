@@ -579,45 +579,6 @@ export class WorkflowBlockHandler implements BlockHandler {
     return processed
   }
 
-  private flattenChildWorkflowSpans(spans: TraceSpan[]): WorkflowTraceSpan[] {
-    const flattened: WorkflowTraceSpan[] = []
-
-    spans.forEach((span) => {
-      if (this.isSyntheticWorkflowWrapper(span)) {
-        if (span.children && Array.isArray(span.children)) {
-          flattened.push(...this.flattenChildWorkflowSpans(span.children))
-        }
-        return
-      }
-
-      const workflowSpan: WorkflowTraceSpan = {
-        ...span,
-      }
-
-      if (Array.isArray(workflowSpan.children)) {
-        const childSpans = workflowSpan.children as TraceSpan[]
-        workflowSpan.children = this.flattenChildWorkflowSpans(childSpans)
-      }
-
-      if (workflowSpan.output && typeof workflowSpan.output === 'object') {
-        const { childTraceSpans: nestedChildSpans, ...outputRest } = workflowSpan.output as {
-          childTraceSpans?: TraceSpan[]
-        } & Record<string, unknown>
-
-        if (Array.isArray(nestedChildSpans) && nestedChildSpans.length > 0) {
-          const flattenedNestedChildren = this.flattenChildWorkflowSpans(nestedChildSpans)
-          workflowSpan.children = [...(workflowSpan.children || []), ...flattenedNestedChildren]
-        }
-
-        workflowSpan.output = outputRest
-      }
-
-      flattened.push(workflowSpan)
-    })
-
-    return flattened
-  }
-
   private toExecutionResult(result: ExecutionResult | StreamingExecution): ExecutionResult {
     return 'execution' in result ? result.execution : result
   }
