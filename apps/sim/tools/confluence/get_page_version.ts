@@ -1,4 +1,8 @@
-import { DETAILED_VERSION_OUTPUT_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
+import {
+  BODY_FORMAT_PROPERTIES,
+  DETAILED_VERSION_OUTPUT_PROPERTIES,
+  TIMESTAMP_OUTPUT,
+} from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPageVersionParams {
@@ -14,6 +18,8 @@ export interface ConfluenceGetPageVersionResponse {
   output: {
     ts: string
     pageId: string
+    title: string | null
+    content: string | null
     version: {
       number: number
       message: string | null
@@ -25,6 +31,12 @@ export interface ConfluenceGetPageVersionResponse {
       prevVersion: number | null
       nextVersion: number | null
     }
+    body: {
+      storage?: {
+        value: string
+        representation: string
+      }
+    } | null
   }
 }
 
@@ -100,6 +112,8 @@ export const confluenceGetPageVersionTool: ToolConfig<
       output: {
         ts: new Date().toISOString(),
         pageId: data.pageId ?? '',
+        title: data.title ?? null,
+        content: data.content ?? null,
         version: data.version ?? {
           number: 0,
           message: null,
@@ -107,6 +121,7 @@ export const confluenceGetPageVersionTool: ToolConfig<
           authorId: null,
           createdAt: null,
         },
+        body: data.body ?? null,
       },
     }
   },
@@ -114,10 +129,29 @@ export const confluenceGetPageVersionTool: ToolConfig<
   outputs: {
     ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'ID of the page' },
+    title: { type: 'string', description: 'Page title at this version', optional: true },
+    content: {
+      type: 'string',
+      description: 'Page content with HTML tags stripped at this version',
+      optional: true,
+    },
     version: {
       type: 'object',
       description: 'Detailed version information',
       properties: DETAILED_VERSION_OUTPUT_PROPERTIES,
+    },
+    body: {
+      type: 'object',
+      description: 'Raw page body content in storage format at this version',
+      properties: {
+        storage: {
+          type: 'object',
+          description: 'Body in storage format (Confluence markup)',
+          properties: BODY_FORMAT_PROPERTIES,
+          optional: true,
+        },
+      },
+      optional: true,
     },
   },
 }
