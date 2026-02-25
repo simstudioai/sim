@@ -360,8 +360,7 @@ export async function PUT(request: NextRequest) {
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage =
-        errorData?.message || `Failed to update blog post (${response.status})`
+      const errorMessage = errorData?.message || `Failed to update blog post (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
@@ -425,8 +424,7 @@ export async function DELETE(request: NextRequest) {
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage =
-        errorData?.message || `Failed to delete blog post (${response.status})`
+      const errorMessage = errorData?.message || `Failed to delete blog post (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 

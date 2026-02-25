@@ -675,7 +675,10 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       placeholder: 'Enter blog post ID',
       required: true,
-      condition: { field: 'operation', value: ['get_blogpost', 'update_blogpost', 'delete_blogpost'] },
+      condition: {
+        field: 'operation',
+        value: ['get_blogpost', 'update_blogpost', 'delete_blogpost'],
+      },
     },
     {
       id: 'versionNumber',
@@ -794,14 +797,20 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       title: 'Title',
       type: 'short-input',
       placeholder: 'Enter title',
-      condition: { field: 'operation', value: ['create', 'update', 'create_blogpost', 'update_blogpost', 'update_space'] },
+      condition: {
+        field: 'operation',
+        value: ['create', 'update', 'create_blogpost', 'update_blogpost', 'update_space'],
+      },
     },
     {
       id: 'content',
       title: 'Content',
       type: 'long-input',
       placeholder: 'Enter content',
-      condition: { field: 'operation', value: ['create', 'update', 'create_blogpost', 'update_blogpost'] },
+      condition: {
+        field: 'operation',
+        value: ['create', 'update', 'create_blogpost', 'update_blogpost'],
+      },
     },
     {
       id: 'parentId',

@@ -42,7 +42,8 @@ export const confluenceListTasksTool: ToolConfig<
 > = {
   id: 'confluence_list_tasks',
   name: 'Confluence List Tasks',
-  description: 'List inline tasks from Confluence. Optionally filter by page, space, assignee, or status.',
+  description:
+    'List inline tasks from Confluence. Optionally filter by page, space, assignee, or status.',
   version: '1.0.0',
 
   oauth: {

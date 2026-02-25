@@ -142,8 +142,7 @@ export async function POST(request: NextRequest) {
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage =
-        errorData?.message || `Failed to create space (${response.status})`
+      const errorMessage = errorData?.message || `Failed to create space (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
@@ -223,8 +222,7 @@ export async function PUT(request: NextRequest) {
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage =
-        errorData?.message || `Failed to update space (${response.status})`
+      const errorMessage = errorData?.message || `Failed to update space (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
@@ -296,8 +294,7 @@ export async function DELETE(request: NextRequest) {
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage =
-        errorData?.message || `Failed to delete space (${response.status})`
+      const errorMessage = errorData?.message || `Failed to delete space (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 

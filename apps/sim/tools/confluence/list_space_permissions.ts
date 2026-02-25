@@ -122,12 +122,27 @@ export const confluenceListSpacePermissionsTool: ToolConfig<
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Permission ID' },
-          principalType: { type: 'string', description: 'Principal type (user, group, role)', optional: true },
+          principalType: {
+            type: 'string',
+            description: 'Principal type (user, group, role)',
+            optional: true,
+          },
           principalId: { type: 'string', description: 'Principal ID', optional: true },
-          operationKey: { type: 'string', description: 'Operation key (read, create, delete, etc.)', optional: true },
-          operationTargetType: { type: 'string', description: 'Target type (page, blogpost, space, etc.)', optional: true },
+          operationKey: {
+            type: 'string',
+            description: 'Operation key (read, create, delete, etc.)',
+            optional: true,
+          },
+          operationTargetType: {
+            type: 'string',
+            description: 'Target type (page, blogpost, space, etc.)',
+            optional: true,
+          },
           anonymousAccess: { type: 'boolean', description: 'Whether anonymous access is allowed' },
-          unlicensedAccess: { type: 'boolean', description: 'Whether unlicensed access is allowed' },
+          unlicensedAccess: {
+            type: 'boolean',
+            description: 'Whether unlicensed access is allowed',
+          },
         },
       },
     },
