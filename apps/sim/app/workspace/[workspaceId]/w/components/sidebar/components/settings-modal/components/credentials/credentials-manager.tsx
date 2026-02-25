@@ -2,7 +2,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Check, Copy, Plus, RefreshCw, Search, Share2, X } from 'lucide-react'
+import { AlertTriangle, Check, Clipboard, Plus, Search, Share2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -58,6 +58,7 @@ import {
   useOAuthConnections,
 } from '@/hooks/queries/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 const logger = createLogger('CredentialsManager')
 
@@ -143,9 +144,7 @@ function getSecretCredentialType(
   return scope === 'workspace' ? 'env_workspace' : 'env_personal'
 }
 
-function typeBadgeVariant(type: WorkspaceCredential['type']): 'blue' | 'amber' | 'gray-secondary' {
-  if (type === 'oauth') return 'blue'
-  if (type === 'env_workspace') return 'amber'
+function typeBadgeVariant(_type: WorkspaceCredential['type']): 'gray-secondary' {
   return 'gray-secondary'
 }
 
@@ -176,7 +175,11 @@ function CredentialSkeleton() {
   )
 }
 
-export function CredentialsManager() {
+interface CredentialsManagerProps {
+  onOpenChange?: (open: boolean) => void
+}
+
+export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -191,6 +194,7 @@ export function CredentialsManager() {
   const [createDescription, setCreateDescription] = useState('')
   const [createEnvKey, setCreateEnvKey] = useState('')
   const [createEnvValue, setCreateEnvValue] = useState('')
+  const [isCreateEnvValueFocused, setIsCreateEnvValueFocused] = useState(false)
   const [createOAuthProviderId, setCreateOAuthProviderId] = useState('')
   const [createSecretInputMode, setCreateSecretInputMode] = useState<SecretInputMode>('single')
   const [createBulkEntries, setCreateBulkEntries] = useState<ParsedEnvEntry[]>([])
@@ -205,6 +209,10 @@ export function CredentialsManager() {
   const [credentialToDelete, setCredentialToDelete] = useState<WorkspaceCredential | null>(null)
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
+  const [unsavedChangesAlertSource, setUnsavedChangesAlertSource] = useState<
+    'back' | 'modal-close'
+  >('back')
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
 
@@ -434,15 +442,55 @@ export function CredentialsManager() {
     }
   }
 
-  useEffect(() => {
-    if (createType !== 'oauth') return
-    if (createOAuthProviderId || oauthConnections.length === 0) return
-    setCreateOAuthProviderId(oauthConnections[0]?.providerId || '')
-  }, [createType, createOAuthProviderId, oauthConnections])
+  const handleBackAttempt = useCallback(() => {
+    if (isDetailsDirty && !isSavingDetails) {
+      setUnsavedChangesAlertSource('back')
+      setShowUnsavedChangesAlert(true)
+    } else {
+      setSelectedCredentialId(null)
+    }
+  }, [isDetailsDirty, isSavingDetails])
+
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedChangesAlert(false)
+    setSelectedEnvValueDraft(selectedEnvCurrentValue)
+    setSelectedDescriptionDraft(selectedCredential?.description || '')
+    setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
+    setSelectedCredentialId(null)
+  }, [selectedEnvCurrentValue, selectedCredential])
+
+  const handleDiscardAndClose = useCallback(() => {
+    setShowUnsavedChangesAlert(false)
+    useSettingsModalStore.getState().setHasUnsavedChanges(false)
+    useSettingsModalStore.getState().setOnCloseAttempt(null)
+    onOpenChange?.(false)
+  }, [onOpenChange])
+
+  const handleCloseAttemptFromModal = useCallback(() => {
+    if (selectedCredentialId && isDetailsDirty && !isSavingDetails) {
+      setUnsavedChangesAlertSource('modal-close')
+      setShowUnsavedChangesAlert(true)
+    }
+  }, [selectedCredentialId, isDetailsDirty, isSavingDetails])
 
   useEffect(() => {
-    setCreateError(null)
-  }, [createOAuthProviderId])
+    const store = useSettingsModalStore.getState()
+    if (selectedCredentialId && isDetailsDirty) {
+      store.setHasUnsavedChanges(true)
+      store.setOnCloseAttempt(handleCloseAttemptFromModal)
+    } else {
+      store.setHasUnsavedChanges(false)
+      store.setOnCloseAttempt(null)
+    }
+  }, [selectedCredentialId, isDetailsDirty, handleCloseAttemptFromModal])
+
+  useEffect(() => {
+    return () => {
+      const store = useSettingsModalStore.getState()
+      store.setHasUnsavedChanges(false)
+      store.setOnCloseAttempt(null)
+    }
+  }, [])
 
   const applyPendingCredentialCreateRequest = useCallback(
     (request: PendingCredentialCreateRequest) => {
@@ -1030,6 +1078,34 @@ export function CredentialsManager() {
       <ModalContent size='lg'>
         <ModalHeader>Create Secret</ModalHeader>
         <ModalBody>
+          {(createError ||
+            existingOAuthDisplayName ||
+            selectedExistingEnvCredential ||
+            crossScopeEnvConflict) && (
+            <div className='mb-3 flex flex-col gap-2'>
+              {createError && (
+                <Badge variant='red' size='lg' dot className='max-w-full'>
+                  {createError}
+                </Badge>
+              )}
+              {existingOAuthDisplayName && (
+                <Badge variant='red' size='lg' dot className='max-w-full'>
+                  A secret named "{existingOAuthDisplayName.displayName}" already exists.
+                </Badge>
+              )}
+              {selectedExistingEnvCredential && (
+                <Badge variant='red' size='lg' dot className='max-w-full'>
+                  A secret with key "{selectedExistingEnvCredential.displayName}" already exists.
+                </Badge>
+              )}
+              {!selectedExistingEnvCredential && crossScopeEnvConflict && (
+                <Badge variant='amber' size='lg' dot className='max-w-full'>
+                  A workspace secret with key "{crossScopeEnvConflict.envKey}" already exists.
+                  Workspace secrets take precedence at runtime.
+                </Badge>
+              )}
+            </div>
+          )}
           <div className='flex flex-col gap-[12px]'>
             <div>
               <Label>Type</Label>
@@ -1044,8 +1120,16 @@ export function CredentialsManager() {
                   }
                   selectedValue={createType}
                   onChange={(value) => {
-                    setCreateType(value as CreateCredentialType)
+                    const newType = value as CreateCredentialType
+                    setCreateType(newType)
                     setCreateError(null)
+                    if (
+                      newType === 'oauth' &&
+                      !createOAuthProviderId &&
+                      oauthConnections.length > 0
+                    ) {
+                      setCreateOAuthProviderId(oauthConnections[0]?.providerId || '')
+                    }
                   }}
                   placeholder='Select type'
                 />
@@ -1063,6 +1147,7 @@ export function CredentialsManager() {
                     onChange={(event) => setCreateDisplayName(event.target.value)}
                     placeholder='Secret name'
                     autoComplete='off'
+                    data-lpignore='true'
                     className='mt-[6px]'
                   />
                 </div>
@@ -1074,6 +1159,7 @@ export function CredentialsManager() {
                     placeholder='Optional description'
                     maxLength={500}
                     autoComplete='off'
+                    data-lpignore='true'
                     className='mt-[6px] min-h-[80px] resize-none'
                   />
                 </div>
@@ -1087,7 +1173,10 @@ export function CredentialsManager() {
                           ?.label || ''
                       }
                       selectedValue={createOAuthProviderId}
-                      onChange={setCreateOAuthProviderId}
+                      onChange={(value) => {
+                        setCreateOAuthProviderId(value)
+                        setCreateError(null)
+                      }}
                       placeholder='Select OAuth service'
                       searchable
                       searchPlaceholder='Search services...'
@@ -1113,18 +1202,6 @@ export function CredentialsManager() {
                     />
                   </div>
                 </div>
-                {existingOAuthDisplayName && (
-                  <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-                    <div className='flex items-start gap-[10px]'>
-                      <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                      <p className='text-[12px] text-red-700 dark:text-red-300'>
-                        A secret named{' '}
-                        <span className='font-medium'>{existingOAuthDisplayName.displayName}</span>{' '}
-                        already exists.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <div className='flex flex-col gap-[10px]'>
@@ -1148,15 +1225,22 @@ export function CredentialsManager() {
                           }}
                           onPaste={(event) => {
                             const pasted = event.clipboardData.getData('text')
-                            if (pasted.includes('=') && pasted.includes('\n')) {
-                              event.preventDefault()
-                              const { entries } = parseEnvText(pasted)
-                              if (entries.length > 0) {
-                                setCreateSecretInputMode('bulk')
-                                setCreateBulkEntries(entries)
-                                setCreateError(null)
-                              }
+                            const { entries } = parseEnvText(pasted)
+                            if (entries.length === 0) {
+                              return
                             }
+
+                            event.preventDefault()
+                            if (entries.length === 1) {
+                              setCreateEnvKey(entries[0].key)
+                              setCreateEnvValue(entries[0].value)
+                              setCreateError(null)
+                              return
+                            }
+
+                            setCreateSecretInputMode('bulk')
+                            setCreateBulkEntries(entries)
+                            setCreateError(null)
                           }}
                           placeholder='API_KEY'
                           autoComplete='off'
@@ -1168,9 +1252,11 @@ export function CredentialsManager() {
                         />
                         <div />
                         <Input
-                          type='password'
+                          type='text'
                           value={createEnvValue}
                           onChange={(event) => setCreateEnvValue(event.target.value)}
+                          onFocus={() => setIsCreateEnvValueFocused(true)}
+                          onBlur={() => setIsCreateEnvValueFocused(false)}
                           placeholder='Value'
                           autoComplete='new-password'
                           autoCapitalize='none'
@@ -1178,6 +1264,11 @@ export function CredentialsManager() {
                           spellCheck={false}
                           data-lpignore='true'
                           data-1p-ignore='true'
+                          style={
+                            isCreateEnvValueFocused
+                              ? undefined
+                              : ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                          }
                         />
                       </div>
                     </div>
@@ -1225,7 +1316,7 @@ export function CredentialsManager() {
                           />
                           <div />
                           <Input
-                            type='password'
+                            type='text'
                             value={entry.value}
                             onChange={(event) => {
                               const updated = [...createBulkEntries]
@@ -1239,6 +1330,7 @@ export function CredentialsManager() {
                             spellCheck={false}
                             data-lpignore='true'
                             data-1p-ignore='true'
+                            style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
                           />
                           <Button
                             variant='ghost'
@@ -1279,44 +1371,6 @@ export function CredentialsManager() {
                       </ButtonGroupItem>
                     </ButtonGroup>
                   </div>
-                </div>
-
-                {selectedExistingEnvCredential && (
-                  <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-                    <div className='flex items-start gap-[10px]'>
-                      <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                      <p className='text-[12px] text-red-700 dark:text-red-300'>
-                        A secret with key{' '}
-                        <span className='font-medium'>
-                          {selectedExistingEnvCredential.displayName}
-                        </span>{' '}
-                        already exists.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {!selectedExistingEnvCredential && crossScopeEnvConflict && (
-                  <div className='rounded-[8px] border border-amber-500/50 bg-amber-50 p-[12px] dark:bg-amber-950/30'>
-                    <div className='flex items-start gap-[10px]'>
-                      <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400' />
-                      <p className='text-[12px] text-amber-700 dark:text-amber-300'>
-                        A workspace secret with key{' '}
-                        <span className='font-medium'>{crossScopeEnvConflict.envKey}</span> already
-                        exists. Workspace secrets take precedence at runtime.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {createError && (
-              <div className='rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-                <div className='flex items-start gap-[10px]'>
-                  <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                  <p className='whitespace-pre-wrap text-[12px] text-red-700 dark:text-red-300'>
-                    {createError}
-                  </p>
                 </div>
               </div>
             )}
@@ -1431,86 +1485,44 @@ export function CredentialsManager() {
     </Modal>
   )
 
+  const unsavedChangesAlertJsx = (
+    <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
+      <ModalContent size='sm'>
+        <ModalHeader>Unsaved Changes</ModalHeader>
+        <ModalBody>
+          <p className='text-[12px] text-[var(--text-secondary)]'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
+            Keep Editing
+          </Button>
+          <Button
+            variant='destructive'
+            onClick={
+              unsavedChangesAlertSource === 'modal-close'
+                ? handleDiscardAndClose
+                : handleDiscardChanges
+            }
+          >
+            Discard Changes
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+
   if (selectedCredential) {
     return (
       <>
         <div className='flex h-full flex-col gap-[16px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-[16px]'>
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>Type</span>
-                <div className='flex items-center gap-[8px]'>
-                  <Badge variant={typeBadgeVariant(selectedCredential.type)}>
-                    {typeLabel(selectedCredential.type)}
-                  </Badge>
-                  {selectedCredential.role && (
-                    <Badge
-                      variant={selectedCredential.role === 'admin' ? 'blue' : 'gray-secondary'}
-                    >
-                      {selectedCredential.role}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
               {selectedCredential.type === 'oauth' ? (
-                <>
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='flex items-center gap-[6px]'>
-                      <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Display Name
-                      </span>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            className='h-[20px] w-[20px] p-0'
-                            onClick={() => {
-                              navigator.clipboard.writeText(selectedCredential.id)
-                              setCopyIdSuccess(true)
-                              setTimeout(() => setCopyIdSuccess(false), 2000)
-                            }}
-                          >
-                            {copyIdSuccess ? (
-                              <Check className='h-[11px] w-[11px]' />
-                            ) : (
-                              <Copy className='h-[11px] w-[11px]' />
-                            )}
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>Copy secret ID</Tooltip.Content>
-                      </Tooltip.Root>
-                    </div>
-                    <Input
-                      id='credential-display-name'
-                      value={selectedDisplayNameDraft}
-                      onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
-                      autoComplete='off'
-                      disabled={!isSelectedAdmin}
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-[8px]'>
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Description
-                    </span>
-                    <Textarea
-                      id='credential-description'
-                      value={selectedDescriptionDraft}
-                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
-                      placeholder='Add a description...'
-                      maxLength={500}
-                      autoComplete='off'
-                      disabled={!isSelectedAdmin}
-                      className='min-h-[60px] resize-none'
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-[8px]'>
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Connected service
-                    </span>
-                    <div className='flex items-center gap-[10px] rounded-[8px] border border-[var(--border-1)] px-[10px] py-[8px]'>
+                <div className='rounded-[8px] border border-[var(--border-1)] p-[10px]'>
+                  <div className='flex items-center justify-between gap-[12px]'>
+                    <div className='flex min-w-0 items-center gap-[10px]'>
                       <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
                         {selectedOAuthServiceConfig ? (
                           createElement(selectedOAuthServiceConfig.icon, { className: 'h-4 w-4' })
@@ -1520,18 +1532,113 @@ export function CredentialsManager() {
                           </span>
                         )}
                       </div>
-                      <span className='text-[12px] text-[var(--text-primary)]'>
-                        {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
-                      </span>
+                      <div className='min-w-0'>
+                        <p className='text-[11px] text-[var(--text-tertiary)]'>Connected service</p>
+                        <p className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                          {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
+                        </p>
+                      </div>
                     </div>
+                    <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                      <Badge variant={typeBadgeVariant(selectedCredential.type)}>
+                        {typeLabel(selectedCredential.type)}
+                      </Badge>
+                      {selectedCredential.role && (
+                        <Badge
+                          variant={
+                            selectedCredential.role === 'admin' ? 'purple' : 'gray-secondary'
+                          }
+                        >
+                          {selectedCredential.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className='flex flex-col gap-[10px]'>
+                  <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                    <Label>Type</Label>
+                  </div>
+                  <div className='flex items-center gap-[8px]'>
+                    <Badge variant={typeBadgeVariant(selectedCredential.type)}>
+                      {typeLabel(selectedCredential.type)}
+                    </Badge>
+                    {selectedCredential.role && (
+                      <Badge
+                        variant={selectedCredential.role === 'admin' ? 'purple' : 'gray-secondary'}
+                      >
+                        {selectedCredential.role}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedCredential.type === 'oauth' ? (
+                <>
+                  <div className='flex flex-col gap-[10px]'>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label className='flex items-center gap-[6px]'>
+                        Display Name
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <button
+                              type='button'
+                              className='-my-1 flex h-5 w-5 items-center justify-center'
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedCredential.id)
+                                setCopyIdSuccess(true)
+                                setTimeout(() => setCopyIdSuccess(false), 2000)
+                              }}
+                              aria-label='Copy value'
+                            >
+                              {copyIdSuccess ? (
+                                <Check className='h-3 w-3 text-green-500' />
+                              ) : (
+                                <Clipboard className='h-3 w-3 text-muted-foreground' />
+                              )}
+                            </button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            {copyIdSuccess ? 'Copied!' : 'Copy secret ID'}
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      </Label>
+                    </div>
+                    <Input
+                      id='credential-display-name'
+                      value={selectedDisplayNameDraft}
+                      onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
+                      autoComplete='off'
+                      data-lpignore='true'
+                      disabled={!isSelectedAdmin}
+                    />
+                  </div>
+
+                  <div className='flex flex-col gap-[10px]'>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label>Description</Label>
+                    </div>
+                    <Textarea
+                      id='credential-description'
+                      value={selectedDescriptionDraft}
+                      onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
+                      placeholder='Add a description...'
+                      maxLength={500}
+                      autoComplete='off'
+                      data-lpignore='true'
+                      disabled={!isSelectedAdmin}
+                      className='min-h-[60px] resize-none'
+                    />
                   </div>
                 </>
               ) : (
                 <>
-                  <div className='flex flex-col gap-[8px]'>
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Secret key
-                    </span>
+                  <div className='flex flex-col gap-[10px]'>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label>Secret key</Label>
+                    </div>
                     <Input
                       id='credential-env-key'
                       value={selectedCredential.envKey || ''}
@@ -1541,18 +1648,17 @@ export function CredentialsManager() {
                     />
                   </div>
 
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                        Secret value
-                      </span>
+                  <div className='flex flex-col gap-[10px]'>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label>Secret value</Label>
                       {canEditSelectedEnvValue && (
-                        <Button
-                          variant='ghost'
+                        <button
+                          type='button'
+                          className='-my-1 h-5 px-2 py-0 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                           onClick={() => setIsEditingEnvValue((value) => !value)}
                         >
                           {isEditingEnvValue ? 'Hide' : 'Edit'}
-                        </Button>
+                        </button>
                       )}
                     </div>
                     <Input
@@ -1576,10 +1682,10 @@ export function CredentialsManager() {
                     />
                   </div>
 
-                  <div className='flex flex-col gap-[8px]'>
-                    <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Description
-                    </span>
+                  <div className='flex flex-col gap-[10px]'>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label>Description</Label>
+                    </div>
                     <Textarea
                       id='credential-description'
                       value={selectedDescriptionDraft}
@@ -1600,10 +1706,10 @@ export function CredentialsManager() {
                 </div>
               )}
 
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  Members ({activeMembers.length})
-                </span>
+              <div className='flex flex-col gap-[10px]'>
+                <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                  <Label>Members ({activeMembers.length})</Label>
+                </div>
 
                 {membersLoading ? (
                   <div className='flex flex-col gap-[8px]'>
@@ -1662,7 +1768,7 @@ export function CredentialsManager() {
                           </>
                         ) : (
                           <>
-                            <Badge variant={member.role === 'admin' ? 'blue' : 'gray-secondary'}>
+                            <Badge variant={member.role === 'admin' ? 'purple' : 'gray-secondary'}>
                               {member.role}
                             </Badge>
                             <div />
@@ -1670,54 +1776,49 @@ export function CredentialsManager() {
                         )}
                       </div>
                     ))}
-                  </div>
-                )}
-
-                {isSelectedAdmin && selectedCredential.type !== 'env_workspace' && (
-                  <div className='rounded-[8px] border border-[var(--border-1)] p-[10px]'>
-                    <Label>Add member</Label>
-                    <div className='mt-[6px] grid grid-cols-[1fr_120px_auto] gap-[8px]'>
-                      <Combobox
-                        options={workspaceUserOptions}
-                        value={
-                          workspaceUserOptions.find((option) => option.value === memberUserId)
-                            ?.label || ''
-                        }
-                        selectedValue={memberUserId}
-                        onChange={setMemberUserId}
-                        placeholder='Select user'
-                      />
-                      <Combobox
-                        options={roleOptions.map((option) => ({
-                          value: option.value,
-                          label: option.label,
-                        }))}
-                        value={
-                          roleOptions.find((option) => option.value === memberRole)?.label || ''
-                        }
-                        selectedValue={memberRole}
-                        onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
-                        placeholder='Role'
-                      />
-                      <Button
-                        variant='active'
-                        onClick={handleAddMember}
-                        disabled={!memberUserId || upsertMember.isPending}
-                      >
-                        Add
-                      </Button>
-                    </div>
+                    {isSelectedAdmin && selectedCredential.type !== 'env_workspace' && (
+                      <div className='grid grid-cols-[1fr_120px_auto] items-center gap-[8px] border-[var(--border)] border-t border-dashed pt-[8px]'>
+                        <Combobox
+                          options={workspaceUserOptions}
+                          value={
+                            workspaceUserOptions.find((option) => option.value === memberUserId)
+                              ?.label || ''
+                          }
+                          selectedValue={memberUserId}
+                          onChange={setMemberUserId}
+                          placeholder='Add member...'
+                          size='sm'
+                        />
+                        <Combobox
+                          options={roleOptions.map((option) => ({
+                            value: option.value,
+                            label: option.label,
+                          }))}
+                          value={
+                            roleOptions.find((option) => option.value === memberRole)?.label || ''
+                          }
+                          selectedValue={memberRole}
+                          onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
+                          placeholder='Role'
+                          size='sm'
+                        />
+                        <Button
+                          variant='ghost'
+                          onClick={handleAddMember}
+                          disabled={!memberUserId || upsertMember.isPending}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-between'>
+          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-[10px]'>
             <div className='flex items-center gap-[8px]'>
-              <Button onClick={() => setSelectedCredentialId(null)} variant='active'>
-                Back
-              </Button>
               {isSelectedAdmin && (
                 <>
                   {selectedCredential.type === 'oauth' && (
@@ -1726,8 +1827,9 @@ export function CredentialsManager() {
                       onClick={handleReconnectOAuth}
                       disabled={connectOAuthService.isPending}
                     >
-                      <RefreshCw className='mr-[6px] h-[13px] w-[13px]' />
-                      Reconnect
+                      {`Reconnect to ${
+                        resolveProviderLabel(selectedCredential.providerId) || 'service'
+                      }`}
                     </Button>
                   )}
                   {selectedCredential.type === 'env_personal' && (
@@ -1737,7 +1839,7 @@ export function CredentialsManager() {
                       disabled={isPromoting || deleteCredential.isPending}
                     >
                       <Share2 className='mr-[6px] h-[13px] w-[13px]' />
-                      Promote
+                      Promote to workspace
                     </Button>
                   )}
                   {selectedCredential.type === 'oauth' &&
@@ -1763,21 +1865,27 @@ export function CredentialsManager() {
                 </>
               )}
             </div>
-            {isSelectedAdmin && (
-              <Button
-                variant='tertiary'
-                onClick={handleSaveDetails}
-                disabled={!isDetailsDirty || isSavingDetails}
-              >
-                {isSavingDetails ? 'Saving...' : 'Save'}
+            <div className='flex items-center gap-[8px]'>
+              <Button onClick={handleBackAttempt} variant='default'>
+                Back
               </Button>
-            )}
+              {isSelectedAdmin && (
+                <Button
+                  variant='tertiary'
+                  onClick={handleSaveDetails}
+                  disabled={!isDetailsDirty || isSavingDetails}
+                >
+                  {isSavingDetails ? 'Saving...' : 'Save'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
         {createModalJsx}
         {oauthRequiredModalJsx}
         {deleteConfirmDialogJsx}
+        {unsavedChangesAlertJsx}
       </>
     )
   }

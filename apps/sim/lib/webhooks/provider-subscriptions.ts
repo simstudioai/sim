@@ -1017,7 +1017,7 @@ export async function createAttioWebhookSubscription(
 
     const { TRIGGER_EVENT_MAP } = await import('@/triggers/attio/utils')
 
-    let subscriptions: Array<{ event_type: string }> = []
+    let subscriptions: Array<{ event_type: string; filter: null }> = []
     if (triggerId === 'attio_webhook') {
       const allEvents = new Set<string>()
       for (const events of Object.values(TRIGGER_EVENT_MAP)) {
@@ -1025,7 +1025,7 @@ export async function createAttioWebhookSubscription(
           allEvents.add(event)
         }
       }
-      subscriptions = Array.from(allEvents).map((event_type) => ({ event_type }))
+      subscriptions = Array.from(allEvents).map((event_type) => ({ event_type, filter: null }))
     } else {
       const events = TRIGGER_EVENT_MAP[triggerId]
       if (!events || events.length === 0) {
@@ -1034,12 +1034,14 @@ export async function createAttioWebhookSubscription(
         })
         throw new Error(`Unknown Attio trigger type: ${triggerId}`)
       }
-      subscriptions = events.map((event_type) => ({ event_type }))
+      subscriptions = events.map((event_type) => ({ event_type, filter: null }))
     }
 
     const requestBody = {
-      target_url: notificationUrl,
-      subscriptions,
+      data: {
+        target_url: notificationUrl,
+        subscriptions,
+      },
     }
 
     const attioResponse = await fetch('https://api.attio.com/v2/webhooks', {
@@ -1091,7 +1093,12 @@ export async function createAttioWebhookSubscription(
 
     attioLogger.info(
       `[${requestId}] Successfully created webhook in Attio for webhook ${webhookData.id}.`,
-      { attioWebhookId: webhookId }
+      {
+        attioWebhookId: webhookId,
+        targetUrl: notificationUrl,
+        subscriptionCount: subscriptions.length,
+        status: data.status,
+      }
     )
 
     return { externalId: webhookId, webhookSecret: secret || '' }

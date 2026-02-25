@@ -16,8 +16,12 @@ export interface SettingsModalState {
   isOpen: boolean
   initialSection: SettingsSection | null
   mcpServerId: string | null
+  hasUnsavedChanges: boolean
+  onCloseAttempt: (() => void) | null
 
   openModal: (options?: { section?: SettingsSection; mcpServerId?: string }) => void
   closeModal: () => void
   clearInitialState: () => void
+  setHasUnsavedChanges: (hasChanges: boolean) => void
+  setOnCloseAttempt: (callback: (() => void) | null) => void
 }

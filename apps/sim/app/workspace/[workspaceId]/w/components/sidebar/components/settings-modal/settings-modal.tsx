@@ -449,7 +449,18 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }
 
+  const { hasUnsavedChanges, onCloseAttempt, setHasUnsavedChanges, setOnCloseAttempt } =
+    useSettingsModalStore()
+
   const handleDialogOpenChange = (newOpen: boolean) => {
+    if (!newOpen && hasUnsavedChanges && onCloseAttempt) {
+      onCloseAttempt()
+      return
+    }
+    if (!newOpen) {
+      setHasUnsavedChanges(false)
+      setOnCloseAttempt(null)
+    }
     onOpenChange(newOpen)
   }
 

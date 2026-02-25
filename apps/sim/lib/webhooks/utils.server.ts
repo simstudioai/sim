@@ -1291,6 +1291,49 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'attio') {
+    const {
+      extractAttioRecordData,
+      extractAttioRecordUpdatedData,
+      extractAttioRecordMergedData,
+      extractAttioNoteData,
+      extractAttioTaskData,
+      extractAttioCommentData,
+      extractAttioListEntryData,
+      extractAttioListEntryUpdatedData,
+      extractAttioGenericData,
+    } = await import('@/triggers/attio/utils')
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    if (triggerId === 'attio_record_updated') {
+      return extractAttioRecordUpdatedData(body)
+    }
+    if (triggerId === 'attio_record_merged') {
+      return extractAttioRecordMergedData(body)
+    }
+    if (triggerId === 'attio_record_created' || triggerId === 'attio_record_deleted') {
+      return extractAttioRecordData(body)
+    }
+    if (triggerId?.startsWith('attio_note_')) {
+      return extractAttioNoteData(body)
+    }
+    if (triggerId?.startsWith('attio_task_')) {
+      return extractAttioTaskData(body)
+    }
+    if (triggerId?.startsWith('attio_comment_')) {
+      return extractAttioCommentData(body)
+    }
+    if (triggerId === 'attio_list_entry_updated') {
+      return extractAttioListEntryUpdatedData(body)
+    }
+    if (triggerId === 'attio_list_entry_created' || triggerId === 'attio_list_entry_deleted') {
+      return extractAttioListEntryData(body)
+    }
+    return extractAttioGenericData(body)
+  }
+
   return body
 }
 

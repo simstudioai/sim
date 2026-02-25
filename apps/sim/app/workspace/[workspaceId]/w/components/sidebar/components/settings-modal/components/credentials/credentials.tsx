@@ -6,10 +6,10 @@ interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
 }
 
-export function Credentials(_props: CredentialsProps) {
+export function Credentials({ onOpenChange }: CredentialsProps) {
   return (
     <div className='h-full min-h-0'>
-      <CredentialsManager />
+      <CredentialsManager onOpenChange={onOpenChange} />
     </div>
   )
 }
