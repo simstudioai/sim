@@ -129,6 +129,9 @@ export interface GoogleSheetsV2ToolParams {
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'
+  filterColumn?: string
+  filterValue?: string
+  filterMatchType?: 'contains' | 'exact' | 'starts_with' | 'ends_with'
 }
 
 export type GoogleSheetsV2Response =
