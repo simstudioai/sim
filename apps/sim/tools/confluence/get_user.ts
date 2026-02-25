@@ -25,7 +25,7 @@ export const confluenceGetUserTool: ToolConfig<ConfluenceGetUserParams, Confluen
   {
     id: 'confluence_get_user',
     name: 'Confluence Get User',
-    description: "Get a Confluence user's display name and profile info by their account ID.",
+    description: 'Get display name and profile info for a Confluence user by account ID.',
     version: '1.0.0',
 
     oauth: {
