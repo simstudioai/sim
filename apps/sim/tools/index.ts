@@ -641,9 +641,13 @@ function getRetryConfig(
 function isRetryableFailure(error: unknown, status?: number): boolean {
   if (status === 429 || (status && status >= 500 && status <= 599)) return true
   if (error instanceof Error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ECONNABORTED') {
+      return true
+    }
     const msg = error.message.toLowerCase()
     if (isBodySizeLimitError(msg)) return false
-    return msg.includes('timeout') || msg.includes('timed out') || msg.includes('econnreset')
+    return msg.includes('timeout') || msg.includes('timed out')
   }
   return false
 }
@@ -655,8 +659,17 @@ function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: n
 
 function parseRetryAfterHeader(header: string | null): number {
   if (!header) return 0
-  const seconds = Number.parseInt(header, 10)
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
+  const trimmed = header.trim()
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number.parseInt(trimmed, 10)
+    return seconds > 0 ? seconds * 1000 : 0
+  }
+  const date = new Date(trimmed)
+  if (!Number.isNaN(date.getTime())) {
+    const deltaMs = date.getTime() - Date.now()
+    return deltaMs > 0 ? deltaMs : 0
+  }
+  return 0
 }
 
 /**

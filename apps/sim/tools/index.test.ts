@@ -1160,5 +1160,29 @@ describe('MCP Tool Execution', () => {
       expect(global.fetch).toHaveBeenCalledTimes(2)
       expect(result.success).toBe(true)
     })
+
+    it('retries on ETIMEDOUT errors for http_request', async () => {
+      const etimedoutError = Object.assign(new Error('connect ETIMEDOUT 10.0.0.1:443'), {
+        code: 'ETIMEDOUT',
+      })
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockRejectedValueOnce(etimedoutError)
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 1,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+    })
   })
 })
