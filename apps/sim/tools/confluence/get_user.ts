@@ -62,21 +62,18 @@ export const confluenceGetUserTool: ToolConfig<ConfluenceGetUserParams, Confluen
     },
 
     request: {
-      url: (params: ConfluenceGetUserParams) => {
-        const query = new URLSearchParams({
-          domain: params.domain,
-          accessToken: params.accessToken,
-          accountId: params.accountId?.trim(),
-        })
-        if (params.cloudId) {
-          query.set('cloudId', params.cloudId)
-        }
-        return `/api/tools/confluence/user?${query.toString()}`
-      },
-      method: 'GET',
+      url: () => '/api/tools/confluence/user',
+      method: 'POST',
       headers: (params: ConfluenceGetUserParams) => ({
         Accept: 'application/json',
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${params.accessToken}`,
+      }),
+      body: (params: ConfluenceGetUserParams) => ({
+        domain: params.domain,
+        accessToken: params.accessToken,
+        accountId: params.accountId?.trim(),
+        cloudId: params.cloudId,
       }),
     },
 

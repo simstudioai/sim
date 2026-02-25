@@ -12,18 +12,15 @@ export const dynamic = 'force-dynamic'
  * Get a Confluence user by account ID.
  * Uses GET /wiki/rest/api/user?accountId={accountId}
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const accountId = searchParams.get('accountId')
-    const providedCloudId = searchParams.get('cloudId')
+    const body = await request.json()
+    const { domain, accessToken, accountId, cloudId: providedCloudId } = body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })

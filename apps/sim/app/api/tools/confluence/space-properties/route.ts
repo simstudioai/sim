@@ -60,6 +60,21 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}/properties`
 
+    // Validate required params for specific actions
+    if (action === 'delete' && !propertyId) {
+      return NextResponse.json(
+        { error: 'Property ID is required for delete action' },
+        { status: 400 }
+      )
+    }
+
+    if (action === 'create' && !key) {
+      return NextResponse.json(
+        { error: 'Property key is required for create action' },
+        { status: 400 }
+      )
+    }
+
     // Delete a property
     if (action === 'delete' && propertyId) {
       const propertyIdValidation = validateAlphanumericId(propertyId, 'propertyId', 255)

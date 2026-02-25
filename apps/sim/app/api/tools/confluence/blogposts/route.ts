@@ -330,6 +330,14 @@ export async function PUT(request: NextRequest) {
     }
 
     const currentPost = await currentResponse.json()
+
+    if (!currentPost.version?.number) {
+      return NextResponse.json(
+        { error: 'Unable to determine current blog post version' },
+        { status: 422 }
+      )
+    }
+
     const currentVersion = currentPost.version.number
 
     const updateBody: Record<string, unknown> = {
