@@ -53,6 +53,28 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       visibility: 'user-only',
       description: 'Request timeout in milliseconds (default: 300000 = 5 minutes)',
     },
+    retries: {
+      type: 'number',
+      visibility: 'hidden',
+      description:
+        'Number of retry attempts for retryable failures (timeouts, 429, 5xx). Default: 0 (no retries).',
+    },
+    retryDelayMs: {
+      type: 'number',
+      visibility: 'hidden',
+      description: 'Initial retry delay in milliseconds (default: 500)',
+    },
+    retryMaxDelayMs: {
+      type: 'number',
+      visibility: 'hidden',
+      description: 'Maximum delay between retries in milliseconds (default: 30000)',
+    },
+    retryNonIdempotent: {
+      type: 'boolean',
+      visibility: 'hidden',
+      description:
+        'Allow retries for non-idempotent methods like POST/PATCH (may create duplicate requests).',
+    },
   },
 
   request: {
@@ -119,6 +141,14 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
       return undefined
     }) as (params: RequestParams) => Record<string, any> | string | FormData | undefined,
+
+    retry: {
+      enabled: true,
+      maxRetries: 0,
+      initialDelayMs: 500,
+      maxDelayMs: 30000,
+      retryIdempotentOnly: true,
+    },
   },
 
   transformResponse: async (response: Response) => {

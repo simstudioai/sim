@@ -58,6 +58,14 @@ export interface OAuthConfig {
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
 }
 
+export interface ToolRetryConfig {
+  enabled: boolean
+  maxRetries?: number
+  initialDelayMs?: number
+  maxDelayMs?: number
+  retryIdempotentOnly?: boolean
+}
+
 export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
@@ -115,6 +123,7 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    retry?: ToolRetryConfig
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
