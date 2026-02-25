@@ -831,13 +831,19 @@ async function executeToolRequest(
         } catch {
           // Ignore errors when consuming body
         }
+        const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'))
+        if (retryAfterMs > retryConfig.maxDelayMs) {
+          logger.warn(
+            `[${requestId}] Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`
+          )
+          break
+        }
         const backoffMs = calculateBackoff(
           attempt,
           retryConfig.initialDelayMs,
           retryConfig.maxDelayMs
         )
-        const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'))
-        const delayMs = Math.min(retryConfig.maxDelayMs, Math.max(backoffMs, retryAfterMs))
+        const delayMs = Math.max(backoffMs, retryAfterMs)
         logger.warn(
           `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
           { delayMs }

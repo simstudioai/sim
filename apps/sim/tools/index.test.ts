@@ -1116,5 +1116,49 @@ describe('MCP Tool Execution', () => {
       expect(global.fetch).toHaveBeenCalledTimes(2)
       expect(result.success).toBe(true)
     })
+
+    it('skips retry when Retry-After header exceeds maxDelayMs', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '60' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 3,
+        retryMaxDelayMs: 5000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('retries when Retry-After header is within maxDelayMs', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '1' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 2,
+        retryMaxDelayMs: 5000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+    })
   })
 })
