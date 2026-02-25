@@ -422,10 +422,7 @@ export const Panel = memo(function Panel() {
                     <span>Auto layout</span>
                   </PopoverItem>
                   {userPermissions.canAdmin && (
-                    <PopoverItem
-                      onClick={handleToggleWorkflowLock}
-                      disabled={!hasBlocks}
-                    >
+                    <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
                       {allBlocksLocked ? (
                         <Unlock className='h-3 w-3' />
                       ) : (

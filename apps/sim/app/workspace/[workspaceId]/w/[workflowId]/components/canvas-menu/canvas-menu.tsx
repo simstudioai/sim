@@ -161,11 +161,7 @@ export function CanvasMenu({
               onClose()
             }}
           >
-            {allBlocksLocked ? (
-              <Unlock className='h-3 w-3' />
-            ) : (
-              <Lock className='h-3 w-3' />
-            )}
+            {allBlocksLocked ? <Unlock className='h-3 w-3' /> : <Lock className='h-3 w-3' />}
             <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
           </PopoverItem>
         )}

@@ -1226,14 +1226,19 @@ const WorkflowContent = React.memo(() => {
           ? 'This workflow is locked'
           : 'This workflow is locked. Ask an admin to unlock it.',
         workflowId: activeWorkflowId || undefined,
-        ...(isAdmin
-          ? { action: { type: 'unlock-workflow' as const, message: '' } }
-          : {}),
+        ...(isAdmin ? { action: { type: 'unlock-workflow' as const, message: '' } } : {}),
       })
     } else {
       clearLockNotification()
     }
-  }, [allBlocksLocked, isWorkflowReady, effectivePermissions.canAdmin, addNotification, activeWorkflowId, clearLockNotification])
+  }, [
+    allBlocksLocked,
+    isWorkflowReady,
+    effectivePermissions.canAdmin,
+    addNotification,
+    activeWorkflowId,
+    clearLockNotification,
+  ])
 
   // Clean up notification on unmount
   useEffect(() => clearLockNotification, [clearLockNotification])
