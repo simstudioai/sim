@@ -24,9 +24,9 @@
       "!**/public/workbox-*.js",
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
-      "!**/apps/docs/.source/**",
-      "!**/venv/**",
-      "!**/.venv/**"
+      "!**/apps/docs/.source",
+      "!**/venv",
+      "!**/.venv"
     ]
   },
   "formatter": {
@@ -65,8 +65,7 @@
     "rules": {
       "recommended": true,
       "nursery": {
-        "useSortedClasses": "warn",
-        "noNestedComponentDefinitions": "off"
+        "useSortedClasses": "warn"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",

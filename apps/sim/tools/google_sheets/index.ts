@@ -5,6 +5,9 @@ import { batchUpdateV2Tool } from '@/tools/google_sheets/batch_update'
 import { clearV2Tool } from '@/tools/google_sheets/clear'
 import { copySheetV2Tool } from '@/tools/google_sheets/copy_sheet'
 import { createSpreadsheetV2Tool } from '@/tools/google_sheets/create_spreadsheet'
+import { deleteRowsV2Tool } from '@/tools/google_sheets/delete_rows'
+import { deleteSheetV2Tool } from '@/tools/google_sheets/delete_sheet'
+import { deleteSpreadsheetV2Tool } from '@/tools/google_sheets/delete_spreadsheet'
 import { getSpreadsheetV2Tool } from '@/tools/google_sheets/get_spreadsheet'
 import { readTool, readV2Tool } from '@/tools/google_sheets/read'
 import { updateTool, updateV2Tool } from '@/tools/google_sheets/update'
@@ -28,3 +31,6 @@ export const googleSheetsBatchGetV2Tool = batchGetV2Tool
 export const googleSheetsBatchUpdateV2Tool = batchUpdateV2Tool
 export const googleSheetsBatchClearV2Tool = batchClearV2Tool
 export const googleSheetsCopySheetV2Tool = copySheetV2Tool
+export const googleSheetsDeleteRowsV2Tool = deleteRowsV2Tool
+export const googleSheetsDeleteSheetV2Tool = deleteSheetV2Tool
+export const googleSheetsDeleteSpreadsheetV2Tool = deleteSpreadsheetV2Tool
