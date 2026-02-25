@@ -826,6 +826,11 @@ async function executeToolRequest(
         !response.ok &&
         isRetryableFailure(null, response.status)
       ) {
+        try {
+          await response.arrayBuffer()
+        } catch {
+          // Ignore errors when consuming body
+        }
         const backoffMs = calculateBackoff(
           attempt,
           retryConfig.initialDelayMs,
