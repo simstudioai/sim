@@ -90,6 +90,14 @@ export interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams 
   showDeleted?: boolean
 }
 
+export interface GoogleCalendarFreeBusyParams {
+  accessToken: string
+  calendarIds: string // Comma-separated calendar IDs (e.g., "primary,other@example.com")
+  timeMin: string // RFC3339 timestamp (e.g., 2025-06-03T00:00:00Z)
+  timeMax: string // RFC3339 timestamp (e.g., 2025-06-04T00:00:00Z)
+  timeZone?: string // IANA time zone (e.g., "UTC", "America/New_York")
+}
+
 export interface GoogleCalendarListCalendarsParams {
   accessToken: string
   minAccessRole?: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
@@ -109,6 +117,7 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarInviteParams
   | GoogleCalendarMoveParams
   | GoogleCalendarInstancesParams
+  | GoogleCalendarFreeBusyParams
   | GoogleCalendarListCalendarsParams
 
 interface EventMetadata {
@@ -341,6 +350,36 @@ export interface GoogleCalendarInstancesResponse extends ToolResponse {
   }
 }
 
+export interface GoogleCalendarFreeBusyResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      timeMin: string
+      timeMax: string
+      calendars: Record<
+        string,
+        {
+          busy: Array<{ start: string; end: string }>
+          errors?: Array<{ domain: string; reason: string }>
+        }
+      >
+    }
+  }
+}
+
+export interface GoogleCalendarApiFreeBusyResponse {
+  kind: string
+  timeMin: string
+  timeMax: string
+  calendars: Record<
+    string,
+    {
+      busy: Array<{ start: string; end: string }>
+      errors?: Array<{ domain: string; reason: string }>
+    }
+  >
+}
+
 export interface GoogleCalendarListCalendarsResponse extends ToolResponse {
   output: {
     content: string
@@ -373,4 +412,5 @@ export type GoogleCalendarResponse =
   | GoogleCalendarDeleteResponse
   | GoogleCalendarMoveResponse
   | GoogleCalendarInstancesResponse
+  | GoogleCalendarFreeBusyResponse
   | GoogleCalendarListCalendarsResponse
