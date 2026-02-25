@@ -319,7 +319,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async fetchCustomToolById(
     ctx: ExecutionContext,
     customToolId: string
-  ): Promise<{ schema: any; code: string; title: string } | null> {
+  ): Promise<{ schema: any; title: string } | null> {
     if (typeof window !== 'undefined') {
       try {
         const { getCustomTool } = await import('@/hooks/queries/custom-tools')
@@ -327,7 +327,6 @@ export class AgentBlockHandler implements BlockHandler {
         if (tool) {
           return {
             schema: tool.schema,
-            code: tool.code || '',
             title: tool.title,
           }
         }
@@ -376,7 +375,6 @@ export class AgentBlockHandler implements BlockHandler {
 
       return {
         schema: tool.schema,
-        code: tool.code || '',
         title: tool.title,
       }
     } catch (error) {
