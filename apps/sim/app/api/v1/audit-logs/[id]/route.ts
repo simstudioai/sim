@@ -4,13 +4,16 @@
  * Get a single audit log entry by ID, scoped to the authenticated user's organization.
  * Requires enterprise subscription and org admin/owner role.
  *
+ * Scope includes logs from current org members AND logs within org workspaces
+ * (including those from departed members or system actions with null actorId).
+ *
  * Response: { data: AuditLogEntry, limits: UserLimits }
  */
 
 import { db } from '@sim/db'
-import { auditLog } from '@sim/db/schema'
+import { auditLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -43,13 +46,21 @@ export async function GET(
 
     const { orgMemberIds } = authResult.context
 
+    const orgWorkspaceIds = db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.ownerId, orgMemberIds))
+
     const [log] = await db
       .select()
       .from(auditLog)
       .where(
         and(
           eq(auditLog.id, id),
-          inArray(auditLog.actorId, orgMemberIds)
+          or(
+            inArray(auditLog.actorId, orgMemberIds),
+            inArray(auditLog.workspaceId, orgWorkspaceIds)
+          )
         )
       )
       .limit(1)

@@ -47,7 +47,11 @@ const QueryParamsSchema = z.object({
   actorId: z.string().optional(),
   startDate: isoDateString.optional(),
   endDate: isoDateString.optional(),
-  includeDeparted: z.coerce.boolean().optional().default(false),
+  includeDeparted: z
+    .enum(['true', 'false'])
+    .transform((val) => val === 'true')
+    .optional()
+    .default('false'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })
@@ -141,16 +145,19 @@ export async function GET(request: NextRequest) {
 
     if (params.cursor) {
       const cursorData = decodeCursor(params.cursor)
-      if (cursorData) {
-        conditions.push(
-          or(
-            lt(auditLog.createdAt, new Date(cursorData.createdAt)),
-            and(
-              eq(auditLog.createdAt, new Date(cursorData.createdAt)),
-              lt(auditLog.id, cursorData.id)
-            )
-          )!
-        )
+      if (cursorData && cursorData.createdAt && cursorData.id) {
+        const cursorDate = new Date(cursorData.createdAt)
+        if (!isNaN(cursorDate.getTime())) {
+          conditions.push(
+            or(
+              lt(auditLog.createdAt, cursorDate),
+              and(
+                eq(auditLog.createdAt, cursorDate),
+                lt(auditLog.id, cursorData.id)
+              )
+            )!
+          )
+        }
       }
     }
 
