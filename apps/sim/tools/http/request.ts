@@ -55,23 +55,23 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
     retries: {
       type: 'number',
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Number of retry attempts for retryable failures (timeouts, 429, 5xx). Defaults to 2 for idempotent methods (GET/PUT/DELETE/HEAD) and 0 otherwise.',
     },
     retryDelayMs: {
       type: 'number',
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Initial retry delay in milliseconds (default: 500)',
     },
     retryMaxDelayMs: {
       type: 'number',
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Maximum delay between retries in milliseconds (default: 30000)',
     },
     retryNonIdempotent: {
       type: 'boolean',
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Allow retries for non-idempotent methods like POST/PATCH (may create duplicate requests).',
     },
@@ -144,22 +144,10 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
     retry: {
       enabled: true,
-      maxRetries: 2,
-      maxRetriesLimit: 10,
+      maxRetries: 0,
       initialDelayMs: 500,
       maxDelayMs: 30000,
-      retryOnStatusCodes: [429],
-      retryOnStatusRanges: [{ min: 500, max: 599 }],
-      retryOnTimeout: true,
-      retryOnNetworkError: true,
-      respectRetryAfter: true,
-      retryableMethods: ['GET', 'HEAD', 'PUT', 'DELETE'],
-      paramOverrides: {
-        retries: 'retries',
-        initialDelayMs: 'retryDelayMs',
-        maxDelayMs: 'retryMaxDelayMs',
-        nonIdempotent: 'retryNonIdempotent',
-      },
+      retryIdempotentOnly: true,
     },
   },
 

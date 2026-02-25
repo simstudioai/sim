@@ -14,13 +14,7 @@ import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
-import type {
-  HttpMethod,
-  OAuthTokenPayload,
-  ToolConfig,
-  ToolRequestRetryConfig,
-  ToolResponse,
-} from '@/tools/types'
+import type { OAuthTokenPayload, ToolConfig, ToolResponse, ToolRetryConfig } from '@/tools/types'
 import {
   formatRequestParams,
   getTool,
@@ -616,201 +610,53 @@ async function addInternalAuthIfNeeded(
   }
 }
 
-function parseFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : undefined
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
-  return undefined
-}
-
-function parseBoolean(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'number') return value !== 0
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === 'true') return true
-    if (normalized === 'false') return false
-    if (normalized === '1') return true
-    if (normalized === '0') return false
-  }
-  return undefined
-}
-
-function clampInt(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, Math.trunc(value)))
-}
-
-function toUpperHttpMethod(method: unknown): string {
-  return String(method || 'GET').toUpperCase()
-}
-
-function parseRetryAfterMs(headerValue: string | null, nowMs: number): number | undefined {
-  if (!headerValue) return undefined
-  const raw = headerValue.trim()
-  if (!raw) return undefined
-
-  // Retry-After: <delay-seconds>
-  if (/^\d+$/.test(raw)) {
-    const seconds = Number.parseInt(raw, 10)
-    if (!Number.isFinite(seconds) || seconds < 0) return undefined
-    return seconds * 1000
-  }
-
-  // Retry-After: <http-date>
-  const dateMs = Date.parse(raw)
-  if (!Number.isFinite(dateMs)) return undefined
-  const delta = dateMs - nowMs
-  return Number.isFinite(delta) ? Math.max(0, delta) : undefined
-}
-
-function calculateBackoffDelayMs(
-  attempt: number,
-  initialDelayMs: number,
-  maxDelayMs: number
-): number {
-  const safeInitial = Math.max(0, initialDelayMs)
-  const safeMax = Math.max(0, maxDelayMs)
-  if (safeInitial === 0 || safeMax === 0) return 0
-
-  const base = Math.min(safeInitial * 2 ** attempt, safeMax)
-  const half = base / 2
-  return Math.round(half + Math.random() * half)
-}
-
-function isRetryableStatus(
-  status: number,
-  retryOnStatusCodes: Set<number>,
-  retryOnStatusRanges: { min: number; max: number }[]
-): boolean {
-  if (retryOnStatusCodes.has(status)) return true
-  for (const range of retryOnStatusRanges) {
-    if (status >= range.min && status <= range.max) return true
-  }
-  return false
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  if (error && typeof error === 'object' && 'message' in error)
-    return String((error as any).message)
-  return String(error)
-}
-
-function getErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object') return undefined
-  const code = (error as any).code ?? (error as any).cause?.code
-  return typeof code === 'string' ? code : undefined
-}
-
-function shouldRetryError(error: unknown, retry: ResolvedRequestRetryConfig): boolean {
-  const message = getErrorMessage(error)
-  if (!message) return false
-
-  // Don't retry on known non-retryable conditions
-  if (isBodySizeLimitError(message)) return false
-  if (message.toLowerCase().includes('blocked ip address')) return false
-
-  if (retry.retryOnTimeout) {
-    const lower = message.toLowerCase()
-    if (lower.includes('timed out') || lower.includes('timeout')) {
-      return true
-    }
-  }
-
-  if (retry.retryOnNetworkError) {
-    const code = getErrorCode(error)
-    const retryableCodes = new Set([
-      'ETIMEDOUT',
-      'ECONNRESET',
-      'ECONNREFUSED',
-      'EHOSTUNREACH',
-      'ENETUNREACH',
-      'EAI_AGAIN',
-      'ENOTFOUND',
-    ])
-    if (code && retryableCodes.has(code)) return true
-
-    const lower = message.toLowerCase()
-    if (
-      lower.includes('fetch failed') ||
-      lower.includes('networkerror') ||
-      lower.includes('network error') ||
-      lower.includes('connection') ||
-      lower.includes('hostname could not be resolved')
-    ) {
-      return true
-    }
-  }
-
-  return false
-}
-
-type ResolvedRequestRetryConfig = {
+interface ResolvedRetryConfig {
   maxRetries: number
   initialDelayMs: number
   maxDelayMs: number
-  retryOnTimeout: boolean
-  retryOnNetworkError: boolean
-  respectRetryAfter: boolean
-  retryOnStatusCodes: Set<number>
-  retryOnStatusRanges: { min: number; max: number }[]
 }
 
-function resolveRequestRetryConfig(
-  toolRetry: ToolRequestRetryConfig | undefined,
+function getRetryConfig(
+  retry: ToolRetryConfig | undefined,
   params: Record<string, any>,
   method: string
-): ResolvedRequestRetryConfig | null {
-  if (!toolRetry?.enabled) return null
+): ResolvedRetryConfig | null {
+  if (!retry?.enabled) return null
 
-  const retriesParam = toolRetry.paramOverrides?.retries ?? 'retries'
-  const initialDelayParam = toolRetry.paramOverrides?.initialDelayMs ?? 'retryDelayMs'
-  const maxDelayParam = toolRetry.paramOverrides?.maxDelayMs ?? 'retryMaxDelayMs'
-  const nonIdempotentParam = toolRetry.paramOverrides?.nonIdempotent ?? 'retryNonIdempotent'
+  const isIdempotent = ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method.toUpperCase())
+  if (retry.retryIdempotentOnly && !isIdempotent && !params.retryNonIdempotent) {
+    return null
+  }
 
-  const methodUpper = toUpperHttpMethod(method)
-  const retryableMethods =
-    toolRetry.retryableMethods ?? (['GET', 'HEAD', 'PUT', 'DELETE'] satisfies HttpMethod[])
-  const allowNonIdempotent = parseBoolean(params[nonIdempotentParam]) ?? false
-  const methodIsRetryableByDefault = retryableMethods.includes(methodUpper as HttpMethod)
-
-  const maxRetriesDefault = toolRetry.maxRetries ?? (methodIsRetryableByDefault ? 2 : 0)
-  const maxRetriesRaw = parseFiniteNumber(params[retriesParam]) ?? maxRetriesDefault
-  const maxRetriesLimit = toolRetry.maxRetriesLimit ?? 10
-  const maxRetries =
-    methodIsRetryableByDefault || allowNonIdempotent
-      ? clampInt(maxRetriesRaw, 0, maxRetriesLimit)
-      : 0
-
-  const initialDelayMsRaw =
-    parseFiniteNumber(params[initialDelayParam]) ?? toolRetry.initialDelayMs ?? 500
-  const maxDelayMsRaw = parseFiniteNumber(params[maxDelayParam]) ?? toolRetry.maxDelayMs ?? 30000
-  const initialDelayMs = Math.max(0, Math.trunc(initialDelayMsRaw))
-  const maxDelayMs = Math.max(0, Math.trunc(maxDelayMsRaw))
-
-  const retryOnStatusCodes = new Set(toolRetry.retryOnStatusCodes ?? [429])
-  const retryOnStatusRanges = toolRetry.retryOnStatusRanges ?? [{ min: 500, max: 599 }]
+  const maxRetries = Math.min(10, Math.max(0, Number(params.retries) || retry.maxRetries || 0))
+  if (maxRetries === 0) return null
 
   return {
     maxRetries,
-    initialDelayMs: Math.min(initialDelayMs, maxDelayMs || initialDelayMs),
-    maxDelayMs,
-    retryOnTimeout: toolRetry.retryOnTimeout ?? true,
-    retryOnNetworkError: toolRetry.retryOnNetworkError ?? true,
-    respectRetryAfter: toolRetry.respectRetryAfter ?? true,
-    retryOnStatusCodes,
-    retryOnStatusRanges,
+    initialDelayMs: Number(params.retryDelayMs) || retry.initialDelayMs || 500,
+    maxDelayMs: Number(params.retryMaxDelayMs) || retry.maxDelayMs || 30000,
   }
 }
 
-async function sleep(ms: number): Promise<void> {
-  if (!Number.isFinite(ms) || ms <= 0) return
-  await new Promise<void>((resolve) => setTimeout(resolve, ms))
+function isRetryableFailure(error: unknown, status?: number): boolean {
+  if (status === 429 || (status && status >= 500 && status <= 599)) return true
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase()
+    if (isBodySizeLimitError(msg)) return false
+    return msg.includes('timeout') || msg.includes('timed out') || msg.includes('econnreset')
+  }
+  return false
+}
+
+function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
+  const base = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs)
+  return Math.round(base / 2 + Math.random() * (base / 2))
+}
+
+function parseRetryAfterHeader(header: string | null): number {
+  if (!header) return 0
+  const seconds = Number.parseInt(header, 10)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
 }
 
 /**
@@ -894,7 +740,7 @@ async function executeToolRequest(
       headersRecord[key] = value
     })
 
-    const retryConfig = resolveRequestRetryConfig(tool.request.retry, params, requestParams.method)
+    const retryConfig = getRetryConfig(tool.request.retry, params, requestParams.method)
     const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1
 
     let response: Response | undefined
@@ -917,7 +763,6 @@ async function executeToolRequest(
               signal: controller.signal,
             })
           } catch (error) {
-            // Convert AbortError to a timeout error message
             if (error instanceof Error && error.name === 'AbortError') {
               throw new Error(`Request timed out after ${timeout}ms`)
             }
@@ -958,23 +803,19 @@ async function executeToolRequest(
         }
       } catch (error) {
         lastError = error
-        if (!retryConfig || isLastAttempt || !shouldRetryError(error, retryConfig)) {
+        if (!retryConfig || isLastAttempt || !isRetryableFailure(error)) {
           throw error
         }
-
-        const delayMs = calculateBackoffDelayMs(
+        const delayMs = calculateBackoff(
           attempt,
           retryConfig.initialDelayMs,
           retryConfig.maxDelayMs
         )
         logger.warn(
           `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
-          {
-            delayMs,
-            error: getErrorMessage(error),
-          }
+          { delayMs }
         )
-        await sleep(delayMs)
+        await new Promise((r) => setTimeout(r, delayMs))
         continue
       }
 
@@ -983,38 +824,20 @@ async function executeToolRequest(
         !isLastAttempt &&
         response &&
         !response.ok &&
-        isRetryableStatus(
-          response.status,
-          retryConfig.retryOnStatusCodes,
-          retryConfig.retryOnStatusRanges
-        )
+        isRetryableFailure(null, response.status)
       ) {
-        const backoffDelayMs = calculateBackoffDelayMs(
+        const backoffMs = calculateBackoff(
           attempt,
           retryConfig.initialDelayMs,
           retryConfig.maxDelayMs
         )
-        const retryAfterMs = retryConfig.respectRetryAfter
-          ? parseRetryAfterMs(response.headers.get('retry-after'), Date.now())
-          : undefined
-        const delayMs = Math.min(
-          retryConfig.maxDelayMs,
-          Math.max(backoffDelayMs, retryAfterMs ?? 0)
-        )
-
-        try {
-          await (response.body as any)?.cancel?.()
-        } catch {
-          // ignore
-        }
-
+        const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'))
+        const delayMs = Math.min(retryConfig.maxDelayMs, Math.max(backoffMs, retryAfterMs))
         logger.warn(
           `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
-          {
-            delayMs,
-          }
+          { delayMs }
         )
-        await sleep(delayMs)
+        await new Promise((r) => setTimeout(r, delayMs))
         continue
       }
 

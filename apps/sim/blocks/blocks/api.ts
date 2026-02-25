@@ -93,9 +93,9 @@ Example:
       id: 'retries',
       title: 'Retries',
       type: 'short-input',
-      placeholder: '2',
+      placeholder: '0',
       description:
-        'Number of retry attempts for timeouts, 429 responses, and 5xx errors (default: 2 for GET/PUT/DELETE/HEAD)',
+        'Number of retry attempts for timeouts, 429 responses, and 5xx errors (default: 0, no retries)',
       mode: 'advanced',
     },
     {

@@ -1000,6 +1000,21 @@ describe('MCP Tool Execution', () => {
       expect((result.output as any).status).toBe(200)
     })
 
+    it('does not retry when retries is not specified (default: 0)', async () => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(makeJsonResponse(500, { error: 'server error' })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
     it('stops retrying after max attempts for http_request', async () => {
       global.fetch = Object.assign(
         vi.fn().mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' })),
