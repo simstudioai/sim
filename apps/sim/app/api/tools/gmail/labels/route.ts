@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GmailLabelsAPI')
@@ -45,27 +45,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
     }
 
-    let credentials = await db
-      .select()
-      .from(account)
-      .where(and(eq(account.id, credentialId), eq(account.userId, session.user.id)))
-      .limit(1)
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved) {
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
 
-    if (!credentials.length) {
-      credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (!credentials.length) {
-        logger.warn(`[${requestId}] Credential not found`)
-        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    if (resolved.workspaceId) {
+      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
+      const perm = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        resolved.workspaceId
+      )
+      if (perm === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
-    const credential = credentials[0]
+    const credentials = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
+
+    if (!credentials.length) {
+      logger.warn(`[${requestId}] Credential not found`)
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const accountRow = credentials[0]
 
     logger.info(
-      `[${requestId}] Using credential: ${credential.id}, provider: ${credential.providerId}`
+      `[${requestId}] Using credential: ${accountRow.id}, provider: ${accountRow.providerId}`
     )
 
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, credential.userId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolved.accountId,
+      accountRow.userId,
+      requestId
+    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

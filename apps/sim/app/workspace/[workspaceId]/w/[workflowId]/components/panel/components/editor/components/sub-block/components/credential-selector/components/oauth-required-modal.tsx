@@ -30,6 +30,7 @@ export interface OAuthRequiredModalProps {
   requiredScopes?: string[]
   serviceId: string
   newScopes?: string[]
+  onConnect?: () => Promise<void> | void
 }
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
@@ -300,6 +301,16 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-follow-modify': 'Follow and unfollow artists and users',
   'user-read-playback-position': 'View playback position in podcasts',
   'ugc-image-upload': 'Upload images to Spotify playlists',
+  // Attio
+  'record_permission:read-write': 'Read and write CRM records',
+  'object_configuration:read-write': 'Read and manage object schemas',
+  'list_configuration:read-write': 'Read and manage list configurations',
+  'list_entry:read-write': 'Read and write list entries',
+  'note:read-write': 'Read and write notes',
+  'task:read-write': 'Read and write tasks',
+  'comment:read-write': 'Read and write comments and threads',
+  'user_management:read': 'View workspace members',
+  'webhook:read-write': 'Manage webhooks',
 }
 
 function getScopeDescription(scope: string): string {
@@ -314,6 +325,7 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
   newScopes = [],
+  onConnect,
 }: OAuthRequiredModalProps) {
   const [error, setError] = useState<string | null>(null)
   const { baseProvider } = parseProvider(provider)
@@ -359,6 +371,12 @@ export function OAuthRequiredModal({
     setError(null)
 
     try {
+      if (onConnect) {
+        await onConnect()
+        onClose()
+        return
+      }
+
       const providerId = getProviderIdFromServiceId(serviceId)
 
       logger.info('Linking OAuth2:', {

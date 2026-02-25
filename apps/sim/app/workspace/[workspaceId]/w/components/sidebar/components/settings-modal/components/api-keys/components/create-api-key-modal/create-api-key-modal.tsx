@@ -62,8 +62,8 @@ export function CreateApiKeyModal({
     if (isDuplicate) {
       setCreateError(
         keyType === 'workspace'
-          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
-          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
+          ? `A workspace Sim key named "${trimmedName}" already exists. Please choose a different name.`
+          : `A personal Sim key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
@@ -86,11 +86,11 @@ export function CreateApiKeyModal({
     } catch (error: unknown) {
       logger.error('API key creation failed:', { error })
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to create API key. Please try again.'
+        error instanceof Error ? error.message : 'Failed to create Sim key. Please try again.'
       if (errorMessage.toLowerCase().includes('already exists')) {
         setCreateError(errorMessage)
       } else {
-        setCreateError('Failed to create API key. Please check your connection and try again.')
+        setCreateError('Failed to create Sim key. Please check your connection and try again.')
       }
     }
   }
@@ -113,7 +113,7 @@ export function CreateApiKeyModal({
       {/* Create API Key Dialog */}
       <Modal open={open} onOpenChange={onOpenChange}>
         <ModalContent size='sm'>
-          <ModalHeader>Create new API key</ModalHeader>
+          <ModalHeader>Create new Sim key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               {keyType === 'workspace'
@@ -125,7 +125,7 @@ export function CreateApiKeyModal({
               {canManageWorkspaceKeys && (
                 <div className='flex flex-col gap-[8px]'>
                   <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                    API Key Type
+                    Sim Key Type
                   </p>
                   <ButtonGroup
                     value={keyType}
@@ -143,7 +143,7 @@ export function CreateApiKeyModal({
               )}
               <div className='flex flex-col gap-[8px]'>
                 <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                  Enter a name for your API key to help you identify it later.
+                  Enter a name for your Sim key to help you identify it later.
                 </p>
                 {/* Hidden decoy fields to prevent browser autofill */}
                 <input
@@ -216,10 +216,10 @@ export function CreateApiKeyModal({
         }}
       >
         <ModalContent size='sm'>
-          <ModalHeader>Your API key has been created</ModalHeader>
+          <ModalHeader>Your Sim key has been created</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              This is the only time you will see your API key.{' '}
+              This is the only time you will see your Sim key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
               </span>

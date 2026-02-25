@@ -11,7 +11,7 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStateAPI')
@@ -153,13 +153,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Sanitize custom tools in agent blocks before saving
-    const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(state.blocks as any)
+    const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(
+      state.blocks as Record<string, BlockState>
+    )
 
     // Save to normalized tables
     // Ensure all required fields are present for WorkflowState type
     // Filter out blocks without type or name before saving
     const filteredBlocks = Object.entries(sanitizedBlocks).reduce(
-      (acc, [blockId, block]: [string, any]) => {
+      (acc, [blockId, block]: [string, BlockState]) => {
         if (block.type && block.name) {
           // Ensure all required fields are present
           acc[blockId] = {
@@ -191,7 +193,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       deployedAt: state.deployedAt,
     }
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState as any)
+    const saveResult = await saveWorkflowToNormalizedTables(
+      workflowId,
+      workflowState as WorkflowState
+    )
 
     if (!saveResult.success) {
       logger.error(`[${requestId}] Failed to save workflow ${workflowId} state:`, saveResult.error)

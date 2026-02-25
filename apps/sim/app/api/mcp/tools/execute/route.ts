@@ -83,7 +83,6 @@ export const POST = withMcpAuth('read')(
             serverId: serverId,
             serverName: 'provided-schema',
           } as McpTool
-          logger.debug(`[${requestId}] Using provided schema for ${toolName}, skipping discovery`)
         } else {
           const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
           tool = tools.find((t) => t.name === toolName) ?? null

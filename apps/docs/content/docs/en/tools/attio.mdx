@@ -1,0 +1,1046 @@
+---
+title: Attio
+description: Manage records, notes, tasks, lists, comments, and more in Attio CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="attio"
+  color="#1D1E20"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Attio](https://www.attio.com/) is a modern and flexible CRM platform built to help teams manage relationships, data, and workflows more efficiently. Attio enables organizations to create and organize custom objects (like people, companies, deals, and more), manage notes and tasks, collaborate as a team, and automate work across their relationship and data pipelines.
+
+With Attio, you can:
+
+- **Manage records for any object**: Store and organize people, companies, or any custom objects to fit your team's needs.
+- **Track, connect, and update information**: Add and edit notes, comments, tasks, and linked records so your contextual data is always in sync.
+- **Build and customize lists**: Segment records, filter and sort with powerful queries, and build views that fit your workflow.
+- **Collaborate with your team**: Assign tasks, share comments, and see activities in real time.
+- **Automate CRM workflows**: Create, update, and read record data via API to keep your tools and teams in the loop, or trigger actions as relationships evolve.
+
+In Sim, the Attio integration lets your agents programmatically query lists, fetch and manipulate records, manage entries, tasks, comments, and more—making it easy to automate CRM operations, enrich data, synchronize with other systems, or trigger workflow automations based on relationship or record events. Use these tools to ensure your CRM stays up-to-date and powerful directly from within your Sim projects.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.
+
+
+
+## Tools
+
+### `attio_list_records`
+
+Query and list records for a given object type (e.g. people, companies)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `filter` | string | No | JSON filter object for querying records |
+| `sorts` | string | No | JSON array of sort objects, e.g. \[\{"direction":"asc","attribute":"name"\}\] |
+| `limit` | number | No | Maximum number of records to return \(default 500\) |
+| `offset` | number | No | Number of records to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of Attio records |
+|   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
+|   ↳ `created_at` | string | When the record was created |
+|   ↳ `web_url` | string | URL to view the record in Attio |
+|   ↳ `values` | json | The record attribute values |
+| `count` | number | Number of records returned |
+
+### `attio_get_record`
+
+Get a single record by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `recordId` | string | Yes | The ID of the record to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | An Attio record |
+|   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
+|   ↳ `created_at` | string | When the record was created |
+|   ↳ `web_url` | string | URL to view the record in Attio |
+|   ↳ `values` | json | The record attribute values |
+| `recordId` | string | The record ID |
+| `webUrl` | string | URL to view the record in Attio |
+
+### `attio_create_record`
+
+Create a new record in Attio for a given object type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `values` | string | Yes | JSON object of attribute values to set on the record |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | An Attio record |
+|   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
+|   ↳ `created_at` | string | When the record was created |
+|   ↳ `web_url` | string | URL to view the record in Attio |
+|   ↳ `values` | json | The record attribute values |
+| `recordId` | string | The ID of the created record |
+| `webUrl` | string | URL to view the record in Attio |
+
+### `attio_update_record`
+
+Update an existing record in Attio (appends multiselect values)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `recordId` | string | Yes | The ID of the record to update |
+| `values` | string | Yes | JSON object of attribute values to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | An Attio record |
+|   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
+|   ↳ `created_at` | string | When the record was created |
+|   ↳ `web_url` | string | URL to view the record in Attio |
+|   ↳ `values` | json | The record attribute values |
+| `recordId` | string | The ID of the updated record |
+| `webUrl` | string | URL to view the record in Attio |
+
+### `attio_delete_record`
+
+Delete a record from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `recordId` | string | Yes | The ID of the record to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the record was deleted |
+
+### `attio_search_records`
+
+Fuzzy search for records across object types in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query \(max 256 characters\) |
+| `objects` | string | Yes | Comma-separated object slugs to search \(e.g. people,companies\) |
+| `limit` | number | No | Maximum number of results \(1-25, default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results |
+|   ↳ `recordId` | string | The record ID |
+|   ↳ `objectId` | string | The object type ID |
+|   ↳ `objectSlug` | string | The object type slug |
+|   ↳ `recordText` | string | Display text for the record |
+|   ↳ `recordImage` | string | Image URL for the record |
+| `count` | number | Number of results returned |
+
+### `attio_assert_record`
+
+Upsert a record in Attio — creates it if no match is found, updates it if a match exists
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objectType` | string | Yes | The object type slug \(e.g. people, companies\) |
+| `matchingAttribute` | string | Yes | The attribute slug to match on for upsert \(e.g. email_addresses for people, domains for companies\) |
+| `values` | string | Yes | JSON object of attribute values \(e.g. \{"email_addresses":\[\{"email_address":"test@example.com"\}\]\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | object | The upserted record |
+|   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
+|   ↳ `created_at` | string | When the record was created |
+|   ↳ `web_url` | string | URL to view the record in Attio |
+|   ↳ `values` | json | The record attribute values |
+| `recordId` | string | The record ID |
+| `webUrl` | string | URL to view the record in Attio |
+
+### `attio_list_notes`
+
+List notes in Attio, optionally filtered by parent record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parentObject` | string | No | Object type slug to filter notes by \(e.g. people, companies\) |
+| `parentRecordId` | string | No | Record ID to filter notes by |
+| `limit` | number | No | Maximum number of notes to return \(default 10, max 50\) |
+| `offset` | number | No | Number of notes to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Array of notes |
+|   ↳ `noteId` | string | The note ID |
+|   ↳ `parentObject` | string | The parent object slug |
+|   ↳ `parentRecordId` | string | The parent record ID |
+|   ↳ `title` | string | The note title |
+|   ↳ `contentPlaintext` | string | The note content as plaintext |
+|   ↳ `contentMarkdown` | string | The note content as markdown |
+|   ↳ `meetingId` | string | The linked meeting ID |
+|   ↳ `tags` | array | Tags on the note |
+|     ↳ `type` | string | The tag type \(e.g. workspace-member\) |
+|     ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+|   ↳ `createdByActor` | object | The actor who created the note |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
+|   ↳ `createdAt` | string | When the note was created |
+| `count` | number | Number of notes returned |
+
+### `attio_get_note`
+
+Get a single note by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `noteId` | string | Yes | The ID of the note to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `noteId` | string | The note ID |
+| `parentObject` | string | The parent object slug |
+| `parentRecordId` | string | The parent record ID |
+| `title` | string | The note title |
+| `contentPlaintext` | string | The note content as plaintext |
+| `contentMarkdown` | string | The note content as markdown |
+| `meetingId` | string | The linked meeting ID |
+| `tags` | array | Tags on the note |
+|   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
+|   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+| `createdByActor` | object | The actor who created the note |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the note was created |
+
+### `attio_create_note`
+
+Create a note on a record in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parentObject` | string | Yes | The parent object type slug \(e.g. people, companies\) |
+| `parentRecordId` | string | Yes | The parent record ID to attach the note to |
+| `title` | string | Yes | The note title |
+| `content` | string | Yes | The note content |
+| `format` | string | No | Content format: plaintext or markdown \(default plaintext\) |
+| `createdAt` | string | No | Backdate the note creation time \(ISO 8601 format\) |
+| `meetingId` | string | No | Associate the note with a meeting ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `noteId` | string | The note ID |
+| `parentObject` | string | The parent object slug |
+| `parentRecordId` | string | The parent record ID |
+| `title` | string | The note title |
+| `contentPlaintext` | string | The note content as plaintext |
+| `contentMarkdown` | string | The note content as markdown |
+| `meetingId` | string | The linked meeting ID |
+| `tags` | array | Tags on the note |
+|   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
+|   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+| `createdByActor` | object | The actor who created the note |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the note was created |
+
+### `attio_delete_note`
+
+Delete a note from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `noteId` | string | Yes | The ID of the note to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the note was deleted |
+
+### `attio_list_tasks`
+
+List tasks in Attio, optionally filtered by record, assignee, or completion status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedObject` | string | No | Object type slug to filter tasks by \(requires linkedRecordId\) |
+| `linkedRecordId` | string | No | Record ID to filter tasks by \(requires linkedObject\) |
+| `assignee` | string | No | Assignee email or member ID to filter by |
+| `isCompleted` | boolean | No | Filter by completion status |
+| `sort` | string | No | Sort order: created_at:asc or created_at:desc |
+| `limit` | number | No | Maximum number of tasks to return \(default 500\) |
+| `offset` | number | No | Number of tasks to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Array of tasks |
+|   ↳ `taskId` | string | The task ID |
+|   ↳ `content` | string | The task content |
+|   ↳ `deadlineAt` | string | The task deadline |
+|   ↳ `isCompleted` | boolean | Whether the task is completed |
+|   ↳ `linkedRecords` | array | Records linked to this task |
+|     ↳ `targetObjectId` | string | The linked object ID |
+|     ↳ `targetRecordId` | string | The linked record ID |
+|   ↳ `assignees` | array | Task assignees |
+|     ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|     ↳ `id` | string | The assignee actor ID |
+|   ↳ `createdByActor` | object | The actor who created this task |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
+|   ↳ `createdAt` | string | When the task was created |
+| `count` | number | Number of tasks returned |
+
+### `attio_create_task`
+
+Create a task in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Yes | The task content \(max 2000 characters\) |
+| `deadlineAt` | string | No | Deadline in ISO 8601 format \(e.g. 2024-12-01T15:00:00.000Z\) |
+| `isCompleted` | boolean | No | Whether the task is completed \(default false\) |
+| `linkedRecords` | string | No | JSON array of linked records \(e.g. \[\{"target_object":"people","target_record_id":"..."\}\]\) |
+| `assignees` | string | No | JSON array of assignees \(e.g. \[\{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."\}\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | The task ID |
+| `content` | string | The task content |
+| `deadlineAt` | string | The task deadline |
+| `isCompleted` | boolean | Whether the task is completed |
+| `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
+| `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
+| `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the task was created |
+
+### `attio_update_task`
+
+Update a task in Attio (deadline, completion status, linked records, assignees)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task to update |
+| `deadlineAt` | string | No | New deadline in ISO 8601 format |
+| `isCompleted` | boolean | No | Whether the task is completed |
+| `linkedRecords` | string | No | JSON array of linked records |
+| `assignees` | string | No | JSON array of assignees |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | The task ID |
+| `content` | string | The task content |
+| `deadlineAt` | string | The task deadline |
+| `isCompleted` | boolean | Whether the task is completed |
+| `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
+| `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
+| `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the task was created |
+
+### `attio_delete_task`
+
+Delete a task from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the task was deleted |
+
+### `attio_list_objects`
+
+List all objects (system and custom) in the Attio workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | array | Array of objects |
+|   ↳ `objectId` | string | The object ID |
+|   ↳ `apiSlug` | string | The API slug \(e.g. people, companies\) |
+|   ↳ `singularNoun` | string | Singular display name |
+|   ↳ `pluralNoun` | string | Plural display name |
+|   ↳ `createdAt` | string | When the object was created |
+| `count` | number | Number of objects returned |
+
+### `attio_get_object`
+
+Get a single object by ID or slug
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `object` | string | Yes | The object ID or slug \(e.g. people, companies\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectId` | string | The object ID |
+| `apiSlug` | string | The API slug \(e.g. people, companies\) |
+| `singularNoun` | string | Singular display name |
+| `pluralNoun` | string | Plural display name |
+| `createdAt` | string | When the object was created |
+
+### `attio_create_object`
+
+Create a custom object in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiSlug` | string | Yes | The API slug for the object \(e.g. projects\) |
+| `singularNoun` | string | Yes | Singular display name \(e.g. Project\) |
+| `pluralNoun` | string | Yes | Plural display name \(e.g. Projects\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectId` | string | The object ID |
+| `apiSlug` | string | The API slug \(e.g. people, companies\) |
+| `singularNoun` | string | Singular display name |
+| `pluralNoun` | string | Plural display name |
+| `createdAt` | string | When the object was created |
+
+### `attio_update_object`
+
+Update a custom object in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `object` | string | Yes | The object ID or slug to update |
+| `apiSlug` | string | No | New API slug |
+| `singularNoun` | string | No | New singular display name |
+| `pluralNoun` | string | No | New plural display name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectId` | string | The object ID |
+| `apiSlug` | string | The API slug \(e.g. people, companies\) |
+| `singularNoun` | string | Singular display name |
+| `pluralNoun` | string | Plural display name |
+| `createdAt` | string | When the object was created |
+
+### `attio_list_lists`
+
+List all lists in the Attio workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Array of lists |
+|   ↳ `listId` | string | The list ID |
+|   ↳ `apiSlug` | string | The API slug for the list |
+|   ↳ `name` | string | The list name |
+|   ↳ `parentObject` | string | The parent object slug \(e.g. people, companies\) |
+|   ↳ `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
+|   ↳ `workspaceMemberAccess` | json | Member-level access entries |
+|   ↳ `createdByActor` | object | The actor who created the list |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
+|   ↳ `createdAt` | string | When the list was created |
+| `count` | number | Number of lists returned |
+
+### `attio_get_list`
+
+Get a single list by ID or slug
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listId` | string | The list ID |
+| `apiSlug` | string | The API slug for the list |
+| `name` | string | The list name |
+| `parentObject` | string | The parent object slug \(e.g. people, companies\) |
+| `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
+| `workspaceMemberAccess` | json | Member-level access entries |
+| `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the list was created |
+
+### `attio_create_list`
+
+Create a new list in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | The list name |
+| `apiSlug` | string | No | The API slug for the list \(auto-generated from name if omitted\) |
+| `parentObject` | string | Yes | The parent object slug \(e.g. people, companies\) |
+| `workspaceAccess` | string | No | Workspace-level access: full-access, read-and-write, or read-only \(omit for private\) |
+| `workspaceMemberAccess` | string | No | JSON array of member access entries, e.g. \[\{"workspace_member_id":"...","level":"read-and-write"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listId` | string | The list ID |
+| `apiSlug` | string | The API slug for the list |
+| `name` | string | The list name |
+| `parentObject` | string | The parent object slug \(e.g. people, companies\) |
+| `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
+| `workspaceMemberAccess` | json | Member-level access entries |
+| `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the list was created |
+
+### `attio_update_list`
+
+Update a list in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug to update |
+| `name` | string | No | New name for the list |
+| `apiSlug` | string | No | New API slug for the list |
+| `workspaceAccess` | string | No | New workspace-level access: full-access, read-and-write, or read-only \(omit for private\) |
+| `workspaceMemberAccess` | string | No | JSON array of member access entries, e.g. \[\{"workspace_member_id":"...","level":"read-and-write"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listId` | string | The list ID |
+| `apiSlug` | string | The API slug for the list |
+| `name` | string | The list name |
+| `parentObject` | string | The parent object slug \(e.g. people, companies\) |
+| `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
+| `workspaceMemberAccess` | json | Member-level access entries |
+| `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the list was created |
+
+### `attio_query_list_entries`
+
+Query entries in an Attio list with optional filter, sort, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+| `filter` | string | No | JSON filter object for querying entries |
+| `sorts` | string | No | JSON array of sort objects \(e.g. \[\{"attribute":"created_at","direction":"desc"\}\]\) |
+| `limit` | number | No | Maximum number of entries to return \(default 500\) |
+| `offset` | number | No | Number of entries to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | Array of list entries |
+|   ↳ `entryId` | string | The list entry ID |
+|   ↳ `listId` | string | The list ID |
+|   ↳ `parentRecordId` | string | The parent record ID |
+|   ↳ `parentObject` | string | The parent object slug |
+|   ↳ `createdAt` | string | When the entry was created |
+|   ↳ `entryValues` | json | The entry attribute values \(dynamic per list\) |
+| `count` | number | Number of entries returned |
+
+### `attio_get_list_entry`
+
+Get a single list entry by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+| `entryId` | string | Yes | The entry ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entryId` | string | The list entry ID |
+| `listId` | string | The list ID |
+| `parentRecordId` | string | The parent record ID |
+| `parentObject` | string | The parent object slug |
+| `createdAt` | string | When the entry was created |
+| `entryValues` | json | The entry attribute values \(dynamic per list\) |
+
+### `attio_create_list_entry`
+
+Add a record to an Attio list as a new entry
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+| `parentRecordId` | string | Yes | The record ID to add to the list |
+| `parentObject` | string | Yes | The object type slug of the record \(e.g. people, companies\) |
+| `entryValues` | string | No | JSON object of entry attribute values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entryId` | string | The list entry ID |
+| `listId` | string | The list ID |
+| `parentRecordId` | string | The parent record ID |
+| `parentObject` | string | The parent object slug |
+| `createdAt` | string | When the entry was created |
+| `entryValues` | json | The entry attribute values \(dynamic per list\) |
+
+### `attio_update_list_entry`
+
+Update entry attribute values on an Attio list entry (appends multiselect values)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+| `entryId` | string | Yes | The entry ID to update |
+| `entryValues` | string | Yes | JSON object of entry attribute values to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entryId` | string | The list entry ID |
+| `listId` | string | The list ID |
+| `parentRecordId` | string | The parent record ID |
+| `parentObject` | string | The parent object slug |
+| `createdAt` | string | When the entry was created |
+| `entryValues` | json | The entry attribute values \(dynamic per list\) |
+
+### `attio_delete_list_entry`
+
+Remove an entry from an Attio list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list` | string | Yes | The list ID or slug |
+| `entryId` | string | Yes | The entry ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the entry was deleted |
+
+### `attio_list_members`
+
+List all workspace members in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Array of workspace members |
+|   ↳ `memberId` | string | The workspace member ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `avatarUrl` | string | Avatar URL |
+|   ↳ `emailAddress` | string | Email address |
+|   ↳ `accessLevel` | string | Access level \(admin, member, suspended\) |
+|   ↳ `createdAt` | string | When the member was added |
+| `count` | number | Number of members returned |
+
+### `attio_get_member`
+
+Get a single workspace member by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `memberId` | string | Yes | The workspace member ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memberId` | string | The workspace member ID |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `avatarUrl` | string | Avatar URL |
+| `emailAddress` | string | Email address |
+| `accessLevel` | string | Access level \(admin, member, suspended\) |
+| `createdAt` | string | When the member was added |
+
+### `attio_create_comment`
+
+Create a comment on a list entry in Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Yes | The comment content |
+| `format` | string | No | Content format: plaintext or markdown \(default plaintext\) |
+| `authorType` | string | Yes | Author type \(e.g. workspace-member\) |
+| `authorId` | string | Yes | Author workspace member ID |
+| `list` | string | Yes | The list ID or slug the entry belongs to |
+| `entryId` | string | Yes | The entry ID to comment on |
+| `threadId` | string | No | Thread ID to reply to \(omit to start a new thread\) |
+| `createdAt` | string | No | Backdate the comment \(ISO 8601 format\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commentId` | string | The comment ID |
+| `threadId` | string | The thread ID |
+| `contentPlaintext` | string | The comment content as plaintext |
+| `author` | object | The comment author |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `entry` | object | The list entry this comment is on |
+|   ↳ `listId` | string | The list ID |
+|   ↳ `entryId` | string | The entry ID |
+| `record` | object | The record this comment is on |
+|   ↳ `objectId` | string | The object ID |
+|   ↳ `recordId` | string | The record ID |
+| `resolvedAt` | string | When the thread was resolved |
+| `resolvedBy` | object | Who resolved the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the comment was created |
+
+### `attio_get_comment`
+
+Get a single comment by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | The comment ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commentId` | string | The comment ID |
+| `threadId` | string | The thread ID |
+| `contentPlaintext` | string | The comment content as plaintext |
+| `author` | object | The comment author |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `entry` | object | The list entry this comment is on |
+|   ↳ `listId` | string | The list ID |
+|   ↳ `entryId` | string | The entry ID |
+| `record` | object | The record this comment is on |
+|   ↳ `objectId` | string | The object ID |
+|   ↳ `recordId` | string | The record ID |
+| `resolvedAt` | string | When the thread was resolved |
+| `resolvedBy` | object | Who resolved the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the comment was created |
+
+### `attio_delete_comment`
+
+Delete a comment in Attio (if head of thread, deletes entire thread)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | The comment ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the comment was deleted |
+
+### `attio_list_threads`
+
+List comment threads in Attio, optionally filtered by record or list entry
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordId` | string | No | Filter by record ID \(requires object\) |
+| `object` | string | No | Object slug to filter by \(requires recordId\) |
+| `entryId` | string | No | Filter by list entry ID \(requires list\) |
+| `list` | string | No | List ID or slug to filter by \(requires entryId\) |
+| `limit` | number | No | Maximum number of threads to return \(max 50\) |
+| `offset` | number | No | Number of threads to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Array of threads |
+|   ↳ `threadId` | string | The thread ID |
+|   ↳ `comments` | array | Comments in the thread |
+|     ↳ `commentId` | string | The comment ID |
+|     ↳ `contentPlaintext` | string | Comment content |
+|     ↳ `author` | object | Comment author |
+|       ↳ `type` | string | Actor type |
+|       ↳ `id` | string | Actor ID |
+|     ↳ `createdAt` | string | When the comment was created |
+|   ↳ `createdAt` | string | When the thread was created |
+| `count` | number | Number of threads returned |
+
+### `attio_get_thread`
+
+Get a single comment thread by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `threadId` | string | Yes | The thread ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | The thread ID |
+| `comments` | array | Comments in the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the thread was created |
+
+### `attio_list_webhooks`
+
+List all webhooks in the Attio workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of webhooks to return |
+| `offset` | number | No | Number of webhooks to skip for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | Array of webhooks |
+|   ↳ `webhookId` | string | The webhook ID |
+|   ↳ `targetUrl` | string | The webhook target URL |
+|   ↳ `subscriptions` | array | Event subscriptions |
+|     ↳ `eventType` | string | The event type \(e.g. record.created\) |
+|     ↳ `filter` | json | Optional event filter |
+|   ↳ `status` | string | Webhook status \(active, degraded, inactive\) |
+|   ↳ `createdAt` | string | When the webhook was created |
+| `count` | number | Number of webhooks returned |
+
+### `attio_get_webhook`
+
+Get a single webhook by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | Yes | The webhook ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookId` | string | The webhook ID |
+| `targetUrl` | string | The webhook target URL |
+| `subscriptions` | array | Event subscriptions |
+|   ↳ `eventType` | string | The event type \(e.g. record.created\) |
+|   ↳ `filter` | json | Optional event filter |
+| `status` | string | Webhook status \(active, degraded, inactive\) |
+| `createdAt` | string | When the webhook was created |
+
+### `attio_create_webhook`
+
+Create a webhook in Attio to receive event notifications
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `targetUrl` | string | Yes | The HTTPS URL to receive webhook events |
+| `subscriptions` | string | Yes | JSON array of subscriptions \(e.g. \[\{"event_type":"record.created","filter":\{"object_id":"..."\}\}\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookId` | string | The webhook ID |
+| `targetUrl` | string | The webhook target URL |
+| `subscriptions` | array | Event subscriptions |
+|   ↳ `eventType` | string | The event type \(e.g. record.created\) |
+|   ↳ `filter` | json | Optional event filter |
+| `status` | string | Webhook status \(active, degraded, inactive\) |
+| `createdAt` | string | When the webhook was created |
+| `secret` | string | The webhook signing secret \(only returned on creation\) |
+
+### `attio_update_webhook`
+
+Update a webhook in Attio (target URL and/or subscriptions)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | Yes | The webhook ID to update |
+| `targetUrl` | string | Yes | HTTPS target URL for webhook delivery |
+| `subscriptions` | string | Yes | JSON array of subscriptions, e.g. \[\{"event_type":"note.created"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookId` | string | The webhook ID |
+| `targetUrl` | string | The webhook target URL |
+| `subscriptions` | array | Event subscriptions |
+|   ↳ `eventType` | string | The event type \(e.g. record.created\) |
+|   ↳ `filter` | json | Optional event filter |
+| `status` | string | Webhook status \(active, degraded, inactive\) |
+| `createdAt` | string | When the webhook was created |
+
+### `attio_delete_webhook`
+
+Delete a webhook from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookId` | string | Yes | The webhook ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the webhook was deleted |
+
+

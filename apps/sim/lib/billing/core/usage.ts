@@ -7,7 +7,10 @@ import {
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
 } from '@/components/emails'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPrioritySubscription,
+  type HighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import {
   canEditUsageLimit,
   getFreeTierLimit,
@@ -352,8 +355,14 @@ export async function updateUserUsageLimit(
  * Free/Pro: Individual user limit from userStats
  * Team/Enterprise: Organization limit
  */
-export async function getUserUsageLimit(userId: string): Promise<number> {
-  const subscription = await getHighestPrioritySubscription(userId)
+export async function getUserUsageLimit(
+  userId: string,
+  preloadedSubscription?: HighestPrioritySubscription
+): Promise<number> {
+  const subscription =
+    preloadedSubscription !== undefined
+      ? preloadedSubscription
+      : await getHighestPrioritySubscription(userId)
 
   if (!subscription || subscription.plan === 'free' || subscription.plan === 'pro') {
     // Free/Pro: Use individual limit from userStats

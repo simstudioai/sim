@@ -237,12 +237,15 @@ export async function DELETE(
       .limit(1)
 
     // Delete workspace and all related data in a transaction
+    let workspaceWorkflowCount = 0
     await db.transaction(async (tx) => {
       // Get all workflows in this workspace before deletion
       const workspaceWorkflows = await tx
         .select({ id: workflow.id })
         .from(workflow)
         .where(eq(workflow.workspaceId, workspaceId))
+
+      workspaceWorkflowCount = workspaceWorkflows.length
 
       if (workspaceWorkflows.length > 0) {
         const workflowIds = workspaceWorkflows.map((w) => w.id)
@@ -299,6 +302,12 @@ export async function DELETE(
       resourceId: workspaceId,
       resourceName: workspaceRecord?.name,
       description: `Deleted workspace "${workspaceRecord?.name || workspaceId}"`,
+      metadata: {
+        affected: {
+          workflows: workspaceWorkflowCount,
+        },
+        deleteTemplates,
+      },
       request,
     })
 

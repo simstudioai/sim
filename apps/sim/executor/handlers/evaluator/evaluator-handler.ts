@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
@@ -284,15 +284,20 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
 
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved) {
+      throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
+    }
+
     const credential = await db.query.account.findFirst({
-      where: eq(account.id, credentialId),
+      where: eq(account.id, resolved.accountId),
     })
 
     if (!credential) {
       throw new Error(`Vertex AI credential not found: ${credentialId}`)
     }
 
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
 
     if (!accessToken) {
       throw new Error('Failed to get Vertex AI access token')

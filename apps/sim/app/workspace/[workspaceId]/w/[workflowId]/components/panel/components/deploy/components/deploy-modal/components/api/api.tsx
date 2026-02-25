@@ -21,6 +21,7 @@ interface WorkflowDeploymentInfo {
   endpoint: string
   exampleCommand: string
   needsRedeployment: boolean
+  isPublicApi?: boolean
 }
 
 interface ApiDeployProps {
@@ -107,12 +108,12 @@ export function ApiDeploy({
     if (!info) return ''
     const endpoint = getBaseEndpoint()
     const payload = getPayloadObject()
+    const isPublic = info.isPublicApi
 
     switch (language) {
       case 'curl':
         return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json" \\
+${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -123,8 +124,7 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": os.environ.get("SIM_API_KEY"),
-        "Content-Type": "application/json"
+${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
@@ -135,8 +135,7 @@ print(response.json())`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
@@ -148,8 +147,7 @@ console.log(data);`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
@@ -166,12 +164,12 @@ console.log(data);`
     if (!info) return ''
     const endpoint = getBaseEndpoint()
     const payload = getStreamPayloadObject()
+    const isPublic = info.isPublicApi
 
     switch (language) {
       case 'curl':
         return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json" \\
+${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -182,8 +180,7 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": os.environ.get("SIM_API_KEY"),
-        "Content-Type": "application/json"
+${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')},
     stream=True
@@ -197,8 +194,7 @@ for line in response.iter_lines():
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
@@ -216,8 +212,7 @@ while (true) {
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json"
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
@@ -241,14 +236,14 @@ while (true) {
     const endpoint = getBaseEndpoint()
     const baseUrl = endpoint.split('/api/workflows/')[0]
     const payload = getPayloadObject()
+    const isPublic = info.isPublicApi
 
     switch (asyncExampleType) {
       case 'execute':
         switch (language) {
           case 'curl':
             return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json" \\
+${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
   -H "X-Execution-Mode: async" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
@@ -260,8 +255,7 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": os.environ.get("SIM_API_KEY"),
-        "Content-Type": "application/json",
+${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json",
         "X-Execution-Mode": "async"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
@@ -274,8 +268,7 @@ print(job)  # Contains jobId and executionId`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json",
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -288,8 +281,7 @@ console.log(job); // Contains jobId and executionId`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.SIM_API_KEY,
-    "Content-Type": "application/json",
+${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },
   body: JSON.stringify(${JSON.stringify(payload)})

@@ -12,7 +12,11 @@ import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import type { GmailAttachment } from '@/tools/gmail/types'
 import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
@@ -198,7 +202,20 @@ export async function pollGmailWebhooks() {
         let accessToken: string | null = null
 
         if (credentialId) {
-          const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+          const resolved = await resolveOAuthAccountId(credentialId)
+          if (!resolved) {
+            logger.error(
+              `[${requestId}] Failed to resolve OAuth account for credential ${credentialId}, webhook ${webhookId}`
+            )
+            await markWebhookFailed(webhookId)
+            failureCount++
+            return
+          }
+          const rows = await db
+            .select()
+            .from(account)
+            .where(eq(account.id, resolved.accountId))
+            .limit(1)
           if (rows.length === 0) {
             logger.error(
               `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
@@ -208,7 +225,7 @@ export async function pollGmailWebhooks() {
             return
           }
           const ownerUserId = rows[0].userId
-          accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+          accessToken = await refreshAccessTokenIfNeeded(resolved.accountId, ownerUserId, requestId)
         } else if (userId) {
           // Legacy fallback for webhooks without credentialId
           accessToken = await getOAuthToken(userId, 'google-email')
@@ -457,7 +474,6 @@ function buildGmailSearchQuery(config: {
 async function searchEmails(accessToken: string, config: GmailWebhookConfig, requestId: string) {
   try {
     const baseQuery = buildGmailSearchQuery(config)
-    logger.debug(`[${requestId}] Gmail search query: ${baseQuery}`)
 
     let timeConstraint = ''
 
@@ -474,24 +490,18 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
         const timestamp = Math.floor(cutoffTime.getTime() / 1000)
 
         timeConstraint = ` after:${timestamp}`
-        logger.debug(`[${requestId}] Using timestamp-based query with ${bufferSeconds}s buffer`)
       } else if (minutesSinceLastCheck < 24 * 60) {
         const hours = Math.ceil(minutesSinceLastCheck / 60) + 1 // Round up and add 1 hour buffer
         timeConstraint = ` newer_than:${hours}h`
-        logger.debug(`[${requestId}] Using hour-based query: newer_than:${hours}h`)
       } else {
         const days = Math.min(Math.ceil(minutesSinceLastCheck / (24 * 60)), 7) + 1
         timeConstraint = ` newer_than:${days}d`
-        logger.debug(`[${requestId}] Using day-based query: newer_than:${days}d`)
       }
     } else {
       timeConstraint = ' newer_than:1d'
-      logger.debug(`[${requestId}] No last check time, using default: newer_than:1d`)
     }
 
     const query = `${baseQuery}${timeConstraint}`
-
-    logger.info(`[${requestId}] Searching for emails with query: ${query}`)
 
     const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${config.maxEmailsPerPoll || 25}`
 
@@ -545,7 +555,6 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
 
     if (emails.length > 0 && emails[0].historyId) {
       latestHistoryId = emails[0].historyId
-      logger.debug(`[${requestId}] Updated historyId to ${latestHistoryId}`)
     }
 
     return { emails, latestHistoryId }
@@ -686,10 +695,6 @@ async function processEmails(
             timestamp: new Date().toISOString(),
             ...(config.includeRawEmail ? { rawEmail: email } : {}),
           }
-
-          logger.debug(
-            `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
-          )
 
           const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 

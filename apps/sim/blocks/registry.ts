@@ -10,6 +10,7 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
+import { AttioBlock } from '@/blocks/blocks/attio'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -40,6 +41,7 @@ import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
+import { GongBlock } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
 import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
@@ -186,6 +188,7 @@ export const registry: Record<string, BlockConfig> = {
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
+  attio: AttioBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -231,6 +234,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
   google_maps: GoogleMapsBlock,
+  gong: GongBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_sheets_v2: GoogleSheetsV2Block,

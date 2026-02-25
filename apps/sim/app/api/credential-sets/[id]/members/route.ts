@@ -151,8 +151,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     const [memberToRemove] = await db
-      .select()
+      .select({
+        id: credentialSetMember.id,
+        credentialSetId: credentialSetMember.credentialSetId,
+        userId: credentialSetMember.userId,
+        status: credentialSetMember.status,
+        email: user.email,
+      })
       .from(credentialSetMember)
+      .innerJoin(user, eq(credentialSetMember.userId, user.id))
       .where(and(eq(credentialSetMember.id, memberId), eq(credentialSetMember.credentialSetId, id)))
       .limit(1)
 
@@ -189,6 +196,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorEmail: session.user.email ?? undefined,
       resourceName: result.set.name,
       description: `Removed member from credential set "${result.set.name}"`,
+      metadata: { targetEmail: memberToRemove.email ?? undefined },
       request: req,
     })
 

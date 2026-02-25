@@ -77,8 +77,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    logger.debug(`[${requestId}] Help request includes ${images.length} images`)
-
     const userId = session.user.id
     let emailText = `
 Type: ${type}

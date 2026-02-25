@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
+import { getTrigger } from '@/triggers'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
@@ -51,6 +52,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
@@ -83,6 +86,15 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'read:content.metadata:confluence',
       ],
       placeholder: 'Select Confluence account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Confluence Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -287,7 +299,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           pageId,
           operation,
           attachmentFile,
@@ -300,7 +312,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'upload_attachment') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             file: attachmentFile,
@@ -311,7 +323,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          credential,
+          credential: oauthCredential,
           pageId: effectivePageId || undefined,
           operation,
           ...rest,
@@ -322,7 +334,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
-    credential: { type: 'string', description: 'Confluence access token' },
+    oauthCredential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
@@ -428,6 +440,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       id: 'credential',
       title: 'Confluence Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'confluence',
       requiredScopes: [
         'read:confluence-content.all',
@@ -460,6 +474,15 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         'read:content.metadata:confluence',
       ],
       placeholder: 'Select Confluence account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Confluence Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -816,7 +839,46 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         ],
       },
     },
+
+    // Trigger subBlocks
+    ...getTrigger('confluence_page_created').subBlocks,
+    ...getTrigger('confluence_page_updated').subBlocks,
+    ...getTrigger('confluence_page_removed').subBlocks,
+    ...getTrigger('confluence_page_moved').subBlocks,
+    ...getTrigger('confluence_comment_created').subBlocks,
+    ...getTrigger('confluence_comment_removed').subBlocks,
+    ...getTrigger('confluence_blog_created').subBlocks,
+    ...getTrigger('confluence_blog_updated').subBlocks,
+    ...getTrigger('confluence_blog_removed').subBlocks,
+    ...getTrigger('confluence_attachment_created').subBlocks,
+    ...getTrigger('confluence_attachment_removed').subBlocks,
+    ...getTrigger('confluence_space_created').subBlocks,
+    ...getTrigger('confluence_space_updated').subBlocks,
+    ...getTrigger('confluence_label_added').subBlocks,
+    ...getTrigger('confluence_label_removed').subBlocks,
+    ...getTrigger('confluence_webhook').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'confluence_page_created',
+      'confluence_page_updated',
+      'confluence_page_removed',
+      'confluence_page_moved',
+      'confluence_comment_created',
+      'confluence_comment_removed',
+      'confluence_blog_created',
+      'confluence_blog_updated',
+      'confluence_blog_removed',
+      'confluence_attachment_created',
+      'confluence_attachment_removed',
+      'confluence_space_created',
+      'confluence_space_updated',
+      'confluence_label_added',
+      'confluence_label_removed',
+      'confluence_webhook',
+    ],
+  },
   tools: {
     access: [
       // Page Tools
@@ -943,7 +1005,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       },
       params: (params) => {
         const {
-          credential,
+          oauthCredential,
           pageId,
           operation,
           attachmentFile,
@@ -968,7 +1030,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'add_label') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             prefix: labelPrefix || 'global',
@@ -978,7 +1040,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'create_blogpost') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             status: blogPostStatus || 'current',
             ...rest,
@@ -987,7 +1049,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'delete') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             purge: purge || false,
@@ -997,7 +1059,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'list_comments') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             bodyFormat: bodyFormat || 'storage',
@@ -1023,7 +1085,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (supportsCursor.includes(operation) && cursor) {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId || undefined,
             operation,
             cursor,
@@ -1036,7 +1098,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             throw new Error('Property key is required for this operation.')
           }
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             key: propertyKey,
@@ -1047,7 +1109,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'delete_page_property') {
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             propertyId,
@@ -1057,7 +1119,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'get_pages_by_label') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             labelId,
             cursor: cursor || undefined,
@@ -1067,7 +1129,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'list_space_labels') {
           return {
-            credential,
+            credential: oauthCredential,
             operation,
             cursor: cursor || undefined,
             ...rest,
@@ -1080,7 +1142,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             throw new Error('File is required for upload attachment operation.')
           }
           return {
-            credential,
+            credential: oauthCredential,
             pageId: effectivePageId,
             operation,
             file: normalizedFile,
@@ -1091,7 +1153,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          credential,
+          credential: oauthCredential,
           pageId: effectivePageId || undefined,
           blogPostId: blogPostId || undefined,
           versionNumber: versionNumber ? Number.parseInt(String(versionNumber), 10) : undefined,
@@ -1104,7 +1166,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
-    credential: { type: 'string', description: 'Confluence access token' },
+    oauthCredential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },

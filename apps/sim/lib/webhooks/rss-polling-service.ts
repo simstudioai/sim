@@ -263,8 +263,6 @@ async function fetchNewRssItems(
   requestId: string
 ): Promise<{ feed: RssFeed; items: RssItem[] }> {
   try {
-    logger.debug(`[${requestId}] Fetching RSS feed: ${config.feedUrl}`)
-
     const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
     if (!urlValidation.isValid) {
       logger.error(`[${requestId}] Invalid RSS feed URL: ${urlValidation.error}`)
@@ -288,7 +286,6 @@ async function fetchNewRssItems(
     const feed = await parser.parseString(xmlContent)
 
     if (!feed.items || !feed.items.length) {
-      logger.debug(`[${requestId}] No items in feed`)
       return { feed: feed as RssFeed, items: [] }
     }
 

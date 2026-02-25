@@ -440,7 +440,6 @@ async function executeWebhookJobInternal(
           const triggerConfig = getTrigger(resolvedTriggerId)
 
           if (triggerConfig.outputs) {
-            logger.debug(`[${requestId}] Processing trigger ${resolvedTriggerId} file outputs`)
             const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
               workspaceId,
               workflowId: payload.workflowId,
@@ -450,8 +449,6 @@ async function executeWebhookJobInternal(
             })
             safeAssign(input, processedInput as Record<string, unknown>)
           }
-        } else {
-          logger.debug(`[${requestId}] No valid triggerId found for block ${payload.blockId}`)
         }
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
@@ -469,7 +466,6 @@ async function executeWebhookJobInternal(
             name: string
             type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
           }>
-          logger.debug(`[${requestId}] Processing generic webhook files from inputFormat`)
 
           const fileFields = inputFormat.filter((field) => field.type === 'file[]')
 

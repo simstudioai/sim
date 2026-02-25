@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
-import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -62,8 +61,9 @@ function shouldSerializeSubBlock(
     const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
     if (group && isCanonicalPair(group)) {
       const mode =
-        canonicalModeOverrides?.[group.canonicalId] ??
-        (displayAdvancedOptions ? 'advanced' : resolveCanonicalMode(group, values))
+        canonicalModeOverrides?.[group.canonicalId] != null || !displayAdvancedOptions
+          ? resolveCanonicalMode(group, values, canonicalModeOverrides)
+          : 'advanced'
       const matchesMode =
         mode === 'advanced'
           ? group.advancedIds.includes(subBlockConfig.id)
@@ -153,13 +153,6 @@ export class Serializer {
     const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
     const safeParallels =
       Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
-    const accessibleBlocksMap = this.computeAccessibleBlockIds(
-      blocks,
-      edges,
-      safeLoops,
-      safeParallels
-    )
-
     if (validateRequired) {
       this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
     }
@@ -170,7 +163,6 @@ export class Serializer {
         this.serializeBlock(block, {
           validateRequired,
           allBlocks: blocks,
-          accessibleBlocksMap,
         })
       ),
       connections: edges.map((edge) => ({
@@ -201,7 +193,6 @@ export class Serializer {
     options: {
       validateRequired: boolean
       allBlocks: Record<string, BlockState>
-      accessibleBlocksMap: Map<string, Set<string>>
     }
   ): SerializedBlock {
     // Special handling for subflow blocks (loops, parallels, etc.)
@@ -384,8 +375,11 @@ export class Serializer {
 
     Object.values(canonicalIndex.groupsById).forEach((group) => {
       const { basicValue, advancedValue } = getCanonicalValues(group, params)
+      const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
       const pairMode =
-        canonicalModeOverrides?.[group.canonicalId] ?? (legacyAdvancedMode ? 'advanced' : 'basic')
+        hasExplicitOverride || !legacyAdvancedMode
+          ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+          : 'advanced'
       const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
       const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
@@ -538,46 +532,6 @@ export class Serializer {
       const blockName = block.name || blockConfig.name || 'Block'
       throw new Error(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
     }
-  }
-
-  private computeAccessibleBlockIds(
-    blocks: Record<string, BlockState>,
-    edges: Edge[],
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
-  ): Map<string, Set<string>> {
-    const accessibleMap = new Map<string, Set<string>>()
-    const simplifiedEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
-
-    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-
-    Object.keys(blocks).forEach((blockId) => {
-      const ancestorIds = BlockPathCalculator.findAllPathNodes(simplifiedEdges, blockId)
-      const accessibleIds = new Set<string>(ancestorIds)
-      accessibleIds.add(blockId)
-
-      if (starterBlock && ancestorIds.includes(starterBlock.id)) {
-        accessibleIds.add(starterBlock.id)
-      }
-
-      Object.values(loops).forEach((loop) => {
-        if (!loop?.nodes) return
-        if (loop.nodes.includes(blockId)) {
-          loop.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
-        }
-      })
-
-      Object.values(parallels).forEach((parallel) => {
-        if (!parallel?.nodes) return
-        if (parallel.nodes.includes(blockId)) {
-          parallel.nodes.forEach((nodeId) => accessibleIds.add(nodeId))
-        }
-      })
-
-      accessibleMap.set(blockId, accessibleIds)
-    })
-
-    return accessibleMap
   }
 
   private selectToolId(blockConfig: any, params: Record<string, any>): string {

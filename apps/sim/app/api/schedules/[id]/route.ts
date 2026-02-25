@@ -26,7 +26,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id: scheduleId } = await params
-    logger.debug(`[${requestId}] Reactivating schedule with ID: ${scheduleId}`)
 
     const session = await getSession()
     if (!session?.user?.id) {
@@ -116,6 +115,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Reactivated schedule for workflow ${schedule.workflowId}`,
+      metadata: { cronExpression: schedule.cronExpression, timezone: schedule.timezone },
       request,
     })
 

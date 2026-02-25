@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,22 +45,40 @@ export async function GET(request: NextRequest) {
 
     logger.info(`[${requestId}] Fetching credential`, { credentialId })
 
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved) {
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    if (resolved.workspaceId) {
+      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
+      const perm = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        resolved.workspaceId
+      )
+      if (perm === null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    const credentials = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
     if (!credentials.length) {
       logger.warn(`[${requestId}] Credential not found`, { credentialId })
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    const credential = credentials[0]
-    if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    const accountRow = credentials[0]
 
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolved.accountId,
+      accountRow.userId,
+      requestId
+    )
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to obtain valid access token`)
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

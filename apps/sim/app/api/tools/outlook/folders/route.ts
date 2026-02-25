@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +44,28 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const creds = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      const resolved = await resolveOAuthAccountId(credentialId)
+      if (!resolved) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+
+      if (resolved.workspaceId) {
+        const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
+        const perm = await getUserEntityPermissions(
+          session!.user!.id,
+          'workspace',
+          resolved.workspaceId
+        )
+        if (perm === null) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      const creds = await db
+        .select()
+        .from(account)
+        .where(eq(account.id, resolved.accountId))
+        .limit(1)
       if (!creds.length) {
         logger.warn('Credential not found', { credentialId })
         return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
@@ -52,7 +73,7 @@ export async function GET(request: Request) {
       const credentialOwnerUserId = creds[0].userId
 
       const accessToken = await refreshAccessTokenIfNeeded(
-        credentialId,
+        resolved.accountId,
         credentialOwnerUserId,
         generateRequestId()
       )

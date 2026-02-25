@@ -202,6 +202,10 @@ app:
     DISABLE_INVITATIONS: ""                              # Set to "true" to disable workspace invitations globally
     NEXT_PUBLIC_DISABLE_INVITATIONS: ""                  # Set to "true" to hide invitation UI elements
 
+    # Public API Access Control
+    DISABLE_PUBLIC_API: ""                               # Set to "true" to disable public API toggle globally
+    NEXT_PUBLIC_DISABLE_PUBLIC_API: ""                   # Set to "true" to hide public API toggle in UI
+
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)

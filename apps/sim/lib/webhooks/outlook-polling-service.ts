@@ -13,7 +13,11 @@ import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('OutlookPollingService')
@@ -246,7 +250,20 @@ export async function pollOutlookWebhooks() {
 
         let accessToken: string | null = null
         if (credentialId) {
-          const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+          const resolved = await resolveOAuthAccountId(credentialId)
+          if (!resolved) {
+            logger.error(
+              `[${requestId}] Failed to resolve OAuth account for credential ${credentialId}, webhook ${webhookId}`
+            )
+            await markWebhookFailed(webhookId)
+            failureCount++
+            return
+          }
+          const rows = await db
+            .select()
+            .from(account)
+            .where(eq(account.id, resolved.accountId))
+            .limit(1)
           if (!rows.length) {
             logger.error(
               `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
@@ -256,7 +273,7 @@ export async function pollOutlookWebhooks() {
             return
           }
           const ownerUserId = rows[0].userId
-          accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+          accessToken = await refreshAccessTokenIfNeeded(resolved.accountId, ownerUserId, requestId)
         } else if (userId) {
           accessToken = await getOAuthToken(userId, 'outlook')
         }

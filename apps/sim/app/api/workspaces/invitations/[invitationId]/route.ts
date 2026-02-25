@@ -6,6 +6,7 @@ import {
   user,
   type WorkspaceInvitationStatus,
   workspace,
+  workspaceEnvironment,
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -15,6 +16,7 @@ import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
@@ -163,6 +165,20 @@ export async function GET(
           .where(eq(workspaceInvitation.id, invitation.id))
       })
 
+      const [wsEnvRow] = await db
+        .select({ variables: workspaceEnvironment.variables })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, invitation.workspaceId))
+        .limit(1)
+      const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+      if (wsEnvKeys.length > 0) {
+        await syncWorkspaceEnvCredentials({
+          workspaceId: invitation.workspaceId,
+          envKeys: wsEnvKeys,
+          actingUserId: session.user.id,
+        })
+      }
+
       recordAudit({
         workspaceId: invitation.workspaceId,
         actorId: session.user.id,
@@ -173,6 +189,7 @@ export async function GET(
         actorEmail: session.user.email ?? undefined,
         resourceName: workspaceDetails.name,
         description: `Accepted workspace invitation to "${workspaceDetails.name}"`,
+        metadata: { targetEmail: invitation.email },
         request: req,
       })
 
@@ -239,7 +256,7 @@ export async function DELETE(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Revoked workspace invitation for ${invitation.email}`,
-      metadata: { invitationId, email: invitation.email },
+      metadata: { invitationId, targetEmail: invitation.email },
       request: _request,
     })
 

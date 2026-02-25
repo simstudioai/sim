@@ -186,8 +186,6 @@ export async function POST(request: NextRequest) {
             valueTo: filter.valueTo,
           }
         })
-
-        logger.debug(`[${requestId}] Processed ${structuredFilters.length} structured filters`)
       }
 
       if (accessibleKbIds.length === 0) {
@@ -220,7 +218,6 @@ export async function POST(request: NextRequest) {
 
       if (!hasQuery && hasFilters) {
         // Tag-only search without vector similarity
-        logger.debug(`[${requestId}] Executing tag-only search with filters:`, structuredFilters)
         results = await handleTagOnlySearch({
           knowledgeBaseIds: accessibleKbIds,
           topK: validatedData.topK,
@@ -244,7 +241,6 @@ export async function POST(request: NextRequest) {
         })
       } else if (hasQuery && !hasFilters) {
         // Vector-only search
-        logger.debug(`[${requestId}] Executing vector-only search`)
         const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
         const queryVector = JSON.stringify(await queryEmbeddingPromise)
 

@@ -68,6 +68,7 @@ export class GenericBlockHandler implements BlockHandler {
             executionId: ctx.executionId,
             userId: ctx.userId,
             isDeployedContext: ctx.isDeployedContext,
+            enforceCredentialAccess: ctx.enforceCredentialAccess,
           },
         },
         false,

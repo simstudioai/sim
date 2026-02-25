@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
+  Badge,
   Button,
   Combobox,
   DatePicker,
@@ -706,12 +707,10 @@ export function DocumentTagsModal({
                       (def) =>
                         def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
                     ) && (
-                      <div className='rounded-[4px] border border-amber-500/50 bg-amber-500/10 p-[8px]'>
-                        <p className='text-[11px] text-amber-600 dark:text-amber-400'>
-                          Maximum tag definitions reached. You can still use existing tag
-                          definitions, but cannot create new ones.
-                        </p>
-                      </div>
+                      <Badge variant='amber' size='lg' dot className='max-w-full'>
+                        Maximum tag definitions reached. You can still use existing tag definitions,
+                        but cannot create new ones.
+                      </Badge>
                     )}
 
                   <div className='flex gap-[8px]'>

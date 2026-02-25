@@ -4,18 +4,27 @@ import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TeamsSubscriptionRenewal')
 
-async function getCredentialOwnerUserId(credentialId: string): Promise<string | null> {
+async function getCredentialOwner(
+  credentialId: string
+): Promise<{ userId: string; accountId: string } | null> {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    logger.error(`Failed to resolve OAuth account for credential ${credentialId}`)
+    return null
+  }
   const [credentialRecord] = await db
     .select({ userId: account.userId })
     .from(account)
-    .where(eq(account.id, credentialId))
+    .where(eq(account.id, resolved.accountId))
     .limit(1)
 
-  return credentialRecord?.userId ?? null
+  return credentialRecord
+    ? { userId: credentialRecord.userId, accountId: resolved.accountId }
+    : null
 }
 
 /**
@@ -88,8 +97,8 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId)
-        if (!credentialOwnerUserId) {
+        const credentialOwner = await getCredentialOwner(credentialId)
+        if (!credentialOwner) {
           logger.error(`Credential owner not found for credential ${credentialId}`)
           totalFailed++
           continue
@@ -97,8 +106,8 @@ export async function GET(request: NextRequest) {
 
         // Get fresh access token
         const accessToken = await refreshAccessTokenIfNeeded(
-          credentialId,
-          credentialOwnerUserId,
+          credentialOwner.accountId,
+          credentialOwner.userId,
           `renewal-${webhook.id}`
         )
 

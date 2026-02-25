@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
@@ -101,6 +102,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
           eq(permissions.entityId, workspaceId)
         )
       )
+
+    await revokeWorkspaceCredentialMemberships(workspaceId, userId)
 
     recordAudit({
       workspaceId,

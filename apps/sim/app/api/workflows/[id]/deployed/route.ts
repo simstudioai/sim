@@ -1,9 +1,8 @@
-import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -22,8 +21,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Fetching deployed state for workflow: ${id}`)
-
     const authHeader = request.headers.get('authorization')
     let isInternalCall = false
 
@@ -39,25 +36,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const response = createErrorResponse(error.message, error.status)
         return addNoCacheHeaders(response)
       }
-    } else {
-      logger.debug(`[${requestId}] Internal API call for deployed workflow: ${id}`)
     }
 
-    const [active] = await db
-      .select({ state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .orderBy(desc(workflowDeploymentVersion.createdAt))
-      .limit(1)
+    let deployedState = null
+    try {
+      const data = await loadDeployedWorkflowState(id)
+      deployedState = {
+        blocks: data.blocks,
+        edges: data.edges,
+        loops: data.loops,
+        parallels: data.parallels,
+        variables: data.variables,
+      }
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to load deployed state for workflow ${id}`, { error })
+      deployedState = null
+    }
 
-    const response = createSuccessResponse({
-      deployedState: active?.state || null,
-    })
+    const response = createSuccessResponse({ deployedState })
     return addNoCacheHeaders(response)
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)

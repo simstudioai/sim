@@ -771,7 +771,6 @@ export async function cleanupWebhooksForWorkflow(
     )
 
   if (existingWebhooks.length === 0) {
-    logger.debug(`[${requestId}] No webhooks to clean up for workflow ${workflowId}`)
     return
   }
 
@@ -833,7 +832,6 @@ export async function restorePreviousVersionWebhooks(params: {
     .where(eq(webhook.deploymentVersionId, previousVersionId))
 
   if (previousWebhooks.length === 0) {
-    logger.debug(`[${requestId}] No previous webhooks to restore for version ${previousVersionId}`)
     return
   }
 

@@ -387,10 +387,25 @@ const DEEP_RESEARCH_POLL_INTERVAL_MS = 10_000
 const DEEP_RESEARCH_MAX_DURATION_MS = 60 * 60 * 1000
 
 /**
- * Sleeps for the specified number of milliseconds
+ * Sleeps for the specified number of milliseconds, respecting an optional abort signal.
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+    )
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal!.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 /**
@@ -680,7 +695,10 @@ export async function executeDeepResearchRequest(
         stream: true,
       }
 
-      const streamResponse = await ai.interactions.create(streamParams)
+      const streamResponse = await ai.interactions.create(
+        streamParams,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
       const firstResponseTime = Date.now() - providerStartTime
 
       const streamingResult: StreamingExecution = {
@@ -765,7 +783,10 @@ export async function executeDeepResearchRequest(
       stream: false,
     }
 
-    const interaction = await ai.interactions.create(createParams)
+    const interaction = await ai.interactions.create(
+      createParams,
+      request.abortSignal ? { signal: request.abortSignal } : undefined
+    )
     const interactionId = interaction.id
 
     logger.info('Deep research interaction created', { interactionId, status: interaction.status })
@@ -793,8 +814,12 @@ export async function executeDeepResearchRequest(
         elapsedMs: Date.now() - pollStartTime,
       })
 
-      await sleep(DEEP_RESEARCH_POLL_INTERVAL_MS)
-      result = await ai.interactions.get(interactionId)
+      await sleep(DEEP_RESEARCH_POLL_INTERVAL_MS, request.abortSignal)
+      result = await ai.interactions.get(
+        interactionId,
+        undefined,
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
     }
 
     if (result.status !== 'completed') {
@@ -882,6 +907,9 @@ export async function executeGeminiRequest(
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}
 
+    if (request.abortSignal) {
+      geminiConfig.abortSignal = request.abortSignal
+    }
     if (request.temperature !== undefined) {
       geminiConfig.temperature = request.temperature
     }

@@ -71,6 +71,7 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
+const LEASE_REDIS_DEADLINE_MS = 200
 const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
@@ -292,21 +293,37 @@ async function tryAcquireDistributedLease(
     return 1
   `
 
-  try {
-    const result = await redis.eval(
-      script,
-      1,
-      key,
-      now.toString(),
-      DISTRIBUTED_MAX_INFLIGHT_PER_OWNER.toString(),
-      expiresAt.toString(),
-      leaseId,
-      leaseTtlMs.toString()
+  let deadlineTimer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
+      () => reject(new Error(`Redis lease timed out after ${LEASE_REDIS_DEADLINE_MS}ms`)),
+      LEASE_REDIS_DEADLINE_MS
     )
+  })
+
+  try {
+    const result = await Promise.race([
+      redis.eval(
+        script,
+        1,
+        key,
+        now.toString(),
+        DISTRIBUTED_MAX_INFLIGHT_PER_OWNER.toString(),
+        expiresAt.toString(),
+        leaseId,
+        leaseTtlMs.toString()
+      ),
+      deadline,
+    ])
     return Number(result) === 1 ? 'acquired' : 'limit_exceeded'
   } catch (error) {
-    logger.error('Failed to acquire distributed owner lease', { ownerKey, error })
+    logger.warn('Failed to acquire distributed owner lease — falling back to local execution', {
+      ownerKey,
+      error,
+    })
     return 'unavailable'
+  } finally {
+    clearTimeout(deadlineTimer)
   }
 }
 

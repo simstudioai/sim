@@ -68,8 +68,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-    logger.debug(`[${requestId}] Fetching templates with params:`, params)
-
     // Check if user is a super user
     const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
     const isSuperUser = effectiveSuperUser
@@ -186,11 +184,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const data = CreateTemplateSchema.parse(body)
-
-    logger.debug(`[${requestId}] Creating template:`, {
-      name: data.name,
-      workflowId: data.workflowId,
-    })
 
     // Verify the workflow exists and belongs to the user
     const workflowExists = await db

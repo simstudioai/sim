@@ -50,6 +50,7 @@ export async function evaluateConditionExpression(
           workspaceId: ctx.workspaceId,
           userId: ctx.userId,
           isDeployedContext: ctx.isDeployedContext,
+          enforceCredentialAccess: ctx.enforceCredentialAccess,
         },
       },
       false,

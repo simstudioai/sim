@@ -11,8 +11,8 @@ let pingFailures = 0
 let pingInterval: NodeJS.Timeout | null = null
 let pingInFlight = false
 
-const PING_INTERVAL_MS = 30_000
-const MAX_PING_FAILURES = 3
+const PING_INTERVAL_MS = 15_000
+const MAX_PING_FAILURES = 2
 
 /** Callbacks invoked when the PING health check forces a reconnect. */
 const reconnectListeners: Array<() => void> = []
@@ -42,7 +42,7 @@ function startPingHealthCheck(redis: Redis): void {
       })
 
       if (pingFailures >= MAX_PING_FAILURES) {
-        logger.error('Redis PING failed 3 consecutive times — forcing reconnect', {
+        logger.error('Redis PING failed consecutive times — forcing reconnect', {
           consecutiveFailures: pingFailures,
         })
         pingFailures = 0

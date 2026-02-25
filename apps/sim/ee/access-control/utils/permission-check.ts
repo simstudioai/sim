@@ -66,6 +66,13 @@ export class InvitationsNotAllowedError extends Error {
   }
 }
 
+export class PublicApiNotAllowedError extends Error {
+  constructor() {
+    super('Public API access is not allowed based on your permission group settings')
+    this.name = 'PublicApiNotAllowedError'
+  }
+}
+
 /**
  * Merges the env allowlist into a permission config.
  * If `config` is null and no env allowlist is set, returns null.
@@ -294,5 +301,32 @@ export async function validateInvitationsAllowed(userId: string | undefined): Pr
   if (config.disableInvitations) {
     logger.warn('Invitations blocked by permission group', { userId })
     throw new InvitationsNotAllowedError()
+  }
+}
+
+/**
+ * Validates if the user is allowed to enable public API access.
+ * Also checks the global feature flag.
+ */
+export async function validatePublicApiAllowed(userId: string | undefined): Promise<void> {
+  const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
+  if (isPublicApiDisabled) {
+    logger.warn('Public API blocked by feature flag')
+    throw new PublicApiNotAllowedError()
+  }
+
+  if (!userId) {
+    return
+  }
+
+  const config = await getUserPermissionConfig(userId)
+
+  if (!config) {
+    return
+  }
+
+  if (config.disablePublicApi) {
+    logger.warn('Public API blocked by permission group', { userId })
+    throw new PublicApiNotAllowedError()
   }
 }

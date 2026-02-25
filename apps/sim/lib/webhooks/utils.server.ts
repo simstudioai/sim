@@ -17,6 +17,7 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getCredentialsForCredentialSet,
   refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -66,7 +67,6 @@ export async function handleWhatsAppVerification(
       const verificationToken = providerConfig.verificationToken
 
       if (!verificationToken) {
-        logger.debug(`[${requestId}] Webhook ${wh.id} has no verification token, skipping`)
         continue
       }
 
@@ -228,16 +228,25 @@ async function formatTeamsGraphNotification(
     })
   } else {
     try {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+      const resolved = await resolveOAuthAccountId(credentialId)
+      if (!resolved) {
+        logger.error('Teams credential could not be resolved', { credentialId })
       } else {
-        const effectiveUserId = rows[0].userId
-        accessToken = await refreshAccessTokenIfNeeded(
-          credentialId,
-          effectiveUserId,
-          'teams-graph-notification'
-        )
+        const rows = await db
+          .select()
+          .from(account)
+          .where(eq(account.id, resolved.accountId))
+          .limit(1)
+        if (rows.length === 0) {
+          logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+        } else {
+          const effectiveUserId = rows[0].userId
+          accessToken = await refreshAccessTokenIfNeeded(
+            resolved.accountId,
+            effectiveUserId,
+            'teams-graph-notification'
+          )
+        }
       }
 
       if (accessToken) {
@@ -1187,6 +1196,53 @@ export async function formatWebhookInput(
     return extractIssueData(body)
   }
 
+  if (foundWebhook.provider === 'confluence') {
+    const {
+      extractPageData,
+      extractCommentData,
+      extractBlogData,
+      extractAttachmentData,
+      extractSpaceData,
+      extractLabelData,
+    } = await import('@/triggers/confluence/utils')
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    if (triggerId?.startsWith('confluence_comment_')) {
+      return extractCommentData(body)
+    }
+    if (triggerId?.startsWith('confluence_blog_')) {
+      return extractBlogData(body)
+    }
+    if (triggerId?.startsWith('confluence_attachment_')) {
+      return extractAttachmentData(body)
+    }
+    if (triggerId?.startsWith('confluence_space_')) {
+      return extractSpaceData(body)
+    }
+    if (triggerId?.startsWith('confluence_label_')) {
+      return extractLabelData(body)
+    }
+    // Generic webhook — preserve all entity fields since event type varies
+    if (triggerId === 'confluence_webhook') {
+      return {
+        timestamp: body.timestamp,
+        userAccountId: body.userAccountId,
+        accountType: body.accountType,
+        page: body.page || null,
+        comment: body.comment || null,
+        blog: body.blog || body.blogpost || null,
+        attachment: body.attachment || null,
+        space: body.space || null,
+        label: body.label || null,
+        content: body.content || null,
+      }
+    }
+    // Default: page events
+    return extractPageData(body)
+  }
+
   if (foundWebhook.provider === 'stripe') {
     return body
   }
@@ -1233,6 +1289,49 @@ export async function formatWebhookInput(
       eventType: body.eventType || 'Transcription completed',
       clientReferenceId: body.clientReferenceId || '',
     }
+  }
+
+  if (foundWebhook.provider === 'attio') {
+    const {
+      extractAttioRecordData,
+      extractAttioRecordUpdatedData,
+      extractAttioRecordMergedData,
+      extractAttioNoteData,
+      extractAttioTaskData,
+      extractAttioCommentData,
+      extractAttioListEntryData,
+      extractAttioListEntryUpdatedData,
+      extractAttioGenericData,
+    } = await import('@/triggers/attio/utils')
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+
+    if (triggerId === 'attio_record_updated') {
+      return extractAttioRecordUpdatedData(body)
+    }
+    if (triggerId === 'attio_record_merged') {
+      return extractAttioRecordMergedData(body)
+    }
+    if (triggerId === 'attio_record_created' || triggerId === 'attio_record_deleted') {
+      return extractAttioRecordData(body)
+    }
+    if (triggerId?.startsWith('attio_note_')) {
+      return extractAttioNoteData(body)
+    }
+    if (triggerId?.startsWith('attio_task_')) {
+      return extractAttioTaskData(body)
+    }
+    if (triggerId?.startsWith('attio_comment_')) {
+      return extractAttioCommentData(body)
+    }
+    if (triggerId === 'attio_list_entry_updated') {
+      return extractAttioListEntryUpdatedData(body)
+    }
+    if (triggerId === 'attio_list_entry_created' || triggerId === 'attio_list_entry_deleted') {
+      return extractAttioListEntryData(body)
+    }
+    return extractAttioGenericData(body)
   }
 
   return body
@@ -1335,6 +1434,41 @@ export function validateLinearSignature(secret: string, signature: string, body:
     return safeCompare(computedHash, signature)
   } catch (error) {
     logger.error('Error validating Linear signature:', error)
+    return false
+  }
+}
+
+/**
+ * Validates an Attio webhook request signature using HMAC SHA-256
+ * @param secret - Attio webhook signing secret (plain text)
+ * @param signature - Attio-Signature header value (hex-encoded HMAC SHA-256 signature)
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateAttioSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Attio signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Attio signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: signature.length,
+      match: computedHash === signature,
+    })
+
+    return safeCompare(computedHash, signature)
+  } catch (error) {
+    logger.error('Error validating Attio signature:', error)
     return false
   }
 }
@@ -1542,7 +1676,6 @@ export function verifyProviderWebhook(
     case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
       const userAgent = request.headers.get('user-agent') || ''
-      logger.debug(`[${requestId}] Telegram webhook request received with User-Agent: ${userAgent}`)
 
       if (!userAgent) {
         logger.warn(
@@ -1555,8 +1688,6 @@ export function verifyProviderWebhook(
         request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
         request.headers.get('x-real-ip') ||
         'unknown'
-
-      logger.debug(`[${requestId}] Telegram webhook request from IP: ${clientIp}`)
 
       break
     }
@@ -1657,9 +1788,21 @@ export async function fetchAndProcessAirtablePayloads(
       return
     }
 
+    const resolvedAirtable = await resolveOAuthAccountId(credentialId)
+    if (!resolvedAirtable) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Airtable webhook`
+      )
+      return
+    }
+
     let ownerUserId: string | null = null
     try {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      const rows = await db
+        .select()
+        .from(account)
+        .where(eq(account.id, resolvedAirtable.accountId))
+        .limit(1)
       ownerUserId = rows.length ? rows[0].userId : null
     } catch (_e) {
       ownerUserId = null
@@ -1705,27 +1848,23 @@ export async function fetchAndProcessAirtablePayloads(
 
     if (storedCursor && typeof storedCursor === 'number') {
       currentCursor = storedCursor
-      logger.debug(
-        `[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`
-      )
     } else {
       currentCursor = null
-      logger.debug(
-        `[${requestId}] No valid stored cursor for webhook ${webhookData.id}, starting from beginning`
-      )
     }
 
     let accessToken: string | null = null
     try {
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+      accessToken = await refreshAccessTokenIfNeeded(
+        resolvedAirtable.accountId,
+        ownerUserId,
+        requestId
+      )
       if (!accessToken) {
         logger.error(
           `[${requestId}] Failed to obtain valid Airtable access token via credential ${credentialId}.`
         )
         throw new Error('Airtable access token not found.')
       }
-
-      logger.info(`[${requestId}] Successfully obtained Airtable access token`)
     } catch (tokenError: any) {
       logger.error(
         `[${requestId}] Failed to get Airtable OAuth token for credential ${credentialId}`,
@@ -1745,10 +1884,6 @@ export async function fetchAndProcessAirtablePayloads(
       apiCallCount++
       // Safety break
       if (apiCallCount > 10) {
-        logger.warn(`[${requestId}] Reached maximum polling limit (10 calls)`, {
-          webhookId: webhookData.id,
-          consolidatedCount: consolidatedChangesMap.size,
-        })
         mightHaveMore = false
         break
       }
@@ -1760,11 +1895,6 @@ export async function fetchAndProcessAirtablePayloads(
       }
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
-      logger.debug(`[${requestId}] Fetching Airtable payloads (call ${apiCallCount})`, {
-        url: fullUrl,
-        webhookId: webhookData.id,
-      })
-
       try {
         const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
@@ -1773,14 +1903,6 @@ export async function fetchAndProcessAirtablePayloads(
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-        })
-
-        // DEBUG: Log API response time
-        logger.debug(`[${requestId}] TRACE: Airtable API response received`, {
-          status: response.status,
-          duration: `${Date.now() - fetchStartTime}ms`,
-          hasBody: true,
-          apiCall: apiCallCount,
         })
 
         const responseBody = await response.json()
@@ -1804,9 +1926,6 @@ export async function fetchAndProcessAirtablePayloads(
         }
 
         const receivedPayloads = responseBody.payloads || []
-        logger.debug(
-          `[${requestId}] Received ${receivedPayloads.length} payloads from Airtable (call ${apiCallCount})`
-        )
 
         // --- Process and Consolidate Changes ---
         if (receivedPayloads.length > 0) {
@@ -1818,13 +1937,6 @@ export async function fetchAndProcessAirtablePayloads(
           let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
-              // DEBUG: Log tables being processed
-              const tableIds = Object.keys(payload.changedTablesById)
-              logger.debug(`[${requestId}] TRACE: Processing changes for tables`, {
-                tables: tableIds,
-                payloadTimestamp: payload.timestamp,
-              })
-
               for (const [tableId, tableChangesUntyped] of Object.entries(
                 payload.changedTablesById
               )) {
@@ -1834,10 +1946,6 @@ export async function fetchAndProcessAirtablePayloads(
                 if (tableChanges.createdRecordsById) {
                   const createdCount = Object.keys(tableChanges.createdRecordsById).length
                   changeCount += createdCount
-                  // DEBUG: Log created records count
-                  logger.debug(
-                    `[${requestId}] TRACE: Processing ${createdCount} created records for table ${tableId}`
-                  )
 
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.createdRecordsById
@@ -1867,10 +1975,6 @@ export async function fetchAndProcessAirtablePayloads(
                 if (tableChanges.changedRecordsById) {
                   const updatedCount = Object.keys(tableChanges.changedRecordsById).length
                   changeCount += updatedCount
-                  // DEBUG: Log updated records count
-                  logger.debug(
-                    `[${requestId}] TRACE: Processing ${updatedCount} updated records for table ${tableId}`
-                  )
 
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.changedRecordsById
@@ -1907,21 +2011,12 @@ export async function fetchAndProcessAirtablePayloads(
               }
             }
           }
-
-          // DEBUG: Log totals for this batch
-          logger.debug(
-            `[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount})`,
-            {
-              currentMapSize: consolidatedChangesMap.size,
-            }
-          )
         }
 
         const nextCursor = responseBody.cursor
         mightHaveMore = responseBody.mightHaveMore || false
 
         if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
-          logger.debug(`[${requestId}] Updating cursor from ${currentCursor} to ${nextCursor}`)
           currentCursor = nextCursor
 
           // Follow exactly the old implementation - use awaited update instead of parallel
@@ -1958,7 +2053,6 @@ export async function fetchAndProcessAirtablePayloads(
           })
           mightHaveMore = false
         } else if (nextCursor === currentCursor) {
-          logger.debug(`[${requestId}] Cursor hasn't changed (${currentCursor}), stopping poll`)
           mightHaveMore = false // Explicitly stop if cursor hasn't changed
         }
       } catch (fetchError: any) {
@@ -2050,14 +2144,6 @@ export async function fetchAndProcessAirtablePayloads(
     )
     // Error logging handled by logging session
   }
-
-  // DEBUG: Log function completion
-  logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads completed`, {
-    totalFetched: payloadsFetched,
-    totalApiCalls: apiCallCount,
-    totalChanges: consolidatedChangesMap.size,
-    timestamp: new Date().toISOString(),
-  })
 }
 
 // Define an interface for AirtableChange
@@ -2443,8 +2529,19 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
       return false
     }
 
-    // Verify credential exists and get userId
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolvedGmail = await resolveOAuthAccountId(credentialId)
+    if (!resolvedGmail) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Gmail webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const rows = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolvedGmail.accountId))
+      .limit(1)
     if (rows.length === 0) {
       logger.error(
         `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
@@ -2454,8 +2551,11 @@ export async function configureGmailPolling(webhookData: any, requestId: string)
 
     const effectiveUserId = rows[0].userId
 
-    // Verify token can be refreshed
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolvedGmail.accountId,
+      effectiveUserId,
+      requestId
+    )
     if (!accessToken) {
       logger.error(
         `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
@@ -2529,8 +2629,19 @@ export async function configureOutlookPolling(
       return false
     }
 
-    // Verify credential exists and get userId
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    const resolvedOutlook = await resolveOAuthAccountId(credentialId)
+    if (!resolvedOutlook) {
+      logger.error(
+        `[${requestId}] Could not resolve credential ${credentialId} for Outlook webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const rows = await db
+      .select()
+      .from(account)
+      .where(eq(account.id, resolvedOutlook.accountId))
+      .limit(1)
     if (rows.length === 0) {
       logger.error(
         `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
@@ -2540,8 +2651,11 @@ export async function configureOutlookPolling(
 
     const effectiveUserId = rows[0].userId
 
-    // Verify token can be refreshed
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      resolvedOutlook.accountId,
+      effectiveUserId,
+      requestId
+    )
     if (!accessToken) {
       logger.error(
         `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`

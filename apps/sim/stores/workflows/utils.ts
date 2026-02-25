@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
@@ -195,6 +196,13 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     triggerMode: effectiveTriggerMode,
     preferToolOutputs: !effectiveTriggerMode,
   })
+
+  if (blockConfig.subBlocks) {
+    const canonicalModes = buildDefaultCanonicalModes(blockConfig.subBlocks)
+    if (Object.keys(canonicalModes).length > 0) {
+      blockData.canonicalModes = canonicalModes
+    }
+  }
 
   return {
     id,
@@ -445,7 +453,10 @@ export function regenerateBlockIds(
     blockIdMap.set(oldId, newId)
 
     const oldNormalizedName = normalizeName(block.name)
-    const newName = uniqueNameFn(block.name, allBlocksForNaming)
+    const nameConflicts = Object.values(allBlocksForNaming).some(
+      (existing) => normalizeName(existing.name) === oldNormalizedName
+    )
+    const newName = nameConflicts ? uniqueNameFn(block.name, allBlocksForNaming) : block.name
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 

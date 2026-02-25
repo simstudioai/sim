@@ -54,7 +54,7 @@ export async function enrichTableSchema(
     const label = table.name ? `${table.name} (${tableId})` : tableId
     return `Table schema for ${label}:\n${columnLines}\nBuilt-in columns: createdAt, updatedAt`
   } catch (error) {
-    logger.debug('Failed to fetch table schema', { tableId, error })
+    logger.warn('Failed to fetch table schema', { tableId, error })
     return null
   }
 }

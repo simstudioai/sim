@@ -18,7 +18,6 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Deleting API key: ${id}`)
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

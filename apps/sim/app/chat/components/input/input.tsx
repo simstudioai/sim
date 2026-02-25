@@ -3,8 +3,8 @@
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { AlertCircle, Paperclip, Send, Square, X } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
+import { Paperclip, Send, Square, X } from 'lucide-react'
+import { Badge, Tooltip } from '@/components/emcn'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
@@ -218,24 +218,12 @@ export const ChatInput: React.FC<{
         <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
           {/* Error Messages */}
           {uploadErrors.length > 0 && (
-            <div className='mb-3'>
-              <div className='rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/20'>
-                <div className='flex items-start gap-2'>
-                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
-                  <div className='flex-1'>
-                    <div className='mb-1 font-medium text-red-800 text-sm dark:text-red-300'>
-                      File upload error
-                    </div>
-                    <div className='space-y-1'>
-                      {uploadErrors.map((error, idx) => (
-                        <div key={idx} className='text-red-700 text-sm dark:text-red-400'>
-                          {error}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className='mb-3 flex flex-col gap-2'>
+              {uploadErrors.map((error, idx) => (
+                <Badge key={idx} variant='red' size='lg' dot className='max-w-full'>
+                  {error}
+                </Badge>
+              ))}
             </div>
           )}
 

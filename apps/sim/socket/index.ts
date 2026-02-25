@@ -58,6 +58,10 @@ async function main() {
   })
 
   process.on('unhandledRejection', (reason, promise) => {
+    if (reason instanceof Error && reason.message === 'The client is closed') {
+      logger.warn('Redis client is closed — suppressing unhandled rejection')
+      return
+    }
     logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
   })
 

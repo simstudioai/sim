@@ -44,8 +44,6 @@ export async function processExecutionFile(
       )
     }
 
-    logger.debug(`[${requestId}] Uploading file: ${file.name} (${buffer.length} bytes)`)
-
     const userFile = await uploadExecutionFile(
       executionContext,
       buffer,
@@ -54,7 +52,6 @@ export async function processExecutionFile(
       userId
     )
 
-    logger.debug(`[${requestId}] Successfully uploaded ${file.name}`)
     return userFile
   }
 
@@ -69,8 +66,6 @@ export async function processExecutionFile(
       )
     }
 
-    logger.debug(`[${requestId}] Uploading file from URL: ${file.name} (${buffer.length} bytes)`)
-
     const userFile = await uploadExecutionFile(
       executionContext,
       buffer,
@@ -79,7 +74,6 @@ export async function processExecutionFile(
       userId
     )
 
-    logger.debug(`[${requestId}] Successfully uploaded ${file.name} from URL`)
     return userFile
   }
 

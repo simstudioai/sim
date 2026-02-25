@@ -958,4 +958,231 @@ describe('MCP Tool Execution', () => {
     expect(result.error).toContain('Network error')
     expect(result.timing).toBeDefined()
   })
+
+  describe('Tool request retries', () => {
+    function makeJsonResponse(
+      status: number,
+      body: unknown,
+      extraHeaders?: Record<string, string>
+    ): any {
+      const headers = new Headers({ 'content-type': 'application/json', ...(extraHeaders ?? {}) })
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        statusText: status >= 200 && status < 300 ? 'OK' : 'Error',
+        headers,
+        json: () => Promise.resolve(body),
+        text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body)),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+        blob: () => Promise.resolve(new Blob()),
+      }
+    }
+
+    it('retries on 5xx responses for http_request', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 2,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+      expect((result.output as any).status).toBe(200)
+    })
+
+    it('does not retry when retries is not specified (default: 0)', async () => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(makeJsonResponse(500, { error: 'server error' })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('stops retrying after max attempts for http_request', async () => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 2,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(3)
+      expect(result.success).toBe(false)
+    })
+
+    it('does not retry on 4xx responses for http_request', async () => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(makeJsonResponse(400, { error: 'bad request' })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 5,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('does not retry POST by default (non-idempotent)', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'POST',
+        retries: 2,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('retries POST when retryNonIdempotent is enabled', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'POST',
+        retries: 1,
+        retryNonIdempotent: true,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+      expect((result.output as any).status).toBe(200)
+    })
+
+    it('retries on timeout errors for http_request', async () => {
+      const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' })
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockRejectedValueOnce(abortError)
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 1,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+    })
+
+    it('skips retry when Retry-After header exceeds maxDelayMs', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '60' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 3,
+        retryMaxDelayMs: 5000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
+    it('retries when Retry-After header is within maxDelayMs', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '1' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 2,
+        retryMaxDelayMs: 5000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+    })
+
+    it('retries on ETIMEDOUT errors for http_request', async () => {
+      const etimedoutError = Object.assign(new Error('connect ETIMEDOUT 10.0.0.1:443'), {
+        code: 'ETIMEDOUT',
+      })
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockRejectedValueOnce(etimedoutError)
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 1,
+        retryDelayMs: 0,
+        retryMaxDelayMs: 0,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.success).toBe(true)
+    })
+  })
 })

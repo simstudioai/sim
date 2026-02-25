@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
@@ -19,8 +19,6 @@ import {
 } from 'lucide-react'
 import {
   Card,
-  Connections,
-  FolderCode,
   HexSimple,
   Key,
   SModal,
@@ -33,6 +31,7 @@ import {
   SModalSidebarItem,
   SModalSidebarSection,
   SModalSidebarSectionTitle,
+  TerminalWindow,
 } from '@/components/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -45,12 +44,11 @@ import {
   BYOK,
   Copilot,
   CredentialSets,
+  Credentials,
   CustomTools,
   Debug,
-  EnvironmentVariables,
   FileUploads,
   General,
-  Integrations,
   MCP,
   Skills,
   Subscription,
@@ -80,9 +78,8 @@ interface SettingsModalProps {
 
 type SettingsSection =
   | 'general'
-  | 'environment'
+  | 'credentials'
   | 'template-profile'
-  | 'integrations'
   | 'credential-sets'
   | 'access-control'
   | 'apikeys'
@@ -156,12 +153,11 @@ const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
+  { id: 'credentials', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
-  { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
+  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
   { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',
@@ -218,8 +214,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
-  const environmentBeforeLeaveHandler = useRef<((onProceed: () => void) => void) | null>(null)
-  const integrationsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -254,9 +248,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
-        return false
-      }
-      if (item.id === 'environment' && permissionConfig.hideEnvironmentTab) {
         return false
       }
       if (item.id === 'files' && permissionConfig.hideFilesTab) {
@@ -327,26 +318,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     return activeSection
   }, [activeSection])
 
-  const registerEnvironmentBeforeLeaveHandler = useCallback(
-    (handler: (onProceed: () => void) => void) => {
-      environmentBeforeLeaveHandler.current = handler
-    },
-    []
-  )
-
-  const registerIntegrationsCloseHandler = useCallback((handler: (open: boolean) => void) => {
-    integrationsCloseHandler.current = handler
-  }, [])
-
   const handleSectionChange = useCallback(
     (sectionId: SettingsSection) => {
       if (sectionId === effectiveActiveSection) return
-
-      if (effectiveActiveSection === 'environment' && environmentBeforeLeaveHandler.current) {
-        environmentBeforeLeaveHandler.current(() => setActiveSection(sectionId))
-        return
-      }
-
       setActiveSection(sectionId)
     },
     [effectiveActiveSection]
@@ -475,23 +449,19 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }
 
-  // Handle dialog close - delegate to environment component if it's active
+  const { hasUnsavedChanges, onCloseAttempt, setHasUnsavedChanges, setOnCloseAttempt } =
+    useSettingsModalStore()
+
   const handleDialogOpenChange = (newOpen: boolean) => {
-    if (
-      !newOpen &&
-      effectiveActiveSection === 'environment' &&
-      environmentBeforeLeaveHandler.current
-    ) {
-      environmentBeforeLeaveHandler.current(() => onOpenChange(false))
-    } else if (
-      !newOpen &&
-      effectiveActiveSection === 'integrations' &&
-      integrationsCloseHandler.current
-    ) {
-      integrationsCloseHandler.current(newOpen)
-    } else {
-      onOpenChange(newOpen)
+    if (!newOpen && hasUnsavedChanges && onCloseAttempt) {
+      onCloseAttempt()
+      return
     }
+    if (!newOpen) {
+      setHasUnsavedChanges(false)
+      setOnCloseAttempt(null)
+    }
+    onOpenChange(newOpen)
   }
 
   return (
@@ -502,7 +472,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
           <DialogPrimitive.Description>
-            Configure your workspace settings, environment variables, integrations, and preferences
+            Configure your workspace settings, secrets, and preferences
           </DialogPrimitive.Description>
         </VisuallyHidden.Root>
 
@@ -539,18 +509,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           </SModalMainHeader>
           <SModalMainBody>
             {effectiveActiveSection === 'general' && <General onOpenChange={onOpenChange} />}
-            {effectiveActiveSection === 'environment' && (
-              <EnvironmentVariables
-                registerBeforeLeaveHandler={registerEnvironmentBeforeLeaveHandler}
-              />
+            {effectiveActiveSection === 'credentials' && (
+              <Credentials onOpenChange={onOpenChange} />
             )}
             {effectiveActiveSection === 'template-profile' && <TemplateProfile />}
-            {effectiveActiveSection === 'integrations' && (
-              <Integrations
-                onOpenChange={onOpenChange}
-                registerCloseHandler={registerIntegrationsCloseHandler}
-              />
-            )}
             {effectiveActiveSection === 'credential-sets' && <CredentialSets />}
             {effectiveActiveSection === 'access-control' && <AccessControl />}
             {effectiveActiveSection === 'apikeys' && <ApiKeys onOpenChange={onOpenChange} />}

@@ -95,11 +95,17 @@ const apiUrl = `https://api.example.com/users/${userId}/profile`;
 
 ### Request Retries
 
-The API block automatically handles:
-- Network timeouts with exponential backoff
-- Rate limit responses (429 status codes)
-- Server errors (5xx status codes) with retry logic
-- Connection failures with reconnection attempts
+The API block supports **configurable retries** (see the block’s **Advanced** settings):
+
+- **Retries**: Number of retry attempts (additional tries after the first request)
+- **Retry delay (ms)**: Initial delay before retrying (uses exponential backoff)
+- **Max retry delay (ms)**: Maximum delay between retries
+- **Retry non-idempotent methods**: Allow retries for **POST/PATCH** (may create duplicate requests)
+
+Retries are attempted for:
+
+- Network/connection failures and timeouts (with exponential backoff)
+- Rate limits (**429**) and server errors (**5xx**)
 
 ### Response Validation
 

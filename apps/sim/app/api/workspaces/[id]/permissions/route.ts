@@ -1,12 +1,13 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
+import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import {
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
@@ -131,6 +132,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // Capture existing permissions and user info for audit metadata
+    const existingPerms = await db
+      .select({
+        userId: permissions.userId,
+        permissionType: permissions.permissionType,
+        email: user.email,
+      })
+      .from(permissions)
+      .innerJoin(user, eq(permissions.userId, user.id))
+      .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+
+    const permLookup = new Map(
+      existingPerms.map((p) => [p.userId, { permission: p.permissionType, email: p.email }])
+    )
+
     await db.transaction(async (tx) => {
       for (const update of body.updates) {
         await tx
@@ -155,6 +171,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     })
 
+    const [wsEnvRow] = await db
+      .select({ variables: workspaceEnvironment.variables })
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+      .limit(1)
+    const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+    if (wsEnvKeys.length > 0) {
+      await syncWorkspaceEnvCredentials({
+        workspaceId,
+        envKeys: wsEnvKeys,
+        actingUserId: session.user.id,
+      })
+    }
+
     const updatedUsers = await getUsersWithPermissions(workspaceId)
 
     for (const update of body.updates) {
@@ -167,7 +197,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
         description: `Changed permissions for user ${update.userId} to ${update.permissions}`,
-        metadata: { targetUserId: update.userId, newPermissions: update.permissions },
+        metadata: {
+          targetUserId: update.userId,
+          targetEmail: permLookup.get(update.userId)?.email ?? undefined,
+          changes: [
+            {
+              field: 'permissions',
+              from: permLookup.get(update.userId)?.permission ?? null,
+              to: update.permissions,
+            },
+          ],
+        },
         request,
       })
     }

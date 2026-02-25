@@ -172,6 +172,7 @@ export interface ExecutionContext {
   executionId?: string
   userId?: string
   isDeployedContext?: boolean
+  enforceCredentialAccess?: boolean
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean
@@ -299,6 +300,12 @@ export interface ExecutionContext {
    * Stop execution after this block completes. Used for "run until block" feature.
    */
   stopAfterBlockId?: string
+
+  /**
+   * Ordered list of workflow IDs in the current call chain, used for cycle detection.
+   * Passed to outgoing HTTP requests via the X-Sim-Via header.
+   */
+  callChain?: string[]
 
   /**
    * Counter for generating monotonically increasing execution order values.

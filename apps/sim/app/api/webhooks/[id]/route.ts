@@ -21,7 +21,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params
-    logger.debug(`[${requestId}] Fetching webhook with ID: ${id}`)
 
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
@@ -77,7 +76,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const { id } = await params
-    logger.debug(`[${requestId}] Updating webhook with ID: ${id}`)
 
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
@@ -129,11 +127,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    logger.debug(`[${requestId}] Updating webhook properties`, {
-      hasActiveUpdate: isActive !== undefined,
-      hasFailedCountUpdate: failedCount !== undefined,
-    })
-
     const updatedWebhook = await db
       .update(webhook)
       .set({
@@ -161,7 +154,6 @@ export async function DELETE(
 
   try {
     const { id } = await params
-    logger.debug(`[${requestId}] Deleting webhook with ID: ${id}`)
 
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
