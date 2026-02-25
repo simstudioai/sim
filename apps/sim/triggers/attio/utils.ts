@@ -26,7 +26,6 @@ export function attioSetupInstructions(): string {
   const instructions = [
     '<strong>Note:</strong> Webhooks are automatically created in Attio when you deploy this workflow, and deleted when you undeploy. See the <a href="https://docs.attio.com/rest-api/guides/webhooks" target="_blank" rel="noopener noreferrer">Attio webhook documentation</a> for details.',
     'Connect your <strong>Attio account</strong> using the credential selector above.',
-    'Click <strong>Save</strong> to store your trigger configuration.',
     '<strong>Deploy</strong> the workflow — a webhook will be created automatically in your Attio workspace.',
   ]
 
