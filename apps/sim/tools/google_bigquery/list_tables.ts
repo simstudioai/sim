@@ -46,7 +46,7 @@ export const listTablesTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Token for pagination',
     },
   },
