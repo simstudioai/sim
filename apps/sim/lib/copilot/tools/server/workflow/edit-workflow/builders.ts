@@ -2,7 +2,11 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  buildDefaultCanonicalModes,
+  isCanonicalPair,
+} from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -130,13 +134,7 @@ export function createBlockFromParams(
       }
     })
 
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
-    const defaultModes: Record<string, 'basic' | 'advanced'> = {}
-    for (const group of Object.values(canonicalIndex.groupsById)) {
-      if (isCanonicalPair(group)) {
-        defaultModes[group.canonicalId] = 'basic'
-      }
-    }
+    const defaultModes = buildDefaultCanonicalModes(blockConfig.subBlocks)
     if (Object.keys(defaultModes).length > 0) {
       if (!blockState.data) blockState.data = {}
       blockState.data.canonicalModes = defaultModes

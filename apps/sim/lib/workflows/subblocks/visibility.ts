@@ -76,6 +76,23 @@ export function isCanonicalPair(group?: CanonicalGroup): boolean {
 }
 
 /**
+ * Builds default canonical mode overrides for a block's subblocks.
+ * All canonical pairs default to `'basic'`.
+ */
+export function buildDefaultCanonicalModes(
+  subBlocks: SubBlockConfig[]
+): Record<string, 'basic' | 'advanced'> {
+  const index = buildCanonicalIndex(subBlocks)
+  const modes: Record<string, 'basic' | 'advanced'> = {}
+  for (const group of Object.values(index.groupsById)) {
+    if (isCanonicalPair(group)) {
+      modes[group.canonicalId] = 'basic'
+    }
+  }
+  return modes
+}
+
+/**
  * Determine the active mode for a canonical group.
  */
 export function resolveCanonicalMode(

@@ -378,11 +378,7 @@ export class Serializer {
       const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
       const pairMode =
         hasExplicitOverride || !legacyAdvancedMode
-          ? resolveCanonicalMode(
-              group,
-              buildSubBlockValues(block.subBlocks),
-              canonicalModeOverrides
-            )
+          ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
           : 'advanced'
       const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
