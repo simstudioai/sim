@@ -326,6 +326,8 @@ Get details about a specific version of a Confluence page.
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `pageId` | string | ID of the page |
+| `title` | string | Page title at this version |
+| `content` | string | Page content with HTML tags stripped at this version |
 | `version` | object | Detailed version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
@@ -336,6 +338,9 @@ Get details about a specific version of a Confluence page.
 |   ↳ `collaborators` | array | List of collaborator account IDs for this version |
 |   ↳ `prevVersion` | number | Previous version number |
 |   ↳ `nextVersion` | number | Next version number |
+| `body` | object | Raw page body content in storage format at this version |
+|   ↳ `value` | string | The content value in the specified format |
+|   ↳ `representation` | string | Content representation type |
 
 ### `confluence_list_page_properties`
 

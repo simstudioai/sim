@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { cleanHtmlContent, getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluencePageVersionsAPI')
 
@@ -55,42 +55,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // If versionNumber is provided, get specific version
+    // If versionNumber is provided, get specific version with page content
     if (versionNumber !== undefined && versionNumber !== null) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/versions/${versionNumber}`
+      const versionUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/versions/${versionNumber}`
+      const pageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?version=${versionNumber}&body-format=storage`
 
       logger.info(`Fetching version ${versionNumber} for page ${pageId}`)
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+      const [versionResponse, pageResponse] = await Promise.all([
+        fetch(versionUrl, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+        fetch(pageUrl, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+      ])
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+      if (!versionResponse.ok) {
+        const errorData = await versionResponse.json().catch(() => null)
         logger.error('Confluence API error response:', {
-          status: response.status,
-          statusText: response.statusText,
+          status: versionResponse.status,
+          statusText: versionResponse.statusText,
           error: JSON.stringify(errorData, null, 2),
         })
-        const errorMessage = errorData?.message || `Failed to get page version (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        const errorMessage =
+          errorData?.message || `Failed to get page version (${versionResponse.status})`
+        return NextResponse.json({ error: errorMessage }, { status: versionResponse.status })
       }
 
-      const data = await response.json()
+      const versionData = await versionResponse.json()
+
+      let title: string | null = null
+      let content: string | null = null
+      let body: Record<string, unknown> | null = null
+
+      if (pageResponse.ok) {
+        const pageData = await pageResponse.json()
+        title = pageData.title ?? null
+        body = pageData.body ?? null
+
+        const rawContent =
+          pageData.body?.storage?.value ||
+          pageData.body?.view?.value ||
+          pageData.body?.atlas_doc_format?.value ||
+          ''
+        if (rawContent) {
+          content = cleanHtmlContent(rawContent)
+        }
+      } else {
+        logger.warn(
+          `Could not fetch page content for version ${versionNumber}: ${pageResponse.status}`
+        )
+      }
 
       return NextResponse.json({
         version: {
-          number: data.number,
-          message: data.message ?? null,
-          minorEdit: data.minorEdit ?? false,
-          authorId: data.authorId ?? null,
-          createdAt: data.createdAt ?? null,
+          number: versionData.number,
+          message: versionData.message ?? null,
+          minorEdit: versionData.minorEdit ?? false,
+          authorId: versionData.authorId ?? null,
+          createdAt: versionData.createdAt ?? null,
         },
         pageId,
+        title,
+        content,
+        body,
       })
     }
     // List all versions
