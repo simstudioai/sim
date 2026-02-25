@@ -45,12 +45,12 @@ export const deleteTool: ToolConfig<GoogleTasksDeleteParams, GoogleTasksDeleteRe
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (response.status === 204 || response.ok) {
       return {
         success: true,
         output: {
-          taskId: '',
+          taskId: params?.taskId || '',
           deleted: true,
         },
       }
