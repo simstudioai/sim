@@ -97,6 +97,7 @@ Understanding these core principles will help you build better workflows:
 3. **Smart Data Flow**: Outputs flow automatically to connected blocks
 4. **Error Handling**: Failed blocks stop their execution path but don't affect independent paths
 5. **State Persistence**: All block outputs and execution details are preserved for debugging
+6. **Cycle Protection**: Workflows that call other workflows (via Workflow blocks, MCP tools, or API blocks) are tracked with a call chain. If the chain exceeds 25 hops, execution is stopped to prevent infinite loops
 
 ## Next Steps
 

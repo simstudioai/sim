@@ -579,6 +579,25 @@ function isErrorResponse(
 }
 
 /**
+ * Checks whether a fully resolved URL points back to this Sim instance.
+ * Used to propagate cycle-detection headers on API blocks that target
+ * the platform's own workflow execution endpoints via absolute URL.
+ */
+function isSelfOriginUrl(url: string): boolean {
+  try {
+    const targetOrigin = new URL(url).origin
+    const publicOrigin = new URL(getBaseUrl()).origin
+    if (targetOrigin === publicOrigin) return true
+
+    const internalOrigin = new URL(getInternalApiBaseUrl()).origin
+    if (targetOrigin === internalOrigin) return true
+  } catch {
+    return false
+  }
+  return false
+}
+
+/**
  * Add internal authentication token to headers if running on server
  * @param headers - Headers object to modify
  * @param isInternalRoute - Whether the target URL is an internal route
@@ -737,7 +756,8 @@ async function executeToolRequest(
     const headers = new Headers(requestParams.headers)
     await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId)
 
-    if (isInternalRoute) {
+    const shouldPropagateCallChain = isInternalRoute || isSelfOriginUrl(fullUrl)
+    if (shouldPropagateCallChain) {
       const callChain = params._context?.callChain as string[] | undefined
       if (callChain && callChain.length > 0) {
         headers.set(SIM_VIA_HEADER, serializeCallChain(callChain))
@@ -1123,6 +1143,12 @@ async function executeMcpTool(
     const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
     const workflowId = params._context?.workflowId || executionContext?.workflowId
     const userId = params._context?.userId || executionContext?.userId
+    const callChain =
+      (params._context?.callChain as string[] | undefined) || executionContext?.callChain
+
+    if (callChain && callChain.length > 0) {
+      headers[SIM_VIA_HEADER] = serializeCallChain(callChain)
+    }
 
     if (!workspaceId) {
       return {

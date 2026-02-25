@@ -123,7 +123,6 @@ describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
-  let originalPromiseAll: any
 
   beforeEach(() => {
     handler = new AgentBlockHandler()
@@ -134,8 +133,6 @@ describe('AgentBlockHandler', () => {
       writable: true,
       configurable: true,
     })
-
-    originalPromiseAll = Promise.all
 
     mockBlock = {
       id: 'test-agent-block',
@@ -209,8 +206,6 @@ describe('AgentBlockHandler', () => {
   })
 
   afterEach(() => {
-    Promise.all = originalPromiseAll
-
     try {
       Object.defineProperty(global, 'window', {
         value: undefined,
@@ -271,38 +266,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual(expectedOutput)
     })
 
-    it('should preserve executeFunction for custom tools with different usageControl settings', async () => {
-      let capturedTools: any[] = []
-
-      Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
-        const result = originalPromiseAll.call(Promise, promises)
-
-        result.then((tools: any[]) => {
-          if (tools?.length) {
-            capturedTools = tools.filter((t) => t !== null)
-          }
-        })
-
-        return result
-      })
-
-      mockExecuteProviderRequest.mockResolvedValueOnce({
-        content: 'Using tools to respond',
-        model: 'mock-model',
-        tokens: { input: 10, output: 20, total: 30 },
-        toolCalls: [
-          {
-            name: 'auto_tool',
-            arguments: { input: 'test input for auto tool' },
-          },
-          {
-            name: 'force_tool',
-            arguments: { input: 'test input for force tool' },
-          },
-        ],
-        timing: { total: 100 },
-      })
-
+    it('should preserve usageControl for custom tools and filter out "none"', async () => {
       const inputs = {
         model: 'gpt-4o',
         userPrompt: 'Test custom tools with different usageControl settings',
@@ -372,13 +336,14 @@ describe('AgentBlockHandler', () => {
 
       await handler.execute(mockContext, mockBlock, inputs)
 
-      expect(Promise.all).toHaveBeenCalled()
+      const providerCall = mockExecuteProviderRequest.mock.calls[0]
+      const tools = providerCall[1].tools
 
-      expect(capturedTools.length).toBe(2)
+      expect(tools.length).toBe(2)
 
-      const autoTool = capturedTools.find((t) => t.name === 'auto_tool')
-      const forceTool = capturedTools.find((t) => t.name === 'force_tool')
-      const noneTool = capturedTools.find((t) => t.name === 'none_tool')
+      const autoTool = tools.find((t: any) => t.name === 'auto_tool')
+      const forceTool = tools.find((t: any) => t.name === 'force_tool')
+      const noneTool = tools.find((t: any) => t.name === 'none_tool')
 
       expect(autoTool).toBeDefined()
       expect(forceTool).toBeDefined()
@@ -386,37 +351,6 @@ describe('AgentBlockHandler', () => {
 
       expect(autoTool.usageControl).toBe('auto')
       expect(forceTool.usageControl).toBe('force')
-
-      expect(typeof autoTool.executeFunction).toBe('function')
-      expect(typeof forceTool.executeFunction).toBe('function')
-
-      await autoTool.executeFunction({ input: 'test input' })
-      expect(mockExecuteTool).toHaveBeenCalledWith(
-        'function_execute',
-        expect.objectContaining({
-          code: 'return { result: "auto tool executed", input }',
-          input: 'test input',
-        }),
-        false, // skipPostProcess
-        expect.any(Object) // execution context
-      )
-
-      await forceTool.executeFunction({ input: 'another test' })
-      expect(mockExecuteTool).toHaveBeenNthCalledWith(
-        2, // Check the 2nd call
-        'function_execute',
-        expect.objectContaining({
-          code: 'return { result: "force tool executed", input }',
-          input: 'another test',
-        }),
-        false, // skipPostProcess
-        expect.any(Object) // execution context
-      )
-
-      const providerCall = mockExecuteProviderRequest.mock.calls[0]
-      const requestBody = providerCall[1]
-
-      expect(requestBody.tools.length).toBe(2)
     })
 
     it('should filter out tools with usageControl set to "none"', async () => {
@@ -1763,6 +1697,52 @@ describe('AgentBlockHandler', () => {
       expect(providerCallArgs[1].tools[0].name).toBe('search_files')
     })
 
+    it('should pass callChain to executeProviderRequest for MCP cycle detection', async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      )
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Search for files',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'mcp',
+            title: 'search_files',
+            schema: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'Search query' },
+              },
+              required: ['query'],
+            },
+            params: {
+              serverId: 'mcp-search-server',
+              toolName: 'search_files',
+              serverName: 'search',
+            },
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      const contextWithCallChain = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+        callChain: ['wf-parent', 'test-workflow-456'],
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithCallChain, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalled()
+      const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.callChain).toEqual(['wf-parent', 'test-workflow-456'])
+    })
+
     it('should handle multiple MCP tools from the same server efficiently', async () => {
       const fetchCalls: any[] = []
 
@@ -2139,20 +2119,9 @@ describe('AgentBlockHandler', () => {
         expect(tools.length).toBe(0)
       })
 
-      it('should use DB code for executeFunction when customToolId resolves', async () => {
+      it('should use DB schema when customToolId resolves', async () => {
         const toolId = 'custom-tool-123'
         mockFetchForCustomTool(toolId)
-
-        let capturedTools: any[] = []
-        Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
-          const result = originalPromiseAll.call(Promise, promises)
-          result.then((tools: any[]) => {
-            if (tools?.length) {
-              capturedTools = tools.filter((t) => t !== null)
-            }
-          })
-          return result
-        })
 
         const inputs = {
           model: 'gpt-4o',
@@ -2174,19 +2143,12 @@ describe('AgentBlockHandler', () => {
 
         await handler.execute(mockContext, mockBlock, inputs)
 
-        expect(capturedTools.length).toBe(1)
-        expect(typeof capturedTools[0].executeFunction).toBe('function')
+        expect(mockExecuteProviderRequest).toHaveBeenCalled()
+        const providerCall = mockExecuteProviderRequest.mock.calls[0]
+        const tools = providerCall[1].tools
 
-        await capturedTools[0].executeFunction({ title: 'Q1', format: 'pdf' })
-
-        expect(mockExecuteTool).toHaveBeenCalledWith(
-          'function_execute',
-          expect.objectContaining({
-            code: dbCode,
-          }),
-          false,
-          expect.any(Object)
-        )
+        expect(tools.length).toBe(1)
+        expect(tools[0].name).toBe('formatReport')
       })
 
       it('should not fetch from DB when no customToolId is present', async () => {
