@@ -492,16 +492,6 @@ export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
     }
   }, [])
 
-  useEffect(() => {
-    if (createType !== 'oauth') return
-    if (createOAuthProviderId || oauthConnections.length === 0) return
-    setCreateOAuthProviderId(oauthConnections[0]?.providerId || '')
-  }, [createType, createOAuthProviderId, oauthConnections])
-
-  useEffect(() => {
-    setCreateError(null)
-  }, [createOAuthProviderId])
-
   const applyPendingCredentialCreateRequest = useCallback(
     (request: PendingCredentialCreateRequest) => {
       if (request.workspaceId !== workspaceId) {
@@ -1130,8 +1120,16 @@ export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
                   }
                   selectedValue={createType}
                   onChange={(value) => {
-                    setCreateType(value as CreateCredentialType)
+                    const newType = value as CreateCredentialType
+                    setCreateType(newType)
                     setCreateError(null)
+                    if (
+                      newType === 'oauth' &&
+                      !createOAuthProviderId &&
+                      oauthConnections.length > 0
+                    ) {
+                      setCreateOAuthProviderId(oauthConnections[0]?.providerId || '')
+                    }
                   }}
                   placeholder='Select type'
                 />
@@ -1175,7 +1173,10 @@ export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
                           ?.label || ''
                       }
                       selectedValue={createOAuthProviderId}
-                      onChange={setCreateOAuthProviderId}
+                      onChange={(value) => {
+                        setCreateOAuthProviderId(value)
+                        setCreateError(null)
+                      }}
                       placeholder='Select OAuth service'
                       searchable
                       searchPlaceholder='Search services...'
