@@ -1243,10 +1243,12 @@ Get all descendants of a Confluence page recursively.
 | `descendants` | array | Array of descendant pages |
 |   ↳ `id` | string | Page ID |
 |   ↳ `title` | string | Page title |
+|   ↳ `type` | string | Content type \(page, whiteboard, database, etc.\) |
 |   ↳ `status` | string | Page status |
 |   ↳ `spaceId` | string | Space ID |
 |   ↳ `parentId` | string | Parent page ID |
 |   ↳ `childPosition` | number | Position among siblings |
+|   ↳ `depth` | number | Depth in the hierarchy |
 | `pageId` | string | Parent page ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
@@ -1279,6 +1281,7 @@ List inline tasks from Confluence. Optionally filter by page, space, assignee, o
 |   ↳ `pageId` | string | Page ID |
 |   ↳ `blogPostId` | string | Blog post ID |
 |   ↳ `status` | string | Task status \(complete or incomplete\) |
+|   ↳ `body` | string | Task body content in storage format |
 |   ↳ `createdBy` | string | Creator account ID |
 |   ↳ `assignedTo` | string | Assignee account ID |
 |   ↳ `completedBy` | string | Completer account ID |
@@ -1311,6 +1314,7 @@ Get a specific Confluence inline task by ID.
 | `pageId` | string | Page ID |
 | `blogPostId` | string | Blog post ID |
 | `status` | string | Task status \(complete or incomplete\) |
+| `body` | string | Task body content in storage format |
 | `createdBy` | string | Creator account ID |
 | `assignedTo` | string | Assignee account ID |
 | `completedBy` | string | Completer account ID |
@@ -1343,6 +1347,7 @@ Update the status of a Confluence inline task (complete or incomplete).
 | `pageId` | string | Page ID |
 | `blogPostId` | string | Blog post ID |
 | `status` | string | Updated task status |
+| `body` | string | Task body content in storage format |
 | `createdBy` | string | Creator account ID |
 | `assignedTo` | string | Assignee account ID |
 | `completedBy` | string | Completer account ID |

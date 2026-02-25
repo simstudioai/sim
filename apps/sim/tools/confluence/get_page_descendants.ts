@@ -17,10 +17,12 @@ export interface ConfluenceGetPageDescendantsResponse {
     descendants: Array<{
       id: string
       title: string
+      type: string | null
       status: string | null
       spaceId: string | null
       parentId: string | null
       childPosition: number | null
+      depth: number | null
     }>
     pageId: string
     nextCursor: string | null
@@ -122,10 +124,12 @@ export const confluenceGetPageDescendantsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Page ID' },
           title: { type: 'string', description: 'Page title' },
+          type: { type: 'string', description: 'Content type (page, whiteboard, database, etc.)', optional: true },
           status: { type: 'string', description: 'Page status', optional: true },
           spaceId: { type: 'string', description: 'Space ID', optional: true },
           parentId: { type: 'string', description: 'Parent page ID', optional: true },
           childPosition: { type: 'number', description: 'Position among siblings', optional: true },
+          depth: { type: 'number', description: 'Depth in the hierarchy', optional: true },
         },
       },
     },

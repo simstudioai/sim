@@ -82,10 +82,12 @@ export async function POST(request: NextRequest) {
     const descendants = (data.results || []).map((page: any) => ({
       id: page.id,
       title: page.title,
+      type: page.type ?? null,
       status: page.status ?? null,
       spaceId: page.spaceId ?? null,
       parentId: page.parentId ?? null,
       childPosition: page.childPosition ?? null,
+      depth: page.depth ?? null,
     }))
 
     return NextResponse.json({
