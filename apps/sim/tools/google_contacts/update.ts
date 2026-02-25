@@ -102,7 +102,11 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
       if (params.organization || params.jobTitle) updateFields.push('organizations')
       if (params.notes) updateFields.push('biographies')
 
-      const updatePersonFields = updateFields.length > 0 ? updateFields.join(',') : 'names'
+      if (updateFields.length === 0) {
+        throw new Error('At least one field to update must be provided')
+      }
+
+      const updatePersonFields = updateFields.join(',')
 
       return `${PEOPLE_API_BASE}/${params.resourceName}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
     },
