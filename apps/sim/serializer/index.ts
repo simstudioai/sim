@@ -61,8 +61,9 @@ function shouldSerializeSubBlock(
     const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
     if (group && isCanonicalPair(group)) {
       const mode =
-        canonicalModeOverrides?.[group.canonicalId] ??
-        (displayAdvancedOptions ? 'advanced' : resolveCanonicalMode(group, values))
+        canonicalModeOverrides?.[group.canonicalId] != null || !displayAdvancedOptions
+          ? resolveCanonicalMode(group, values, canonicalModeOverrides)
+          : 'advanced'
       const matchesMode =
         mode === 'advanced'
           ? group.advancedIds.includes(subBlockConfig.id)
@@ -374,8 +375,11 @@ export class Serializer {
 
     Object.values(canonicalIndex.groupsById).forEach((group) => {
       const { basicValue, advancedValue } = getCanonicalValues(group, params)
+      const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
       const pairMode =
-        canonicalModeOverrides?.[group.canonicalId] ?? (legacyAdvancedMode ? 'advanced' : 'basic')
+        hasExplicitOverride || !legacyAdvancedMode
+          ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+          : 'advanced'
       const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
       const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
