@@ -57,7 +57,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'number',
       visibility: 'hidden',
       description:
-        'Number of retry attempts for retryable failures (timeouts, 429, 5xx). Defaults to 2 for idempotent methods (GET/PUT/DELETE/HEAD) and 0 otherwise.',
+        'Number of retry attempts for retryable failures (timeouts, 429, 5xx). Default: 0 (no retries).',
     },
     retryDelayMs: {
       type: 'number',
