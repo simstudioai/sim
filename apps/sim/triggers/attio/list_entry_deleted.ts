@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildListEntryOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildListEntryOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioListEntryDeletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_list_entry_deleted',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('list-entry.deleted'),
-    extraFields: buildAttioExtraFields('attio_list_entry_deleted'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_list_entry_deleted'),
 
   outputs: buildListEntryOutputs(),
 

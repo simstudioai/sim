@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildCommentOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildCommentOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioCommentResolvedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_comment_resolved',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('comment.resolved'),
-    extraFields: buildAttioExtraFields('attio_comment_resolved'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_comment_resolved'),
 
   outputs: buildCommentOutputs(),
 

@@ -13,6 +13,7 @@ import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
+  validateAttioSignature,
   validateCalcomSignature,
   validateCirclebackSignature,
   validateFirefliesSignature,
@@ -593,6 +594,29 @@ export async function verifyProviderAuth(
           secretLength: secret.length,
         })
         return new NextResponse('Unauthorized - Invalid Typeform signature', { status: 401 })
+      }
+    }
+  }
+
+  if (foundWebhook.provider === 'attio') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('Attio-Signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Attio webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Attio signature', { status: 401 })
+      }
+
+      const isValidSignature = validateAttioSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Attio signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Attio signature', { status: 401 })
       }
     }
   }

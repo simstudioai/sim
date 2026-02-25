@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildGenericWebhookOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildGenericWebhookOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_webhook',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('All Events'),
-    extraFields: buildAttioExtraFields('attio_webhook'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_webhook'),
 
   outputs: buildGenericWebhookOutputs(),
 

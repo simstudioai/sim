@@ -66,7 +66,11 @@ export const attioCreateListTool: ToolConfig<AttioCreateListParams, AttioCreateL
     }),
     body: (params) => {
       const apiSlug =
-        params.apiSlug || params.name?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+        params.apiSlug ||
+        params.name
+          ?.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
       const data: Record<string, unknown> = {
         name: params.name,
         api_slug: apiSlug,

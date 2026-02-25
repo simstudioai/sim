@@ -1,9 +1,7 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
-  attioSetupInstructions,
   attioTriggerOptions,
-  buildAttioExtraFields,
+  buildAttioTriggerSubBlocks,
   buildRecordOutputs,
 } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
@@ -22,13 +20,18 @@ export const attioRecordCreatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_record_created',
-    triggerOptions: attioTriggerOptions,
-    includeDropdown: true,
-    setupInstructions: attioSetupInstructions('record.created'),
-    extraFields: buildAttioExtraFields('attio_record_created'),
-  }),
+  subBlocks: [
+    {
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: attioTriggerOptions,
+      value: () => 'attio_record_created',
+      required: true,
+    },
+    ...buildAttioTriggerSubBlocks('attio_record_created'),
+  ],
 
   outputs: buildRecordOutputs(),
 

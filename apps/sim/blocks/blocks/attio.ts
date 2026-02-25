@@ -425,8 +425,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'taskAssignees',
       title: 'Assignees',
       type: 'code',
-      placeholder:
-        '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}]',
+      placeholder: '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}]',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -869,7 +868,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       type: 'short-input',
       placeholder: 'https://example.com/webhook',
       condition: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
-      required: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
     },
     {
       id: 'webhookSubscriptions',
@@ -877,7 +876,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       type: 'code',
       placeholder: '[{"event_type":"record.created","filter":{"object_id":"..."}}]',
       condition: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
-      required: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
       wandConfig: {
         enabled: true,
         maintainHistory: true,

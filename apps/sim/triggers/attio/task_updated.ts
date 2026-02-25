@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildTaskOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildTaskOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioTaskUpdatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_task_updated',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('task.updated'),
-    extraFields: buildAttioExtraFields('attio_task_updated'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_task_updated'),
 
   outputs: buildTaskOutputs(),
 
