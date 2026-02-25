@@ -111,7 +111,9 @@ export async function POST(request: NextRequest) {
           content = cleanHtmlContent(rawContent)
         }
       } else {
-        logger.warn(`Could not fetch page content for version ${versionNumber}: ${pageResponse.status}`)
+        logger.warn(
+          `Could not fetch page content for version ${versionNumber}: ${pageResponse.status}`
+        )
       }
 
       return NextResponse.json({
