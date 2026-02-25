@@ -22,15 +22,11 @@ export const attioTriggerOptions = [
   { label: 'Generic Webhook (All Events)', id: 'attio_webhook' },
 ]
 
-export function attioSetupInstructions(eventType: string): string {
+export function attioSetupInstructions(): string {
   const instructions = [
-    '<strong>Note:</strong> You need access to the Attio developer settings to create webhooks. See the <a href="https://docs.attio.com/rest-api/guides/webhooks" target="_blank" rel="noopener noreferrer">Attio webhook documentation</a> for details.',
-    'In Attio, navigate to <strong>Settings > Developers</strong> and select your integration.',
-    'Go to the <strong>Webhooks</strong> tab and click <strong>"Create Webhook"</strong>.',
-    'Paste the <strong>Webhook URL</strong> from above into the target URL field.',
-    `Add a subscription with the event type <strong>${eventType}</strong>. You can optionally add filters to scope the events.`,
-    'Save the webhook. Copy the <strong>signing secret</strong> shown and paste it in the field above for signature verification.',
-    'The webhook is now active. Attio will send events to the URL you configured.',
+    '<strong>Note:</strong> Webhooks are automatically created in Attio when you deploy this workflow, and deleted when you undeploy. See the <a href="https://docs.attio.com/rest-api/guides/webhooks" target="_blank" rel="noopener noreferrer">Attio webhook documentation</a> for details.',
+    'Connect your <strong>Attio account</strong> using the credential selector above.',
+    '<strong>Deploy</strong> the workflow — a webhook will be created automatically in your Attio workspace.',
   ]
 
   return instructions
@@ -41,17 +37,34 @@ export function attioSetupInstructions(eventType: string): string {
     .join('')
 }
 
-export function buildAttioExtraFields(triggerId: string): SubBlockConfig[] {
+/**
+ * Builds subBlocks for an Attio trigger with OAuth credentials and automatic webhook lifecycle.
+ * Used by both the primary trigger (with dropdown) and secondary triggers.
+ */
+export function buildAttioTriggerSubBlocks(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter the webhook signing secret from Attio',
-      description:
-        'The signing secret from Attio used to verify webhook deliveries via HMAC-SHA256 signature',
-      password: true,
-      required: false,
+      id: 'triggerCredentials',
+      title: 'Attio Account',
+      type: 'oauth-input',
+      serviceId: 'attio',
+      mode: 'trigger',
+      required: true,
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'triggerSave',
+      title: 'Save',
+      type: 'trigger-save',
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: attioSetupInstructions(),
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
@@ -257,7 +270,7 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
 /**
  * Maps trigger IDs to the exact Attio event type strings.
  */
-const TRIGGER_EVENT_MAP: Record<string, string[]> = {
+export const TRIGGER_EVENT_MAP: Record<string, string[]> = {
   attio_record_created: ['record.created'],
   attio_record_updated: ['record.updated'],
   attio_record_deleted: ['record.deleted'],

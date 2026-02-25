@@ -73,12 +73,12 @@ export const attioListTasksTool: ToolConfig<AttioListTasksParams, AttioListTasks
       if (params.linkedObject) searchParams.set('linked_object', params.linkedObject)
       if (params.linkedRecordId) searchParams.set('linked_record_id', params.linkedRecordId)
       if (params.assignee) searchParams.set('assignee', params.assignee)
-      if (params.isCompleted !== undefined) {
+      if (params.isCompleted != null) {
         searchParams.set('is_completed', String(params.isCompleted))
       }
       if (params.sort) searchParams.set('sort', params.sort)
-      if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
-      if (params.offset !== undefined) searchParams.set('offset', String(params.offset))
+      if (params.limit != null) searchParams.set('limit', String(params.limit))
+      if (params.offset != null) searchParams.set('offset', String(params.offset))
       const qs = searchParams.toString()
       return `https://api.attio.com/v2/tasks${qs ? `?${qs}` : ''}`
     },

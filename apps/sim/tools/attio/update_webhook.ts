@@ -34,15 +34,15 @@ export const attioUpdateWebhookTool: ToolConfig<
     },
     targetUrl: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'New HTTPS target URL',
+      description: 'HTTPS target URL for webhook delivery',
     },
     subscriptions: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'New JSON array of subscriptions',
+      description: 'JSON array of subscriptions, e.g. [{"event_type":"note.created"}]',
     },
   },
 
@@ -54,17 +54,20 @@ export const attioUpdateWebhookTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const data: Record<string, unknown> = {}
-      if (params.targetUrl !== undefined) data.target_url = params.targetUrl
+      let subscriptions: unknown = []
       if (params.subscriptions) {
         try {
-          data.subscriptions =
+          subscriptions =
             typeof params.subscriptions === 'string'
               ? JSON.parse(params.subscriptions)
               : params.subscriptions
         } catch {
-          data.subscriptions = []
+          subscriptions = []
         }
+      }
+      const data: Record<string, unknown> = {
+        target_url: params.targetUrl,
+        subscriptions,
       }
       return { data }
     },

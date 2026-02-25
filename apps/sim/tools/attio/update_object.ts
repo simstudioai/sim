@@ -59,9 +59,9 @@ export const attioUpdateObjectTool: ToolConfig<AttioUpdateObjectParams, AttioUpd
       }),
       body: (params) => {
         const data: Record<string, unknown> = {}
-        if (params.apiSlug !== undefined) data.api_slug = params.apiSlug
-        if (params.singularNoun !== undefined) data.singular_noun = params.singularNoun
-        if (params.pluralNoun !== undefined) data.plural_noun = params.pluralNoun
+        if (params.apiSlug != null) data.api_slug = params.apiSlug
+        if (params.singularNoun != null) data.singular_noun = params.singularNoun
+        if (params.pluralNoun != null) data.plural_noun = params.pluralNoun
         return { data }
       },
     },

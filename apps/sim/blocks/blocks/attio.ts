@@ -139,7 +139,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
     {
       id: 'values',
       title: 'Values',
-      type: 'long-input',
+      type: 'code',
       placeholder: '{"name": "Acme Corp", "domains": [{"domain": "acme.com"}]}',
       condition: {
         field: 'operation',
@@ -161,21 +161,25 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
 Return ONLY the JSON object with Attio attribute values. No explanations, no markdown, no extra text.
 
 ### ATTIO VALUES STRUCTURE
-Keys are attribute slugs, values follow Attio's attribute format. Simple values can be strings; complex values are arrays of objects.
+Keys are attribute slugs. Most text attributes use array-of-objects format [{"value": "..."}]. Special attributes have their own format.
 
 ### COMMON PEOPLE ATTRIBUTES
-- name: [{"first_name": "...", "last_name": "..."}]
+- name: [{"first_name": "...", "last_name": "...", "full_name": "..."}] (personal-name type, full_name is required)
 - email_addresses: [{"email_address": "..."}]
 - phone_numbers: [{"original_phone_number": "...", "country_code": "US"}]
-- job_title, description, linkedin, twitter
+- job_title: [{"value": "..."}]
+- description: [{"value": "..."}]
+- linkedin: [{"value": "https://linkedin.com/in/..."}]
+- twitter: [{"value": "@handle"}]
 
 ### COMMON COMPANY ATTRIBUTES
 - name: [{"value": "..."}]
 - domains: [{"domain": "..."}]
-- description, primary_location, categories
+- description: [{"value": "..."}]
+- primary_location: [{"line_1": "...", "locality": "...", "region": "...", "postcode": "...", "country_code": "US"}]
 
 ### EXAMPLES
-Person: {"name": [{"first_name": "John", "last_name": "Doe"}], "email_addresses": [{"email_address": "john@example.com"}]}
+Person: {"name": [{"first_name": "John", "last_name": "Doe", "full_name": "John Doe"}], "email_addresses": [{"email_address": "john@example.com"}], "job_title": [{"value": "Engineer"}]}
 Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}`,
         placeholder: 'Describe the record values you want to set...',
         generationType: 'json-object',
@@ -184,8 +188,8 @@ Company: {"name": [{"value": "Acme Corp"}], "domains": [{"domain": "acme.com"}]}
     {
       id: 'filter',
       title: 'Filter',
-      type: 'long-input',
-      placeholder: '{"name": "John Smith"} (optional)',
+      type: 'code',
+      placeholder: '{"name": "John Smith"}',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
         enabled: true,
@@ -215,8 +219,8 @@ Empty (list all): {}`,
     {
       id: 'sorts',
       title: 'Sort',
-      type: 'long-input',
-      placeholder: '[{"direction":"asc","attribute":"name"}] (optional)',
+      type: 'code',
+      placeholder: '[{"direction":"asc","attribute":"name"}]',
       condition: { field: 'operation', value: 'list_records' },
       wandConfig: {
         enabled: true,
@@ -332,7 +336,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'noteMeetingId',
       title: 'Meeting ID',
       type: 'short-input',
-      placeholder: 'Link to a meeting (optional)',
+      placeholder: 'Link to a meeting',
       condition: { field: 'operation', value: 'create_note' },
       mode: 'advanced',
     },
@@ -358,7 +362,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'taskDeadline',
       title: 'Deadline',
       type: 'short-input',
-      placeholder: '2024-12-01T15:00:00.000Z (optional)',
+      placeholder: '2024-12-01T15:00:00.000Z',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -394,8 +398,8 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
     {
       id: 'taskLinkedRecords',
       title: 'Linked Records',
-      type: 'long-input',
-      placeholder: '[{"target_object":"people","target_record_id":"..."}] (optional)',
+      type: 'code',
+      placeholder: '[{"target_object":"people","target_record_id":"..."}]',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -420,9 +424,8 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
     {
       id: 'taskAssignees',
       title: 'Assignees',
-      type: 'long-input',
-      placeholder:
-        '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}] (optional)',
+      type: 'code',
+      placeholder: '[{"referenced_actor_type":"workspace-member","referenced_actor_id":"..."}]',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
       wandConfig: {
         enabled: true,
@@ -456,21 +459,21 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'taskFilterObject',
       title: 'Linked Object Type',
       type: 'short-input',
-      placeholder: 'e.g. people, companies (optional)',
+      placeholder: 'e.g. people, companies',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
       id: 'taskFilterRecordId',
       title: 'Linked Record ID',
       type: 'short-input',
-      placeholder: 'Filter by linked record ID (optional)',
+      placeholder: 'Filter by linked record ID',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
       id: 'taskFilterAssignee',
       title: 'Assignee',
       type: 'short-input',
-      placeholder: 'Filter by assignee email or ID (optional)',
+      placeholder: 'Filter by assignee email or ID',
       condition: { field: 'operation', value: 'list_tasks' },
     },
     {
@@ -571,7 +574,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'listApiSlug',
       title: 'API Slug',
       type: 'short-input',
-      placeholder: 'e.g. my_list (optional, auto-generated)',
+      placeholder: 'e.g. my_list (auto-generated from name)',
       condition: { field: 'operation', value: ['create_list', 'update_list'] },
       mode: 'advanced',
     },
@@ -622,8 +625,8 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
     {
       id: 'entryValues',
       title: 'Entry Values',
-      type: 'long-input',
-      placeholder: '{"attribute_slug": "value"} (optional)',
+      type: 'code',
+      placeholder: '{"attribute_slug": "value"}',
       condition: {
         field: 'operation',
         value: ['create_list_entry', 'update_list_entry'],
@@ -652,8 +655,8 @@ Keys are list attribute slugs. Values follow Attio attribute format.
     {
       id: 'entryFilter',
       title: 'Filter',
-      type: 'long-input',
-      placeholder: '{"attribute": {"$operator": "value"}} (optional)',
+      type: 'code',
+      placeholder: '{"attribute": {"$operator": "value"}}',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
         enabled: true,
@@ -679,8 +682,8 @@ Logical: $and, $or, $not
     {
       id: 'entrySorts',
       title: 'Sort',
-      type: 'long-input',
-      placeholder: '[{"direction":"asc","attribute":"created_at"}] (optional)',
+      type: 'code',
+      placeholder: '[{"direction":"asc","attribute":"created_at"}]',
       condition: { field: 'operation', value: 'query_list_entries' },
       wandConfig: {
         enabled: true,
@@ -819,7 +822,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'threadFilterRecordId',
       title: 'Record ID',
       type: 'short-input',
-      placeholder: 'Filter by record ID (optional)',
+      placeholder: 'Filter by record ID',
       condition: { field: 'operation', value: 'list_threads' },
     },
     {
@@ -833,7 +836,7 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       id: 'threadFilterEntryId',
       title: 'Entry ID',
       type: 'short-input',
-      placeholder: 'Filter by entry ID (optional)',
+      placeholder: 'Filter by entry ID',
       condition: { field: 'operation', value: 'list_threads' },
     },
     {
@@ -865,15 +868,15 @@ YYYY-MM-DDTHH:mm:ss.SSSZ
       type: 'short-input',
       placeholder: 'https://example.com/webhook',
       condition: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
-      required: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
     },
     {
       id: 'webhookSubscriptions',
       title: 'Subscriptions',
-      type: 'long-input',
+      type: 'code',
       placeholder: '[{"event_type":"record.created","filter":{"object_id":"..."}}]',
       condition: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
-      required: { field: 'operation', value: 'create_webhook' },
+      required: { field: 'operation', value: ['create_webhook', 'update_webhook'] },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
@@ -911,12 +914,31 @@ workspace-member.created
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max results (optional)',
+      placeholder: 'Max results',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
           'list_records',
           'search_records',
+          'list_notes',
+          'list_tasks',
+          'query_list_entries',
+          'list_threads',
+          'list_webhooks',
+        ],
+      },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Number of results to skip',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_records',
           'list_notes',
           'list_tasks',
           'query_list_entries',
@@ -1103,6 +1125,7 @@ workspace-member.created
 
         // Shared params
         if (params.limit) cleanParams.limit = Number(params.limit)
+        if (params.offset) cleanParams.offset = Number(params.offset)
 
         return cleanParams
       },
@@ -1164,6 +1187,7 @@ workspace-member.created
     webhookTargetUrl: { type: 'string', description: 'Webhook target URL' },
     webhookSubscriptions: { type: 'json', description: 'Webhook event subscriptions' },
     limit: { type: 'string', description: 'Maximum number of results' },
+    offset: { type: 'string', description: 'Number of results to skip for pagination' },
   },
 
   outputs: {

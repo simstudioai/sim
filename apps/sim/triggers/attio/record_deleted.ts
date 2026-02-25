@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildRecordOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildRecordOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioRecordDeletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_record_deleted',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('record.deleted'),
-    extraFields: buildAttioExtraFields('attio_record_deleted'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_record_deleted'),
 
   outputs: buildRecordOutputs(),
 

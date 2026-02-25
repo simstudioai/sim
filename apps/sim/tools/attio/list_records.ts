@@ -78,8 +78,8 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
           body.sorts = params.sorts
         }
       }
-      if (params.limit !== undefined) body.limit = params.limit
-      if (params.offset !== undefined) body.offset = params.offset
+      if (params.limit != null) body.limit = params.limit
+      if (params.offset != null) body.offset = params.offset
       return body
     },
   },

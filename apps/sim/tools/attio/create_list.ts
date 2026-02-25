@@ -65,12 +65,19 @@ export const attioCreateListTool: ToolConfig<AttioCreateListParams, AttioCreateL
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      const apiSlug =
+        params.apiSlug ||
+        params.name
+          ?.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
       const data: Record<string, unknown> = {
         name: params.name,
+        api_slug: apiSlug,
         parent_object: params.parentObject,
+        workspace_access: params.workspaceAccess ?? null,
+        workspace_member_access: [] as unknown[],
       }
-      if (params.apiSlug) data.api_slug = params.apiSlug
-      if (params.workspaceAccess) data.workspace_access = params.workspaceAccess
       if (params.workspaceMemberAccess) {
         try {
           data.workspace_member_access =

@@ -60,19 +60,21 @@ export const attioCreateListEntryTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const data: Record<string, unknown> = {
-        parent_record_id: params.parentRecordId,
-        parent_object: params.parentObject,
-      }
+      let entryValues: unknown = {}
       if (params.entryValues) {
         try {
-          data.entry_values =
+          entryValues =
             typeof params.entryValues === 'string'
               ? JSON.parse(params.entryValues)
               : params.entryValues
         } catch {
-          data.entry_values = {}
+          entryValues = {}
         }
+      }
+      const data: Record<string, unknown> = {
+        parent_record_id: params.parentRecordId,
+        parent_object: params.parentObject,
+        entry_values: entryValues,
       }
       return { data }
     },

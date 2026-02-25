@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildTaskOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildTaskOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioTaskDeletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_task_deleted',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('task.deleted'),
-    extraFields: buildAttioExtraFields('attio_task_deleted'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_task_deleted'),
 
   outputs: buildTaskOutputs(),
 

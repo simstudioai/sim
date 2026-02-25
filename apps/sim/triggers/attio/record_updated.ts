@@ -1,11 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  attioSetupInstructions,
-  attioTriggerOptions,
-  buildAttioExtraFields,
-  buildRecordUpdatedOutputs,
-} from '@/triggers/attio/utils'
+import { buildAttioTriggerSubBlocks, buildRecordUpdatedOutputs } from '@/triggers/attio/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,12 +15,7 @@ export const attioRecordUpdatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AttioIcon,
 
-  subBlocks: buildTriggerSubBlocks({
-    triggerId: 'attio_record_updated',
-    triggerOptions: attioTriggerOptions,
-    setupInstructions: attioSetupInstructions('record.updated'),
-    extraFields: buildAttioExtraFields('attio_record_updated'),
-  }),
+  subBlocks: buildAttioTriggerSubBlocks('attio_record_updated'),
 
   outputs: buildRecordUpdatedOutputs(),
 

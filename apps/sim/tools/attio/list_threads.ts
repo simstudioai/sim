@@ -67,8 +67,8 @@ export const attioListThreadsTool: ToolConfig<AttioListThreadsParams, AttioListT
       if (params.object) searchParams.set('object', params.object)
       if (params.entryId) searchParams.set('entry_id', params.entryId)
       if (params.list) searchParams.set('list', params.list)
-      if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
-      if (params.offset !== undefined) searchParams.set('offset', String(params.offset))
+      if (params.limit != null) searchParams.set('limit', String(params.limit))
+      if (params.offset != null) searchParams.set('offset', String(params.offset))
       const qs = searchParams.toString()
       return `https://api.attio.com/v2/threads${qs ? `?${qs}` : ''}`
     },
