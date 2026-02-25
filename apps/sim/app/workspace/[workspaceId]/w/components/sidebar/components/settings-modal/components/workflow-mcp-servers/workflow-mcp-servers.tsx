@@ -484,7 +484,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     {activeConfigTab === 'cursor' && (
                       <a
                         href={getCursorInstallUrl(server.isPublic, server.name)}
-                        className='hover:-translate-y-[1px] absolute top-[6px] right-2 inline-flex rounded-[6px] ring-1 ring-black/10 transition-all duration-150 hover:ring-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)] dark:ring-white/10 dark:hover:ring-white/20'
+                        className='absolute top-[6px] right-2 inline-flex rounded-[6px] bg-[var(--surface-5)] ring-1 ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
                       >
                         <img
                           src='https://cursor.com/deeplink/mcp-install-dark.svg'
