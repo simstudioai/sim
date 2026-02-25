@@ -98,13 +98,17 @@ export class WorkflowBlockHandler implements BlockHandler {
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
     const instanceId = crypto.randomUUID()
 
+    const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
+    const depthError = validateCallChain(childCallChain)
+    if (depthError) {
+      throw new ChildWorkflowError({
+        message: depthError,
+        childWorkflowName,
+      })
+    }
+
     let childWorkflowSnapshotId: string | undefined
     try {
-      const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
-      if (currentDepth >= DEFAULTS.MAX_WORKFLOW_DEPTH) {
-        throw new Error(`Maximum workflow nesting depth of ${DEFAULTS.MAX_WORKFLOW_DEPTH} exceeded`)
-      }
-
       if (ctx.isDeployedContext) {
         const hasActiveDeployment = await this.checkChildDeployment(workflowId)
         if (!hasActiveDeployment) {
@@ -126,7 +130,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
-        `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
+        `Executing child workflow: ${childWorkflowName} (${workflowId}), call chain depth ${ctx.callChain?.length || 0}`
       )
 
       let childWorkflowInput: Record<string, any> = {}
@@ -166,15 +170,6 @@ export class WorkflowBlockHandler implements BlockHandler {
           ? this.getIterationContext(ctx, nodeMetadata)
           : undefined
         ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
-      }
-
-      const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
-      const depthError = validateCallChain(childCallChain)
-      if (depthError) {
-        throw new ChildWorkflowError({
-          message: depthError,
-          childWorkflowName,
-        })
       }
 
       const subExecutor = new Executor({

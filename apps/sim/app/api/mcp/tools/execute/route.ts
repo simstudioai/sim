@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
@@ -178,8 +179,14 @@ export const POST = withMcpAuth('read')(
         'sync'
       )
 
+      const simViaHeader = request.headers.get(SIM_VIA_HEADER)
+      const extraHeaders: Record<string, string> = {}
+      if (simViaHeader) {
+        extraHeaders[SIM_VIA_HEADER] = simViaHeader
+      }
+
       const result = await Promise.race([
-        mcpService.executeTool(userId, serverId, toolCall, workspaceId),
+        mcpService.executeTool(userId, serverId, toolCall, workspaceId, extraHeaders),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Tool execution timeout')), executionTimeout)
         ),

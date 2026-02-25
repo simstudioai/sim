@@ -7,7 +7,7 @@
  */
 
 export const SIM_VIA_HEADER = 'X-Sim-Via'
-export const MAX_CALL_CHAIN_DEPTH = 10
+export const MAX_CALL_CHAIN_DEPTH = 25
 
 /**
  * Parses the `X-Sim-Via` header value into an ordered list of workflow IDs.

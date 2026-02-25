@@ -170,7 +170,8 @@ class McpService {
     userId: string,
     serverId: string,
     toolCall: McpToolCall,
-    workspaceId: string
+    workspaceId: string,
+    extraHeaders?: Record<string, string>
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
     const maxRetries = 2
@@ -187,6 +188,9 @@ class McpService {
         }
 
         const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+        if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+          resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
+        }
         const client = await this.createClient(resolvedConfig)
 
         try {

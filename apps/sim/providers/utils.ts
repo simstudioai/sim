@@ -1110,6 +1110,7 @@ export function prepareToolExecution(
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
     isDeployedContext?: boolean
+    callChain?: string[]
   }
 ): {
   toolParams: Record<string, any>
@@ -1137,6 +1138,7 @@ export function prepareToolExecution(
             ...(request.isDeployedContext !== undefined
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
+            ...(request.callChain ? { callChain: request.callChain } : {}),
           },
         }
       : {}),

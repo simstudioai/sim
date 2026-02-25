@@ -19,8 +19,8 @@ describe('call-chain', () => {
   })
 
   describe('MAX_CALL_CHAIN_DEPTH', () => {
-    it('equals 10', () => {
-      expect(MAX_CALL_CHAIN_DEPTH).toBe(10)
+    it('equals 25', () => {
+      expect(MAX_CALL_CHAIN_DEPTH).toBe(25)
     })
   })
 

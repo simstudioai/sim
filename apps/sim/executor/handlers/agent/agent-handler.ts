@@ -33,7 +33,6 @@ import { stringifyJSON } from '@/executor/utils/json'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
 
 const logger = createLogger('AgentBlockHandler')
@@ -276,14 +275,12 @@ export class AgentBlockHandler implements BlockHandler {
     const userProvidedParams = tool.params || {}
 
     let schema = tool.schema
-    let code = tool.code
     let title = tool.title
 
     if (tool.customToolId) {
       const resolved = await this.fetchCustomToolById(ctx, tool.customToolId)
       if (resolved) {
         schema = resolved.schema
-        code = resolved.code
         title = resolved.title
       } else if (!schema) {
         logger.error(`Custom tool not found: ${tool.customToolId}`)
@@ -296,7 +293,7 @@ export class AgentBlockHandler implements BlockHandler {
       return null
     }
 
-    const { filterSchemaForLLM, mergeToolParameters } = await import('@/tools/params')
+    const { filterSchemaForLLM } = await import('@/tools/params')
 
     const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
 
@@ -313,43 +310,6 @@ export class AgentBlockHandler implements BlockHandler {
       usageControl: tool.usageControl || 'auto',
     }
 
-    if (code) {
-      base.executeFunction = async (callParams: Record<string, any>) => {
-        const mergedParams = mergeToolParameters(userProvidedParams, callParams)
-
-        const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
-
-        const result = await executeTool(
-          'function_execute',
-          {
-            code,
-            ...mergedParams,
-            timeout: tool.timeout ?? AGENT.DEFAULT_FUNCTION_TIMEOUT,
-            envVars: ctx.environmentVariables || {},
-            workflowVariables: ctx.workflowVariables || {},
-            blockData,
-            blockNameMapping,
-            blockOutputSchemas,
-            isCustomTool: true,
-            _context: {
-              workflowId: ctx.workflowId,
-              workspaceId: ctx.workspaceId,
-              userId: ctx.userId,
-              isDeployedContext: ctx.isDeployedContext,
-              enforceCredentialAccess: ctx.enforceCredentialAccess,
-            },
-          },
-          false,
-          ctx
-        )
-
-        if (!result.success) {
-          throw new Error(result.error || 'Function execution failed')
-        }
-        return result.output
-      }
-    }
-
     return base
   }
 
@@ -359,7 +319,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async fetchCustomToolById(
     ctx: ExecutionContext,
     customToolId: string
-  ): Promise<{ schema: any; code: string; title: string } | null> {
+  ): Promise<{ schema: any; title: string } | null> {
     if (typeof window !== 'undefined') {
       try {
         const { getCustomTool } = await import('@/hooks/queries/custom-tools')
@@ -367,7 +327,6 @@ export class AgentBlockHandler implements BlockHandler {
         if (tool) {
           return {
             schema: tool.schema,
-            code: tool.code || '',
             title: tool.title,
           }
         }
@@ -416,7 +375,6 @@ export class AgentBlockHandler implements BlockHandler {
 
       return {
         schema: tool.schema,
-        code: tool.code || '',
         title: tool.title,
       }
     } catch (error) {
@@ -498,47 +456,6 @@ export class AgentBlockHandler implements BlockHandler {
       parameters: filteredSchema,
       params: userProvidedParams,
       usageControl: tool.usageControl || 'auto',
-      executeFunction: async (callParams: Record<string, any>) => {
-        const headers = await buildAuthHeaders()
-        const execParams: Record<string, string> = {}
-        if (ctx.userId) execParams.userId = ctx.userId
-        const execUrl = buildAPIUrl('/api/mcp/tools/execute', execParams)
-
-        const execResponse = await fetch(execUrl.toString(), {
-          method: 'POST',
-          headers,
-          body: stringifyJSON({
-            serverId,
-            toolName,
-            arguments: callParams,
-            workspaceId: ctx.workspaceId,
-            workflowId: ctx.workflowId,
-            toolSchema: tool.schema,
-          }),
-        })
-
-        if (!execResponse.ok) {
-          throw new Error(
-            `MCP tool execution failed: ${execResponse.status} ${execResponse.statusText}`
-          )
-        }
-
-        const result = await execResponse.json()
-        if (!result.success) {
-          throw new Error(result.error || 'MCP tool execution failed')
-        }
-
-        return {
-          success: true,
-          output: result.data.output || {},
-          metadata: {
-            source: 'mcp',
-            serverId,
-            serverName: serverName || serverId,
-            toolName,
-          },
-        }
-      },
     }
   }
 
@@ -684,47 +601,6 @@ export class AgentBlockHandler implements BlockHandler {
       parameters: filteredSchema,
       params: userProvidedParams,
       usageControl: tool.usageControl || 'auto',
-      executeFunction: async (callParams: Record<string, any>) => {
-        const headers = await buildAuthHeaders()
-        const discoverExecParams: Record<string, string> = {}
-        if (ctx.userId) discoverExecParams.userId = ctx.userId
-        const execUrl = buildAPIUrl('/api/mcp/tools/execute', discoverExecParams)
-
-        const execResponse = await fetch(execUrl.toString(), {
-          method: 'POST',
-          headers,
-          body: stringifyJSON({
-            serverId,
-            toolName,
-            arguments: callParams,
-            workspaceId: ctx.workspaceId,
-            workflowId: ctx.workflowId,
-            toolSchema: mcpTool.inputSchema,
-          }),
-        })
-
-        if (!execResponse.ok) {
-          throw new Error(
-            `MCP tool execution failed: ${execResponse.status} ${execResponse.statusText}`
-          )
-        }
-
-        const result = await execResponse.json()
-        if (!result.success) {
-          throw new Error(result.error || 'MCP tool execution failed')
-        }
-
-        return {
-          success: true,
-          output: result.data.output || {},
-          metadata: {
-            source: 'mcp',
-            serverId,
-            serverName: mcpTool.serverName,
-            toolName,
-          },
-        }
-      },
     }
   }
 
@@ -1082,6 +958,7 @@ export class AgentBlockHandler implements BlockHandler {
         blockData,
         blockNameMapping,
         isDeployedContext: ctx.isDeployedContext,
+        callChain: ctx.callChain,
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,

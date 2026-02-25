@@ -174,6 +174,7 @@ export interface ProviderRequest {
   verbosity?: string
   thinkingLevel?: string
   isDeployedContext?: boolean
+  callChain?: string[]
   /** Previous interaction ID for multi-turn Interactions API requests (deep research follow-ups) */
   previousInteractionId?: string
   abortSignal?: AbortSignal
