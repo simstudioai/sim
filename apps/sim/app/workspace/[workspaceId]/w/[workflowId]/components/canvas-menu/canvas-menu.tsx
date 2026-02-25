@@ -1,7 +1,6 @@
 'use client'
 
 import type { RefObject } from 'react'
-import { Lock, Unlock } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -160,7 +159,6 @@ export function CanvasMenu({
               onClose()
             }}
           >
-            {allBlocksLocked ? <Unlock className='h-3 w-3' /> : <Lock className='h-3 w-3' />}
             <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
           </PopoverItem>
         )}
