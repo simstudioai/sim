@@ -620,6 +620,13 @@ import {
   gongLookupPhoneTool,
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
+import {
+  googleBigQueryGetTableTool,
+  googleBigQueryInsertRowsTool,
+  googleBigQueryListDatasetsTool,
+  googleBigQueryListTablesTool,
+  googleBigQueryQueryTool,
+} from '@/tools/google_bigquery'
 import { googleBooksVolumeDetailsTool, googleBooksVolumeSearchTool } from '@/tools/google_books'
 import {
   googleCalendarCreateTool,
@@ -747,13 +754,6 @@ import {
   listMattersHoldsTool,
   listMattersTool,
 } from '@/tools/google_vault'
-import {
-  googleBigQueryGetTableTool,
-  googleBigQueryInsertRowsTool,
-  googleBigQueryListDatasetsTool,
-  googleBigQueryListTablesTool,
-  googleBigQueryQueryTool,
-} from '@/tools/google_bigquery'
 import {
   grafanaCreateAlertRuleTool,
   grafanaCreateAnnotationTool,

@@ -1,7 +1,13 @@
-import type { GoogleBigQueryQueryParams, GoogleBigQueryQueryResponse } from '@/tools/google_bigquery/types'
+import type {
+  GoogleBigQueryQueryParams,
+  GoogleBigQueryQueryResponse,
+} from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const googleBigQueryQueryTool: ToolConfig<GoogleBigQueryQueryParams, GoogleBigQueryQueryResponse> = {
+export const googleBigQueryQueryTool: ToolConfig<
+  GoogleBigQueryQueryParams,
+  GoogleBigQueryQueryResponse
+> = {
   id: 'google_bigquery_query',
   name: 'BigQuery Run Query',
   description: 'Run a SQL query against Google BigQuery and return the results',
@@ -120,7 +126,11 @@ export const googleBigQueryQueryTool: ToolConfig<GoogleBigQueryQueryParams, Goog
     jobComplete: { type: 'boolean', description: 'Whether the query completed within the timeout' },
     totalBytesProcessed: { type: 'string', description: 'Total bytes processed by the query' },
     cacheHit: { type: 'boolean', description: 'Whether the query result was served from cache' },
-    jobReference: { type: 'json', description: 'Job reference with projectId, jobId, and location (useful when jobComplete is false)' },
+    jobReference: {
+      type: 'json',
+      description:
+        'Job reference with projectId, jobId, and location (useful when jobComplete is false)',
+    },
     pageToken: { type: 'string', description: 'Token for fetching additional result pages' },
   },
 }

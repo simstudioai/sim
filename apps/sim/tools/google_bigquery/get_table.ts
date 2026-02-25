@@ -96,9 +96,15 @@ export const googleBigQueryGetTableTool: ToolConfig<
     description: { type: 'string', description: 'Table description' },
     numRows: { type: 'string', description: 'Total number of rows' },
     numBytes: { type: 'string', description: 'Total size in bytes' },
-    schema: { type: 'json', description: 'Array of column definitions with name, type, mode, and description' },
+    schema: {
+      type: 'json',
+      description: 'Array of column definitions with name, type, mode, and description',
+    },
     creationTime: { type: 'string', description: 'Table creation time (milliseconds since epoch)' },
-    lastModifiedTime: { type: 'string', description: 'Last modification time (milliseconds since epoch)' },
+    lastModifiedTime: {
+      type: 'string',
+      description: 'Last modification time (milliseconds since epoch)',
+    },
     location: { type: 'string', description: 'Data location' },
   },
 }
