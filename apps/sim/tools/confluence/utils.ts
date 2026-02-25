@@ -56,13 +56,21 @@ function stripHtmlTags(html: string): string {
   return text.trim()
 }
 
+/**
+ * Strips HTML tags and decodes HTML entities from raw Confluence content.
+ */
+export function cleanHtmlContent(rawContent: string): string {
+  let content = stripHtmlTags(rawContent)
+  content = decodeHtmlEntities(content)
+  content = content.replace(/\s+/g, ' ').trim()
+  return content
+}
+
 export function transformPageData(data: any) {
   const rawContent =
     data.body?.storage?.value || data.body?.view?.value || data.body?.atlas_doc_format?.value || ''
 
-  let cleanContent = stripHtmlTags(rawContent)
-  cleanContent = decodeHtmlEntities(cleanContent)
-  cleanContent = cleanContent.replace(/\s+/g, ' ').trim()
+  const cleanContent = cleanHtmlContent(rawContent)
 
   return {
     success: true,
