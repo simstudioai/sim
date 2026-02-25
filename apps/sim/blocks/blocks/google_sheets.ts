@@ -870,7 +870,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           values: parsedValues,
           oauthCredential,
           ...(filterColumn ? { filterColumn: (filterColumn as string).trim() } : {}),
-          ...(filterValue !== undefined && filterValue !== '' ? { filterValue: filterValue as string } : {}),
+          ...(filterValue !== undefined && filterValue !== ''
+            ? { filterValue: filterValue as string }
+            : {}),
           ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
         }
       },
@@ -896,7 +898,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
     filterColumn: { type: 'string', description: 'Column header name to filter on' },
     filterValue: { type: 'string', description: 'Value to match against the filter column' },
-    filterMatchType: { type: 'string', description: 'Match type: contains, exact, starts_with, or ends_with' },
+    filterMatchType: {
+      type: 'string',
+      description: 'Match type: contains, exact, starts_with, or ends_with',
+    },
   },
   outputs: {
     // Read outputs

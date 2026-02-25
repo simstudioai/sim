@@ -238,7 +238,6 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
               return cellValue.startsWith(filterVal)
             case 'ends_with':
               return cellValue.endsWith(filterVal)
-            case 'contains':
             default:
               return cellValue.includes(filterVal)
           }
