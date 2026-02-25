@@ -1012,8 +1012,8 @@ Update a webhook in Attio (target URL and/or subscriptions)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookId` | string | Yes | The webhook ID to update |
-| `targetUrl` | string | No | New HTTPS target URL |
-| `subscriptions` | string | No | New JSON array of subscriptions |
+| `targetUrl` | string | Yes | HTTPS target URL for webhook delivery |
+| `subscriptions` | string | Yes | JSON array of subscriptions, e.g. \[\{"event_type":"note.created"\}\] |
 
 #### Output
 
