@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
-import { TASKS_API_BASE } from './types'
-import type { GoogleTasksListTaskListsParams, GoogleTasksListTaskListsResponse } from './types'
+import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import type { GoogleTasksListTaskListsParams, GoogleTasksListTaskListsResponse } from '@/tools/google_tasks/types'
 
 export const listTaskListsTool: ToolConfig<
   GoogleTasksListTaskListsParams,
