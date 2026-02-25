@@ -7,7 +7,7 @@ export const GoogleTranslateBlock: BlockConfig = {
   description: 'Translate text using Google Cloud Translation',
   longDescription:
     'Translate and detect languages using the Google Cloud Translation API. Supports auto-detection of the source language.',
-  docsLink: 'https://docs.sim.ai/tools/google-translate',
+  docsLink: 'https://docs.sim.ai/tools/google_translate',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleTranslateIcon,

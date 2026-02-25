@@ -1,4 +1,4 @@
 import { googleTranslateDetectTool } from './detect'
-import { googleTranslateTool } from './translate'
+import { googleTranslateTool } from './text'
 
 export { googleTranslateDetectTool, googleTranslateTool }

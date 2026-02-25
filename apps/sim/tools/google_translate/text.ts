@@ -43,7 +43,11 @@ export const googleTranslateTool: ToolConfig<GoogleTranslateParams, GoogleTransl
   },
 
   request: {
-    url: 'https://translation.googleapis.com/language/translate/v2',
+    url: (params) => {
+      const url = new URL('https://translation.googleapis.com/language/translate/v2')
+      url.searchParams.set('key', params.apiKey)
+      return url.toString()
+    },
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -52,7 +56,6 @@ export const googleTranslateTool: ToolConfig<GoogleTranslateParams, GoogleTransl
       const body: Record<string, unknown> = {
         q: params.text,
         target: params.target,
-        key: params.apiKey,
       }
       if (params.source) body.source = params.source
       if (params.format) body.format = params.format

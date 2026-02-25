@@ -29,14 +29,17 @@ export const googleTranslateDetectTool: ToolConfig<
   },
 
   request: {
-    url: 'https://translation.googleapis.com/language/translate/v2/detect',
+    url: (params) => {
+      const url = new URL('https://translation.googleapis.com/language/translate/v2/detect')
+      url.searchParams.set('key', params.apiKey)
+      return url.toString()
+    },
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
       q: params.text,
-      key: params.apiKey,
     }),
   },
 
