@@ -421,7 +421,7 @@ export const Panel = memo(function Panel() {
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>
                   </PopoverItem>
-                  {userPermissions.canAdmin && (
+                  {userPermissions.canAdmin && !currentWorkflow?.isSnapshotView && (
                     <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
                       {allBlocksLocked ? (
                         <Unlock className='h-3 w-3' />

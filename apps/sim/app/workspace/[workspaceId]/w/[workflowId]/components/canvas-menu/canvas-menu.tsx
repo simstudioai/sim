@@ -32,7 +32,6 @@ export interface CanvasMenuProps {
   isChatOpen?: boolean
   hasClipboard?: boolean
   disableEdit?: boolean
-  disableAdmin?: boolean
   canAdmin?: boolean
   canUndo?: boolean
   canRedo?: boolean
