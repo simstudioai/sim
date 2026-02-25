@@ -58,6 +58,35 @@ export function isEdgeProtected(
  * @param blocks - Record of all blocks in the workflow
  * @returns Result containing deletable IDs, protected IDs, and whether all are protected
  */
+/**
+ * Returns block IDs ordered so that `batchToggleLocked` will target the desired state.
+ *
+ * `batchToggleLocked` determines its target locked state from `!firstBlock.locked`.
+ * When `targetLocked` is true (lock all), an unlocked block must come first.
+ * When `targetLocked` is false (unlock all), a locked block must come first.
+ *
+ * @param blocks - Record of all blocks in the workflow
+ * @param targetLocked - The desired locked state for all blocks
+ * @returns Sorted block IDs, or empty array if there are no blocks
+ */
+export function getWorkflowLockToggleIds(
+  blocks: Record<string, BlockState>,
+  targetLocked: boolean
+): string[] {
+  const ids = Object.keys(blocks)
+  if (ids.length === 0) return []
+
+  ids.sort((a, b) => {
+    const aVal = blocks[a].locked ? 1 : 0
+    const bVal = blocks[b].locked ? 1 : 0
+    // To lock all (targetLocked=true): unlocked first (aVal - bVal)
+    // To unlock all (targetLocked=false): locked first (bVal - aVal)
+    return targetLocked ? aVal - bVal : bVal - aVal
+  })
+
+  return ids
+}
+
 export function filterProtectedBlocks(
   blockIds: string[],
   blocks: Record<string, BlockState>
