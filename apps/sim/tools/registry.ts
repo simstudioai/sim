@@ -748,6 +748,13 @@ import {
   listMattersTool,
 } from '@/tools/google_vault'
 import {
+  getTableTool as bigqueryGetTableTool,
+  insertRowsTool as bigqueryInsertRowsTool,
+  listDatasetsTool as bigqueryListDatasetsTool,
+  listTablesTool as bigqueryListTablesTool,
+  queryTool as bigqueryQueryTool,
+} from '@/tools/google_bigquery'
+import {
   grafanaCreateAlertRuleTool,
   grafanaCreateAnnotationTool,
   grafanaCreateDashboardTool,
@@ -3556,6 +3563,11 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  google_bigquery_query: bigqueryQueryTool,
+  google_bigquery_list_datasets: bigqueryListDatasetsTool,
+  google_bigquery_list_tables: bigqueryListTablesTool,
+  google_bigquery_get_table: bigqueryGetTableTool,
+  google_bigquery_insert_rows: bigqueryInsertRowsTool,
   google_vault_create_matters_export: createMattersExportTool,
   google_vault_list_matters_export: listMattersExportTool,
   google_vault_create_matters_holds: createMattersHoldsTool,

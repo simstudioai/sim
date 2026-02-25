@@ -1,0 +1,139 @@
+---
+title: Google BigQuery
+description: Query, list, and insert data in Google BigQuery
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_bigquery"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.
+
+
+
+## Tools
+
+### `google_bigquery_query`
+
+Run a SQL query against Google BigQuery and return the results
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `query` | string | Yes | SQL query to execute |
+| `useLegacySql` | boolean | No | Whether to use legacy SQL syntax \(default: false\) |
+| `maxResults` | number | No | Maximum number of rows to return |
+| `defaultDatasetId` | string | No | Default dataset for unqualified table names |
+| `location` | string | No | Processing location \(e.g., "US", "EU"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | json | Array of column names from the query result |
+| `rows` | json | Array of row objects with column values |
+| `totalRows` | string | Total number of rows in the result |
+| `jobComplete` | boolean | Whether the query completed within the timeout |
+| `totalBytesProcessed` | string | Total bytes processed by the query |
+| `cacheHit` | boolean | Whether the query result was served from cache |
+| `jobReference` | json | Job reference with projectId, jobId, and location \(useful when jobComplete is false\) |
+| `pageToken` | string | Token for fetching additional result pages |
+
+### `google_bigquery_list_datasets`
+
+List all datasets in a Google BigQuery project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `maxResults` | number | No | Maximum number of datasets to return |
+| `pageToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `datasets` | json | Array of dataset objects |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_bigquery_list_tables`
+
+List all tables in a Google BigQuery dataset
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `maxResults` | number | No | Maximum number of tables to return |
+| `pageToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | json | Array of table objects |
+| `totalItems` | number | Total number of tables in the dataset |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_bigquery_get_table`
+
+Get metadata and schema for a Google BigQuery table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tableId` | string | Table ID |
+| `datasetId` | string | Dataset ID |
+| `projectId` | string | Project ID |
+| `type` | string | Table type \(TABLE, VIEW, etc.\) |
+| `description` | string | Table description |
+| `numRows` | string | Total number of rows |
+| `numBytes` | string | Total size in bytes |
+| `schema` | json | Array of column definitions with name, type, mode, and description |
+| `creationTime` | string | Table creation time \(milliseconds since epoch\) |
+| `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
+| `location` | string | Data location |
+
+### `google_bigquery_insert_rows`
+
+Insert rows into a Google BigQuery table using streaming insert
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID |
+| `rows` | string | Yes | JSON array of row objects to insert |
+| `skipInvalidRows` | boolean | No | Whether to insert valid rows even if some are invalid |
+| `ignoreUnknownValues` | boolean | No | Whether to ignore columns not in the table schema |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insertedRows` | number | Number of rows successfully inserted |
+| `errors` | json | Array of per-row insertion errors \(empty if all succeeded\) |
+
+
