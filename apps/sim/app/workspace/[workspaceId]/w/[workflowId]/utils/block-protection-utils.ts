@@ -71,3 +71,38 @@ export function filterProtectedBlocks(
     allProtected: protectedIds.length === blockIds.length && blockIds.length > 0,
   }
 }
+
+/**
+ * Returns block IDs ordered so that `batchToggleLocked` will target the desired state.
+ *
+ * `batchToggleLocked` determines its target locked state from `!firstBlock.locked`.
+ * When `targetLocked` is true (lock all), an unlocked block must come first.
+ * When `targetLocked` is false (unlock all), a locked block must come first.
+ *
+ * Returns an empty array when there are no blocks or all blocks already match `targetLocked`.
+ *
+ * @param blocks - Record of all blocks in the workflow
+ * @param targetLocked - The desired locked state for all blocks
+ * @returns Sorted block IDs, or empty array if no toggle is needed
+ */
+export function getWorkflowLockToggleIds(
+  blocks: Record<string, BlockState>,
+  targetLocked: boolean
+): string[] {
+  const ids = Object.keys(blocks)
+  if (ids.length === 0) return []
+
+  // No-op if all blocks already match the desired state
+  const allMatch = Object.values(blocks).every((b) => Boolean(b.locked) === targetLocked)
+  if (allMatch) return []
+
+  ids.sort((a, b) => {
+    const aVal = blocks[a].locked ? 1 : 0
+    const bVal = blocks[b].locked ? 1 : 0
+    // To lock all (targetLocked=true): unlocked first (aVal - bVal)
+    // To unlock all (targetLocked=false): locked first (bVal - aVal)
+    return targetLocked ? aVal - bVal : bVal - aVal
+  })
+
+  return ids
+}

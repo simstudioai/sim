@@ -1298,7 +1298,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
-            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
+            {!isEnabled && !isLocked && <Badge variant='gray-secondary'>disabled</Badge>}
             {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
 
             {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (

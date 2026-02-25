@@ -57,6 +57,7 @@ import {
   estimateBlockDimensions,
   filterProtectedBlocks,
   getClampedPositionForNode,
+  getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
@@ -392,6 +393,15 @@ const WorkflowContent = React.memo(() => {
   useStreamCleanup(copilotCleanup)
 
   const { blocks, edges, lastSaved } = currentWorkflow
+
+  const allBlocksLocked = useMemo(() => {
+    const blockList = Object.values(blocks)
+    return blockList.length > 0 && blockList.every((b) => b.locked)
+  }, [blocks])
+
+  const hasBlocks = useMemo(() => Object.keys(blocks).length > 0, [blocks])
+
+  const hasLockedBlocks = useMemo(() => Object.values(blocks).some((b) => b.locked), [blocks])
 
   const isWorkflowReady = useMemo(
     () =>
@@ -1174,6 +1184,91 @@ const WorkflowContent = React.memo(() => {
     const blockIds = contextMenuBlocks.map((block) => block.id)
     collaborativeBatchToggleLocked(blockIds)
   }, [contextMenuBlocks, collaborativeBatchToggleLocked])
+
+  const handleToggleWorkflowLock = useCallback(() => {
+    const currentBlocks = useWorkflowStore.getState().blocks
+    const allLocked = Object.values(currentBlocks).every((b) => b.locked)
+    const ids = getWorkflowLockToggleIds(currentBlocks, !allLocked)
+    if (ids.length > 0) collaborativeBatchToggleLocked(ids)
+  }, [collaborativeBatchToggleLocked])
+
+  // Show notification when all blocks in the workflow are locked
+  const lockNotificationIdRef = useRef<string | null>(null)
+
+  const clearLockNotification = useCallback(() => {
+    if (lockNotificationIdRef.current) {
+      useNotificationStore.getState().removeNotification(lockNotificationIdRef.current)
+      lockNotificationIdRef.current = null
+    }
+  }, [])
+
+  // Clear persisted lock notifications on mount/workflow change (prevents duplicates after reload)
+  useEffect(() => {
+    // Reset ref so the main effect creates a fresh notification for the new workflow
+    clearLockNotification()
+
+    if (!activeWorkflowId) return
+    const store = useNotificationStore.getState()
+    const stale = store.notifications.filter(
+      (n) =>
+        n.workflowId === activeWorkflowId &&
+        (n.action?.type === 'unlock-workflow' || n.message.startsWith('This workflow is locked'))
+    )
+    for (const n of stale) {
+      store.removeNotification(n.id)
+    }
+  }, [activeWorkflowId, clearLockNotification])
+
+  const prevCanAdminRef = useRef(effectivePermissions.canAdmin)
+  useEffect(() => {
+    if (!isWorkflowReady) return
+
+    const canAdminChanged = prevCanAdminRef.current !== effectivePermissions.canAdmin
+    prevCanAdminRef.current = effectivePermissions.canAdmin
+
+    // Clear stale notification when admin status changes so it recreates with correct message
+    if (canAdminChanged) {
+      clearLockNotification()
+    }
+
+    if (allBlocksLocked) {
+      if (lockNotificationIdRef.current) return
+
+      const isAdmin = effectivePermissions.canAdmin
+      lockNotificationIdRef.current = addNotification({
+        level: 'info',
+        message: isAdmin
+          ? 'This workflow is locked'
+          : 'This workflow is locked. Ask an admin to unlock it.',
+        workflowId: activeWorkflowId || undefined,
+        ...(isAdmin ? { action: { type: 'unlock-workflow' as const, message: '' } } : {}),
+      })
+    } else {
+      clearLockNotification()
+    }
+  }, [
+    allBlocksLocked,
+    isWorkflowReady,
+    effectivePermissions.canAdmin,
+    addNotification,
+    activeWorkflowId,
+    clearLockNotification,
+  ])
+
+  // Clean up notification on unmount
+  useEffect(() => clearLockNotification, [clearLockNotification])
+
+  // Listen for unlock-workflow events from notification action button
+  useEffect(() => {
+    const handleUnlockWorkflow = () => {
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const ids = getWorkflowLockToggleIds(currentBlocks, false)
+      if (ids.length > 0) collaborativeBatchToggleLocked(ids)
+    }
+
+    window.addEventListener('unlock-workflow', handleUnlockWorkflow)
+    return () => window.removeEventListener('unlock-workflow', handleUnlockWorkflow)
+  }, [collaborativeBatchToggleLocked])
 
   const handleContextRemoveFromSubflow = useCallback(() => {
     const blocksToRemove = contextMenuBlocks.filter(
@@ -3699,7 +3794,11 @@ const WorkflowContent = React.memo(() => {
               disableEdit={!effectivePermissions.canEdit}
               canUndo={canUndo}
               canRedo={canRedo}
-              hasLockedBlocks={Object.values(blocks).some((b) => b.locked)}
+              hasLockedBlocks={hasLockedBlocks}
+              onToggleWorkflowLock={handleToggleWorkflowLock}
+              allBlocksLocked={allBlocksLocked}
+              canAdmin={effectivePermissions.canAdmin}
+              hasBlocks={hasBlocks}
             />
           </>
         )}

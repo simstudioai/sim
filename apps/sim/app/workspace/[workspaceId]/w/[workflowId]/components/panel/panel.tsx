@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Lock, Square, Unlock } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -42,7 +42,9 @@ import {
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
 import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useChatStore } from '@/stores/chat/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -125,6 +127,15 @@ export const Panel = memo(function Panel() {
   const hasLockedBlocks = useWorkflowStore((state) =>
     Object.values(state.blocks).some((block) => block.locked)
   )
+
+  const allBlocksLocked = useWorkflowStore((state) => {
+    const blockList = Object.values(state.blocks)
+    return blockList.length > 0 && blockList.every((block) => block.locked)
+  })
+
+  const hasBlocks = useWorkflowStore((state) => Object.keys(state.blocks).length > 0)
+
+  const { collaborativeBatchToggleLocked } = useCollaborativeWorkflow()
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -329,6 +340,17 @@ export const Panel = memo(function Panel() {
     workspaceId,
   ])
 
+  /**
+   * Toggles the locked state of all blocks in the workflow
+   */
+  const handleToggleWorkflowLock = useCallback(() => {
+    const blocks = useWorkflowStore.getState().blocks
+    const allLocked = Object.values(blocks).every((b) => b.locked)
+    const ids = getWorkflowLockToggleIds(blocks, !allLocked)
+    if (ids.length > 0) collaborativeBatchToggleLocked(ids)
+    setIsMenuOpen(false)
+  }, [collaborativeBatchToggleLocked])
+
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
@@ -399,6 +421,16 @@ export const Panel = memo(function Panel() {
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>
                   </PopoverItem>
+                  {userPermissions.canAdmin && !currentWorkflow?.isSnapshotView && (
+                    <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
+                      {allBlocksLocked ? (
+                        <Unlock className='h-3 w-3' />
+                      ) : (
+                        <Lock className='h-3 w-3' />
+                      )}
+                      <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
+                    </PopoverItem>
+                  )}
                   {
                     <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
                       <VariableIcon className='h-3 w-3' />
