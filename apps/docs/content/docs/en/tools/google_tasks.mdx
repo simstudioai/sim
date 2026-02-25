@@ -158,30 +158,20 @@ Delete a task from a Google Tasks list
 
 ### `google_tasks_list_task_lists`
 
+Retrieve all task lists for the authenticated user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `maxResults` | number | No | Maximum number of task lists to return \(default 1000, max 1000\) |
+| `pageToken` | string | No | Token for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Task ID |
-| `title` | string | Task title |
-| `notes` | string | Task notes |
-| `status` | string | Task status |
-| `due` | string | Due date |
-| `updated` | string | Last modification time |
-| `selfLink` | string | URL for the task |
-| `webViewLink` | string | Link to task in Google Tasks UI |
-| `parent` | string | Parent task ID |
-| `position` | string | Position among sibling tasks |
-| `completed` | string | Completion date |
-| `deleted` | boolean | Whether the task is deleted |
-| `tasks` | json | Array of tasks \(list operation\) |
-| `taskLists` | json | Array of task lists \(list_task_lists operation\) |
-| `taskId` | string | Deleted task ID \(delete operation\) |
-| `nextPageToken` | string | Token for next page of results |
+| `taskLists` | json | Array of task lists with id, title, updated, and selfLink |
+| `nextPageToken` | string | Token for retrieving the next page of results |
 
 
