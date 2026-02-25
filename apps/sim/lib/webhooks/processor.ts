@@ -601,7 +601,11 @@ export async function verifyProviderAuth(
   if (foundWebhook.provider === 'attio') {
     const secret = providerConfig.webhookSecret as string | undefined
 
-    if (secret) {
+    if (!secret) {
+      logger.debug(
+        `[${requestId}] Attio webhook ${foundWebhook.id} has no signing secret, skipping signature verification`
+      )
+    } else {
       const signature = request.headers.get('Attio-Signature')
 
       if (!signature) {
