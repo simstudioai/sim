@@ -401,6 +401,8 @@ const WorkflowContent = React.memo(() => {
 
   const hasBlocks = useMemo(() => Object.keys(blocks).length > 0, [blocks])
 
+  const hasLockedBlocks = useMemo(() => Object.values(blocks).some((b) => b.locked), [blocks])
+
   const isWorkflowReady = useMemo(
     () =>
       hydration.phase === 'ready' &&
@@ -3792,7 +3794,7 @@ const WorkflowContent = React.memo(() => {
               disableEdit={!effectivePermissions.canEdit}
               canUndo={canUndo}
               canRedo={canRedo}
-              hasLockedBlocks={Object.values(blocks).some((b) => b.locked)}
+              hasLockedBlocks={hasLockedBlocks}
               onToggleWorkflowLock={handleToggleWorkflowLock}
               allBlocksLocked={allBlocksLocked}
               canAdmin={effectivePermissions.canAdmin}
