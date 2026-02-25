@@ -1,9 +1,8 @@
 import { db } from '@sim/db'
-import { account, mcpServers } from '@sim/db/schema'
+import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -30,6 +29,7 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -439,24 +439,15 @@ export class AgentBlockHandler implements BlockHandler {
     tool: ToolInput
   ): Promise<any> {
     const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
-
-    const { filterSchemaForLLM } = await import('@/tools/params')
-    const filteredSchema = filterSchemaForLLM(
-      tool.schema || { type: 'object', properties: {} },
-      userProvidedParams
-    )
-
-    const toolId = createMcpToolId(serverId, toolName)
-
-    return {
-      id: toolId,
-      name: toolName,
+    return this.buildMcpTool({
+      serverId,
+      toolName,
       description:
         tool.schema?.description || `MCP tool ${toolName} from ${serverName || serverId}`,
-      parameters: filteredSchema,
-      params: userProvidedParams,
-      usageControl: tool.usageControl || 'auto',
-    }
+      schema: tool.schema || { type: 'object', properties: {} },
+      userProvidedParams,
+      usageControl: tool.usageControl,
+    })
   }
 
   /**
@@ -585,22 +576,35 @@ export class AgentBlockHandler implements BlockHandler {
     serverId: string
   ): Promise<any> {
     const { toolName, ...userProvidedParams } = tool.params || {}
+    return this.buildMcpTool({
+      serverId,
+      toolName,
+      description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
+      schema: mcpTool.inputSchema || { type: 'object', properties: {} },
+      userProvidedParams,
+      usageControl: tool.usageControl,
+    })
+  }
 
+  private async buildMcpTool(config: {
+    serverId: string
+    toolName: string
+    description: string
+    schema: any
+    userProvidedParams: Record<string, any>
+    usageControl?: string
+  }): Promise<any> {
     const { filterSchemaForLLM } = await import('@/tools/params')
-    const filteredSchema = filterSchemaForLLM(
-      mcpTool.inputSchema || { type: 'object', properties: {} },
-      userProvidedParams
-    )
-
-    const toolId = createMcpToolId(serverId, toolName)
+    const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
+    const toolId = createMcpToolId(config.serverId, config.toolName)
 
     return {
       id: toolId,
-      name: toolName,
-      description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
+      name: config.toolName,
+      description: config.description,
       parameters: filteredSchema,
-      params: userProvidedParams,
-      usageControl: tool.usageControl || 'auto',
+      params: config.userProvidedParams,
+      usageControl: config.usageControl || 'auto',
     }
   }
 
@@ -924,9 +928,9 @@ export class AgentBlockHandler implements BlockHandler {
       let finalApiKey: string | undefined = providerRequest.apiKey
 
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
-        finalApiKey = await this.resolveVertexCredential(
+        finalApiKey = await resolveVertexCredential(
           providerRequest.vertexCredential,
-          ctx.workflowId
+          'vertex-agent'
         )
       }
 
@@ -971,37 +975,6 @@ export class AgentBlockHandler implements BlockHandler {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
     }
-  }
-
-  /**
-   * Resolves a Vertex AI OAuth credential to an access token
-   */
-  private async resolveVertexCredential(credentialId: string, workflowId: string): Promise<string> {
-    const requestId = `vertex-${Date.now()}`
-
-    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
-    }
-
-    const credential = await db.query.account.findFirst({
-      where: eq(account.id, resolved.accountId),
-    })
-
-    if (!credential) {
-      throw new Error(`Vertex AI credential not found: ${credentialId}`)
-    }
-
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
-
-    if (!accessToken) {
-      throw new Error('Failed to get Vertex AI access token')
-    }
-
-    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
-    return accessToken
   }
 
   private handleExecutionError(
@@ -1187,7 +1160,7 @@ export class AgentBlockHandler implements BlockHandler {
       },
       toolCalls: {
         list: result.toolCalls?.map(this.formatToolCall.bind(this)) || [],
-        count: result.toolCalls?.length || DEFAULTS.EXECUTION_TIME,
+        count: result.toolCalls?.length ?? 0,
       },
       providerTiming: result.timing,
       cost: result.cost,

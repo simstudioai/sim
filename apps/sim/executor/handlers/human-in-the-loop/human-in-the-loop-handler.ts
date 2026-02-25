@@ -9,7 +9,6 @@ import {
   HTTP,
   normalizeName,
   PAUSE_RESUME,
-  REFERENCE,
 } from '@/executor/constants'
 import {
   generatePauseContextId,
@@ -17,6 +16,7 @@ import {
 } from '@/executor/human-in-the-loop/utils'
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { convertBuilderDataToJson, convertPropertyValue } from '@/executor/utils/builder-data'
 import { parseObjectStrings } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -265,7 +265,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
     }
 
     if (dataMode === 'structured' && inputs.builderData) {
-      const convertedData = this.convertBuilderDataToJson(inputs.builderData)
+      const convertedData = convertBuilderDataToJson(inputs.builderData)
       return parseObjectStrings(convertedData)
     }
 
@@ -296,7 +296,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         }
       }
 
-      const value = this.convertPropertyValue(prop)
+      const value = convertPropertyValue(prop)
 
       entries.push({
         name: path,
@@ -350,140 +350,6 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         } as NormalizedInputField
       })
       .filter((field): field is NormalizedInputField => field !== null)
-  }
-
-  private convertBuilderDataToJson(builderData: JSONProperty[]): any {
-    if (!Array.isArray(builderData)) {
-      return {}
-    }
-
-    const result: any = {}
-
-    for (const prop of builderData) {
-      if (!prop.name || !prop.name.trim()) {
-        continue
-      }
-
-      const value = this.convertPropertyValue(prop)
-      result[prop.name] = value
-    }
-
-    return result
-  }
-
-  static convertBuilderDataToJsonString(builderData: JSONProperty[]): string {
-    if (!Array.isArray(builderData) || builderData.length === 0) {
-      return '{\n  \n}'
-    }
-
-    const result: any = {}
-
-    for (const prop of builderData) {
-      if (!prop.name || !prop.name.trim()) {
-        continue
-      }
-
-      result[prop.name] = prop.value
-    }
-
-    let jsonString = JSON.stringify(result, null, 2)
-
-    jsonString = jsonString.replace(/"(<[^>]+>)"/g, '$1')
-
-    return jsonString
-  }
-
-  private convertPropertyValue(prop: JSONProperty): any {
-    switch (prop.type) {
-      case 'object':
-        return this.convertObjectValue(prop.value)
-      case 'array':
-        return this.convertArrayValue(prop.value)
-      case 'number':
-        return this.convertNumberValue(prop.value)
-      case 'boolean':
-        return this.convertBooleanValue(prop.value)
-      case 'files':
-        return prop.value
-      default:
-        return prop.value
-    }
-  }
-
-  private convertObjectValue(value: any): any {
-    if (Array.isArray(value)) {
-      return this.convertBuilderDataToJson(value)
-    }
-
-    if (typeof value === 'string' && !this.isVariableReference(value)) {
-      return this.tryParseJson(value, value)
-    }
-
-    return value
-  }
-
-  private convertArrayValue(value: any): any {
-    if (Array.isArray(value)) {
-      return value.map((item: any) => this.convertArrayItem(item))
-    }
-
-    if (typeof value === 'string' && !this.isVariableReference(value)) {
-      const parsed = this.tryParseJson(value, value)
-      return Array.isArray(parsed) ? parsed : value
-    }
-
-    return value
-  }
-
-  private convertArrayItem(item: any): any {
-    if (typeof item !== 'object' || !item.type) {
-      return item
-    }
-
-    if (item.type === 'object' && Array.isArray(item.value)) {
-      return this.convertBuilderDataToJson(item.value)
-    }
-
-    if (item.type === 'array' && Array.isArray(item.value)) {
-      return item.value.map((subItem: any) =>
-        typeof subItem === 'object' && subItem.type ? subItem.value : subItem
-      )
-    }
-
-    return item.value
-  }
-
-  private convertNumberValue(value: any): any {
-    if (this.isVariableReference(value)) {
-      return value
-    }
-
-    const numValue = Number(value)
-    return Number.isNaN(numValue) ? value : numValue
-  }
-
-  private convertBooleanValue(value: any): any {
-    if (this.isVariableReference(value)) {
-      return value
-    }
-
-    return value === 'true' || value === true
-  }
-
-  private tryParseJson(jsonString: string, fallback: any): any {
-    try {
-      return JSON.parse(jsonString)
-    } catch {
-      return fallback
-    }
-  }
-
-  private isVariableReference(value: any): boolean {
-    return (
-      typeof value === 'string' &&
-      value.trim().startsWith(REFERENCE.START) &&
-      value.trim().includes(REFERENCE.END)
-    )
   }
 
   private parseStatus(status?: string): number {
