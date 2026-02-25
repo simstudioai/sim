@@ -9,6 +9,7 @@ import {
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
+  GoogleContactsIcon,
   GoogleDocsIcon,
   GoogleDriveIcon,
   GoogleFormsIcon,
@@ -118,6 +119,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleCalendarIcon,
         baseProviderIcon: GoogleIcon,
         scopes: ['https://www.googleapis.com/auth/calendar'],
+      },
+      'google-contacts': {
+        name: 'Google Contacts',
+        description: 'Create, read, update, and search contacts with Google Contacts.',
+        providerId: 'google-contacts',
+        icon: GoogleContactsIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: ['https://www.googleapis.com/auth/contacts'],
       },
       'google-vault': {
         name: 'Google Vault',
