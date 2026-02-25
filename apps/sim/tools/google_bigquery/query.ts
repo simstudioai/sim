@@ -1,7 +1,7 @@
 import type { GoogleBigQueryQueryParams, GoogleBigQueryQueryResponse } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<GoogleBigQueryQueryParams, GoogleBigQueryQueryResponse> = {
+export const googleBigQueryQueryTool: ToolConfig<GoogleBigQueryQueryParams, GoogleBigQueryQueryResponse> = {
   id: 'google_bigquery_query',
   name: 'BigQuery Run Query',
   description: 'Run a SQL query against Google BigQuery and return the results',

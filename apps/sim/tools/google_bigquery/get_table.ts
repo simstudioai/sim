@@ -4,7 +4,7 @@ import type {
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTableTool: ToolConfig<
+export const googleBigQueryGetTableTool: ToolConfig<
   GoogleBigQueryGetTableParams,
   GoogleBigQueryGetTableResponse
 > = {
