@@ -1040,4 +1040,28 @@ List all Confluence spaces accessible to the user.
 |     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+### `confluence_get_user`
+
+Get a Confluence user\
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `accountId` | string | Yes | The Atlassian account ID of the user to look up |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `accountId` | string | Atlassian account ID of the user |
+| `displayName` | string | Display name of the user |
+| `email` | string | Email address of the user |
+| `accountType` | string | Account type \(e.g., atlassian, app, customer\) |
+| `profilePicture` | string | Path to the user profile picture |
+| `publicName` | string | Public name of the user |
+
 

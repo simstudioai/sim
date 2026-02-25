@@ -13,6 +13,7 @@ import { confluenceGetPageAncestorsTool } from '@/tools/confluence/get_page_ance
 import { confluenceGetPageChildrenTool } from '@/tools/confluence/get_page_children'
 import { confluenceGetPageVersionTool } from '@/tools/confluence/get_page_version'
 import { confluenceGetPagesByLabelTool } from '@/tools/confluence/get_pages_by_label'
+import { confluenceGetUserTool } from '@/tools/confluence/get_user'
 import { confluenceGetSpaceTool } from '@/tools/confluence/get_space'
 import { confluenceListAttachmentsTool } from '@/tools/confluence/list_attachments'
 import { confluenceListBlogPostsTool } from '@/tools/confluence/list_blogposts'
@@ -106,6 +107,8 @@ export {
   confluenceDeleteLabelTool,
   confluenceGetPagesByLabelTool,
   confluenceListSpaceLabelsTool,
+  // User Tools
+  confluenceGetUserTool,
   // Space Tools
   confluenceGetSpaceTool,
   confluenceListSpacesTool,

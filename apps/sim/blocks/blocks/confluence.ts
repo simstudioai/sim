@@ -84,6 +84,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'write:content.property:confluence',
         'read:hierarchical-content:confluence',
         'read:content.metadata:confluence',
+        'read:user:confluence',
       ],
       placeholder: 'Select Confluence account',
       required: true,
@@ -433,6 +434,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         // Space Operations
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
+        // User Operations
+        { label: 'Get User', id: 'get_user' },
       ],
       value: () => 'read',
     },
@@ -472,6 +475,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         'write:content.property:confluence',
         'read:hierarchical-content:confluence',
         'read:content.metadata:confluence',
+        'read:user:confluence',
       ],
       placeholder: 'Select Confluence account',
       required: true,
@@ -514,6 +518,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_spaces',
           'get_pages_by_label',
           'list_space_labels',
+          'get_user',
         ],
         not: true,
       },
@@ -560,6 +565,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_spaces',
           'get_pages_by_label',
           'list_space_labels',
+          'get_user',
         ],
         not: true,
       },
@@ -620,6 +626,14 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Enter version number',
       required: true,
       condition: { field: 'operation', value: 'get_page_version' },
+    },
+    {
+      id: 'accountId',
+      title: 'Account ID',
+      type: 'short-input',
+      placeholder: 'Enter Atlassian account ID',
+      required: true,
+      condition: { field: 'operation', value: 'get_user' },
     },
     {
       id: 'propertyKey',
@@ -922,6 +936,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       // Space Tools
       'confluence_get_space',
       'confluence_list_spaces',
+      // User Tools
+      'confluence_get_user',
     ],
     config: {
       tool: (params) => {
@@ -999,6 +1015,9 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
             return 'confluence_get_space'
           case 'list_spaces':
             return 'confluence_list_spaces'
+          // User Operations
+          case 'get_user':
+            return 'confluence_get_user'
           default:
             return 'confluence_retrieve'
         }
@@ -1013,6 +1032,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           attachmentComment,
           blogPostId,
           versionNumber,
+          accountId,
           propertyKey,
           propertyValue,
           propertyId,
@@ -1152,6 +1172,15 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           }
         }
 
+        if (operation === 'get_user') {
+          return {
+            credential: oauthCredential,
+            operation,
+            accountId: accountId ? String(accountId).trim() : undefined,
+            ...rest,
+          }
+        }
+
         return {
           credential: oauthCredential,
           pageId: effectivePageId || undefined,
@@ -1171,6 +1200,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
     versionNumber: { type: 'number', description: 'Page version number' },
+    accountId: { type: 'string', description: 'Atlassian account ID' },
     propertyKey: { type: 'string', description: 'Property key/name' },
     propertyValue: { type: 'json', description: 'Property value (JSON)' },
     title: { type: 'string', description: 'Page or blog post title' },
@@ -1242,6 +1272,13 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     propertyId: { type: 'string', description: 'Property identifier' },
     propertyKey: { type: 'string', description: 'Property key' },
     propertyValue: { type: 'json', description: 'Property value' },
+    // User Results
+    accountId: { type: 'string', description: 'Atlassian account ID' },
+    displayName: { type: 'string', description: 'User display name' },
+    email: { type: 'string', description: 'User email address' },
+    accountType: { type: 'string', description: 'Account type (atlassian, app, customer)' },
+    profilePicture: { type: 'string', description: 'Path to user profile picture' },
+    publicName: { type: 'string', description: 'User public name' },
     // Pagination
     nextCursor: { type: 'string', description: 'Cursor for fetching next page of results' },
   },
