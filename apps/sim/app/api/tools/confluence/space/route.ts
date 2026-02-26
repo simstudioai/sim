@@ -205,7 +205,26 @@ export async function PUT(request: NextRequest) {
     }
 
     const updateBody: Record<string, unknown> = {}
-    if (name) updateBody.name = name
+
+    if (name) {
+      updateBody.name = name
+    } else {
+      const currentResponse = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      if (!currentResponse.ok) {
+        return NextResponse.json(
+          { error: `Failed to fetch current space: ${currentResponse.status}` },
+          { status: currentResponse.status }
+        )
+      }
+      const currentSpace = await currentResponse.json()
+      updateBody.name = currentSpace.name
+    }
+
     if (description !== undefined) {
       updateBody.description = { value: description, representation: 'plain' }
     }
