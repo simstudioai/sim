@@ -265,10 +265,11 @@ const Combobox = memo(
           // If option has custom onSelect, use it instead
           if (customOnSelect) {
             customOnSelect()
+            // Always reset search/highlight so stale queries don't filter new options
+            setSearchQuery('')
+            setHighlightedIndex(-1)
             if (!keepOpen) {
               setOpen(false)
-              setHighlightedIndex(-1)
-              setSearchQuery('')
             }
             return
           }
@@ -628,11 +629,18 @@ const Combobox = memo(
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                       // Forward navigation keys to main handler
+                      // Only forward ArrowLeft/ArrowRight when cursor is at the boundary
+                      // so normal text cursor movement still works in the search input
+                      const input = e.currentTarget
+                      const forwardArrowLeft =
+                        e.key === 'ArrowLeft' && input.selectionStart === 0
+                      const forwardArrowRight =
+                        e.key === 'ArrowRight' && input.selectionStart === input.value.length
                       if (
                         e.key === 'ArrowDown' ||
                         e.key === 'ArrowUp' ||
-                        e.key === 'ArrowRight' ||
-                        e.key === 'ArrowLeft' ||
+                        forwardArrowRight ||
+                        forwardArrowLeft ||
                         e.key === 'Enter' ||
                         e.key === 'Escape'
                       ) {
