@@ -1,7 +1,7 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -1426,6 +1426,9 @@ export const ToolInput = memo(function ToolInput({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
           iconElement: createToolIcon('#6366F1', ServerIcon),
+          suffixElement: (
+            <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
+          ),
           onSelect: () => {
             setMcpServerDrilldown(serverId)
           },
@@ -1542,6 +1545,7 @@ export const ToolInput = memo(function ToolInput({
         maxHeight={240}
         emptyMessage='No tools found'
         onOpenChange={handleComboboxOpenChange}
+        onArrowLeft={mcpServerDrilldown ? () => setMcpServerDrilldown(null) : undefined}
       />
 
       {selectedTools.length > 0 &&

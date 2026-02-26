@@ -55,6 +55,8 @@ export type ComboboxOption = {
   disabled?: boolean
   /** When true, keep the dropdown open after selecting this option */
   keepOpen?: boolean
+  /** Optional element rendered at the trailing end of the option (e.g. chevron for folders) */
+  suffixElement?: ReactNode
 }
 
 /**
@@ -109,6 +111,8 @@ export interface ComboboxProps
   error?: string | null
   /** Callback when popover open state changes */
   onOpenChange?: (open: boolean) => void
+  /** Callback when ArrowLeft is pressed while dropdown is open (for folder back-navigation) */
+  onArrowLeft?: () => void
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
   /** Placeholder for search input */
@@ -160,6 +164,7 @@ const Combobox = memo(
         isLoading = false,
         error = null,
         onOpenChange,
+        onArrowLeft,
         searchable = false,
         searchPlaceholder = 'Search...',
         align = 'start',
@@ -386,8 +391,25 @@ const Combobox = memo(
               setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredOptions.length - 1))
             }
           }
+
+          if (e.key === 'ArrowRight') {
+            if (open && highlightedIndex >= 0) {
+              const highlightedOption = filteredOptions[highlightedIndex]
+              if (highlightedOption?.keepOpen && highlightedOption?.onSelect) {
+                e.preventDefault()
+                highlightedOption.onSelect()
+              }
+            }
+          }
+
+          if (e.key === 'ArrowLeft') {
+            if (open && onArrowLeft) {
+              e.preventDefault()
+              onArrowLeft()
+            }
+          }
         },
-        [disabled, open, highlightedIndex, filteredOptions, handleSelect, editable, inputRef]
+        [disabled, open, highlightedIndex, filteredOptions, handleSelect, editable, inputRef, onArrowLeft]
       )
 
       /**
@@ -600,6 +622,8 @@ const Combobox = memo(
                       if (
                         e.key === 'ArrowDown' ||
                         e.key === 'ArrowUp' ||
+                        e.key === 'ArrowRight' ||
+                        e.key === 'ArrowLeft' ||
                         e.key === 'Enter' ||
                         e.key === 'Escape'
                       ) {
@@ -699,6 +723,7 @@ const Combobox = memo(
                                 <span className='flex-1 truncate text-[var(--text-primary)]'>
                                   {option.label}
                                 </span>
+                                {option.suffixElement}
                                 {multiSelect && isSelected && (
                                   <Check className='ml-[8px] h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                                 )}
@@ -772,6 +797,7 @@ const Combobox = memo(
                             <span className='flex-1 truncate text-[var(--text-primary)]'>
                               {option.label}
                             </span>
+                            {option.suffixElement}
                             {multiSelect && isSelected && (
                               <Check className='ml-[8px] h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                             )}
