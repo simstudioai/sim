@@ -1052,6 +1052,7 @@ export const ToolInput = memo(function ToolInput({
       ])
 
       if (closePopover) {
+        setMcpServerDrilldown(null)
         setOpen(false)
       }
     },
@@ -1313,6 +1314,7 @@ export const ToolInput = memo(function ToolInput({
               ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
               newTool,
             ])
+            setMcpServerDrilldown(null)
             setOpen(false)
           },
           disabled: isPreview || disabled || serverAlreadySelected,
