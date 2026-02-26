@@ -53,6 +53,8 @@ export type ComboboxOption = {
   onSelect?: () => void
   /** Whether this option is disabled */
   disabled?: boolean
+  /** When true, keep the dropdown open after selecting this option */
+  keepOpen?: boolean
 }
 
 /**
@@ -254,13 +256,15 @@ const Combobox = memo(
        * Handles selection of an option
        */
       const handleSelect = useCallback(
-        (selectedValue: string, customOnSelect?: () => void) => {
+        (selectedValue: string, customOnSelect?: () => void, keepOpen?: boolean) => {
           // If option has custom onSelect, use it instead
           if (customOnSelect) {
             customOnSelect()
-            setOpen(false)
-            setHighlightedIndex(-1)
-            setSearchQuery('')
+            if (!keepOpen) {
+              setOpen(false)
+              setHighlightedIndex(-1)
+              setSearchQuery('')
+            }
             return
           }
 
@@ -272,11 +276,13 @@ const Combobox = memo(
             onMultiSelectChange(newValues)
           } else {
             onChange?.(selectedValue)
-            setOpen(false)
-            setHighlightedIndex(-1)
-            setSearchQuery('')
-            if (editable && inputRef.current) {
-              inputRef.current.blur()
+            if (!keepOpen) {
+              setOpen(false)
+              setHighlightedIndex(-1)
+              setSearchQuery('')
+              if (editable && inputRef.current) {
+                inputRef.current.blur()
+              }
             }
           }
         },
@@ -345,7 +351,7 @@ const Combobox = memo(
               e.preventDefault()
               const selectedOption = filteredOptions[highlightedIndex]
               if (selectedOption && !selectedOption.disabled) {
-                handleSelect(selectedOption.value, selectedOption.onSelect)
+                handleSelect(selectedOption.value, selectedOption.onSelect, selectedOption.keepOpen)
               }
             } else if (!editable) {
               e.preventDefault()
@@ -671,7 +677,7 @@ const Combobox = memo(
                                   e.preventDefault()
                                   e.stopPropagation()
                                   if (!option.disabled) {
-                                    handleSelect(option.value, option.onSelect)
+                                    handleSelect(option.value, option.onSelect, option.keepOpen)
                                   }
                                 }}
                                 onMouseEnter={() =>
@@ -746,7 +752,7 @@ const Combobox = memo(
                               e.preventDefault()
                               e.stopPropagation()
                               if (!option.disabled) {
-                                handleSelect(option.value, option.onSelect)
+                                handleSelect(option.value, option.onSelect, option.keepOpen)
                               }
                             }}
                             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
