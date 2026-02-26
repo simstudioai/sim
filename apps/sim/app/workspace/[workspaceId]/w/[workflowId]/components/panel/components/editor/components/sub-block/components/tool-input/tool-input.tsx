@@ -20,9 +20,9 @@ import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
+  isToolUnavailable,
   getMcpServerIssue as validateMcpServer,
   getMcpToolIssue as validateMcpTool,
-  isToolUnavailable,
 } from '@/lib/mcp/tool-validation'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
@@ -525,7 +525,9 @@ export const ToolInput = memo(function ToolInput({
   )
   const hasRefreshedRef = useRef(false)
 
-  const hasMcpTools = selectedTools.some((tool) => tool.type === 'mcp' || tool.type === 'mcp-server')
+  const hasMcpTools = selectedTools.some(
+    (tool) => tool.type === 'mcp' || tool.type === 'mcp-server'
+  )
 
   useEffect(() => {
     if (isPreview) return
@@ -733,15 +735,12 @@ export const ToolInput = memo(function ToolInput({
   /**
    * Resets the MCP server drilldown when the combobox closes.
    */
-  const handleComboboxOpenChange = useCallback(
-    (isOpen: boolean) => {
-      setOpen(isOpen)
-      if (!isOpen) {
-        setMcpServerDrilldown(null)
-      }
-    },
-    []
-  )
+  const handleComboboxOpenChange = useCallback((isOpen: boolean) => {
+    setOpen(isOpen)
+    if (!isOpen) {
+      setMcpServerDrilldown(null)
+    }
+  }, [])
 
   const handleSelectTool = useCallback(
     (toolBlock: (typeof toolBlocks)[0]) => {
@@ -1272,10 +1271,7 @@ export const ToolInput = memo(function ToolInput({
       if (tools && tools.length > 0) {
         const server = mcpServers.find((s) => s.id === mcpServerDrilldown)
         const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
-        const serverAlreadySelected = isMcpServerAlreadySelected(
-          selectedTools,
-          mcpServerDrilldown
-        )
+        const serverAlreadySelected = isMcpServerAlreadySelected(selectedTools, mcpServerDrilldown)
         const toolCount = tools.length
         const serverToolItems: ComboboxOption[] = []
 
@@ -1283,9 +1279,7 @@ export const ToolInput = memo(function ToolInput({
         serverToolItems.push({
           label: 'Back',
           value: `mcp-server-back`,
-          iconElement: (
-            <ArrowLeft className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
-          ),
+          iconElement: <ArrowLeft className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(null)
           },
@@ -1300,8 +1294,7 @@ export const ToolInput = memo(function ToolInput({
           onSelect: () => {
             if (serverAlreadySelected) return
             const filteredTools = selectedTools.filter(
-              (tool) =>
-                !(tool.type === 'mcp' && tool.params?.serverId === mcpServerDrilldown)
+              (tool) => !(tool.type === 'mcp' && tool.params?.serverId === mcpServerDrilldown)
             )
             const newTool: StoredTool = {
               type: 'mcp-server',
@@ -1438,9 +1431,7 @@ export const ToolInput = memo(function ToolInput({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
           iconElement: createToolIcon('#6366F1', ServerIcon),
-          suffixElement: (
-            <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
-          ),
+          suffixElement: <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(serverId)
           },
@@ -1785,61 +1776,65 @@ export const ToolInput = memo(function ToolInput({
                     )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                  {supportsToolControl && !((isMcpTool || isMcpServer) && isMcpToolUnavailable(tool)) && (
-                    <Popover
-                      open={usageControlPopoverIndex === toolIndex}
-                      onOpenChange={(open) => setUsageControlPopoverIndex(open ? toolIndex : null)}
-                    >
-                      <PopoverTrigger asChild>
-                        <button
-                          className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
-                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                          aria-label='Tool usage control'
-                        >
-                          {tool.usageControl === 'auto' && 'Auto'}
-                          {tool.usageControl === 'force' && 'Force'}
-                          {tool.usageControl === 'none' && 'None'}
-                          {!tool.usageControl && 'Auto'}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        side='bottom'
-                        align='end'
-                        sideOffset={8}
-                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                        className='gap-[2px]'
-                        border
+                  {supportsToolControl &&
+                    !((isMcpTool || isMcpServer) && isMcpToolUnavailable(tool)) && (
+                      <Popover
+                        open={usageControlPopoverIndex === toolIndex}
+                        onOpenChange={(open) =>
+                          setUsageControlPopoverIndex(open ? toolIndex : null)
+                        }
                       >
-                        <PopoverItem
-                          active={(tool.usageControl || 'auto') === 'auto'}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'auto')
-                            setUsageControlPopoverIndex(null)
-                          }}
+                        <PopoverTrigger asChild>
+                          <button
+                            className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            aria-label='Tool usage control'
+                          >
+                            {tool.usageControl === 'auto' && 'Auto'}
+                            {tool.usageControl === 'force' && 'Force'}
+                            {tool.usageControl === 'none' && 'None'}
+                            {!tool.usageControl && 'Auto'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side='bottom'
+                          align='end'
+                          sideOffset={8}
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                          className='gap-[2px]'
+                          border
                         >
-                          Auto <span className='text-[var(--text-tertiary)]'>(model decides)</span>
-                        </PopoverItem>
-                        <PopoverItem
-                          active={tool.usageControl === 'force'}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'force')
-                            setUsageControlPopoverIndex(null)
-                          }}
-                        >
-                          Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
-                        </PopoverItem>
-                        <PopoverItem
-                          active={tool.usageControl === 'none'}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'none')
-                            setUsageControlPopoverIndex(null)
-                          }}
-                        >
-                          None
-                        </PopoverItem>
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                          <PopoverItem
+                            active={(tool.usageControl || 'auto') === 'auto'}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'auto')
+                              setUsageControlPopoverIndex(null)
+                            }}
+                          >
+                            Auto{' '}
+                            <span className='text-[var(--text-tertiary)]'>(model decides)</span>
+                          </PopoverItem>
+                          <PopoverItem
+                            active={tool.usageControl === 'force'}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'force')
+                              setUsageControlPopoverIndex(null)
+                            }}
+                          >
+                            Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
+                          </PopoverItem>
+                          <PopoverItem
+                            active={tool.usageControl === 'none'}
+                            onClick={() => {
+                              handleUsageControlChange(toolIndex, 'none')
+                              setUsageControlPopoverIndex(null)
+                            }}
+                          >
+                            None
+                          </PopoverItem>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

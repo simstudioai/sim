@@ -409,7 +409,16 @@ const Combobox = memo(
             }
           }
         },
-        [disabled, open, highlightedIndex, filteredOptions, handleSelect, editable, inputRef, onArrowLeft]
+        [
+          disabled,
+          open,
+          highlightedIndex,
+          filteredOptions,
+          handleSelect,
+          editable,
+          inputRef,
+          onArrowLeft,
+        ]
       )
 
       /**
