@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -207,6 +208,17 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
       }
     })
 
+    // Audit workflow-level lock/unlock operations
+    if (
+      target === OPERATION_TARGETS.BLOCKS &&
+      op === BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED &&
+      userId
+    ) {
+      auditWorkflowLockToggle(workflowId, userId).catch((error) => {
+        logger.error('Failed to audit workflow lock toggle', { error, workflowId })
+      })
+    }
+
     const duration = Date.now() - startTime
     if (duration > 100) {
       logger.warn('Slow socket DB operation:', {
@@ -224,6 +236,43 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     )
     throw error
   }
+}
+
+/**
+ * Records an audit log entry when all blocks in a workflow are locked or unlocked.
+ * Only audits workflow-level transitions (all locked or all unlocked), not partial toggles.
+ */
+async function auditWorkflowLockToggle(workflowId: string, actorId: string): Promise<void> {
+  const [wf] = await db
+    .select({ name: workflow.name, workspaceId: workflow.workspaceId })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+
+  if (!wf) return
+
+  const blocks = await db
+    .select({ locked: workflowBlocks.locked })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+
+  if (blocks.length === 0) return
+
+  const allLocked = blocks.every((b) => b.locked)
+  const allUnlocked = blocks.every((b) => !b.locked)
+
+  // Only audit workflow-level transitions, not partial toggles
+  if (!allLocked && !allUnlocked) return
+
+  recordAudit({
+    workspaceId: wf.workspaceId,
+    actorId,
+    action: allLocked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
+    resourceType: AuditResourceType.WORKFLOW,
+    resourceId: workflowId,
+    resourceName: wf.name,
+    description: allLocked ? `Locked workflow "${wf.name}"` : `Unlocked workflow "${wf.name}"`,
+    metadata: { blockCount: blocks.length },
+  })
 }
 
 async function handleBlockOperationTx(

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const accountIdValidation = validatePathSegment(accountId, {
       paramName: 'accountId',
       maxLength: 255,
-      customPattern: /^[a-zA-Z0-9:\-]+$/,
+      customPattern: /^[a-zA-Z0-9:-]+$/,
     })
     if (!accountIdValidation.isValid) {
       return NextResponse.json({ error: accountIdValidation.error }, { status: 400 })
