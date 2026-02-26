@@ -17,6 +17,8 @@ import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
+import LocaleSelector from '@/components/locale-selector'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SignupForm')
 
@@ -81,6 +83,7 @@ function SignupFormContent({
   googleAvailable: boolean
   isProduction: boolean
 }) {
+  const t = useTranslations()
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -345,10 +348,10 @@ function SignupFormContent({
     <>
       <div className='space-y-1 text-center'>
         <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-          Create an account
+          {t('sign_up.page_title')}
         </h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          Create an account or log in
+          {t('sign_up.page_sub_title')}
         </p>
       </div>
 
@@ -375,12 +378,12 @@ function SignupFormContent({
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='name'>Full name</Label>
+                <Label htmlFor='name'>{t('sign_up.full_name_label')}</Label>
               </div>
               <Input
                 id='name'
                 name='name'
-                placeholder='Enter your name'
+                placeholder={t('sign_up.full_name_placeholder')}
                 type='text'
                 autoCapitalize='words'
                 autoComplete='name'
@@ -404,12 +407,12 @@ function SignupFormContent({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='email'>{t('sign_up.email_label')}</Label>
               </div>
               <Input
                 id='email'
                 name='email'
-                placeholder='Enter your email'
+                placeholder={t('sign_up.email_placeholder')}
                 autoCapitalize='none'
                 autoComplete='email'
                 autoCorrect='off'
@@ -436,7 +439,7 @@ function SignupFormContent({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>Password</Label>
+                <Label htmlFor='password'>{t('sign_up.password_label')}</Label>
               </div>
               <div className='relative'>
                 <Input
@@ -445,7 +448,7 @@ function SignupFormContent({
                   type={showPassword ? 'text' : 'password'}
                   autoCapitalize='none'
                   autoComplete='new-password'
-                  placeholder='Enter your password'
+                  placeholder={t('sign_up.password_placeholder')}
                   autoCorrect='off'
                   value={password}
                   onChange={handlePasswordChange}
@@ -481,7 +484,7 @@ function SignupFormContent({
             loading={isLoading}
             loadingText='Creating account'
           >
-            Create account
+            {t('sign_up.create_account')}
           </BrandedButton>
         </form>
       )}
@@ -501,7 +504,9 @@ function SignupFormContent({
             <div className='auth-divider w-full border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+            <span className='bg-white px-4 font-[340] text-muted-foreground'>
+              {t('sign_up.divider_label')}
+            </span>
           </div>
         </div>
       )}
@@ -538,36 +543,41 @@ function SignupFormContent({
       )}
 
       <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
-        <span className='font-normal'>Already have an account? </span>
+        <span className='font-normal'>{t('sign_up.already_have_account')} </span>
         <Link
           href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
           className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
         >
-          Sign in
+          {t('sign_up.sign_in_redirect_label')}
         </Link>
       </div>
 
       <div
         className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
       >
-        By creating an account, you agree to our{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
-        >
-          Privacy Policy
-        </Link>
+        {t.rich('sign_up.create_account_warning', {
+          terms: (chunks) => (
+            <Link
+              href='/terms'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='auth-link underline-offset-4 transition hover:underline'
+            >
+              {chunks}
+            </Link>
+          ),
+          policy: (chunks) => (
+            <Link
+              href='/privacy'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='auth-link underline-offset-4 transition hover:underline'
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
+        <LocaleSelector />
       </div>
     </>
   )

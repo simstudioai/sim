@@ -25,6 +25,7 @@ import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LoginForm')
 
@@ -98,6 +99,7 @@ export default function LoginPage({
   googleAvailable: boolean
   isProduction: boolean
 }) {
+  const t = useTranslations()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -386,10 +388,10 @@ export default function LoginPage({
     <>
       <div className='space-y-1 text-center'>
         <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-          Sign in
+           {t('sign_in.page_title')}
         </h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          Enter your details
+          {t('sign_in.page_sub_title')}
         </p>
       </div>
 

@@ -1,0 +1,25 @@
+{
+  "localization": {
+    "pt": "PT - português",
+    "en": "EN - inglês",
+    "es": "ES - espanhol"
+  },
+  "sign_up": {
+    "page_title": "Criar uma conta",
+    "page_sub_title": "Crie uma conta ou faça login",
+    "full_name_label": "Nome completo",
+    "full_name_placeholder": "Digite seu nome",
+    "email_label": "E-mail",
+    "email_placeholder": "Digite seu e-mail",
+    "password_label": "Senha",
+    "password_placeholder": "Digite sua senha",
+    "create_account": "Criar conta",
+    "already_have_account": "Já tem uma conta?",
+    "sign_in_redirect_label": "Entrar",
+    "create_account_warning": "Ao criar uma conta, você concorda com nossos <terms>Termos de Serviço</terms> e <policy>Política de Privacidade</policy>"
+  },
+  "sign_in": {
+    "page_title": "Entrar",
+    "page_sub_title": "Insira seus dados"
+  }
+}

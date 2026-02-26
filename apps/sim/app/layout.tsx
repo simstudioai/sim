@@ -17,6 +17,8 @@ import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
 import { season } from '@/app/_styles/fonts/season/season'
+import { NextIntlClientProvider } from 'next-intl'
+import { cookies } from 'next/headers'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -31,7 +33,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = generateBrandedMetadata()
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const structuredData = generateStructuredData()
   const themeCSS = generateThemeCSS()
 
@@ -215,17 +217,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         <HydrationErrorHandler />
         <OneDollarStats />
-        <PostHogProvider>
-          <ThemeProvider>
-            <QueryProvider>
-              <SessionProvider>
-                <TooltipProvider>
-                  <BrandedLayout>{children}</BrandedLayout>
-                </TooltipProvider>
-              </SessionProvider>
-            </QueryProvider>
-          </ThemeProvider>
-        </PostHogProvider>
+        <NextIntlClientProvider>
+          <PostHogProvider>
+            <ThemeProvider>
+              <QueryProvider>
+                <SessionProvider>
+                  <TooltipProvider>
+                    <BrandedLayout>{children}</BrandedLayout>
+                  </TooltipProvider>
+                </SessionProvider>
+              </QueryProvider>
+            </ThemeProvider>
+          </PostHogProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   )
