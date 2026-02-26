@@ -149,9 +149,21 @@ export const googleBigQueryInsertRowsTool: ToolConfig<
             items: {
               type: 'object',
               properties: {
-                reason: { type: 'string', description: 'Short error code summarizing the error', optional: true },
-                location: { type: 'string', description: 'Where the error occurred', optional: true },
-                message: { type: 'string', description: 'Human-readable error description', optional: true },
+                reason: {
+                  type: 'string',
+                  description: 'Short error code summarizing the error',
+                  optional: true,
+                },
+                location: {
+                  type: 'string',
+                  description: 'Where the error occurred',
+                  optional: true,
+                },
+                message: {
+                  type: 'string',
+                  description: 'Human-readable error description',
+                  optional: true,
+                },
               },
             },
           },

@@ -103,11 +103,19 @@ export const googleBigQueryListDatasetsTool: ToolConfig<
         properties: {
           datasetId: { type: 'string', description: 'Unique dataset identifier' },
           projectId: { type: 'string', description: 'Project ID containing this dataset' },
-          friendlyName: { type: 'string', description: 'Descriptive name for the dataset', optional: true },
+          friendlyName: {
+            type: 'string',
+            description: 'Descriptive name for the dataset',
+            optional: true,
+          },
           location: { type: 'string', description: 'Geographic location where the data resides' },
         },
       },
     },
-    nextPageToken: { type: 'string', description: 'Token for fetching next page of results', optional: true },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for fetching next page of results',
+      optional: true,
+    },
   },
 }

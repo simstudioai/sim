@@ -133,10 +133,18 @@ export const googleBigQueryQueryTool: ToolConfig<
         description: 'Row with column name/value pairs',
       },
     },
-    totalRows: { type: 'string', description: 'Total number of rows in the complete result set', optional: true },
+    totalRows: {
+      type: 'string',
+      description: 'Total number of rows in the complete result set',
+      optional: true,
+    },
     jobComplete: { type: 'boolean', description: 'Whether the query completed within the timeout' },
     totalBytesProcessed: { type: 'string', description: 'Total bytes processed by the query' },
-    cacheHit: { type: 'boolean', description: 'Whether the query result was served from cache', optional: true },
+    cacheHit: {
+      type: 'boolean',
+      description: 'Whether the query result was served from cache',
+      optional: true,
+    },
     jobReference: {
       type: 'object',
       description: 'Job reference (useful when jobComplete is false)',
@@ -147,6 +155,10 @@ export const googleBigQueryQueryTool: ToolConfig<
         location: { type: 'string', description: 'Geographic location of the job' },
       },
     },
-    pageToken: { type: 'string', description: 'Token for fetching additional result pages', optional: true },
+    pageToken: {
+      type: 'string',
+      description: 'Token for fetching additional result pages',
+      optional: true,
+    },
   },
 }

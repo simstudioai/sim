@@ -92,10 +92,16 @@ export const googleBigQueryGetTableTool: ToolConfig<
     tableId: { type: 'string', description: 'Table ID' },
     datasetId: { type: 'string', description: 'Dataset ID' },
     projectId: { type: 'string', description: 'Project ID' },
-    type: { type: 'string', description: 'Table type (TABLE, VIEW, SNAPSHOT, MATERIALIZED_VIEW, EXTERNAL)' },
+    type: {
+      type: 'string',
+      description: 'Table type (TABLE, VIEW, SNAPSHOT, MATERIALIZED_VIEW, EXTERNAL)',
+    },
     description: { type: 'string', description: 'Table description', optional: true },
     numRows: { type: 'string', description: 'Total number of rows' },
-    numBytes: { type: 'string', description: 'Total size in bytes, excluding data in streaming buffer' },
+    numBytes: {
+      type: 'string',
+      description: 'Total size in bytes, excluding data in streaming buffer',
+    },
     schema: {
       type: 'array',
       description: 'Array of column definitions',
@@ -103,14 +109,24 @@ export const googleBigQueryGetTableTool: ToolConfig<
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Column name' },
-          type: { type: 'string', description: 'Data type (STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, RECORD, etc.)' },
-          mode: { type: 'string', description: 'Column mode (NULLABLE, REQUIRED, or REPEATED)', optional: true },
+          type: {
+            type: 'string',
+            description: 'Data type (STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, RECORD, etc.)',
+          },
+          mode: {
+            type: 'string',
+            description: 'Column mode (NULLABLE, REQUIRED, or REPEATED)',
+            optional: true,
+          },
           description: { type: 'string', description: 'Column description', optional: true },
         },
       },
     },
     creationTime: { type: 'string', description: 'Table creation time (milliseconds since epoch)' },
-    lastModifiedTime: { type: 'string', description: 'Last modification time (milliseconds since epoch)' },
+    lastModifiedTime: {
+      type: 'string',
+      description: 'Last modification time (milliseconds since epoch)',
+    },
     location: { type: 'string', description: 'Geographic location where the table resides' },
   },
 }
