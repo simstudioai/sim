@@ -423,6 +423,12 @@ export const Panel = memo(function Panel() {
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>
                   </PopoverItem>
+                  {
+                    <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
+                      <VariableIcon className='h-3 w-3' />
+                      <span>Variables</span>
+                    </PopoverItem>
+                  }
                   {userPermissions.canAdmin && !isSnapshotView && (
                     <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
                       {allBlocksLocked ? (
@@ -433,12 +439,6 @@ export const Panel = memo(function Panel() {
                       <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
                     </PopoverItem>
                   )}
-                  {
-                    <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
-                      <VariableIcon className='h-3 w-3' />
-                      <span>Variables</span>
-                    </PopoverItem>
-                  }
                   {/* <PopoverItem>
                     <Bug className='h-3 w-3' />
                     <span>Debug</span>
