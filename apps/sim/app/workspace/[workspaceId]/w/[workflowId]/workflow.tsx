@@ -2534,6 +2534,16 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
   }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
 
+  useEffect(() => {
+    const handleToggleWorkflowLock = (e: CustomEvent<{ blockIds: string[] }>) => {
+      collaborativeBatchToggleLocked(e.detail.blockIds)
+    }
+
+    window.addEventListener('toggle-workflow-lock', handleToggleWorkflowLock as EventListener)
+    return () =>
+      window.removeEventListener('toggle-workflow-lock', handleToggleWorkflowLock as EventListener)
+  }, [collaborativeBatchToggleLocked])
+
   /**
    * Updates container dimensions in displayNodes during drag or keyboard movement.
    */

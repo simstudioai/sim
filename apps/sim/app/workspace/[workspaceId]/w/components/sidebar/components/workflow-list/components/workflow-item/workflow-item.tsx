@@ -27,6 +27,7 @@ import {
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -168,6 +169,25 @@ export function WorkflowItem({
     },
     [workflow.id, updateWorkflow]
   )
+
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const isActiveWorkflow = workflow.id === activeWorkflowId
+
+  const allBlocksLocked = useWorkflowStore(
+    useCallback((state) => {
+      const blockValues = Object.values(state.blocks)
+      if (blockValues.length === 0) return false
+      return blockValues.every((block) => block.locked)
+    }, [])
+  )
+  const isWorkflowLocked = isActiveWorkflow && allBlocksLocked
+
+  const handleToggleLock = useCallback(() => {
+    if (!isActiveWorkflow) return
+    const blockIds = Object.keys(useWorkflowStore.getState().blocks)
+    if (blockIds.length === 0) return
+    window.dispatchEvent(new CustomEvent('toggle-workflow-lock', { detail: { blockIds } }))
+  }, [isActiveWorkflow])
 
   const isEditingRef = useRef(false)
 
@@ -461,6 +481,10 @@ export function WorkflowItem({
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        onToggleLock={handleToggleLock}
+        showLock={isActiveWorkflow && !isMixedSelection && selectedWorkflows.size <= 1}
+        disableLock={!userPermissions.canAdmin}
+        isLocked={isWorkflowLocked}
       />
 
       <DeleteModal
