@@ -619,7 +619,7 @@ helm upgrade sim ./helm/sim
 
 ### Replicating SSH 10-minute timeout in Cloud
 
-Default remains 5 minutes (`EXECUTION_TIMEOUT_FREE=300`).  
+Default remains 5 minutes (`EXECUTION_TIMEOUT_FREE=300`).
 To raise/lower SSH max runtime via config + redeploy, deploy both:
 
 1. `EXECUTION_TIMEOUT_FREE=<seconds>` in chart values (`app.env`).
