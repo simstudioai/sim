@@ -20,8 +20,9 @@ import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
-  isToolUnavailable,
+  getMcpServerIssue as validateMcpServer,
   getMcpToolIssue as validateMcpTool,
+  isToolUnavailable,
 } from '@/lib/mcp/tool-validation'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
@@ -550,28 +551,21 @@ export const ToolInput = memo(function ToolInput({
         connectionStatus: s.connectionStatus,
         lastError: s.lastError ?? undefined,
       }))
+
+      if (tool.type === 'mcp-server') {
+        return validateMcpServer(
+          serverId,
+          tool.params?.serverUrl as string | undefined,
+          serverStates
+        )
+      }
+
+      const toolName = tool.params?.toolName as string
       const discoveredTools = mcpTools.map((t) => ({
         serverId: t.serverId,
         name: t.name,
         inputSchema: t.inputSchema,
       }))
-
-      if (tool.type === 'mcp-server') {
-        // Server-level validation: only check server connectivity
-        return validateMcpTool(
-          {
-            serverId,
-            serverUrl: tool.params?.serverUrl as string | undefined,
-            toolName: '__server_check__',
-            schema: undefined,
-          },
-          serverStates,
-          // Pass a fake discovered tool so tool_not_found doesn't trigger
-          [...discoveredTools, { serverId, name: '__server_check__', inputSchema: undefined }]
-        )
-      }
-
-      const toolName = tool.params?.toolName as string
 
       // Try to get fresh schema from DB (enables real-time updates after MCP refresh)
       const storedTool =
