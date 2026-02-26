@@ -5,7 +5,7 @@ description: Manage Google Tasks
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="google_tasks"
   color="#E0E0E0"
 />
@@ -15,6 +15,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 In Sim, the Google Tasks integration allows your agents to create, read, update, delete, and list tasks and task lists as part of automated workflows. This enables use cases such as automated task creation from incoming data, to-do list management based on workflow triggers, task status tracking, and deadline monitoring. By connecting Sim with Google Tasks, your agents can manage action items programmatically, keep teams organized, and ensure nothing falls through the cracks.
 {/* MANUAL-CONTENT-END */}
+
 
 ## Usage Instructions
 
@@ -81,7 +82,24 @@ List all tasks in a Google Tasks list
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tasks` | json | Array of tasks with id, title, notes, status, due, updated, and more |
+| `tasks` | array | List of tasks |
+|   ↳ `id` | string | Task identifier |
+|   ↳ `title` | string | Title of the task |
+|   ↳ `notes` | string | Notes/description for the task |
+|   ↳ `status` | string | Task status: "needsAction" or "completed" |
+|   ↳ `due` | string | Due date \(RFC 3339 timestamp\) |
+|   ↳ `completed` | string | Completion date \(RFC 3339 timestamp\) |
+|   ↳ `updated` | string | Last modification time \(RFC 3339 timestamp\) |
+|   ↳ `selfLink` | string | URL pointing to this task |
+|   ↳ `webViewLink` | string | Link to task in Google Tasks UI |
+|   ↳ `parent` | string | Parent task identifier |
+|   ↳ `position` | string | Position among sibling tasks \(string-based ordering\) |
+|   ↳ `hidden` | boolean | Whether the task is hidden |
+|   ↳ `deleted` | boolean | Whether the task is deleted |
+|   ↳ `links` | array | Collection of links associated with the task |
+|     ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message"\) |
+|     ↳ `description` | string | Link description |
+|     ↳ `link` | string | The URL |
 | `nextPageToken` | string | Token for retrieving the next page of results |
 
 ### `google_tasks_get`
@@ -170,14 +188,18 @@ Retrieve all task lists for the authenticated user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `maxResults` | number | No | Maximum number of task lists to return \(default 1000, max 1000\) |
+| `maxResults` | number | No | Maximum number of task lists to return \(default 20, max 100\) |
 | `pageToken` | string | No | Token for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `taskLists` | json | Array of task lists with id, title, updated, and selfLink |
+| `taskLists` | array | List of task lists |
+|   ↳ `id` | string | Task list identifier |
+|   ↳ `title` | string | Title of the task list |
+|   ↳ `updated` | string | Last modification time \(RFC 3339 timestamp\) |
+|   ↳ `selfLink` | string | URL pointing to this task list |
 | `nextPageToken` | string | Token for retrieving the next page of results |
 
 
