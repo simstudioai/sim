@@ -270,9 +270,7 @@ async function auditWorkflowLockToggle(workflowId: string, actorId: string): Pro
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,
     resourceName: wf.name,
-    description: allLocked
-      ? `Locked workflow "${wf.name}"`
-      : `Unlocked workflow "${wf.name}"`,
+    description: allLocked ? `Locked workflow "${wf.name}"` : `Unlocked workflow "${wf.name}"`,
     metadata: { blockCount: blocks.length },
   })
 }

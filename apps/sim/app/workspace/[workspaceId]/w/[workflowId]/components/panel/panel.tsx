@@ -41,6 +41,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
 import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
@@ -203,6 +204,7 @@ export const Panel = memo(function Panel() {
   )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
+  const { isSnapshotView } = useCurrentWorkflow()
 
   /**
    * Mark hydration as complete on mount
@@ -421,7 +423,7 @@ export const Panel = memo(function Panel() {
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>
                   </PopoverItem>
-                  {userPermissions.canAdmin && !currentWorkflow?.isSnapshotView && (
+                  {userPermissions.canAdmin && !isSnapshotView && (
                     <PopoverItem onClick={handleToggleWorkflowLock} disabled={!hasBlocks}>
                       {allBlocksLocked ? (
                         <Unlock className='h-3 w-3' />
