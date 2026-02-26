@@ -334,6 +334,9 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'running'`),
   })
 )
 
@@ -812,7 +815,6 @@ export const skill = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceIdIdx: index('skill_workspace_id_idx').on(table.workspaceId),
     workspaceNameUnique: uniqueIndex('skill_workspace_name_unique').on(
       table.workspaceId,
       table.name
@@ -1934,7 +1936,6 @@ export const a2aAgent = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceIdIdx: index('a2a_agent_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('a2a_agent_workflow_id_idx').on(table.workflowId),
     createdByIdx: index('a2a_agent_created_by_idx').on(table.createdBy),
     workspaceWorkflowUnique: uniqueIndex('a2a_agent_workspace_workflow_unique').on(
@@ -2018,7 +2019,6 @@ export const a2aPushNotificationConfig = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    taskIdIdx: index('a2a_push_notification_config_task_id_idx').on(table.taskId),
     taskIdUnique: uniqueIndex('a2a_push_notification_config_task_unique').on(table.taskId),
   })
 )
@@ -2173,7 +2173,6 @@ export const credentialMember = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    credentialIdIdx: index('credential_member_credential_id_idx').on(table.credentialId),
     userIdIdx: index('credential_member_user_id_idx').on(table.userId),
     roleIdx: index('credential_member_role_idx').on(table.role),
     statusIdx: index('credential_member_status_idx').on(table.status),
@@ -2224,7 +2223,6 @@ export const credentialSet = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    organizationIdIdx: index('credential_set_organization_id_idx').on(table.organizationId),
     createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
     orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
       table.organizationId,
@@ -2257,7 +2255,6 @@ export const credentialSetMember = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    credentialSetIdIdx: index('credential_set_member_set_id_idx').on(table.credentialSetId),
     userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
     uniqueMembership: uniqueIndex('credential_set_member_unique').on(
       table.credentialSetId,
@@ -2320,7 +2317,6 @@ export const permissionGroup = pgTable(
     autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
   },
   (table) => ({
-    organizationIdIdx: index('permission_group_organization_id_idx').on(table.organizationId),
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
     orgNameUnique: uniqueIndex('permission_group_org_name_unique').on(
       table.organizationId,
@@ -2438,7 +2434,6 @@ export const userTableRows = pgTable(
   },
   (table) => ({
     tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
-    workspaceIdIdx: index('user_table_rows_workspace_id_idx').on(table.workspaceId),
     dataGinIdx: index('user_table_rows_data_gin_idx').using('gin', table.data),
     workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
       table.workspaceId,
