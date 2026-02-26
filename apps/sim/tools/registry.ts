@@ -263,6 +263,12 @@ import {
   datadogSubmitMetricsTool,
 } from '@/tools/datadog'
 import {
+  devinCreateSessionTool,
+  devinGetSessionTool,
+  devinListSessionsTool,
+  devinSendMessageTool,
+} from '@/tools/devin'
+import {
   discordAddReactionTool,
   discordArchiveThreadTool,
   discordAssignRoleTool,
@@ -311,12 +317,6 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
-import {
-  devinCreateSessionTool,
-  devinGetSessionTool,
-  devinListSessionsTool,
-  devinSendMessageTool,
-} from '@/tools/devin'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
 import {

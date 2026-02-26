@@ -2,10 +2,7 @@ import type { ToolConfig } from '@/tools/types'
 import type { DevinSendMessageParams, DevinSendMessageResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
-export const devinSendMessageTool: ToolConfig<
-  DevinSendMessageParams,
-  DevinSendMessageResponse
-> = {
+export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendMessageResponse> = {
   id: 'devin_send_message',
   name: 'Devin Send Message',
   description:
@@ -34,8 +31,7 @@ export const devinSendMessageTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.devin.ai/v3/organizations/sessions/${params.sessionId}/messages`,
+    url: (params) => `https://api.devin.ai/v3/organizations/sessions/${params.sessionId}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
