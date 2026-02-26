@@ -160,12 +160,16 @@ const IterationNodeRow = memo(function IterationNodeRow({
   onSelectEntry,
   isExpanded,
   onToggle,
+  expandedNodes,
+  onToggleNode,
 }: {
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   isExpanded: boolean
   onToggle: () => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
 }) {
   const { entry, children, iterationInfo } = node
   const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
@@ -226,11 +230,13 @@ const IterationNodeRow = memo(function IterationNodeRow({
       {isExpanded && hasChildren && (
         <div className={ROW_STYLES.nested}>
           {children.map((child) => (
-            <BlockRow
+            <EntryNodeRow
               key={child.entry.id}
-              entry={child.entry}
-              isSelected={selectedEntryId === child.entry.id}
-              onSelect={onSelectEntry}
+              node={child}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
             />
           ))}
         </div>
@@ -346,6 +352,8 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
               onSelectEntry={onSelectEntry}
               isExpanded={expandedNodes.has(iterNode.entry.id)}
               onToggle={() => onToggleNode(iterNode.entry.id)}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
             />
           ))}
         </div>
@@ -520,6 +528,8 @@ const EntryNodeRow = memo(function EntryNodeRow({
         onSelectEntry={onSelectEntry}
         isExpanded={expandedNodes.has(node.entry.id)}
         onToggle={() => onToggleNode(node.entry.id)}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
       />
     )
   }
