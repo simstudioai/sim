@@ -57,8 +57,8 @@ export const devinCreateSessionTool: ToolConfig<
         prompt: params.prompt,
       }
       if (params.playbookId) body.playbook_id = params.playbookId
-      if (params.maxAcuLimit != null && params.maxAcuLimit !== '') {
-        body.max_acu_limit = Number(params.maxAcuLimit)
+      if (params.maxAcuLimit != null) {
+        body.max_acu_limit = params.maxAcuLimit
       }
       if (params.tags) {
         body.tags = params.tags.split(',').map((t: string) => t.trim())

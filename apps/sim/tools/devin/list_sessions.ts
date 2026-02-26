@@ -27,7 +27,7 @@ export const devinListSessionsTool: ToolConfig<DevinListSessionsParams, DevinLis
     request: {
       url: (params) => {
         const searchParams = new URLSearchParams()
-        if (params.limit) searchParams.set('first', String(Number(params.limit)))
+        if (params.limit) searchParams.set('first', String(params.limit))
         const qs = searchParams.toString()
         return `https://api.devin.ai/v3/organizations/sessions${qs ? `?${qs}` : ''}`
       },
