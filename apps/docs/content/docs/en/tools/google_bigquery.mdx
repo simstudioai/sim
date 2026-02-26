@@ -37,13 +37,16 @@ Run a SQL query against Google BigQuery and return the results
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `columns` | json | Array of column names from the query result |
-| `rows` | json | Array of row objects with column values |
-| `totalRows` | string | Total number of rows in the result |
+| `columns` | array | Array of column names from the query result |
+| `rows` | array | Array of row objects keyed by column name |
+| `totalRows` | string | Total number of rows in the complete result set |
 | `jobComplete` | boolean | Whether the query completed within the timeout |
 | `totalBytesProcessed` | string | Total bytes processed by the query |
 | `cacheHit` | boolean | Whether the query result was served from cache |
-| `jobReference` | json | Job reference with projectId, jobId, and location \(useful when jobComplete is false\) |
+| `jobReference` | object | Job reference \(useful when jobComplete is false\) |
+|   ↳ `projectId` | string | Project ID containing the job |
+|   ↳ `jobId` | string | Unique job identifier |
+|   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
 ### `google_bigquery_list_datasets`
@@ -62,7 +65,11 @@ List all datasets in a Google BigQuery project
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `datasets` | json | Array of dataset objects |
+| `datasets` | array | Array of dataset objects |
+|   ↳ `datasetId` | string | Unique dataset identifier |
+|   ↳ `projectId` | string | Project ID containing this dataset |
+|   ↳ `friendlyName` | string | Descriptive name for the dataset |
+|   ↳ `location` | string | Geographic location where the data resides |
 | `nextPageToken` | string | Token for fetching next page of results |
 
 ### `google_bigquery_list_tables`
@@ -82,7 +89,13 @@ List all tables in a Google BigQuery dataset
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tables` | json | Array of table objects |
+| `tables` | array | Array of table objects |
+|   ↳ `tableId` | string | Table identifier |
+|   ↳ `datasetId` | string | Dataset ID containing this table |
+|   ↳ `projectId` | string | Project ID containing this table |
+|   ↳ `type` | string | Table type \(TABLE, VIEW, EXTERNAL, etc.\) |
+|   ↳ `friendlyName` | string | User-friendly name for the table |
+|   ↳ `creationTime` | string | Time when created, in milliseconds since epoch |
 | `totalItems` | number | Total number of tables in the dataset |
 | `nextPageToken` | string | Token for fetching next page of results |
 
@@ -105,14 +118,18 @@ Get metadata and schema for a Google BigQuery table
 | `tableId` | string | Table ID |
 | `datasetId` | string | Dataset ID |
 | `projectId` | string | Project ID |
-| `type` | string | Table type \(TABLE, VIEW, etc.\) |
+| `type` | string | Table type \(TABLE, VIEW, SNAPSHOT, MATERIALIZED_VIEW, EXTERNAL\) |
 | `description` | string | Table description |
 | `numRows` | string | Total number of rows |
-| `numBytes` | string | Total size in bytes |
-| `schema` | json | Array of column definitions with name, type, mode, and description |
+| `numBytes` | string | Total size in bytes, excluding data in streaming buffer |
+| `schema` | array | Array of column definitions |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Data type \(STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, RECORD, etc.\) |
+|   ↳ `mode` | string | Column mode \(NULLABLE, REQUIRED, or REPEATED\) |
+|   ↳ `description` | string | Column description |
 | `creationTime` | string | Table creation time \(milliseconds since epoch\) |
 | `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
-| `location` | string | Data location |
+| `location` | string | Geographic location where the table resides |
 
 ### `google_bigquery_insert_rows`
 
@@ -134,6 +151,11 @@ Insert rows into a Google BigQuery table using streaming insert
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `insertedRows` | number | Number of rows successfully inserted |
-| `errors` | json | Array of per-row insertion errors \(empty if all succeeded\) |
+| `errors` | array | Array of per-row insertion errors \(empty if all succeeded\) |
+|   ↳ `index` | number | Zero-based index of the row that failed |
+|   ↳ `errors` | array | Error details for this row |
+|     ↳ `reason` | string | Short error code summarizing the error |
+|     ↳ `location` | string | Where the error occurred |
+|     ↳ `message` | string | Human-readable error description |
 
 

@@ -120,17 +120,33 @@ export const googleBigQueryQueryTool: ToolConfig<
   },
 
   outputs: {
-    columns: { type: 'json', description: 'Array of column names from the query result' },
-    rows: { type: 'json', description: 'Array of row objects with column values' },
-    totalRows: { type: 'string', description: 'Total number of rows in the result' },
+    columns: {
+      type: 'array',
+      description: 'Array of column names from the query result',
+      items: { type: 'string', description: 'Column name' },
+    },
+    rows: {
+      type: 'array',
+      description: 'Array of row objects keyed by column name',
+      items: {
+        type: 'object',
+        description: 'Row with column name/value pairs',
+      },
+    },
+    totalRows: { type: 'string', description: 'Total number of rows in the complete result set', optional: true },
     jobComplete: { type: 'boolean', description: 'Whether the query completed within the timeout' },
     totalBytesProcessed: { type: 'string', description: 'Total bytes processed by the query' },
-    cacheHit: { type: 'boolean', description: 'Whether the query result was served from cache' },
+    cacheHit: { type: 'boolean', description: 'Whether the query result was served from cache', optional: true },
     jobReference: {
-      type: 'json',
-      description:
-        'Job reference with projectId, jobId, and location (useful when jobComplete is false)',
+      type: 'object',
+      description: 'Job reference (useful when jobComplete is false)',
+      optional: true,
+      properties: {
+        projectId: { type: 'string', description: 'Project ID containing the job' },
+        jobId: { type: 'string', description: 'Unique job identifier' },
+        location: { type: 'string', description: 'Geographic location of the job' },
+      },
     },
-    pageToken: { type: 'string', description: 'Token for fetching additional result pages' },
+    pageToken: { type: 'string', description: 'Token for fetching additional result pages', optional: true },
   },
 }

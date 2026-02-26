@@ -137,8 +137,26 @@ export const googleBigQueryInsertRowsTool: ToolConfig<
   outputs: {
     insertedRows: { type: 'number', description: 'Number of rows successfully inserted' },
     errors: {
-      type: 'json',
+      type: 'array',
       description: 'Array of per-row insertion errors (empty if all succeeded)',
+      items: {
+        type: 'object',
+        properties: {
+          index: { type: 'number', description: 'Zero-based index of the row that failed' },
+          errors: {
+            type: 'array',
+            description: 'Error details for this row',
+            items: {
+              type: 'object',
+              properties: {
+                reason: { type: 'string', description: 'Short error code summarizing the error', optional: true },
+                location: { type: 'string', description: 'Where the error occurred', optional: true },
+                message: { type: 'string', description: 'Human-readable error description', optional: true },
+              },
+            },
+          },
+        },
+      },
     },
   },
 }

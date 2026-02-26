@@ -95,7 +95,19 @@ export const googleBigQueryListDatasetsTool: ToolConfig<
   },
 
   outputs: {
-    datasets: { type: 'json', description: 'Array of dataset objects' },
-    nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
+    datasets: {
+      type: 'array',
+      description: 'Array of dataset objects',
+      items: {
+        type: 'object',
+        properties: {
+          datasetId: { type: 'string', description: 'Unique dataset identifier' },
+          projectId: { type: 'string', description: 'Project ID containing this dataset' },
+          friendlyName: { type: 'string', description: 'Descriptive name for the dataset', optional: true },
+          location: { type: 'string', description: 'Geographic location where the data resides' },
+        },
+      },
+    },
+    nextPageToken: { type: 'string', description: 'Token for fetching next page of results', optional: true },
   },
 }
