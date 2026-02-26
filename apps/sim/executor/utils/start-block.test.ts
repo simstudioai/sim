@@ -215,5 +215,115 @@ describe('start-block utilities', () => {
 
       expect(output.customField).toBe('defaultValue')
     })
+
+    it.concurrent('preserves coerced types for unified start payload', () => {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { name: 'conversation_id', type: 'number' },
+              { name: 'sender', type: 'object' },
+              { name: 'is_active', type: 'boolean' },
+            ],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: {
+          conversation_id: '149',
+          sender: '{"id":10,"email":"user@example.com"}',
+          is_active: 'true',
+        },
+      })
+
+      expect(output.conversation_id).toBe(149)
+      expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
+      expect(output.is_active).toBe(true)
+    })
+
+    it.concurrent(
+      'prefers coerced inputFormat values over duplicated top-level workflowInput keys',
+      () => {
+        const block = createBlock('start_trigger', 'start', {
+          subBlocks: {
+            inputFormat: {
+              value: [
+                { name: 'conversation_id', type: 'number' },
+                { name: 'sender', type: 'object' },
+                { name: 'is_active', type: 'boolean' },
+              ],
+            },
+          },
+        })
+
+        const resolution = {
+          blockId: 'start',
+          block,
+          path: StartBlockPath.UNIFIED,
+        } as const
+
+        const output = buildStartBlockOutput({
+          resolution,
+          workflowInput: {
+            input: {
+              conversation_id: '149',
+              sender: '{"id":10,"email":"user@example.com"}',
+              is_active: 'false',
+            },
+            conversation_id: '150',
+            sender: '{"id":99,"email":"wrong@example.com"}',
+            is_active: 'true',
+            extra: 'keep-me',
+          },
+        })
+
+        expect(output.conversation_id).toBe(149)
+        expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
+        expect(output.is_active).toBe(false)
+        expect(output.extra).toBe('keep-me')
+      }
+    )
+  })
+
+  describe('EXTERNAL_TRIGGER path', () => {
+    it.concurrent('preserves coerced types for integration trigger payload', () => {
+      const block = createBlock('webhook', 'start', {
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { name: 'count', type: 'number' },
+              { name: 'payload', type: 'object' },
+            ],
+          },
+        },
+      })
+
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.EXTERNAL_TRIGGER,
+      } as const
+
+      const output = buildStartBlockOutput({
+        resolution,
+        workflowInput: {
+          count: '5',
+          payload: '{"event":"push"}',
+          extra: 'untouched',
+        },
+      })
+
+      expect(output.count).toBe(5)
+      expect(output.payload).toEqual({ event: 'push' })
+      expect(output.extra).toBe('untouched')
+    })
   })
 })
