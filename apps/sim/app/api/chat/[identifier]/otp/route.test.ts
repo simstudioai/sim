@@ -80,7 +80,7 @@ vi.mock('@sim/db', () => ({
     select: mockDbSelect,
     insert: mockDbInsert,
     delete: mockDbDelete,
-    transaction: vi.fn(async (callback: Function) => {
+    transaction: vi.fn(async (callback: (tx: Record<string, unknown>) => unknown) => {
       return callback({
         select: mockDbSelect,
         insert: mockDbInsert,

@@ -117,47 +117,49 @@ vi.mock('@sim/db', () => ({
     insert: (...args: unknown[]) => mockInsert(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
-    transaction: vi.fn().mockImplementation(async (callback: Function) => {
-      const txMockSelect = vi.fn().mockReturnValue({ from: mockFrom })
-      const txMockInsert = vi.fn().mockReturnValue({ values: mockValues })
-      const txMockUpdate = vi.fn().mockReturnValue({ set: mockSet })
-      const txMockDelete = vi.fn().mockReturnValue({ where: mockWhere })
+    transaction: vi
+      .fn()
+      .mockImplementation(async (callback: (tx: Record<string, unknown>) => unknown) => {
+        const txMockSelect = vi.fn().mockReturnValue({ from: mockFrom })
+        const txMockInsert = vi.fn().mockReturnValue({ values: mockValues })
+        const txMockUpdate = vi.fn().mockReturnValue({ set: mockSet })
+        const txMockDelete = vi.fn().mockReturnValue({ where: mockWhere })
 
-      const txMockOrderBy = vi.fn().mockImplementation(() => {
-        const queryBuilder = {
-          limit: mockLimit,
-          then: (resolve: (value: typeof sampleTools) => void) => {
-            resolve(sampleTools)
-            return queryBuilder
-          },
-          catch: (_reject: (error: Error) => void) => queryBuilder,
-        }
-        return queryBuilder
-      })
+        const txMockOrderBy = vi.fn().mockImplementation(() => {
+          const queryBuilder = {
+            limit: mockLimit,
+            then: (resolve: (value: typeof sampleTools) => void) => {
+              resolve(sampleTools)
+              return queryBuilder
+            },
+            catch: (_reject: (error: Error) => void) => queryBuilder,
+          }
+          return queryBuilder
+        })
 
-      const txMockWhere = vi.fn().mockImplementation(() => {
-        const queryBuilder = {
-          orderBy: txMockOrderBy,
-          limit: mockLimit,
-          then: (resolve: (value: typeof sampleTools) => void) => {
-            resolve(sampleTools)
-            return queryBuilder
-          },
-          catch: (_reject: (error: Error) => void) => queryBuilder,
-        }
-        return queryBuilder
-      })
+        const txMockWhere = vi.fn().mockImplementation(() => {
+          const queryBuilder = {
+            orderBy: txMockOrderBy,
+            limit: mockLimit,
+            then: (resolve: (value: typeof sampleTools) => void) => {
+              resolve(sampleTools)
+              return queryBuilder
+            },
+            catch: (_reject: (error: Error) => void) => queryBuilder,
+          }
+          return queryBuilder
+        })
 
-      const txMockFrom = vi.fn().mockReturnValue({ where: txMockWhere })
-      txMockSelect.mockReturnValue({ from: txMockFrom })
+        const txMockFrom = vi.fn().mockReturnValue({ where: txMockWhere })
+        txMockSelect.mockReturnValue({ from: txMockFrom })
 
-      return await callback({
-        select: txMockSelect,
-        insert: txMockInsert,
-        update: txMockUpdate,
-        delete: txMockDelete,
-      })
-    }),
+        return await callback({
+          select: txMockSelect,
+          insert: txMockInsert,
+          update: txMockUpdate,
+          delete: txMockDelete,
+        })
+      }),
   },
 }))
 
