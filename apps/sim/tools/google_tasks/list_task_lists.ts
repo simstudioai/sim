@@ -27,7 +27,7 @@ export const listTaskListsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of task lists to return (default 1000, max 1000)',
+      description: 'Maximum number of task lists to return (default 20, max 100)',
     },
     pageToken: {
       type: 'string',
@@ -76,8 +76,20 @@ export const listTaskListsTool: ToolConfig<
 
   outputs: {
     taskLists: {
-      type: 'json',
-      description: 'Array of task lists with id, title, updated, and selfLink',
+      type: 'array',
+      description: 'List of task lists',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Task list identifier' },
+          title: { type: 'string', description: 'Title of the task list' },
+          updated: {
+            type: 'string',
+            description: 'Last modification time (RFC 3339 timestamp)',
+          },
+          selfLink: { type: 'string', description: 'URL pointing to this task list' },
+        },
+      },
     },
     nextPageToken: {
       type: 'string',

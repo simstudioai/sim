@@ -79,10 +79,15 @@ export interface GoogleTasksListResponse extends ToolResponse {
       notes: string | null
       status: string | null
       due: string | null
+      completed: string | null
       updated: string | null
+      selfLink: string | null
       webViewLink: string | null
       parent: string | null
       position: string | null
+      hidden: boolean | null
+      deleted: boolean | null
+      links: Array<{ type: string; description: string; link: string }>
     }>
     nextPageToken: string | null
   }

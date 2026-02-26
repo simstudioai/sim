@@ -132,10 +132,21 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
           notes: (item.notes as string) ?? null,
           status: (item.status as string) ?? null,
           due: (item.due as string) ?? null,
+          completed: (item.completed as string) ?? null,
           updated: (item.updated as string) ?? null,
+          selfLink: (item.selfLink as string) ?? null,
           webViewLink: (item.webViewLink as string) ?? null,
           parent: (item.parent as string) ?? null,
           position: (item.position as string) ?? null,
+          hidden: (item.hidden as boolean) ?? null,
+          deleted: (item.deleted as boolean) ?? null,
+          links: Array.isArray(item.links)
+            ? (item.links as Array<Record<string, string>>).map((link) => ({
+                type: link.type ?? '',
+                description: link.description ?? '',
+                link: link.link ?? '',
+              }))
+            : [],
         })),
         nextPageToken: data.nextPageToken ?? null,
       },
@@ -144,8 +155,56 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
 
   outputs: {
     tasks: {
-      type: 'json',
-      description: 'Array of tasks with id, title, notes, status, due, updated, and more',
+      type: 'array',
+      description: 'List of tasks',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Task identifier' },
+          title: { type: 'string', description: 'Title of the task' },
+          notes: { type: 'string', description: 'Notes/description for the task', optional: true },
+          status: {
+            type: 'string',
+            description: 'Task status: "needsAction" or "completed"',
+          },
+          due: { type: 'string', description: 'Due date (RFC 3339 timestamp)', optional: true },
+          completed: {
+            type: 'string',
+            description: 'Completion date (RFC 3339 timestamp)',
+            optional: true,
+          },
+          updated: { type: 'string', description: 'Last modification time (RFC 3339 timestamp)' },
+          selfLink: { type: 'string', description: 'URL pointing to this task' },
+          webViewLink: {
+            type: 'string',
+            description: 'Link to task in Google Tasks UI',
+            optional: true,
+          },
+          parent: { type: 'string', description: 'Parent task identifier', optional: true },
+          position: {
+            type: 'string',
+            description: 'Position among sibling tasks (string-based ordering)',
+          },
+          hidden: { type: 'boolean', description: 'Whether the task is hidden', optional: true },
+          deleted: { type: 'boolean', description: 'Whether the task is deleted', optional: true },
+          links: {
+            type: 'array',
+            description: 'Collection of links associated with the task',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  description: 'Link type (e.g., "email", "generic", "chat_message")',
+                },
+                description: { type: 'string', description: 'Link description' },
+                link: { type: 'string', description: 'The URL' },
+              },
+            },
+          },
+        },
+      },
     },
     nextPageToken: {
       type: 'string',
