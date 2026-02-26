@@ -32,6 +32,7 @@ In Sim, the Devin integration enables your agents to programmatically manage Dev
 This allows for powerful automation scenarios such as triggering code generation from upstream events, polling for completion before consuming results, orchestrating multi-step development pipelines, and integrating Devin's output into broader agent workflows.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.
@@ -42,102 +43,115 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 
 ### `devin_create_session`
 
+Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `prompt` | string | Yes | The task prompt for Devin to work on |
+| `playbookId` | string | No | Optional playbook ID to guide the session |
+| `maxAcuLimit` | number | No | Maximum ACU limit for the session |
+| `tags` | string | No | Comma-separated tags for the session |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sessionId` | string | Session identifier |
-| `url` | string | URL to view the session in Devin UI |
+| `sessionId` | string | Unique identifier for the session |
+| `url` | string | URL to view the session in the Devin UI |
 | `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
-| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, waiting_for_approval, finished, inactivity, etc.\) |
 | `title` | string | Session title |
-| `createdAt` | number | Creation timestamp \(Unix\) |
-| `updatedAt` | number | Last updated timestamp \(Unix\) |
-| `acusConsumed` | number | ACUs consumed |
-| `tags` | json | Session tags |
+| `createdAt` | number | Unix timestamp when the session was created |
+| `updatedAt` | number | Unix timestamp when the session was last updated |
+| `acusConsumed` | number | ACUs consumed by the session |
+| `tags` | json | Tags associated with the session |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
 | `playbookId` | string | Associated playbook ID |
-| `sessions` | json | List of sessions |
 
 ### `devin_get_session`
 
+Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `sessionId` | string | Yes | The session ID to retrieve |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sessionId` | string | Session identifier |
-| `url` | string | URL to view the session in Devin UI |
+| `sessionId` | string | Unique identifier for the session |
+| `url` | string | URL to view the session in the Devin UI |
 | `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
-| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, waiting_for_approval, finished, inactivity, etc.\) |
 | `title` | string | Session title |
-| `createdAt` | number | Creation timestamp \(Unix\) |
-| `updatedAt` | number | Last updated timestamp \(Unix\) |
-| `acusConsumed` | number | ACUs consumed |
-| `tags` | json | Session tags |
+| `createdAt` | number | Unix timestamp when the session was created |
+| `updatedAt` | number | Unix timestamp when the session was last updated |
+| `acusConsumed` | number | ACUs consumed by the session |
+| `tags` | json | Tags associated with the session |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
 | `playbookId` | string | Associated playbook ID |
-| `sessions` | json | List of sessions |
 
 ### `devin_list_sessions`
 
+List Devin sessions in the organization. Returns up to 100 sessions by default.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `limit` | number | No | Maximum number of sessions to return \(1-200, default: 100\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sessionId` | string | Session identifier |
-| `url` | string | URL to view the session in Devin UI |
-| `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
-| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
-| `title` | string | Session title |
-| `createdAt` | number | Creation timestamp \(Unix\) |
-| `updatedAt` | number | Last updated timestamp \(Unix\) |
-| `acusConsumed` | number | ACUs consumed |
-| `tags` | json | Session tags |
-| `pullRequests` | json | Pull requests created during the session |
-| `structuredOutput` | json | Structured output from the session |
-| `playbookId` | string | Associated playbook ID |
-| `sessions` | json | List of sessions |
+| `sessions` | array | List of Devin sessions |
+|   ↳ `sessionId` | string | Unique identifier for the session |
+|   ↳ `url` | string | URL to view the session |
+|   ↳ `status` | string | Session status |
+|   ↳ `statusDetail` | string | Detailed status |
+|   ↳ `title` | string | Session title |
+|   ↳ `createdAt` | number | Creation timestamp \(Unix\) |
+|   ↳ `updatedAt` | number | Last updated timestamp \(Unix\) |
+|   ↳ `tags` | json | Session tags |
 
 ### `devin_send_message`
 
+Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Devin API key \(service user credential starting with cog_\) |
+| `sessionId` | string | Yes | The session ID to send the message to |
+| `message` | string | Yes | The message to send to Devin |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sessionId` | string | Session identifier |
-| `url` | string | URL to view the session in Devin UI |
+| `sessionId` | string | Unique identifier for the session |
+| `url` | string | URL to view the session in the Devin UI |
 | `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
-| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, waiting_for_approval, finished, inactivity, etc.\) |
 | `title` | string | Session title |
-| `createdAt` | number | Creation timestamp \(Unix\) |
-| `updatedAt` | number | Last updated timestamp \(Unix\) |
-| `acusConsumed` | number | ACUs consumed |
-| `tags` | json | Session tags |
+| `createdAt` | number | Unix timestamp when the session was created |
+| `updatedAt` | number | Unix timestamp when the session was last updated |
+| `acusConsumed` | number | ACUs consumed by the session |
+| `tags` | json | Tags associated with the session |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
 | `playbookId` | string | Associated playbook ID |
-| `sessions` | json | List of sessions |
 
 
