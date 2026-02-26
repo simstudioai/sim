@@ -3,86 +3,99 @@
  *
  * @vitest-environment node
  */
-import { mockHybridAuth } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-let mockCheckHybridAuth: ReturnType<typeof vi.fn>
-const mockGetUserEntityPermissions = vi.fn()
-const mockGenerateInternalToken = vi.fn()
-const mockDbSelect = vi.fn()
-const mockDbFrom = vi.fn()
-const mockDbWhere = vi.fn()
-const mockDbLimit = vi.fn()
-const fetchMock = vi.fn()
+const {
+  mockCheckHybridAuth,
+  mockGetUserEntityPermissions,
+  mockGenerateInternalToken,
+  mockDbSelect,
+  mockDbFrom,
+  mockDbWhere,
+  mockDbLimit,
+  fetchMock,
+} = vi.hoisted(() => ({
+  mockCheckHybridAuth: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockGenerateInternalToken: vi.fn(),
+  mockDbSelect: vi.fn(),
+  mockDbFrom: vi.fn(),
+  mockDbWhere: vi.fn(),
+  mockDbLimit: vi.fn(),
+  fetchMock: vi.fn(),
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockDbSelect,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  workflowMcpServer: {
+    id: 'id',
+    name: 'name',
+    workspaceId: 'workspaceId',
+    isPublic: 'isPublic',
+    createdBy: 'createdBy',
+  },
+  workflowMcpTool: {
+    serverId: 'serverId',
+    toolName: 'toolName',
+    toolDescription: 'toolDescription',
+    parameterSchema: 'parameterSchema',
+    workflowId: 'workflowId',
+  },
+  workflow: {
+    id: 'id',
+    isDeployed: 'isDeployed',
+  },
+}))
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkHybridAuth: mockCheckHybridAuth,
+  checkSessionOrInternalAuth: vi.fn(),
+  checkInternalAuth: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mockGetUserEntityPermissions,
+}))
+
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalToken: mockGenerateInternalToken,
+}))
+
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: () => 'http://localhost:3000',
+  getInternalApiBaseUrl: () => 'http://localhost:3000',
+}))
+
+vi.mock('@/lib/core/execution-limits', () => ({
+  getMaxExecutionTimeout: () => 10_000,
+}))
+
+import { GET, POST } from '@/app/api/mcp/serve/[serverId]/route'
 
 describe('MCP Serve Route', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
 
     mockDbSelect.mockReturnValue({ from: mockDbFrom })
     mockDbFrom.mockReturnValue({ where: mockDbWhere })
     mockDbWhere.mockReturnValue({ limit: mockDbLimit })
 
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn(() => ({
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        debug: vi.fn(),
-      })),
-    }))
-    vi.doMock('drizzle-orm', () => ({
-      and: vi.fn(),
-      eq: vi.fn(),
-    }))
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: mockDbSelect,
-      },
-    }))
-    vi.doMock('@sim/db/schema', () => ({
-      workflowMcpServer: {
-        id: 'id',
-        name: 'name',
-        workspaceId: 'workspaceId',
-        isPublic: 'isPublic',
-        createdBy: 'createdBy',
-      },
-      workflowMcpTool: {
-        serverId: 'serverId',
-        toolName: 'toolName',
-        toolDescription: 'toolDescription',
-        parameterSchema: 'parameterSchema',
-        workflowId: 'workflowId',
-      },
-      workflow: {
-        id: 'id',
-        isDeployed: 'isDeployed',
-      },
-    }))
-    ;({ mockCheckHybridAuth } = mockHybridAuth())
-    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
-      getUserEntityPermissions: mockGetUserEntityPermissions,
-    }))
-    vi.doMock('@/lib/auth/internal', () => ({
-      generateInternalToken: mockGenerateInternalToken,
-    }))
-    vi.doMock('@/lib/core/utils/urls', () => ({
-      getBaseUrl: () => 'http://localhost:3000',
-      getInternalApiBaseUrl: () => 'http://localhost:3000',
-    }))
-    vi.doMock('@/lib/core/execution-limits', () => ({
-      getMaxExecutionTimeout: () => 10_000,
-    }))
-
     vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    vi.clearAllMocks()
   })
 
   it('returns 401 for private server when auth fails', async () => {
@@ -97,7 +110,6 @@ describe('MCP Serve Route', () => {
     ])
     mockCheckHybridAuth.mockResolvedValueOnce({ success: false, error: 'Unauthorized' })
 
-    const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'POST',
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
@@ -119,7 +131,6 @@ describe('MCP Serve Route', () => {
     ])
     mockCheckHybridAuth.mockResolvedValueOnce({ success: false, error: 'Unauthorized' })
 
-    const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1')
     const response = await GET(req, { params: Promise.resolve({ serverId: 'server-1' }) })
 
@@ -154,7 +165,6 @@ describe('MCP Serve Route', () => {
       })
     )
 
-    const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'POST',
       headers: { 'X-API-Key': 'pk_test_123' },
@@ -204,7 +214,6 @@ describe('MCP Serve Route', () => {
       })
     )
 
-    const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'POST',
       body: JSON.stringify({

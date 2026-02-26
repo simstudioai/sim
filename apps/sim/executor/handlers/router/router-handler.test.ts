@@ -287,6 +287,7 @@ describe('RouterBlockHandler', () => {
       refreshToken: 'mock-refresh-token',
       expiresAt: new Date(Date.now() + 3600000),
     }
+    ;(mockDb.db.query as any).account = { findFirst: vi.fn() }
     vi.spyOn(mockDb.db.query.account, 'findFirst').mockResolvedValue(mockAccount as any)
 
     await handler.execute(mockContext, mockBlock, inputs)

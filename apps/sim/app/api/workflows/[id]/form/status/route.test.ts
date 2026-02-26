@@ -3,60 +3,69 @@
  *
  * @vitest-environment node
  */
-import { loggerMock, mockHybridAuth } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-let mockCheckSessionOrInternalAuth: ReturnType<typeof vi.fn>
-const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockDbSelect = vi.fn()
-const mockDbFrom = vi.fn()
-const mockDbWhere = vi.fn()
-const mockDbLimit = vi.fn()
+const {
+  mockCheckSessionOrInternalAuth,
+  mockAuthorizeWorkflowByWorkspacePermission,
+  mockDbSelect,
+  mockDbFrom,
+  mockDbWhere,
+  mockDbLimit,
+} = vi.hoisted(() => ({
+  mockCheckSessionOrInternalAuth: vi.fn(),
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
+  mockDbSelect: vi.fn(),
+  mockDbFrom: vi.fn(),
+  mockDbWhere: vi.fn(),
+  mockDbLimit: vi.fn(),
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockDbSelect,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  form: {
+    id: 'id',
+    identifier: 'identifier',
+    title: 'title',
+    workflowId: 'workflowId',
+    isActive: 'isActive',
+  },
+}))
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
+}))
+
+import { GET } from '@/app/api/workflows/[id]/form/status/route'
 
 describe('Workflow Form Status Route', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
 
     mockDbSelect.mockReturnValue({ from: mockDbFrom })
     mockDbFrom.mockReturnValue({ where: mockDbWhere })
     mockDbWhere.mockReturnValue({ limit: mockDbLimit })
     mockDbLimit.mockResolvedValue([])
-
-    vi.doMock('@sim/logger', () => loggerMock)
-    vi.doMock('drizzle-orm', () => ({
-      and: vi.fn(),
-      eq: vi.fn(),
-    }))
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: mockDbSelect,
-      },
-    }))
-    vi.doMock('@sim/db/schema', () => ({
-      form: {
-        id: 'id',
-        identifier: 'identifier',
-        title: 'title',
-        workflowId: 'workflowId',
-        isActive: 'isActive',
-      },
-    }))
-    ;({ mockCheckSessionOrInternalAuth } = mockHybridAuth())
-    vi.doMock('@/lib/workflows/utils', () => ({
-      authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-    }))
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('returns 401 when unauthenticated', async () => {
     mockCheckSessionOrInternalAuth.mockResolvedValueOnce({ success: false })
 
-    const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/workflows/wf-1/form/status')
     const response = await GET(req, { params: Promise.resolve({ id: 'wf-1' }) })
 
@@ -77,7 +86,6 @@ describe('Workflow Form Status Route', () => {
       workspacePermission: null,
     })
 
-    const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/workflows/wf-1/form/status')
     const response = await GET(req, { params: Promise.resolve({ id: 'wf-1' }) })
 
@@ -105,7 +113,6 @@ describe('Workflow Form Status Route', () => {
       },
     ])
 
-    const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/workflows/wf-1/form/status')
     const response = await GET(req, { params: Promise.resolve({ id: 'wf-1' }) })
 

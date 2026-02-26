@@ -4,66 +4,89 @@
  * @vitest-environment node
  */
 
-import { createMockLogger } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockCheckSessionOrInternalAuth, mockEvaluateScopeCoverage, mockLogger } = vi.hoisted(() => {
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(),
+  }
+  return {
+    mockCheckSessionOrInternalAuth: vi.fn(),
+    mockEvaluateScopeCoverage: vi.fn(),
+    mockLogger: logger,
+  }
+})
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+}))
+
+vi.mock('@/lib/oauth', () => ({
+  evaluateScopeCoverage: mockEvaluateScopeCoverage,
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('mock-request-id'),
+}))
+
+vi.mock('@/lib/credentials/oauth', () => ({
+  syncWorkspaceOAuthCredentialsForUser: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: vi.fn(),
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  account: {
+    userId: 'userId',
+    providerId: 'providerId',
+    id: 'id',
+    scope: 'scope',
+    updatedAt: 'updatedAt',
+  },
+  credential: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    type: 'type',
+    displayName: 'displayName',
+    providerId: 'providerId',
+    accountId: 'accountId',
+  },
+  credentialMember: {
+    id: 'id',
+    credentialId: 'credentialId',
+    userId: 'userId',
+    status: 'status',
+  },
+  user: { email: 'email', id: 'id' },
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn().mockReturnValue(mockLogger),
+}))
+
+import { GET } from '@/app/api/auth/oauth/credentials/route'
 
 describe('OAuth Credentials API Route', () => {
-  const mockGetSession = vi.fn()
-  const mockParseProvider = vi.fn()
-  const mockEvaluateScopeCoverage = vi.fn()
-  const mockDb = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(),
-  }
-  const mockLogger = createMockLogger()
-
-  const mockUUID = 'mock-uuid-12345678-90ab-cdef-1234-567890abcdef'
-
   function createMockRequestWithQuery(method = 'GET', queryParams = ''): NextRequest {
     const url = `http://localhost:3000/api/auth/oauth/credentials${queryParams}`
     return new NextRequest(new URL(url), { method })
   }
 
   beforeEach(() => {
-    vi.resetModules()
-
-    vi.stubGlobal('crypto', {
-      randomUUID: vi.fn().mockReturnValue(mockUUID),
-    })
-
-    vi.doMock('@/lib/auth', () => ({
-      getSession: mockGetSession,
-    }))
-
-    vi.doMock('@/lib/oauth/utils', () => ({
-      parseProvider: mockParseProvider,
-      evaluateScopeCoverage: mockEvaluateScopeCoverage,
-    }))
-
-    vi.doMock('@sim/db', () => ({
-      db: mockDb,
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
-      account: { userId: 'userId', providerId: 'providerId' },
-      user: { email: 'email', id: 'id' },
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
-      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-    }))
-
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
-
-    mockParseProvider.mockImplementation((providerId: string) => ({
-      baseProvider: providerId.split('-')[0] || providerId,
-    }))
+    vi.clearAllMocks()
 
     mockEvaluateScopeCoverage.mockImplementation(
       (_providerId: string, grantedScopes: string[]) => ({
@@ -76,16 +99,13 @@ describe('OAuth Credentials API Route', () => {
     )
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('should handle unauthenticated user', async () => {
-    mockGetSession.mockResolvedValueOnce(null)
+    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      success: false,
+      error: 'Authentication required',
+    })
 
     const req = createMockRequestWithQuery('GET', '?provider=google')
-
-    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -96,13 +116,13 @@ describe('OAuth Credentials API Route', () => {
   })
 
   it('should handle missing provider parameter', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { id: 'user-123' },
+    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
     })
 
     const req = createMockRequestWithQuery('GET')
-
-    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -113,21 +133,13 @@ describe('OAuth Credentials API Route', () => {
   })
 
   it('should handle no credentials found', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { id: 'user-123' },
+    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
     })
-
-    mockParseProvider.mockReturnValueOnce({
-      baseProvider: 'github',
-    })
-
-    mockDb.select.mockReturnValueOnce(mockDb)
-    mockDb.from.mockReturnValueOnce(mockDb)
-    mockDb.where.mockResolvedValueOnce([])
 
     const req = createMockRequestWithQuery('GET', '?provider=github')
-
-    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -137,13 +149,13 @@ describe('OAuth Credentials API Route', () => {
   })
 
   it('should return empty credentials when no workspace context', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { id: 'user-123' },
+    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
     })
 
     const req = createMockRequestWithQuery('GET', '?provider=google-email')
-
-    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()

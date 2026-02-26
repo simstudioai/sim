@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { mockConsoleLogger, setupCommonApiMocks } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -99,8 +98,6 @@ function createMockTx(
 
 describe('duplicateWorkflow ordering', () => {
   beforeEach(() => {
-    setupCommonApiMocks()
-    mockConsoleLogger()
     vi.clearAllMocks()
 
     vi.stubGlobal('crypto', {
