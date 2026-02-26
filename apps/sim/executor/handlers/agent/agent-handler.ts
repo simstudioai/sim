@@ -309,15 +309,17 @@ export class AgentBlockHandler implements BlockHandler {
         const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
 
         // Create tool definitions for each discovered tool
-        for (const mcpTool of discoveredTools) {
-          const created = await this.createMcpToolFromDiscoveredServerTool(
-            mcpTool,
-            serverId,
-            serverName || serverId,
-            usageControl
+        const createdTools = await Promise.all(
+          discoveredTools.map((mcpTool) =>
+            this.createMcpToolFromDiscoveredServerTool(
+              mcpTool,
+              serverId,
+              serverName || serverId,
+              usageControl
+            )
           )
-          if (created) results.push(created)
-        }
+        )
+        results.push(...createdTools.filter(Boolean))
 
         logger.info(
           `[AgentHandler] Expanded MCP server ${serverName} into ${discoveredTools.length} tools`
