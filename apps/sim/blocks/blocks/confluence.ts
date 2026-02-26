@@ -654,7 +654,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         value: [
           'create',
           'get_space',
-          'create_space',
           'update_space',
           'delete_space',
           'list_pages_in_space',
@@ -1293,8 +1292,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         }
 
         // Operations that support generic cursor pagination.
-        // get_pages_by_label and list_space_labels have dedicated handlers
-        // below that pass cursor along with their required params (labelId, spaceId).
+        // get_pages_by_label, list_space_labels, and list_tasks have dedicated handlers
+        // below that pass cursor along with their required params.
         const supportsCursor = [
           'list_attachments',
           'list_spaces',
@@ -1308,7 +1307,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'get_page_descendants',
           'list_space_permissions',
           'list_space_properties',
-          'list_tasks',
         ]
 
         if (supportsCursor.includes(operation) && cursor) {
