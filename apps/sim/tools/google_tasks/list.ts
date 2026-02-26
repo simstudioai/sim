@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
 import type { GoogleTasksListParams, GoogleTasksListResponse } from '@/tools/google_tasks/types'
+import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse> = {
   id: 'google_tasks_list',
@@ -98,8 +98,7 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
         queryParams.set('showCompleted', String(params.showCompleted))
       if (params.showDeleted !== undefined)
         queryParams.set('showDeleted', String(params.showDeleted))
-      if (params.showHidden !== undefined)
-        queryParams.set('showHidden', String(params.showHidden))
+      if (params.showHidden !== undefined) queryParams.set('showHidden', String(params.showHidden))
       if (params.dueMin) queryParams.set('dueMin', params.dueMin)
       if (params.dueMax) queryParams.set('dueMax', params.dueMax)
       if (params.completedMin) queryParams.set('completedMin', params.completedMin)

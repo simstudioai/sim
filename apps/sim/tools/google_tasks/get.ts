@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
 import type { GoogleTasksGetParams, GoogleTasksResponse } from '@/tools/google_tasks/types'
+import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const getTool: ToolConfig<GoogleTasksGetParams, GoogleTasksResponse> = {
   id: 'google_tasks_get',

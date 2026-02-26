@@ -1304,11 +1304,7 @@ export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
 
 export function GoogleTasksIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      viewBox='0 0 527.1 500'
-      xmlns='http://www.w3.org/2000/svg'
-    >
+    <svg {...props} viewBox='0 0 527.1 500' xmlns='http://www.w3.org/2000/svg'>
       <polygon
         fill='#0066DA'
         points='410.4,58.3 368.8,81.2 348.2,120.6 368.8,168.8 407.8,211 450,187.5 475.9,142.8 450,87.5'

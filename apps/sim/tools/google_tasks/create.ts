@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
 import type { GoogleTasksCreateParams, GoogleTasksResponse } from '@/tools/google_tasks/types'
+import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse> = {
   id: 'google_tasks_create',
@@ -60,7 +60,8 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Previous sibling task ID to position after. Omit to place first among siblings.',
+      description:
+        'Previous sibling task ID to position after. Omit to place first among siblings.',
     },
   },
 

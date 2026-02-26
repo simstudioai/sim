@@ -741,14 +741,6 @@ import {
   googleMapsValidateAddressTool,
 } from '@/tools/google_maps'
 import {
-  googleTasksCreateTool,
-  googleTasksDeleteTool,
-  googleTasksGetTool,
-  googleTasksListTool,
-  googleTasksListTaskListsTool,
-  googleTasksUpdateTool,
-} from '@/tools/google_tasks'
-import {
   googleSheetsAppendTool,
   googleSheetsAppendV2Tool,
   googleSheetsBatchClearV2Tool,
@@ -784,6 +776,14 @@ import {
   googleSlidesUpdateSlidesPositionTool,
   googleSlidesWriteTool,
 } from '@/tools/google_slides'
+import {
+  googleTasksCreateTool,
+  googleTasksDeleteTool,
+  googleTasksGetTool,
+  googleTasksListTaskListsTool,
+  googleTasksListTool,
+  googleTasksUpdateTool,
+} from '@/tools/google_tasks'
 import { googleTranslateDetectTool, googleTranslateTool } from '@/tools/google_translate'
 import {
   createMattersExportTool,

@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
 import type { GoogleTasksDeleteParams, GoogleTasksDeleteResponse } from '@/tools/google_tasks/types'
+import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const deleteTool: ToolConfig<GoogleTasksDeleteParams, GoogleTasksDeleteResponse> = {
   id: 'google_tasks_delete',
