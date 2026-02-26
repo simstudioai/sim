@@ -164,7 +164,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
     if (!Array.isArray(tools) || tools.length === 0) return
 
-    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasMcpTools = tools.some((t) => t.type === 'mcp' || t.type === 'mcp-server')
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
@@ -182,7 +182,7 @@ export class AgentBlockHandler implements BlockHandler {
   ): Promise<ToolInput[]> {
     if (!Array.isArray(tools) || tools.length === 0) return tools
 
-    const mcpTools = tools.filter((t) => t.type === 'mcp')
+    const mcpTools = tools.filter((t) => t.type === 'mcp' || t.type === 'mcp-server')
     if (mcpTools.length === 0) return tools
 
     const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
@@ -216,7 +216,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return tools.filter((tool) => {
-      if (tool.type !== 'mcp') return true
+      if (tool.type !== 'mcp' && tool.type !== 'mcp-server') return true
       const serverId = tool.params?.serverId
       if (!serverId) return false
       return availableServerIds.has(serverId)
@@ -236,11 +236,14 @@ export class AgentBlockHandler implements BlockHandler {
     })
 
     const mcpTools: ToolInput[] = []
+    const mcpServerSelections: ToolInput[] = []
     const otherTools: ToolInput[] = []
 
     for (const tool of filtered) {
       if (tool.type === 'mcp') {
         mcpTools.push(tool)
+      } else if (tool.type === 'mcp-server') {
+        mcpServerSelections.push(tool)
       } else {
         otherTools.push(tool)
       }
@@ -249,7 +252,7 @@ export class AgentBlockHandler implements BlockHandler {
     const otherResults = await Promise.all(
       otherTools.map(async (tool) => {
         try {
-          if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
+          if (tool.type && tool.type !== 'custom-tool') {
             await validateBlockType(ctx.userId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
@@ -265,10 +268,84 @@ export class AgentBlockHandler implements BlockHandler {
 
     const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools)
 
-    const allTools = [...otherResults, ...mcpResults]
+    // Process MCP server selections (all tools from server mode)
+    const mcpServerResults = await this.processMcpServerSelections(ctx, mcpServerSelections)
+
+    const allTools = [...otherResults, ...mcpResults, ...mcpServerResults]
     return allTools.filter(
       (tool): tool is NonNullable<typeof tool> => tool !== null && tool !== undefined
     )
+  }
+
+  /**
+   * Process MCP server selections by discovering and formatting all tools from each server.
+   * This enables "agent discovery" mode where the LLM can call any tool from the server.
+   */
+  private async processMcpServerSelections(
+    ctx: ExecutionContext,
+    mcpServerSelections: ToolInput[]
+  ): Promise<any[]> {
+    if (mcpServerSelections.length === 0) return []
+
+    const results = await Promise.all(
+      mcpServerSelections.map(async (serverSelection) => {
+        const serverId = serverSelection.params?.serverId
+        const serverName = serverSelection.params?.serverName
+        const usageControl = serverSelection.usageControl || 'auto'
+
+        if (!serverId) {
+          logger.error('MCP server selection missing serverId:', serverSelection)
+          return []
+        }
+
+        try {
+          const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
+          const createdTools = await Promise.all(
+            discoveredTools.map((mcpTool) =>
+              this.createMcpToolFromDiscoveredServerTool(
+                mcpTool,
+                serverId,
+                serverName || serverId,
+                usageControl
+              )
+            )
+          )
+          logger.info(
+            `[AgentHandler] Expanded MCP server ${serverName} into ${discoveredTools.length} tools`
+          )
+          return createdTools.filter(Boolean)
+        } catch (error) {
+          logger.error(`[AgentHandler] Failed to process MCP server selection:`, {
+            serverId,
+            error,
+          })
+          return []
+        }
+      })
+    )
+
+    return results.flat()
+  }
+
+  /**
+   * Create an MCP tool from server discovery for the "all tools" mode.
+   * Delegates to buildMcpTool so server-discovered tools use the same
+   * execution pipeline as individually-selected MCP tools.
+   */
+  private async createMcpToolFromDiscoveredServerTool(
+    mcpTool: any,
+    serverId: string,
+    serverName: string,
+    usageControl: string
+  ): Promise<any> {
+    return this.buildMcpTool({
+      serverId,
+      toolName: mcpTool.name,
+      description: mcpTool.description || `MCP tool ${mcpTool.name} from ${serverName}`,
+      schema: mcpTool.inputSchema || { type: 'object', properties: {} },
+      userProvidedParams: {},
+      usageControl,
+    })
   }
 
   private async createCustomTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
