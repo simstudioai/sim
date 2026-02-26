@@ -2,7 +2,6 @@ import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Combobox, Label, Slider, Switch } from '@/components/emcn/components'
-import { cn } from '@/lib/core/utils/cn'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -147,7 +146,7 @@ export function McpDynamicArgs({
             />
             <Label
               htmlFor={`${paramName}-switch`}
-              className='cursor-pointer font-normal text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+              className='cursor-pointer font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
             >
               {formatParameterLabel(paramName)}
             </Label>
@@ -351,15 +350,14 @@ export function McpDynamicArgs({
               <div key={paramName} className='subblock-row'>
                 <div className='subblock-content flex flex-col gap-[10px]'>
                   {showLabel && (
-                    <Label
-                      className={cn(
-                        'font-medium text-sm',
-                        toolSchema.required?.includes(paramName) &&
-                          'after:ml-1 after:text-red-500 after:content-["*"]'
-                      )}
-                    >
-                      {formatParameterLabel(paramName)}
-                    </Label>
+                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+                      <Label className='flex items-baseline gap-[6px] whitespace-nowrap'>
+                        {formatParameterLabel(paramName)}
+                        {toolSchema.required?.includes(paramName) && (
+                          <span className='ml-0.5'>*</span>
+                        )}
+                      </Label>
+                    </div>
                   )}
                   {renderParameterInput(paramName, paramSchema as any)}
                 </div>
