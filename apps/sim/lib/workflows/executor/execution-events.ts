@@ -155,6 +155,7 @@ export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
     childWorkflowInstanceId: string
     iterationCurrent?: number
     iterationContainerId?: string
+    executionOrder?: number
   }
 }
 
@@ -396,7 +397,8 @@ export function createSSECallbacks(options: SSECallbackOptions) {
   const onChildWorkflowInstanceReady = (
     blockId: string,
     childWorkflowInstanceId: string,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    executionOrder?: number
   ) => {
     sendEvent({
       type: 'block:childWorkflowStarted',
@@ -410,6 +412,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           iterationCurrent: iterationContext.iterationCurrent,
           iterationContainerId: iterationContext.iterationContainerId,
         }),
+        ...(executionOrder !== undefined && { executionOrder }),
       },
     })
   }

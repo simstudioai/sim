@@ -264,7 +264,8 @@ export interface ExecutionContext {
   onChildWorkflowInstanceReady?: (
     blockId: string,
     childWorkflowInstanceId: string,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    executionOrder?: number
   ) => void
 
   /**
@@ -377,6 +378,7 @@ export interface BlockHandler {
       branchTotal?: number
       originalBlockId?: string
       isLoopNode?: boolean
+      executionOrder?: number
     }
   ) => Promise<BlockOutput | StreamingExecution>
 }
