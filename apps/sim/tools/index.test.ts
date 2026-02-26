@@ -282,6 +282,89 @@ function setupEnvVars(variables: Record<string, string>) {
   }
 }
 
+function responseHeadersToRecord(headers: unknown): Record<string, string> {
+  const record: Record<string, string> = {}
+  if (!headers || typeof headers !== 'object') return record
+
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      record[key] = value
+    })
+    return record
+  }
+
+  if ('forEach' in headers && typeof (headers as any).forEach === 'function') {
+    ;(headers as any).forEach((value: string, key: string) => {
+      record[key] = value
+    })
+    return record
+  }
+
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (typeof value === 'string') record[key] = value
+  }
+  return record
+}
+
+function setupSecurityFetchMocks() {
+  vi.spyOn(securityValidation, 'validateUrlWithDNS').mockResolvedValue({
+    isValid: true,
+    resolvedIP: '127.0.0.1',
+    originalHostname: 'localhost',
+  })
+
+  vi.spyOn(securityValidation, 'secureFetchWithPinnedIP').mockImplementation(
+    async (url, _resolvedIP, options = {}) => {
+      const fetchResponse = await global.fetch(url, {
+        method: options.method,
+        headers: options.headers as HeadersInit,
+        body: options.body as BodyInit | null | undefined,
+      })
+
+      if (!fetchResponse) {
+        throw new Error('Mock fetch returned no response')
+      }
+
+      const headersRecord = responseHeadersToRecord((fetchResponse as any).headers)
+      const status = (fetchResponse as any).status ?? 200
+      const statusText = (fetchResponse as any).statusText ?? (status >= 200 ? 'OK' : 'Error')
+      const ok = (fetchResponse as any).ok ?? (status >= 200 && status < 300)
+
+      return {
+        ok,
+        status,
+        statusText,
+        headers: new securityValidation.SecureFetchHeaders(headersRecord),
+        text: async () => {
+          if (typeof (fetchResponse as any).text === 'function') {
+            return (fetchResponse as any).text()
+          }
+          if (typeof (fetchResponse as any).json === 'function') {
+            return JSON.stringify(await (fetchResponse as any).json())
+          }
+          return ''
+        },
+        json: async () => {
+          if (typeof (fetchResponse as any).json === 'function') {
+            return (fetchResponse as any).json()
+          }
+          const rawText =
+            typeof (fetchResponse as any).text === 'function' ? await (fetchResponse as any).text() : ''
+          return rawText ? JSON.parse(rawText) : {}
+        },
+        arrayBuffer: async () => {
+          if (typeof (fetchResponse as any).arrayBuffer === 'function') {
+            return (fetchResponse as any).arrayBuffer()
+          }
+          const rawText =
+            typeof (fetchResponse as any).text === 'function' ? await (fetchResponse as any).text() : ''
+          return new TextEncoder().encode(rawText).buffer
+        },
+      }
+    }
+  )
+}
+
 describe('Tools Registry', () => {
   it('should include all expected built-in tools', () => {
     expect(tools.http_request).toBeDefined()
@@ -336,6 +419,7 @@ describe('executeTool Function', () => {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })
+    setupSecurityFetchMocks()
 
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
@@ -443,6 +527,7 @@ describe('Internal Tool Timeout Behavior', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    setupSecurityFetchMocks()
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
@@ -550,6 +635,7 @@ describe('Automatic Internal Route Detection', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    setupSecurityFetchMocks()
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
@@ -805,6 +891,7 @@ describe('Centralized Error Handling', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    setupSecurityFetchMocks()
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
@@ -1034,6 +1121,7 @@ describe('MCP Tool Execution', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
+    setupSecurityFetchMocks()
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
   })
