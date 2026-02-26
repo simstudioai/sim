@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateJiraCloudId,
+  validateNumericId,
+  validatePaginationCursor,
+} from '@/lib/core/security/input-validation'
 import { cleanHtmlContent, getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluencePageVersionsAPI')
@@ -57,8 +62,14 @@ export async function POST(request: NextRequest) {
 
     // If versionNumber is provided, get specific version with page content
     if (versionNumber !== undefined && versionNumber !== null) {
-      const versionUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/versions/${versionNumber}`
-      const pageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?version=${versionNumber}&body-format=storage`
+      const versionValidation = validateNumericId(versionNumber, 'versionNumber', { min: 1 })
+      if (!versionValidation.isValid) {
+        return NextResponse.json({ error: versionValidation.error }, { status: 400 })
+      }
+      const safeVersion = versionValidation.sanitized
+
+      const versionUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/versions/${safeVersion}`
+      const pageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?version=${safeVersion}&body-format=storage`
 
       logger.info(`Fetching version ${versionNumber} for page ${pageId}`)
 
@@ -135,6 +146,10 @@ export async function POST(request: NextRequest) {
     queryParams.append('limit', String(Math.min(limit, 250)))
 
     if (cursor) {
+      const cursorValidation = validatePaginationCursor(cursor, 'cursor')
+      if (!cursorValidation.isValid) {
+        return NextResponse.json({ error: cursorValidation.error }, { status: 400 })
+      }
       queryParams.append('cursor', cursor)
     }
 

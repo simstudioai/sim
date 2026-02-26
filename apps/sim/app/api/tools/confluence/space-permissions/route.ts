@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateJiraCloudId,
+  validatePaginationCursor,
+} from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceSpacePermissionsAPI')
@@ -50,6 +54,10 @@ export async function POST(request: NextRequest) {
     queryParams.append('limit', String(Math.min(limit, 250)))
 
     if (cursor) {
+      const cursorValidation = validatePaginationCursor(cursor, 'cursor')
+      if (!cursorValidation.isValid) {
+        return NextResponse.json({ error: cursorValidation.error }, { status: 400 })
+      }
       queryParams.append('cursor', cursor)
     }
 

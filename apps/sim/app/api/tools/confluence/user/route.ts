@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 })
     }
 
-    // Atlassian account IDs use format like 557058:6b9c9931-4693-49c1-8b3a-931f1af98134
+    // Atlassian account IDs: 5d5bd05c3aee0123abc or 557058:6b9c9931-4693-49c1-8b3a-931f1af98134
     const accountIdValidation = validatePathSegment(accountId, {
       paramName: 'accountId',
-      maxLength: 255,
-      customPattern: /^[a-zA-Z0-9:-]+$/,
+      maxLength: 128,
+      customPattern: /^[a-zA-Z0-9_|:-]+$/,
     })
     if (!accountIdValidation.isValid) {
       return NextResponse.json({ error: accountIdValidation.error }, { status: 400 })

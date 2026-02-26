@@ -1039,3 +1039,74 @@ export function validateGoogleCalendarId(
 
   return { isValid: true, sanitized: value }
 }
+
+/**
+ * Validates a pagination cursor token
+ *
+ * Pagination cursors are opaque tokens returned by APIs (e.g., Confluence, Jira)
+ * and passed back to get the next page. They are typically base64-encoded or
+ * URL-safe strings. This validator ensures the cursor cannot contain characters
+ * that could alter URL structure.
+ *
+ * @param value - The cursor token to validate
+ * @param paramName - Name of the parameter for error messages
+ * @param maxLength - Maximum length (default: 1024)
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * if (cursor) {
+ *   const result = validatePaginationCursor(cursor, 'cursor')
+ *   if (!result.isValid) {
+ *     return NextResponse.json({ error: result.error }, { status: 400 })
+ *   }
+ * }
+ * ```
+ */
+export function validatePaginationCursor(
+  value: string | null | undefined,
+  paramName = 'cursor',
+  maxLength = 1024
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length > maxLength) {
+    logger.warn('Pagination cursor exceeds maximum length', {
+      paramName,
+      length: value.length,
+      maxLength,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} exceeds maximum length of ${maxLength} characters`,
+    }
+  }
+
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('%00')) {
+    logger.warn('Pagination cursor contains control characters', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid characters`,
+    }
+  }
+
+  // Allow alphanumeric, base64 chars (+, /, =), and URL-safe chars (-, _, ., ~, %)
+  const cursorPattern = /^[A-Za-z0-9+/=\-_.~%]+$/
+  if (!cursorPattern.test(value)) {
+    logger.warn('Pagination cursor contains disallowed characters', {
+      paramName,
+      value: value.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid characters`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
