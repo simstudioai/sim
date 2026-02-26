@@ -13,7 +13,13 @@ import {
   ROLE_ALLOWED_OPERATIONS,
   SOCKET_OPERATIONS,
 } from '@sim/testing'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/auth', () => ({
+  auth: { api: { getSession: vi.fn() } },
+  getSession: vi.fn(),
+}))
+
 import { checkRolePermission } from '@/socket/middleware/permissions'
 
 describe('checkRolePermission', () => {
