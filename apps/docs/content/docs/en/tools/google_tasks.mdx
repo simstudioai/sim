@@ -1,0 +1,177 @@
+---
+title: Google Tasks
+description: Manage Google Tasks
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_tasks"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.
+
+
+
+## Tools
+
+### `google_tasks_create`
+
+Create a new task in a Google Tasks list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
+| `title` | string | Yes | Title of the task \(max 1024 characters\) |
+| `notes` | string | No | Notes/description for the task \(max 8192 characters\) |
+| `due` | string | No | Due date in RFC 3339 format \(e.g., 2025-06-03T00:00:00.000Z\) |
+| `status` | string | No | Task status: "needsAction" or "completed" |
+| `parent` | string | No | Parent task ID to create this task as a subtask. Omit for top-level tasks. |
+| `previous` | string | No | Previous sibling task ID to position after. Omit to place first among siblings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Task ID |
+| `title` | string | Task title |
+| `notes` | string | Task notes |
+| `status` | string | Task status \(needsAction or completed\) |
+| `due` | string | Due date |
+| `updated` | string | Last modification time |
+| `selfLink` | string | URL for the task |
+| `webViewLink` | string | Link to task in Google Tasks UI |
+| `parent` | string | Parent task ID |
+| `position` | string | Position among sibling tasks |
+| `completed` | string | Completion date |
+| `deleted` | boolean | Whether the task is deleted |
+
+### `google_tasks_list`
+
+List all tasks in a Google Tasks list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
+| `maxResults` | number | No | Maximum number of tasks to return \(default 20, max 100\) |
+| `pageToken` | string | No | Token for pagination |
+| `showCompleted` | boolean | No | Whether to show completed tasks \(default true\) |
+| `showDeleted` | boolean | No | Whether to show deleted tasks \(default false\) |
+| `showHidden` | boolean | No | Whether to show hidden tasks \(default false\) |
+| `dueMin` | string | No | Lower bound for due date filter \(RFC 3339 timestamp\) |
+| `dueMax` | string | No | Upper bound for due date filter \(RFC 3339 timestamp\) |
+| `completedMin` | string | No | Lower bound for task completion date \(RFC 3339 timestamp\) |
+| `completedMax` | string | No | Upper bound for task completion date \(RFC 3339 timestamp\) |
+| `updatedMin` | string | No | Lower bound for last modification time \(RFC 3339 timestamp\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | json | Array of tasks with id, title, notes, status, due, updated, and more |
+| `nextPageToken` | string | Token for retrieving the next page of results |
+
+### `google_tasks_get`
+
+Retrieve a specific task by ID from a Google Tasks list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
+| `taskId` | string | Yes | The ID of the task to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Task ID |
+| `title` | string | Task title |
+| `notes` | string | Task notes |
+| `status` | string | Task status \(needsAction or completed\) |
+| `due` | string | Due date |
+| `updated` | string | Last modification time |
+| `selfLink` | string | URL for the task |
+| `webViewLink` | string | Link to task in Google Tasks UI |
+| `parent` | string | Parent task ID |
+| `position` | string | Position among sibling tasks |
+| `completed` | string | Completion date |
+| `deleted` | boolean | Whether the task is deleted |
+
+### `google_tasks_update`
+
+Update an existing task in a Google Tasks list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
+| `taskId` | string | Yes | The ID of the task to update |
+| `title` | string | No | New title for the task |
+| `notes` | string | No | New notes for the task |
+| `due` | string | No | New due date in RFC 3339 format |
+| `status` | string | No | New status: "needsAction" or "completed" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Task ID |
+| `title` | string | Task title |
+| `notes` | string | Task notes |
+| `status` | string | Task status \(needsAction or completed\) |
+| `due` | string | Due date |
+| `updated` | string | Last modification time |
+| `selfLink` | string | URL for the task |
+| `webViewLink` | string | Link to task in Google Tasks UI |
+| `parent` | string | Parent task ID |
+| `position` | string | Position among sibling tasks |
+| `completed` | string | Completion date |
+| `deleted` | boolean | Whether the task is deleted |
+
+### `google_tasks_delete`
+
+Delete a task from a Google Tasks list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
+| `taskId` | string | Yes | The ID of the task to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Deleted task ID |
+| `deleted` | boolean | Whether deletion was successful |
+
+### `google_tasks_list_task_lists`
+
+Retrieve all task lists for the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `maxResults` | number | No | Maximum number of task lists to return \(default 1000, max 1000\) |
+| `pageToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskLists` | json | Array of task lists with id, title, updated, and selfLink |
+| `nextPageToken` | string | Token for retrieving the next page of results |
+
+

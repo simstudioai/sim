@@ -16,6 +16,7 @@ import {
   GoogleGroupsIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  GoogleTasksIcon,
   HubspotIcon,
   JiraIcon,
   LinearIcon,
@@ -127,6 +128,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleBigQueryIcon,
         baseProviderIcon: GoogleIcon,
         scopes: ['https://www.googleapis.com/auth/bigquery'],
+      },
+      'google-tasks': {
+        name: 'Google Tasks',
+        description: 'Create, manage, and organize tasks with Google Tasks.',
+        providerId: 'google-tasks',
+        icon: GoogleTasksIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: ['https://www.googleapis.com/auth/tasks'],
       },
       'google-vault': {
         name: 'Google Vault',

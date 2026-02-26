@@ -776,6 +776,14 @@ import {
   googleSlidesUpdateSlidesPositionTool,
   googleSlidesWriteTool,
 } from '@/tools/google_slides'
+import {
+  googleTasksCreateTool,
+  googleTasksDeleteTool,
+  googleTasksGetTool,
+  googleTasksListTaskListsTool,
+  googleTasksListTool,
+  googleTasksUpdateTool,
+} from '@/tools/google_tasks'
 import { googleTranslateDetectTool, googleTranslateTool } from '@/tools/google_translate'
 import {
   createMattersExportTool,
@@ -2942,6 +2950,12 @@ export const tools: Record<string, ToolConfig> = {
   google_maps_speed_limits: googleMapsSpeedLimitsTool,
   google_maps_timezone: googleMapsTimezoneTool,
   google_maps_validate_address: googleMapsValidateAddressTool,
+  google_tasks_create: googleTasksCreateTool,
+  google_tasks_delete: googleTasksDeleteTool,
+  google_tasks_get: googleTasksGetTool,
+  google_tasks_list: googleTasksListTool,
+  google_tasks_list_task_lists: googleTasksListTaskListsTool,
+  google_tasks_update: googleTasksUpdateTool,
   google_translate_detect: googleTranslateDetectTool,
   google_translate_text: googleTranslateTool,
   google_sheets_read: googleSheetsReadTool,

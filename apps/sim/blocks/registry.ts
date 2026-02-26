@@ -53,6 +53,7 @@ import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock, GoogleSlidesV2Block } from '@/blocks/blocks/google_slides'
+import { GoogleTasksBlock } from '@/blocks/blocks/google_tasks'
 import { GoogleTranslateBlock } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
@@ -236,6 +237,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
   google_maps: GoogleMapsBlock,
+  google_tasks: GoogleTasksBlock,
   google_translate: GoogleTranslateBlock,
   gong: GongBlock,
   google_search: GoogleSearchBlock,
