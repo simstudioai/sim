@@ -39,13 +39,15 @@ export function hasSchemaChanged(
   return !isEqual(storedWithoutDesc, serverWithoutDesc)
 }
 
-export function getMcpToolIssue(
-  storedTool: StoredMcpToolReference,
-  servers: ServerState[],
-  discoveredTools: DiscoveredTool[]
+/**
+ * Validates server-level connectivity for an MCP server.
+ * Checks: server existence, connection status, URL changes.
+ */
+export function getMcpServerIssue(
+  serverId: string,
+  serverUrl: string | undefined,
+  servers: ServerState[]
 ): McpToolIssue | null {
-  const { serverId, serverUrl, toolName, schema } = storedTool
-
   const server = servers.find((s) => s.id === serverId)
   if (!server) {
     return { type: 'server_not_found', message: 'Server not found' }
@@ -61,6 +63,19 @@ export function getMcpToolIssue(
   if (serverUrl && server.url && serverUrl !== server.url) {
     return { type: 'url_changed', message: 'Server URL changed' }
   }
+
+  return null
+}
+
+export function getMcpToolIssue(
+  storedTool: StoredMcpToolReference,
+  servers: ServerState[],
+  discoveredTools: DiscoveredTool[]
+): McpToolIssue | null {
+  const { serverId, serverUrl, toolName, schema } = storedTool
+
+  const serverIssue = getMcpServerIssue(serverId, serverUrl, servers)
+  if (serverIssue) return serverIssue
 
   const serverTool = discoveredTools.find((t) => t.serverId === serverId && t.name === toolName)
   if (!serverTool) {
