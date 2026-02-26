@@ -82,6 +82,17 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       type: 'short-input',
       placeholder: '2025-06-03T00:00:00.000Z',
       condition: { field: 'operation', value: 'create' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date at 00:00:00.000Z
+- "next Friday" -> Calculate the next Friday's date at 00:00:00.000Z
+- "June 15" -> 2025-06-15T00:00:00.000Z
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+      },
     },
     {
       id: 'status',
@@ -125,6 +136,17 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       type: 'short-input',
       placeholder: '2025-06-03T00:00:00.000Z',
       condition: { field: 'operation', value: 'update' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date at 00:00:00.000Z
+- "next Friday" -> Calculate the next Friday's date at 00:00:00.000Z
+- "June 15" -> 2025-06-15T00:00:00.000Z
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+      },
     },
     {
       id: 'status',
