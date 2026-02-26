@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateJiraCloudId,
+  validatePaginationCursor,
+  validatePathSegment,
+} from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceTasksAPI')
@@ -180,11 +185,40 @@ export async function POST(request: NextRequest) {
     const queryParams = new URLSearchParams()
     queryParams.append('limit', String(Math.min(limit, 250)))
 
-    if (cursor) queryParams.append('cursor', cursor)
+    if (cursor) {
+      const cursorValidation = validatePaginationCursor(cursor, 'cursor')
+      if (!cursorValidation.isValid) {
+        return NextResponse.json({ error: cursorValidation.error }, { status: 400 })
+      }
+      queryParams.append('cursor', cursor)
+    }
     if (taskStatus) queryParams.append('status', taskStatus)
-    if (pageId) queryParams.append('page-id', pageId)
-    if (spaceId) queryParams.append('space-id', spaceId)
-    if (assignedTo) queryParams.append('assigned-to', assignedTo)
+    if (pageId) {
+      const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+      if (!pageIdValidation.isValid) {
+        return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+      }
+      queryParams.append('page-id', pageId)
+    }
+    if (spaceId) {
+      const spaceIdValidation = validateAlphanumericId(spaceId, 'spaceId', 255)
+      if (!spaceIdValidation.isValid) {
+        return NextResponse.json({ error: spaceIdValidation.error }, { status: 400 })
+      }
+      queryParams.append('space-id', spaceId)
+    }
+    if (assignedTo) {
+      // Atlassian account IDs: 5d5bd05c3aee0123abc or 557058:6b9c9931-4693-49c1-8b3a-931f1af98134
+      const assignedToValidation = validatePathSegment(assignedTo, {
+        paramName: 'assignedTo',
+        maxLength: 128,
+        customPattern: /^[a-zA-Z0-9_|:-]+$/,
+      })
+      if (!assignedToValidation.isValid) {
+        return NextResponse.json({ error: assignedToValidation.error }, { status: 400 })
+      }
+      queryParams.append('assigned-to', assignedTo)
+    }
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/tasks?${queryParams.toString()}`
 

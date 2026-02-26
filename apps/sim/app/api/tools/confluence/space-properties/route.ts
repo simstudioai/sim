@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateJiraCloudId,
+  validatePaginationCursor,
+} from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceSpacePropertiesAPI')
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: propertyIdValidation.error }, { status: 400 })
       }
 
-      const url = `${baseUrl}/${propertyId}`
+      const url = `${baseUrl}/${encodeURIComponent(propertyId)}`
 
       logger.info(`Deleting space property ${propertyId} from space ${spaceId}`)
 
@@ -148,7 +152,13 @@ export async function POST(request: NextRequest) {
     const queryParams = new URLSearchParams()
     queryParams.append('limit', String(Math.min(limit, 250)))
 
-    if (cursor) queryParams.append('cursor', cursor)
+    if (cursor) {
+      const cursorValidation = validatePaginationCursor(cursor, 'cursor')
+      if (!cursorValidation.isValid) {
+        return NextResponse.json({ error: cursorValidation.error }, { status: 400 })
+      }
+      queryParams.append('cursor', cursor)
+    }
 
     const url = `${baseUrl}?${queryParams.toString()}`
 
