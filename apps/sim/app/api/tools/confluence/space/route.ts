@@ -197,6 +197,13 @@ export async function PUT(request: NextRequest) {
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
 
+    if (!name && description === undefined) {
+      return NextResponse.json(
+        { error: 'At least one of name or description is required for update' },
+        { status: 400 }
+      )
+    }
+
     const updateBody: Record<string, unknown> = {}
     if (name) updateBody.name = name
     if (description !== undefined) {
