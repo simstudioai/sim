@@ -24,6 +24,7 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -188,19 +189,8 @@ export function WorkflowItem({
   const handleToggleLock = useCallback(() => {
     if (!isActiveWorkflow) return
     const blocks = useWorkflowStore.getState().blocks
-    const blockIds = Object.keys(blocks)
+    const blockIds = getWorkflowLockToggleIds(blocks, !isWorkflowLocked)
     if (blockIds.length === 0) return
-    // batchToggleLocked determines target state from the first block's locked value.
-    // Ensure the first ID is a block whose state matches our intent:
-    // when locking (not all locked), put an unlocked block first;
-    // when unlocking (all locked), put a locked block first.
-    const wantLocked = !isWorkflowLocked
-    const pivotId = blockIds.find((id) => Boolean(blocks[id].locked) !== wantLocked)
-    if (pivotId && pivotId !== blockIds[0]) {
-      const idx = blockIds.indexOf(pivotId)
-      blockIds[idx] = blockIds[0]
-      blockIds[0] = pivotId
-    }
     window.dispatchEvent(new CustomEvent('toggle-workflow-lock', { detail: { blockIds } }))
   }, [isActiveWorkflow, isWorkflowLocked])
 
