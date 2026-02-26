@@ -1,9 +1,5 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
@@ -16,6 +12,7 @@ import {
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
+import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -87,7 +84,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await this.resolveVertexCredential(routerConfig.vertexCredential)
+        finalApiKey = await resolveVertexCredential(routerConfig.vertexCredential, 'vertex-router')
       }
 
       const providerRequest: Record<string, any> = {
@@ -217,7 +214,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await this.resolveVertexCredential(routerConfig.vertexCredential)
+        finalApiKey = await resolveVertexCredential(routerConfig.vertexCredential, 'vertex-router')
       }
 
       const providerRequest: Record<string, any> = {
@@ -415,36 +412,5 @@ export class RouterBlockHandler implements BlockHandler {
           currentState: ctx.blockStates.get(targetBlock.id)?.output,
         }
       })
-  }
-
-  /**
-   * Resolves a Vertex AI OAuth credential to an access token
-   */
-  private async resolveVertexCredential(credentialId: string): Promise<string> {
-    const requestId = `vertex-router-${Date.now()}`
-
-    logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
-    }
-
-    const credential = await db.query.account.findFirst({
-      where: eq(account.id, resolved.accountId),
-    })
-
-    if (!credential) {
-      throw new Error(`Vertex AI credential not found: ${credentialId}`)
-    }
-
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
-
-    if (!accessToken) {
-      throw new Error('Failed to get Vertex AI access token')
-    }
-
-    logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
-    return accessToken
   }
 }

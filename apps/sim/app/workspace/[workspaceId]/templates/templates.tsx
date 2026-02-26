@@ -222,6 +222,7 @@ export default function Templates({
                   key={template.id}
                   id={template.id}
                   title={template.name}
+                  description={template.details?.tagline}
                   author={template.creator?.name || 'Unknown'}
                   authorImageUrl={template.creator?.profileImageUrl || null}
                   usageCount={template.views.toString()}

@@ -89,7 +89,8 @@ export interface ExecutionCallbacks {
   onChildWorkflowInstanceReady?: (
     blockId: string,
     childWorkflowInstanceId: string,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    executionOrder?: number
   ) => void
 }
 
@@ -155,7 +156,8 @@ export interface ContextExtensions {
   onChildWorkflowInstanceReady?: (
     blockId: string,
     childWorkflowInstanceId: string,
-    iterationContext?: IterationContext
+    iterationContext?: IterationContext,
+    executionOrder?: number
   ) => void
 
   /**

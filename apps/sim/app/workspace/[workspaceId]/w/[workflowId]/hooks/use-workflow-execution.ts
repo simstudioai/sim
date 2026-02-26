@@ -554,6 +554,7 @@ export function useWorkflowExecution() {
         childWorkflowInstanceId: string
         iterationCurrent?: number
         iterationContainerId?: string
+        executionOrder?: number
       }) => {
         if (isStaleExecution()) return
         updateConsole(
@@ -564,6 +565,7 @@ export function useWorkflowExecution() {
             ...(data.iterationContainerId !== undefined && {
               iterationContainerId: data.iterationContainerId,
             }),
+            ...(data.executionOrder !== undefined && { executionOrder: data.executionOrder }),
           },
           executionIdRef.current
         )

@@ -379,7 +379,7 @@ export function CredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
-        className={selectedId || isCredentialSetSelected ? 'pl-[28px]' : ''}
+        className={overlayContent ? 'pl-[28px]' : ''}
       />
 
       {needsUpdate && (

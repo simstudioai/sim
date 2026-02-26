@@ -23,6 +23,7 @@ import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
+import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
@@ -43,6 +44,7 @@ import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
 import { GongBlock } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleBigQueryBlock } from '@/blocks/blocks/google_bigquery'
 import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
@@ -52,6 +54,8 @@ import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock, GoogleSlidesV2Block } from '@/blocks/blocks/google_slides'
+import { GoogleTasksBlock } from '@/blocks/blocks/google_tasks'
+import { GoogleTranslateBlock } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
 import { GrainBlock } from '@/blocks/blocks/grain'
@@ -203,6 +207,7 @@ export const registry: Record<string, BlockConfig> = {
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   datadog: DatadogBlock,
+  devin: DevinBlock,
   discord: DiscordBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
@@ -234,12 +239,15 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
   google_maps: GoogleMapsBlock,
+  google_tasks: GoogleTasksBlock,
+  google_translate: GoogleTranslateBlock,
   gong: GongBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_slides_v2: GoogleSlidesV2Block,
+  google_bigquery: GoogleBigQueryBlock,
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,

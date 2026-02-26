@@ -62,6 +62,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       branchTotal?: number
       originalBlockId?: string
       isLoopNode?: boolean
+      executionOrder?: number
     }
   ): Promise<BlockOutput | StreamingExecution> {
     return this._executeCore(ctx, block, inputs, nodeMetadata)
@@ -79,6 +80,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       branchTotal?: number
       originalBlockId?: string
       isLoopNode?: boolean
+      executionOrder?: number
     }
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
@@ -98,13 +100,17 @@ export class WorkflowBlockHandler implements BlockHandler {
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
     const instanceId = crypto.randomUUID()
 
+    const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
+    const depthError = validateCallChain(childCallChain)
+    if (depthError) {
+      throw new ChildWorkflowError({
+        message: depthError,
+        childWorkflowName,
+      })
+    }
+
     let childWorkflowSnapshotId: string | undefined
     try {
-      const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
-      if (currentDepth >= DEFAULTS.MAX_WORKFLOW_DEPTH) {
-        throw new Error(`Maximum workflow nesting depth of ${DEFAULTS.MAX_WORKFLOW_DEPTH} exceeded`)
-      }
-
       if (ctx.isDeployedContext) {
         const hasActiveDeployment = await this.checkChildDeployment(workflowId)
         if (!hasActiveDeployment) {
@@ -126,7 +132,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
-        `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
+        `Executing child workflow: ${childWorkflowName} (${workflowId}), call chain depth ${ctx.callChain?.length || 0}`
       )
 
       let childWorkflowInput: Record<string, any> = {}
@@ -165,16 +171,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         const iterationContext = nodeMetadata
           ? this.getIterationContext(ctx, nodeMetadata)
           : undefined
-        ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
-      }
-
-      const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
-      const depthError = validateCallChain(childCallChain)
-      if (depthError) {
-        throw new ChildWorkflowError({
-          message: depthError,
-          childWorkflowName,
-        })
+        ctx.onChildWorkflowInstanceReady?.(
+          effectiveBlockId,
+          instanceId,
+          iterationContext,
+          nodeMetadata?.executionOrder
+        )
       }
 
       const subExecutor = new Executor({
@@ -582,45 +584,6 @@ export class WorkflowBlockHandler implements BlockHandler {
     })
 
     return processed
-  }
-
-  private flattenChildWorkflowSpans(spans: TraceSpan[]): WorkflowTraceSpan[] {
-    const flattened: WorkflowTraceSpan[] = []
-
-    spans.forEach((span) => {
-      if (this.isSyntheticWorkflowWrapper(span)) {
-        if (span.children && Array.isArray(span.children)) {
-          flattened.push(...this.flattenChildWorkflowSpans(span.children))
-        }
-        return
-      }
-
-      const workflowSpan: WorkflowTraceSpan = {
-        ...span,
-      }
-
-      if (Array.isArray(workflowSpan.children)) {
-        const childSpans = workflowSpan.children as TraceSpan[]
-        workflowSpan.children = this.flattenChildWorkflowSpans(childSpans)
-      }
-
-      if (workflowSpan.output && typeof workflowSpan.output === 'object') {
-        const { childTraceSpans: nestedChildSpans, ...outputRest } = workflowSpan.output as {
-          childTraceSpans?: TraceSpan[]
-        } & Record<string, unknown>
-
-        if (Array.isArray(nestedChildSpans) && nestedChildSpans.length > 0) {
-          const flattenedNestedChildren = this.flattenChildWorkflowSpans(nestedChildSpans)
-          workflowSpan.children = [...(workflowSpan.children || []), ...flattenedNestedChildren]
-        }
-
-        workflowSpan.output = outputRest
-      }
-
-      flattened.push(workflowSpan)
-    })
-
-    return flattened
   }
 
   private toExecutionResult(result: ExecutionResult | StreamingExecution): ExecutionResult {

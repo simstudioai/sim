@@ -6,6 +6,7 @@ import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -27,6 +28,7 @@ import {
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -168,6 +170,29 @@ export function WorkflowItem({
     },
     [workflow.id, updateWorkflow]
   )
+
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const isActiveWorkflow = workflow.id === activeWorkflowId
+
+  const isWorkflowLocked = useWorkflowStore(
+    useCallback(
+      (state) => {
+        if (!isActiveWorkflow) return false
+        const blockValues = Object.values(state.blocks)
+        if (blockValues.length === 0) return false
+        return blockValues.every((block) => block.locked)
+      },
+      [isActiveWorkflow]
+    )
+  )
+
+  const handleToggleLock = useCallback(() => {
+    if (!isActiveWorkflow) return
+    const blocks = useWorkflowStore.getState().blocks
+    const blockIds = getWorkflowLockToggleIds(blocks, !isWorkflowLocked)
+    if (blockIds.length === 0) return
+    window.dispatchEvent(new CustomEvent('toggle-workflow-lock', { detail: { blockIds } }))
+  }, [isActiveWorkflow, isWorkflowLocked])
 
   const isEditingRef = useRef(false)
 
@@ -461,6 +486,10 @@ export function WorkflowItem({
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        onToggleLock={handleToggleLock}
+        showLock={isActiveWorkflow && !isMixedSelection && selectedWorkflows.size <= 1}
+        disableLock={!userPermissions.canAdmin}
+        isLocked={isWorkflowLocked}
       />
 
       <DeleteModal

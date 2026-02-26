@@ -440,6 +440,36 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
         placeholder: 'Describe the range (e.g., "first 50 rows" or "column A")...',
       },
     },
+    // Read Filter Fields (advanced mode only)
+    {
+      id: 'filterColumn',
+      title: 'Filter Column',
+      type: 'short-input',
+      placeholder: 'Column header name to filter on (e.g., Email, Status)',
+      condition: { field: 'operation', value: 'read' },
+      mode: 'advanced',
+    },
+    {
+      id: 'filterValue',
+      title: 'Filter Value',
+      type: 'short-input',
+      placeholder: 'Value to match against',
+      condition: { field: 'operation', value: 'read' },
+      mode: 'advanced',
+    },
+    {
+      id: 'filterMatchType',
+      title: 'Match Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Contains', id: 'contains' },
+        { label: 'Exact Match', id: 'exact' },
+        { label: 'Starts With', id: 'starts_with' },
+        { label: 'Ends With', id: 'ends_with' },
+      ],
+      condition: { field: 'operation', value: 'read' },
+      mode: 'advanced',
+    },
     // Write-specific Fields
     {
       id: 'values',
@@ -748,6 +778,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           batchData,
           sheetId,
           destinationSpreadsheetId,
+          filterColumn,
+          filterValue,
+          filterMatchType,
           ...rest
         } = params
 
@@ -836,6 +869,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           cellRange: cellRange ? (cellRange as string).trim() : undefined,
           values: parsedValues,
           oauthCredential,
+          ...(filterColumn ? { filterColumn: (filterColumn as string).trim() } : {}),
+          ...(filterValue !== undefined && filterValue !== ''
+            ? { filterValue: filterValue as string }
+            : {}),
+          ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
         }
       },
     },
@@ -857,6 +895,12 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     destinationSpreadsheetId: {
       type: 'string',
       description: 'Destination spreadsheet ID for copy',
+    },
+    filterColumn: { type: 'string', description: 'Column header name to filter on' },
+    filterValue: { type: 'string', description: 'Value to match against the filter column' },
+    filterMatchType: {
+      type: 'string',
+      description: 'Match type: contains, exact, starts_with, or ends_with',
     },
   },
   outputs: {

@@ -1,3 +1,6 @@
+import type { GoogleSheetsV2DeleteRowsResponse } from '@/tools/google_sheets/delete_rows'
+import type { GoogleSheetsV2DeleteSheetResponse } from '@/tools/google_sheets/delete_sheet'
+import type { GoogleSheetsV2DeleteSpreadsheetResponse } from '@/tools/google_sheets/delete_spreadsheet'
 import type { ToolResponse } from '@/tools/types'
 
 export interface GoogleSheetsRange {
@@ -129,6 +132,9 @@ export interface GoogleSheetsV2ToolParams {
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'
+  filterColumn?: string
+  filterValue?: string
+  filterMatchType?: 'contains' | 'exact' | 'starts_with' | 'ends_with'
 }
 
 export type GoogleSheetsV2Response =
@@ -143,6 +149,9 @@ export type GoogleSheetsV2Response =
   | GoogleSheetsV2BatchUpdateResponse
   | GoogleSheetsV2BatchClearResponse
   | GoogleSheetsV2CopySheetResponse
+  | GoogleSheetsV2DeleteRowsResponse
+  | GoogleSheetsV2DeleteSheetResponse
+  | GoogleSheetsV2DeleteSpreadsheetResponse
 
 // V2 Clear Types
 export interface GoogleSheetsV2ClearParams {

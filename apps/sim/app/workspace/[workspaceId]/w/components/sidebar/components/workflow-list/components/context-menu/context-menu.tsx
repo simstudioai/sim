@@ -281,6 +281,24 @@ interface ContextMenuProps {
    * Set to true when user cannot leave (e.g., last admin)
    */
   disableLeave?: boolean
+  /**
+   * Callback when lock/unlock is clicked
+   */
+  onToggleLock?: () => void
+  /**
+   * Whether to show the lock option (default: false)
+   * Set to true for workflows that support locking
+   */
+  showLock?: boolean
+  /**
+   * Whether the lock option is disabled (default: false)
+   * Set to true when user lacks permissions
+   */
+  disableLock?: boolean
+  /**
+   * Whether the workflow is currently locked (all blocks locked)
+   */
+  isLocked?: boolean
 }
 
 /**
@@ -321,6 +339,10 @@ export function ContextMenu({
   onLeave,
   showLeave = false,
   disableLeave = false,
+  onToggleLock,
+  showLock = false,
+  disableLock = false,
+  isLocked = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -372,7 +394,8 @@ export function ContextMenu({
     (showRename && onRename) ||
     (showCreate && onCreate) ||
     (showCreateFolder && onCreateFolder) ||
-    (showColorChange && onColorChange)
+    (showColorChange && onColorChange) ||
+    (showLock && onToggleLock)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
 
   return (
@@ -493,6 +516,19 @@ export function ContextMenu({
               </div>
             </div>
           </PopoverFolder>
+        )}
+
+        {showLock && onToggleLock && (
+          <PopoverItem
+            rootOnly
+            disabled={disableLock}
+            onClick={() => {
+              onToggleLock()
+              onClose()
+            }}
+          >
+            {isLocked ? 'Unlock' : 'Lock'}
+          </PopoverItem>
         )}
 
         {/* Copy and export actions */}

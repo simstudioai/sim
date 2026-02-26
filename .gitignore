@@ -73,3 +73,7 @@ start-collector.sh
 ## Helm Chart Tests
 helm/sim/test
 i18n.cache
+
+## Claude Code
+.claude/launch.json
+.claude/worktrees/

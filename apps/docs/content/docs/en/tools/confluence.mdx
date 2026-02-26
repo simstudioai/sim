@@ -326,6 +326,8 @@ Get details about a specific version of a Confluence page.
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `pageId` | string | ID of the page |
+| `title` | string | Page title at this version |
+| `content` | string | Page content with HTML tags stripped at this version |
 | `version` | object | Detailed version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
@@ -336,6 +338,9 @@ Get details about a specific version of a Confluence page.
 |   ↳ `collaborators` | array | List of collaborator account IDs for this version |
 |   ↳ `prevVersion` | number | Previous version number |
 |   ↳ `nextVersion` | number | Next version number |
+| `body` | object | Raw page body content in storage format at this version |
+|   ↳ `value` | string | The content value in the specified format |
+|   ↳ `representation` | string | Content representation type |
 
 ### `confluence_list_page_properties`
 
@@ -1008,6 +1013,85 @@ Get details about a specific Confluence space.
 |   ↳ `value` | string | Description text content |
 |   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
+### `confluence_create_space`
+
+Create a new Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `name` | string | Yes | Name for the new space |
+| `key` | string | Yes | Unique key for the space \(uppercase, no spaces\) |
+| `description` | string | No | Description for the new space |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceId` | string | Created space ID |
+| `name` | string | Space name |
+| `key` | string | Space key |
+| `type` | string | Space type |
+| `status` | string | Space status |
+| `url` | string | URL to view the space |
+| `homepageId` | string | Homepage ID |
+| `description` | object | Space description |
+|   ↳ `value` | string | Description text content |
+|   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
+
+### `confluence_update_space`
+
+Update a Confluence space name or description.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | ID of the space to update |
+| `name` | string | No | New name for the space |
+| `description` | string | No | New description for the space |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceId` | string | Updated space ID |
+| `name` | string | Space name |
+| `key` | string | Space key |
+| `type` | string | Space type |
+| `status` | string | Space status |
+| `url` | string | URL to view the space |
+| `description` | object | Space description |
+|   ↳ `value` | string | Description text content |
+|   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
+
+### `confluence_delete_space`
+
+Delete a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | ID of the space to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceId` | string | Deleted space ID |
+| `deleted` | boolean | Deletion status |
+
 ### `confluence_list_spaces`
 
 List all Confluence spaces accessible to the user.
@@ -1039,5 +1123,312 @@ List all Confluence spaces accessible to the user.
 |     ↳ `value` | string | Description text content |
 |     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_list_space_properties`
+
+List properties on a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Space ID to list properties for |
+| `limit` | number | No | Maximum number of properties to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `properties` | array | Array of space properties |
+|   ↳ `id` | string | Property ID |
+|   ↳ `key` | string | Property key |
+|   ↳ `value` | json | Property value |
+| `spaceId` | string | Space ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_create_space_property`
+
+Create a property on a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Space ID to create the property on |
+| `key` | string | Yes | Property key/name |
+| `value` | json | No | Property value \(JSON\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `propertyId` | string | Created property ID |
+| `key` | string | Property key |
+| `value` | json | Property value |
+| `spaceId` | string | Space ID |
+
+### `confluence_delete_space_property`
+
+Delete a property from a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Space ID the property belongs to |
+| `propertyId` | string | Yes | Property ID to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceId` | string | Space ID |
+| `propertyId` | string | Deleted property ID |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_list_space_permissions`
+
+List permissions for a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | Space ID to list permissions for |
+| `limit` | number | No | Maximum number of permissions to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `permissions` | array | Array of space permissions |
+|   ↳ `id` | string | Permission ID |
+|   ↳ `principalType` | string | Principal type \(user, group, role\) |
+|   ↳ `principalId` | string | Principal ID |
+|   ↳ `operationKey` | string | Operation key \(read, create, delete, etc.\) |
+|   ↳ `operationTargetType` | string | Target type \(page, blogpost, space, etc.\) |
+|   ↳ `anonymousAccess` | boolean | Whether anonymous access is allowed |
+|   ↳ `unlicensedAccess` | boolean | Whether unlicensed access is allowed |
+| `spaceId` | string | Space ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_page_descendants`
+
+Get all descendants of a Confluence page recursively.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Page ID to get descendants for |
+| `limit` | number | No | Maximum number of descendants to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `descendants` | array | Array of descendant pages |
+|   ↳ `id` | string | Page ID |
+|   ↳ `title` | string | Page title |
+|   ↳ `type` | string | Content type \(page, whiteboard, database, etc.\) |
+|   ↳ `status` | string | Page status |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `parentId` | string | Parent page ID |
+|   ↳ `childPosition` | number | Position among siblings |
+|   ↳ `depth` | number | Depth in the hierarchy |
+| `pageId` | string | Parent page ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_list_tasks`
+
+List inline tasks from Confluence. Optionally filter by page, space, assignee, or status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | No | Filter tasks by page ID |
+| `spaceId` | string | No | Filter tasks by space ID |
+| `assignedTo` | string | No | Filter tasks by assignee account ID |
+| `status` | string | No | Filter tasks by status \(complete or incomplete\) |
+| `limit` | number | No | Maximum number of tasks to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `tasks` | array | Array of Confluence tasks |
+|   ↳ `id` | string | Task ID |
+|   ↳ `localId` | string | Local task ID |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `pageId` | string | Page ID |
+|   ↳ `blogPostId` | string | Blog post ID |
+|   ↳ `status` | string | Task status \(complete or incomplete\) |
+|   ↳ `body` | string | Task body content in storage format |
+|   ↳ `createdBy` | string | Creator account ID |
+|   ↳ `assignedTo` | string | Assignee account ID |
+|   ↳ `completedBy` | string | Completer account ID |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `dueAt` | string | Due date |
+|   ↳ `completedAt` | string | Completion timestamp |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_task`
+
+Get a specific Confluence inline task by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `taskId` | string | Yes | The ID of the task to retrieve |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Task ID |
+| `localId` | string | Local task ID |
+| `spaceId` | string | Space ID |
+| `pageId` | string | Page ID |
+| `blogPostId` | string | Blog post ID |
+| `status` | string | Task status \(complete or incomplete\) |
+| `body` | string | Task body content in storage format |
+| `createdBy` | string | Creator account ID |
+| `assignedTo` | string | Assignee account ID |
+| `completedBy` | string | Completer account ID |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `dueAt` | string | Due date |
+| `completedAt` | string | Completion timestamp |
+
+### `confluence_update_task`
+
+Update the status of a Confluence inline task (complete or incomplete).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `taskId` | string | Yes | The ID of the task to update |
+| `status` | string | Yes | New status for the task \(complete or incomplete\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Task ID |
+| `localId` | string | Local task ID |
+| `spaceId` | string | Space ID |
+| `pageId` | string | Page ID |
+| `blogPostId` | string | Blog post ID |
+| `status` | string | Updated task status |
+| `body` | string | Task body content in storage format |
+| `createdBy` | string | Creator account ID |
+| `assignedTo` | string | Assignee account ID |
+| `completedBy` | string | Completer account ID |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `dueAt` | string | Due date |
+| `completedAt` | string | Completion timestamp |
+
+### `confluence_update_blogpost`
+
+Update an existing Confluence blog post title and/or content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `blogPostId` | string | Yes | The ID of the blog post to update |
+| `title` | string | No | New title for the blog post |
+| `content` | string | No | New content for the blog post in storage format |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `blogPostId` | string | Updated blog post ID |
+| `title` | string | Blog post title |
+| `status` | string | Blog post status |
+| `spaceId` | string | Space ID |
+| `version` | json | Version information |
+| `url` | string | URL to view the blog post |
+
+### `confluence_delete_blogpost`
+
+Delete a Confluence blog post.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `blogPostId` | string | Yes | The ID of the blog post to delete |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `blogPostId` | string | Deleted blog post ID |
+| `deleted` | boolean | Deletion status |
+
+### `confluence_get_user`
+
+Get display name and profile info for a Confluence user by account ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `accountId` | string | Yes | The Atlassian account ID of the user to look up |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `accountId` | string | Atlassian account ID of the user |
+| `displayName` | string | Display name of the user |
+| `email` | string | Email address of the user |
+| `accountType` | string | Account type \(e.g., atlassian, app, customer\) |
+| `profilePicture` | string | Path to the user profile picture |
+| `publicName` | string | Public name of the user |
 
 

@@ -283,3 +283,165 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+/**
+ * Update a blog post
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { domain, accessToken, blogPostId, title, content, cloudId: providedCloudId } = body
+
+    if (!domain || !accessToken || !blogPostId) {
+      return NextResponse.json(
+        { error: 'Domain, access token, and blog post ID are required' },
+        { status: 400 }
+      )
+    }
+
+    const blogPostIdValidation = validateAlphanumericId(blogPostId, 'blogPostId', 255)
+    if (!blogPostIdValidation.isValid) {
+      return NextResponse.json({ error: blogPostIdValidation.error }, { status: 400 })
+    }
+
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    // Fetch current blog post to get version number
+    const currentUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/blogposts/${blogPostId}?body-format=storage`
+    const currentResponse = await fetch(currentUrl, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!currentResponse.ok) {
+      throw new Error(`Failed to fetch current blog post: ${currentResponse.status}`)
+    }
+
+    const currentPost = await currentResponse.json()
+
+    if (!currentPost.version?.number) {
+      return NextResponse.json(
+        { error: 'Unable to determine current blog post version' },
+        { status: 422 }
+      )
+    }
+
+    const currentVersion = currentPost.version.number
+
+    const updateBody: Record<string, unknown> = {
+      id: blogPostId,
+      version: { number: currentVersion + 1 },
+      status: 'current',
+      title: title || currentPost.title,
+      body: {
+        representation: 'storage',
+        value: content || currentPost.body?.storage?.value || '',
+      },
+    }
+
+    const response = await fetch(currentUrl, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(updateBody),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      logger.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: JSON.stringify(errorData, null, 2),
+      })
+      const errorMessage = errorData?.message || `Failed to update blog post (${response.status})`
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
+    }
+
+    const data = await response.json()
+    return NextResponse.json(data)
+  } catch (error) {
+    logger.error('Error updating blog post:', error)
+    return NextResponse.json(
+      { error: (error as Error).message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Delete a blog post
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { domain, accessToken, blogPostId, cloudId: providedCloudId } = body
+
+    if (!domain || !accessToken || !blogPostId) {
+      return NextResponse.json(
+        { error: 'Domain, access token, and blog post ID are required' },
+        { status: 400 }
+      )
+    }
+
+    const blogPostIdValidation = validateAlphanumericId(blogPostId, 'blogPostId', 255)
+    if (!blogPostIdValidation.isValid) {
+      return NextResponse.json({ error: blogPostIdValidation.error }, { status: 400 })
+    }
+
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/blogposts/${blogPostId}`
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      logger.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: JSON.stringify(errorData, null, 2),
+      })
+      const errorMessage = errorData?.message || `Failed to delete blog post (${response.status})`
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
+    }
+
+    return NextResponse.json({ blogPostId, deleted: true })
+  } catch (error) {
+    logger.error('Error deleting blog post:', error)
+    return NextResponse.json(
+      { error: (error as Error).message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

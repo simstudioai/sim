@@ -987,7 +987,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const onChildWorkflowInstanceReady = (
             blockId: string,
             childWorkflowInstanceId: string,
-            iterationContext?: IterationContext
+            iterationContext?: IterationContext,
+            executionOrder?: number
           ) => {
             sendEvent({
               type: 'block:childWorkflowStarted',
@@ -1001,6 +1002,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   iterationCurrent: iterationContext.iterationCurrent,
                   iterationContainerId: iterationContext.iterationContainerId,
                 }),
+                ...(executionOrder !== undefined && { executionOrder }),
               },
             })
           }

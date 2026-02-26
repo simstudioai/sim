@@ -1,5 +1,6 @@
 import { createTool, createV2Tool } from '@/tools/google_calendar/create'
 import { deleteTool, deleteV2Tool } from '@/tools/google_calendar/delete'
+import { freebusyTool, freebusyV2Tool } from '@/tools/google_calendar/freebusy'
 import { getTool, getV2Tool } from '@/tools/google_calendar/get'
 import { instancesTool, instancesV2Tool } from '@/tools/google_calendar/instances'
 import { inviteTool, inviteV2Tool } from '@/tools/google_calendar/invite'
@@ -11,6 +12,7 @@ import { updateTool, updateV2Tool } from '@/tools/google_calendar/update'
 
 export const googleCalendarCreateTool = createTool
 export const googleCalendarDeleteTool = deleteTool
+export const googleCalendarFreeBusyTool = freebusyTool
 export const googleCalendarGetTool = getTool
 export const googleCalendarInstancesTool = instancesTool
 export const googleCalendarInviteTool = inviteTool
@@ -22,6 +24,7 @@ export const googleCalendarUpdateTool = updateTool
 
 export const googleCalendarCreateV2Tool = createV2Tool
 export const googleCalendarDeleteV2Tool = deleteV2Tool
+export const googleCalendarFreeBusyV2Tool = freebusyV2Tool
 export const googleCalendarGetV2Tool = getV2Tool
 export const googleCalendarInstancesV2Tool = instancesV2Tool
 export const googleCalendarInviteV2Tool = inviteV2Tool

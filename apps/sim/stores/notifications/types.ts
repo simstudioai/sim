@@ -6,7 +6,7 @@ export interface NotificationAction {
   /**
    * Action type identifier for handler reconstruction
    */
-  type: 'copilot' | 'refresh'
+  type: 'copilot' | 'refresh' | 'unlock-workflow'
 
   /**
    * Message or data to pass to the action handler.

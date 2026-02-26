@@ -154,6 +154,26 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       description:
         'The cell range to read (e.g. "A1:D10"). Defaults to "A1:Z1000" if not specified.',
     },
+    filterColumn: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Column name (from header row) to filter on. If not provided, no filtering is applied.',
+    },
+    filterValue: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Value to match against the filter column.',
+    },
+    filterMatchType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'How to match the filter value: "contains", "exact", "starts_with", or "ends_with". Defaults to "contains".',
+    },
   },
 
   request: {
@@ -196,12 +216,44 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
     }
 
+    let values: unknown[][] = data.values ?? []
+
+    // Apply client-side filtering only when both filterColumn and filterValue are provided
+    if (params?.filterColumn && params?.filterValue !== undefined && values.length > 1) {
+      const headers = values[0] as string[]
+      const columnIndex = headers.findIndex(
+        (h) => String(h).toLowerCase() === params.filterColumn!.toLowerCase()
+      )
+
+      if (columnIndex !== -1) {
+        const matchType = params.filterMatchType ?? 'contains'
+        const filterVal = params.filterValue.toLowerCase()
+
+        const filteredRows = values.slice(1).filter((row) => {
+          const cellValue = String(row[columnIndex] ?? '').toLowerCase()
+          switch (matchType) {
+            case 'exact':
+              return cellValue === filterVal
+            case 'starts_with':
+              return cellValue.startsWith(filterVal)
+            case 'ends_with':
+              return cellValue.endsWith(filterVal)
+            default:
+              return cellValue.includes(filterVal)
+          }
+        })
+
+        // Return header row + matching rows
+        values = [values[0], ...filteredRows]
+      }
+    }
+
     return {
       success: true,
       output: {
         sheetName: params?.sheetName ?? '',
         range: data.range ?? '',
-        values: data.values ?? [],
+        values,
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,

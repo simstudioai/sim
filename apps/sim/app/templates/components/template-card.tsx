@@ -21,6 +21,7 @@ interface TemplateCardProps {
   blocks?: string[]
   className?: string
   state?: WorkflowState
+  description?: string | null
   isStarred?: boolean
   isVerified?: boolean
 }
@@ -124,6 +125,7 @@ function TemplateCardInner({
   blocks = [],
   className,
   state,
+  description,
   isStarred = false,
   isVerified = false,
 }: TemplateCardProps) {
@@ -269,6 +271,12 @@ function TemplateCardInner({
           )}
         </div>
       </div>
+
+      {description && (
+        <p className='mt-[4px] truncate pl-[2px] text-[12px] text-[var(--text-tertiary)]'>
+          {description}
+        </p>
+      )}
 
       <div className='mt-[10px] flex items-center justify-between'>
         <div className='flex min-w-0 items-center gap-[8px]'>
