@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { validateJiraCloudId, validatePathSegment } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceUserAPI')
@@ -34,7 +34,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 })
     }
 
-    const accountIdValidation = validateAlphanumericId(accountId, 'accountId', 255)
+    // Atlassian account IDs use format like 557058:6b9c9931-4693-49c1-8b3a-931f1af98134
+    const accountIdValidation = validatePathSegment(accountId, {
+      paramName: 'accountId',
+      maxLength: 255,
+      customPattern: /^[a-zA-Z0-9:\-]+$/,
+    })
     if (!accountIdValidation.isValid) {
       return NextResponse.json({ error: accountIdValidation.error }, { status: 400 })
     }
