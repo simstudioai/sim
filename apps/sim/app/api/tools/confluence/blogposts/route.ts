@@ -317,7 +317,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Fetch current blog post to get version number
-    const currentUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/blogposts/${blogPostId}`
+    const currentUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/blogposts/${blogPostId}?body-format=storage`
     const currentResponse = await fetch(currentUrl, {
       headers: {
         Accept: 'application/json',
