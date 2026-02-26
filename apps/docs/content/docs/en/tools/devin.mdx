@@ -1,0 +1,117 @@
+---
+title: Devin
+description: Autonomous AI software engineer
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="devin"
+  color="#12141A"
+/>
+
+## Usage Instructions
+
+Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.
+
+
+
+## Tools
+
+### `devin_create_session`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Session identifier |
+| `url` | string | URL to view the session in Devin UI |
+| `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `title` | string | Session title |
+| `createdAt` | number | Creation timestamp \(Unix\) |
+| `updatedAt` | number | Last updated timestamp \(Unix\) |
+| `acusConsumed` | number | ACUs consumed |
+| `tags` | json | Session tags |
+| `pullRequests` | json | Pull requests created during the session |
+| `structuredOutput` | json | Structured output from the session |
+| `sessions` | json | List of sessions |
+
+### `devin_get_session`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Session identifier |
+| `url` | string | URL to view the session in Devin UI |
+| `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `title` | string | Session title |
+| `createdAt` | number | Creation timestamp \(Unix\) |
+| `updatedAt` | number | Last updated timestamp \(Unix\) |
+| `acusConsumed` | number | ACUs consumed |
+| `tags` | json | Session tags |
+| `pullRequests` | json | Pull requests created during the session |
+| `structuredOutput` | json | Structured output from the session |
+| `sessions` | json | List of sessions |
+
+### `devin_list_sessions`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Session identifier |
+| `url` | string | URL to view the session in Devin UI |
+| `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `title` | string | Session title |
+| `createdAt` | number | Creation timestamp \(Unix\) |
+| `updatedAt` | number | Last updated timestamp \(Unix\) |
+| `acusConsumed` | number | ACUs consumed |
+| `tags` | json | Session tags |
+| `pullRequests` | json | Pull requests created during the session |
+| `structuredOutput` | json | Structured output from the session |
+| `sessions` | json | List of sessions |
+
+### `devin_send_message`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | Session identifier |
+| `url` | string | URL to view the session in Devin UI |
+| `status` | string | Session status \(new, claimed, running, exit, error, suspended, resuming\) |
+| `statusDetail` | string | Detailed status \(working, waiting_for_user, finished, etc.\) |
+| `title` | string | Session title |
+| `createdAt` | number | Creation timestamp \(Unix\) |
+| `updatedAt` | number | Last updated timestamp \(Unix\) |
+| `acusConsumed` | number | ACUs consumed |
+| `tags` | json | Session tags |
+| `pullRequests` | json | Pull requests created during the session |
+| `structuredOutput` | json | Structured output from the session |
+| `sessions` | json | List of sessions |
+
+

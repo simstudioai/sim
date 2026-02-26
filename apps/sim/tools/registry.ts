@@ -311,6 +311,12 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
+import {
+  devinCreateSessionTool,
+  devinGetSessionTool,
+  devinListSessionsTool,
+  devinSendMessageTool,
+} from '@/tools/devin'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
 import {
@@ -2585,6 +2591,10 @@ export const tools: Record<string, ToolConfig> = {
   dropbox_get_metadata: dropboxGetMetadataTool,
   dropbox_create_shared_link: dropboxCreateSharedLinkTool,
   dropbox_search: dropboxSearchTool,
+  devin_create_session: devinCreateSessionTool,
+  devin_get_session: devinGetSessionTool,
+  devin_list_sessions: devinListSessionsTool,
+  devin_send_message: devinSendMessageTool,
   duckduckgo_search: duckduckgoSearchTool,
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,
