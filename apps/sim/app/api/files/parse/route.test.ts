@@ -1,19 +1,151 @@
-import path from 'path'
 /**
  * Tests for file parse API route
  *
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  mockAuth,
-  mockCryptoUuid,
-  mockHybridAuth,
-  mockUuid,
-  setupCommonApiMocks,
-} from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  mockVerifyFileAccess,
+  mockVerifyWorkspaceFileAccess,
+  mockGetStorageProvider,
+  mockIsUsingCloudStorage,
+  mockIsSupportedFileType,
+  mockParseFile,
+  mockParseBuffer,
+  mockDownloadFile,
+  mockHasCloudStorage,
+  mockFsAccess,
+  mockFsStat,
+  mockFsReadFile,
+  mockFsWriteFile,
+  mockJoin,
+  mockGetSession,
+  mockCheckInternalAuth,
+  mockCheckHybridAuth,
+  mockCheckSessionOrInternalAuth,
+  actualPath,
+} = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actualPath = require('path') as typeof import('path')
+  return {
+    mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
+    mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+    mockGetStorageProvider: vi.fn().mockReturnValue('s3'),
+    mockIsUsingCloudStorage: vi.fn().mockReturnValue(true),
+    mockIsSupportedFileType: vi.fn().mockReturnValue(true),
+    mockParseFile: vi.fn().mockResolvedValue({
+      content: 'parsed content',
+      metadata: { pageCount: 1 },
+    }),
+    mockParseBuffer: vi.fn().mockResolvedValue({
+      content: 'parsed buffer content',
+      metadata: { pageCount: 1 },
+    }),
+    mockDownloadFile: vi.fn(),
+    mockHasCloudStorage: vi.fn().mockReturnValue(true),
+    mockFsAccess: vi.fn().mockResolvedValue(undefined),
+    mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
+    mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
+    mockFsWriteFile: vi.fn().mockResolvedValue(undefined),
+    mockJoin: vi.fn((...args: string[]): string => {
+      if (args[0] === '/test/uploads') {
+        return `/test/uploads/${args[args.length - 1]}`
+      }
+      return actualPath.join(...args)
+    }),
+    mockGetSession: vi.fn(),
+    mockCheckInternalAuth: vi.fn(),
+    mockCheckHybridAuth: vi.fn(),
+    mockCheckSessionOrInternalAuth: vi.fn(),
+    actualPath,
+  }
+})
+
+vi.mock('@/app/api/files/authorization', () => ({
+  verifyFileAccess: mockVerifyFileAccess,
+  verifyWorkspaceFileAccess: mockVerifyWorkspaceFileAccess,
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  getStorageProvider: mockGetStorageProvider,
+  isUsingCloudStorage: mockIsUsingCloudStorage,
+}))
+
+vi.mock('@/lib/file-parsers', () => ({
+  isSupportedFileType: mockIsSupportedFileType,
+  parseFile: mockParseFile,
+  parseBuffer: mockParseBuffer,
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  downloadFile: mockDownloadFile,
+  hasCloudStorage: mockHasCloudStorage,
+}))
+
+vi.mock('path', () => ({
+  default: actualPath,
+  ...actualPath,
+  join: mockJoin,
+  basename: actualPath.basename,
+  extname: actualPath.extname,
+}))
+
+vi.mock('@/lib/uploads/setup.server', () => ({}))
+vi.mock('@/lib/uploads/core/setup.server', () => ({
+  UPLOAD_DIR_SERVER: '/test/uploads',
+}))
+
+vi.mock('@/lib/auth', () => ({
+  getSession: mockGetSession,
+  auth: vi.fn(),
+  signIn: vi.fn(),
+  signUp: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkInternalAuth: mockCheckInternalAuth,
+  checkHybridAuth: mockCheckHybridAuth,
+  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  secureFetchWithPinnedIP: vi.fn(),
+  validateUrlWithDNS: vi.fn(),
+}))
+
+vi.mock('@/lib/core/utils/logging', () => ({
+  sanitizeUrlForLog: vi.fn((url: string) => url),
+}))
+
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  getFileMetadataByKey: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: vi.fn().mockResolvedValue({ canView: true }),
+}))
+
+vi.mock('fs/promises', () => ({
+  default: {
+    access: mockFsAccess,
+    stat: mockFsStat,
+    readFile: mockFsReadFile,
+    writeFile: mockFsWriteFile,
+  },
+  access: mockFsAccess,
+  stat: mockFsStat,
+  readFile: mockFsReadFile,
+  writeFile: mockFsWriteFile,
+}))
+
+import { POST } from '@/app/api/files/parse/route'
 
 function setupFileApiMocks(
   options: {
@@ -24,75 +156,53 @@ function setupFileApiMocks(
 ) {
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
-  setupCommonApiMocks()
-  mockUuid()
-  mockCryptoUuid()
-
-  const authMocks = mockAuth()
   if (authenticated) {
-    authMocks.setAuthenticated()
+    mockGetSession.mockResolvedValue({
+      user: { id: 'test-user-id', email: 'test@example.com' },
+    })
   } else {
-    authMocks.setUnauthenticated()
+    mockGetSession.mockResolvedValue(null)
   }
 
-  const { mockCheckInternalAuth } = mockHybridAuth()
   mockCheckInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  vi.doMock('@/app/api/files/authorization', () => ({
-    verifyFileAccess: vi.fn().mockResolvedValue(true),
-    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
-  }))
+  mockCheckHybridAuth.mockResolvedValue({
+    success: authenticated,
+    userId: authenticated ? 'test-user-id' : undefined,
+    error: authenticated ? undefined : 'Unauthorized',
+  })
 
-  vi.doMock('@/lib/uploads', () => ({
-    getStorageProvider: vi.fn().mockReturnValue(storageProvider),
-    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
-  }))
+  mockCheckSessionOrInternalAuth.mockResolvedValue({
+    success: authenticated,
+    userId: authenticated ? 'test-user-id' : undefined,
+    error: authenticated ? undefined : 'Unauthorized',
+  })
 
-  return { auth: authMocks }
+  mockGetStorageProvider.mockReturnValue(storageProvider)
+  mockIsUsingCloudStorage.mockReturnValue(cloudEnabled)
 }
-
-const mockJoin = vi.fn((...args: string[]): string => {
-  if (args[0] === '/test/uploads') {
-    return `/test/uploads/${args[args.length - 1]}`
-  }
-  return path.join(...args)
-})
 
 describe('File Parse API Route', () => {
   beforeEach(() => {
-    vi.resetModules()
+    vi.clearAllMocks()
 
     setupFileApiMocks({
       authenticated: true,
     })
 
-    vi.doMock('@/lib/file-parsers', () => ({
-      isSupportedFileType: vi.fn().mockReturnValue(true),
-      parseFile: vi.fn().mockResolvedValue({
-        content: 'parsed content',
-        metadata: { pageCount: 1 },
-      }),
-      parseBuffer: vi.fn().mockResolvedValue({
-        content: 'parsed buffer content',
-        metadata: { pageCount: 1 },
-      }),
-    }))
-
-    vi.doMock('path', () => {
-      return {
-        default: path,
-        ...path,
-        join: mockJoin,
-        basename: path.basename,
-        extname: path.extname,
-      }
+    mockIsSupportedFileType.mockReturnValue(true)
+    mockParseFile.mockResolvedValue({
+      content: 'parsed content',
+      metadata: { pageCount: 1 },
     })
-
-    vi.doMock('@/lib/uploads/setup.server', () => ({}))
+    mockParseBuffer.mockResolvedValue({
+      content: 'parsed buffer content',
+      metadata: { pageCount: 1 },
+    })
   })
 
   afterEach(() => {
@@ -101,7 +211,6 @@ describe('File Parse API Route', () => {
 
   it('should handle missing file path', async () => {
     const req = createMockRequest('POST', {})
-    const { POST } = await import('@/app/api/files/parse/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -121,7 +230,6 @@ describe('File Parse API Route', () => {
       filePath: '/api/files/serve/test-file.txt',
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -147,7 +255,6 @@ describe('File Parse API Route', () => {
       filePath: '/api/files/serve/s3/test-file.pdf',
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -171,7 +278,6 @@ describe('File Parse API Route', () => {
       filePath: ['/api/files/serve/file1.txt', '/api/files/serve/file2.txt'],
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -194,7 +300,6 @@ describe('File Parse API Route', () => {
         '/api/files/serve/s3/6vzIweweXAS1pJ1mMSrr9Flh6paJpHAx/79dac297-5ebb-410b-b135-cc594dfcb361/c36afbb0-af50-42b0-9b23-5dae2d9384e8/Confirmation.pdf?context=execution',
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -219,7 +324,6 @@ describe('File Parse API Route', () => {
         '/api/files/serve/s3/fa8e96e6-7482-4e3c-a0e8-ea083b28af55-be56ca4f-83c2-4559-a6a4-e25eb4ab8ee2_1761691045516-1ie5q86-Confirmation.pdf?context=workspace',
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -239,12 +343,8 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
-    const downloadFileMock = vi.fn().mockRejectedValue(new Error('Access denied'))
-
-    vi.doMock('@/lib/uploads/core/storage-service', () => ({
-      downloadFile: downloadFileMock,
-      hasCloudStorage: vi.fn().mockReturnValue(true),
-    }))
+    mockDownloadFile.mockRejectedValue(new Error('Access denied'))
+    mockHasCloudStorage.mockReturnValue(true)
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
       method: 'POST',
@@ -253,7 +353,6 @@ describe('File Parse API Route', () => {
       }),
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -268,18 +367,12 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
-    vi.doMock('fs/promises', () => ({
-      access: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')),
-      stat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
-      readFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
-      writeFile: vi.fn().mockResolvedValue(undefined),
-    }))
+    mockFsAccess.mockRejectedValue(new Error('ENOENT: no such file'))
 
     const req = createMockRequest('POST', {
       filePath: 'nonexistent.txt',
     })
 
-    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -291,7 +384,7 @@ describe('File Parse API Route', () => {
 
 describe('Files Parse API - Path Traversal Security', () => {
   beforeEach(() => {
-    vi.resetModules()
+    vi.clearAllMocks()
     setupFileApiMocks({
       authenticated: true,
     })
@@ -315,7 +408,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -341,7 +433,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -367,7 +458,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -391,7 +481,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -418,7 +507,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -444,7 +532,6 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
-        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -462,7 +549,6 @@ describe('Files Parse API - Path Traversal Security', () => {
         }),
       })
 
-      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 
@@ -476,7 +562,6 @@ describe('Files Parse API - Path Traversal Security', () => {
         body: JSON.stringify({}),
       })
 
-      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 

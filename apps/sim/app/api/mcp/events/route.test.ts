@@ -3,26 +3,37 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, mockAuth, mockConsoleLogger } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-mockConsoleLogger()
-const auth = mockAuth()
+const { mockGetSession, mockGetUserEntityPermissions } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+}))
 
-const mockGetUserEntityPermissions = vi.fn()
-vi.doMock('@/lib/workspaces/permissions/utils', () => ({
+vi.mock('@/lib/auth', () => ({
+  getSession: mockGetSession,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
-vi.doMock('@/lib/mcp/connection-manager', () => ({
+vi.mock('@/lib/mcp/connection-manager', () => ({
   mcpConnectionManager: null,
 }))
 
-vi.doMock('@/lib/mcp/pubsub', () => ({
+vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: null,
 }))
 
-const { GET } = await import('./route')
+import { GET } from './route'
+
+const defaultMockUser = {
+  id: 'user-123',
+  email: 'test@example.com',
+  name: 'Test User',
+}
 
 describe('MCP Events SSE Endpoint', () => {
   beforeEach(() => {
@@ -30,7 +41,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 401 when session is missing', async () => {
-    auth.setUnauthenticated()
+    mockGetSession.mockResolvedValue(null)
 
     const request = createMockRequest(
       'GET',
@@ -47,7 +58,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 400 when workspaceId is missing', async () => {
-    auth.setAuthenticated()
+    mockGetSession.mockResolvedValue({ user: defaultMockUser })
 
     const request = createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/mcp/events')
 
@@ -59,7 +70,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 403 when user lacks workspace access', async () => {
-    auth.setAuthenticated()
+    mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue(null)
 
     const request = createMockRequest(
@@ -78,7 +89,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns SSE stream when authorized', async () => {
-    auth.setAuthenticated()
+    mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue({ read: true })
 
     const request = createMockRequest(

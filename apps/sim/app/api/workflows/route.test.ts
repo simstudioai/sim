@@ -1,41 +1,99 @@
 /**
  * @vitest-environment node
  */
-import {
-  auditMock,
-  createMockRequest,
-  mockConsoleLogger,
-  mockHybridAuth,
-  setupCommonApiMocks,
-} from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockGetUserEntityPermissions = vi.fn()
-const mockDbSelect = vi.fn()
-const mockDbInsert = vi.fn()
-const mockWorkflowCreated = vi.fn()
+const {
+  mockCheckSessionOrInternalAuth,
+  mockGetUserEntityPermissions,
+  mockWorkflowCreated,
+  mockDbSelect,
+  mockDbInsert,
+} = vi.hoisted(() => ({
+  mockCheckSessionOrInternalAuth: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockWorkflowCreated: vi.fn(),
+  mockDbSelect: vi.fn(),
+  mockDbInsert: vi.fn(),
+}))
 
 vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/db', () => ({
+  db: {
+    select: (...args: unknown[]) => mockDbSelect(...args),
+    insert: (...args: unknown[]) => mockDbInsert(...args),
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  workflowFolder: {
+    id: 'id',
+    userId: 'userId',
+    parentId: 'parentId',
+    updatedAt: 'updatedAt',
+    workspaceId: 'workspaceId',
+    sortOrder: 'sortOrder',
+    createdAt: 'createdAt',
+  },
+  workflow: {
+    id: 'id',
+    folderId: 'folderId',
+    userId: 'userId',
+    updatedAt: 'updatedAt',
+    workspaceId: 'workspaceId',
+    sortOrder: 'sortOrder',
+    createdAt: 'createdAt',
+  },
+  permissions: {
+    entityId: 'entityId',
+    userId: 'userId',
+    entityType: 'entityType',
+  },
+}))
+
+vi.mock('@/lib/audit/log', () => ({
+  recordAudit: vi.fn(),
+  AuditAction: { WORKFLOW_CREATED: 'workflow.created' },
+  AuditResourceType: { WORKFLOW: 'workflow' },
+}))
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkHybridAuth: vi.fn(),
+  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+  checkInternalAuth: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: (...args: unknown[]) => mockGetUserEntityPermissions(...args),
+  workspaceExists: vi.fn(),
+}))
+
+vi.mock('@/app/api/workflows/utils', () => ({
+  verifyWorkspaceMembership: vi.fn(),
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: {
+    workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
+  },
+}))
+
+import { POST } from '@/app/api/workflows/route'
 
 describe('Workflows API Route - POST ordering', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
-
-    setupCommonApiMocks()
-    mockConsoleLogger()
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('workflow-new-id'),
     })
 
-    const { mockCheckSessionOrInternalAuth } = mockHybridAuth()
     mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
@@ -43,28 +101,6 @@ describe('Workflows API Route - POST ordering', () => {
       userEmail: 'test@example.com',
     })
     mockGetUserEntityPermissions.mockResolvedValue('write')
-
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: (...args: unknown[]) => mockDbSelect(...args),
-        insert: (...args: unknown[]) => mockDbInsert(...args),
-      },
-    }))
-
-    vi.doMock('@/lib/workspaces/permissions/utils', () => ({
-      getUserEntityPermissions: (...args: unknown[]) => mockGetUserEntityPermissions(...args),
-      workspaceExists: vi.fn(),
-    }))
-
-    vi.doMock('@/app/api/workflows/utils', () => ({
-      verifyWorkspaceMembership: vi.fn(),
-    }))
-
-    vi.doMock('@/lib/core/telemetry', () => ({
-      PlatformEvents: {
-        workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
-      },
-    }))
   })
 
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {
@@ -95,7 +131,6 @@ describe('Workflows API Route - POST ordering', () => {
       folderId: null,
     })
 
-    const { POST } = await import('@/app/api/workflows/route')
     const response = await POST(req)
     const data = await response.json()
     expect(response.status).toBe(200)
@@ -129,7 +164,6 @@ describe('Workflows API Route - POST ordering', () => {
       folderId: null,
     })
 
-    const { POST } = await import('@/app/api/workflows/route')
     const response = await POST(req)
     const data = await response.json()
     expect(response.status).toBe(200)

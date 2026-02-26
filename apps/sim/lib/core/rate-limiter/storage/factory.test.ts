@@ -1,127 +1,103 @@
 import { loggerMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetRedisClient, mockOnRedisReconnect, mockGetStorageMethod, reconnectCallbacks } =
+  vi.hoisted(() => {
+    const callbacks: Array<() => void> = []
+    return {
+      mockGetRedisClient: vi.fn(() => null),
+      mockOnRedisReconnect: vi.fn((cb: () => void) => {
+        callbacks.push(cb)
+      }),
+      mockGetStorageMethod: vi.fn(() => 'db'),
+      reconnectCallbacks: callbacks,
+    }
+  })
 
 vi.mock('@sim/logger', () => loggerMock)
 
-const reconnectCallbacks: Array<() => void> = []
-
 vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn(() => null),
-  onRedisReconnect: vi.fn((cb: () => void) => {
-    reconnectCallbacks.push(cb)
-  }),
+  getRedisClient: mockGetRedisClient,
+  onRedisReconnect: mockOnRedisReconnect,
 }))
 
 vi.mock('@/lib/core/storage', () => ({
-  getStorageMethod: vi.fn(() => 'db'),
+  getStorageMethod: mockGetStorageMethod,
 }))
 
-vi.mock('./db-token-bucket', () => ({
+vi.mock('@/lib/core/rate-limiter/storage/db-token-bucket', () => ({
   DbTokenBucket: vi.fn(() => ({ type: 'db' })),
 }))
 
-vi.mock('./redis-token-bucket', () => ({
+vi.mock('@/lib/core/rate-limiter/storage/redis-token-bucket', () => ({
   RedisTokenBucket: vi.fn(() => ({ type: 'redis' })),
 }))
 
+import { createStorageAdapter, resetStorageAdapter } from '@/lib/core/rate-limiter/storage/factory'
+
 describe('rate limit storage factory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    reconnectCallbacks.length = 0
-  })
-
-  afterEach(() => {
-    vi.resetModules()
-  })
-
-  it('should fall back to DbTokenBucket when Redis is configured but client unavailable', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    vi.mocked(getStorageMethod).mockReturnValue('redis')
-
-    const { getRedisClient } = await import('@/lib/core/config/redis')
-    vi.mocked(getRedisClient).mockReturnValue(null)
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
+    mockGetRedisClient.mockReset().mockReturnValue(null)
+    mockGetStorageMethod.mockReset().mockReturnValue('db')
     resetStorageAdapter()
+  })
+
+  it('should fall back to DbTokenBucket when Redis is configured but client unavailable', () => {
+    mockGetStorageMethod.mockReturnValue('redis')
+    mockGetRedisClient.mockReturnValue(null)
 
     const adapter = createStorageAdapter()
     expect(adapter).toEqual({ type: 'db' })
   })
 
-  it('should use RedisTokenBucket when Redis client is available', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    vi.mocked(getStorageMethod).mockReturnValue('redis')
-
-    const { getRedisClient } = await import('@/lib/core/config/redis')
-    vi.mocked(getRedisClient).mockReturnValue({ ping: vi.fn() } as never)
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
-    resetStorageAdapter()
+  it('should use RedisTokenBucket when Redis client is available', () => {
+    mockGetStorageMethod.mockReturnValue('redis')
+    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
 
     const adapter = createStorageAdapter()
     expect(adapter).toEqual({ type: 'redis' })
   })
 
-  it('should use DbTokenBucket when storage method is db', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    vi.mocked(getStorageMethod).mockReturnValue('db')
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
-    resetStorageAdapter()
+  it('should use DbTokenBucket when storage method is db', () => {
+    mockGetStorageMethod.mockReturnValue('db')
 
     const adapter = createStorageAdapter()
     expect(adapter).toEqual({ type: 'db' })
   })
 
-  it('should cache the adapter and return same instance', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    vi.mocked(getStorageMethod).mockReturnValue('db')
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
-    resetStorageAdapter()
+  it('should cache the adapter and return same instance', () => {
+    mockGetStorageMethod.mockReturnValue('db')
 
     const adapter1 = createStorageAdapter()
     const adapter2 = createStorageAdapter()
     expect(adapter1).toBe(adapter2)
   })
 
-  it('should register a reconnect listener that resets cached adapter', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    vi.mocked(getStorageMethod).mockReturnValue('db')
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
-    resetStorageAdapter()
+  it('should register a reconnect listener that resets cached adapter', () => {
+    mockGetStorageMethod.mockReturnValue('db')
 
     const adapter1 = createStorageAdapter()
 
-    // Simulate Redis reconnect — should reset cached adapter
+    /** onRedisReconnect is called once (guarded by reconnectListenerRegistered flag). */
     expect(reconnectCallbacks.length).toBeGreaterThan(0)
-    reconnectCallbacks[0]()
+    const latestCallback = reconnectCallbacks[reconnectCallbacks.length - 1]
+    latestCallback()
 
-    // Next call should create a fresh adapter
     const adapter2 = createStorageAdapter()
     expect(adapter2).not.toBe(adapter1)
   })
 
-  it('should re-evaluate storage on next call after reconnect resets cache', async () => {
-    const { getStorageMethod } = await import('@/lib/core/storage')
-    const { getRedisClient } = await import('@/lib/core/config/redis')
-
-    // Start with Redis unavailable — falls back to DB
-    vi.mocked(getStorageMethod).mockReturnValue('redis')
-    vi.mocked(getRedisClient).mockReturnValue(null)
-
-    const { createStorageAdapter, resetStorageAdapter } = await import('./factory')
-    resetStorageAdapter()
+  it('should re-evaluate storage on next call after reconnect resets cache', () => {
+    mockGetStorageMethod.mockReturnValue('redis')
+    mockGetRedisClient.mockReturnValue(null)
 
     const adapter1 = createStorageAdapter()
     expect(adapter1).toEqual({ type: 'db' })
 
-    // Simulate reconnect
-    reconnectCallbacks[0]()
+    const latestCallback = reconnectCallbacks[reconnectCallbacks.length - 1]
+    latestCallback()
 
-    // Now Redis is available
-    vi.mocked(getRedisClient).mockReturnValue({ ping: vi.fn() } as never)
+    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
 
     const adapter2 = createStorageAdapter()
     expect(adapter2).toEqual({ type: 'redis' })
