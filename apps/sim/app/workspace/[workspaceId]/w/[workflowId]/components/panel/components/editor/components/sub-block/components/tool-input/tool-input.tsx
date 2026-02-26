@@ -1,7 +1,7 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronRight, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { ArrowLeft, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -482,7 +482,7 @@ export const ToolInput = memo(function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
-  const [expandedMcpServers, setExpandedMcpServers] = useState<Set<string>>(new Set())
+  const [mcpServerDrilldown, setMcpServerDrilldown] = useState<string | null>(null)
 
   const canonicalModeOverrides = useWorkflowStore(
     useCallback(
@@ -719,19 +719,17 @@ export const ToolInput = memo(function ToolInput({
   }, [availableMcpTools])
 
   /**
-   * Toggles the expanded state of an MCP server in the dropdown.
+   * Resets the MCP server drilldown when the combobox closes.
    */
-  const toggleMcpServerExpanded = useCallback((serverId: string) => {
-    setExpandedMcpServers((prev) => {
-      const next = new Set(prev)
-      if (next.has(serverId)) {
-        next.delete(serverId)
-      } else {
-        next.add(serverId)
+  const handleComboboxOpenChange = useCallback(
+    (isOpen: boolean) => {
+      setOpen(isOpen)
+      if (!isOpen) {
+        setMcpServerDrilldown(null)
       }
-      return next
-    })
-  }, [])
+    },
+    []
+  )
 
   const handleSelectTool = useCallback(
     (toolBlock: (typeof toolBlocks)[0]) => {
@@ -1256,6 +1254,107 @@ export const ToolInput = memo(function ToolInput({
   const toolGroups = useMemo((): ComboboxOptionGroup[] => {
     const groups: ComboboxOptionGroup[] = []
 
+    // MCP Server drill-down: when navigated into a server, show only its tools
+    if (mcpServerDrilldown && !permissionConfig.disableMcpTools && mcpToolsByServer.size > 0) {
+      const tools = mcpToolsByServer.get(mcpServerDrilldown)
+      if (tools && tools.length > 0) {
+        const server = mcpServers.find((s) => s.id === mcpServerDrilldown)
+        const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
+        const serverAlreadySelected = isMcpServerAlreadySelected(
+          selectedTools,
+          mcpServerDrilldown
+        )
+        const toolCount = tools.length
+        const serverToolItems: ComboboxOption[] = []
+
+        // Back navigation
+        serverToolItems.push({
+          label: 'Back',
+          value: `mcp-server-back`,
+          iconElement: (
+            <ArrowLeft className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+          ),
+          onSelect: () => {
+            setMcpServerDrilldown(null)
+          },
+          keepOpen: true,
+        })
+
+        // "Use all tools" option
+        serverToolItems.push({
+          label: `Use all ${toolCount} tools`,
+          value: `mcp-server-all-${mcpServerDrilldown}`,
+          iconElement: createToolIcon('#6366F1', ServerIcon),
+          onSelect: () => {
+            if (serverAlreadySelected) return
+            const filteredTools = selectedTools.filter(
+              (tool) =>
+                !(tool.type === 'mcp' && tool.params?.serverId === mcpServerDrilldown)
+            )
+            const newTool: StoredTool = {
+              type: 'mcp-server',
+              title: `${serverName} (all tools)`,
+              toolId: `mcp-server-${mcpServerDrilldown}`,
+              params: {
+                serverId: mcpServerDrilldown,
+                ...(server?.url && { serverUrl: server.url }),
+                serverName,
+                toolCount: String(toolCount),
+              },
+              isExpanded: false,
+              usageControl: 'auto',
+            }
+            setStoreValue([
+              ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
+              newTool,
+            ])
+            setOpen(false)
+          },
+          disabled: isPreview || disabled || serverAlreadySelected,
+        })
+
+        // Individual tools
+        for (const mcpTool of tools) {
+          const alreadySelected =
+            isMcpToolAlreadySelected(selectedTools, mcpTool.id) || serverAlreadySelected
+          serverToolItems.push({
+            label: mcpTool.name,
+            value: `mcp-${mcpTool.id}`,
+            iconElement: createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon),
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'mcp',
+                title: mcpTool.name,
+                toolId: mcpTool.id,
+                params: {
+                  serverId: mcpTool.serverId,
+                  ...(server?.url && { serverUrl: server.url }),
+                  toolName: mcpTool.name,
+                  serverName: mcpTool.serverName,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+                schema: {
+                  ...mcpTool.inputSchema,
+                  description: mcpTool.description,
+                },
+              }
+              handleMcpToolSelect(newTool, true)
+            },
+            disabled: isPreview || disabled || alreadySelected,
+          })
+        }
+
+        groups.push({
+          section: serverName,
+          items: serverToolItems,
+        })
+      }
+      return groups
+    }
+
+    // Root view: show all tool categories
     const actionItems: ComboboxOption[] = []
     if (!permissionConfig.disableCustomTools) {
       actionItems.push({
@@ -1314,118 +1413,24 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    // MCP Servers section - grouped by server with expandable folders
+    // MCP Servers — root folder view
     if (!permissionConfig.disableMcpTools && mcpToolsByServer.size > 0) {
       const serverItems: ComboboxOption[] = []
 
       for (const [serverId, tools] of mcpToolsByServer) {
         const server = mcpServers.find((s) => s.id === serverId)
         const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
-        const isExpanded = expandedMcpServers.has(serverId)
-        const serverAlreadySelected = isMcpServerAlreadySelected(selectedTools, serverId)
         const toolCount = tools.length
 
-        // Server folder header (clickable to expand/collapse)
         serverItems.push({
-          label: serverName,
+          label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
-          iconElement: (
-            <div className='flex items-center gap-[4px]'>
-              <ChevronRight
-                className={cn(
-                  'h-[12px] w-[12px] text-[var(--text-tertiary)] transition-transform',
-                  isExpanded && 'rotate-90'
-                )}
-              />
-              <div
-                className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
-                style={{ background: '#6366F1' }}
-              >
-                <ServerIcon className='h-[10px] w-[10px] text-white' />
-              </div>
-            </div>
-          ),
+          iconElement: createToolIcon('#6366F1', ServerIcon),
           onSelect: () => {
-            toggleMcpServerExpanded(serverId)
+            setMcpServerDrilldown(serverId)
           },
-          disabled: false,
           keepOpen: true,
         })
-
-        // If expanded, show "Use all tools" option and individual tools
-        if (isExpanded) {
-          serverItems.push({
-            label: `Use all ${toolCount} tools`,
-            value: `mcp-server-all-${serverId}`,
-            iconElement: (
-              <div className='ml-[20px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#6366F1]'>
-                <McpIcon className='h-[10px] w-[10px] text-white' />
-              </div>
-            ),
-            onSelect: () => {
-              if (serverAlreadySelected) return
-              const filteredTools = selectedTools.filter(
-                (tool) => !(tool.type === 'mcp' && tool.params?.serverId === serverId)
-              )
-              const newTool: StoredTool = {
-                type: 'mcp-server',
-                title: `${serverName} (all tools)`,
-                toolId: `mcp-server-${serverId}`,
-                params: {
-                  serverId,
-                  ...(server?.url && { serverUrl: server.url }),
-                  serverName,
-                  toolCount: String(toolCount),
-                },
-                isExpanded: false,
-                usageControl: 'auto',
-              }
-              setStoreValue([
-                ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
-                newTool,
-              ])
-              setOpen(false)
-            },
-            disabled: isPreview || disabled || serverAlreadySelected,
-          })
-
-          // Individual tools from this server
-          for (const mcpTool of tools) {
-            const alreadySelected =
-              isMcpToolAlreadySelected(selectedTools, mcpTool.id) || serverAlreadySelected
-            serverItems.push({
-              label: mcpTool.name,
-              value: `mcp-${mcpTool.id}`,
-              iconElement: (
-                <div className='ml-[20px]'>
-                  {createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon)}
-                </div>
-              ),
-              onSelect: () => {
-                if (alreadySelected) return
-                const newTool: StoredTool = {
-                  type: 'mcp',
-                  title: mcpTool.name,
-                  toolId: mcpTool.id,
-                  params: {
-                    serverId: mcpTool.serverId,
-                    ...(server?.url && { serverUrl: server.url }),
-                    toolName: mcpTool.name,
-                    serverName: mcpTool.serverName,
-                  },
-                  isExpanded: true,
-                  usageControl: 'auto',
-                  schema: {
-                    ...mcpTool.inputSchema,
-                    description: mcpTool.description,
-                  },
-                }
-                handleMcpToolSelect(newTool, true)
-              },
-              disabled: isPreview || disabled || alreadySelected,
-            })
-          }
-        }
       }
 
       groups.push({
@@ -1507,11 +1512,11 @@ export const ToolInput = memo(function ToolInput({
 
     return groups
   }, [
+    mcpServerDrilldown,
     customTools,
     availableMcpTools,
     mcpServers,
     mcpToolsByServer,
-    expandedMcpServers,
     toolBlocks,
     isPreview,
     disabled,
@@ -1523,7 +1528,6 @@ export const ToolInput = memo(function ToolInput({
     permissionConfig.disableMcpTools,
     availableWorkflows,
     isToolAlreadySelected,
-    toggleMcpServerExpanded,
   ])
 
   return (
@@ -1537,7 +1541,7 @@ export const ToolInput = memo(function ToolInput({
         searchPlaceholder='Search tools...'
         maxHeight={240}
         emptyMessage='No tools found'
-        onOpenChange={setOpen}
+        onOpenChange={handleComboboxOpenChange}
       />
 
       {selectedTools.length > 0 &&
