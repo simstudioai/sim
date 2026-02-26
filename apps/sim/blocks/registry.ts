@@ -43,6 +43,7 @@ import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
 import { GongBlock } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleBigQueryBlock } from '@/blocks/blocks/google_bigquery'
 import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
@@ -242,6 +243,7 @@ export const registry: Record<string, BlockConfig> = {
   google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_slides_v2: GoogleSlidesV2Block,
+  google_bigquery: GoogleBigQueryBlock,
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,

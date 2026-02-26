@@ -644,6 +644,13 @@ import {
   gongLookupPhoneTool,
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
+import {
+  googleBigQueryGetTableTool,
+  googleBigQueryInsertRowsTool,
+  googleBigQueryListDatasetsTool,
+  googleBigQueryListTablesTool,
+  googleBigQueryQueryTool,
+} from '@/tools/google_bigquery'
 import { googleBooksVolumeDetailsTool, googleBooksVolumeSearchTool } from '@/tools/google_books'
 import {
   googleCalendarCreateTool,
@@ -3621,6 +3628,11 @@ export const tools: Record<string, ToolConfig> = {
   wordpress_list_users: wordpressListUsersTool,
   wordpress_get_user: wordpressGetUserTool,
   wordpress_search_content: wordpressSearchContentTool,
+  google_bigquery_query: googleBigQueryQueryTool,
+  google_bigquery_list_datasets: googleBigQueryListDatasetsTool,
+  google_bigquery_list_tables: googleBigQueryListTablesTool,
+  google_bigquery_get_table: googleBigQueryGetTableTool,
+  google_bigquery_insert_rows: googleBigQueryInsertRowsTool,
   google_vault_create_matters_export: createMattersExportTool,
   google_vault_list_matters_export: listMattersExportTool,
   google_vault_create_matters_holds: createMattersHoldsTool,

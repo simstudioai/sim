@@ -8,6 +8,7 @@ import {
   DropboxIcon,
   GithubIcon,
   GmailIcon,
+  GoogleBigQueryIcon,
   GoogleCalendarIcon,
   GoogleDocsIcon,
   GoogleDriveIcon,
@@ -118,6 +119,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleCalendarIcon,
         baseProviderIcon: GoogleIcon,
         scopes: ['https://www.googleapis.com/auth/calendar'],
+      },
+      'google-bigquery': {
+        name: 'Google BigQuery',
+        description: 'Query, list, and insert data in Google BigQuery.',
+        providerId: 'google-bigquery',
+        icon: GoogleBigQueryIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: ['https://www.googleapis.com/auth/bigquery'],
       },
       'google-vault': {
         name: 'Google Vault',

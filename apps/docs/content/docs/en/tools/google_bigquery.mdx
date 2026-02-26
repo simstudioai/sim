@@ -1,0 +1,161 @@
+---
+title: Google BigQuery
+description: Query, list, and insert data in Google BigQuery
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_bigquery"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.
+
+
+
+## Tools
+
+### `google_bigquery_query`
+
+Run a SQL query against Google BigQuery and return the results
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `query` | string | Yes | SQL query to execute |
+| `useLegacySql` | boolean | No | Whether to use legacy SQL syntax \(default: false\) |
+| `maxResults` | number | No | Maximum number of rows to return |
+| `defaultDatasetId` | string | No | Default dataset for unqualified table names |
+| `location` | string | No | Processing location \(e.g., "US", "EU"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Array of column names from the query result |
+| `rows` | array | Array of row objects keyed by column name |
+| `totalRows` | string | Total number of rows in the complete result set |
+| `jobComplete` | boolean | Whether the query completed within the timeout |
+| `totalBytesProcessed` | string | Total bytes processed by the query |
+| `cacheHit` | boolean | Whether the query result was served from cache |
+| `jobReference` | object | Job reference \(useful when jobComplete is false\) |
+|   ↳ `projectId` | string | Project ID containing the job |
+|   ↳ `jobId` | string | Unique job identifier |
+|   ↳ `location` | string | Geographic location of the job |
+| `pageToken` | string | Token for fetching additional result pages |
+
+### `google_bigquery_list_datasets`
+
+List all datasets in a Google BigQuery project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `maxResults` | number | No | Maximum number of datasets to return |
+| `pageToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `datasets` | array | Array of dataset objects |
+|   ↳ `datasetId` | string | Unique dataset identifier |
+|   ↳ `projectId` | string | Project ID containing this dataset |
+|   ↳ `friendlyName` | string | Descriptive name for the dataset |
+|   ↳ `location` | string | Geographic location where the data resides |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_bigquery_list_tables`
+
+List all tables in a Google BigQuery dataset
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `maxResults` | number | No | Maximum number of tables to return |
+| `pageToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Array of table objects |
+|   ↳ `tableId` | string | Table identifier |
+|   ↳ `datasetId` | string | Dataset ID containing this table |
+|   ↳ `projectId` | string | Project ID containing this table |
+|   ↳ `type` | string | Table type \(TABLE, VIEW, EXTERNAL, etc.\) |
+|   ↳ `friendlyName` | string | User-friendly name for the table |
+|   ↳ `creationTime` | string | Time when created, in milliseconds since epoch |
+| `totalItems` | number | Total number of tables in the dataset |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### `google_bigquery_get_table`
+
+Get metadata and schema for a Google BigQuery table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tableId` | string | Table ID |
+| `datasetId` | string | Dataset ID |
+| `projectId` | string | Project ID |
+| `type` | string | Table type \(TABLE, VIEW, SNAPSHOT, MATERIALIZED_VIEW, EXTERNAL\) |
+| `description` | string | Table description |
+| `numRows` | string | Total number of rows |
+| `numBytes` | string | Total size in bytes, excluding data in streaming buffer |
+| `schema` | array | Array of column definitions |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Data type \(STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, RECORD, etc.\) |
+|   ↳ `mode` | string | Column mode \(NULLABLE, REQUIRED, or REPEATED\) |
+|   ↳ `description` | string | Column description |
+| `creationTime` | string | Table creation time \(milliseconds since epoch\) |
+| `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
+| `location` | string | Geographic location where the table resides |
+
+### `google_bigquery_insert_rows`
+
+Insert rows into a Google BigQuery table using streaming insert
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Google Cloud project ID |
+| `datasetId` | string | Yes | BigQuery dataset ID |
+| `tableId` | string | Yes | BigQuery table ID |
+| `rows` | string | Yes | JSON array of row objects to insert |
+| `skipInvalidRows` | boolean | No | Whether to insert valid rows even if some are invalid |
+| `ignoreUnknownValues` | boolean | No | Whether to ignore columns not in the table schema |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insertedRows` | number | Number of rows successfully inserted |
+| `errors` | array | Array of per-row insertion errors \(empty if all succeeded\) |
+|   ↳ `index` | number | Zero-based index of the row that failed |
+|   ↳ `errors` | array | Error details for this row |
+|     ↳ `reason` | string | Short error code summarizing the error |
+|     ↳ `location` | string | Where the error occurred |
+|     ↳ `message` | string | Human-readable error description |
+
+
