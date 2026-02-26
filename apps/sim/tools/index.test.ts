@@ -315,20 +315,54 @@ function setupSecurityFetchMocks() {
 
   vi.spyOn(securityValidation, 'secureFetchWithPinnedIP').mockImplementation(
     async (url, _resolvedIP, options = {}) => {
-      const fetchResponse = await global.fetch(url, {
-        method: options.method,
-        headers: options.headers as HeadersInit,
-        body: options.body as BodyInit | null | undefined,
-      })
+      let fetchResponse: any
+      try {
+        fetchResponse = await global.fetch(url, {
+          method: options.method,
+          headers: options.headers as HeadersInit,
+          body: options.body as BodyInit | null | undefined,
+        })
+      } catch (error) {
+        // Keep parity with secure fetch timeout behavior expected by retry logic tests.
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Request timed out')
+        }
+        throw error
+      }
 
       if (!fetchResponse) {
         throw new Error('Mock fetch returned no response')
       }
 
-      const headersRecord = responseHeadersToRecord((fetchResponse as any).headers)
-      const status = (fetchResponse as any).status ?? 200
+      const headersRecord = responseHeadersToRecord(fetchResponse.headers)
+      const status = fetchResponse.status ?? 200
       const statusText = (fetchResponse as any).statusText ?? (status >= 200 ? 'OK' : 'Error')
-      const ok = (fetchResponse as any).ok ?? (status >= 200 && status < 300)
+      const ok = fetchResponse.ok ?? (status >= 200 && status < 300)
+      let cachedBodyText: string | null = null
+
+      const getBodyText = async (): Promise<string> => {
+        if (cachedBodyText !== null) return cachedBodyText
+
+        if (typeof fetchResponse.text === 'function') {
+          cachedBodyText = await fetchResponse.text()
+          return cachedBodyText
+        }
+
+        if (typeof fetchResponse.json === 'function') {
+          const jsonData = await fetchResponse.json()
+          cachedBodyText = typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData)
+          return cachedBodyText
+        }
+
+        if (typeof fetchResponse.arrayBuffer === 'function') {
+          const arr = await fetchResponse.arrayBuffer()
+          cachedBodyText = new TextDecoder().decode(arr)
+          return cachedBodyText
+        }
+
+        cachedBodyText = ''
+        return cachedBodyText
+      }
 
       return {
         ok,
@@ -336,28 +370,14 @@ function setupSecurityFetchMocks() {
         statusText,
         headers: new securityValidation.SecureFetchHeaders(headersRecord),
         text: async () => {
-          if (typeof (fetchResponse as any).text === 'function') {
-            return (fetchResponse as any).text()
-          }
-          if (typeof (fetchResponse as any).json === 'function') {
-            return JSON.stringify(await (fetchResponse as any).json())
-          }
-          return ''
+          return getBodyText()
         },
         json: async () => {
-          if (typeof (fetchResponse as any).json === 'function') {
-            return (fetchResponse as any).json()
-          }
-          const rawText =
-            typeof (fetchResponse as any).text === 'function' ? await (fetchResponse as any).text() : ''
+          const rawText = await getBodyText()
           return rawText ? JSON.parse(rawText) : {}
         },
         arrayBuffer: async () => {
-          if (typeof (fetchResponse as any).arrayBuffer === 'function') {
-            return (fetchResponse as any).arrayBuffer()
-          }
-          const rawText =
-            typeof (fetchResponse as any).text === 'function' ? await (fetchResponse as any).text() : ''
+          const rawText = await getBodyText()
           return new TextEncoder().encode(rawText).buffer
         },
       }
