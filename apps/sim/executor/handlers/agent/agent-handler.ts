@@ -287,44 +287,44 @@ export class AgentBlockHandler implements BlockHandler {
   ): Promise<any[]> {
     if (mcpServerSelections.length === 0) return []
 
-    const results: any[] = []
+    const results = await Promise.all(
+      mcpServerSelections.map(async (serverSelection) => {
+        const serverId = serverSelection.params?.serverId
+        const serverName = serverSelection.params?.serverName
+        const usageControl = serverSelection.usageControl || 'auto'
 
-    for (const serverSelection of mcpServerSelections) {
-      const serverId = serverSelection.params?.serverId
-      const serverName = serverSelection.params?.serverName
-      const usageControl = serverSelection.usageControl || 'auto'
+        if (!serverId) {
+          logger.error('MCP server selection missing serverId:', serverSelection)
+          return []
+        }
 
-      if (!serverId) {
-        logger.error('MCP server selection missing serverId:', serverSelection)
-        continue
-      }
-
-      try {
-        // Discover all tools from this server
-        const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
-
-        // Create tool definitions for each discovered tool
-        const createdTools = await Promise.all(
-          discoveredTools.map((mcpTool) =>
-            this.createMcpToolFromDiscoveredServerTool(
-              mcpTool,
-              serverId,
-              serverName || serverId,
-              usageControl
+        try {
+          const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
+          const createdTools = await Promise.all(
+            discoveredTools.map((mcpTool) =>
+              this.createMcpToolFromDiscoveredServerTool(
+                mcpTool,
+                serverId,
+                serverName || serverId,
+                usageControl
+              )
             )
           )
-        )
-        results.push(...createdTools.filter(Boolean))
+          logger.info(
+            `[AgentHandler] Expanded MCP server ${serverName} into ${discoveredTools.length} tools`
+          )
+          return createdTools.filter(Boolean)
+        } catch (error) {
+          logger.error(`[AgentHandler] Failed to process MCP server selection:`, {
+            serverId,
+            error,
+          })
+          return []
+        }
+      })
+    )
 
-        logger.info(
-          `[AgentHandler] Expanded MCP server ${serverName} into ${discoveredTools.length} tools`
-        )
-      } catch (error) {
-        logger.error(`[AgentHandler] Failed to process MCP server selection:`, { serverId, error })
-      }
-    }
-
-    return results
+    return results.flat()
   }
 
   /**
