@@ -80,7 +80,10 @@ export class BlockExecutor {
     const startTime = performance.now()
     let resolvedInputs: Record<string, any> = {}
 
-    const nodeMetadata = this.buildNodeMetadata(node)
+    const nodeMetadata = {
+      ...this.buildNodeMetadata(node),
+      executionOrder: blockLog?.executionOrder,
+    }
     let cleanupSelfReference: (() => void) | undefined
 
     if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
