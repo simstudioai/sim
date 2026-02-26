@@ -524,7 +524,7 @@ export const ToolInput = memo(function ToolInput({
   )
   const hasRefreshedRef = useRef(false)
 
-  const hasMcpTools = selectedTools.some((tool) => tool.type === 'mcp')
+  const hasMcpTools = selectedTools.some((tool) => tool.type === 'mcp' || tool.type === 'mcp-server')
 
   useEffect(() => {
     if (isPreview) return
@@ -541,9 +541,36 @@ export const ToolInput = memo(function ToolInput({
    */
   const getMcpToolIssue = useCallback(
     (tool: StoredTool) => {
-      if (tool.type !== 'mcp') return null
+      if (tool.type !== 'mcp' && tool.type !== 'mcp-server') return null
 
       const serverId = tool.params?.serverId as string
+      const serverStates = mcpServers.map((s) => ({
+        id: s.id,
+        url: s.url,
+        connectionStatus: s.connectionStatus,
+        lastError: s.lastError ?? undefined,
+      }))
+      const discoveredTools = mcpTools.map((t) => ({
+        serverId: t.serverId,
+        name: t.name,
+        inputSchema: t.inputSchema,
+      }))
+
+      if (tool.type === 'mcp-server') {
+        // Server-level validation: only check server connectivity
+        return validateMcpTool(
+          {
+            serverId,
+            serverUrl: tool.params?.serverUrl as string | undefined,
+            toolName: '__server_check__',
+            schema: undefined,
+          },
+          serverStates,
+          // Pass a fake discovered tool so tool_not_found doesn't trigger
+          [...discoveredTools, { serverId, name: '__server_check__', inputSchema: undefined }]
+        )
+      }
+
       const toolName = tool.params?.toolName as string
 
       // Try to get fresh schema from DB (enables real-time updates after MCP refresh)
@@ -563,17 +590,8 @@ export const ToolInput = memo(function ToolInput({
           toolName,
           schema,
         },
-        mcpServers.map((s) => ({
-          id: s.id,
-          url: s.url,
-          connectionStatus: s.connectionStatus,
-          lastError: s.lastError ?? undefined,
-        })),
-        mcpTools.map((t) => ({
-          serverId: t.serverId,
-          name: t.name,
-          inputSchema: t.inputSchema,
-        }))
+        serverStates,
+        discoveredTools
       )
     },
     [mcpTools, mcpServers, storedMcpTools, workflowId]
@@ -1738,7 +1756,7 @@ export const ToolInput = memo(function ToolInput({
                       {tool.params?.toolCount || mcpServerTools.length} tools
                     </Badge>
                   )}
-                  {isMcpTool &&
+                  {(isMcpTool || isMcpServer) &&
                     !mcpDataLoading &&
                     (() => {
                       const issue = getMcpToolIssue(tool)
@@ -1773,7 +1791,7 @@ export const ToolInput = memo(function ToolInput({
                     )}
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                  {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
+                  {supportsToolControl && !((isMcpTool || isMcpServer) && isMcpToolUnavailable(tool)) && (
                     <Popover
                       open={usageControlPopoverIndex === toolIndex}
                       onOpenChange={(open) => setUsageControlPopoverIndex(open ? toolIndex : null)}
