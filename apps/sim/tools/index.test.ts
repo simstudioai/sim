@@ -13,6 +13,8 @@ import {
   type ExecutionContext,
   type MockFetchResponse,
 } from '@sim/testing'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import * as securityValidation from '@/lib/core/security/input-validation.server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -434,6 +436,113 @@ describe('executeTool Function', () => {
     expect(result.timing?.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
     expect(result.timing?.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('Internal Tool Timeout Behavior', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('should pass explicit timeout to secureFetchWithPinnedIP for internal routes', async () => {
+    const expectedTimeout = 600000
+
+    const secureFetchSpy = vi
+      .spyOn(securityValidation, 'secureFetchWithPinnedIP')
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new securityValidation.SecureFetchHeaders({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ success: true }),
+        json: async () => ({ success: true }),
+        arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ success: true })).buffer,
+      })
+
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'executed' },
+      }),
+    }
+
+    try {
+      const result = await executeTool(
+        'function_execute',
+        {
+          code: 'return 1',
+          timeout: expectedTimeout,
+        },
+        true
+      )
+
+      expect(result.success).toBe(true)
+      expect(secureFetchSpy).toHaveBeenCalled()
+      expect(secureFetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/function/execute'),
+        '127.0.0.1',
+        expect.objectContaining({
+          timeout: expectedTimeout,
+        })
+      )
+    } finally {
+      tools.function_execute = originalFunctionTool
+    }
+  })
+
+  it('should use DEFAULT_EXECUTION_TIMEOUT_MS when timeout is not provided', async () => {
+    const secureFetchSpy = vi
+      .spyOn(securityValidation, 'secureFetchWithPinnedIP')
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new securityValidation.SecureFetchHeaders({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ success: true }),
+        json: async () => ({ success: true }),
+        arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ success: true })).buffer,
+      })
+
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'executed' },
+      }),
+    }
+
+    try {
+      const result = await executeTool(
+        'function_execute',
+        {
+          code: 'return 1',
+        },
+        true
+      )
+
+      expect(result.success).toBe(true)
+      expect(secureFetchSpy).toHaveBeenCalled()
+      expect(secureFetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/function/execute'),
+        '127.0.0.1',
+        expect.objectContaining({
+          timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
+        })
+      )
+    } finally {
+      tools.function_execute = originalFunctionTool
+    }
   })
 })
 
