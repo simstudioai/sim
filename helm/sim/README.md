@@ -617,6 +617,29 @@ To upgrade your release:
 helm upgrade sim ./helm/sim
 ```
 
+### Replicating SSH 10-minute timeout in Cloud
+
+Default remains 5 minutes (`EXECUTION_TIMEOUT_FREE=300`).  
+To raise/lower SSH max runtime via config + redeploy, deploy both:
+
+1. `EXECUTION_TIMEOUT_FREE=<seconds>` in chart values (`app.env`).
+2. An app image that includes the internal tools timeout fix in `apps/sim/tools/index.ts`.
+
+Example rollout:
+
+```bash
+helm upgrade sim ./helm/sim \
+  --set app.env.EXECUTION_TIMEOUT_FREE=600 \
+  --set app.image.repository=ghcr.io/simstudioai/simstudio \
+  --set app.image.tag=<image-tag-with-timeout-fix>
+```
+
+Post-upgrade check:
+
+```bash
+kubectl exec -n <namespace> deploy/<sim-app-deployment> -- printenv | grep ^EXECUTION_TIMEOUT_FREE=
+```
+
 ## Uninstalling
 
 To uninstall/delete the release:

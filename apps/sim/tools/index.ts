@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { logFixedUsage } from '@/lib/billing/core/usage-log'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -1215,24 +1217,46 @@ async function executeToolRequest(
 
       try {
         if (isInternalRoute) {
-          const controller = new AbortController()
           const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
-          const timeoutId = setTimeout(() => controller.abort(), timeout)
+          const parsedInternalUrl = new URL(fullUrl)
+          let resolvedInternalIP = parsedInternalUrl.hostname
+          if (parsedInternalUrl.hostname === 'localhost') {
+            resolvedInternalIP = '127.0.0.1'
+          } else if (!isIP(parsedInternalUrl.hostname)) {
+            const lookupResult = await lookup(parsedInternalUrl.hostname)
+            resolvedInternalIP = lookupResult.address
+          }
 
           try {
-            response = await fetch(fullUrl, {
+            const secureResponse = await secureFetchWithPinnedIP(fullUrl, resolvedInternalIP, {
               method: requestParams.method,
-              headers: headers,
+              headers: headersRecord,
               body: requestParams.body,
-              signal: controller.signal,
+              timeout,
             })
+
+            const responseHeaders = new Headers(secureResponse.headers.toRecord())
+            const nullBodyStatuses = new Set([101, 204, 205, 304])
+
+            if (nullBodyStatuses.has(secureResponse.status)) {
+              response = new Response(null, {
+                status: secureResponse.status,
+                statusText: secureResponse.statusText,
+                headers: responseHeaders,
+              })
+            } else {
+              const bodyBuffer = await secureResponse.arrayBuffer()
+              response = new Response(bodyBuffer, {
+                status: secureResponse.status,
+                statusText: secureResponse.statusText,
+                headers: responseHeaders,
+              })
+            }
           } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
+            if (error instanceof Error && /timed out/i.test(error.message)) {
               throw new Error(`Request timed out after ${timeout}ms`)
             }
             throw error
-          } finally {
-            clearTimeout(timeoutId)
           }
         } else {
           const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')

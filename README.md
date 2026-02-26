@@ -172,6 +172,32 @@ Key environment variables for self-hosted deployments. See [`.env.example`](apps
 | `API_ENCRYPTION_KEY` | Yes | Encrypts API keys (`openssl rand -hex 32`) |
 | `COPILOT_API_KEY` | No | API key from sim.ai for Copilot features |
 
+### SSH Block Timeout (10 minutes)
+
+For SSH blocks, there are two timeout layers to keep aligned:
+
+1. Workflow sync execution timeout (`EXECUTION_TIMEOUT_FREE`) controls the max duration in seconds.
+2. Internal tool HTTP calls must respect per-tool timeout values (the SSH timeout path in `apps/sim/tools/index.ts`).
+
+Local Docker Compose (default remains 5 minutes):
+
+```bash
+# in docker-compose.prod.yml
+EXECUTION_TIMEOUT_FREE=${EXECUTION_TIMEOUT_FREE:-300}
+```
+
+To run SSH up to 10 minutes:
+
+```bash
+EXECUTION_TIMEOUT_FREE=600
+```
+
+Verification inside the running app container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T simstudio sh -lc 'printenv | grep ^EXECUTION_TIMEOUT_FREE='
+```
+
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
