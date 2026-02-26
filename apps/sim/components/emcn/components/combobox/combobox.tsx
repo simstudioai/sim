@@ -398,7 +398,7 @@ const Combobox = memo(
               const highlightedOption = filteredOptions[highlightedIndex]
               if (highlightedOption?.keepOpen && highlightedOption?.onSelect) {
                 e.preventDefault()
-                highlightedOption.onSelect()
+                handleSelect(highlightedOption.value, highlightedOption.onSelect, true)
               }
             }
           }
@@ -407,6 +407,8 @@ const Combobox = memo(
             if (open && onArrowLeft) {
               e.preventDefault()
               onArrowLeft()
+              setSearchQuery('')
+              setHighlightedIndex(-1)
             }
           }
         },
@@ -632,8 +634,7 @@ const Combobox = memo(
                       // Only forward ArrowLeft/ArrowRight when cursor is at the boundary
                       // so normal text cursor movement still works in the search input
                       const input = e.currentTarget
-                      const forwardArrowLeft =
-                        e.key === 'ArrowLeft' && input.selectionStart === 0
+                      const forwardArrowLeft = e.key === 'ArrowLeft' && input.selectionStart === 0
                       const forwardArrowRight =
                         e.key === 'ArrowRight' && input.selectionStart === input.value.length
                       if (
