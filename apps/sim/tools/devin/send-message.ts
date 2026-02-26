@@ -4,7 +4,7 @@ import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
 export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendMessageResponse> = {
   id: 'devin_send_message',
-  name: 'Devin Send Message',
+  name: 'send_message',
   description:
     'Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.',
   version: '1.0.0',

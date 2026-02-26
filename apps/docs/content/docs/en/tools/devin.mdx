@@ -10,6 +10,28 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#12141A"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Devin](https://devin.ai/) is an autonomous AI software engineer by Cognition that can independently write, run, debug, and deploy code.
+
+With Devin, you can:
+
+- **Automate coding tasks**: Assign software engineering tasks and let Devin autonomously write, test, and iterate on code
+- **Manage sessions**: Create, monitor, and interact with Devin sessions to track progress on assigned tasks
+- **Guide active work**: Send messages to running sessions to provide additional context, redirect efforts, or answer questions
+- **Retrieve structured output**: Poll completed sessions for pull requests, structured results, and detailed status
+- **Control costs**: Set ACU (Autonomous Compute Unit) limits to cap spending on long-running tasks
+- **Standardize workflows**: Use playbook IDs to apply repeatable task patterns across sessions
+
+In Sim, the Devin integration enables your agents to programmatically manage Devin sessions as part of their workflows:
+
+- **Create sessions**: Kick off new Devin sessions with a prompt describing the task, optional playbook, ACU limits, and tags
+- **Get session details**: Retrieve the full state of a session including status, pull requests, structured output, and resource consumption
+- **List sessions**: Query all sessions in your organization with optional pagination
+- **Send messages**: Communicate with active or suspended sessions to provide guidance, and automatically resume suspended sessions
+
+This allows for powerful automation scenarios such as triggering code generation from upstream events, polling for completion before consuming results, orchestrating multi-step development pipelines, and integrating Devin's output into broader agent workflows.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.
@@ -40,6 +62,7 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 | `tags` | json | Session tags |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
+| `playbookId` | string | Associated playbook ID |
 | `sessions` | json | List of sessions |
 
 ### `devin_get_session`
@@ -64,6 +87,7 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 | `tags` | json | Session tags |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
+| `playbookId` | string | Associated playbook ID |
 | `sessions` | json | List of sessions |
 
 ### `devin_list_sessions`
@@ -88,6 +112,7 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 | `tags` | json | Session tags |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
+| `playbookId` | string | Associated playbook ID |
 | `sessions` | json | List of sessions |
 
 ### `devin_send_message`
@@ -112,6 +137,7 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 | `tags` | json | Session tags |
 | `pullRequests` | json | Pull requests created during the session |
 | `structuredOutput` | json | Structured output from the session |
+| `playbookId` | string | Associated playbook ID |
 | `sessions` | json | List of sessions |
 
 

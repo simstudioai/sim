@@ -4,7 +4,7 @@ import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
 export const devinGetSessionTool: ToolConfig<DevinGetSessionParams, DevinGetSessionResponse> = {
   id: 'devin_get_session',
-  name: 'Devin Get Session',
+  name: 'get_session',
   description:
     'Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.',
   version: '1.0.0',

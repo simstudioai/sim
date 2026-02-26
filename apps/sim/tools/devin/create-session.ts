@@ -7,7 +7,7 @@ export const devinCreateSessionTool: ToolConfig<
   DevinCreateSessionResponse
 > = {
   id: 'devin_create_session',
-  name: 'Devin Create Session',
+  name: 'create_session',
   description:
     'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
   version: '1.0.0',
