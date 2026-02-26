@@ -135,7 +135,7 @@ const SUPPORTED_LANGUAGES = [
   { label: 'Yiddish', id: 'yi' },
   { label: 'Yoruba', id: 'yo' },
   { label: 'Zulu', id: 'zu' },
-] as const
+] satisfies { label: string; id: string }[]
 
 export const GoogleTranslateBlock: BlockConfig = {
   type: 'google_translate',
