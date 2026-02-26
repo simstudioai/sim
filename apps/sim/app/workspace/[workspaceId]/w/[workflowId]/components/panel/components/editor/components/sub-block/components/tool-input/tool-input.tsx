@@ -1726,7 +1726,7 @@ export const ToolInput = memo(function ToolInput({
                     {isCustomTool ? customToolTitle : tool.title}
                   </span>
                   {isMcpServer && (
-                    <Badge variant='default' size='sm'>
+                    <Badge variant='type' size='sm'>
                       {tool.params?.toolCount || mcpServerTools.length} tools
                     </Badge>
                   )}
