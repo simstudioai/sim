@@ -236,14 +236,14 @@ export class AgentBlockHandler implements BlockHandler {
     })
 
     const mcpTools: ToolInput[] = []
-    const mcpServers: ToolInput[] = []
+    const mcpServerSelections: ToolInput[] = []
     const otherTools: ToolInput[] = []
 
     for (const tool of filtered) {
       if (tool.type === 'mcp') {
         mcpTools.push(tool)
       } else if (tool.type === 'mcp-server') {
-        mcpServers.push(tool)
+        mcpServerSelections.push(tool)
       } else {
         otherTools.push(tool)
       }
@@ -268,8 +268,8 @@ export class AgentBlockHandler implements BlockHandler {
 
     const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools)
 
-    // Process MCP servers (all tools from server mode)
-    const mcpServerResults = await this.processMcpServerSelections(ctx, mcpServers)
+    // Process MCP server selections (all tools from server mode)
+    const mcpServerResults = await this.processMcpServerSelections(ctx, mcpServerSelections)
 
     const allTools = [...otherResults, ...mcpResults, ...mcpServerResults]
     return allTools.filter(
