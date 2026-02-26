@@ -6,21 +6,38 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('Chat OTP API Route', () => {
-  const mockEmail = 'test@example.com'
-  const mockChatId = 'chat-123'
-  const mockIdentifier = 'test-chat'
-  const mockOTP = '123456'
-
+const {
+  mockRedisSet,
+  mockRedisGet,
+  mockRedisDel,
+  mockGetRedisClient,
+  mockRedisClient,
+  mockDbSelect,
+  mockDbInsert,
+  mockDbDelete,
+  mockSendEmail,
+  mockRenderOTPEmail,
+  mockAddCorsHeaders,
+  mockCreateSuccessResponse,
+  mockCreateErrorResponse,
+  mockSetChatAuthCookie,
+  mockGenerateRequestId,
+  mockGetStorageMethod,
+  mockZodParse,
+  mockGetEnv,
+} = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
   const mockRedisGet = vi.fn()
   const mockRedisDel = vi.fn()
+  const mockRedisClient = {
+    set: mockRedisSet,
+    get: mockRedisGet,
+    del: mockRedisDel,
+  }
   const mockGetRedisClient = vi.fn()
-
   const mockDbSelect = vi.fn()
   const mockDbInsert = vi.fn()
   const mockDbDelete = vi.fn()
-
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockAddCorsHeaders = vi.fn()
@@ -28,11 +45,152 @@ describe('Chat OTP API Route', () => {
   const mockCreateErrorResponse = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
   const mockGenerateRequestId = vi.fn()
+  const mockGetStorageMethod = vi.fn()
+  const mockZodParse = vi.fn()
+  const mockGetEnv = vi.fn()
 
-  let storageMethod: 'redis' | 'database' = 'redis'
+  return {
+    mockRedisSet,
+    mockRedisGet,
+    mockRedisDel,
+    mockGetRedisClient,
+    mockRedisClient,
+    mockDbSelect,
+    mockDbInsert,
+    mockDbDelete,
+    mockSendEmail,
+    mockRenderOTPEmail,
+    mockAddCorsHeaders,
+    mockCreateSuccessResponse,
+    mockCreateErrorResponse,
+    mockSetChatAuthCookie,
+    mockGenerateRequestId,
+    mockGetStorageMethod,
+    mockZodParse,
+    mockGetEnv,
+  }
+})
+
+vi.mock('@/lib/core/config/redis', () => ({
+  getRedisClient: mockGetRedisClient,
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockDbSelect,
+    insert: mockDbInsert,
+    delete: mockDbDelete,
+    transaction: vi.fn(async (callback: (tx: Record<string, unknown>) => unknown) => {
+      return callback({
+        select: mockDbSelect,
+        insert: mockDbInsert,
+        delete: mockDbDelete,
+      })
+    }),
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  chat: {
+    id: 'id',
+    authType: 'authType',
+    allowedEmails: 'allowedEmails',
+    title: 'title',
+  },
+  verification: {
+    id: 'id',
+    identifier: 'identifier',
+    value: 'value',
+    expiresAt: 'expiresAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((field: string, value: string) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
+  gt: vi.fn((field: string, value: string) => ({ field, value, type: 'gt' })),
+  lt: vi.fn((field: string, value: string) => ({ field, value, type: 'lt' })),
+}))
+
+vi.mock('@/lib/core/storage', () => ({
+  getStorageMethod: mockGetStorageMethod,
+}))
+
+vi.mock('@/lib/messaging/email/mailer', () => ({
+  sendEmail: mockSendEmail,
+}))
+
+vi.mock('@/components/emails/render-email', () => ({
+  renderOTPEmail: mockRenderOTPEmail,
+}))
+
+vi.mock('@/app/api/chat/utils', () => ({
+  addCorsHeaders: mockAddCorsHeaders,
+  setChatAuthCookie: mockSetChatAuthCookie,
+}))
+
+vi.mock('@/app/api/workflows/utils', () => ({
+  createSuccessResponse: mockCreateSuccessResponse,
+  createErrorResponse: mockCreateErrorResponse,
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn().mockReturnValue({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  }),
+}))
+
+vi.mock('@/lib/core/config/env', () => ({
+  env: {
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    NODE_ENV: 'test',
+  },
+  getEnv: mockGetEnv,
+  isTruthy: vi.fn().mockReturnValue(false),
+  isFalsy: vi.fn().mockReturnValue(true),
+}))
+
+vi.mock('zod', () => {
+  class ZodError extends Error {
+    errors: Array<{ message: string }>
+    constructor(issues: Array<{ message: string }>) {
+      super('ZodError')
+      this.errors = issues
+    }
+  }
+  const mockStringReturnValue = {
+    email: vi.fn().mockReturnThis(),
+    length: vi.fn().mockReturnThis(),
+  }
+  return {
+    z: {
+      object: vi.fn().mockReturnValue({
+        parse: mockZodParse,
+      }),
+      string: vi.fn().mockReturnValue(mockStringReturnValue),
+      ZodError,
+    },
+  }
+})
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: mockGenerateRequestId,
+}))
+
+import { POST, PUT } from './route'
+
+describe('Chat OTP API Route', () => {
+  const mockEmail = 'test@example.com'
+  const mockChatId = 'chat-123'
+  const mockIdentifier = 'test-chat'
+  const mockOTP = '123456'
 
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
 
     vi.spyOn(Math, 'random').mockReturnValue(0.123456)
@@ -43,21 +201,12 @@ describe('Chat OTP API Route', () => {
       randomUUID: vi.fn().mockReturnValue('test-uuid-1234'),
     })
 
-    const mockRedisClient = {
-      set: mockRedisSet,
-      get: mockRedisGet,
-      del: mockRedisDel,
-    }
     mockGetRedisClient.mockReturnValue(mockRedisClient)
     mockRedisSet.mockResolvedValue('OK')
     mockRedisGet.mockResolvedValue(null)
     mockRedisDel.mockResolvedValue(1)
 
-    vi.doMock('@/lib/core/config/redis', () => ({
-      getRedisClient: mockGetRedisClient,
-    }))
-
-    const createDbChain = (result: any) => ({
+    const createDbChain = (result: unknown) => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue(result),
@@ -73,110 +222,26 @@ describe('Chat OTP API Route', () => {
       where: vi.fn().mockResolvedValue(undefined),
     }))
 
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: mockDbSelect,
-        insert: mockDbInsert,
-        delete: mockDbDelete,
-        transaction: vi.fn(async (callback) => {
-          return callback({
-            select: mockDbSelect,
-            insert: mockDbInsert,
-            delete: mockDbDelete,
-          })
-        }),
-      },
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
-      chat: {
-        id: 'id',
-        authType: 'authType',
-        allowedEmails: 'allowedEmails',
-        title: 'title',
-      },
-      verification: {
-        id: 'id',
-        identifier: 'identifier',
-        value: 'value',
-        expiresAt: 'expiresAt',
-        createdAt: 'createdAt',
-        updatedAt: 'updatedAt',
-      },
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-      and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
-      gt: vi.fn((field, value) => ({ field, value, type: 'gt' })),
-      lt: vi.fn((field, value) => ({ field, value, type: 'lt' })),
-    }))
-
-    vi.doMock('@/lib/core/storage', () => ({
-      getStorageMethod: vi.fn(() => storageMethod),
-    }))
+    mockGetStorageMethod.mockReturnValue('redis')
 
     mockSendEmail.mockResolvedValue({ success: true })
     mockRenderOTPEmail.mockResolvedValue('<html>OTP Email</html>')
 
-    vi.doMock('@/lib/messaging/email/mailer', () => ({
-      sendEmail: mockSendEmail,
-    }))
-
-    vi.doMock('@/components/emails/render-email', () => ({
-      renderOTPEmail: mockRenderOTPEmail,
-    }))
-
-    mockAddCorsHeaders.mockImplementation((response) => response)
-    mockCreateSuccessResponse.mockImplementation((data) => ({
+    mockAddCorsHeaders.mockImplementation((response: unknown) => response)
+    mockCreateSuccessResponse.mockImplementation((data: unknown) => ({
       json: () => Promise.resolve(data),
       status: 200,
     }))
-    mockCreateErrorResponse.mockImplementation((message, status) => ({
+    mockCreateErrorResponse.mockImplementation((message: string, status: number) => ({
       json: () => Promise.resolve({ error: message }),
       status,
     }))
 
-    vi.doMock('@/app/api/chat/utils', () => ({
-      addCorsHeaders: mockAddCorsHeaders,
-      setChatAuthCookie: mockSetChatAuthCookie,
-    }))
-
-    vi.doMock('@/app/api/workflows/utils', () => ({
-      createSuccessResponse: mockCreateSuccessResponse,
-      createErrorResponse: mockCreateErrorResponse,
-    }))
-
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/lib/core/config/env', async () => {
-      const { createEnvMock } = await import('@sim/testing')
-      return createEnvMock()
-    })
-
-    vi.doMock('zod', () => ({
-      z: {
-        object: vi.fn().mockReturnValue({
-          parse: vi.fn().mockImplementation((data) => data),
-        }),
-        string: vi.fn().mockReturnValue({
-          email: vi.fn().mockReturnThis(),
-          length: vi.fn().mockReturnThis(),
-        }),
-      },
-    }))
-
     mockGenerateRequestId.mockReturnValue('req-123')
-    vi.doMock('@/lib/core/utils/request', () => ({
-      generateRequestId: mockGenerateRequestId,
-    }))
+
+    mockZodParse.mockImplementation((data: unknown) => data)
+
+    mockGetEnv.mockReturnValue('http://localhost:3000')
   })
 
   afterEach(() => {
@@ -185,12 +250,10 @@ describe('Chat OTP API Route', () => {
 
   describe('POST - Store OTP (Redis path)', () => {
     beforeEach(() => {
-      storageMethod = 'redis'
+      mockGetStorageMethod.mockReturnValue('redis')
     })
 
     it('should store OTP in Redis when storage method is redis', async () => {
-      const { POST } = await import('./route')
-
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -226,13 +289,11 @@ describe('Chat OTP API Route', () => {
 
   describe('POST - Store OTP (Database path)', () => {
     beforeEach(() => {
-      storageMethod = 'database'
+      mockGetStorageMethod.mockReturnValue('database')
       mockGetRedisClient.mockReturnValue(null)
     })
 
     it('should store OTP in database when storage method is database', async () => {
-      const { POST } = await import('./route')
-
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -283,13 +344,11 @@ describe('Chat OTP API Route', () => {
 
   describe('PUT - Verify OTP (Redis path)', () => {
     beforeEach(() => {
-      storageMethod = 'redis'
+      mockGetStorageMethod.mockReturnValue('redis')
       mockRedisGet.mockResolvedValue(mockOTP)
     })
 
     it('should retrieve OTP from Redis and verify successfully', async () => {
-      const { PUT } = await import('./route')
-
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -320,13 +379,11 @@ describe('Chat OTP API Route', () => {
 
   describe('PUT - Verify OTP (Database path)', () => {
     beforeEach(() => {
-      storageMethod = 'database'
+      mockGetStorageMethod.mockReturnValue('database')
       mockGetRedisClient.mockReturnValue(null)
     })
 
     it('should retrieve OTP from database and verify successfully', async () => {
-      const { PUT } = await import('./route')
-
       let selectCallCount = 0
 
       mockDbSelect.mockImplementation(() => ({
@@ -373,8 +430,6 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should reject expired OTP from database', async () => {
-      const { PUT } = await import('./route')
-
       let selectCallCount = 0
 
       mockDbSelect.mockImplementation(() => ({
@@ -412,12 +467,10 @@ describe('Chat OTP API Route', () => {
 
   describe('DELETE OTP (Redis path)', () => {
     beforeEach(() => {
-      storageMethod = 'redis'
+      mockGetStorageMethod.mockReturnValue('redis')
     })
 
     it('should delete OTP from Redis after verification', async () => {
-      const { PUT } = await import('./route')
-
       mockRedisGet.mockResolvedValue(mockOTP)
 
       mockDbSelect.mockImplementationOnce(() => ({
@@ -447,13 +500,11 @@ describe('Chat OTP API Route', () => {
 
   describe('DELETE OTP (Database path)', () => {
     beforeEach(() => {
-      storageMethod = 'database'
+      mockGetStorageMethod.mockReturnValue('database')
       mockGetRedisClient.mockReturnValue(null)
     })
 
     it('should delete OTP from database after verification', async () => {
-      const { PUT } = await import('./route')
-
       let selectCallCount = 0
       mockDbSelect.mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
@@ -490,10 +541,8 @@ describe('Chat OTP API Route', () => {
 
   describe('Behavior consistency between Redis and Database', () => {
     it('should have same behavior for missing OTP in both storage methods', async () => {
-      storageMethod = 'redis'
+      mockGetStorageMethod.mockReturnValue('redis')
       mockRedisGet.mockResolvedValue(null)
-
-      const { PUT: PUTRedis } = await import('./route')
 
       mockDbSelect.mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
@@ -508,7 +557,7 @@ describe('Chat OTP API Route', () => {
         body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
       })
 
-      await PUTRedis(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
       expect(mockCreateErrorResponse).toHaveBeenCalledWith(
         'No verification code found, request a new one',
@@ -519,8 +568,7 @@ describe('Chat OTP API Route', () => {
     it('should have same OTP expiry time in both storage methods', async () => {
       const OTP_EXPIRY = 15 * 60
 
-      storageMethod = 'redis'
-      const { POST: POSTRedis } = await import('./route')
+      mockGetStorageMethod.mockReturnValue('redis')
 
       mockDbSelect.mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
@@ -542,7 +590,7 @@ describe('Chat OTP API Route', () => {
         body: JSON.stringify({ email: mockEmail }),
       })
 
-      await POSTRedis(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await POST(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
       expect(mockRedisSet).toHaveBeenCalledWith(
         expect.any(String),

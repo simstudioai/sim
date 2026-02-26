@@ -3,60 +3,79 @@
  *
  * @vitest-environment node
  */
+import { createEnvMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('S3 Client', () => {
+const {
+  mockSend,
+  mockS3Client,
+  mockS3ClientConstructor,
+  mockPutObjectCommand,
+  mockGetObjectCommand,
+  mockDeleteObjectCommand,
+  mockGetSignedUrl,
+} = vi.hoisted(() => {
   const mockSend = vi.fn()
-  const mockS3Client = {
-    send: mockSend,
+  const mockS3Client = { send: mockSend }
+  return {
+    mockSend,
+    mockS3Client,
+    mockS3ClientConstructor: vi.fn(() => mockS3Client),
+    mockPutObjectCommand: vi.fn(),
+    mockGetObjectCommand: vi.fn(),
+    mockDeleteObjectCommand: vi.fn(),
+    mockGetSignedUrl: vi.fn(),
   }
+})
 
-  const mockPutObjectCommand = vi.fn()
-  const mockGetObjectCommand = vi.fn()
-  const mockDeleteObjectCommand = vi.fn()
-  const mockGetSignedUrl = vi.fn()
+vi.mock('@aws-sdk/client-s3', () => ({
+  S3Client: mockS3ClientConstructor,
+  PutObjectCommand: mockPutObjectCommand,
+  GetObjectCommand: mockGetObjectCommand,
+  DeleteObjectCommand: mockDeleteObjectCommand,
+}))
 
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: mockGetSignedUrl,
+}))
+
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({
+    S3_BUCKET_NAME: 'test-bucket',
+    AWS_REGION: 'test-region',
+    AWS_ACCESS_KEY_ID: 'test-access-key',
+    AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+  })
+)
+
+vi.mock('@/lib/uploads/setup', () => ({
+  S3_CONFIG: {
+    bucket: 'test-bucket',
+    region: 'test-region',
+  },
+}))
+
+vi.mock('@/lib/uploads/config', () => ({
+  S3_CONFIG: {
+    bucket: 'test-bucket',
+    region: 'test-region',
+  },
+  S3_KB_CONFIG: {
+    bucket: 'test-kb-bucket',
+    region: 'test-region',
+  },
+}))
+
+import {
+  deleteFromS3,
+  downloadFromS3,
+  getPresignedUrl,
+  uploadToS3,
+} from '@/lib/uploads/providers/s3/client'
+
+describe('S3 Client', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
-
-    vi.doMock('@aws-sdk/client-s3', () => ({
-      S3Client: vi.fn(() => mockS3Client),
-      PutObjectCommand: mockPutObjectCommand,
-      GetObjectCommand: mockGetObjectCommand,
-      DeleteObjectCommand: mockDeleteObjectCommand,
-    }))
-
-    vi.doMock('@aws-sdk/s3-request-presigner', () => ({
-      getSignedUrl: mockGetSignedUrl,
-    }))
-
-    vi.doMock('@/lib/core/config/env', async () => {
-      const { createEnvMock } = await import('@sim/testing')
-      return createEnvMock({
-        S3_BUCKET_NAME: 'test-bucket',
-        AWS_REGION: 'test-region',
-        AWS_ACCESS_KEY_ID: 'test-access-key',
-        AWS_SECRET_ACCESS_KEY: 'test-secret-key',
-      })
-    })
-
-    vi.doMock('@sim/logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      S3_CONFIG: {
-        bucket: 'test-bucket',
-        region: 'test-region',
-      },
-    }))
-
     vi.spyOn(Date, 'now').mockReturnValue(1672603200000)
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
   })
@@ -68,8 +87,6 @@ describe('S3 Client', () => {
   describe('uploadToS3', () => {
     it('should upload a file to S3 and return file info', async () => {
       mockSend.mockResolvedValueOnce({})
-
-      const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
 
       const file = Buffer.from('test content')
       const fileName = 'test-file.txt'
@@ -102,8 +119,6 @@ describe('S3 Client', () => {
     it('should handle spaces in filenames', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
-
       const testFile = Buffer.from('test file content')
       const fileName = 'test file with spaces.txt'
       const contentType = 'text/plain'
@@ -122,8 +137,6 @@ describe('S3 Client', () => {
     it('should use provided size if available', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
-
       const testFile = Buffer.from('test file content')
       const fileName = 'test-file.txt'
       const contentType = 'text/plain'
@@ -138,8 +151,6 @@ describe('S3 Client', () => {
       const error = new Error('Upload failed')
       mockSend.mockRejectedValueOnce(error)
 
-      const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
-
       const testFile = Buffer.from('test file content')
       const fileName = 'test-file.txt'
       const contentType = 'text/plain'
@@ -151,8 +162,6 @@ describe('S3 Client', () => {
   describe('getPresignedUrl', () => {
     it('should generate a presigned URL for a file', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url')
-
-      const { getPresignedUrl } = await import('@/lib/uploads/providers/s3/client')
 
       const key = 'test-file.txt'
       const expiresIn = 1800
@@ -172,24 +181,18 @@ describe('S3 Client', () => {
     it('should use default expiration if not provided', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url')
 
-      const { getPresignedUrl } = await import('@/lib/uploads/providers/s3/client')
-
       const key = 'test-file.txt'
 
       await getPresignedUrl(key)
 
-      expect(mockGetSignedUrl).toHaveBeenCalledWith(
-        mockS3Client,
-        expect.any(Object),
-        { expiresIn: 3600 } // Default is 3600 seconds (1 hour)
-      )
+      expect(mockGetSignedUrl).toHaveBeenCalledWith(mockS3Client, expect.any(Object), {
+        expiresIn: 3600,
+      })
     })
 
     it('should handle errors when generating presigned URL', async () => {
       const error = new Error('Presigned URL generation failed')
       mockGetSignedUrl.mockRejectedValueOnce(error)
-
-      const { getPresignedUrl } = await import('@/lib/uploads/providers/s3/client')
 
       const key = 'test-file.txt'
 
@@ -216,8 +219,6 @@ describe('S3 Client', () => {
         Body: mockStream,
         $metadata: { httpStatusCode: 200 },
       })
-
-      const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
 
       const key = 'test-file.txt'
 
@@ -248,8 +249,6 @@ describe('S3 Client', () => {
         $metadata: { httpStatusCode: 200 },
       })
 
-      const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
-
       const key = 'test-file.txt'
 
       await expect(downloadFromS3(key)).rejects.toThrow('Stream error')
@@ -258,8 +257,6 @@ describe('S3 Client', () => {
     it('should handle S3 client errors', async () => {
       const error = new Error('Download failed')
       mockSend.mockRejectedValueOnce(error)
-
-      const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
 
       const key = 'test-file.txt'
 
@@ -270,8 +267,6 @@ describe('S3 Client', () => {
   describe('deleteFromS3', () => {
     it('should delete a file from S3', async () => {
       mockSend.mockResolvedValueOnce({})
-
-      const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
 
       const key = 'test-file.txt'
 
@@ -289,8 +284,6 @@ describe('S3 Client', () => {
       const error = new Error('Delete failed')
       mockSend.mockRejectedValueOnce(error)
 
-      const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
-
       const key = 'test-file.txt'
 
       await expect(deleteFromS3(key)).rejects.toThrow('Delete failed')
@@ -298,16 +291,30 @@ describe('S3 Client', () => {
   })
 
   describe('s3Client initialization', () => {
+    beforeEach(() => {
+      vi.resetModules()
+    })
+
     it('should initialize with correct configuration when credentials are available', async () => {
-      vi.doMock('@/lib/core/config/env', async () => {
-        const { createEnvMock } = await import('@sim/testing')
-        return createEnvMock({
+      vi.doMock('@aws-sdk/client-s3', () => ({
+        S3Client: mockS3ClientConstructor,
+        PutObjectCommand: mockPutObjectCommand,
+        GetObjectCommand: mockGetObjectCommand,
+        DeleteObjectCommand: mockDeleteObjectCommand,
+      }))
+
+      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
+        getSignedUrl: mockGetSignedUrl,
+      }))
+
+      vi.doMock('@/lib/core/config/env', () =>
+        createEnvMock({
           S3_BUCKET_NAME: 'test-bucket',
           AWS_REGION: 'test-region',
           AWS_ACCESS_KEY_ID: 'test-access-key',
           AWS_SECRET_ACCESS_KEY: 'test-secret-key',
         })
-      })
+      )
 
       vi.doMock('@/lib/uploads/setup', () => ({
         S3_CONFIG: {
@@ -316,11 +323,21 @@ describe('S3 Client', () => {
         },
       }))
 
-      vi.resetModules()
-      const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+      vi.doMock('@/lib/uploads/config', () => ({
+        S3_CONFIG: {
+          bucket: 'test-bucket',
+          region: 'test-region',
+        },
+        S3_KB_CONFIG: {
+          bucket: 'test-kb-bucket',
+          region: 'test-region',
+        },
+      }))
+
+      const { getS3Client: freshGetS3Client } = await import('@/lib/uploads/providers/s3/client')
       const { S3Client } = await import('@aws-sdk/client-s3')
 
-      const client = getS3Client()
+      const client = freshGetS3Client()
 
       expect(client).toBeDefined()
       expect(S3Client).toHaveBeenCalledWith({
@@ -333,15 +350,25 @@ describe('S3 Client', () => {
     })
 
     it('should initialize without credentials when env vars are not available', async () => {
-      vi.doMock('@/lib/core/config/env', async () => {
-        const { createEnvMock } = await import('@sim/testing')
-        return createEnvMock({
+      vi.doMock('@aws-sdk/client-s3', () => ({
+        S3Client: mockS3ClientConstructor,
+        PutObjectCommand: mockPutObjectCommand,
+        GetObjectCommand: mockGetObjectCommand,
+        DeleteObjectCommand: mockDeleteObjectCommand,
+      }))
+
+      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
+        getSignedUrl: mockGetSignedUrl,
+      }))
+
+      vi.doMock('@/lib/core/config/env', () =>
+        createEnvMock({
           S3_BUCKET_NAME: 'test-bucket',
           AWS_REGION: 'test-region',
           AWS_ACCESS_KEY_ID: undefined,
           AWS_SECRET_ACCESS_KEY: undefined,
         })
-      })
+      )
 
       vi.doMock('@/lib/uploads/setup', () => ({
         S3_CONFIG: {
@@ -350,11 +377,21 @@ describe('S3 Client', () => {
         },
       }))
 
-      vi.resetModules()
-      const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+      vi.doMock('@/lib/uploads/config', () => ({
+        S3_CONFIG: {
+          bucket: 'test-bucket',
+          region: 'test-region',
+        },
+        S3_KB_CONFIG: {
+          bucket: 'test-kb-bucket',
+          region: 'test-region',
+        },
+      }))
+
+      const { getS3Client: freshGetS3Client } = await import('@/lib/uploads/providers/s3/client')
       const { S3Client } = await import('@aws-sdk/client-s3')
 
-      const client = getS3Client()
+      const client = freshGetS3Client()
 
       expect(client).toBeDefined()
       expect(S3Client).toHaveBeenCalledWith({

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { loggerMock } from '@sim/testing'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface MockMcpClient {
   connect: ReturnType<typeof vi.fn>
@@ -29,15 +29,25 @@ function serverConfig(id: string, name = `Server ${id}`) {
   }
 }
 
-/** Shared setup: resets modules and applies base mocks. */
-function setupBaseMocks() {
-  vi.resetModules()
-  vi.doMock('@sim/logger', () => loggerMock)
-  vi.doMock('@/lib/core/config/feature-flags', () => ({ isTest: false }))
-  vi.doMock('@/lib/mcp/pubsub', () => ({
-    mcpPubSub: { onToolsChanged: vi.fn(() => vi.fn()), publishToolsChanged: vi.fn() },
-  }))
-}
+const { MockMcpClientConstructor, mockOnToolsChanged, mockPublishToolsChanged } = vi.hoisted(
+  () => ({
+    MockMcpClientConstructor: vi.fn(),
+    mockOnToolsChanged: vi.fn(() => vi.fn()),
+    mockPublishToolsChanged: vi.fn(),
+  })
+)
+
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/config/feature-flags', () => ({ isTest: false }))
+vi.mock('@/lib/mcp/pubsub', () => ({
+  mcpPubSub: {
+    onToolsChanged: mockOnToolsChanged,
+    publishToolsChanged: mockPublishToolsChanged,
+  },
+}))
+vi.mock('@/lib/mcp/client', () => ({
+  McpClient: MockMcpClientConstructor,
+}))
 
 describe('McpConnectionManager', () => {
   let manager: {
@@ -45,33 +55,43 @@ describe('McpConnectionManager', () => {
     dispose: () => void
   } | null = null
 
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   afterEach(() => {
     manager?.dispose()
     manager = null
   })
 
+  /**
+   * Because connection-manager.ts creates a singleton at module scope,
+   * each test needs a fresh module evaluation.
+   */
+  async function importFreshManager() {
+    vi.resetModules()
+    const { mcpConnectionManager: mgr } = await import('@/lib/mcp/connection-manager')
+    manager = mgr
+    return mgr
+  }
+
   describe('concurrent connect() guard', () => {
     it('creates only one client when two connect() calls race for the same serverId', async () => {
-      setupBaseMocks()
-
       const deferred = createDeferred()
       const instances: MockMcpClient[] = []
 
-      vi.doMock('./client', () => ({
-        McpClient: vi.fn().mockImplementation(() => {
-          const instance: MockMcpClient = {
-            connect: vi.fn().mockImplementation(() => deferred.promise),
-            disconnect: vi.fn().mockResolvedValue(undefined),
-            hasListChangedCapability: vi.fn().mockReturnValue(true),
-            onClose: vi.fn(),
-          }
-          instances.push(instance)
-          return instance
-        }),
-      }))
+      MockMcpClientConstructor.mockImplementation(() => {
+        const instance: MockMcpClient = {
+          connect: vi.fn().mockImplementation(() => deferred.promise),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          hasListChangedCapability: vi.fn().mockReturnValue(true),
+          onClose: vi.fn(),
+        }
+        instances.push(instance)
+        return instance
+      })
 
-      const { mcpConnectionManager: mgr } = await import('./connection-manager')
-      manager = mgr
+      const mgr = await importFreshManager()
 
       const config = serverConfig('server-1')
 
@@ -87,25 +107,20 @@ describe('McpConnectionManager', () => {
     })
 
     it('allows a new connect() after a previous one completes', async () => {
-      setupBaseMocks()
-
       const instances: MockMcpClient[] = []
 
-      vi.doMock('./client', () => ({
-        McpClient: vi.fn().mockImplementation(() => {
-          const instance: MockMcpClient = {
-            connect: vi.fn().mockResolvedValue(undefined),
-            disconnect: vi.fn().mockResolvedValue(undefined),
-            hasListChangedCapability: vi.fn().mockReturnValue(false),
-            onClose: vi.fn(),
-          }
-          instances.push(instance)
-          return instance
-        }),
-      }))
+      MockMcpClientConstructor.mockImplementation(() => {
+        const instance: MockMcpClient = {
+          connect: vi.fn().mockResolvedValue(undefined),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          hasListChangedCapability: vi.fn().mockReturnValue(false),
+          onClose: vi.fn(),
+        }
+        instances.push(instance)
+        return instance
+      })
 
-      const { mcpConnectionManager: mgr } = await import('./connection-manager')
-      manager = mgr
+      const mgr = await importFreshManager()
 
       const config = serverConfig('server-2')
 
@@ -119,30 +134,25 @@ describe('McpConnectionManager', () => {
     })
 
     it('cleans up connectingServers when connect() throws', async () => {
-      setupBaseMocks()
-
       let callCount = 0
       const instances: MockMcpClient[] = []
 
-      vi.doMock('./client', () => ({
-        McpClient: vi.fn().mockImplementation(() => {
-          callCount++
-          const instance: MockMcpClient = {
-            connect:
-              callCount === 1
-                ? vi.fn().mockRejectedValue(new Error('Connection refused'))
-                : vi.fn().mockResolvedValue(undefined),
-            disconnect: vi.fn().mockResolvedValue(undefined),
-            hasListChangedCapability: vi.fn().mockReturnValue(true),
-            onClose: vi.fn(),
-          }
-          instances.push(instance)
-          return instance
-        }),
-      }))
+      MockMcpClientConstructor.mockImplementation(() => {
+        callCount++
+        const instance: MockMcpClient = {
+          connect:
+            callCount === 1
+              ? vi.fn().mockRejectedValue(new Error('Connection refused'))
+              : vi.fn().mockResolvedValue(undefined),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          hasListChangedCapability: vi.fn().mockReturnValue(true),
+          onClose: vi.fn(),
+        }
+        instances.push(instance)
+        return instance
+      })
 
-      const { mcpConnectionManager: mgr } = await import('./connection-manager')
-      manager = mgr
+      const mgr = await importFreshManager()
 
       const config = serverConfig('server-3')
 
@@ -157,19 +167,14 @@ describe('McpConnectionManager', () => {
 
   describe('dispose', () => {
     it('rejects new connections after dispose', async () => {
-      setupBaseMocks()
-
-      vi.doMock('./client', () => ({
-        McpClient: vi.fn().mockImplementation(() => ({
-          connect: vi.fn().mockResolvedValue(undefined),
-          disconnect: vi.fn().mockResolvedValue(undefined),
-          hasListChangedCapability: vi.fn().mockReturnValue(true),
-          onClose: vi.fn(),
-        })),
+      MockMcpClientConstructor.mockImplementation(() => ({
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        hasListChangedCapability: vi.fn().mockReturnValue(true),
+        onClose: vi.fn(),
       }))
 
-      const { mcpConnectionManager: mgr } = await import('./connection-manager')
-      manager = mgr
+      const mgr = await importFreshManager()
 
       mgr.dispose()
 

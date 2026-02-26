@@ -10,42 +10,40 @@
 import {
   createSession,
   createWorkflowRecord,
-  createWorkspaceRecord,
   databaseMock,
   expectWorkflowAccessDenied,
   expectWorkflowAccessGranted,
-  mockAuth,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  getSession: mockGetSession,
+}))
+
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
+
 const mockDb = databaseMock.db
 
+const mockSession = createSession({ userId: 'user-1', email: 'user1@test.com' })
+const mockWorkflow = createWorkflowRecord({
+  id: 'wf-1',
+  userId: 'owner-1',
+  workspaceId: 'ws-1',
+})
+
 describe('validateWorkflowPermissions', () => {
-  const auth = mockAuth()
-
-  const mockSession = createSession({ userId: 'user-1', email: 'user1@test.com' })
-  const mockWorkflow = createWorkflowRecord({
-    id: 'wf-1',
-    userId: 'owner-1',
-    workspaceId: 'ws-1',
-  })
-  const mockWorkspace = createWorkspaceRecord({
-    id: 'ws-1',
-    ownerId: 'workspace-owner',
-  })
-
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
-
-    vi.doMock('@sim/db', () => databaseMock)
   })
 
   describe('authentication', () => {
     it('should return 401 when no session exists', async () => {
-      auth.setUnauthenticated()
+      mockGetSession.mockResolvedValue(null)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 401)
@@ -53,9 +51,8 @@ describe('validateWorkflowPermissions', () => {
     })
 
     it('should return 401 when session has no user id', async () => {
-      auth.mockGetSession.mockResolvedValue({ user: {} } as any)
+      mockGetSession.mockResolvedValue({ user: {} })
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 401)
@@ -64,14 +61,13 @@ describe('validateWorkflowPermissions', () => {
 
   describe('workflow not found', () => {
     it('should return 404 when workflow does not exist', async () => {
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
 
       const mockLimit = vi.fn().mockResolvedValue([])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('non-existent', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 404)
@@ -81,42 +77,39 @@ describe('validateWorkflowPermissions', () => {
 
   describe('owner access', () => {
     it('should deny access to workflow owner without workspace permissions for read action', async () => {
-      auth.setAuthenticated({ id: 'owner-1', email: 'owner-1@test.com' })
+      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
 
       const mockLimit = vi.fn().mockResolvedValue([mockWorkflow])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 403)
     })
 
     it('should deny access to workflow owner without workspace permissions for write action', async () => {
-      auth.setAuthenticated({ id: 'owner-1', email: 'owner-1@test.com' })
+      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
 
       const mockLimit = vi.fn().mockResolvedValue([mockWorkflow])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
 
       expectWorkflowAccessDenied(result, 403)
     })
 
     it('should deny access to workflow owner without workspace permissions for admin action', async () => {
-      auth.setAuthenticated({ id: 'owner-1', email: 'owner-1@test.com' })
+      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
 
       const mockLimit = vi.fn().mockResolvedValue([mockWorkflow])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
 
       expectWorkflowAccessDenied(result, 403)
@@ -125,7 +118,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('workspace member access with permissions', () => {
     beforeEach(() => {
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
     })
 
     it('should grant read access to user with read permission', async () => {
@@ -139,7 +132,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
       expectWorkflowAccessGranted(result)
@@ -156,7 +148,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
 
       expectWorkflowAccessDenied(result, 403)
@@ -174,7 +165,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
 
       expectWorkflowAccessGranted(result)
@@ -191,7 +181,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
 
       expectWorkflowAccessGranted(result)
@@ -208,7 +197,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
 
       expectWorkflowAccessDenied(result, 403)
@@ -226,7 +214,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
 
       expectWorkflowAccessGranted(result)
@@ -235,7 +222,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('no workspace permission', () => {
     it('should deny access to user without any workspace permission', async () => {
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
 
       let callCount = 0
       const mockLimit = vi.fn().mockImplementation(() => {
@@ -247,7 +234,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 403)
@@ -262,14 +248,13 @@ describe('validateWorkflowPermissions', () => {
         workspaceId: null,
       })
 
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
 
       const mockLimit = vi.fn().mockResolvedValue([workflowWithoutWorkspace])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-2', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 403)
@@ -282,14 +267,13 @@ describe('validateWorkflowPermissions', () => {
         workspaceId: null,
       })
 
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
 
       const mockLimit = vi.fn().mockResolvedValue([workflowWithoutWorkspace])
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-2', 'req-1', 'read')
 
       expectWorkflowAccessDenied(result, 403)
@@ -298,7 +282,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('default action', () => {
     it('should default to read action when not specified', async () => {
-      auth.mockGetSession.mockResolvedValue(mockSession as any)
+      mockGetSession.mockResolvedValue(mockSession)
 
       let callCount = 0
       const mockLimit = vi.fn().mockImplementation(() => {
@@ -310,7 +294,6 @@ describe('validateWorkflowPermissions', () => {
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
       vi.mocked(mockDb.select).mockReturnValue({ from: mockFrom } as any)
 
-      const { validateWorkflowPermissions } = await import('@/lib/workflows/utils')
       const result = await validateWorkflowPermissions('wf-1', 'req-1')
 
       expectWorkflowAccessGranted(result)

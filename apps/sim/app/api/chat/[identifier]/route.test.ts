@@ -51,6 +51,61 @@ const createMockStream = () => {
   })
 }
 
+const {
+  mockDbSelect,
+  mockAddCorsHeaders,
+  mockValidateChatAuth,
+  mockSetChatAuthCookie,
+  mockValidateAuthToken,
+  mockCreateErrorResponse,
+  mockCreateSuccessResponse,
+} = vi.hoisted(() => ({
+  mockDbSelect: vi.fn(),
+  mockAddCorsHeaders: vi.fn().mockImplementation((response: Response) => response),
+  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+  mockSetChatAuthCookie: vi.fn(),
+  mockValidateAuthToken: vi.fn().mockReturnValue(false),
+  mockCreateErrorResponse: vi
+    .fn()
+    .mockImplementation((message: string, status: number, code?: string) => {
+      return new Response(
+        JSON.stringify({
+          error: code || 'Error',
+          message,
+        }),
+        { status }
+      )
+    }),
+  mockCreateSuccessResponse: vi.fn().mockImplementation((data: unknown) => {
+    return new Response(JSON.stringify(data), { status: 200 })
+  }),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: { select: mockDbSelect },
+  chat: {},
+  workflow: {},
+}))
+
+vi.mock('@/lib/core/security/deployment', () => ({
+  addCorsHeaders: mockAddCorsHeaders,
+  validateAuthToken: mockValidateAuthToken,
+  setDeploymentAuthCookie: vi.fn(),
+  isEmailAllowed: vi.fn().mockReturnValue(false),
+}))
+
+vi.mock('@/app/api/chat/utils', () => ({
+  validateChatAuth: mockValidateChatAuth,
+  setChatAuthCookie: mockSetChatAuthCookie,
+}))
+
+vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/app/api/workflows/utils', () => ({
+  createErrorResponse: mockCreateErrorResponse,
+  createSuccessResponse: mockCreateSuccessResponse,
+}))
+
 vi.mock('@/lib/execution/preprocessing', () => ({
   preprocessExecution: vi.fn().mockResolvedValue({
     success: true,
@@ -100,12 +155,11 @@ vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-password' }),
 }))
 
-describe('Chat Identifier API Route', () => {
-  const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
-  const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
-  const mockSetChatAuthCookie = vi.fn()
-  const mockValidateAuthToken = vi.fn().mockReturnValue(false)
+import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import { GET, POST } from '@/app/api/chat/[identifier]/route'
 
+describe('Chat Identifier API Route', () => {
   const mockChatResult = [
     {
       id: 'chat-id',
@@ -142,66 +196,42 @@ describe('Chat Identifier API Route', () => {
   ]
 
   beforeEach(() => {
-    vi.resetModules()
+    vi.clearAllMocks()
 
-    vi.doMock('@/lib/core/security/deployment', () => ({
-      addCorsHeaders: mockAddCorsHeaders,
-      validateAuthToken: mockValidateAuthToken,
-      setDeploymentAuthCookie: vi.fn(),
-      isEmailAllowed: vi.fn().mockReturnValue(false),
-    }))
+    mockAddCorsHeaders.mockImplementation((response: Response) => response)
+    mockValidateChatAuth.mockResolvedValue({ authorized: true })
+    mockValidateAuthToken.mockReturnValue(false)
+    mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
+      return new Response(
+        JSON.stringify({
+          error: code || 'Error',
+          message,
+        }),
+        { status }
+      )
+    })
+    mockCreateSuccessResponse.mockImplementation((data: unknown) => {
+      return new Response(JSON.stringify(data), { status: 200 })
+    })
 
-    vi.doMock('@/app/api/chat/utils', () => ({
-      validateChatAuth: mockValidateChatAuth,
-      setChatAuthCookie: mockSetChatAuthCookie,
-    }))
-
-    // Mock logger - use loggerMock from @sim/testing
-    vi.doMock('@sim/logger', () => loggerMock)
-
-    vi.doMock('@sim/db', () => {
-      const mockSelect = vi.fn().mockImplementation((fields) => {
-        if (fields && fields.isDeployed !== undefined) {
-          return {
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue(mockWorkflowResult),
-              }),
-            }),
-          }
-        }
+    mockDbSelect.mockImplementation((fields: Record<string, unknown>) => {
+      if (fields && fields.isDeployed !== undefined) {
         return {
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue(mockChatResult),
+              limit: vi.fn().mockReturnValue(mockWorkflowResult),
             }),
           }),
         }
-      })
-
+      }
       return {
-        db: {
-          select: mockSelect,
-        },
-        chat: {},
-        workflow: {},
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue(mockChatResult),
+          }),
+        }),
       }
     })
-
-    vi.doMock('@/app/api/workflows/utils', () => ({
-      createErrorResponse: vi.fn().mockImplementation((message, status, code) => {
-        return new Response(
-          JSON.stringify({
-            error: code || 'Error',
-            message,
-          }),
-          { status }
-        )
-      }),
-      createSuccessResponse: vi.fn().mockImplementation((data) => {
-        return new Response(JSON.stringify(data), { status: 200 })
-      }),
-    }))
   })
 
   afterEach(() => {
@@ -212,8 +242,6 @@ describe('Chat Identifier API Route', () => {
     it('should return chat info for a valid identifier', async () => {
       const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const { GET } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await GET(req, { params })
 
@@ -228,23 +256,18 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 404 for non-existent identifier', async () => {
-      vi.doMock('@sim/db', () => {
-        const mockLimit = vi.fn().mockReturnValue([])
-        const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
-        const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
-        const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
-
+      mockDbSelect.mockImplementation(() => {
         return {
-          db: {
-            select: mockSelect,
-          },
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue([]),
+            }),
+          }),
         }
       })
 
       const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'nonexistent' })
-
-      const { GET } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await GET(req, { params })
 
@@ -256,29 +279,24 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 403 for inactive chat', async () => {
-      vi.doMock('@sim/db', () => {
-        const mockLimit = vi.fn().mockReturnValue([
-          {
-            id: 'chat-id',
-            isActive: false,
-            authType: 'public',
-          },
-        ])
-        const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
-        const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
-        const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
-
+      mockDbSelect.mockImplementation(() => {
         return {
-          db: {
-            select: mockSelect,
-          },
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue([
+                {
+                  id: 'chat-id',
+                  isActive: false,
+                  authType: 'public',
+                },
+              ]),
+            }),
+          }),
         }
       })
 
       const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'inactive-chat' })
-
-      const { GET } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await GET(req, { params })
 
@@ -290,16 +308,13 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 401 when authentication is required', async () => {
-      const originalValidateChatAuth = mockValidateChatAuth.getMockImplementation()
-      mockValidateChatAuth.mockImplementationOnce(async () => ({
+      mockValidateChatAuth.mockResolvedValueOnce({
         authorized: false,
         error: 'auth_required_password',
-      }))
+      })
 
       const req = createMockNextRequest('GET')
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
-
-      const { GET } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await GET(req, { params })
 
@@ -308,10 +323,6 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'auth_required_password')
-
-      if (originalValidateChatAuth) {
-        mockValidateChatAuth.mockImplementation(originalValidateChatAuth)
-      }
     })
   })
 
@@ -319,8 +330,6 @@ describe('Chat Identifier API Route', () => {
     it('should handle authentication requests without input', async () => {
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await POST(req, { params })
 
@@ -336,8 +345,6 @@ describe('Chat Identifier API Route', () => {
       const req = createMockNextRequest('POST', {})
       const params = Promise.resolve({ identifier: 'test-chat' })
 
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-
       const response = await POST(req, { params })
 
       expect(response.status).toBe(400)
@@ -348,16 +355,13 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 401 for unauthorized access', async () => {
-      const originalValidateChatAuth = mockValidateChatAuth.getMockImplementation()
-      mockValidateChatAuth.mockImplementationOnce(async () => ({
+      mockValidateChatAuth.mockResolvedValueOnce({
         authorized: false,
         error: 'Authentication required',
-      }))
+      })
 
       const req = createMockNextRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ identifier: 'protected-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await POST(req, { params })
 
@@ -366,16 +370,9 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Authentication required')
-
-      if (originalValidateChatAuth) {
-        mockValidateChatAuth.mockImplementation(originalValidateChatAuth)
-      }
     })
 
     it('should return 503 when workflow is not available', async () => {
-      const { preprocessExecution } = await import('@/lib/execution/preprocessing')
-      const originalImplementation = vi.mocked(preprocessExecution).getMockImplementation()
-
       vi.mocked(preprocessExecution).mockResolvedValueOnce({
         success: false,
         error: {
@@ -388,8 +385,6 @@ describe('Chat Identifier API Route', () => {
       const req = createMockNextRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-
       const response = await POST(req, { params })
 
       expect(response.status).toBe(403)
@@ -397,10 +392,6 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Workflow is not deployed')
-
-      if (originalImplementation) {
-        vi.mocked(preprocessExecution).mockImplementation(originalImplementation)
-      }
     })
 
     it('should return streaming response for valid chat messages', async () => {
@@ -409,9 +400,6 @@ describe('Chat Identifier API Route', () => {
         conversationId: 'conv-123',
       })
       const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
 
       const response = await POST(req, { params })
 
@@ -442,8 +430,6 @@ describe('Chat Identifier API Route', () => {
       const req = createMockNextRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-
       const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
@@ -463,16 +449,12 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle workflow execution errors gracefully', async () => {
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
-      const originalStreamingResponse = vi.mocked(createStreamingResponse).getMockImplementation()
       vi.mocked(createStreamingResponse).mockImplementationOnce(async () => {
         throw new Error('Execution failed')
       })
 
       const req = createMockNextRequest('POST', { input: 'Trigger error' })
       const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await POST(req, { params })
 
@@ -481,10 +463,6 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Execution failed')
-
-      if (originalStreamingResponse) {
-        vi.mocked(createStreamingResponse).mockImplementation(originalStreamingResponse)
-      }
     })
 
     it('should handle invalid JSON in request body', async () => {
@@ -495,8 +473,6 @@ describe('Chat Identifier API Route', () => {
       } as any
 
       const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
 
       const response = await POST(req, { params })
 
@@ -514,9 +490,6 @@ describe('Chat Identifier API Route', () => {
       })
       const params = Promise.resolve({ identifier: 'test-chat' })
 
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
-
       await POST(req, { params })
 
       expect(createStreamingResponse).toHaveBeenCalledWith(
@@ -532,9 +505,6 @@ describe('Chat Identifier API Route', () => {
     it('should handle missing conversationId gracefully', async () => {
       const req = createMockNextRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ identifier: 'test-chat' })
-
-      const { POST } = await import('@/app/api/chat/[identifier]/route')
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
 
       await POST(req, { params })
 

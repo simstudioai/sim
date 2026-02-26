@@ -3,22 +3,45 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, mockAuth, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('Copilot Checkpoints API Route', () => {
-  const mockSelect = vi.fn()
-  const mockFrom = vi.fn()
-  const mockWhere = vi.fn()
-  const mockLimit = vi.fn()
-  const mockOrderBy = vi.fn()
-  const mockInsert = vi.fn()
-  const mockValues = vi.fn()
-  const mockReturning = vi.fn()
+const {
+  mockSelect,
+  mockFrom,
+  mockWhere,
+  mockLimit,
+  mockOrderBy,
+  mockInsert,
+  mockValues,
+  mockReturning,
+  mockGetSession,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
+  mockLimit: vi.fn(),
+  mockOrderBy: vi.fn(),
+  mockInsert: vi.fn(),
+  mockValues: vi.fn(),
+  mockReturning: vi.fn(),
+  mockGetSession: vi.fn(),
+}))
 
-  const mockCopilotChats = { id: 'id', userId: 'userId' }
-  const mockWorkflowCheckpoints = {
+vi.mock('@/lib/auth', () => ({
+  getSession: mockGetSession,
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mockSelect,
+    insert: mockInsert,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  copilotChats: { id: 'id', userId: 'userId' },
+  workflowCheckpoints: {
     id: 'id',
     userId: 'userId',
     workflowId: 'workflowId',
@@ -26,12 +49,30 @@ describe('Copilot Checkpoints API Route', () => {
     messageId: 'messageId',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
-  }
+  },
+}))
 
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
+}))
+
+import { GET, POST } from '@/app/api/copilot/checkpoints/route'
+
+function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
+  return new NextRequest('http://localhost:3000/api/copilot/checkpoints', {
+    method,
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+describe('Copilot Checkpoints API Route', () => {
   beforeEach(() => {
-    vi.resetModules()
-    setupCommonApiMocks()
-    mockCryptoUuid()
+    vi.clearAllMocks()
+
+    mockGetSession.mockResolvedValue(null)
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
@@ -43,35 +84,15 @@ describe('Copilot Checkpoints API Route', () => {
     mockLimit.mockResolvedValue([])
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
-
-    vi.doMock('@sim/db', () => ({
-      db: {
-        select: mockSelect,
-        insert: mockInsert,
-      },
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
-      copilotChats: mockCopilotChats,
-      workflowCheckpoints: mockWorkflowCheckpoints,
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
-      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-      desc: vi.fn((field) => ({ field, type: 'desc' })),
-    }))
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
     vi.restoreAllMocks()
   })
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const authMocks = mockAuth()
-      authMocks.setUnauthenticated()
+      mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
@@ -79,7 +100,6 @@ describe('Copilot Checkpoints API Route', () => {
         workflowState: '{"blocks": []}',
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(401)
@@ -88,16 +108,12 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return 500 for invalid request body', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
-        // Missing required fields
         workflowId: 'workflow-123',
-        // Missing chatId and workflowState
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -106,10 +122,8 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return 400 when chat not found or unauthorized', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock chat not found
       mockLimit.mockResolvedValue([])
 
       const req = createMockRequest('POST', {
@@ -118,7 +132,6 @@ describe('Copilot Checkpoints API Route', () => {
         workflowState: '{"blocks": []}',
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -127,10 +140,8 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return 400 for invalid workflow state JSON', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock chat exists
       const chat = {
         id: 'chat-123',
         userId: 'user-123',
@@ -140,10 +151,9 @@ describe('Copilot Checkpoints API Route', () => {
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
         chatId: 'chat-123',
-        workflowState: 'invalid-json', // Invalid JSON
+        workflowState: 'invalid-json',
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -152,17 +162,14 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should successfully create a checkpoint', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock chat exists
       const chat = {
         id: 'chat-123',
         userId: 'user-123',
       }
       mockLimit.mockResolvedValue([chat])
 
-      // Mock successful checkpoint creation
       const checkpoint = {
         id: 'checkpoint-123',
         userId: 'user-123',
@@ -182,7 +189,6 @@ describe('Copilot Checkpoints API Route', () => {
         workflowState: JSON.stringify(workflowState),
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -200,29 +206,25 @@ describe('Copilot Checkpoints API Route', () => {
         },
       })
 
-      // Verify database operations
       expect(mockInsert).toHaveBeenCalled()
       expect(mockValues).toHaveBeenCalledWith({
         userId: 'user-123',
         workflowId: 'workflow-123',
         chatId: 'chat-123',
         messageId: 'message-123',
-        workflowState: workflowState, // Should be parsed JSON object
+        workflowState: workflowState,
       })
     })
 
     it('should create checkpoint without messageId', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock chat exists
       const chat = {
         id: 'chat-123',
         userId: 'user-123',
       }
       mockLimit.mockResolvedValue([chat])
 
-      // Mock successful checkpoint creation
       const checkpoint = {
         id: 'checkpoint-123',
         userId: 'user-123',
@@ -238,11 +240,9 @@ describe('Copilot Checkpoints API Route', () => {
       const req = createMockRequest('POST', {
         workflowId: 'workflow-123',
         chatId: 'chat-123',
-        // No messageId provided
         workflowState: JSON.stringify(workflowState),
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -252,17 +252,14 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should handle database errors during checkpoint creation', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock chat exists
       const chat = {
         id: 'chat-123',
         userId: 'user-123',
       }
       mockLimit.mockResolvedValue([chat])
 
-      // Mock database error
       mockReturning.mockRejectedValue(new Error('Database insert failed'))
 
       const req = createMockRequest('POST', {
@@ -271,7 +268,6 @@ describe('Copilot Checkpoints API Route', () => {
         workflowState: '{"blocks": []}',
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -280,10 +276,8 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should handle database errors during chat lookup', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock database error during chat lookup
       mockLimit.mockRejectedValue(new Error('Database query failed'))
 
       const req = createMockRequest('POST', {
@@ -292,7 +286,6 @@ describe('Copilot Checkpoints API Route', () => {
         workflowState: '{"blocks": []}',
       })
 
-      const { POST } = await import('@/app/api/copilot/checkpoints/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -303,12 +296,10 @@ describe('Copilot Checkpoints API Route', () => {
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const authMocks = mockAuth()
-      authMocks.setUnauthenticated()
+      mockGetSession.mockResolvedValue(null)
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
-      const { GET } = await import('@/app/api/copilot/checkpoints/route')
       const response = await GET(req)
 
       expect(response.status).toBe(401)
@@ -317,12 +308,10 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return 400 when chatId is missing', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints')
 
-      const { GET } = await import('@/app/api/copilot/checkpoints/route')
       const response = await GET(req)
 
       expect(response.status).toBe(400)
@@ -331,8 +320,7 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return checkpoints for authenticated user and chat', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const mockCheckpoints = [
         {
@@ -359,7 +347,6 @@ describe('Copilot Checkpoints API Route', () => {
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
-      const { GET } = await import('@/app/api/copilot/checkpoints/route')
       const response = await GET(req)
 
       expect(response.status).toBe(200)
@@ -388,22 +375,18 @@ describe('Copilot Checkpoints API Route', () => {
         ],
       })
 
-      // Verify database query was made correctly
       expect(mockSelect).toHaveBeenCalled()
       expect(mockWhere).toHaveBeenCalled()
       expect(mockOrderBy).toHaveBeenCalled()
     })
 
     it('should handle database errors when fetching checkpoints', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      // Mock database error
       mockOrderBy.mockRejectedValue(new Error('Database query failed'))
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
-      const { GET } = await import('@/app/api/copilot/checkpoints/route')
       const response = await GET(req)
 
       expect(response.status).toBe(500)
@@ -412,14 +395,12 @@ describe('Copilot Checkpoints API Route', () => {
     })
 
     it('should return empty array when no checkpoints found', async () => {
-      const authMocks = mockAuth()
-      authMocks.setAuthenticated()
+      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockOrderBy.mockResolvedValue([])
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints?chatId=chat-123')
 
-      const { GET } = await import('@/app/api/copilot/checkpoints/route')
       const response = await GET(req)
 
       expect(response.status).toBe(200)

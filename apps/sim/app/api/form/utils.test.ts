@@ -1,16 +1,18 @@
-import { databaseMock, loggerMock } from '@sim/testing'
-import type { NextResponse } from 'next/server'
 /**
  * Tests for form API utils
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { databaseMock, loggerMock } from '@sim/testing'
+import type { NextResponse } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDecryptSecret } = vi.hoisted(() => ({
+  mockDecryptSecret: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/logger', () => loggerMock)
-
-const mockDecryptSecret = vi.fn()
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
@@ -26,15 +28,22 @@ vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
+import crypto from 'crypto'
+import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
+import { decryptSecret } from '@/lib/core/security/encryption'
+import {
+  DEFAULT_FORM_CUSTOMIZATIONS,
+  setFormAuthCookie,
+  validateFormAuth,
+} from '@/app/api/form/utils'
+
 describe('Form API Utils', () => {
-  afterEach(() => {
+  beforeEach(() => {
     vi.clearAllMocks()
   })
 
   describe('Auth token utils', () => {
-    it.concurrent('should validate auth tokens', async () => {
-      const { validateAuthToken } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should validate auth tokens', () => {
       const formId = 'test-form-id'
       const type = 'password'
 
@@ -49,9 +58,7 @@ describe('Form API Utils', () => {
       expect(isInvalidForm).toBe(false)
     })
 
-    it.concurrent('should reject expired tokens', async () => {
-      const { validateAuthToken } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should reject expired tokens', () => {
       const formId = 'test-form-id'
       const expiredToken = Buffer.from(
         `${formId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
@@ -61,10 +68,7 @@ describe('Form API Utils', () => {
       expect(isValid).toBe(false)
     })
 
-    it.concurrent('should validate tokens with password hash', async () => {
-      const { validateAuthToken } = await import('@/lib/core/security/deployment')
-      const crypto = await import('crypto')
-
+    it.concurrent('should validate tokens with password hash', () => {
       const formId = 'test-form-id'
       const encryptedPassword = 'encrypted-password-value'
       const pwHash = crypto
@@ -84,9 +88,7 @@ describe('Form API Utils', () => {
   })
 
   describe('Cookie handling', () => {
-    it('should set auth cookie correctly', async () => {
-      const { setFormAuthCookie } = await import('@/app/api/form/utils')
-
+    it('should set auth cookie correctly', () => {
       const mockSet = vi.fn()
       const mockResponse = {
         cookies: {
@@ -112,9 +114,7 @@ describe('Form API Utils', () => {
   })
 
   describe('CORS handling', () => {
-    it.concurrent('should add CORS headers for any origin', async () => {
-      const { addCorsHeaders } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should add CORS headers for any origin', () => {
       const mockRequest = {
         headers: {
           get: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -147,9 +147,7 @@ describe('Form API Utils', () => {
       )
     })
 
-    it.concurrent('should not set CORS headers when no origin', async () => {
-      const { addCorsHeaders } = await import('@/lib/core/security/deployment')
-
+    it.concurrent('should not set CORS headers when no origin', () => {
       const mockRequest = {
         headers: {
           get: vi.fn().mockReturnValue(''),
@@ -169,14 +167,12 @@ describe('Form API Utils', () => {
   })
 
   describe('Form auth validation', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       vi.clearAllMocks()
       mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
     })
 
     it('should allow access to public forms', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'public',
@@ -194,8 +190,6 @@ describe('Form API Utils', () => {
     })
 
     it('should request password auth for GET requests', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'password',
@@ -215,9 +209,6 @@ describe('Form API Utils', () => {
     })
 
     it('should validate password for POST requests', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-      const { decryptSecret } = await import('@/lib/core/security/encryption')
-
       const deployment = {
         id: 'form-id',
         authType: 'password',
@@ -242,8 +233,6 @@ describe('Form API Utils', () => {
     })
 
     it('should reject incorrect password', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'password',
@@ -268,8 +257,6 @@ describe('Form API Utils', () => {
     })
 
     it('should request email auth for email-protected forms', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'email',
@@ -290,8 +277,6 @@ describe('Form API Utils', () => {
     })
 
     it('should check allowed emails for email auth', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'email',
@@ -326,8 +311,6 @@ describe('Form API Utils', () => {
     })
 
     it('should require password when formData is present without password', async () => {
-      const { validateFormAuth } = await import('@/app/api/form/utils')
-
       const deployment = {
         id: 'form-id',
         authType: 'password',
@@ -354,9 +337,7 @@ describe('Form API Utils', () => {
   })
 
   describe('Default customizations', () => {
-    it.concurrent('should have correct default values', async () => {
-      const { DEFAULT_FORM_CUSTOMIZATIONS } = await import('@/app/api/form/utils')
-
+    it.concurrent('should have correct default values', () => {
       expect(DEFAULT_FORM_CUSTOMIZATIONS).toEqual({
         welcomeMessage: '',
         thankYouTitle: 'Thank you!',

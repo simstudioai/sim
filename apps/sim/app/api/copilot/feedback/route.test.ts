@@ -3,21 +3,79 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('Copilot Feedback API Route', () => {
-  const mockInsert = vi.fn()
-  const mockValues = vi.fn()
-  const mockReturning = vi.fn()
-  const mockSelect = vi.fn()
-  const mockFrom = vi.fn()
+const {
+  mockInsert,
+  mockValues,
+  mockReturning,
+  mockSelect,
+  mockFrom,
+  mockAuthenticate,
+  mockCreateUnauthorizedResponse,
+  mockCreateBadRequestResponse,
+  mockCreateInternalServerErrorResponse,
+  mockCreateRequestTracker,
+} = vi.hoisted(() => ({
+  mockInsert: vi.fn(),
+  mockValues: vi.fn(),
+  mockReturning: vi.fn(),
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockAuthenticate: vi.fn(),
+  mockCreateUnauthorizedResponse: vi.fn(),
+  mockCreateBadRequestResponse: vi.fn(),
+  mockCreateInternalServerErrorResponse: vi.fn(),
+  mockCreateRequestTracker: vi.fn(),
+}))
 
+vi.mock('@sim/db', () => ({
+  db: {
+    insert: mockInsert,
+    select: mockSelect,
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  copilotFeedback: {
+    feedbackId: 'feedbackId',
+    userId: 'userId',
+    chatId: 'chatId',
+    userQuery: 'userQuery',
+    agentResponse: 'agentResponse',
+    isPositive: 'isPositive',
+    feedback: 'feedback',
+    workflowYaml: 'workflowYaml',
+    createdAt: 'createdAt',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+}))
+
+vi.mock('@/lib/copilot/request-helpers', () => ({
+  authenticateCopilotRequestSessionOnly: mockAuthenticate,
+  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
+  createBadRequestResponse: mockCreateBadRequestResponse,
+  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
+  createRequestTracker: mockCreateRequestTracker,
+}))
+
+import { GET, POST } from '@/app/api/copilot/feedback/route'
+
+function createMockRequest(method: string, body: Record<string, unknown>): NextRequest {
+  return new NextRequest('http://localhost:3000/api/copilot/feedback', {
+    method,
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+describe('Copilot Feedback API Route', () => {
   beforeEach(() => {
-    vi.resetModules()
-    setupCommonApiMocks()
-    mockCryptoUuid()
+    vi.clearAllMocks()
 
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
@@ -25,64 +83,28 @@ describe('Copilot Feedback API Route', () => {
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockResolvedValue([])
 
-    vi.doMock('@sim/db', () => ({
-      db: {
-        insert: mockInsert,
-        select: mockSelect,
-      },
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
-      copilotFeedback: {
-        feedbackId: 'feedbackId',
-        userId: 'userId',
-        chatId: 'chatId',
-        userQuery: 'userQuery',
-        agentResponse: 'agentResponse',
-        isPositive: 'isPositive',
-        feedback: 'feedback',
-        workflowYaml: 'workflowYaml',
-        createdAt: 'createdAt',
-      },
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
-    }))
-
-    vi.doMock('@/lib/copilot/request-helpers', () => ({
-      authenticateCopilotRequestSessionOnly: vi.fn(),
-      createUnauthorizedResponse: vi
-        .fn()
-        .mockReturnValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })),
-      createBadRequestResponse: vi
-        .fn()
-        .mockImplementation(
-          (message) => new Response(JSON.stringify({ error: message }), { status: 400 })
-        ),
-      createInternalServerErrorResponse: vi
-        .fn()
-        .mockImplementation(
-          (message) => new Response(JSON.stringify({ error: message }), { status: 500 })
-        ),
-      createRequestTracker: vi.fn().mockReturnValue({
-        requestId: 'test-request-id',
-        getDuration: vi.fn().mockReturnValue(100),
-      }),
-    }))
+    mockCreateRequestTracker.mockReturnValue({
+      requestId: 'test-request-id',
+      getDuration: vi.fn().mockReturnValue(100),
+    })
+    mockCreateUnauthorizedResponse.mockReturnValue(
+      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    )
+    mockCreateBadRequestResponse.mockImplementation(
+      (message: string) => new Response(JSON.stringify({ error: message }), { status: 400 })
+    )
+    mockCreateInternalServerErrorResponse.mockImplementation(
+      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
+    )
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
     vi.restoreAllMocks()
   })
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -94,7 +116,6 @@ describe('Copilot Feedback API Route', () => {
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(401)
@@ -103,10 +124,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit positive feedback', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -131,7 +149,6 @@ describe('Copilot Feedback API Route', () => {
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -142,10 +159,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit negative feedback with text', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -171,7 +185,6 @@ describe('Copilot Feedback API Route', () => {
         feedback: 'The response was not helpful',
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -181,10 +194,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit feedback with workflow YAML', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -221,7 +231,6 @@ edges:
         workflowYaml: workflowYaml,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -236,10 +245,7 @@ edges:
     })
 
     it('should return 400 for invalid chatId format', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -251,7 +257,6 @@ edges:
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -260,10 +265,7 @@ edges:
     })
 
     it('should return 400 for empty userQuery', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -275,7 +277,6 @@ edges:
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -284,10 +285,7 @@ edges:
     })
 
     it('should return 400 for empty agentResponse', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -299,7 +297,6 @@ edges:
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -308,10 +305,7 @@ edges:
     })
 
     it('should return 400 for missing isPositiveFeedback', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -322,7 +316,6 @@ edges:
         agentResponse: 'You can create a workflow by...',
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -331,10 +324,7 @@ edges:
     })
 
     it('should handle database errors gracefully', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -348,7 +338,6 @@ edges:
         isPositiveFeedback: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -357,10 +346,7 @@ edges:
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -373,7 +359,6 @@ edges:
         },
       })
 
-      const { POST } = await import('@/app/api/copilot/feedback/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -382,15 +367,11 @@ edges:
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
 
-      const { GET } = await import('@/app/api/copilot/feedback/route')
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
 
@@ -400,17 +381,13 @@ edges:
     })
 
     it('should return empty feedback array when no feedback exists', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
 
       mockFrom.mockResolvedValueOnce([])
 
-      const { GET } = await import('@/app/api/copilot/feedback/route')
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
 
@@ -421,10 +398,7 @@ edges:
     })
 
     it('should return all feedback records', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -455,7 +429,6 @@ edges:
       ]
       mockFrom.mockResolvedValueOnce(mockFeedback)
 
-      const { GET } = await import('@/app/api/copilot/feedback/route')
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
 
@@ -468,17 +441,13 @@ edges:
     })
 
     it('should handle database errors gracefully', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
 
       mockFrom.mockRejectedValueOnce(new Error('Database connection failed'))
 
-      const { GET } = await import('@/app/api/copilot/feedback/route')
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
 
@@ -488,17 +457,13 @@ edges:
     })
 
     it('should return metadata with response', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
 
       mockFrom.mockResolvedValueOnce([])
 
-      const { GET } = await import('@/app/api/copilot/feedback/route')
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
 
