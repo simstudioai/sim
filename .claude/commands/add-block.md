@@ -753,7 +753,7 @@ Optional fields that are rarely used should be set to `mode: 'advanced'` so they
 
 ## WandConfig for Complex Inputs
 
-Use `wandConfig` for fields that are hard to fill out manually, such as timestamps, JSON arrays, and complex query strings. This gives users an AI-assisted input experience.
+Use `wandConfig` for fields that are hard to fill out manually, such as timestamps, comma-separated lists, and complex query strings. This gives users an AI-assisted input experience.
 
 ```typescript
 // Timestamps - use generationType: 'timestamp' to inject current date context
@@ -769,7 +769,7 @@ Use `wandConfig` for fields that are hard to fill out manually, such as timestam
   },
 }
 
-// JSON arrays - use generationType: 'json-object'
+// Comma-separated lists - simple prompt without generationType
 {
   id: 'mediaIds',
   title: 'Media IDs',
