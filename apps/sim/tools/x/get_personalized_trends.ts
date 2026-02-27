@@ -1,13 +1,13 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { XGetPersonalizedTrendsParams, XTrendListResponse } from '@/tools/x/types'
-import { transformTrend } from '@/tools/x/types'
+import type { XGetPersonalizedTrendsParams, XPersonalizedTrendListResponse } from '@/tools/x/types'
+import { transformPersonalizedTrend } from '@/tools/x/types'
 
 const logger = createLogger('XGetPersonalizedTrendsTool')
 
 export const xGetPersonalizedTrendsTool: ToolConfig<
   XGetPersonalizedTrendsParams,
-  XTrendListResponse
+  XPersonalizedTrendListResponse
 > = {
   id: 'x_get_personalized_trends',
   name: 'X Get Personalized Trends',
@@ -29,7 +29,7 @@ export const xGetPersonalizedTrendsTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.x.com/2/users/personalized_trends',
+    url: 'https://api.x.com/2/users/personalized_trends?personalized_trend.fields=category,post_count,trend_name,trending_since',
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -54,7 +54,7 @@ export const xGetPersonalizedTrendsTool: ToolConfig<
     return {
       success: true,
       output: {
-        trends: data.data.map(transformTrend),
+        trends: data.data.map(transformPersonalizedTrend),
       },
     }
   },
@@ -67,9 +67,19 @@ export const xGetPersonalizedTrendsTool: ToolConfig<
         type: 'object',
         properties: {
           trendName: { type: 'string', description: 'Name of the trending topic' },
-          tweetCount: {
+          postCount: {
             type: 'number',
-            description: 'Number of tweets for this trend',
+            description: 'Number of posts for this trend',
+            optional: true,
+          },
+          category: {
+            type: 'string',
+            description: 'Category of the trend',
+            optional: true,
+          },
+          trendingSince: {
+            type: 'string',
+            description: 'ISO 8601 timestamp of when the topic started trending',
             optional: true,
           },
         },

@@ -41,12 +41,6 @@ export const xGetQuoteTweetsTool: ToolConfig<XGetQuoteTweetsParams, XTweetListRe
       visibility: 'user-or-llm',
       description: 'Pagination token for next page',
     },
-    exclude: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated types to exclude: "retweets", "replies"',
-    },
   },
 
   request: {
@@ -62,7 +56,6 @@ export const xGetQuoteTweetsTool: ToolConfig<XGetQuoteTweetsParams, XTweetListRe
         queryParams.append('max_results', max.toString())
       }
       if (params.paginationToken) queryParams.append('pagination_token', params.paginationToken)
-      if (params.exclude) queryParams.append('exclude', params.exclude)
 
       return `https://api.x.com/2/tweets/${params.tweetId.trim()}/quote_tweets?${queryParams.toString()}`
     },

@@ -33,7 +33,8 @@ export const xGetUsageTool: ToolConfig<XGetUsageParams, XGetUsageResponse> = {
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams({
-        'usage.fields': 'cap_reset_day,daily_project_usage,project_cap,project_id,project_usage',
+        'usage.fields':
+          'cap_reset_day,daily_client_app_usage,daily_project_usage,project_cap,project_id,project_usage',
       })
 
       if (params.days) {
@@ -63,6 +64,7 @@ export const xGetUsageTool: ToolConfig<XGetUsageParams, XGetUsageResponse> = {
           projectCap: null,
           projectUsage: null,
           dailyProjectUsage: [],
+          dailyClientAppUsage: [],
         },
       }
     }
@@ -78,6 +80,15 @@ export const xGetUsageTool: ToolConfig<XGetUsageParams, XGetUsageResponse> = {
           (u: { date: string; usage: number }) => ({
             date: u.date,
             usage: u.usage ?? 0,
+          })
+        ),
+        dailyClientAppUsage: (data.data.daily_client_app_usage ?? []).map(
+          (app: { client_app_id: string; usage: { date: string; usage: number }[] }) => ({
+            clientAppId: String(app.client_app_id ?? ''),
+            usage: (app.usage ?? []).map((u: { date: string; usage: number }) => ({
+              date: u.date,
+              usage: u.usage ?? 0,
+            })),
           })
         ),
       },
@@ -106,12 +117,33 @@ export const xGetUsageTool: ToolConfig<XGetUsageParams, XGetUsageResponse> = {
     },
     dailyProjectUsage: {
       type: 'array',
-      description: 'Daily usage breakdown',
+      description: 'Daily project usage breakdown',
       items: {
         type: 'object',
         properties: {
           date: { type: 'string', description: 'Usage date in ISO 8601 format' },
           usage: { type: 'number', description: 'Number of tweets consumed' },
+        },
+      },
+    },
+    dailyClientAppUsage: {
+      type: 'array',
+      description: 'Daily per-app usage breakdown',
+      items: {
+        type: 'object',
+        properties: {
+          clientAppId: { type: 'string', description: 'Client application ID' },
+          usage: {
+            type: 'array',
+            description: 'Daily usage entries for this app',
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string', description: 'Usage date in ISO 8601 format' },
+                usage: { type: 'number', description: 'Number of tweets consumed' },
+              },
+            },
+          },
         },
       },
     },

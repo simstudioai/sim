@@ -186,7 +186,7 @@ export const transformUser = (user: any): XUser => ({
 })
 
 /**
- * Trend object from X API
+ * Trend object from X API (WOEID trends)
  */
 export interface XTrend {
   trendName: string
@@ -194,11 +194,31 @@ export interface XTrend {
 }
 
 /**
- * Transforms raw X API trend data into the XTrend format
+ * Personalized trend object from X API
+ */
+export interface XPersonalizedTrend {
+  trendName: string
+  postCount: number | null
+  category: string | null
+  trendingSince: string | null
+}
+
+/**
+ * Transforms raw X API trend data (WOEID) into the XTrend format
  */
 export const transformTrend = (trend: any): XTrend => ({
   trendName: trend.trend_name ?? trend.name ?? '',
   tweetCount: trend.tweet_count ?? null,
+})
+
+/**
+ * Transforms raw X API personalized trend data into the XPersonalizedTrend format
+ */
+export const transformPersonalizedTrend = (trend: any): XPersonalizedTrend => ({
+  trendName: trend.trend_name ?? '',
+  postCount: trend.post_count ?? null,
+  category: trend.category ?? null,
+  trendingSince: trend.trending_since ?? null,
 })
 
 // --- New Tool Parameter Interfaces ---
@@ -432,6 +452,10 @@ export interface XGetUsageResponse extends ToolResponse {
     projectCap: number | null
     projectUsage: number | null
     dailyProjectUsage: Array<{ date: string; usage: number }>
+    dailyClientAppUsage: Array<{
+      clientAppId: string
+      usage: Array<{ date: string; usage: number }>
+    }>
   }
 }
 
@@ -485,5 +509,11 @@ export interface XUserListResponse extends ToolResponse {
 export interface XTrendListResponse extends ToolResponse {
   output: {
     trends: XTrend[]
+  }
+}
+
+export interface XPersonalizedTrendListResponse extends ToolResponse {
+  output: {
+    trends: XPersonalizedTrend[]
   }
 }

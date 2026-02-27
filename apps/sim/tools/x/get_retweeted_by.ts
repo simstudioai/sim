@@ -50,7 +50,8 @@ export const xGetRetweetedByTool: ToolConfig<XGetRetweetedByParams, XUserListRes
       })
 
       if (params.maxResults) {
-        queryParams.append('max_results', Number(params.maxResults).toString())
+        const max = Math.max(1, Math.min(100, Number(params.maxResults)))
+        queryParams.append('max_results', max.toString())
       }
       if (params.paginationToken) queryParams.append('pagination_token', params.paginationToken)
 
