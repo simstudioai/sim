@@ -118,6 +118,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       type: 'short-input',
       placeholder: 'Pagination offset (optional)',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
     },
     {
       id: 'limit',
@@ -125,6 +126,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       type: 'short-input',
       placeholder: 'Max items to return (optional)',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
     },
     {
       id: 'fieldData',
