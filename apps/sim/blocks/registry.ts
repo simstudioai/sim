@@ -64,6 +64,7 @@ import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HexBlock } from '@/blocks/blocks/hex'
 import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
+import { ShortIoBlock } from '@/blocks/blocks/short_io'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
@@ -331,6 +332,7 @@ export const registry: Record<string, BlockConfig> = {
   sftp: SftpBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
+  short_io: ShortIoBlock,
   similarweb: SimilarwebBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
