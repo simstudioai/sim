@@ -4477,6 +4477,17 @@ export function SSHIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DatabricksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 241 266' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M228.085 109.654L120.615 171.674L5.53493 105.41L0 108.475V156.582L120.615 225.911L228.085 164.128V189.596L120.615 251.615L5.53493 185.351L0 188.417V196.67L120.615 266L241 196.67V148.564L235.465 145.498L120.615 211.527L12.9148 149.743V124.275L120.615 186.059L241 116.729V69.3298L235.004 65.7925L120.615 131.585L18.4498 73.1028L120.615 14.3848L204.562 62.7269L211.942 58.4823V52.5869L120.615 0L0 69.3298V76.8759L120.615 146.206L228.085 84.1862V109.654Z'
+        fill='#F9F7F4'
+      />
+    </svg>
+  )
+}
+
 export function DatadogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
