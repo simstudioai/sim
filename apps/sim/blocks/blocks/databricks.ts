@@ -91,6 +91,18 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       condition: { field: 'operation', value: 'list_jobs' },
     },
     {
+      id: 'expandTasks',
+      title: 'Expand Tasks',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_jobs' },
+      mode: 'advanced',
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -321,11 +333,11 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
         if (params.offset) result.offset = Number(params.offset)
         if (params.startTimeFrom) result.startTimeFrom = Number(params.startTimeFrom)
         if (params.startTimeTo) result.startTimeTo = Number(params.startTimeTo)
-        if (params.includeHistory === 'true') result.includeHistory = true
-        if (params.includeResolvedValues === 'true') result.includeResolvedValues = true
-        if (params.activeOnly === 'true') result.activeOnly = true
-        if (params.completedOnly === 'true') result.completedOnly = true
-        if (params.expandTasks === 'true') result.expandTasks = true
+        result.includeHistory = params.includeHistory === 'true'
+        result.includeResolvedValues = params.includeResolvedValues === 'true'
+        result.activeOnly = params.activeOnly === 'true'
+        result.completedOnly = params.completedOnly === 'true'
+        result.expandTasks = params.expandTasks === 'true'
         if (params.runType === '') result.runType = undefined
         return result
       },
@@ -351,6 +363,7 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     name: { type: 'string', description: 'Job name filter' },
     limit: { type: 'number', description: 'Maximum results to return' },
     offset: { type: 'number', description: 'Pagination offset' },
+    expandTasks: { type: 'boolean', description: 'Include task and cluster details' },
     activeOnly: { type: 'boolean', description: 'Only active runs' },
     completedOnly: { type: 'boolean', description: 'Only completed runs' },
     runType: { type: 'string', description: 'Filter by run type' },

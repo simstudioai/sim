@@ -64,15 +64,19 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
       if (params.jobParameters) {
         try {
           body.job_parameters = JSON.parse(params.jobParameters)
-        } catch {
-          body.job_parameters = {}
+        } catch (error) {
+          throw new Error(
+            `Invalid JSON in jobParameters: ${error instanceof Error ? error.message : 'unknown error'}`
+          )
         }
       }
       if (params.notebookParams) {
         try {
           body.notebook_params = JSON.parse(params.notebookParams)
-        } catch {
-          body.notebook_params = {}
+        } catch (error) {
+          throw new Error(
+            `Invalid JSON in notebookParams: ${error instanceof Error ? error.message : 'unknown error'}`
+          )
         }
       }
       if (params.idempotencyToken) body.idempotency_token = params.idempotencyToken
