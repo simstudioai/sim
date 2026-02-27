@@ -29,74 +29,65 @@ In Sim, the X integration enables sophisticated social media automation scenario
 
 ## Usage Instructions
 
-Integrate X into the workflow. Can post a new tweet, get tweet details, search tweets, and get user profile.
+Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.
 
 
 
 ## Tools
 
-### `x_write`
+### `x_create_tweet`
 
-Post new tweets, reply to tweets, or create polls on X (Twitter)
+Create a new tweet, reply, or quote tweet on X
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text content of your tweet \(max 280 characters\) |
-| `replyTo` | string | No | ID of the tweet to reply to \(e.g., 1234567890123456789\) |
-| `mediaIds` | array | No | Array of media IDs to attach to the tweet |
-| `poll` | object | No | Poll configuration for the tweet |
+| `text` | string | Yes | The text content of the tweet \(max 280 characters\) |
+| `replyToTweetId` | string | No | Tweet ID to reply to |
+| `quoteTweetId` | string | No | Tweet ID to quote |
+| `mediaIds` | string | No | Comma-separated media IDs to attach \(up to 4\) |
+| `replySettings` | string | No | Who can reply: "mentionedUsers", "following", "subscribers", or "verified" |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | object | The newly created tweet data |
-|   ↳ `id` | string | Tweet ID |
-|   ↳ `text` | string | Tweet content text |
-|   ↳ `createdAt` | string | Tweet creation timestamp |
-|   ↳ `authorId` | string | ID of the tweet author |
-|   ↳ `conversationId` | string | Conversation thread ID |
-|   ↳ `attachments` | object | Media or poll attachments |
-|     ↳ `mediaKeys` | array | Media attachment keys |
-|     ↳ `pollId` | string | Poll ID if poll attached |
+| `id` | string | The ID of the created tweet |
+| `text` | string | The text of the created tweet |
 
-### `x_read`
+### `x_delete_tweet`
 
-Read tweet details, including replies and conversation context
+Delete a tweet authored by the authenticated user
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tweetId` | string | Yes | ID of the tweet to read \(e.g., 1234567890123456789\) |
-| `includeReplies` | boolean | No | Whether to include replies to the tweet |
+| `tweetId` | string | Yes | The ID of the tweet to delete |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | object | The main tweet data |
-|   ↳ `id` | string | Tweet ID |
-|   ↳ `text` | string | Tweet content text |
-|   ↳ `createdAt` | string | Tweet creation timestamp |
-|   ↳ `authorId` | string | ID of the tweet author |
-| `context` | object | Conversation context including parent and root tweets |
+| `deleted` | boolean | Whether the tweet was successfully deleted |
 
-### `x_search`
+### `x_search_tweets`
 
-Search for tweets using keywords, hashtags, or advanced queries
+Search for recent tweets using keywords, hashtags, or advanced query operators
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search query \(e.g., "AI news", "#technology", "from:username"\). Supports X search operators |
-| `maxResults` | number | No | Maximum number of results to return \(e.g., 10, 25, 50\). Default: 10, max: 100 |
-| `startTime` | string | No | Start time for search \(ISO 8601 format\) |
-| `endTime` | string | No | End time for search \(ISO 8601 format\) |
-| `sortOrder` | string | No | Sort order for results \(recency or relevancy\) |
+| `query` | string | Yes | Search query \(supports operators like "from:", "to:", "#hashtag", "has:images", "is:retweet", "lang:"\) |
+| `maxResults` | number | No | Maximum number of results \(10-100, default 10\) |
+| `startTime` | string | No | Oldest UTC timestamp in ISO 8601 format \(e.g., 2024-01-01T00:00:00Z\) |
+| `endTime` | string | No | Newest UTC timestamp in ISO 8601 format |
+| `sinceId` | string | No | Returns tweets with ID greater than this |
+| `untilId` | string | No | Returns tweets with ID less than this |
+| `sortOrder` | string | No | Sort order: "recency" or "relevancy" |
+| `nextToken` | string | No | Pagination token for next page of results |
 
 #### Output
 
@@ -104,38 +95,748 @@ Search for tweets using keywords, hashtags, or advanced queries
 | --------- | ---- | ----------- |
 | `tweets` | array | Array of tweets matching the search query |
 |   ↳ `id` | string | Tweet ID |
-|   ↳ `text` | string | Tweet content |
-|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
 |   ↳ `authorId` | string | Author user ID |
-| `includes` | object | Additional data including user profiles and media |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
 | `meta` | object | Search metadata including result count and pagination tokens |
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `newestId` | string | ID of the newest tweet |
 |   ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `nextToken` | string | Pagination token for next page |
 
-### `x_user`
+### `x_get_tweets_by_ids`
 
-Get user profile information
+Look up multiple tweets by their IDs (up to 100)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `username` | string | Yes | Username to look up without @ symbol \(e.g., elonmusk, openai\) |
+| `ids` | string | Yes | Comma-separated tweet IDs \(up to 100\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `user` | object | X user profile information |
+| `tweets` | array | Array of tweets matching the provided IDs |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
+
+### `x_get_quote_tweets`
+
+Get tweets that quote a specific tweet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tweetId` | string | Yes | The tweet ID to get quote tweets for |
+| `maxResults` | number | No | Maximum number of results \(10-100, default 10\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of quote tweets |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_hide_reply`
+
+Hide or unhide a reply to a tweet authored by the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tweetId` | string | Yes | The reply tweet ID to hide or unhide |
+| `hidden` | boolean | Yes | Set to true to hide the reply, false to unhide |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hidden` | boolean | Whether the reply is now hidden |
+
+### `x_get_user_tweets`
+
+Get tweets authored by a specific user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID whose tweets to retrieve |
+| `maxResults` | number | No | Maximum number of results \(5-100, default 10\) |
+| `paginationToken` | string | No | Pagination token for next page of results |
+| `startTime` | string | No | Oldest UTC timestamp in ISO 8601 format |
+| `endTime` | string | No | Newest UTC timestamp in ISO 8601 format |
+| `sinceId` | string | No | Returns tweets with ID greater than this |
+| `untilId` | string | No | Returns tweets with ID less than this |
+| `exclude` | string | No | Comma-separated types to exclude: "retweets", "replies" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of tweets by the user |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `newestId` | string | ID of the newest tweet |
+|   ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `nextToken` | string | Token for next page |
+|   ↳ `previousToken` | string | Token for previous page |
+
+### `x_get_user_mentions`
+
+Get tweets that mention a specific user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID whose mentions to retrieve |
+| `maxResults` | number | No | Maximum number of results \(5-100, default 10\) |
+| `paginationToken` | string | No | Pagination token for next page of results |
+| `startTime` | string | No | Oldest UTC timestamp in ISO 8601 format |
+| `endTime` | string | No | Newest UTC timestamp in ISO 8601 format |
+| `sinceId` | string | No | Returns tweets with ID greater than this |
+| `untilId` | string | No | Returns tweets with ID less than this |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of tweets mentioning the user |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `newestId` | string | ID of the newest tweet |
+|   ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `nextToken` | string | Token for next page |
+|   ↳ `previousToken` | string | Token for previous page |
+
+### `x_get_user_timeline`
+
+Get the reverse chronological home timeline for the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `maxResults` | number | No | Maximum number of results \(1-100, default 10\) |
+| `paginationToken` | string | No | Pagination token for next page of results |
+| `startTime` | string | No | Oldest UTC timestamp in ISO 8601 format |
+| `endTime` | string | No | Newest UTC timestamp in ISO 8601 format |
+| `sinceId` | string | No | Returns tweets with ID greater than this |
+| `untilId` | string | No | Returns tweets with ID less than this |
+| `exclude` | string | No | Comma-separated types to exclude: "retweets", "replies" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of timeline tweets |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `newestId` | string | ID of the newest tweet |
+|   ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `nextToken` | string | Token for next page |
+|   ↳ `previousToken` | string | Token for previous page |
+
+### `x_manage_like`
+
+Like or unlike a tweet on X
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `tweetId` | string | Yes | The tweet ID to like or unlike |
+| `action` | string | Yes | Action to perform: "like" or "unlike" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `liked` | boolean | Whether the tweet is now liked |
+
+### `x_manage_retweet`
+
+Retweet or unretweet a tweet on X
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `tweetId` | string | Yes | The tweet ID to retweet or unretweet |
+| `action` | string | Yes | Action to perform: "retweet" or "unretweet" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `retweeted` | boolean | Whether the tweet is now retweeted |
+
+### `x_get_liked_tweets`
+
+Get tweets liked by a specific user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID whose liked tweets to retrieve |
+| `maxResults` | number | No | Maximum number of results \(5-100\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of liked tweets |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet content |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_get_liking_users`
+
+Get the list of users who liked a specific tweet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tweetId` | string | Yes | The tweet ID to get liking users for |
+| `maxResults` | number | No | Maximum number of results \(1-100, default 100\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of users who liked the tweet |
 |   ↳ `id` | string | User ID |
 |   ↳ `username` | string | Username without @ symbol |
 |   ↳ `name` | string | Display name |
-|   ↳ `description` | string | User bio/description |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
 |   ↳ `verified` | boolean | Whether the user is verified |
 |   ↳ `metrics` | object | User statistics |
 |     ↳ `followersCount` | number | Number of followers |
 |     ↳ `followingCount` | number | Number of users following |
 |     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_get_retweeted_by`
+
+Get the list of users who retweeted a specific tweet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tweetId` | string | Yes | The tweet ID to get retweeters for |
+| `maxResults` | number | No | Maximum number of results \(1-100, default 100\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of users who retweeted the tweet |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_get_bookmarks`
+
+Get bookmarked tweets for the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `maxResults` | number | No | Maximum number of results \(1-100\) |
+| `paginationToken` | string | No | Pagination token for next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array of bookmarked tweets |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet text content |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `inReplyToUserId` | string | User ID being replied to |
+|   ↳ `publicMetrics` | object | Engagement metrics |
+|     ↳ `retweetCount` | number | Number of retweets |
+|     ↳ `replyCount` | number | Number of replies |
+|     ↳ `likeCount` | number | Number of likes |
+|     ↳ `quoteCount` | number | Number of quotes |
+| `includes` | object | Additional data including user profiles |
+|   ↳ `users` | array | Array of user objects referenced in tweets |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username without @ symbol |
+|     ↳ `name` | string | Display name |
+|     ↳ `description` | string | User bio |
+|     ↳ `profileImageUrl` | string | Profile image URL |
+|     ↳ `verified` | boolean | Whether the user is verified |
+|     ↳ `metrics` | object | User statistics |
+|       ↳ `followersCount` | number | Number of followers |
+|       ↳ `followingCount` | number | Number of users following |
+|       ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `newestId` | string | ID of the newest tweet |
+|   ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `nextToken` | string | Token for next page |
+|   ↳ `previousToken` | string | Token for previous page |
+
+### `x_create_bookmark`
+
+Bookmark a tweet for the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `tweetId` | string | Yes | The tweet ID to bookmark |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bookmarked` | boolean | Whether the tweet was successfully bookmarked |
+
+### `x_delete_bookmark`
+
+Remove a tweet from the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `tweetId` | string | Yes | The tweet ID to remove from bookmarks |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bookmarked` | boolean | Whether the tweet is still bookmarked \(should be false after deletion\) |
+
+### `x_get_me`
+
+Get the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Authenticated user profile |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+
+### `x_search_users`
+
+Search for X users by name, username, or bio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search keyword \(1-50 chars, matches name, username, or bio\) |
+| `maxResults` | number | No | Maximum number of results \(1-1000, default 100\) |
+| `nextToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of users matching the search query |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Search metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Pagination token for next page |
+
+### `x_get_followers`
+
+Get the list of followers for a user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID whose followers to retrieve |
+| `maxResults` | number | No | Maximum number of results \(1-1000, default 100\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of follower user profiles |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_get_following`
+
+Get the list of users that a user is following
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The user ID whose following list to retrieve |
+| `maxResults` | number | No | Maximum number of results \(1-1000, default 100\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of users being followed |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_manage_follow`
+
+Follow or unfollow a user on X
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `targetUserId` | string | Yes | The user ID to follow or unfollow |
+| `action` | string | Yes | Action to perform: "follow" or "unfollow" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `following` | boolean | Whether you are now following the user |
+| `pendingFollow` | boolean | Whether the follow request is pending \(for protected accounts\) |
+
+### `x_manage_block`
+
+Block or unblock a user on X
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `targetUserId` | string | Yes | The user ID to block or unblock |
+| `action` | string | Yes | Action to perform: "block" or "unblock" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `blocking` | boolean | Whether you are now blocking the user |
+
+### `x_get_blocking`
+
+Get the list of users blocked by the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `maxResults` | number | No | Maximum number of results \(1-1000\) |
+| `paginationToken` | string | No | Pagination token for next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of blocked user profiles |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio |
+|   ↳ `profileImageUrl` | string | Profile image URL |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
+| `meta` | object | Pagination metadata |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `nextToken` | string | Token for next page |
+
+### `x_manage_mute`
+
+Mute or unmute a user on X
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | The authenticated user ID |
+| `targetUserId` | string | Yes | The user ID to mute or unmute |
+| `action` | string | Yes | Action to perform: "mute" or "unmute" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `muting` | boolean | Whether you are now muting the user |
+
+### `x_get_trends_by_woeid`
+
+Get trending topics for a specific location by WOEID (e.g., 1 for worldwide, 23424977 for US)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `woeid` | string | Yes | Yahoo Where On Earth ID \(e.g., "1" for worldwide, "23424977" for US, "23424975" for UK\) |
+| `maxTrends` | number | No | Maximum number of trends to return \(1-50, default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trends` | array | Array of trending topics |
+|   ↳ `trendName` | string | Name of the trending topic |
+|   ↳ `tweetCount` | number | Number of tweets for this trend |
+
+### `x_get_personalized_trends`
+
+Get personalized trending topics for the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trends` | array | Array of personalized trending topics |
+|   ↳ `trendName` | string | Name of the trending topic |
+|   ↳ `postCount` | number | Number of posts for this trend |
+|   ↳ `category` | string | Category of the trend |
+|   ↳ `trendingSince` | string | ISO 8601 timestamp of when the topic started trending |
+
+### `x_get_usage`
+
+Get the API usage data for your X project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `days` | number | No | Number of days of usage data to return \(1-90, default 7\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `capResetDay` | number | Day of month when usage cap resets |
+| `projectId` | string | The project ID |
+| `projectCap` | number | The project tweet consumption cap |
+| `projectUsage` | number | Total tweets consumed in current period |
+| `dailyProjectUsage` | array | Daily project usage breakdown |
+|   ↳ `date` | string | Usage date in ISO 8601 format |
+|   ↳ `usage` | number | Number of tweets consumed |
+| `dailyClientAppUsage` | array | Daily per-app usage breakdown |
+|   ↳ `clientAppId` | string | Client application ID |
+|   ↳ `usage` | array | Daily usage entries for this app |
+|     ↳ `date` | string | Usage date in ISO 8601 format |
+|     ↳ `usage` | number | Number of tweets consumed |
 
 
