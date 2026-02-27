@@ -1,6 +1,6 @@
 ---
 title: Resend
-description: Send emails with Resend.
+description: Send emails and manage contacts with Resend.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ In Sim, the Resend integration allows your agents to programmatically send email
 
 ## Usage Instructions
 
-Integrate Resend into the workflow. Can send emails. Requires API Key.
+Integrate Resend into your workflow. Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.
 
 
 
@@ -46,6 +46,11 @@ Send an email using your own Resend API key and from address
 | `subject` | string | Yes | Email subject line |
 | `body` | string | Yes | Email body content \(plain text or HTML based on contentType\) |
 | `contentType` | string | No | Content type for the email body: "text" for plain text or "html" for HTML content |
+| `cc` | string | No | Carbon copy recipient email address |
+| `bcc` | string | No | Blind carbon copy recipient email address |
+| `replyTo` | string | No | Reply-to email address |
+| `scheduledAt` | string | No | Schedule email to be sent later in ISO 8601 format |
+| `tags` | string | No | Comma-separated key:value pairs for email tags \(e.g., "category:welcome,type:onboarding"\) |
 | `resendApiKey` | string | Yes | Resend API key for sending emails |
 
 #### Output
@@ -53,8 +58,152 @@ Send an email using your own Resend API key and from address
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the email was sent successfully |
+| `id` | string | Email ID returned by Resend |
 | `to` | string | Recipient email address |
 | `subject` | string | Email subject |
 | `body` | string | Email body content |
+
+### `resend_get_email`
+
+Retrieve details of a previously sent email by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `emailId` | string | Yes | The ID of the email to retrieve |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Email ID |
+| `from` | string | Sender email address |
+| `to` | json | Recipient email addresses |
+| `subject` | string | Email subject |
+| `html` | string | HTML email content |
+| `text` | string | Plain text email content |
+| `cc` | json | CC email addresses |
+| `bcc` | json | BCC email addresses |
+| `replyTo` | json | Reply-to email addresses |
+| `lastEvent` | string | Last event status \(e.g., delivered, bounced\) |
+| `createdAt` | string | Email creation timestamp |
+| `scheduledAt` | string | Scheduled send timestamp |
+| `tags` | json | Email tags as name-value pairs |
+
+### `resend_create_contact`
+
+Create a new contact in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address of the contact |
+| `firstName` | string | No | First name of the contact |
+| `lastName` | string | No | Last name of the contact |
+| `unsubscribed` | boolean | No | Whether the contact is unsubscribed from all broadcasts |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created contact ID |
+
+### `resend_list_contacts`
+
+List all contacts in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Array of contacts with id, email, first_name, last_name, created_at, unsubscribed |
+| `hasMore` | boolean | Whether there are more contacts to retrieve |
+
+### `resend_get_contact`
+
+Retrieve details of a contact by ID or email
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The contact ID or email address to retrieve |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Contact ID |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Contact creation timestamp |
+| `unsubscribed` | boolean | Whether the contact is unsubscribed |
+
+### `resend_update_contact`
+
+Update an existing contact in Resend
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The contact ID or email address to update |
+| `firstName` | string | No | Updated first name |
+| `lastName` | string | No | Updated last name |
+| `unsubscribed` | boolean | No | Whether the contact should be unsubscribed from all broadcasts |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Updated contact ID |
+
+### `resend_delete_contact`
+
+Delete a contact from Resend by ID or email
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The contact ID or email address to delete |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted contact ID |
+| `deleted` | boolean | Whether the contact was successfully deleted |
+
+### `resend_list_domains`
+
+List all verified domains in your Resend account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `resendApiKey` | string | Yes | Resend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | json | Array of domains with id, name, status, region, and createdAt |
+| `hasMore` | boolean | Whether there are more domains to retrieve |
 
 
