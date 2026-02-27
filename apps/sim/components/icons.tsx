@@ -1265,6 +1265,20 @@ export function GoogleSlidesIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GoogleContactsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'>
+      <path fill='#86a9ff' d='M199 244c-89 0-161 71-161 160v67c0 16 13 29 29 29h77l77-256z' />
+      <path fill='#578cff' d='M462 349c0-58-48-105-106-105h-77v256h77c58 0 106-47 106-106' />
+      <path
+        fill='#0057cc'
+        d='M115 349c0-58 48-105 106-105h58c58 0 106 47 106 105v45c0 59-48 106-106 106H144c-16 0-29-13-29-29z'
+      />
+      <circle cx='250' cy='99.4' r='99.4' fill='#0057cc' />
+    </svg>
+  )
+}
+
 export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
