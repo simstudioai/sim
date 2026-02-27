@@ -486,6 +486,9 @@ export interface XManageMuteResponse extends ToolResponse {
 export interface XTweetListResponse extends ToolResponse {
   output: {
     tweets: XTweet[]
+    includes?: {
+      users: XUser[]
+    }
     meta: {
       resultCount: number
       newestId: string | null

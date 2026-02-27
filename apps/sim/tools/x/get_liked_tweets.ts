@@ -96,6 +96,8 @@ export const xGetLikedTweetsTool: ToolConfig<XGetLikedTweetsParams, XTweetListRe
         },
         meta: {
           resultCount: data.meta?.result_count ?? 0,
+          newestId: data.meta?.newest_id ?? null,
+          oldestId: data.meta?.oldest_id ?? null,
           nextToken: data.meta?.next_token ?? null,
           previousToken: data.meta?.previous_token ?? null,
         },
