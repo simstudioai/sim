@@ -102,6 +102,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Always use `?? []` for optional array fields
 - Set `optional: true` for outputs that may not exist
 - Never output raw JSON dumps - extract meaningful fields
+- When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
 
 ## Step 3: Create Block
 

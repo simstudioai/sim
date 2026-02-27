@@ -147,9 +147,18 @@ closedAt: {
 },
 ```
 
-### Nested Properties
-For complex outputs, define nested structure:
+### Typed JSON Outputs
+
+When using `type: 'json'` and you know the object shape in advance, **always define the inner structure** using `properties` so downstream consumers know what fields are available:
+
 ```typescript
+// BAD: Opaque json with no info about what's inside
+metadata: {
+  type: 'json',
+  description: 'Response metadata',
+},
+
+// GOOD: Define the known properties
 metadata: {
   type: 'json',
   description: 'Response metadata',
@@ -159,7 +168,10 @@ metadata: {
     count: { type: 'number', description: 'Total count' },
   },
 },
+```
 
+For arrays of objects, define the item structure:
+```typescript
 items: {
   type: 'array',
   description: 'List of items',
@@ -172,6 +184,8 @@ items: {
   },
 },
 ```
+
+Only use bare `type: 'json'` without `properties` when the shape is truly dynamic or unknown.
 
 ## Critical Rules for transformResponse
 

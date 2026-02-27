@@ -532,6 +532,41 @@ outputs: {
 }
 ```
 
+### Typed JSON Outputs
+
+When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. For well-known, stable objects, use nested output definitions instead:
+
+```typescript
+outputs: {
+  // BAD: Opaque json with no info about what's inside
+  plan: { type: 'json', description: 'Zone plan information' },
+
+  // GOOD: Describe the known fields in the description
+  plan: {
+    type: 'json',
+    description: 'Zone plan information (id, name, price, currency, frequency, is_subscribed)',
+  },
+
+  // BEST: Use nested output definition when the shape is stable and well-known
+  plan: {
+    id: { type: 'string', description: 'Plan identifier' },
+    name: { type: 'string', description: 'Plan name' },
+    price: { type: 'number', description: 'Plan price' },
+    currency: { type: 'string', description: 'Price currency' },
+  },
+}
+```
+
+Use the nested pattern when:
+- The object has a small, stable set of fields (< 10)
+- Downstream blocks will commonly access specific properties
+- The API response shape is well-documented and unlikely to change
+
+Use `type: 'json'` with a descriptive string when:
+- The object has many fields or a dynamic shape
+- It represents a list/array of items
+- The shape varies by operation
+
 ## V2 Block Pattern
 
 When creating V2 blocks (alongside legacy V1):
