@@ -6,29 +6,19 @@
  * - Standard block types (e.g., 'api', 'search', 'function')
  * - 'custom-tool': User-defined tools with custom code
  * - 'mcp': Individual MCP tool from a connected server
- * - 'mcp-server': All tools from an MCP server (agent discovery mode).
- *   At execution time, this expands into individual tool definitions for
- *   all tools available on the server.
  *
  * For custom tools (new format), we only store: type, customToolId, usageControl, isExpanded.
  * Everything else (title, schema, code) is loaded dynamically from the database.
  * Legacy custom tools with inline schema/code are still supported for backwards compatibility.
  */
 export interface StoredTool {
-  /**
-   * Block type identifier.
-   * 'mcp-server' enables server-level selection where all tools from
-   * the server are made available to the LLM at execution time.
-   */
+  /** Block type identifier */
   type: string
   /** Display title for the tool (optional for new custom tool format) */
   title?: string
   /** Direct tool ID for execution (optional for new custom tool format) */
   toolId?: string
-  /**
-   * Parameter values configured by the user.
-   * For 'mcp-server' type, includes: serverId, serverUrl, serverName, toolCount
-   */
+  /** Parameter values configured by the user */
   params?: Record<string, string>
   /** Whether the tool details are expanded in UI */
   isExpanded?: boolean

@@ -8,15 +8,6 @@ export function isMcpToolAlreadySelected(selectedTools: StoredTool[], mcpToolId:
 }
 
 /**
- * Checks if an MCP server is already selected (all tools mode).
- */
-export function isMcpServerAlreadySelected(selectedTools: StoredTool[], serverId: string): boolean {
-  return selectedTools.some(
-    (tool) => tool.type === 'mcp-server' && tool.params?.serverId === serverId
-  )
-}
-
-/**
  * Checks if a custom tool is already selected.
  */
 export function isCustomToolAlreadySelected(
