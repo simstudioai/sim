@@ -3,66 +3,84 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const {
+  mockAuthenticateCopilotRequestSessionOnly,
+  mockCreateUnauthorizedResponse,
+  mockCreateBadRequestResponse,
+  mockCreateInternalServerErrorResponse,
+  mockCreateRequestTracker,
+  mockFetch,
+} = vi.hoisted(() => ({
+  mockAuthenticateCopilotRequestSessionOnly: vi.fn(),
+  mockCreateUnauthorizedResponse: vi.fn(),
+  mockCreateBadRequestResponse: vi.fn(),
+  mockCreateInternalServerErrorResponse: vi.fn(),
+  mockCreateRequestTracker: vi.fn(),
+  mockFetch: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request-helpers', () => ({
+  authenticateCopilotRequestSessionOnly: mockAuthenticateCopilotRequestSessionOnly,
+  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
+  createBadRequestResponse: mockCreateBadRequestResponse,
+  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
+  createRequestTracker: mockCreateRequestTracker,
+}))
+
+vi.mock('@/lib/copilot/constants', () => ({
+  SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
+  SIM_AGENT_API_URL: 'https://agent.sim.example.com',
+}))
+
+vi.mock('@/lib/core/config/env', () => ({
+  env: {
+    COPILOT_API_KEY: 'test-api-key',
+  },
+  getEnv: vi.fn((key: string) => {
+    const vals: Record<string, string | undefined> = {
+      COPILOT_API_KEY: 'test-api-key',
+    }
+    return vals[key]
+  }),
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
+  isFalsy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
+}))
+
+import { POST } from '@/app/api/copilot/stats/route'
+
 describe('Copilot Stats API Route', () => {
-  const mockFetch = vi.fn()
-
   beforeEach(() => {
-    vi.resetModules()
-    setupCommonApiMocks()
-    mockCryptoUuid()
-
+    vi.clearAllMocks()
     global.fetch = mockFetch
 
-    vi.doMock('@/lib/copilot/request-helpers', () => ({
-      authenticateCopilotRequestSessionOnly: vi.fn(),
-      createUnauthorizedResponse: vi
-        .fn()
-        .mockReturnValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })),
-      createBadRequestResponse: vi
-        .fn()
-        .mockImplementation(
-          (message) => new Response(JSON.stringify({ error: message }), { status: 400 })
-        ),
-      createInternalServerErrorResponse: vi
-        .fn()
-        .mockImplementation(
-          (message) => new Response(JSON.stringify({ error: message }), { status: 500 })
-        ),
-      createRequestTracker: vi.fn().mockReturnValue({
-        requestId: 'test-request-id',
-        getDuration: vi.fn().mockReturnValue(100),
-      }),
-    }))
-
-    vi.doMock('@/lib/copilot/constants', () => ({
-      SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
-      SIM_AGENT_API_URL: 'https://agent.sim.example.com',
-    }))
-
-    vi.doMock('@/lib/core/config/env', async () => {
-      const { createEnvMock } = await import('@sim/testing')
-      return createEnvMock({
-        SIM_AGENT_API_URL: undefined,
-        COPILOT_API_KEY: 'test-api-key',
-      })
+    mockCreateUnauthorizedResponse.mockReturnValue(
+      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    )
+    mockCreateBadRequestResponse.mockImplementation(
+      (message: string) => new Response(JSON.stringify({ error: message }), { status: 400 })
+    )
+    mockCreateInternalServerErrorResponse.mockImplementation(
+      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
+    )
+    mockCreateRequestTracker.mockReturnValue({
+      requestId: 'test-request-id',
+      getDuration: vi.fn().mockReturnValue(100),
     })
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
     vi.restoreAllMocks()
   })
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -73,7 +91,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(401)
@@ -82,10 +99,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should successfully forward stats to Sim Agent', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -101,7 +115,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -126,10 +139,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing messageId', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -139,7 +149,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -148,10 +157,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing diffCreated', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -161,7 +167,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -170,10 +175,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing diffAccepted', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -183,7 +185,6 @@ describe('Copilot Stats API Route', () => {
         diffCreated: true,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -192,10 +193,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 when upstream Sim Agent returns error', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -211,7 +209,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -220,10 +217,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle upstream error with message field', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -239,7 +233,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -248,10 +241,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle upstream error with no JSON response', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -267,7 +257,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -276,10 +265,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle network errors gracefully', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -292,7 +278,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -301,10 +286,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -317,7 +299,6 @@ describe('Copilot Stats API Route', () => {
         },
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -326,10 +307,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should forward stats with diffCreated=false and diffAccepted=false', async () => {
-      const { authenticateCopilotRequestSessionOnly } = await import(
-        '@/lib/copilot/request-helpers'
-      )
-      vi.mocked(authenticateCopilotRequestSessionOnly).mockResolvedValueOnce({
+      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -345,7 +323,6 @@ describe('Copilot Stats API Route', () => {
         diffAccepted: false,
       })
 
-      const { POST } = await import('@/app/api/copilot/stats/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)

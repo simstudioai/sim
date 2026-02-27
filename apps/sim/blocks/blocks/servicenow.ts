@@ -119,6 +119,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       placeholder: 'active=true^priority=1',
       condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'ServiceNow encoded query string',
+      mode: 'advanced',
     },
     {
       id: 'limit',
@@ -126,6 +127,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'servicenow_read_record' },
+      mode: 'advanced',
     },
     {
       id: 'fields',
@@ -134,6 +136,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       placeholder: 'number,short_description,priority',
       condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'Comma-separated list of fields',
+      mode: 'advanced',
     },
     // Update-specific: sysId and fields
     {

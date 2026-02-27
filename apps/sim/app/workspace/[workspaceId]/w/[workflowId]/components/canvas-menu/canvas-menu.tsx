@@ -26,16 +26,21 @@ export interface CanvasMenuProps {
   onOpenLogs: () => void
   onToggleVariables: () => void
   onToggleChat: () => void
+  onToggleWorkflowLock?: () => void
   isVariablesOpen?: boolean
   isChatOpen?: boolean
   hasClipboard?: boolean
   disableEdit?: boolean
-  disableAdmin?: boolean
+  canAdmin?: boolean
   canUndo?: boolean
   canRedo?: boolean
   isInvitationsDisabled?: boolean
   /** Whether the workflow has locked blocks (disables auto-layout) */
   hasLockedBlocks?: boolean
+  /** Whether all blocks in the workflow are locked */
+  allBlocksLocked?: boolean
+  /** Whether the workflow has any blocks */
+  hasBlocks?: boolean
 }
 
 /**
@@ -56,13 +61,17 @@ export function CanvasMenu({
   onOpenLogs,
   onToggleVariables,
   onToggleChat,
+  onToggleWorkflowLock,
   isVariablesOpen = false,
   isChatOpen = false,
   hasClipboard = false,
   disableEdit = false,
+  canAdmin = false,
   canUndo = false,
   canRedo = false,
   hasLockedBlocks = false,
+  allBlocksLocked = false,
+  hasBlocks = false,
 }: CanvasMenuProps) {
   return (
     <Popover
@@ -142,6 +151,17 @@ export function CanvasMenu({
           <span>Auto-layout</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
         </PopoverItem>
+        {canAdmin && onToggleWorkflowLock && (
+          <PopoverItem
+            disabled={!hasBlocks}
+            onClick={() => {
+              onToggleWorkflowLock()
+              onClose()
+            }}
+          >
+            <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
+          </PopoverItem>
+        )}
         <PopoverItem
           onClick={() => {
             onFitToView()

@@ -131,6 +131,8 @@ export const AuditAction = {
   WORKFLOW_DUPLICATED: 'workflow.duplicated',
   WORKFLOW_DEPLOYMENT_ACTIVATED: 'workflow.deployment_activated',
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
+  WORKFLOW_LOCKED: 'workflow.locked',
+  WORKFLOW_UNLOCKED: 'workflow.unlocked',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
 
   // Workspaces

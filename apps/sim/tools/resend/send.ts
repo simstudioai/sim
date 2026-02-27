@@ -41,6 +41,37 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
       description:
         'Content type for the email body: "text" for plain text or "html" for HTML content',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Carbon copy recipient email address',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Blind carbon copy recipient email address',
+    },
+    replyTo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reply-to email address',
+    },
+    scheduledAt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Schedule email to be sent later in ISO 8601 format',
+    },
+    tags: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated key:value pairs for email tags (e.g., "category:welcome,type:onboarding")',
+    },
     resendApiKey: {
       type: 'string',
       required: true,
@@ -62,6 +93,11 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
       subject: params.subject,
       body: params.body,
       contentType: params.contentType || 'text',
+      ...(params.cc && { cc: params.cc }),
+      ...(params.bcc && { bcc: params.bcc }),
+      ...(params.replyTo && { replyTo: params.replyTo }),
+      ...(params.scheduledAt && { scheduledAt: params.scheduledAt }),
+      ...(params.tags && { tags: params.tags }),
     }),
   },
 
@@ -72,6 +108,7 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
       success: true,
       output: {
         success: result.success,
+        id: result.data?.id || '',
         to: params?.to || '',
         subject: params?.subject || '',
         body: params?.body || '',
@@ -81,6 +118,7 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the email was sent successfully' },
+    id: { type: 'string', description: 'Email ID returned by Resend' },
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email body content' },

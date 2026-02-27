@@ -55,6 +55,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'Filter by email (comma-separated)',
       condition: { field: 'operation', value: 'clerk_list_users' },
+      mode: 'advanced',
     },
     {
       id: 'usernameFilter',
@@ -62,6 +63,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'Filter by username (comma-separated)',
       condition: { field: 'operation', value: 'clerk_list_users' },
+      mode: 'advanced',
     },
     // Get User params
     {
@@ -92,6 +94,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: '+1234567890 (comma-separated for multiple)',
       condition: { field: 'operation', value: 'clerk_create_user' },
+      mode: 'advanced',
     },
     {
       id: 'username',
@@ -99,6 +102,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'johndoe',
       condition: { field: 'operation', value: ['clerk_create_user', 'clerk_update_user'] },
+      mode: 'advanced',
     },
     {
       id: 'password',
@@ -128,6 +132,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'Your system user ID',
       condition: { field: 'operation', value: ['clerk_create_user', 'clerk_update_user'] },
+      mode: 'advanced',
     },
     {
       id: 'publicMetadata',
@@ -136,6 +141,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       language: 'json',
       placeholder: '{"role": "admin"}',
       condition: { field: 'operation', value: ['clerk_create_user', 'clerk_update_user'] },
+      mode: 'advanced',
     },
     {
       id: 'privateMetadata',
@@ -144,6 +150,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       language: 'json',
       placeholder: '{"internalId": "123"}',
       condition: { field: 'operation', value: ['clerk_create_user', 'clerk_update_user'] },
+      mode: 'advanced',
     },
     // Organization params
     {
@@ -152,12 +159,14 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'Search by name, ID, or slug',
       condition: { field: 'operation', value: 'clerk_list_organizations' },
+      mode: 'advanced',
     },
     {
       id: 'includeMembersCount',
       title: 'Include Members Count',
       type: 'switch',
       condition: { field: 'operation', value: 'clerk_list_organizations' },
+      mode: 'advanced',
     },
     {
       id: 'organizationId',
@@ -189,6 +198,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'acme-corp',
       condition: { field: 'operation', value: 'clerk_create_organization' },
+      mode: 'advanced',
     },
     {
       id: 'maxAllowedMemberships',
@@ -196,6 +206,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: '0 for unlimited',
       condition: { field: 'operation', value: 'clerk_create_organization' },
+      mode: 'advanced',
     },
     // Session params
     {
@@ -204,6 +215,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'user_...',
       condition: { field: 'operation', value: 'clerk_list_sessions' },
+      mode: 'advanced',
     },
     {
       id: 'clientId',
@@ -211,6 +223,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       type: 'short-input',
       placeholder: 'client_...',
       condition: { field: 'operation', value: 'clerk_list_sessions' },
+      mode: 'advanced',
     },
     {
       id: 'sessionStatus',
@@ -227,6 +240,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'clerk_list_sessions' },
+      mode: 'advanced',
     },
     {
       id: 'sessionId',
@@ -246,6 +260,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
         field: 'operation',
         value: ['clerk_list_users', 'clerk_list_organizations', 'clerk_list_sessions'],
       },
+      mode: 'advanced',
     },
     {
       id: 'offset',
@@ -256,6 +271,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
         field: 'operation',
         value: ['clerk_list_users', 'clerk_list_organizations', 'clerk_list_sessions'],
       },
+      mode: 'advanced',
     },
   ],
 

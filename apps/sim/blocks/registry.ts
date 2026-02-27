@@ -10,6 +10,7 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
+import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
@@ -22,7 +23,9 @@ import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
+import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
+import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
@@ -37,12 +40,14 @@ import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock, FirefliesV2Block } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
+import { GammaBlock } from '@/blocks/blocks/gamma'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { GitLabBlock } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailV2Block } from '@/blocks/blocks/gmail'
 import { GongBlock } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
+import { GoogleBigQueryBlock } from '@/blocks/blocks/google_bigquery'
 import { GoogleBooksBlock } from '@/blocks/blocks/google_books'
 import { GoogleCalendarBlock, GoogleCalendarV2Block } from '@/blocks/blocks/google_calendar'
 import { GoogleContactsBlock } from '@/blocks/blocks/google_contacts'
@@ -53,10 +58,12 @@ import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock, GoogleSlidesV2Block } from '@/blocks/blocks/google_slides'
+import { GoogleTasksBlock } from '@/blocks/blocks/google_tasks'
 import { GoogleTranslateBlock } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
 import { GrainBlock } from '@/blocks/blocks/grain'
+import { GreenhouseBlock } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HexBlock } from '@/blocks/blocks/hex'
@@ -79,6 +86,8 @@ import { LemlistBlock } from '@/blocks/blocks/lemlist'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { LoopsBlock } from '@/blocks/blocks/loops'
+import { LumaBlock } from '@/blocks/blocks/luma'
 import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
 import { MailgunBlock } from '@/blocks/blocks/mailgun'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
@@ -189,6 +198,7 @@ export const registry: Record<string, BlockConfig> = {
   apify: ApifyBlock,
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
+  ashby: AshbyBlock,
   asana: AsanaBlock,
   attio: AttioBlock,
   browser_use: BrowserUseBlock,
@@ -204,7 +214,9 @@ export const registry: Record<string, BlockConfig> = {
   confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
+  databricks: DatabricksBlock,
   datadog: DatadogBlock,
+  devin: DevinBlock,
   discord: DiscordBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
@@ -222,6 +234,7 @@ export const registry: Record<string, BlockConfig> = {
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
   function: FunctionBlock,
+  gamma: GammaBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   github_v2: GitHubV2Block,
@@ -237,6 +250,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
   google_maps: GoogleMapsBlock,
+  google_tasks: GoogleTasksBlock,
   google_translate: GoogleTranslateBlock,
   gong: GongBlock,
   google_search: GoogleSearchBlock,
@@ -244,9 +258,11 @@ export const registry: Record<string, BlockConfig> = {
   google_sheets_v2: GoogleSheetsV2Block,
   google_slides: GoogleSlidesBlock,
   google_slides_v2: GoogleSlidesV2Block,
+  google_bigquery: GoogleBigQueryBlock,
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
+  greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   hex: HexBlock,
@@ -271,6 +287,8 @@ export const registry: Record<string, BlockConfig> = {
   linear: LinearBlock,
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
+  loops: LoopsBlock,
+  luma: LumaBlock,
   mailchimp: MailchimpBlock,
   mailgun: MailgunBlock,
   manual_trigger: ManualTriggerBlock,

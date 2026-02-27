@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, setupCommonApiMocks } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlerMocks = vi.hoisted(() => ({
@@ -14,6 +14,7 @@ const handlerMocks = vi.hoisted(() => ({
       session: { id: 'anon-session' },
     },
   })),
+  isAuthDisabled: false,
 }))
 
 vi.mock('better-auth/next-js', () => ({
@@ -32,18 +33,22 @@ vi.mock('@/lib/auth/anonymous', () => ({
   createAnonymousGetSessionResponse: handlerMocks.createAnonymousGetSessionResponse,
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  get isAuthDisabled() {
+    return handlerMocks.isAuthDisabled
+  },
+}))
+
+import { GET } from '@/app/api/auth/[...all]/route'
+
 describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   beforeEach(() => {
-    vi.resetModules()
-    setupCommonApiMocks()
-    handlerMocks.betterAuthGET.mockReset()
-    handlerMocks.betterAuthPOST.mockReset()
-    handlerMocks.ensureAnonymousUserExists.mockReset()
-    handlerMocks.createAnonymousGetSessionResponse.mockClear()
+    vi.clearAllMocks()
+    handlerMocks.isAuthDisabled = false
   })
 
   it('returns anonymous session in better-auth response envelope when auth is disabled', async () => {
-    vi.doMock('@/lib/core/config/feature-flags', () => ({ isAuthDisabled: true }))
+    handlerMocks.isAuthDisabled = true
 
     const req = createMockRequest(
       'GET',
@@ -51,7 +56,6 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
       {},
       'http://localhost:3000/api/auth/get-session'
     )
-    const { GET } = await import('@/app/api/auth/[...all]/route')
 
     const res = await GET(req as any)
     const json = await res.json()
@@ -67,10 +71,11 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   })
 
   it('delegates to better-auth handler when auth is enabled', async () => {
-    vi.doMock('@/lib/core/config/feature-flags', () => ({ isAuthDisabled: false }))
+    handlerMocks.isAuthDisabled = false
 
+    const { NextResponse } = await import('next/server')
     handlerMocks.betterAuthGET.mockResolvedValueOnce(
-      new (await import('next/server')).NextResponse(JSON.stringify({ data: { ok: true } }), {
+      new NextResponse(JSON.stringify({ data: { ok: true } }), {
         headers: { 'content-type': 'application/json' },
       }) as any
     )
@@ -81,7 +86,6 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
       {},
       'http://localhost:3000/api/auth/get-session'
     )
-    const { GET } = await import('@/app/api/auth/[...all]/route')
 
     const res = await GET(req as any)
     const json = await res.json()

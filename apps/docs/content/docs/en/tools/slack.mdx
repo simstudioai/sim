@@ -13,39 +13,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 [Slack](https://www.slack.com/) is a business communication platform that offers teams a unified place for messaging, tools, and files.
 
-With Slack, you can:
+With the Slack integration in Sim, you can:
 
-- **Automate agent notifications**: Send real-time updates from your Sim agents to any Slack channel
-- **Create webhook endpoints**: Configure Slack bots as webhooks to trigger Sim workflows from Slack activities
-- **Enhance agent workflows**: Integrate Slack messaging into your agents to deliver results, alerts, and status updates
-- **Create and share Slack canvases**: Programmatically generate collaborative documents (canvases) in Slack channels
-- **Read messages from channels**: Retrieve and process recent messages from any Slack channel for monitoring or workflow triggers
-- **Manage bot messages**: Update, delete, and add reactions to messages sent by your bot
-
-In Sim, the Slack integration enables your agents to programmatically interact with Slack with full message management capabilities as part of their workflows:
-
-- **Send messages**: Agents can send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting
+- **Send messages**: Send formatted messages to any Slack channel or user, supporting Slack's mrkdwn syntax for rich formatting
+- **Send ephemeral messages**: Send temporary messages visible only to a specific user in a channel
 - **Update messages**: Edit previously sent bot messages to correct information or provide status updates
 - **Delete messages**: Remove bot messages when they're no longer needed or contain errors
 - **Add reactions**: Express sentiment or acknowledgment by adding emoji reactions to any message
-- **Create canvases**: Create and share Slack canvases (collaborative documents) directly in channels, enabling richer content sharing and documentation
-- **Read messages**: Read recent messages from channels, allowing for monitoring, reporting, or triggering further actions based on channel activity
+- **Create canvases**: Create and share Slack canvases (collaborative documents) directly in channels
+- **Read messages**: Retrieve recent messages from channels or DMs, with filtering by time range
+- **Manage channels and users**: List channels, members, and users in your Slack workspace
 - **Download files**: Retrieve files shared in Slack channels for processing or archival
 
-This allows for powerful automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. Your agents can deliver timely information, update messages as workflows progress, create collaborative documents, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed with accurate, up-to-date information. By connecting Sim with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing and updating insights automatically, and reduce the need for manual status updates—all while leveraging your existing Slack workspace where your team already communicates.
-
-## Getting Started
-
-To connect Slack to your Sim workflows:
-
-1. Sign up or log in at [sim.ai](https://sim.ai)
-2. Create a new workflow or open an existing one
-3. Drag a **Slack** block onto your canvas
-4. Click the credential selector and choose **Connect**
-5. Authorize Sim to access your Slack workspace
-6. Select your target channel or user
-
-Once connected, you can use any of the Slack operations listed below.
+In Sim, the Slack integration enables your agents to programmatically interact with Slack as part of their workflows. This allows for automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. The integration can also be used in trigger mode to start a workflow when a message is sent to a channel.
 
 ## AI-Generated Content
 

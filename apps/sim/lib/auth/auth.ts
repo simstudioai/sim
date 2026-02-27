@@ -485,8 +485,10 @@ export const auth = betterAuth({
         'google-docs',
         'google-sheets',
         'google-forms',
+        'google-bigquery',
         'google-vault',
         'google-groups',
+        'google-tasks',
         'vertex-ai',
         'github-repo',
         'microsoft-dataverse',
@@ -1109,6 +1111,46 @@ export const auth = betterAuth({
           },
         },
         {
+          providerId: 'google-bigquery',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/bigquery',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-bigquery`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
           providerId: 'google-vault',
           clientId: env.GOOGLE_CLIENT_ID as string,
           clientSecret: env.GOOGLE_CLIENT_SECRET as string,
@@ -1163,6 +1205,46 @@ export const auth = betterAuth({
           ],
           prompt: 'consent',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-groups`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'google-tasks',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/tasks',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-tasks`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -1799,7 +1881,23 @@ export const auth = betterAuth({
           tokenUrl: 'https://api.x.com/2/oauth2/token',
           userInfoUrl: 'https://api.x.com/2/users/me',
           accessType: 'offline',
-          scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+          scopes: [
+            'tweet.read',
+            'tweet.write',
+            'tweet.moderate.write',
+            'users.read',
+            'follows.read',
+            'follows.write',
+            'bookmark.read',
+            'bookmark.write',
+            'like.read',
+            'like.write',
+            'block.read',
+            'block.write',
+            'mute.read',
+            'mute.write',
+            'offline.access',
+          ],
           pkce: true,
           responseType: 'code',
           prompt: 'consent',
@@ -1886,6 +1984,15 @@ export const auth = betterAuth({
             'write:content.property:confluence',
             'read:hierarchical-content:confluence',
             'read:content.metadata:confluence',
+            'read:user:confluence',
+            'read:task:confluence',
+            'write:task:confluence',
+            'delete:blogpost:confluence',
+            'write:space:confluence',
+            'delete:space:confluence',
+            'read:space.property:confluence',
+            'write:space.property:confluence',
+            'read:space.permission:confluence',
           ],
           responseType: 'code',
           pkce: true,

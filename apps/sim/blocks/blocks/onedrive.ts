@@ -155,6 +155,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'file-selector',
       canonicalParamId: 'uploadFolderId',
       serviceId: 'onedrive',
+      selectorKey: 'onedrive.folders',
       requiredScopes: [
         'openid',
         'profile',
@@ -192,6 +193,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'file-selector',
       canonicalParamId: 'createFolderParentId',
       serviceId: 'onedrive',
+      selectorKey: 'onedrive.folders',
       requiredScopes: [
         'openid',
         'profile',
@@ -224,6 +226,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'file-selector',
       canonicalParamId: 'listFolderId',
       serviceId: 'onedrive',
+      selectorKey: 'onedrive.folders',
       requiredScopes: [
         'openid',
         'profile',
@@ -270,6 +273,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'file-selector',
       canonicalParamId: 'downloadFileId',
       serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
       requiredScopes: [
         'openid',
         'profile',
@@ -310,6 +314,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'file-selector',
       canonicalParamId: 'deleteFileId',
       serviceId: 'onedrive',
+      selectorKey: 'onedrive.files',
       requiredScopes: [
         'openid',
         'profile',

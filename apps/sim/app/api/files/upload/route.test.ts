@@ -3,16 +3,144 @@
  *
  * @vitest-environment node
  */
-import {
-  mockAuth,
-  mockCryptoUuid,
-  mockHybridAuth,
-  mockUuid,
-  setupCommonApiMocks,
-} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mocks = vi.hoisted(() => {
+  const mockGetSession = vi.fn()
+  const mockCheckHybridAuth = vi.fn()
+  const mockCheckSessionOrInternalAuth = vi.fn()
+  const mockCheckInternalAuth = vi.fn()
+  const mockVerifyFileAccess = vi.fn()
+  const mockVerifyWorkspaceFileAccess = vi.fn()
+  const mockVerifyKBFileAccess = vi.fn()
+  const mockVerifyCopilotFileAccess = vi.fn()
+  const mockGetUserEntityPermissions = vi.fn()
+  const mockUploadWorkspaceFile = vi.fn()
+  const mockGetStorageProvider = vi.fn()
+  const mockIsUsingCloudStorage = vi.fn()
+  const mockUploadFile = vi.fn()
+  const mockHasCloudStorage = vi.fn()
+  const mockStorageUploadFile = vi.fn()
+
+  return {
+    mockGetSession,
+    mockCheckHybridAuth,
+    mockCheckSessionOrInternalAuth,
+    mockCheckInternalAuth,
+    mockVerifyFileAccess,
+    mockVerifyWorkspaceFileAccess,
+    mockVerifyKBFileAccess,
+    mockVerifyCopilotFileAccess,
+    mockGetUserEntityPermissions,
+    mockUploadWorkspaceFile,
+    mockGetStorageProvider,
+    mockIsUsingCloudStorage,
+    mockUploadFile,
+    mockHasCloudStorage,
+    mockStorageUploadFile,
+  }
+})
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn().mockReturnValue({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  workflowFolder: {
+    id: 'id',
+    userId: 'userId',
+    parentId: 'parentId',
+    updatedAt: 'updatedAt',
+    workspaceId: 'workspaceId',
+    sortOrder: 'sortOrder',
+    createdAt: 'createdAt',
+  },
+  workflow: { id: 'id', folderId: 'folderId', userId: 'userId', updatedAt: 'updatedAt' },
+  account: { userId: 'userId', providerId: 'providerId' },
+  user: { email: 'email', id: 'id' },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
+  gte: vi.fn((field: unknown, value: unknown) => ({ type: 'gte', field, value })),
+  lte: vi.fn((field: unknown, value: unknown) => ({ type: 'lte', field, value })),
+  gt: vi.fn((field: unknown, value: unknown) => ({ type: 'gt', field, value })),
+  lt: vi.fn((field: unknown, value: unknown) => ({ type: 'lt', field, value })),
+  ne: vi.fn((field: unknown, value: unknown) => ({ type: 'ne', field, value })),
+  asc: vi.fn((field: unknown) => ({ field, type: 'asc' })),
+  desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
+  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
+  isNotNull: vi.fn((field: unknown) => ({ field, type: 'isNotNull' })),
+  inArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'inArray' })),
+  notInArray: vi.fn((field: unknown, values: unknown) => ({ field, values, type: 'notInArray' })),
+  like: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'like' })),
+  ilike: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ilike' })),
+  count: vi.fn((field: unknown) => ({ field, type: 'count' })),
+  sum: vi.fn((field: unknown) => ({ field, type: 'sum' })),
+  avg: vi.fn((field: unknown) => ({ field, type: 'avg' })),
+  min: vi.fn((field: unknown) => ({ field, type: 'min' })),
+  max: vi.fn((field: unknown) => ({ field, type: 'max' })),
+  sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', sql: strings, values })),
+}))
+
+vi.mock('uuid', () => ({
+  v4: vi.fn().mockReturnValue('test-uuid'),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  getSession: mocks.mockGetSession,
+}))
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkHybridAuth: mocks.mockCheckHybridAuth,
+  checkSessionOrInternalAuth: mocks.mockCheckSessionOrInternalAuth,
+  checkInternalAuth: mocks.mockCheckInternalAuth,
+}))
+
+vi.mock('@/app/api/files/authorization', () => ({
+  verifyFileAccess: mocks.mockVerifyFileAccess,
+  verifyWorkspaceFileAccess: mocks.mockVerifyWorkspaceFileAccess,
+  verifyKBFileAccess: mocks.mockVerifyKBFileAccess,
+  verifyCopilotFileAccess: mocks.mockVerifyCopilotFileAccess,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mocks.mockGetUserEntityPermissions,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace', () => ({
+  uploadWorkspaceFile: mocks.mockUploadWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  getStorageProvider: mocks.mockGetStorageProvider,
+  isUsingCloudStorage: mocks.mockIsUsingCloudStorage,
+  uploadFile: mocks.mockUploadFile,
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  uploadFile: mocks.mockStorageUploadFile,
+  hasCloudStorage: mocks.mockHasCloudStorage,
+}))
+
+vi.mock('@/lib/uploads/setup.server', () => ({
+  UPLOAD_DIR_SERVER: '/tmp/test-uploads',
+}))
+
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { OPTIONS, POST } from '@/app/api/files/upload/route'
+
+/**
+ * Configure mocks for authenticated file upload tests
+ */
 function setupFileApiMocks(
   options: {
     authenticated?: boolean
@@ -22,49 +150,43 @@ function setupFileApiMocks(
 ) {
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
-  setupCommonApiMocks()
-  mockUuid()
-  mockCryptoUuid()
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
+  })
 
-  const authMocks = mockAuth()
   if (authenticated) {
-    authMocks.setAuthenticated()
+    mocks.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
   } else {
-    authMocks.setUnauthenticated()
+    mocks.mockGetSession.mockResolvedValue(null)
   }
 
-  const { mockCheckHybridAuth } = mockHybridAuth()
-  mockCheckHybridAuth.mockResolvedValue({
+  mocks.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  vi.doMock('@/app/api/files/authorization', () => ({
-    verifyFileAccess: vi.fn().mockResolvedValue(true),
-    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
-    verifyKBFileAccess: vi.fn().mockResolvedValue(true),
-    verifyCopilotFileAccess: vi.fn().mockResolvedValue(true),
-  }))
+  mocks.mockVerifyFileAccess.mockResolvedValue(true)
+  mocks.mockVerifyWorkspaceFileAccess.mockResolvedValue(true)
+  mocks.mockVerifyKBFileAccess.mockResolvedValue(true)
+  mocks.mockVerifyCopilotFileAccess.mockResolvedValue(true)
 
-  vi.doMock('@/lib/workspaces/permissions/utils', () => ({
-    getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
-  }))
+  mocks.mockGetUserEntityPermissions.mockResolvedValue('admin')
 
-  vi.doMock('@/lib/uploads/contexts/workspace', () => ({
-    uploadWorkspaceFile: vi.fn().mockResolvedValue({
-      id: 'test-file-id',
-      name: 'test.txt',
-      url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
-      size: 100,
-      type: 'text/plain',
-      key: 'workspace/test-workspace-id/1234567890-test.txt',
-      uploadedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    }),
-  }))
+  mocks.mockUploadWorkspaceFile.mockResolvedValue({
+    id: 'test-file-id',
+    name: 'test.txt',
+    url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
+    size: 100,
+    type: 'text/plain',
+    key: 'workspace/test-workspace-id/1234567890-test.txt',
+    uploadedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  })
 
-  const uploadFileMock = vi.fn().mockResolvedValue({
+  mocks.mockGetStorageProvider.mockReturnValue(storageProvider)
+  mocks.mockIsUsingCloudStorage.mockReturnValue(cloudEnabled)
+  mocks.mockUploadFile.mockResolvedValue({
     path: '/api/files/serve/test-key.txt',
     key: 'test-key.txt',
     name: 'test.txt',
@@ -72,13 +194,11 @@ function setupFileApiMocks(
     type: 'text/plain',
   })
 
-  vi.doMock('@/lib/uploads', () => ({
-    getStorageProvider: vi.fn().mockReturnValue(storageProvider),
-    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
-    uploadFile: uploadFileMock,
-  }))
-
-  return { auth: authMocks }
+  mocks.mockHasCloudStorage.mockReturnValue(cloudEnabled)
+  mocks.mockStorageUploadFile.mockResolvedValue({
+    key: 'test-key',
+    path: '/test/path',
+  })
 }
 
 describe('File Upload API Route', () => {
@@ -101,10 +221,7 @@ describe('File Upload API Route', () => {
   }
 
   beforeEach(() => {
-    vi.resetModules()
-    vi.doMock('@/lib/uploads/setup.server', () => ({
-      UPLOAD_DIR_SERVER: '/tmp/test-uploads',
-    }))
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -125,8 +242,6 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('@/app/api/files/upload/route')
-
     const response = await POST(req)
     const data = await response.json()
 
@@ -138,7 +253,6 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('type', 'text/plain')
     expect(data).toHaveProperty('key')
 
-    const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
     expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
@@ -156,8 +270,6 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('@/app/api/files/upload/route')
-
     const response = await POST(req)
     const data = await response.json()
 
@@ -169,7 +281,6 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('type', 'text/plain')
     expect(data).toHaveProperty('key')
 
-    const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
     expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
@@ -187,8 +298,6 @@ describe('File Upload API Route', () => {
       method: 'POST',
       body: formData,
     })
-
-    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -208,8 +317,6 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('@/app/api/files/upload/route')
-
     const response = await POST(req)
     const data = await response.json()
 
@@ -219,16 +326,12 @@ describe('File Upload API Route', () => {
   })
 
   it('should handle S3 upload errors', async () => {
-    vi.resetModules()
-
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
     })
 
-    vi.doMock('@/lib/uploads/contexts/workspace', () => ({
-      uploadWorkspaceFile: vi.fn().mockRejectedValue(new Error('Storage limit exceeded')),
-    }))
+    mocks.mockUploadWorkspaceFile.mockRejectedValue(new Error('Storage limit exceeded'))
 
     const mockFile = createMockFile()
     const formData = createMockFormData([mockFile])
@@ -238,21 +341,15 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('@/app/api/files/upload/route')
-
     const response = await POST(req)
     const data = await response.json()
 
     expect(response.status).toBe(413)
     expect(data).toHaveProperty('error')
     expect(typeof data.error).toBe('string')
-
-    vi.resetModules()
   })
 
   it('should handle CORS preflight requests', async () => {
-    const { OPTIONS } = await import('@/app/api/files/upload/route')
-
     const response = await OPTIONS()
 
     expect(response.status).toBe(204)
@@ -263,35 +360,18 @@ describe('File Upload API Route', () => {
 
 describe('File Upload Security Tests', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.clearAllMocks()
 
-    vi.doMock('@/lib/auth', () => ({
-      getSession: vi.fn().mockResolvedValue({
-        user: { id: 'test-user-id' },
-      }),
-    }))
+    mocks.mockGetSession.mockResolvedValue({
+      user: { id: 'test-user-id' },
+    })
 
-    vi.doMock('@/lib/uploads', () => ({
-      isUsingCloudStorage: vi.fn().mockReturnValue(false),
-      StorageService: {
-        uploadFile: vi.fn().mockResolvedValue({
-          key: 'test-key',
-          path: '/test/path',
-        }),
-        hasCloudStorage: vi.fn().mockReturnValue(false),
-      },
-    }))
-
-    vi.doMock('@/lib/uploads/core/storage-service', () => ({
-      uploadFile: vi.fn().mockResolvedValue({
-        key: 'test-key',
-        path: '/test/path',
-      }),
-      hasCloudStorage: vi.fn().mockReturnValue(false),
-    }))
-
-    vi.doMock('@/lib/uploads/setup.server', () => ({}))
+    mocks.mockHasCloudStorage.mockReturnValue(false)
+    mocks.mockStorageUploadFile.mockResolvedValue({
+      key: 'test-key',
+      path: '/test/path',
+    })
+    mocks.mockIsUsingCloudStorage.mockReturnValue(false)
   })
 
   afterEach(() => {
@@ -300,7 +380,6 @@ describe('File Upload Security Tests', () => {
 
   describe('File Extension Validation', () => {
     beforeEach(() => {
-      vi.resetModules()
       setupFileApiMocks({
         cloudEnabled: false,
         storageProvider: 'local',
@@ -335,8 +414,7 @@ describe('File Upload Security Tests', () => {
           body: formData,
         })
 
-        const { POST } = await import('@/app/api/files/upload/route')
-        const response = await POST(req as any)
+        const response = await POST(req as unknown as NextRequest)
 
         expect(response.status).toBe(200)
       }
@@ -355,8 +433,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -376,8 +453,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -397,8 +473,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -418,8 +493,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -438,8 +512,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -464,8 +537,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(400)
       const data = await response.json()
@@ -475,9 +547,7 @@ describe('File Upload Security Tests', () => {
 
   describe('Authentication Requirements', () => {
     it('should reject uploads without authentication', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue(null),
-      }))
+      mocks.mockGetSession.mockResolvedValue(null)
 
       const formData = new FormData()
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
@@ -488,8 +558,7 @@ describe('File Upload Security Tests', () => {
         body: formData,
       })
 
-      const { POST } = await import('@/app/api/files/upload/route')
-      const response = await POST(req as any)
+      const response = await POST(req as unknown as NextRequest)
 
       expect(response.status).toBe(401)
       const data = await response.json()

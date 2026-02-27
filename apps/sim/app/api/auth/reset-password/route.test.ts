@@ -3,59 +3,42 @@
  *
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  mockConsoleLogger,
-  mockCryptoUuid,
-  mockDrizzleOrm,
-  mockUuid,
-  setupCommonApiMocks,
-} from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/** Setup auth API mocks for testing authentication routes */
-function setupAuthApiMocks(
-  options: {
-    operations?: {
-      forgetPassword?: { success?: boolean; error?: string }
-      resetPassword?: { success?: boolean; error?: string }
-    }
-  } = {}
-) {
-  setupCommonApiMocks()
-  mockUuid()
-  mockCryptoUuid()
-  mockConsoleLogger()
-  mockDrizzleOrm()
-
-  const { operations = {} } = options
-  const defaultOperations = {
-    forgetPassword: { success: true, error: 'Forget password error', ...operations.forgetPassword },
-    resetPassword: { success: true, error: 'Reset password error', ...operations.resetPassword },
+const { mockResetPassword, mockLogger } = vi.hoisted(() => {
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(),
   }
-
-  const createAuthMethod = (config: { success?: boolean; error?: string }) => {
-    return vi.fn().mockImplementation(() => {
-      if (config.success) {
-        return Promise.resolve()
-      }
-      return Promise.reject(new Error(config.error))
-    })
+  return {
+    mockResetPassword: vi.fn(),
+    mockLogger: logger,
   }
+})
 
-  vi.doMock('@/lib/auth', () => ({
-    auth: {
-      api: {
-        forgetPassword: createAuthMethod(defaultOperations.forgetPassword),
-        resetPassword: createAuthMethod(defaultOperations.resetPassword),
-      },
+vi.mock('@/lib/auth', () => ({
+  auth: {
+    api: {
+      resetPassword: mockResetPassword,
     },
-  }))
-}
+  },
+}))
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn().mockReturnValue(mockLogger),
+}))
+
+import { POST } from '@/app/api/auth/reset-password/route'
 
 describe('Reset Password API Route', () => {
   beforeEach(() => {
-    vi.resetModules()
+    vi.clearAllMocks()
+    mockResetPassword.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -63,18 +46,10 @@ describe('Reset Password API Route', () => {
   })
 
   it('should reset password successfully', async () => {
-    setupAuthApiMocks({
-      operations: {
-        resetPassword: { success: true },
-      },
-    })
-
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
       newPassword: 'newSecurePassword123!',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -82,8 +57,7 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
 
-    const auth = await import('@/lib/auth')
-    expect(auth.auth.api.resetPassword).toHaveBeenCalledWith({
+    expect(mockResetPassword).toHaveBeenCalledWith({
       body: {
         token: 'valid-reset-token',
         newPassword: 'newSecurePassword123!',
@@ -93,13 +67,9 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle missing token', async () => {
-    setupAuthApiMocks()
-
     const req = createMockRequest('POST', {
       newPassword: 'newSecurePassword123',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -107,18 +77,13 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Token is required')
 
-    const auth = await import('@/lib/auth')
-    expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('should handle missing new password', async () => {
-    setupAuthApiMocks()
-
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
     })
-
-    const { POST } = await import('./route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -126,19 +91,14 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Password is required')
 
-    const auth = await import('@/lib/auth')
-    expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('should handle empty token', async () => {
-    setupAuthApiMocks()
-
     const req = createMockRequest('POST', {
       token: '',
       newPassword: 'newSecurePassword123',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -146,19 +106,14 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Token is required')
 
-    const auth = await import('@/lib/auth')
-    expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('should handle empty new password', async () => {
-    setupAuthApiMocks()
-
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
       newPassword: '',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -166,28 +121,18 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(400)
     expect(data.message).toBe('Password must be at least 8 characters long')
 
-    const auth = await import('@/lib/auth')
-    expect(auth.auth.api.resetPassword).not.toHaveBeenCalled()
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('should handle auth service error with message', async () => {
     const errorMessage = 'Invalid or expired token'
 
-    setupAuthApiMocks({
-      operations: {
-        resetPassword: {
-          success: false,
-          error: errorMessage,
-        },
-      },
-    })
+    mockResetPassword.mockRejectedValue(new Error(errorMessage))
 
     const req = createMockRequest('POST', {
       token: 'invalid-token',
       newPassword: 'newSecurePassword123!',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -195,30 +140,18 @@ describe('Reset Password API Route', () => {
     expect(response.status).toBe(500)
     expect(data.message).toBe(errorMessage)
 
-    const logger = await import('@sim/logger')
-    const mockLogger = logger.createLogger('PasswordResetAPI')
     expect(mockLogger.error).toHaveBeenCalledWith('Error during password reset:', {
       error: expect.any(Error),
     })
   })
 
   it('should handle unknown error', async () => {
-    setupAuthApiMocks()
-
-    vi.doMock('@/lib/auth', () => ({
-      auth: {
-        api: {
-          resetPassword: vi.fn().mockRejectedValue('Unknown error'),
-        },
-      },
-    }))
+    mockResetPassword.mockRejectedValue('Unknown error')
 
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
       newPassword: 'newSecurePassword123!',
     })
-
-    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -228,8 +161,6 @@ describe('Reset Password API Route', () => {
       'Failed to reset password. Please try again or request a new reset link.'
     )
 
-    const logger = await import('@sim/logger')
-    const mockLogger = logger.createLogger('PasswordResetAPI')
     expect(mockLogger.error).toHaveBeenCalled()
   })
 })

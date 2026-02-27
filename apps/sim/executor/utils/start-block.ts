@@ -262,6 +262,7 @@ function buildUnifiedStartOutput(
   hasStructured: boolean
 ): NormalizedBlockOutput {
   const output: NormalizedBlockOutput = {}
+  const structuredKeys = hasStructured ? new Set(Object.keys(structuredInput)) : null
 
   if (hasStructured) {
     for (const [key, value] of Object.entries(structuredInput)) {
@@ -272,6 +273,9 @@ function buildUnifiedStartOutput(
   if (isPlainObject(workflowInput)) {
     for (const [key, value] of Object.entries(workflowInput)) {
       if (key === 'onUploadError') continue
+      // Skip keys already set by schema-coerced structuredInput to
+      // prevent raw workflowInput strings from overwriting typed values.
+      if (structuredKeys?.has(key)) continue
       // Runtime values override defaults (except undefined/null which mean "not provided")
       if (value !== undefined && value !== null) {
         output[key] = value
@@ -384,6 +388,7 @@ function buildIntegrationTriggerOutput(
   hasStructured: boolean
 ): NormalizedBlockOutput {
   const output: NormalizedBlockOutput = {}
+  const structuredKeys = hasStructured ? new Set(Object.keys(structuredInput)) : null
 
   if (hasStructured) {
     for (const [key, value] of Object.entries(structuredInput)) {
@@ -393,6 +398,7 @@ function buildIntegrationTriggerOutput(
 
   if (isPlainObject(workflowInput)) {
     for (const [key, value] of Object.entries(workflowInput)) {
+      if (structuredKeys?.has(key)) continue
       if (value !== undefined && value !== null) {
         output[key] = value
       } else if (!Object.hasOwn(output, key)) {

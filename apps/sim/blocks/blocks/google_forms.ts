@@ -64,6 +64,7 @@ export const GoogleFormsBlock: BlockConfig = {
       canonicalParamId: 'formId',
       required: true,
       serviceId: 'google-forms',
+      selectorKey: 'google.drive',
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.form',
       placeholder: 'Select a form',

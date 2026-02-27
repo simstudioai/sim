@@ -86,6 +86,8 @@ export const auditMock = {
     WORKFLOW_DEPLOYED: 'workflow.deployed',
     WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
     WORKFLOW_DUPLICATED: 'workflow.duplicated',
+    WORKFLOW_LOCKED: 'workflow.locked',
+    WORKFLOW_UNLOCKED: 'workflow.unlocked',
     WORKFLOW_DEPLOYMENT_ACTIVATED: 'workflow.deployment_activated',
     WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
     WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',

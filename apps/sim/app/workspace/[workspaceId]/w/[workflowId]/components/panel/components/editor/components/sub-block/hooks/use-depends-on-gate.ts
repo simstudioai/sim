@@ -177,5 +177,7 @@ export function useDependsOnGate(
     depsSatisfied,
     blocked,
     finalDisabled,
+    dependencyValues: dependencyValuesMap,
+    canonicalIndex,
   }
 }
