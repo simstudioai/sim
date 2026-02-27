@@ -1590,7 +1590,16 @@ import {
   redisTtlTool,
 } from '@/tools/redis'
 import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto'
-import { mailSendTool } from '@/tools/resend'
+import {
+  mailSendTool,
+  resendCreateContactTool,
+  resendDeleteContactTool,
+  resendGetContactTool,
+  resendGetEmailTool,
+  resendListContactsTool,
+  resendListDomainsTool,
+  resendUpdateContactTool,
+} from '@/tools/resend'
 import {
   revenuecatCreatePurchaseTool,
   revenuecatDeferGoogleSubscriptionTool,
@@ -2341,6 +2350,13 @@ export const tools: Record<string, ToolConfig> = {
   linkedin_share_post: linkedInSharePostTool,
   linkedin_get_profile: linkedInGetProfileTool,
   resend_send: mailSendTool,
+  resend_get_email: resendGetEmailTool,
+  resend_create_contact: resendCreateContactTool,
+  resend_list_contacts: resendListContactsTool,
+  resend_get_contact: resendGetContactTool,
+  resend_update_contact: resendUpdateContactTool,
+  resend_delete_contact: resendDeleteContactTool,
+  resend_list_domains: resendListDomainsTool,
   sendgrid_send_mail: sendGridSendMailTool,
   sendgrid_add_contact: sendGridAddContactTool,
   sendgrid_get_contact: sendGridGetContactTool,
