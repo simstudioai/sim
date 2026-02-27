@@ -61,6 +61,7 @@ import { GoogleTranslateBlock } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
 import { GrainBlock } from '@/blocks/blocks/grain'
+import { GreenhouseBlock } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HexBlock } from '@/blocks/blocks/hex'
@@ -256,6 +257,7 @@ export const registry: Record<string, BlockConfig> = {
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
+  greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   hex: HexBlock,
