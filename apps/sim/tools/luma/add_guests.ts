@@ -6,7 +6,7 @@ export const addGuestsTool: ToolConfig<LumaAddGuestsParams, LumaAddGuestsRespons
   id: 'luma_add_guests',
   name: 'Luma Add Guests',
   description:
-    'Add guests to a Luma event by email. Guests are added with "Going" (approved) status and receive one ticket of the default ticket type.',
+    'Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type.',
   version: '1.0.0',
 
   params: {

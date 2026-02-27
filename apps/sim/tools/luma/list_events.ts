@@ -102,7 +102,6 @@ export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResp
         geoLatitude: (event.geo_latitude as string) ?? null,
         geoLongitude: (event.geo_longitude as string) ?? null,
         calendarId: (event.calendar_id as string) ?? null,
-        hosts: [],
       }
     })
 
