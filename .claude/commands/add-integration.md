@@ -685,13 +685,40 @@ return NextResponse.json({
 | `isUserFile` | `@/lib/core/utils/user-file` | Type guard for UserFile objects |
 | `FileInputSchema` | `@/lib/uploads/utils/file-schemas` | Zod schema for file validation |
 
+### Advanced Mode for Optional Fields
+
+Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. Examples: pagination tokens, time range filters, sort order, max results, reply settings.
+
+### WandConfig for Complex Inputs
+
+Use `wandConfig` for fields that are hard to fill out manually:
+- **Timestamps**: Use `generationType: 'timestamp'` to inject current date context into the AI prompt
+- **JSON arrays**: Use `generationType: 'json-object'` for structured data
+- **Complex queries**: Use a descriptive prompt explaining the expected format
+
+```typescript
+{
+  id: 'startTime',
+  title: 'Start Time',
+  type: 'short-input',
+  mode: 'advanced',
+  wandConfig: {
+    enabled: true,
+    prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+    generationType: 'timestamp',
+  },
+}
+```
+
 ### Common Gotchas
 
 1. **OAuth serviceId must match** - The `serviceId` in oauth-input must match the OAuth provider configuration
-2. **Tool IDs are snake_case** - `stripe_create_payment`, not `stripeCreatePayment`
+2. **All tool IDs MUST be snake_case** - `stripe_create_payment`, not `stripeCreatePayment`. This applies to tool `id` fields, registry keys, `tools.access` arrays, and `tools.config.tool` return values
 3. **Block type is snake_case** - `type: 'stripe'`, not `type: 'Stripe'`
 4. **Alphabetical ordering** - Keep imports and registry entries alphabetically sorted
 5. **Required can be conditional** - Use `required: { field: 'op', value: 'create' }` instead of always true
 6. **DependsOn clears options** - When a dependency changes, selector options are refetched
 7. **Never pass Buffer directly to fetch** - Convert to `new Uint8Array(buffer)` for TypeScript compatibility
 8. **Always handle legacy file params** - Keep hidden `fileContent` params for backwards compatibility
+9. **Optional fields use advanced mode** - Set `mode: 'advanced'` on rarely-used optional fields
+10. **Complex inputs need wandConfig** - Timestamps, JSON arrays, and other hard-to-type values should have `wandConfig` enabled

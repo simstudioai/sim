@@ -272,8 +272,13 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - Version: `'2.0.0'`
 - Outputs: Flat, API-aligned (no content/metadata wrapper)
 
+## Naming Convention
+
+All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase for tool IDs.
+
 ## Checklist Before Finishing
 
+- [ ] All tool IDs use snake_case
 - [ ] All params have explicit `required: true` or `required: false`
 - [ ] All params have appropriate `visibility`
 - [ ] All nullable response fields use `?? null`
@@ -281,4 +286,3 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - [ ] No raw JSON dumps in outputs
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools
-- [ ] Tool IDs use snake_case

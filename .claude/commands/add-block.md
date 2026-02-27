@@ -695,6 +695,62 @@ Please provide the SVG and I'll convert it to a React component.
 You can usually find this in the service's brand/press kit page, or copy it from their website.
 ```
 
+## Advanced Mode for Optional Fields
+
+Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. This includes:
+- Pagination tokens
+- Time range filters (start/end time)
+- Sort order options
+- Reply settings
+- Rarely used IDs (e.g., reply-to tweet ID, quote tweet ID)
+- Max results / limits
+
+```typescript
+{
+  id: 'startTime',
+  title: 'Start Time',
+  type: 'short-input',
+  placeholder: 'ISO 8601 timestamp',
+  condition: { field: 'operation', value: ['search', 'list'] },
+  mode: 'advanced',  // Rarely used, hide from basic view
+}
+```
+
+## WandConfig for Complex Inputs
+
+Use `wandConfig` for fields that are hard to fill out manually, such as timestamps, JSON arrays, and complex query strings. This gives users an AI-assisted input experience.
+
+```typescript
+// Timestamps - use generationType: 'timestamp' to inject current date context
+{
+  id: 'startTime',
+  title: 'Start Time',
+  type: 'short-input',
+  mode: 'advanced',
+  wandConfig: {
+    enabled: true,
+    prompt: 'Generate an ISO 8601 timestamp based on the user description. Return ONLY the timestamp string.',
+    generationType: 'timestamp',
+  },
+}
+
+// JSON arrays - use generationType: 'json-object'
+{
+  id: 'mediaIds',
+  title: 'Media IDs',
+  type: 'short-input',
+  mode: 'advanced',
+  wandConfig: {
+    enabled: true,
+    prompt: 'Generate a comma-separated list of media IDs. Return ONLY the comma-separated values.',
+  },
+}
+```
+
+## Naming Convention
+
+All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MUST use `snake_case` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase.
+
 ## Checklist Before Finishing
 
 - [ ] All subBlocks have `id`, `title` (except switch), and `type`
@@ -702,9 +758,11 @@ You can usually find this in the service's brand/press kit page, or copy it from
 - [ ] DependsOn set for fields that need other values
 - [ ] Required fields marked correctly (boolean or condition)
 - [ ] OAuth inputs have correct `serviceId`
-- [ ] Tools.access lists all tool IDs
-- [ ] Tools.config.tool returns correct tool ID
+- [ ] Tools.access lists all tool IDs (snake_case)
+- [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block registered in registry.ts
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
+- [ ] Optional/rarely-used fields set to `mode: 'advanced'`
+- [ ] Timestamps and complex inputs have `wandConfig` enabled
