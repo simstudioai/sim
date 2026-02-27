@@ -415,6 +415,13 @@ import {
 } from '@/tools/fireflies'
 import { functionExecuteTool } from '@/tools/function'
 import {
+  gammaCheckStatusTool,
+  gammaGenerateFromTemplateTool,
+  gammaGenerateTool,
+  gammaListFoldersTool,
+  gammaListThemesTool,
+} from '@/tools/gamma'
+import {
   githubAddAssigneesTool,
   githubAddAssigneesV2Tool,
   githubAddLabelsTool,
@@ -2167,6 +2174,11 @@ export const tools: Record<string, ToolConfig> = {
   huggingface_chat: huggingfaceChatTool,
   llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
+  gamma_generate: gammaGenerateTool,
+  gamma_generate_from_template: gammaGenerateFromTemplateTool,
+  gamma_check_status: gammaCheckStatusTool,
+  gamma_list_themes: gammaListThemesTool,
+  gamma_list_folders: gammaListFoldersTool,
   vision_tool: visionTool,
   vision_tool_v2: visionToolV2,
   file_parser: fileParseTool,
