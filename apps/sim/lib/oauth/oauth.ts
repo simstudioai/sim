@@ -7,6 +7,7 @@ import {
   ConfluenceIcon,
   DropboxIcon,
   GmailIcon,
+  GoogleAdsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
   GoogleContactsIcon,
@@ -145,6 +146,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/contacts',
         ],
+      },
+      'google-ads': {
+        name: 'Google Ads',
+        description: 'Query campaigns, ad groups, and performance metrics in Google Ads.',
+        providerId: 'google-ads',
+        icon: GoogleAdsIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: ['https://www.googleapis.com/auth/adwords'],
       },
       'google-bigquery': {
         name: 'Google BigQuery',
