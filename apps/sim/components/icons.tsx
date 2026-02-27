@@ -2973,6 +2973,19 @@ export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AshbyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 254 260' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M76.07 250.537v9.16H.343v-9.16c19.618 0 27.465-4.381 34.527-23.498l73.764-209.09h34.92l81.219 209.09c7.847 19.515 11.77 23.498 28.642 23.498v9.16H134.363v-9.16c28.242 0 30.625-2.582 22.14-23.498l-21.58-57.35H69.399l-19.226 56.155c-5.614 18.997-4.387 24.693 25.896 24.693zm24.326-171.653l-26.681 78.459h56.5l-29.819-78.459z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function ArxivIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} id='logomark' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17.732 24.269'>
