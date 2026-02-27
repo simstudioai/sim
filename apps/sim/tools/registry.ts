@@ -714,6 +714,14 @@ import {
   googleCalendarUpdateTool,
   googleCalendarUpdateV2Tool,
 } from '@/tools/google_calendar'
+import {
+  googleContactsCreateTool,
+  googleContactsDeleteTool,
+  googleContactsGetTool,
+  googleContactsListTool,
+  googleContactsSearchTool,
+  googleContactsUpdateTool,
+} from '@/tools/google_contacts'
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
 import {
   googleDriveCopyTool,
@@ -3794,6 +3802,12 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_quick_add_v2: googleCalendarQuickAddV2Tool,
   google_calendar_update: googleCalendarUpdateTool,
   google_calendar_update_v2: googleCalendarUpdateV2Tool,
+  google_contacts_create: googleContactsCreateTool,
+  google_contacts_delete: googleContactsDeleteTool,
+  google_contacts_get: googleContactsGetTool,
+  google_contacts_list: googleContactsListTool,
+  google_contacts_search: googleContactsSearchTool,
+  google_contacts_update: googleContactsUpdateTool,
   google_calendar_freebusy: googleCalendarFreeBusyTool,
   google_calendar_freebusy_v2: googleCalendarFreeBusyV2Tool,
   google_forms_get_responses: googleFormsGetResponsesTool,
