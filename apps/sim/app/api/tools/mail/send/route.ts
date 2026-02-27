@@ -10,12 +10,26 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('MailSendAPI')
 
 const MailSendSchema = z.object({
-  fromAddress: z.string().email('Invalid from email address').min(1, 'From address is required'),
-  to: z.string().email('Invalid email address').min(1, 'To email is required'),
+  fromAddress: z.string().min(1, 'From address is required'),
+  to: z.string().min(1, 'To email is required'),
   subject: z.string().min(1, 'Subject is required'),
   body: z.string().min(1, 'Email body is required'),
   contentType: z.enum(['text', 'html']).optional().nullable(),
   resendApiKey: z.string().min(1, 'Resend API key is required'),
+  cc: z
+    .union([z.string().min(1), z.array(z.string().min(1))])
+    .optional()
+    .nullable(),
+  bcc: z
+    .union([z.string().min(1), z.array(z.string().min(1))])
+    .optional()
+    .nullable(),
+  replyTo: z
+    .union([z.string().min(1), z.array(z.string().min(1))])
+    .optional()
+    .nullable(),
+  scheduledAt: z.string().datetime().optional().nullable(),
+  tags: z.string().optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -52,23 +66,52 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(validatedData.resendApiKey)
 
     const contentType = validatedData.contentType || 'text'
-    const emailData =
-      contentType === 'html'
-        ? {
-            from: validatedData.fromAddress,
-            to: validatedData.to,
-            subject: validatedData.subject,
-            html: validatedData.body,
-            text: validatedData.body.replace(/<[^>]*>/g, ''), // Strip HTML for text version
-          }
-        : {
-            from: validatedData.fromAddress,
-            to: validatedData.to,
-            subject: validatedData.subject,
-            text: validatedData.body,
-          }
+    const emailData: Record<string, unknown> = {
+      from: validatedData.fromAddress,
+      to: validatedData.to,
+      subject: validatedData.subject,
+    }
 
-    const { data, error } = await resend.emails.send(emailData)
+    if (contentType === 'html') {
+      emailData.html = validatedData.body
+      emailData.text = validatedData.body.replace(/<[^>]*>/g, '')
+    } else {
+      emailData.text = validatedData.body
+    }
+
+    if (validatedData.cc) {
+      emailData.cc = validatedData.cc
+    }
+
+    if (validatedData.bcc) {
+      emailData.bcc = validatedData.bcc
+    }
+
+    if (validatedData.replyTo) {
+      emailData.replyTo = validatedData.replyTo
+    }
+
+    if (validatedData.scheduledAt) {
+      emailData.scheduledAt = validatedData.scheduledAt
+    }
+
+    if (validatedData.tags) {
+      const tagPairs = validatedData.tags.split(',').map((pair) => {
+        const trimmed = pair.trim()
+        const colonIndex = trimmed.indexOf(':')
+        if (colonIndex === -1) return null
+        const name = trimmed.substring(0, colonIndex).trim()
+        const value = trimmed.substring(colonIndex + 1).trim()
+        return { name, value: value || '' }
+      })
+      emailData.tags = tagPairs.filter(
+        (tag): tag is { name: string; value: string } => tag !== null && !!tag.name
+      )
+    }
+
+    const { data, error } = await resend.emails.send(
+      emailData as unknown as Parameters<typeof resend.emails.send>[0]
+    )
 
     if (error) {
       logger.error(`[${requestId}] Email sending failed:`, error)
