@@ -67,6 +67,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'file-selector',
       canonicalParamId: 'siteId',
       serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.sites',
       requiredScopes: [
         'openid',
         'profile',
