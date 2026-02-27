@@ -31,10 +31,10 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response): Promise<GammaCheckStatusResponse> => {
     const data = await response.json()
 
-    const output: Record<string, unknown> = {
+    const output: GammaCheckStatusResponse['output'] = {
       generationId: data.generationId ?? '',
       status: data.status ?? 'pending',
       gammaUrl: data.gammaUrl ?? null,
