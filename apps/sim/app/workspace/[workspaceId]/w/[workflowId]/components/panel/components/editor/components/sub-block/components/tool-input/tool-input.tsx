@@ -1824,7 +1824,9 @@ export const ToolInput = memo(function ToolInput({
                   ).length > 1 ? (
                     <Popover
                       open={mcpRemovePopoverIndex === toolIndex}
-                      onOpenChange={(open) => setMcpRemovePopoverIndex(open ? toolIndex : null)}
+                      onOpenChange={(isOpen) => {
+                        if (!isOpen) setMcpRemovePopoverIndex(null)
+                      }}
                     >
                       <PopoverTrigger asChild>
                         <button
