@@ -189,15 +189,6 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
     },
 
     {
-      id: 'pageSize',
-      title: 'Page Size',
-      type: 'short-input',
-      placeholder: 'Max results per page (default 10000)',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'search' },
-    },
-
-    {
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
@@ -230,7 +221,7 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
     config: {
       tool: (params) => `google_ads_${params.operation}`,
       params: (params) => {
-        const { oauthCredential, dateRange, pageSize, limit, ...rest } = params
+        const { oauthCredential, dateRange, limit, ...rest } = params
 
         const result: Record<string, unknown> = {
           ...rest,
@@ -239,10 +230,6 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
 
         if (dateRange && dateRange !== 'CUSTOM') {
           result.dateRange = dateRange
-        }
-
-        if (pageSize !== undefined && pageSize !== '') {
-          result.pageSize = Number(pageSize)
         }
 
         if (limit !== undefined && limit !== '') {
@@ -266,7 +253,6 @@ Return ONLY the GAQL query - no explanations, no quotes, no extra text.`,
     dateRange: { type: 'string', description: 'Date range for performance queries' },
     startDate: { type: 'string', description: 'Custom start date (YYYY-MM-DD)' },
     endDate: { type: 'string', description: 'Custom end date (YYYY-MM-DD)' },
-    pageSize: { type: 'number', description: 'Max results per page (max 10000)' },
     pageToken: { type: 'string', description: 'Pagination token' },
     limit: { type: 'number', description: 'Maximum results to return' },
   },

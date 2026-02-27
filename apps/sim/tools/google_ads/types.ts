@@ -4,12 +4,18 @@ const NUMERIC_ID_REGEX = /^\d+$/
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 const VALID_STATUSES = new Set(['ENABLED', 'PAUSED', 'REMOVED'])
 const VALID_DATE_RANGES = new Set([
-  'LAST_7_DAYS',
-  'LAST_30_DAYS',
-  'THIS_MONTH',
-  'LAST_MONTH',
   'TODAY',
   'YESTERDAY',
+  'LAST_7_DAYS',
+  'LAST_14_DAYS',
+  'LAST_30_DAYS',
+  'LAST_BUSINESS_WEEK',
+  'THIS_MONTH',
+  'LAST_MONTH',
+  'THIS_WEEK_SUN_TODAY',
+  'THIS_WEEK_MON_TODAY',
+  'LAST_WEEK_SUN_SAT',
+  'LAST_WEEK_MON_SUN',
 ])
 
 /** Validates that a value is a numeric ID (digits only). */
@@ -61,7 +67,6 @@ export interface GoogleAdsListCustomersParams {
 
 export interface GoogleAdsSearchParams extends GoogleAdsBaseParams {
   query: string
-  pageSize?: number
   pageToken?: string
 }
 

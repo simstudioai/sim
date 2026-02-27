@@ -44,12 +44,6 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
       visibility: 'user-or-llm',
       description: 'GAQL query to execute',
     },
-    pageSize: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of results per page (max 10000)',
-    },
     pageToken: {
       type: 'string',
       required: false,
@@ -78,10 +72,9 @@ export const googleAdsSearchTool: ToolConfig<GoogleAdsSearchParams, GoogleAdsSea
     body: (params) => {
       const body: Record<string, unknown> = {
         query: params.query,
-        returnTotalResultsCount: true,
-      }
-      if (params.pageSize) {
-        body.pageSize = params.pageSize
+        searchSettings: {
+          returnTotalResultsCount: true,
+        },
       }
       if (params.pageToken) {
         body.pageToken = params.pageToken
