@@ -13,20 +13,15 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface DocumentTag {
   id: string
@@ -65,25 +60,10 @@ export function DocumentTagEntry({
   previewValue,
   previewContextValues,
 }: DocumentTagEntryProps) {
-  const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
-
-  const blockState = useWorkflowStore((state) => state.blocks[blockId])
-  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
-  )
-  const canonicalModeOverrides = blockState?.data?.canonicalModes
-
-  const blockValues = useSubBlockStore((state) => {
-    if (!activeWorkflowId) return {}
-    const workflowValues = state.workflowValues[activeWorkflowId] || {}
-    return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
-  })
 
   const inputController = useSubBlockInput({
     blockId,
@@ -97,18 +77,12 @@ export function DocumentTagEntry({
     disabled,
   })
 
-  const knowledgeBaseIdValue = useMemo(
-    () =>
-      previewContextValues
-        ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
-        : resolveDependencyValue(
-            'knowledgeBaseId',
-            blockValues,
-            canonicalIndex,
-            canonicalModeOverrides
-          ),
-    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
-  )
+  const { dependencyValues } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
+  const knowledgeBaseIdValue = dependencyValues.knowledgeBaseSelector
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
