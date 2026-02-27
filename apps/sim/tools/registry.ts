@@ -249,6 +249,16 @@ import {
   cursorStopAgentV2Tool,
 } from '@/tools/cursor'
 import {
+  databricksCancelRunTool,
+  databricksExecuteSqlTool,
+  databricksGetRunOutputTool,
+  databricksGetRunTool,
+  databricksListClustersTool,
+  databricksListJobsTool,
+  databricksListRunsTool,
+  databricksRunJobTool,
+} from '@/tools/databricks'
+import {
   datadogCancelDowntimeTool,
   datadogCreateDowntimeTool,
   datadogCreateEventTool,
@@ -2595,6 +2605,14 @@ export const tools: Record<string, ToolConfig> = {
   devin_get_session: devinGetSessionTool,
   devin_list_sessions: devinListSessionsTool,
   devin_send_message: devinSendMessageTool,
+  databricks_cancel_run: databricksCancelRunTool,
+  databricks_execute_sql: databricksExecuteSqlTool,
+  databricks_get_run: databricksGetRunTool,
+  databricks_get_run_output: databricksGetRunOutputTool,
+  databricks_list_clusters: databricksListClustersTool,
+  databricks_list_jobs: databricksListJobsTool,
+  databricks_list_runs: databricksListRunsTool,
+  databricks_run_job: databricksRunJobTool,
   duckduckgo_search: duckduckgoSearchTool,
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,
