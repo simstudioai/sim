@@ -1,5 +1,52 @@
 import type { ToolResponse } from '@/tools/types'
 
+const NUMERIC_ID_REGEX = /^\d+$/
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+const VALID_STATUSES = new Set(['ENABLED', 'PAUSED', 'REMOVED'])
+const VALID_DATE_RANGES = new Set([
+  'LAST_7_DAYS',
+  'LAST_30_DAYS',
+  'THIS_MONTH',
+  'LAST_MONTH',
+  'TODAY',
+  'YESTERDAY',
+])
+
+/** Validates that a value is a numeric ID (digits only). */
+export function validateNumericId(value: string, fieldName: string): string {
+  const cleaned = value.replace(/-/g, '')
+  if (!NUMERIC_ID_REGEX.test(cleaned)) {
+    throw new Error(`${fieldName} must be numeric (digits only), got: ${value}`)
+  }
+  return cleaned
+}
+
+/** Validates that a status value is a known Google Ads status. */
+export function validateStatus(value: string): string {
+  if (!VALID_STATUSES.has(value)) {
+    throw new Error(`Invalid status: ${value}. Must be one of: ${[...VALID_STATUSES].join(', ')}`)
+  }
+  return value
+}
+
+/** Validates a date string is in YYYY-MM-DD format. */
+export function validateDate(value: string, fieldName: string): string {
+  if (!DATE_REGEX.test(value)) {
+    throw new Error(`${fieldName} must be in YYYY-MM-DD format, got: ${value}`)
+  }
+  return value
+}
+
+/** Validates a date range is a known Google Ads predefined range. */
+export function validateDateRange(value: string): string {
+  if (!VALID_DATE_RANGES.has(value)) {
+    throw new Error(
+      `Invalid date range: ${value}. Must be one of: ${[...VALID_DATE_RANGES].join(', ')}`
+    )
+  }
+  return value
+}
+
 export interface GoogleAdsBaseParams {
   accessToken: string
   customerId: string

@@ -2,6 +2,7 @@ import type {
   GoogleAdsListCampaignsParams,
   GoogleAdsListCampaignsResponse,
 } from '@/tools/google_ads/types'
+import { validateNumericId, validateStatus } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsListCampaignsTool: ToolConfig<
@@ -58,8 +59,10 @@ export const googleAdsListCampaignsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://googleads.googleapis.com/v19/customers/${params.customerId}/googleAds:search`,
+    url: (params) => {
+      const customerId = validateNumericId(params.customerId, 'customerId')
+      return `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:search`
+    },
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -78,7 +81,7 @@ export const googleAdsListCampaignsTool: ToolConfig<
 
       const conditions: string[] = []
       if (params.status) {
-        conditions.push(`campaign.status = '${params.status}'`)
+        conditions.push(`campaign.status = '${validateStatus(params.status)}'`)
       } else {
         conditions.push("campaign.status != 'REMOVED'")
       }

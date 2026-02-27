@@ -2,6 +2,7 @@ import type {
   GoogleAdsCampaignPerformanceParams,
   GoogleAdsCampaignPerformanceResponse,
 } from '@/tools/google_ads/types'
+import { validateDate, validateDateRange, validateNumericId } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsCampaignPerformanceTool: ToolConfig<
@@ -71,8 +72,10 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://googleads.googleapis.com/v19/customers/${params.customerId}/googleAds:search`,
+    url: (params) => {
+      const customerId = validateNumericId(params.customerId, 'customerId')
+      return `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:search`
+    },
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -92,13 +95,15 @@ export const googleAdsCampaignPerformanceTool: ToolConfig<
       const conditions: string[] = ["campaign.status != 'REMOVED'"]
 
       if (params.campaignId) {
-        conditions.push(`campaign.id = ${params.campaignId}`)
+        conditions.push(`campaign.id = ${validateNumericId(params.campaignId, 'campaignId')}`)
       }
 
       if (params.startDate && params.endDate) {
-        conditions.push(`segments.date BETWEEN '${params.startDate}' AND '${params.endDate}'`)
+        const start = validateDate(params.startDate, 'startDate')
+        const end = validateDate(params.endDate, 'endDate')
+        conditions.push(`segments.date BETWEEN '${start}' AND '${end}'`)
       } else {
-        const dateRange = params.dateRange || 'LAST_30_DAYS'
+        const dateRange = validateDateRange(params.dateRange || 'LAST_30_DAYS')
         conditions.push(`segments.date DURING ${dateRange}`)
       }
 

@@ -2,6 +2,7 @@ import type {
   GoogleAdsListAdGroupsParams,
   GoogleAdsListAdGroupsResponse,
 } from '@/tools/google_ads/types'
+import { validateNumericId, validateStatus } from '@/tools/google_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAdsListAdGroupsTool: ToolConfig<
@@ -64,8 +65,10 @@ export const googleAdsListAdGroupsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://googleads.googleapis.com/v19/customers/${params.customerId}/googleAds:search`,
+    url: (params) => {
+      const customerId = validateNumericId(params.customerId, 'customerId')
+      return `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:search`
+    },
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -82,10 +85,11 @@ export const googleAdsListAdGroupsTool: ToolConfig<
       let query =
         'SELECT ad_group.id, ad_group.name, ad_group.status, ad_group.type, campaign.id, campaign.name FROM ad_group'
 
-      const conditions: string[] = [`campaign.id = ${params.campaignId}`]
+      const campaignId = validateNumericId(params.campaignId, 'campaignId')
+      const conditions: string[] = [`campaign.id = ${campaignId}`]
 
       if (params.status) {
-        conditions.push(`ad_group.status = '${params.status}'`)
+        conditions.push(`ad_group.status = '${validateStatus(params.status)}'`)
       } else {
         conditions.push("ad_group.status != 'REMOVED'")
       }
