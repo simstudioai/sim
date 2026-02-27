@@ -129,6 +129,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleContactsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: ['https://www.googleapis.com/auth/contacts'],
+      },
       'google-bigquery': {
         name: 'Google BigQuery',
         description: 'Query, list, and insert data in Google BigQuery.',

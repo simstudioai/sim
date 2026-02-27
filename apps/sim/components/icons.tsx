@@ -1267,21 +1267,14 @@ export function GoogleSlidesIcon(props: SVGProps<SVGSVGElement>) {
 
 export function GoogleContactsIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'>
+      <path fill='#86a9ff' d='M199 244c-89 0-161 71-161 160v67c0 16 13 29 29 29h77l77-256z' />
+      <path fill='#578cff' d='M462 349c0-58-48-105-106-105h-77v256h77c58 0 106-47 106-106' />
       <path
-        d='M20.16 3H3.84C2.82 3 2 3.82 2 4.84v14.32C2 20.18 2.82 21 3.84 21h16.32c1.02 0 1.84-.82 1.84-1.84V4.84C22 3.82 21.18 3 20.16 3z'
-        fill='#F1F3F4'
+        fill='#0057cc'
+        d='M115 349c0-58 48-105 106-105h58c58 0 106 47 106 105v45c0 59-48 106-106 106H144c-16 0-29-13-29-29z'
       />
-      <path
-        d='M12 12.75c-1.63 0-4.88.82-4.88 2.44v1.22c0 .34.27.61.61.61h8.54c.34 0 .61-.27.61-.61v-1.22c0-1.63-3.25-2.44-4.88-2.44z'
-        fill='#4285F4'
-      />
-      <circle cx='12' cy='9.38' r='2.5' fill='#4285F4' />
-      <path
-        d='M17.25 12.13c.72.49 1.63 1.23 1.63 2.19v1.09h1.25c.34 0 .61-.27.61-.61v-1.22c0-1.06-1.96-1.67-3.49-1.45z'
-        fill='#A0C3FF'
-      />
-      <circle cx='17' cy='9.38' r='1.88' fill='#A0C3FF' />
+      <circle cx='250' cy='99.4' r='99.4' fill='#0057cc' />
     </svg>
   )
 }
