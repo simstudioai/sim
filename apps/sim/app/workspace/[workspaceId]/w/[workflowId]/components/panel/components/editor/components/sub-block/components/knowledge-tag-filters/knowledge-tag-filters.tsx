@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import {
   Badge,
@@ -14,14 +14,19 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {
@@ -64,15 +69,38 @@ export function KnowledgeTagFilters({
   previewValue,
   previewContextValues,
 }: KnowledgeTagFiltersProps) {
+  const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
-  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
-    : knowledgeBaseIdFromStore
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
+
+  const blockValues = useSubBlockStore((state) => {
+    if (!activeWorkflowId) return {}
+    const workflowValues = state.workflowValues[activeWorkflowId] || {}
+    return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
+  })
+
+  const knowledgeBaseIdValue = useMemo(
+    () =>
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
+        : resolveDependencyValue(
+            'knowledgeBaseId',
+            blockValues,
+            canonicalIndex,
+            canonicalModeOverrides
+          ),
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
