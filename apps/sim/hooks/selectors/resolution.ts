@@ -84,16 +84,16 @@ function resolveFileSelector(
       return { key: 'confluence.pages', context, allowSearch: true }
     case 'jira':
       return { key: 'jira.issues', context, allowSearch: true }
-    case 'microsoft-teams':
-      // Route to the correct selector based on what type of resource is being selected
-      if (subBlock.id === 'chatId') {
+    case 'microsoft-teams': {
+      const paramId = subBlock.canonicalParamId
+      if (paramId === 'chatId') {
         return { key: 'microsoft.chats', context, allowSearch: false }
       }
-      if (subBlock.id === 'channelId') {
+      if (paramId === 'channelId') {
         return { key: 'microsoft.channels', context, allowSearch: false }
       }
-      // Default to teams selector for teamId
       return { key: 'microsoft.teams', context, allowSearch: false }
+    }
     case 'wealthbox':
       return { key: 'wealthbox.contacts', context, allowSearch: true }
     case 'microsoft-planner':
@@ -205,7 +205,7 @@ function resolveProjectSelector(
 ): SelectorResolution {
   const serviceId = subBlock.serviceId
   const context = buildBaseContext(args)
-  const selectorId = subBlock.canonicalParamId ?? subBlock.id
+  const selectorId = subBlock.canonicalParamId
 
   switch (serviceId) {
     case 'linear': {
