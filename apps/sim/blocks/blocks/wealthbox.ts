@@ -61,6 +61,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       title: 'Select Contact',
       type: 'file-selector',
       serviceId: 'wealthbox',
+      selectorKey: 'wealthbox.contacts',
       requiredScopes: ['login', 'data'],
       placeholder: 'Enter Contact ID',
       mode: 'basic',

@@ -62,6 +62,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'google-sheets',
+      selectorKey: 'google.drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
         'https://www.googleapis.com/auth/drive',
@@ -360,6 +361,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'google-sheets',
+      selectorKey: 'google.drive',
       requiredScopes: [
         'https://www.googleapis.com/auth/drive.file',
         'https://www.googleapis.com/auth/drive',
@@ -388,6 +390,8 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       type: 'sheet-selector',
       canonicalParamId: 'sheetName',
       serviceId: 'google-sheets',
+      selectorKey: 'google.sheets',
+      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
       dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },

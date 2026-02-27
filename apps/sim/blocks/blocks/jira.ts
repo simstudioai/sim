@@ -114,6 +114,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'project-selector',
       canonicalParamId: 'projectId',
       serviceId: 'jira',
+      selectorKey: 'jira.projects',
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
@@ -137,6 +138,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'file-selector',
       canonicalParamId: 'issueKey',
       serviceId: 'jira',
+      selectorKey: 'jira.issues',
       placeholder: 'Select Jira issue',
       dependsOn: ['credential', 'domain', 'projectId'],
       condition: {

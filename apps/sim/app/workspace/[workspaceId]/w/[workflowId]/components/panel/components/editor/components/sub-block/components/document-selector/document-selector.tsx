@@ -2,12 +2,16 @@
 
 import { useCallback, useMemo } from 'react'
 import { Tooltip } from '@/components/emcn'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface DocumentSelectorProps {
   blockId: string
@@ -28,15 +32,41 @@ export function DocumentSelector({
   previewValue,
   previewContextValues,
 }: DocumentSelectorProps) {
+  const { activeWorkflowId } = useWorkflowRegistry()
+
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
     disabled,
     isPreview,
     previewContextValues,
   })
-  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
-    : knowledgeBaseIdFromStore
+
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
+
+  const blockValues = useSubBlockStore((state) => {
+    if (!activeWorkflowId) return {}
+    const workflowValues = state.workflowValues[activeWorkflowId] || {}
+    return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
+  })
+
+  const knowledgeBaseIdValue = useMemo(
+    () =>
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
+        : resolveDependencyValue(
+            'knowledgeBaseId',
+            blockValues,
+            canonicalIndex,
+            canonicalModeOverrides
+          ),
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
   const normalizedKnowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
