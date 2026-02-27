@@ -1,0 +1,252 @@
+---
+title: Databricks
+description: Run SQL queries and manage jobs on Databricks
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="databricks"
+  color="#FF3621"
+/>
+
+## Usage Instructions
+
+Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.
+
+
+
+## Tools
+
+### `databricks_execute_sql`
+
+Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `warehouseId` | string | Yes | The ID of the SQL warehouse to execute against |
+| `statement` | string | Yes | The SQL statement to execute \(max 16 MiB\) |
+| `catalog` | string | No | Unity Catalog name \(equivalent to USE CATALOG\) |
+| `schema` | string | No | Schema name \(equivalent to USE SCHEMA\) |
+| `rowLimit` | number | No | Maximum number of rows to return |
+| `waitTimeout` | string | No | How long to wait for results \(e.g., "50s"\). Range: "0s" or "5s" to "50s". Default: "50s" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementId` | string | Unique identifier for the executed statement |
+| `status` | string | Execution status \(SUCCEEDED, PENDING, RUNNING, FAILED, CANCELED, CLOSED\) |
+| `columns` | array | Column schema of the result set |
+|   ↳ `name` | string | Column name |
+|   ↳ `position` | number | Column position \(0-based\) |
+|   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
+| `data` | array | Result rows as a 2D array of strings where each inner array is a row of column values |
+| `totalRows` | number | Total number of rows in the result |
+| `truncated` | boolean | Whether the result set was truncated due to row_limit or byte_limit |
+
+### `databricks_list_jobs`
+
+List all jobs in a Databricks workspace with optional filtering by name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `limit` | number | No | Maximum number of jobs to return \(range 1-100, default 20\) |
+| `offset` | number | No | Offset for pagination |
+| `name` | string | No | Filter jobs by exact name \(case-insensitive\) |
+| `expandTasks` | boolean | No | Include task and cluster details in the response \(max 100 elements\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | array | List of jobs in the workspace |
+|   ↳ `jobId` | number | Unique job identifier |
+|   ↳ `name` | string | Job name |
+|   ↳ `createdTime` | number | Job creation timestamp \(epoch ms\) |
+|   ↳ `creatorUserName` | string | Email of the job creator |
+|   ↳ `maxConcurrentRuns` | number | Maximum number of concurrent runs |
+|   ↳ `format` | string | Job format \(SINGLE_TASK or MULTI_TASK\) |
+| `hasMore` | boolean | Whether more jobs are available for pagination |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### `databricks_run_job`
+
+Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `jobId` | number | Yes | The ID of the job to trigger |
+| `jobParameters` | string | No | Job-level parameter overrides as a JSON object \(e.g., \{"key": "value"\}\) |
+| `notebookParams` | string | No | Notebook task parameters as a JSON object \(e.g., \{"param1": "value1"\}\) |
+| `idempotencyToken` | string | No | Idempotency token to prevent duplicate runs \(max 64 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | number | The globally unique ID of the triggered run |
+| `numberInJob` | number | The sequence number of this run among all runs of the job |
+
+### `databricks_get_run`
+
+Get the status, timing, and details of a Databricks job run by its run ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `runId` | number | Yes | The canonical identifier of the run |
+| `includeHistory` | boolean | No | Include repair history in the response |
+| `includeResolvedValues` | boolean | No | Include resolved parameter values in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | number | The run ID |
+| `jobId` | number | The job ID this run belongs to |
+| `runName` | string | Name of the run |
+| `runType` | string | Type of run \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
+| `attemptNumber` | number | Retry attempt number \(0 for initial attempt\) |
+| `state` | object | Run state information |
+|   ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY\) |
+|   ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED\) |
+|   ↳ `stateMessage` | string | Descriptive message for the current state |
+|   ↳ `userCancelledOrTimedout` | boolean | Whether the run was cancelled by user or timed out |
+| `startTime` | number | Run start timestamp \(epoch ms\) |
+| `endTime` | number | Run end timestamp \(epoch ms, 0 if still running\) |
+| `setupDuration` | number | Cluster setup duration \(ms\) |
+| `executionDuration` | number | Execution duration \(ms\) |
+| `cleanupDuration` | number | Cleanup duration \(ms\) |
+| `queueDuration` | number | Time spent in queue before execution \(ms\) |
+| `runPageUrl` | string | URL to the run detail page in Databricks UI |
+| `creatorUserName` | string | Email of the user who triggered the run |
+
+### `databricks_list_runs`
+
+List job runs in a Databricks workspace with optional filtering by job, status, and time range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `jobId` | number | No | Filter runs by job ID. Omit to list runs across all jobs |
+| `activeOnly` | boolean | No | Only include active runs \(PENDING, RUNNING, or TERMINATING\) |
+| `completedOnly` | boolean | No | Only include completed runs |
+| `limit` | number | No | Maximum number of runs to return \(range 1-24, default 20\) |
+| `offset` | number | No | Offset for pagination |
+| `runType` | string | No | Filter by run type \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
+| `startTimeFrom` | number | No | Filter runs started at or after this timestamp \(epoch ms\) |
+| `startTimeTo` | number | No | Filter runs started at or before this timestamp \(epoch ms\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runs` | array | List of job runs |
+|   ↳ `runId` | number | Unique run identifier |
+|   ↳ `jobId` | number | Job this run belongs to |
+|   ↳ `runName` | string | Run name |
+|   ↳ `runType` | string | Run type \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
+|   ↳ `state` | object | Run state information |
+|     ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY\) |
+|     ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED\) |
+|     ↳ `stateMessage` | string | Descriptive state message |
+|     ↳ `userCancelledOrTimedout` | boolean | Whether the run was cancelled by user or timed out |
+|   ↳ `startTime` | number | Run start timestamp \(epoch ms\) |
+|   ↳ `endTime` | number | Run end timestamp \(epoch ms\) |
+| `hasMore` | boolean | Whether more runs are available for pagination |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### `databricks_cancel_run`
+
+Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `runId` | number | Yes | The canonical identifier of the run to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the cancel request was accepted |
+
+### `databricks_get_run_output`
+
+Get the output of a completed Databricks job run, including notebook results, error messages, and logs. For multi-task jobs, use the task run ID (not the parent run ID).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `runId` | number | Yes | The run ID to get output for. For multi-task jobs, use the task run ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notebookOutput` | object | Notebook task output \(from dbutils.notebook.exit\(\)\) |
+|   ↳ `result` | string | Value passed to dbutils.notebook.exit\(\) \(max 5 MB\) |
+|   ↳ `truncated` | boolean | Whether the result was truncated |
+| `error` | string | Error message if the run failed or output is unavailable |
+| `errorTrace` | string | Error stack trace if available |
+| `logs` | string | Log output \(last 5 MB\) from spark_jar, spark_python, or python_wheel tasks |
+| `logsTruncated` | boolean | Whether the log output was truncated |
+
+### `databricks_list_clusters`
+
+List all clusters in a Databricks workspace including their state, configuration, and resource details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `clusters` | array | List of clusters in the workspace |
+|   ↳ `clusterId` | string | Unique cluster identifier |
+|   ↳ `clusterName` | string | Cluster display name |
+|   ↳ `state` | string | Current state \(PENDING, RUNNING, RESTARTING, RESIZING, TERMINATING, TERMINATED, ERROR, UNKNOWN\) |
+|   ↳ `stateMessage` | string | Human-readable state description |
+|   ↳ `creatorUserName` | string | Email of the cluster creator |
+|   ↳ `sparkVersion` | string | Spark runtime version \(e.g., 13.3.x-scala2.12\) |
+|   ↳ `nodeTypeId` | string | Worker node type identifier |
+|   ↳ `driverNodeTypeId` | string | Driver node type identifier |
+|   ↳ `numWorkers` | number | Number of worker nodes \(for fixed-size clusters\) |
+|   ↳ `autoscale` | object | Autoscaling configuration \(null for fixed-size clusters\) |
+|     ↳ `minWorkers` | number | Minimum number of workers |
+|     ↳ `maxWorkers` | number | Maximum number of workers |
+|   ↳ `clusterSource` | string | Origin \(API, UI, JOB, MODELS, PIPELINE, PIPELINE_MAINTENANCE, SQL\) |
+|   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
+|   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
+
+
