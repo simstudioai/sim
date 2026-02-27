@@ -45,22 +45,26 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
       id: 'includeImages',
       title: 'Include Images',
       type: 'switch',
+      mode: 'advanced',
     },
     {
       id: 'includeInlineCitations',
       title: 'Include Inline Citations',
       type: 'switch',
+      mode: 'advanced',
     },
     {
       id: 'includeSources',
       title: 'Include Sources',
       type: 'switch',
+      mode: 'advanced',
     },
     {
       id: 'fromDate',
       title: 'From Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
@@ -80,6 +84,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'To Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
@@ -99,12 +104,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Include Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      mode: 'advanced',
     },
     {
       id: 'excludeDomains',
       title: 'Exclude Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
