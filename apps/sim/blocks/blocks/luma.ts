@@ -9,7 +9,7 @@ export const LumaBlock: BlockConfig = {
     'Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.',
   docsLink: 'https://docs.sim.ai/tools/luma',
   category: 'tools',
-  bgColor: '#FF5C35',
+  bgColor: '#FFFFFF',
   icon: LumaIcon,
   authMode: AuthMode.ApiKey,
 
