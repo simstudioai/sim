@@ -77,7 +77,10 @@ export const googleAdsListAdGroupsTool: ToolConfig<
         'developer-token': params.developerToken,
       }
       if (params.managerCustomerId) {
-        headers['login-customer-id'] = params.managerCustomerId
+        headers['login-customer-id'] = validateNumericId(
+          params.managerCustomerId,
+          'managerCustomerId'
+        )
       }
       return headers
     },
