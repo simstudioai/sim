@@ -118,14 +118,16 @@ function resolveFileSelector(
     }
     case 'sharepoint':
       return { key: 'sharepoint.sites', context, allowSearch: true }
-    case 'webflow':
-      if (subBlock.id === 'collectionId') {
+    case 'webflow': {
+      const paramId = subBlock.canonicalParamId ?? subBlock.id
+      if (paramId === 'collectionId') {
         return { key: 'webflow.collections', context, allowSearch: false }
       }
-      if (subBlock.id === 'itemId') {
+      if (paramId === 'itemId') {
         return { key: 'webflow.items', context, allowSearch: true }
       }
       return { key: null, context, allowSearch: true }
+    }
     default:
       return { key: null, context, allowSearch: true }
   }
