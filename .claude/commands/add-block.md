@@ -532,6 +532,41 @@ outputs: {
 }
 ```
 
+### Typed JSON Outputs
+
+When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. For well-known, stable objects, use nested output definitions instead:
+
+```typescript
+outputs: {
+  // BAD: Opaque json with no info about what's inside
+  plan: { type: 'json', description: 'Zone plan information' },
+
+  // GOOD: Describe the known fields in the description
+  plan: {
+    type: 'json',
+    description: 'Zone plan information (id, name, price, currency, frequency, is_subscribed)',
+  },
+
+  // BEST: Use nested output definition when the shape is stable and well-known
+  plan: {
+    id: { type: 'string', description: 'Plan identifier' },
+    name: { type: 'string', description: 'Plan name' },
+    price: { type: 'number', description: 'Plan price' },
+    currency: { type: 'string', description: 'Price currency' },
+  },
+}
+```
+
+Use the nested pattern when:
+- The object has a small, stable set of fields (< 10)
+- Downstream blocks will commonly access specific properties
+- The API response shape is well-documented and unlikely to change
+
+Use `type: 'json'` with a descriptive string when:
+- The object has many fields or a dynamic shape
+- It represents a list/array of items
+- The shape varies by operation
+
 ## V2 Block Pattern
 
 When creating V2 blocks (alongside legacy V1):
@@ -695,6 +730,62 @@ Please provide the SVG and I'll convert it to a React component.
 You can usually find this in the service's brand/press kit page, or copy it from their website.
 ```
 
+## Advanced Mode for Optional Fields
+
+Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. This includes:
+- Pagination tokens
+- Time range filters (start/end time)
+- Sort order options
+- Reply settings
+- Rarely used IDs (e.g., reply-to tweet ID, quote tweet ID)
+- Max results / limits
+
+```typescript
+{
+  id: 'startTime',
+  title: 'Start Time',
+  type: 'short-input',
+  placeholder: 'ISO 8601 timestamp',
+  condition: { field: 'operation', value: ['search', 'list'] },
+  mode: 'advanced',  // Rarely used, hide from basic view
+}
+```
+
+## WandConfig for Complex Inputs
+
+Use `wandConfig` for fields that are hard to fill out manually, such as timestamps, comma-separated lists, and complex query strings. This gives users an AI-assisted input experience.
+
+```typescript
+// Timestamps - use generationType: 'timestamp' to inject current date context
+{
+  id: 'startTime',
+  title: 'Start Time',
+  type: 'short-input',
+  mode: 'advanced',
+  wandConfig: {
+    enabled: true,
+    prompt: 'Generate an ISO 8601 timestamp based on the user description. Return ONLY the timestamp string.',
+    generationType: 'timestamp',
+  },
+}
+
+// Comma-separated lists - simple prompt without generationType
+{
+  id: 'mediaIds',
+  title: 'Media IDs',
+  type: 'short-input',
+  mode: 'advanced',
+  wandConfig: {
+    enabled: true,
+    prompt: 'Generate a comma-separated list of media IDs. Return ONLY the comma-separated values.',
+  },
+}
+```
+
+## Naming Convention
+
+All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MUST use `snake_case` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase.
+
 ## Checklist Before Finishing
 
 - [ ] All subBlocks have `id`, `title` (except switch), and `type`
@@ -702,9 +793,24 @@ You can usually find this in the service's brand/press kit page, or copy it from
 - [ ] DependsOn set for fields that need other values
 - [ ] Required fields marked correctly (boolean or condition)
 - [ ] OAuth inputs have correct `serviceId`
-- [ ] Tools.access lists all tool IDs
-- [ ] Tools.config.tool returns correct tool ID
+- [ ] Tools.access lists all tool IDs (snake_case)
+- [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block registered in registry.ts
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
+- [ ] Optional/rarely-used fields set to `mode: 'advanced'`
+- [ ] Timestamps and complex inputs have `wandConfig` enabled
+
+## Final Validation (Required)
+
+After creating the block, you MUST validate it against every tool it references:
+
+1. **Read every tool definition** that appears in `tools.access` — do not skip any
+2. **For each tool, verify the block has correct:**
+   - SubBlock inputs that cover all required tool params (with correct `condition` to show for that operation)
+   - SubBlock input types that match the tool param types (e.g., dropdown for enums, short-input for strings)
+   - `tools.config.params` correctly maps subBlock IDs to tool param names (if they differ)
+   - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
+3. **Verify block outputs** cover the key fields returned by all tools
+4. **Verify conditions** — each subBlock should only show for the operations that actually use it
