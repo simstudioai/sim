@@ -1,0 +1,177 @@
+---
+title: Short.io
+description: Create and manage short links, domains, QR codes, and analytics
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="short_io"
+  color="#0BB07D"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Short.io](https://short.io/) is a white-label URL shortener that lets you create branded short links on your own domain, track clicks, and manage links at scale. Short.io is designed for businesses that want professional short URLs, QR codes, and link analytics without relying on generic shorteners.
+
+With Short.io in Sim, you can:
+
+- **Create short links**: Generate branded short URLs from long URLs using your custom domain, with optional custom paths
+- **List domains**: Retrieve all Short.io domains on your account to get domain IDs for listing links
+- **List links**: List short links for a domain with pagination and optional date sort order
+- **Delete links**: Remove a short link by its ID (e.g. lnk_abc123_abcdef)
+- **Generate QR codes**: Create QR codes for any Short.io link with optional size, color, background color, and format (PNG or SVG); returns a base64 data URL
+- **Get link statistics**: Fetch click analytics for a link including total clicks, human clicks, referrer/country/browser/OS/city breakdowns, UTM dimensions, time-series data, and date interval
+
+These capabilities allow your Sim agents to automate link shortening, QR code generation, and analytics reporting directly in your workflows — from campaign tracking to link management and performance dashboards.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Short.io into your workflow for link shortening, QR codes, and analytics. Authenticate with your Short.io Secret API Key. Create links, list domains and links, delete links, generate QR codes, and fetch per-link statistics.
+
+## Tools
+
+### `short_io_create_link`
+
+Create a short link using your Short.io custom domain.
+
+#### Input
+
+| Parameter     | Type   | Required | Description                                                |
+| ------------- | ------ | -------- | ---------------------------------------------------------- |
+| `domain`      | string | Yes      | Your registered Short.io custom domain                     |
+| `originalURL` | string | Yes      | The long URL to shorten                                    |
+| `path`        | string | No       | Optional custom path for the short link                    |
+| `apiKey`      | string | Yes      | Short.io Secret API Key                                    |
+
+#### Output
+
+| Parameter  | Type    | Description                        |
+| ---------- | ------- | ---------------------------------- |
+| `success`  | boolean | Whether the link was created       |
+| `shortURL` | string  | The generated short link URL       |
+| `idString` | string  | The unique Short.io link ID        |
+| `error`    | string  | Error message if failed            |
+
+### `short_io_list_domains`
+
+List Short.io domains. Returns domain IDs and details for use in List Links.
+
+#### Input
+
+| Parameter     | Type   | Required | Description                     |
+| ------------- | ------ | -------- | ------------------------------- |
+| `apiKey`      | string | Yes      | Short.io Secret API Key         |
+
+#### Output
+
+| Parameter | Type    | Description                          |
+| --------- | ------- | ------------------------------------ |
+| `success` | boolean | Success status                        |
+| `domains` | array   | List of domain objects (id, hostname) |
+| `count`   | number  | Number of domains                     |
+| `error`   | string  | Error message                         |
+
+### `short_io_list_links`
+
+List short links for a domain. Requires domain_id from List Domains. Max 150 per request.
+
+#### Input
+
+| Parameter       | Type   | Required | Description                          |
+| --------------- | ------ | -------- | ------------------------------------ |
+| `domainId`      | number | Yes      | Domain ID (from List Domains)        |
+| `limit`        | number | No       | Max links to return (1–150)          |
+| `pageToken`    | string | No       | Pagination token from previous call  |
+| `dateSortOrder`| string | No       | Sort by date: asc or desc            |
+| `apiKey`       | string | Yes      | Short.io Secret API Key              |
+
+#### Output
+
+| Parameter       | Type    | Description                              |
+| --------------- | ------- | ---------------------------------------- |
+| `success`       | boolean | Success status                            |
+| `links`         | array   | List of link objects (idString, shortURL, originalURL, path, etc.) |
+| `count`         | number  | Number of links returned                  |
+| `nextPageToken` | string  | Token for next page                       |
+| `error`         | string  | Error message                             |
+
+### `short_io_delete_link`
+
+Delete a short link by ID. Rate limit 20/s.
+
+#### Input
+
+| Parameter     | Type   | Required | Description                     |
+| ------------- | ------ | -------- | ------------------------------- |
+| `linkId`      | string | Yes      | Link ID to delete (e.g. lnk_abc123_abcdef) |
+| `apiKey`      | string | Yes      | Short.io Secret API Key         |
+
+#### Output
+
+| Parameter | Type    | Description                |
+| --------- | ------- | -------------------------- |
+| `success` | boolean | Success status             |
+| `deleted` | boolean | Whether the link was deleted |
+| `idString`| string  | Deleted link ID            |
+| `error`   | string  | Error message              |
+
+### `short_io_get_qr_code`
+
+Generate a QR code for a Short.io link. Returns a base64 data URL (e.g. data:image/png;base64,...).
+
+#### Input
+
+| Parameter       | Type   | Required | Description                          |
+| --------------- | ------ | -------- | ------------------------------------ |
+| `linkId`        | string | Yes      | Link ID (e.g. lnk_abc123_abcdef)     |
+| `color`         | string | No       | QR color hex (e.g. 000000)           |
+| `backgroundColor` | string | No     | Background color hex (e.g. FFFFFF)   |
+| `size`          | number | No       | QR size 1–99                          |
+| `type`          | string | No       | Output format: png or svg             |
+| `apiKey`        | string | Yes      | Short.io Secret API Key              |
+
+#### Output
+
+| Parameter   | Type    | Description                                      |
+| ---------- | ------- | ------------------------------------------------ |
+| `success`  | boolean | Success status                                   |
+| `qrCodeURL`| string  | Base64 data URL of the QR code image              |
+| `error`    | string  | Error message                                     |
+
+### `short_io_get_analytics`
+
+Fetch click statistics for a Short.io link.
+
+#### Input
+
+| Parameter     | Type   | Required | Description                                              |
+| ------------- | ------ | -------- | -------------------------------------------------------- |
+| `linkId`      | string | Yes      | Link ID                                                   |
+| `period`      | string | Yes      | Period: today, yesterday, last7, last30, total, week, month, lastmonth |
+| `tz`          | string | No       | Timezone (default UTC)                                    |
+| `apiKey`      | string | Yes      | Short.io Secret API Key                                  |
+
+#### Output
+
+| Parameter           | Type    | Description                                            |
+| ------------------- | ------- | ------------------------------------------------------ |
+| `success`            | boolean | Success status                                         |
+| `clicks`            | number  | Total clicks in period                                 |
+| `totalClicks`       | number  | Total clicks                                           |
+| `humanClicks`       | number  | Human clicks                                           |
+| `totalClicksChange` | string  | Change vs previous period                              |
+| `humanClicksChange` | string  | Human clicks change                                    |
+| `referer`           | array   | Referrer breakdown (referer, score)                    |
+| `country`           | array   | Country breakdown (countryName, country, score)        |
+| `browser`           | array   | Browser breakdown (browser, score)                     |
+| `os`                | array   | OS breakdown (os, score)                               |
+| `city`              | array   | City breakdown (city, name, countryCode, score)        |
+| `device`            | array   | Device breakdown                                       |
+| `social`            | array   | Social source breakdown (social, score)                 |
+| `utmMedium`         | array   | UTM medium breakdown                                   |
+| `utmSource`         | array   | UTM source breakdown                                   |
+| `utmCampaign`       | array   | UTM campaign breakdown                                 |
+| `clickStatistics`   | object  | Time-series click data (datasets with x/y per interval) |
+| `interval`          | object  | Date range (startDate, endDate, prevStartDate, prevEndDate, tz) |
+| `error`             | string  | Error message                                          |
