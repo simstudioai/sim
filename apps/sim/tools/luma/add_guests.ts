@@ -60,19 +60,22 @@ export const addGuestsTool: ToolConfig<LumaAddGuestsParams, LumaAddGuestsRespons
       throw new Error(data.message || data.error || 'Failed to add guests')
     }
 
-    const guests = (data.guests ?? []).map((guest: Record<string, unknown>) => ({
-      id: (guest.id as string) ?? null,
-      email: (guest.user_email as string) ?? null,
-      name: (guest.user_name as string) ?? null,
-      firstName: (guest.user_first_name as string) ?? null,
-      lastName: (guest.user_last_name as string) ?? null,
-      approvalStatus: (guest.approval_status as string) ?? null,
-      registeredAt: (guest.registered_at as string) ?? null,
-      invitedAt: (guest.invited_at as string) ?? null,
-      joinedAt: (guest.joined_at as string) ?? null,
-      checkedInAt: (guest.checked_in_at as string) ?? null,
-      phoneNumber: (guest.phone_number as string) ?? null,
-    }))
+    const guests = (data.entries ?? []).map((entry: Record<string, unknown>) => {
+      const guest = entry.guest as Record<string, unknown>
+      return {
+        id: (guest.id as string) ?? null,
+        email: (guest.user_email as string) ?? null,
+        name: (guest.user_name as string) ?? null,
+        firstName: (guest.user_first_name as string) ?? null,
+        lastName: (guest.user_last_name as string) ?? null,
+        approvalStatus: (guest.approval_status as string) ?? null,
+        registeredAt: (guest.registered_at as string) ?? null,
+        invitedAt: (guest.invited_at as string) ?? null,
+        joinedAt: (guest.joined_at as string) ?? null,
+        checkedInAt: (guest.checked_in_at as string) ?? null,
+        phoneNumber: (guest.phone_number as string) ?? null,
+      }
+    })
 
     return {
       success: true,

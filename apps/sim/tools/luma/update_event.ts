@@ -89,7 +89,7 @@ export const updateEventTool: ToolConfig<LumaUpdateEventParams, LumaUpdateEventR
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        event_id: params.eventId,
+        id: params.eventId,
       }
       if (params.name) body.name = params.name
       if (params.startAt) body.start_at = params.startAt
