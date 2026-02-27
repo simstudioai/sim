@@ -5932,12 +5932,7 @@ export function HexIcon(props: SVGProps<SVGSVGElement>) {
 
 export function ShortIoIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      viewBox='0 0 64 65'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-    >
+    <svg {...props} viewBox='0 0 64 65' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <rect width='64' height='65' fill='#FFFFFF' />
       <path
         d='M41.1 45.7c0 2-.8 3.5-2.5 4.6-1.6 1-3.8 1.6-6.5 1.6-3.4 0-6-.8-8-2.3-2-1.6-3-3.6-3.2-6.1l-16.3-.4c0 4.1 1.2 7.8 3.6 11.1A24 24 0 0 0 18 62c2.2 1 4.5 1.7 7 2.2l.4.1H0V.2h24.9A25.4 25.4 0 0 0 9.3 9.5C7.1 12.5 6 15.9 6 19.7c0 4.2.9 7.6 2.6 10.1 1.7 2.5 4 4.4 6.8 5.7 2.8 1.3 6.3 2.3 10.6 3.2 4.4.9 7.5 1.6 9.5 2.2 1.9.5 3.3 1.1 4.3 1.9.8.6 1.3 1.6 1.3 2.9Z'

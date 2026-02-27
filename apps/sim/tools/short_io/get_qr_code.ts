@@ -31,7 +31,12 @@ export const shortIoGetQrCodeTool: ToolConfig<ShortIoGetQrParams, ToolResponse> 
       visibility: 'user-or-llm',
       description: 'Background color hex (e.g. FFFFFF)',
     },
-    size: { type: 'number', required: false, visibility: 'user-or-llm', description: 'QR size 1–99' },
+    size: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'QR size 1–99',
+    },
     type: {
       type: 'string',
       required: false,
@@ -58,7 +63,8 @@ export const shortIoGetQrCodeTool: ToolConfig<ShortIoGetQrParams, ToolResponse> 
         useDomainSettings: params.useDomainSettings ?? true,
       }
       if (params.color != null && params.color !== '') body.color = params.color
-      if (params.backgroundColor != null && params.backgroundColor !== '') body.backgroundColor = params.backgroundColor
+      if (params.backgroundColor != null && params.backgroundColor !== '')
+        body.backgroundColor = params.backgroundColor
       if (params.size != null && params.size >= 1 && params.size <= 99) body.size = params.size
       if (params.type === 'svg' || params.type === 'png') body.type = params.type
       return body

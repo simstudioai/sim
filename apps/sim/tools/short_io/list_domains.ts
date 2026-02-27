@@ -7,7 +7,12 @@ export const shortIoListDomainsTool: ToolConfig<ShortIoListDomainsParams, ToolRe
   description: 'List Short.io domains. Returns domain IDs and details for use in List Links.',
   version: '1.0',
   params: {
-    apiKey: { type: 'string', required: true, visibility: 'user-only', description: 'Short.io Secret API Key' },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Short.io Secret API Key',
+    },
   },
   request: {
     url: 'https://api.short.io/api/domains',
@@ -23,7 +28,7 @@ export const shortIoListDomainsTool: ToolConfig<ShortIoListDomainsParams, ToolRe
       return { success: false, output: { success: false, error: err } }
     }
     const data = await response.json().catch(() => ({}))
-    const list = Array.isArray(data) ? data : data.domains ?? data.list ?? []
+    const list = Array.isArray(data) ? data : (data.domains ?? data.list ?? [])
     return {
       success: true,
       output: { success: true, domains: list, count: list.length },

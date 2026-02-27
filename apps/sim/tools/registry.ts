@@ -1664,11 +1664,11 @@ import {
 } from '@/tools/shopify'
 import {
   shortIoCreateLinkTool,
+  shortIoDeleteLinkTool,
+  shortIoGetAnalyticsTool,
+  shortIoGetQrCodeTool,
   shortIoListDomainsTool,
   shortIoListLinksTool,
-  shortIoDeleteLinkTool,
-  shortIoGetQrCodeTool,
-  shortIoGetAnalyticsTool,
 } from '@/tools/short_io'
 import {
   similarwebBounceRateTool,

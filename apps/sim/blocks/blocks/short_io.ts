@@ -165,15 +165,15 @@ export const ShortIoBlock: BlockConfig<ToolResponse> = {
                 const out: Record<string, unknown> = { ...rest, apiKey }
                 if (size !== undefined && size !== '') {
                     const n = Number(size)
-                    if (typeof n === 'number' && !isNaN(n) && n >= 1 && n <= 99) out.size = n
+                    if (typeof n === 'number' && !Number.isNaN(n) && n >= 1 && n <= 99) out.size = n
                 }
                 if (operation === 'list_links' && domainId !== undefined && domainId !== '') {
                     const d = Number(domainId)
-                    if (typeof d === 'number' && !isNaN(d)) out.domainId = d
+                    if (typeof d === 'number' && !Number.isNaN(d)) out.domainId = d
                 }
                 if (operation === 'list_links' && limit !== undefined && limit !== '') {
                     const l = Number(limit)
-                    if (typeof l === 'number' && !isNaN(l) && l >= 1 && l <= 150) out.limit = l
+                    if (typeof l === 'number' && !Number.isNaN(l) && l >= 1 && l <= 150) out.limit = l
                 }
                 return out
             },

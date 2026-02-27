@@ -7,8 +7,18 @@ export const shortIoDeleteLinkTool: ToolConfig<ShortIoDeleteLinkParams, ToolResp
   description: 'Delete a short link by ID (e.g. lnk_abc123_abcdef). Rate limit 20/s.',
   version: '1.0',
   params: {
-    apiKey: { type: 'string', required: true, visibility: 'user-only', description: 'Short.io Secret API Key' },
-    linkId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Link ID to delete' },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Short.io Secret API Key',
+    },
+    linkId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Link ID to delete',
+    },
   },
   request: {
     url: (params) => `https://api.short.io/links/${encodeURIComponent(params.linkId)}`,

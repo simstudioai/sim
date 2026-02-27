@@ -32,11 +32,16 @@ export const shortIoGetAnalyticsTool: ToolConfig<ShortIoGetAnalyticsParams, Tool
       visibility: 'user-or-llm',
       description: 'Period: today, yesterday, last7, last30, total, week, month, lastmonth',
     },
-    tz: { type: 'string', required: false, visibility: 'hidden', description: 'Timezone (default UTC)' },
+    tz: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Timezone (default UTC)',
+    },
   },
   request: {
     url: (params) => {
-      const base = 'https://statistics.short.io/statistics/link/' + encodeURIComponent(params.linkId)
+      const base = `https://statistics.short.io/statistics/link/${encodeURIComponent(params.linkId)}`
       const period = STATS_PERIOD_MAP[params.period] ?? params.period ?? 'last30'
       const q = new URLSearchParams({ period })
       if (params.tz) q.set('tz', params.tz)
