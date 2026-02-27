@@ -16,6 +16,7 @@ export type ProviderId =
   | 'openrouter'
   | 'vllm'
   | 'bedrock'
+  | 'avian'
 
 export interface ModelPricing {
   input: number // Per 1M tokens

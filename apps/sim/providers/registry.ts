@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { anthropicProvider } from '@/providers/anthropic'
+import { avianProvider } from '@/providers/avian'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { bedrockProvider } from '@/providers/bedrock'
@@ -34,6 +35,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   openrouter: openRouterProvider,
   ollama: ollamaProvider,
   bedrock: bedrockProvider,
+  avian: avianProvider,
 }
 
 export async function getProviderExecutor(

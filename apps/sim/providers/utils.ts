@@ -145,6 +145,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
+  avian: buildProviderMetadata('avian'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
