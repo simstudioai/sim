@@ -22,7 +22,7 @@ export const shortIoGetAnalyticsTool: ToolConfig<ShortIoGetAnalyticsParams, Tool
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Short.io Secret API Key',
     },
     linkId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Link ID' },

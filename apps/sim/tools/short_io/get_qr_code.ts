@@ -10,7 +10,7 @@ export const shortIoGetQrCodeTool: ToolConfig<ShortIoGetQrParams, ToolResponse> 
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Short.io Secret API Key',
     },
     linkId: {
@@ -46,14 +46,15 @@ export const shortIoGetQrCodeTool: ToolConfig<ShortIoGetQrParams, ToolResponse> 
     },
   },
   request: {
-    url: (params) => `https://api.short.io/links/qr/${params.linkId}`,
+    url: '/api/tools/short_io/qr',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: params.apiKey,
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
+        apiKey: params.apiKey,
+        linkId: params.linkId,
         useDomainSettings: params.useDomainSettings ?? true,
       }
       if (params.color != null && params.color !== '') body.color = params.color
@@ -64,31 +65,22 @@ export const shortIoGetQrCodeTool: ToolConfig<ShortIoGetQrParams, ToolResponse> 
     },
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const err = await response.text().catch(() => response.statusText)
-      return { success: false, output: { success: false, error: err } }
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || !data.success) {
+      return {
+        success: false,
+        output: { success: false, error: data.error || response.statusText },
+      }
     }
-
-    const contentType = response.headers.get('Content-Type') ?? ''
-    const blob = await response.blob()
-    const arrayBuffer = await blob.arrayBuffer()
-    const bytes = new Uint8Array(arrayBuffer)
-    let binary = ''
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
-    const base64 = typeof btoa !== 'undefined' ? btoa(binary) : ''
-    const mediaType = contentType.split(';')[0]?.trim() || 'image/png'
-    const dataUrl = base64 ? `data:${mediaType};base64,${base64}` : ''
     return {
       success: true,
-      output: { success: true, qrCodeURL: dataUrl },
+      output: data.output,
     }
   },
   outputs: {
-    success: { type: 'boolean', description: 'Success status' },
-    qrCodeURL: {
-      type: 'string',
-      description: 'Base64 data URL of the QR code image (e.g. data:image/png;base64,...)',
+    file: {
+      type: 'file',
+      description: 'Generated QR code image file',
     },
-    error: { type: 'string', description: 'Error message' },
   },
 }

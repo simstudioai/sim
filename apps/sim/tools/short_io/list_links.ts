@@ -8,7 +8,7 @@ export const shortIoListLinksTool: ToolConfig<ShortIoListLinksParams, ToolRespon
     'List short links for a domain. Requires domain_id (from List Domains or dashboard). Max 150 per request.',
   version: '1.0',
   params: {
-    apiKey: { type: 'string', required: true, visibility: 'hidden', description: 'Short.io Secret API Key' },
+    apiKey: { type: 'string', required: true, visibility: 'user-only', description: 'Short.io Secret API Key' },
     domainId: {
       type: 'number',
       required: true,

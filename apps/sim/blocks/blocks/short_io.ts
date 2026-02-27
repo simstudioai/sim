@@ -159,24 +159,7 @@ export const ShortIoBlock: BlockConfig<ToolResponse> = {
             'short_io_get_analytics',
         ],
         config: {
-            tool: (params) => {
-                switch (params.operation) {
-                    case 'create_link':
-                        return 'short_io_create_link'
-                    case 'list_domains':
-                        return 'short_io_list_domains'
-                    case 'list_links':
-                        return 'short_io_list_links'
-                    case 'delete_link':
-                        return 'short_io_delete_link'
-                    case 'get_qr_code':
-                        return 'short_io_get_qr_code'
-                    case 'get_analytics':
-                        return 'short_io_get_analytics'
-                    default:
-                        throw new Error(`Invalid Short.io operation: ${params.operation}`)
-                }
-            },
+            tool: (params) => `short_io_${params.operation}`,
             params: (params) => {
                 const { apiKey, operation, size, domainId, limit, ...rest } = params
                 const out: Record<string, unknown> = { ...rest, apiKey }
@@ -222,7 +205,7 @@ export const ShortIoBlock: BlockConfig<ToolResponse> = {
         links: { type: 'array', description: 'List of links (from List Links)' },
         nextPageToken: { type: 'string', description: 'Pagination token for next page' },
         deleted: { type: 'boolean', description: 'Whether the link was deleted' },
-        qrCodeURL: { type: 'string', description: 'Base64 data URL of the generated QR code image' },
+        file: { type: 'file', description: 'Generated QR code image file' },
         clicks: { type: 'number', description: 'Total clicks in period' },
         totalClicks: { type: 'number', description: 'Total clicks' },
         humanClicks: { type: 'number', description: 'Human clicks' },

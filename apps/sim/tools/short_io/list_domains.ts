@@ -7,7 +7,7 @@ export const shortIoListDomainsTool: ToolConfig<ShortIoListDomainsParams, ToolRe
   description: 'List Short.io domains. Returns domain IDs and details for use in List Links.',
   version: '1.0',
   params: {
-    apiKey: { type: 'string', required: true, visibility: 'hidden', description: 'Short.io Secret API Key' },
+    apiKey: { type: 'string', required: true, visibility: 'user-only', description: 'Short.io Secret API Key' },
   },
   request: {
     url: 'https://api.short.io/api/domains',

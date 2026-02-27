@@ -10,7 +10,7 @@ export const shortIoCreateLinkTool: ToolConfig<ShortIoCreateLinkParams, ToolResp
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Short.io Secret API Key',
     },
     domain: {
