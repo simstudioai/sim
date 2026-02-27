@@ -437,6 +437,12 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Ran `bun run scripts/generate-docs.ts`
 - [ ] Verified docs file created
 
+### Final Validation (Required)
+- [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
+- [ ] Verified block subBlocks cover all required tool params with correct conditions
+- [ ] Verified block outputs match what the tools actually return
+- [ ] Verified `tools.config.params` correctly maps and coerces all param types
+
 ## Example Command
 
 When the user asks to add an integration:

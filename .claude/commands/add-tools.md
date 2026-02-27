@@ -300,3 +300,22 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] No raw JSON dumps in outputs
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools
+
+## Final Validation (Required)
+
+After creating all tools, you MUST validate every tool before finishing:
+
+1. **Read every tool file** you created — do not skip any
+2. **Cross-reference with the API docs** to verify:
+   - All required params are marked `required: true`
+   - All optional params are marked `required: false`
+   - Param types match the API (string, number, boolean, json)
+   - Request URL, method, headers, and body match the API spec
+   - `transformResponse` extracts the correct fields from the API response
+   - All output fields match what the API actually returns
+   - No fields are missing from outputs that the API provides
+   - No extra fields are defined in outputs that the API doesn't return
+3. **Verify consistency** across tools:
+   - Shared types in `types.ts` match all tools that use them
+   - Tool IDs in the barrel export match the tool file definitions
+   - Error handling is consistent (logger imports, error checks)

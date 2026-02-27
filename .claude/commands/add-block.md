@@ -801,3 +801,16 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
+
+## Final Validation (Required)
+
+After creating the block, you MUST validate it against every tool it references:
+
+1. **Read every tool definition** that appears in `tools.access` — do not skip any
+2. **For each tool, verify the block has correct:**
+   - SubBlock inputs that cover all required tool params (with correct `condition` to show for that operation)
+   - SubBlock input types that match the tool param types (e.g., dropdown for enums, short-input for strings)
+   - `tools.config.params` correctly maps subBlock IDs to tool param names (if they differ)
+   - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
+3. **Verify block outputs** cover the key fields returned by all tools
+4. **Verify conditions** — each subBlock should only show for the operations that actually use it
