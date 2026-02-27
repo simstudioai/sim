@@ -169,6 +169,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (leave empty for default)',
       condition: { field: 'operation', value: 'github_latest_commit' },
+      mode: 'advanced',
     },
     // Comment operations parameters
     {
@@ -201,6 +202,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_issue_comments' },
+      mode: 'advanced',
     },
     {
       id: 'comment_id',
@@ -240,6 +242,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_pr_comments' },
+      mode: 'advanced',
     },
     // Pull request operations parameters
     {
@@ -272,6 +275,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter pull request description (optional)',
       condition: { field: 'operation', value: 'github_create_pr' },
+      mode: 'advanced',
     },
     {
       id: 'draft',
@@ -282,6 +286,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_create_pr' },
+      mode: 'advanced',
     },
     {
       id: 'pullNumber',
@@ -297,6 +302,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Enter new title (optional)',
       condition: { field: 'operation', value: 'github_update_pr' },
+      mode: 'advanced',
     },
     {
       id: 'body',
@@ -304,6 +310,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter new description (optional)',
       condition: { field: 'operation', value: 'github_update_pr' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -314,6 +321,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Closed', id: 'closed' },
       ],
       condition: { field: 'operation', value: 'github_update_pr' },
+      mode: 'advanced',
     },
     {
       id: 'pullNumber',
@@ -333,6 +341,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Rebase', id: 'rebase' },
       ],
       condition: { field: 'operation', value: 'github_merge_pr' },
+      mode: 'advanced',
     },
     {
       id: 'commit_title',
@@ -340,6 +349,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Enter commit title (optional)',
       condition: { field: 'operation', value: 'github_merge_pr' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -351,6 +361,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'All', id: 'all' },
       ],
       condition: { field: 'operation', value: 'github_list_prs' },
+      mode: 'advanced',
     },
     {
       id: 'per_page',
@@ -358,6 +369,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_prs' },
+      mode: 'advanced',
     },
     {
       id: 'pullNumber',
@@ -389,6 +401,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated: user1,user2',
       condition: { field: 'operation', value: 'github_request_reviewers' },
+      mode: 'advanced',
     },
     {
       id: 'team_reviewers',
@@ -396,6 +409,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated: team1,team2',
       condition: { field: 'operation', value: 'github_request_reviewers' },
+      mode: 'advanced',
     },
     // File operations parameters
     {
@@ -412,6 +426,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (optional)',
       condition: { field: 'operation', value: 'github_get_file_content' },
+      mode: 'advanced',
     },
     {
       id: 'path',
@@ -443,6 +458,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (optional)',
       condition: { field: 'operation', value: 'github_create_file' },
+      mode: 'advanced',
     },
     {
       id: 'path',
@@ -482,6 +498,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (optional)',
       condition: { field: 'operation', value: 'github_update_file' },
+      mode: 'advanced',
     },
     {
       id: 'path',
@@ -513,6 +530,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (optional)',
       condition: { field: 'operation', value: 'github_delete_file' },
+      mode: 'advanced',
     },
     {
       id: 'path',
@@ -520,6 +538,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., src (leave empty for root)',
       condition: { field: 'operation', value: 'github_get_tree' },
+      mode: 'advanced',
     },
     {
       id: 'ref',
@@ -527,6 +546,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (optional)',
       condition: { field: 'operation', value: 'github_get_tree' },
+      mode: 'advanced',
     },
     // Branch operations parameters
     {
@@ -539,6 +559,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Unprotected', id: 'false' },
       ],
       condition: { field: 'operation', value: 'github_list_branches' },
+      mode: 'advanced',
     },
     {
       id: 'branch',
@@ -594,6 +615,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'JSON: {"strict":true,"contexts":["ci/test"]}',
       condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
     },
     {
       id: 'enforce_admins',
@@ -604,6 +626,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
     },
     {
       id: 'required_pull_request_reviews',
@@ -611,6 +634,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'JSON: {"required_approving_review_count":1}',
       condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
     },
     // Issue operations parameters
     {
@@ -627,6 +651,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter issue description (optional)',
       condition: { field: 'operation', value: 'github_create_issue' },
+      mode: 'advanced',
     },
     {
       id: 'labels',
@@ -634,6 +659,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated: bug,enhancement',
       condition: { field: 'operation', value: 'github_create_issue' },
+      mode: 'advanced',
     },
     {
       id: 'assignees',
@@ -641,6 +667,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated: user1,user2',
       condition: { field: 'operation', value: 'github_create_issue' },
+      mode: 'advanced',
     },
     {
       id: 'issue_number',
@@ -656,6 +683,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Enter new title (optional)',
       condition: { field: 'operation', value: 'github_update_issue' },
+      mode: 'advanced',
     },
     {
       id: 'body',
@@ -663,6 +691,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter new description (optional)',
       condition: { field: 'operation', value: 'github_update_issue' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -673,6 +702,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Closed', id: 'closed' },
       ],
       condition: { field: 'operation', value: 'github_update_issue' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -684,6 +714,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'All', id: 'all' },
       ],
       condition: { field: 'operation', value: 'github_list_issues' },
+      mode: 'advanced',
     },
     {
       id: 'per_page',
@@ -691,6 +722,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_issues' },
+      mode: 'advanced',
     },
     {
       id: 'issue_number',
@@ -771,6 +803,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., Version 1.0.0',
       condition: { field: 'operation', value: 'github_create_release' },
+      mode: 'advanced',
     },
     {
       id: 'body',
@@ -778,6 +811,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter release notes (optional)',
       condition: { field: 'operation', value: 'github_create_release' },
+      mode: 'advanced',
     },
     {
       id: 'draft',
@@ -788,6 +822,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_create_release' },
+      mode: 'advanced',
     },
     {
       id: 'prerelease',
@@ -798,6 +833,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_create_release' },
+      mode: 'advanced',
     },
     {
       id: 'release_id',
@@ -813,6 +849,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., v1.0.1 (optional)',
       condition: { field: 'operation', value: 'github_update_release' },
+      mode: 'advanced',
     },
     {
       id: 'name',
@@ -820,6 +857,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Enter new name (optional)',
       condition: { field: 'operation', value: 'github_update_release' },
+      mode: 'advanced',
     },
     {
       id: 'body',
@@ -827,6 +865,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'Enter updated notes (optional)',
       condition: { field: 'operation', value: 'github_update_release' },
+      mode: 'advanced',
     },
     {
       id: 'per_page',
@@ -834,6 +873,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_releases' },
+      mode: 'advanced',
     },
     {
       id: 'release_id',
@@ -858,6 +898,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_workflows' },
+      mode: 'advanced',
     },
     {
       id: 'workflow_id',
@@ -889,6 +930,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'long-input',
       placeholder: 'JSON: {"key":"value"}',
       condition: { field: 'operation', value: 'github_trigger_workflow' },
+      mode: 'advanced',
     },
     {
       id: 'workflow_id',
@@ -896,6 +938,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 123456 or ci.yml (optional)',
       condition: { field: 'operation', value: 'github_list_workflow_runs' },
+      mode: 'advanced',
     },
     {
       id: 'status',
@@ -908,6 +951,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Completed', id: 'completed' },
       ],
       condition: { field: 'operation', value: 'github_list_workflow_runs' },
+      mode: 'advanced',
     },
     {
       id: 'per_page',
@@ -915,6 +959,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'e.g., 30 (default: 30, max: 100)',
       condition: { field: 'operation', value: 'github_list_workflow_runs' },
+      mode: 'advanced',
     },
     {
       id: 'run_id',
@@ -1017,6 +1062,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       placeholder: 'Enter new title (optional)',
       condition: { field: 'operation', value: 'github_update_project' },
+      mode: 'advanced',
     },
     {
       id: 'project_public',
@@ -1027,6 +1073,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Public', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_update_project' },
+      mode: 'advanced',
     },
     {
       id: 'project_id',
@@ -1083,6 +1130,7 @@ Return ONLY the search query - no explanations.`,
         { label: 'Updated', id: 'updated' },
       ],
       condition: { field: 'operation', value: 'github_search_repos' },
+      mode: 'advanced',
     },
     {
       id: 'order',
@@ -1102,6 +1150,7 @@ Return ONLY the search query - no explanations.`,
           'github_search_users',
         ],
       },
+      mode: 'advanced',
     },
     // Commit operations parameters
     {
@@ -1110,6 +1159,7 @@ Return ONLY the search query - no explanations.`,
       type: 'short-input',
       placeholder: 'e.g., main or abc123',
       condition: { field: 'operation', value: 'github_list_commits' },
+      mode: 'advanced',
     },
     {
       id: 'author',
@@ -1117,6 +1167,7 @@ Return ONLY the search query - no explanations.`,
       type: 'short-input',
       placeholder: 'GitHub username or email',
       condition: { field: 'operation', value: 'github_list_commits' },
+      mode: 'advanced',
     },
     {
       id: 'since',
@@ -1124,6 +1175,7 @@ Return ONLY the search query - no explanations.`,
       type: 'short-input',
       placeholder: 'ISO 8601: 2024-01-01T00:00:00Z',
       condition: { field: 'operation', value: ['github_list_commits', 'github_list_gists'] },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -1146,6 +1198,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'ISO 8601: 2024-12-31T23:59:59Z',
       condition: { field: 'operation', value: 'github_list_commits' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -1210,6 +1263,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Gist description',
       condition: { field: 'operation', value: ['github_create_gist', 'github_update_gist'] },
+      mode: 'advanced',
     },
     {
       id: 'files',
@@ -1266,6 +1320,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
         { label: 'Public', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_create_gist' },
+      mode: 'advanced',
     },
     {
       id: 'username',
@@ -1273,6 +1328,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       type: 'short-input',
       placeholder: 'GitHub username (optional)',
       condition: { field: 'operation', value: 'github_list_gists' },
+      mode: 'advanced',
     },
     // Fork operations parameters
     {
@@ -1281,6 +1337,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       type: 'short-input',
       placeholder: 'Fork to org (optional)',
       condition: { field: 'operation', value: 'github_fork_repo' },
+      mode: 'advanced',
     },
     {
       id: 'fork_name',
@@ -1288,6 +1345,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       type: 'short-input',
       placeholder: 'Custom name (optional)',
       condition: { field: 'operation', value: 'github_fork_repo' },
+      mode: 'advanced',
     },
     {
       id: 'default_branch_only',
@@ -1298,6 +1356,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: 'github_fork_repo' },
+      mode: 'advanced',
     },
     {
       id: 'fork_sort',
@@ -1310,6 +1369,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
         { label: 'Watchers', id: 'watchers' },
       ],
       condition: { field: 'operation', value: 'github_list_forks' },
+      mode: 'advanced',
     },
     // Milestone operations parameters
     {
@@ -1326,6 +1386,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       type: 'short-input',
       placeholder: 'Updated title (optional)',
       condition: { field: 'operation', value: 'github_update_milestone' },
+      mode: 'advanced',
     },
     {
       id: 'milestone_description',
@@ -1336,6 +1397,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
         field: 'operation',
         value: ['github_create_milestone', 'github_update_milestone'],
       },
+      mode: 'advanced',
     },
     {
       id: 'due_on',
@@ -1346,6 +1408,7 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
         field: 'operation',
         value: ['github_create_milestone', 'github_update_milestone'],
       },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp for a milestone due date based on the user's description.
@@ -1383,6 +1446,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'All', id: 'all' },
       ],
       condition: { field: 'operation', value: 'github_list_milestones' },
+      mode: 'advanced',
     },
     {
       id: 'milestone_sort',
@@ -1393,6 +1457,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'Completeness', id: 'completeness' },
       ],
       condition: { field: 'operation', value: 'github_list_milestones' },
+      mode: 'advanced',
     },
     // Reaction operations parameters
     {
@@ -1469,6 +1534,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'github_list_stargazers',
         ],
       },
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -1498,6 +1564,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'File-specific Comment', id: 'file_comment' },
       ],
       condition: { field: 'operation', value: 'github_comment' },
+      mode: 'advanced',
     },
     {
       id: 'path',
@@ -1512,6 +1579,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           value: 'file_comment',
         },
       },
+      mode: 'advanced',
     },
     {
       id: 'line',
@@ -1526,6 +1594,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           value: 'file_comment',
         },
       },
+      mode: 'advanced',
     },
   ],
   tools: {
