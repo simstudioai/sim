@@ -34,22 +34,27 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    return {
-      success: true,
-      output: {
-        generationId: data.generationId ?? '',
-        status: data.status ?? 'pending',
-        gammaUrl: data.gammaUrl ?? null,
-        credits: {
-          deducted: data.credits?.deducted ?? null,
-          remaining: data.credits?.remaining ?? null,
-        },
-        error: {
-          message: data.error?.message ?? null,
-          statusCode: data.error?.statusCode ?? null,
-        },
-      },
+    const output: Record<string, unknown> = {
+      generationId: data.generationId ?? '',
+      status: data.status ?? 'pending',
+      gammaUrl: data.gammaUrl ?? null,
     }
+
+    if (data.credits) {
+      output.credits = {
+        deducted: data.credits.deducted ?? null,
+        remaining: data.credits.remaining ?? null,
+      }
+    }
+
+    if (data.error) {
+      output.error = {
+        message: data.error.message ?? null,
+        statusCode: data.error.statusCode ?? null,
+      }
+    }
+
+    return { success: true, output }
   },
 
   outputs: {
