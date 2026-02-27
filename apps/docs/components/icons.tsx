@@ -3956,6 +3956,17 @@ export function IntercomIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LumaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} fill='none' viewBox='0 0 133 134' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M133 67C96.282 67 66.5 36.994 66.5 0c0 36.994-29.782 67-66.5 67 36.718 0 66.5 30.006 66.5 67 0-36.994 29.782-67 66.5-67'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function MailchimpIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
