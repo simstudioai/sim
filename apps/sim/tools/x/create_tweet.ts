@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XCreateTweetParams, XCreateTweetResponse } from '@/tools/x/types'
+
+const logger = createLogger('XCreateTweetTool')
 
 export const xCreateTweetTool: ToolConfig<XCreateTweetParams, XCreateTweetResponse> = {
   id: 'x_create_tweet',
@@ -93,6 +96,7 @@ export const xCreateTweetTool: ToolConfig<XCreateTweetParams, XCreateTweetRespon
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Create Tweet API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         error: data.errors?.[0]?.detail || 'Failed to create tweet',

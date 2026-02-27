@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XManageLikeParams, XManageLikeResponse } from '@/tools/x/types'
+
+const logger = createLogger('XManageLikeTool')
 
 export const xManageLikeTool: ToolConfig<XManageLikeParams, XManageLikeResponse> = {
   id: 'x_manage_like',
@@ -63,6 +66,7 @@ export const xManageLikeTool: ToolConfig<XManageLikeParams, XManageLikeResponse>
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Manage Like API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         output: {

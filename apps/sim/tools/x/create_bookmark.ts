@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XCreateBookmarkParams, XCreateBookmarkResponse } from '@/tools/x/types'
+
+const logger = createLogger('XCreateBookmarkTool')
 
 export const xCreateBookmarkTool: ToolConfig<XCreateBookmarkParams, XCreateBookmarkResponse> = {
   id: 'x_create_bookmark',
@@ -47,10 +50,22 @@ export const xCreateBookmarkTool: ToolConfig<XCreateBookmarkParams, XCreateBookm
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (!data.data) {
+      logger.error('X Create Bookmark API Error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.errors?.[0]?.detail || 'Failed to bookmark tweet',
+        output: {
+          bookmarked: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        bookmarked: data.data?.bookmarked ?? false,
+        bookmarked: data.data.bookmarked ?? false,
       },
     }
   },

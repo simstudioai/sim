@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XManageBlockParams, XManageBlockResponse } from '@/tools/x/types'
+
+const logger = createLogger('XManageBlockTool')
 
 export const xManageBlockTool: ToolConfig<XManageBlockParams, XManageBlockResponse> = {
   id: 'x_manage_block',
@@ -63,6 +66,7 @@ export const xManageBlockTool: ToolConfig<XManageBlockParams, XManageBlockRespon
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Manage Block API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         output: {

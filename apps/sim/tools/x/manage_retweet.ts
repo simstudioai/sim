@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XManageRetweetParams, XManageRetweetResponse } from '@/tools/x/types'
+
+const logger = createLogger('XManageRetweetTool')
 
 export const xManageRetweetTool: ToolConfig<XManageRetweetParams, XManageRetweetResponse> = {
   id: 'x_manage_retweet',
@@ -63,6 +66,7 @@ export const xManageRetweetTool: ToolConfig<XManageRetweetParams, XManageRetweet
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Manage Retweet API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         output: {

@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XManageFollowParams, XManageFollowResponse } from '@/tools/x/types'
+
+const logger = createLogger('XManageFollowTool')
 
 export const xManageFollowTool: ToolConfig<XManageFollowParams, XManageFollowResponse> = {
   id: 'x_manage_follow',
@@ -63,6 +66,7 @@ export const xManageFollowTool: ToolConfig<XManageFollowParams, XManageFollowRes
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Manage Follow API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         output: {

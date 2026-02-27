@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XDeleteBookmarkParams, XDeleteBookmarkResponse } from '@/tools/x/types'
+
+const logger = createLogger('XDeleteBookmarkTool')
 
 export const xDeleteBookmarkTool: ToolConfig<XDeleteBookmarkParams, XDeleteBookmarkResponse> = {
   id: 'x_delete_bookmark',
@@ -45,10 +48,22 @@ export const xDeleteBookmarkTool: ToolConfig<XDeleteBookmarkParams, XDeleteBookm
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (!data.data) {
+      logger.error('X Delete Bookmark API Error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.errors?.[0]?.detail || 'Failed to remove bookmark',
+        output: {
+          bookmarked: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        bookmarked: data.data?.bookmarked ?? false,
+        bookmarked: data.data.bookmarked ?? false,
       },
     }
   },

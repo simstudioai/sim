@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XDeleteTweetParams, XDeleteTweetResponse } from '@/tools/x/types'
+
+const logger = createLogger('XDeleteTweetTool')
 
 export const xDeleteTweetTool: ToolConfig<XDeleteTweetParams, XDeleteTweetResponse> = {
   id: 'x_delete_tweet',
@@ -40,6 +43,7 @@ export const xDeleteTweetTool: ToolConfig<XDeleteTweetParams, XDeleteTweetRespon
     const data = await response.json()
 
     if (!data.data) {
+      logger.error('X Delete Tweet API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         error: data.errors?.[0]?.detail || 'Failed to delete tweet',
