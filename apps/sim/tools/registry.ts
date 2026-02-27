@@ -1663,6 +1663,14 @@ import {
   shopifyUpdateProductTool,
 } from '@/tools/shopify'
 import {
+  shortIoCreateLinkTool,
+  shortIoListDomainsTool,
+  shortIoListLinksTool,
+  shortIoDeleteLinkTool,
+  shortIoGetQrCodeTool,
+  shortIoGetAnalyticsTool,
+} from '@/tools/short_io'
+import {
   similarwebBounceRateTool,
   similarwebPagesPerVisitTool,
   similarwebTrafficVisitsTool,
@@ -2406,6 +2414,12 @@ export const tools: Record<string, ToolConfig> = {
   tavily_extract: tavilyExtractTool,
   tavily_crawl: tavilyCrawlTool,
   tavily_map: tavilyMapTool,
+  short_io_create_link: shortIoCreateLinkTool,
+  short_io_list_domains: shortIoListDomainsTool,
+  short_io_list_links: shortIoListLinksTool,
+  short_io_delete_link: shortIoDeleteLinkTool,
+  short_io_get_qr_code: shortIoGetQrCodeTool,
+  short_io_get_analytics: shortIoGetAnalyticsTool,
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
   supabase_get_row: supabaseGetRowTool,
