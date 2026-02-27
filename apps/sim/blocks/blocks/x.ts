@@ -108,6 +108,7 @@ export const XBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter tweet ID to reply to',
       condition: { field: 'operation', value: 'x_create_tweet' },
+      mode: 'advanced',
     },
     {
       id: 'quoteTweetId',
@@ -115,6 +116,7 @@ export const XBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter tweet ID to quote',
       condition: { field: 'operation', value: 'x_create_tweet' },
+      mode: 'advanced',
     },
     {
       id: 'mediaIds',
@@ -122,6 +124,7 @@ export const XBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Comma-separated media IDs (up to 4)',
       condition: { field: 'operation', value: 'x_create_tweet' },
+      mode: 'advanced',
     },
     {
       id: 'replySettings',
@@ -136,6 +139,7 @@ export const XBlock: BlockConfig = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'x_create_tweet' },
+      mode: 'advanced',
     },
     // --- Tweet ID field (shared by multiple operations) ---
     {
@@ -212,6 +216,7 @@ export const XBlock: BlockConfig = {
       ],
       value: () => 'recency',
       condition: { field: 'operation', value: 'x_search_tweets' },
+      mode: 'advanced',
     },
     // --- User ID field (shared by many operations) ---
     {
@@ -341,6 +346,7 @@ export const XBlock: BlockConfig = {
         field: 'operation',
         value: ['x_get_user_tweets', 'x_get_user_timeline'],
       },
+      mode: 'advanced',
     },
     // --- Time range fields (shared by tweet search and user tweet operations) ---
     {
@@ -357,6 +363,7 @@ export const XBlock: BlockConfig = {
           'x_get_user_timeline',
         ],
       },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -386,6 +393,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'x_get_user_timeline',
         ],
       },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -425,6 +433,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'x_get_blocking',
         ],
       },
+      mode: 'advanced',
     },
     // --- Pagination Token (shared by many operations) ---
     {
@@ -448,6 +457,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'x_get_blocking',
         ],
       },
+      mode: 'advanced',
     },
     // --- Next Token (for search operations that use nextToken instead of paginationToken) ---
     {
@@ -459,6 +469,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['x_search_tweets', 'x_search_users'],
       },
+      mode: 'advanced',
     },
     // --- Trends fields ---
     {
@@ -475,6 +486,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: '20',
       condition: { field: 'operation', value: 'x_get_trends_by_woeid' },
+      mode: 'advanced',
     },
     // --- Usage fields ---
     {
@@ -483,6 +495,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: '7 (1-90)',
       condition: { field: 'operation', value: 'x_get_usage' },
+      mode: 'advanced',
     },
   ],
   tools: {
