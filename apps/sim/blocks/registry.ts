@@ -10,6 +10,7 @@ import { ApifyBlock } from '@/blocks/blocks/apify'
 import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
+import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
@@ -195,6 +196,7 @@ export const registry: Record<string, BlockConfig> = {
   apify: ApifyBlock,
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
+  ashby: AshbyBlock,
   asana: AsanaBlock,
   attio: AttioBlock,
   browser_use: BrowserUseBlock,
