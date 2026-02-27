@@ -75,7 +75,13 @@ export const xGetLikedTweetsTool: ToolConfig<XGetLikedTweetsParams, XTweetListRe
         success: false,
         output: {
           tweets: [],
-          meta: { resultCount: 0, nextToken: null, previousToken: null },
+          meta: {
+            resultCount: 0,
+            newestId: null,
+            oldestId: null,
+            nextToken: null,
+            previousToken: null,
+          },
         },
         error: data.errors?.[0]?.detail ?? 'No liked tweets found or invalid response',
       }

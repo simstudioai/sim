@@ -76,7 +76,13 @@ export const xGetQuoteTweetsTool: ToolConfig<XGetQuoteTweetsParams, XTweetListRe
         error: data.errors?.[0]?.detail || 'No quote tweets found or invalid response',
         output: {
           tweets: [],
-          meta: { resultCount: 0, nextToken: null, previousToken: null },
+          meta: {
+            resultCount: 0,
+            newestId: null,
+            oldestId: null,
+            nextToken: null,
+            previousToken: null,
+          },
         },
       }
     }
