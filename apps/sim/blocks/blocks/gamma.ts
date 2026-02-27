@@ -161,7 +161,7 @@ Return ONLY the dimension value string, nothing else.`,
         { label: 'No Images', id: 'noImages' },
       ],
       value: () => 'aiGenerated',
-      condition: { field: 'operation', value: ['generate', 'generate_from_template'] },
+      condition: { field: 'operation', value: 'generate' },
       mode: 'advanced',
     },
     {

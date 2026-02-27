@@ -48,16 +48,6 @@ export interface GammaGenerateFromTemplateParams extends GammaBaseParams {
   themeId?: string
   exportAs?: 'pdf' | 'pptx'
   folderIds?: string
-  imageSource?:
-    | 'aiGenerated'
-    | 'pictographic'
-    | 'unsplash'
-    | 'webAllImages'
-    | 'webFreeToUse'
-    | 'webFreeToUseCommercially'
-    | 'giphy'
-    | 'placeholder'
-    | 'noImages'
   imageModel?: string
   imageStyle?: string
 }

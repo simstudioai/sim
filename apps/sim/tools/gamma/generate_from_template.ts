@@ -50,13 +50,6 @@ export const generateFromTemplateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated folder IDs to store the generated gamma in',
     },
-    imageSource: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Where to source images: aiGenerated, pictographic, unsplash, webAllImages, webFreeToUse, webFreeToUseCommercially, giphy, placeholder, or noImages',
-    },
     imageModel: {
       type: 'string',
       required: false,
@@ -92,7 +85,6 @@ export const generateFromTemplateTool: ToolConfig<
       }
 
       const imageOptions: Record<string, unknown> = {}
-      if (params.imageSource) imageOptions.source = params.imageSource
       if (params.imageModel) imageOptions.model = params.imageModel
       if (params.imageStyle) imageOptions.style = params.imageStyle
       if (Object.keys(imageOptions).length > 0) body.imageOptions = imageOptions
