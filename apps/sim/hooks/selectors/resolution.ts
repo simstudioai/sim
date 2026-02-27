@@ -119,7 +119,7 @@ function resolveFileSelector(
     case 'sharepoint':
       return { key: 'sharepoint.sites', context, allowSearch: true }
     case 'webflow': {
-      const paramId = subBlock.canonicalParamId ?? subBlock.id
+      const paramId = subBlock.canonicalParamId
       if (paramId === 'collectionId') {
         return { key: 'webflow.collections', context, allowSearch: false }
       }
