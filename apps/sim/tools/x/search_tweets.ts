@@ -80,6 +80,12 @@ export const xSearchTweetsTool: ToolConfig<XSearchTweetsParams, XSearchTweetsRes
       visibility: 'user-or-llm',
       description: 'Sort order: "recency" or "relevancy"',
     },
+    nextToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination token for next page of results',
+    },
   },
 
   request: {
@@ -101,6 +107,7 @@ export const xSearchTweetsTool: ToolConfig<XSearchTweetsParams, XSearchTweetsRes
       if (params.sinceId) queryParams.append('since_id', params.sinceId)
       if (params.untilId) queryParams.append('until_id', params.untilId)
       if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
+      if (params.nextToken) queryParams.append('next_token', params.nextToken)
 
       return `https://api.x.com/2/tweets/search/recent?${queryParams.toString()}`
     },

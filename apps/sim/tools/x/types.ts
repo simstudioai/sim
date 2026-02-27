@@ -288,6 +288,8 @@ export interface XCreateTweetParams extends XBaseParams {
   text: string
   replyToTweetId?: string
   quoteTweetId?: string
+  mediaIds?: string
+  replySettings?: string
 }
 
 export interface XCreateTweetResponse extends ToolResponse {
