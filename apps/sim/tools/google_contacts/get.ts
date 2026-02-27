@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsGetParams,
@@ -6,6 +7,8 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsGet')
 
 export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetResponse> = {
   id: 'google_contacts_get',
@@ -35,7 +38,7 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
 
   request: {
     url: (params: GoogleContactsGetParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName}?personFields=${DEFAULT_PERSON_FIELDS}`,
+      `${PEOPLE_API_BASE}/${params.resourceName.trim()}?personFields=${DEFAULT_PERSON_FIELDS}`,
     method: 'GET',
     headers: (params: GoogleContactsGetParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -45,6 +48,13 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMessage = data.error?.message || 'Failed to get contact'
+      logger.error('Failed to get contact', { status: response.status, error: errorMessage })
+      throw new Error(errorMessage)
+    }
+
     const contact = transformPerson(data)
 
     return {

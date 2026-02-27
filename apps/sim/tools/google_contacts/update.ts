@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsUpdateParams,
@@ -6,6 +7,8 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsUpdate')
 
 export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUpdateResponse> = {
   id: 'google_contacts_update',
@@ -108,7 +111,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
 
       const updatePersonFields = updateFields.join(',')
 
-      return `${PEOPLE_API_BASE}/${params.resourceName}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
+      return `${PEOPLE_API_BASE}/${params.resourceName.trim()}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
     },
     method: 'PATCH',
     headers: (params: GoogleContactsUpdateParams) => ({
@@ -156,6 +159,13 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMessage = data.error?.message || 'Failed to update contact'
+      logger.error('Failed to update contact', { status: response.status, error: errorMessage })
+      throw new Error(errorMessage)
+    }
+
     const contact = transformPerson(data)
 
     return {

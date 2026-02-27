@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsSearchParams,
@@ -6,6 +7,8 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsSearch')
 
 export const searchTool: ToolConfig<GoogleContactsSearchParams, GoogleContactsSearchResponse> = {
   id: 'google_contacts_search',
@@ -58,6 +61,13 @@ export const searchTool: ToolConfig<GoogleContactsSearchParams, GoogleContactsSe
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMessage = data.error?.message || 'Failed to search contacts'
+      logger.error('Failed to search contacts', { status: response.status, error: errorMessage })
+      throw new Error(errorMessage)
+    }
+
     const results = data.results || []
     const contacts = results.map((result: Record<string, any>) =>
       transformPerson(result.person || result)

@@ -84,6 +84,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
         { label: 'Other', id: 'other' },
       ],
       value: () => 'work',
+      mode: 'advanced',
     },
     {
       id: 'phone',
@@ -104,6 +105,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
         { label: 'Other', id: 'other' },
       ],
       value: () => 'mobile',
+      mode: 'advanced',
     },
     {
       id: 'organization',
@@ -125,6 +127,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
       type: 'long-input',
       placeholder: 'Additional notes about the contact',
       condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
     },
 
     // Get / Update / Delete Fields
@@ -164,6 +167,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: ['list', 'search'] },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -171,6 +175,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
       type: 'short-input',
       placeholder: 'Token from previous list request',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
     },
     {
       id: 'sortOrder',
@@ -184,6 +189,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
         { label: 'Last Name (Ascending)', id: 'LAST_NAME_ASCENDING' },
       ],
       value: () => 'LAST_MODIFIED_DESCENDING',
+      mode: 'advanced',
     },
   ],
   tools: {

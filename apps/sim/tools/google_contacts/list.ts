@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsListParams,
@@ -6,6 +7,8 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsList')
 
 export const listTool: ToolConfig<GoogleContactsListParams, GoogleContactsListResponse> = {
   id: 'google_contacts_list',
@@ -65,6 +68,13 @@ export const listTool: ToolConfig<GoogleContactsListParams, GoogleContactsListRe
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMessage = data.error?.message || 'Failed to list contacts'
+      logger.error('Failed to list contacts', { status: response.status, error: errorMessage })
+      throw new Error(errorMessage)
+    }
+
     const connections = data.connections || []
     const contacts = connections.map((person: Record<string, any>) => transformPerson(person))
 

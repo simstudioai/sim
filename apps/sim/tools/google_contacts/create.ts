@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsCreateParams,
@@ -6,6 +7,8 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsCreate')
 
 export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCreateResponse> = {
   id: 'google_contacts_create',
@@ -125,6 +128,13 @@ export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCr
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMessage = data.error?.message || 'Failed to create contact'
+      logger.error('Failed to create contact', { status: response.status, error: errorMessage })
+      throw new Error(errorMessage)
+    }
+
     const contact = transformPerson(data)
 
     return {

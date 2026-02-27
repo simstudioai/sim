@@ -1,9 +1,12 @@
+import { createLogger } from '@sim/logger'
 import {
   type GoogleContactsDeleteParams,
   type GoogleContactsDeleteResponse,
   PEOPLE_API_BASE,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('GoogleContactsDelete')
 
 export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDeleteResponse> = {
   id: 'google_contacts_delete',
@@ -33,7 +36,7 @@ export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDe
 
   request: {
     url: (params: GoogleContactsDeleteParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName}:deleteContact`,
+      `${PEOPLE_API_BASE}/${params.resourceName.trim()}:deleteContact`,
     method: 'DELETE',
     headers: (params: GoogleContactsDeleteParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -56,7 +59,9 @@ export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDe
     }
 
     const errorData = await response.json()
-    throw new Error(errorData.error?.message || 'Failed to delete contact')
+    const errorMessage = errorData.error?.message || 'Failed to delete contact'
+    logger.error('Failed to delete contact', { status: response.status, error: errorMessage })
+    throw new Error(errorMessage)
   },
 
   outputs: {
