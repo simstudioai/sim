@@ -1,0 +1,560 @@
+---
+title: Greenhouse
+description: Manage candidates, jobs, and applications in Greenhouse
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="greenhouse"
+  color="#469776"
+/>
+
+## Usage Instructions
+
+Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.
+
+
+
+## Tools
+
+### `greenhouse_list_candidates`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_get_candidate`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_jobs`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_get_job`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_applications`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_get_application`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_users`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_get_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_departments`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_offices`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+### `greenhouse_list_job_stages`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | List of candidates |
+| `jobs` | json | List of jobs |
+| `applications` | json | List of applications |
+| `users` | json | List of users |
+| `departments` | json | List of departments |
+| `offices` | json | List of offices |
+| `stages` | json | List of job stages |
+| `count` | number | Number of results returned |
+| `id` | number | Resource ID |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `name` | string | Resource name |
+| `status` | string | Status |
+| `email_addresses` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `tags` | json | Tags |
+| `application_ids` | json | Associated application IDs |
+| `recruiter` | json | Assigned recruiter |
+| `coordinator` | json | Assigned coordinator |
+| `current_stage` | json | Current interview stage |
+| `source` | json | Application source |
+| `hiring_team` | json | Hiring team members |
+| `openings` | json | Job openings |
+| `custom_fields` | json | Custom field values |
+| `attachments` | json | File attachments |
+| `educations` | json | Education history |
+| `employments` | json | Employment history |
+| `answers` | json | Application question answers |
+| `prospect` | boolean | Whether this is a prospect |
+| `confidential` | boolean | Whether the job is confidential |
+| `is_private` | boolean | Whether the candidate is private |
+| `can_email` | boolean | Whether the candidate can be emailed |
+| `disabled` | boolean | Whether the user is disabled |
+| `site_admin` | boolean | Whether the user is a site admin |
+| `primary_email_address` | string | Primary email address |
+| `created_at` | string | Creation timestamp \(ISO 8601\) |
+| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+
+
