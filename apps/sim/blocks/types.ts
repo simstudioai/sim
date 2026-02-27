@@ -1,4 +1,5 @@
 import type { JSX, SVGProps } from 'react'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
@@ -290,6 +291,9 @@ export interface SubBlockConfig {
   requiredScopes?: string[]
   // Whether this credential selector supports credential sets (for trigger blocks)
   supportsCredentialSets?: boolean
+  // Selector properties — declarative mapping to a SelectorKey
+  selectorKey?: SelectorKey
+  selectorAllowSearch?: boolean
   // File selector specific properties
   mimeType?: string
   // File upload specific properties

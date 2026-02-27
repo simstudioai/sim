@@ -108,6 +108,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'file-selector',
       placeholder: 'Select a task',
       serviceId: 'microsoft-planner',
+      selectorKey: 'microsoft.planner',
       condition: { field: 'operation', value: ['read_task'] },
       dependsOn: ['credential', 'planId'],
       mode: 'basic',
