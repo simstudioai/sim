@@ -39,6 +39,7 @@ import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock, FirefliesV2Block } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
+import { GammaBlock } from '@/blocks/blocks/gamma'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { GitLabBlock } from '@/blocks/blocks/gitlab'
@@ -228,6 +229,7 @@ export const registry: Record<string, BlockConfig> = {
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
   function: FunctionBlock,
+  gamma: GammaBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   github_v2: GitHubV2Block,

@@ -526,6 +526,17 @@ export function SlackMonoIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GammaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='-14 0 192 192' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='currentColor'
+        d='M47.2,14.4c-14.4,8.2-26,19.6-34.4,33.6C4.3,62.1,0,77.7,0,94.3s4.3,32.2,12.7,46.3c8.5,14.1,20,25.4,34.4,33.6,14.4,8.2,30.4,12.4,47.7,12.4h69.8v-112.5h-81v39.1h38.2v31.8h-25.6c-9.1,0-17.6-2.3-25.2-6.9-7.6-4.6-13.8-10.8-18.3-18.4-4.5-7.7-6.7-16.2-6.7-25.3s2.3-17.7,6.7-25.3c4.5-7.7,10.6-13.9,18.3-18.4,7.6-4.6,16.1-6.9,25.2-6.9h68.5V2h-69.8c-17.3,0-33.3,4.2-47.7,12.4h0Z'
+      />
+    </svg>
+  )
+}
+
 export function GithubIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} width='26' height='26' viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
