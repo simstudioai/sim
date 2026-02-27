@@ -1163,6 +1163,14 @@ import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import { llmChatTool } from '@/tools/llm'
 import {
+  lumaAddGuestsTool,
+  lumaCreateEventTool,
+  lumaGetEventTool,
+  lumaGetGuestsTool,
+  lumaListEventsTool,
+  lumaUpdateEventTool,
+} from '@/tools/luma'
+import {
   mailchimpAddMemberTagsTool,
   mailchimpAddMemberTool,
   mailchimpAddOrUpdateMemberTool,
@@ -2238,6 +2246,12 @@ export const tools: Record<string, ToolConfig> = {
   jina_read_url: jinaReadUrlTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
+  luma_add_guests: lumaAddGuestsTool,
+  luma_create_event: lumaCreateEventTool,
+  luma_get_event: lumaGetEventTool,
+  luma_get_guests: lumaGetGuestsTool,
+  luma_list_events: lumaListEventsTool,
+  luma_update_event: lumaUpdateEventTool,
   linkedin_share_post: linkedInSharePostTool,
   linkedin_get_profile: linkedInGetProfileTool,
   resend_send: mailSendTool,
