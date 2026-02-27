@@ -43,7 +43,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of runs to return (range 1-25, default 20)',
+      description: 'Maximum number of runs to return (range 1-24, default 20)',
     },
     offset: {
       type: 'number',
@@ -106,7 +106,12 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
         job_id?: number
         run_name?: string
         run_type?: string
-        state?: { life_cycle_state?: string; result_state?: string; state_message?: string }
+        state?: {
+          life_cycle_state?: string
+          result_state?: string
+          state_message?: string
+          user_cancelled_or_timedout?: boolean
+        }
         start_time?: number
         end_time?: number
       }) => ({
@@ -118,6 +123,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
           lifeCycleState: run.state?.life_cycle_state ?? 'UNKNOWN',
           resultState: run.state?.result_state ?? null,
           stateMessage: run.state?.state_message ?? '',
+          userCancelledOrTimedout: run.state?.user_cancelled_or_timedout ?? false,
         },
         startTime: run.start_time ?? null,
         endTime: run.end_time ?? null,
@@ -152,14 +158,19 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
               lifeCycleState: {
                 type: 'string',
                 description:
-                  'Lifecycle state (QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR)',
+                  'Lifecycle state (QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY)',
               },
               resultState: {
                 type: 'string',
-                description: 'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED)',
+                description:
+                  'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
                 optional: true,
               },
               stateMessage: { type: 'string', description: 'Descriptive state message' },
+              userCancelledOrTimedout: {
+                type: 'boolean',
+                description: 'Whether the run was cancelled by user or timed out',
+              },
             },
           },
           startTime: {

@@ -87,7 +87,7 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       id: 'name',
       title: 'Job Name Filter',
       type: 'short-input',
-      placeholder: 'Filter by name (case-insensitive)',
+      placeholder: 'Exact name filter (case-insensitive)',
       condition: { field: 'operation', value: 'list_jobs' },
     },
     {
@@ -399,6 +399,7 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     setupDuration: { type: 'number', description: 'Cluster setup duration (ms)' },
     executionDuration: { type: 'number', description: 'Execution duration (ms)' },
     cleanupDuration: { type: 'number', description: 'Cleanup duration (ms)' },
+    queueDuration: { type: 'number', description: 'Time spent in queue (ms)' },
     runPageUrl: { type: 'string', description: 'URL to run detail page' },
     creatorUserName: { type: 'string', description: 'Run creator email' },
     // List Runs
@@ -410,6 +411,7 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     error: { type: 'string', description: 'Error message if run failed' },
     errorTrace: { type: 'string', description: 'Error stack trace' },
     logs: { type: 'string', description: 'Run log output' },
+    logsTruncated: { type: 'boolean', description: 'Whether logs were truncated' },
     // List Clusters
     clusters: { type: 'json', description: 'List of clusters' },
   },

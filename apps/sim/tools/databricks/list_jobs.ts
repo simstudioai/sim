@@ -36,7 +36,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter jobs by name (case-insensitive match)',
+      description: 'Filter jobs by exact name (case-insensitive)',
     },
     expandTasks: {
       type: 'boolean',

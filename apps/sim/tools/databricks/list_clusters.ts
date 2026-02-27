@@ -125,7 +125,7 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
           },
           clusterSource: {
             type: 'string',
-            description: 'Origin (API, UI, JOB, MODELS, PIPELINE, SQL)',
+            description: 'Origin (API, UI, JOB, MODELS, PIPELINE, PIPELINE_MAINTENANCE, SQL)',
           },
           autoterminationMinutes: {
             type: 'number',

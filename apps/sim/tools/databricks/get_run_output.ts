@@ -66,6 +66,7 @@ export const getRunOutputTool: ToolConfig<
         error: data.error ?? null,
         errorTrace: data.error_trace ?? null,
         logs: data.logs ?? null,
+        logsTruncated: data.logs_truncated ?? false,
       },
     }
   },
@@ -78,7 +79,7 @@ export const getRunOutputTool: ToolConfig<
       properties: {
         result: {
           type: 'string',
-          description: 'Value passed to dbutils.notebook.exit() (max 1 MB)',
+          description: 'Value passed to dbutils.notebook.exit() (max 5 MB)',
           optional: true,
         },
         truncated: {
@@ -99,8 +100,12 @@ export const getRunOutputTool: ToolConfig<
     },
     logs: {
       type: 'string',
-      description: 'Log output from the run if available',
+      description: 'Log output (last 5 MB) from spark_jar, spark_python, or python_wheel tasks',
       optional: true,
+    },
+    logsTruncated: {
+      type: 'boolean',
+      description: 'Whether the log output was truncated',
     },
   },
 }

@@ -82,6 +82,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
         setupDuration: data.setup_duration ?? null,
         executionDuration: data.execution_duration ?? null,
         cleanupDuration: data.cleanup_duration ?? null,
+        queueDuration: data.queue_duration ?? null,
         runPageUrl: data.run_page_url ?? '',
         creatorUserName: data.creator_user_name ?? '',
       },
@@ -116,11 +117,12 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
         lifeCycleState: {
           type: 'string',
           description:
-            'Lifecycle state (QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR)',
+            'Lifecycle state (QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY)',
         },
         resultState: {
           type: 'string',
-          description: 'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED)',
+          description:
+            'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
           optional: true,
         },
         stateMessage: {
@@ -156,6 +158,11 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     cleanupDuration: {
       type: 'number',
       description: 'Cleanup duration (ms)',
+      optional: true,
+    },
+    queueDuration: {
+      type: 'number',
+      description: 'Time spent in queue before execution (ms)',
       optional: true,
     },
     runPageUrl: {

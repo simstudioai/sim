@@ -60,7 +60,7 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
         required: false,
         visibility: 'user-or-llm',
         description:
-          'How long to wait for results (e.g., "50s"). Range: "0s" or "5s" to "50s". Default: "10s"',
+          'How long to wait for results (e.g., "50s"). Range: "0s" or "5s" to "50s". Default: "50s"',
       },
     },
 

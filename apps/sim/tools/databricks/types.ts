@@ -90,6 +90,7 @@ export interface DatabricksGetRunResponse extends ToolResponse {
     setupDuration: number | null
     executionDuration: number | null
     cleanupDuration: number | null
+    queueDuration: number | null
     runPageUrl: string
     creatorUserName: string
   }
@@ -118,6 +119,7 @@ export interface DatabricksListRunsResponse extends ToolResponse {
         lifeCycleState: string
         resultState: string | null
         stateMessage: string
+        userCancelledOrTimedout: boolean
       }
       startTime: number | null
       endTime: number | null
@@ -152,6 +154,7 @@ export interface DatabricksGetRunOutputResponse extends ToolResponse {
     error: string | null
     errorTrace: string | null
     logs: string | null
+    logsTruncated: boolean
   }
 }
 
