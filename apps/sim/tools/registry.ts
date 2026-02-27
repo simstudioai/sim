@@ -1198,6 +1198,18 @@ import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import { llmChatTool } from '@/tools/llm'
 import {
+  loopsCreateContactPropertyTool,
+  loopsCreateContactTool,
+  loopsDeleteContactTool,
+  loopsFindContactTool,
+  loopsListContactPropertiesTool,
+  loopsListMailingListsTool,
+  loopsListTransactionalEmailsTool,
+  loopsSendEventTool,
+  loopsSendTransactionalEmailTool,
+  loopsUpdateContactTool,
+} from '@/tools/loops'
+import {
   lumaAddGuestsTool,
   lumaCreateEventTool,
   lumaGetEventTool,
@@ -2310,6 +2322,16 @@ export const tools: Record<string, ToolConfig> = {
   jina_read_url: jinaReadUrlTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
+  loops_create_contact: loopsCreateContactTool,
+  loops_create_contact_property: loopsCreateContactPropertyTool,
+  loops_update_contact: loopsUpdateContactTool,
+  loops_find_contact: loopsFindContactTool,
+  loops_delete_contact: loopsDeleteContactTool,
+  loops_list_contact_properties: loopsListContactPropertiesTool,
+  loops_list_mailing_lists: loopsListMailingListsTool,
+  loops_list_transactional_emails: loopsListTransactionalEmailsTool,
+  loops_send_transactional_email: loopsSendTransactionalEmailTool,
+  loops_send_event: loopsSendEventTool,
   luma_add_guests: lumaAddGuestsTool,
   luma_create_event: lumaCreateEventTool,
   luma_get_event: lumaGetEventTool,
