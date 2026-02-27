@@ -33,7 +33,7 @@ Execute a SQL statement against a Databricks SQL warehouse and return results in
 | `catalog` | string | No | Unity Catalog name \(equivalent to USE CATALOG\) |
 | `schema` | string | No | Schema name \(equivalent to USE SCHEMA\) |
 | `rowLimit` | number | No | Maximum number of rows to return |
-| `waitTimeout` | string | No | How long to wait for results \(e.g., "50s"\). Range: "0s" or "5s" to "50s". Default: "10s" |
+| `waitTimeout` | string | No | How long to wait for results \(e.g., "50s"\). Range: "0s" or "5s" to "50s". Default: "50s" |
 
 #### Output
 
@@ -45,7 +45,7 @@ Execute a SQL statement against a Databricks SQL warehouse and return results in
 |   ↳ `name` | string | Column name |
 |   ↳ `position` | number | Column position \(0-based\) |
 |   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
-| `data` | array | Result rows as a 2D array of strings |
+| `data` | array | Result rows as a 2D array of strings where each inner array is a row of column values |
 | `totalRows` | number | Total number of rows in the result |
 | `truncated` | boolean | Whether the result set was truncated due to row_limit or byte_limit |
 
@@ -61,7 +61,7 @@ List all jobs in a Databricks workspace with optional filtering by name.
 | `apiKey` | string | Yes | Databricks Personal Access Token |
 | `limit` | number | No | Maximum number of jobs to return \(range 1-100, default 20\) |
 | `offset` | number | No | Offset for pagination |
-| `name` | string | No | Filter jobs by name \(case-insensitive match\) |
+| `name` | string | No | Filter jobs by exact name \(case-insensitive\) |
 | `expandTasks` | boolean | No | Include task and cluster details in the response \(max 100 elements\) |
 
 #### Output
@@ -124,8 +124,8 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 | `runType` | string | Type of run \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
 | `attemptNumber` | number | Retry attempt number \(0 for initial attempt\) |
 | `state` | object | Run state information |
-|   ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR\) |
-|   ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED\) |
+|   ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY\) |
+|   ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED\) |
 |   ↳ `stateMessage` | string | Descriptive message for the current state |
 |   ↳ `userCancelledOrTimedout` | boolean | Whether the run was cancelled by user or timed out |
 | `startTime` | number | Run start timestamp \(epoch ms\) |
@@ -133,6 +133,7 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 | `setupDuration` | number | Cluster setup duration \(ms\) |
 | `executionDuration` | number | Execution duration \(ms\) |
 | `cleanupDuration` | number | Cleanup duration \(ms\) |
+| `queueDuration` | number | Time spent in queue before execution \(ms\) |
 | `runPageUrl` | string | URL to the run detail page in Databricks UI |
 | `creatorUserName` | string | Email of the user who triggered the run |
 
@@ -149,7 +150,7 @@ List job runs in a Databricks workspace with optional filtering by job, status, 
 | `jobId` | number | No | Filter runs by job ID. Omit to list runs across all jobs |
 | `activeOnly` | boolean | No | Only include active runs \(PENDING, RUNNING, or TERMINATING\) |
 | `completedOnly` | boolean | No | Only include completed runs |
-| `limit` | number | No | Maximum number of runs to return \(range 1-25, default 20\) |
+| `limit` | number | No | Maximum number of runs to return \(range 1-24, default 20\) |
 | `offset` | number | No | Offset for pagination |
 | `runType` | string | No | Filter by run type \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
 | `startTimeFrom` | number | No | Filter runs started at or after this timestamp \(epoch ms\) |
@@ -165,9 +166,10 @@ List job runs in a Databricks workspace with optional filtering by job, status, 
 |   ↳ `runName` | string | Run name |
 |   ↳ `runType` | string | Run type \(JOB_RUN, WORKFLOW_RUN, SUBMIT_RUN\) |
 |   ↳ `state` | object | Run state information |
-|     ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR\) |
-|     ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED\) |
+|     ↳ `lifeCycleState` | string | Lifecycle state \(QUEUED, PENDING, RUNNING, TERMINATING, TERMINATED, SKIPPED, INTERNAL_ERROR, BLOCKED, WAITING_FOR_RETRY\) |
+|     ↳ `resultState` | string | Result state \(SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED\) |
 |     ↳ `stateMessage` | string | Descriptive state message |
+|     ↳ `userCancelledOrTimedout` | boolean | Whether the run was cancelled by user or timed out |
 |   ↳ `startTime` | number | Run start timestamp \(epoch ms\) |
 |   ↳ `endTime` | number | Run end timestamp \(epoch ms\) |
 | `hasMore` | boolean | Whether more runs are available for pagination |
@@ -208,11 +210,12 @@ Get the output of a completed Databricks job run, including notebook results, er
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `notebookOutput` | object | Notebook task output \(from dbutils.notebook.exit\(\)\) |
-|   ↳ `result` | string | Value passed to dbutils.notebook.exit\(\) \(max 1 MB\) |
+|   ↳ `result` | string | Value passed to dbutils.notebook.exit\(\) \(max 5 MB\) |
 |   ↳ `truncated` | boolean | Whether the result was truncated |
 | `error` | string | Error message if the run failed or output is unavailable |
 | `errorTrace` | string | Error stack trace if available |
-| `logs` | string | Log output from the run if available |
+| `logs` | string | Log output \(last 5 MB\) from spark_jar, spark_python, or python_wheel tasks |
+| `logsTruncated` | boolean | Whether the log output was truncated |
 
 ### `databricks_list_clusters`
 
@@ -242,7 +245,7 @@ List all clusters in a Databricks workspace including their state, configuration
 |   ↳ `autoscale` | object | Autoscaling configuration \(null for fixed-size clusters\) |
 |     ↳ `minWorkers` | number | Minimum number of workers |
 |     ↳ `maxWorkers` | number | Maximum number of workers |
-|   ↳ `clusterSource` | string | Origin \(API, UI, JOB, MODELS, PIPELINE, SQL\) |
+|   ↳ `clusterSource` | string | Origin \(API, UI, JOB, MODELS, PIPELINE, PIPELINE_MAINTENANCE, SQL\) |
 |   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
 |   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
 
