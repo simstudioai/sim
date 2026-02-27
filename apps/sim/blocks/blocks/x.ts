@@ -593,6 +593,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       description: 'Created tweet ID',
       condition: { field: 'operation', value: 'x_create_tweet' },
     },
+    text: {
+      type: 'string',
+      description: 'Text of the created tweet',
+      condition: { field: 'operation', value: 'x_create_tweet' },
+    },
     // Delete Tweet output
     deleted: {
       type: 'boolean',
@@ -606,7 +611,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['x_create_bookmark', 'x_delete_bookmark'] },
     },
     // Hide Reply output
-    hiddenResult: {
+    hidden: {
       type: 'boolean',
       description: 'Whether the reply is hidden',
       condition: { field: 'operation', value: 'x_hide_reply' },
