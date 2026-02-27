@@ -91,11 +91,23 @@ export const xCreateTweetTool: ToolConfig<XCreateTweetParams, XCreateTweetRespon
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (!data.data) {
+      return {
+        success: false,
+        error: data.errors?.[0]?.detail || 'Failed to create tweet',
+        output: {
+          id: '',
+          text: '',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        id: data.data?.id ?? '',
-        text: data.data?.text ?? '',
+        id: data.data.id ?? '',
+        text: data.data.text ?? '',
       },
     }
   },

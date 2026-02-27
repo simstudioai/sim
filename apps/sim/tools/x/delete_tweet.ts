@@ -38,10 +38,21 @@ export const xDeleteTweetTool: ToolConfig<XDeleteTweetParams, XDeleteTweetRespon
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (!data.data) {
+      return {
+        success: false,
+        error: data.errors?.[0]?.detail || 'Failed to delete tweet',
+        output: {
+          deleted: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        deleted: data.data?.deleted ?? false,
+        deleted: data.data.deleted ?? false,
       },
     }
   },
