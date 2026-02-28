@@ -59,7 +59,7 @@ export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsRespons
   request: {
     url: (params) => {
       const url = new URL('https://public-api.luma.com/v1/event/get-guests')
-      url.searchParams.set('event_id', params.eventId)
+      url.searchParams.set('event_id', params.eventId.trim())
       if (params.approvalStatus) url.searchParams.set('approval_status', params.approvalStatus)
       if (params.paginationLimit)
         url.searchParams.set('pagination_limit', String(params.paginationLimit))

@@ -70,8 +70,12 @@ Retrieve details of a Luma event including name, time, location, hosts, and visi
 |   ↳ `geoLongitude` | string | Venue longitude coordinate |
 |   ↳ `calendarId` | string | Associated calendar ID |
 | `hosts` | array | Event hosts |
-|   ↳ `name` | string | Host name |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
 |   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
 
 ### `luma_create_event`
 
@@ -115,8 +119,12 @@ Create a new event on Luma with a name, start time, timezone, and optional detai
 |   ↳ `geoLongitude` | string | Venue longitude coordinate |
 |   ↳ `calendarId` | string | Associated calendar ID |
 | `hosts` | array | Event hosts |
-|   ↳ `name` | string | Host name |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
 |   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
 
 ### `luma_update_event`
 
@@ -161,8 +169,12 @@ Update an existing Luma event. Only the fields you provide will be changed; all 
 |   ↳ `geoLongitude` | string | Venue longitude coordinate |
 |   ↳ `calendarId` | string | Associated calendar ID |
 | `hosts` | array | Event hosts |
-|   ↳ `name` | string | Host name |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
 |   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
 
 ### `luma_list_events`
 
@@ -177,7 +189,7 @@ List events from your Luma calendar with optional date range filtering, sorting,
 | `before` | string | No | Return events before this ISO 8601 datetime \(e.g., 2025-12-31T23:59:59Z\) |
 | `paginationLimit` | number | No | Maximum number of events to return per page |
 | `paginationCursor` | string | No | Pagination cursor from a previous response \(next_cursor\) to fetch the next page of results |
-| `sortColumn` | string | No | Column to sort by \(e.g., start_at\) |
+| `sortColumn` | string | No | Column to sort by \(only start_at is supported\) |
 | `sortDirection` | string | No | Sort direction: asc, desc, asc nulls last, or desc nulls last |
 
 #### Output
