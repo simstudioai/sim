@@ -25,3 +25,5 @@ export const ashbyListNotesTool = listNotesTool
 export const ashbyListOffersTool = listOffersTool
 export const ashbySearchCandidatesTool = searchCandidatesTool
 export const ashbyUpdateCandidateTool = updateCandidateTool
+
+export * from './types'
