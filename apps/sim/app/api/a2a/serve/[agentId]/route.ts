@@ -19,10 +19,7 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import {
-  decrementSSEConnections,
-  incrementSSEConnections,
-} from '@/lib/monitoring/sse-connections'
+import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import {
