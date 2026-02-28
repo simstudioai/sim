@@ -1045,6 +1045,18 @@ async function handleTaskResubscribe(
   )
 
   let sseDecremented = false
+  const cleanup = () => {
+    isCancelled = true
+    if (pollTimeoutId) {
+      clearTimeout(pollTimeoutId)
+      pollTimeoutId = null
+    }
+    if (!sseDecremented) {
+      sseDecremented = true
+      decrementSSEConnections('a2a-resubscribe')
+    }
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       incrementSSEConnections('a2a-resubscribe')
@@ -1060,18 +1072,6 @@ async function handleTaskResubscribe(
           logger.error('Error sending SSE event:', error)
           isCancelled = true
           return false
-        }
-      }
-
-      const cleanup = () => {
-        isCancelled = true
-        if (pollTimeoutId) {
-          clearTimeout(pollTimeoutId)
-          pollTimeoutId = null
-        }
-        if (!sseDecremented) {
-          sseDecremented = true
-          decrementSSEConnections('a2a-resubscribe')
         }
       }
 
@@ -1186,15 +1186,7 @@ async function handleTaskResubscribe(
       poll()
     },
     cancel() {
-      isCancelled = true
-      if (pollTimeoutId) {
-        clearTimeout(pollTimeoutId)
-        pollTimeoutId = null
-      }
-      if (!sseDecremented) {
-        sseDecremented = true
-        decrementSSEConnections('a2a-resubscribe')
-      }
+      cleanup()
     },
   })
 
