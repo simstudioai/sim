@@ -1599,13 +1599,13 @@ import {
 } from '@/tools/redis'
 import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto'
 import {
-  mailSendTool,
   resendCreateContactTool,
   resendDeleteContactTool,
   resendGetContactTool,
   resendGetEmailTool,
   resendListContactsTool,
   resendListDomainsTool,
+  resendSendTool,
   resendUpdateContactTool,
 } from '@/tools/resend'
 import {
@@ -2390,7 +2390,7 @@ export const tools: Record<string, ToolConfig> = {
   luma_update_event: lumaUpdateEventTool,
   linkedin_share_post: linkedInSharePostTool,
   linkedin_get_profile: linkedInGetProfileTool,
-  resend_send: mailSendTool,
+  resend_send: resendSendTool,
   resend_get_email: resendGetEmailTool,
   resend_create_contact: resendCreateContactTool,
   resend_list_contacts: resendListContactsTool,
