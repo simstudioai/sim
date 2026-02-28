@@ -34,10 +34,10 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
       arrayBuffersMB: Math.round(mem.arrayBuffers / MB),
       heapSizeLimitMB: Math.round(heap.heap_size_limit / MB),
       nativeContexts: heap.number_of_native_contexts,
-      activeHandles:
-        (process as unknown as Record<string, () => unknown[]>)._getActiveHandles?.().length ?? -1,
-      activeRequests:
-        (process as unknown as Record<string, () => unknown[]>)._getActiveRequests?.().length ?? -1,
+      activeResources:
+        typeof process.getActiveResourcesInfo === 'function'
+          ? process.getActiveResourcesInfo().length
+          : -1,
       uptimeMin: Math.round(process.uptime() / 60),
       activeSSEConnections: getActiveSSEConnectionCount(),
       sseByRoute: getActiveSSEConnectionsByRoute(),
