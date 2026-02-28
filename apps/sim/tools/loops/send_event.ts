@@ -64,8 +64,8 @@ export const loopsSendEventTool: ToolConfig<LoopsSendEventParams, LoopsSendEvent
         eventName: params.eventName,
       }
 
-      if (params.email) body.email = params.email
-      if (params.userId) body.userId = params.userId
+      if (params.email) body.email = params.email.trim()
+      if (params.userId) body.userId = params.userId.trim()
 
       if (params.eventProperties) {
         body.eventProperties =

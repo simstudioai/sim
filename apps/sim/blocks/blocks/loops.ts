@@ -154,7 +154,9 @@ Example:
 {
   "clxf1nxlb000t0ml79ajwcsj0": true,
   "clxf2q43u00010mlh12q9ggx1": false
-}`,
+}
+
+Return ONLY the JSON object - no explanations, no extra text.`,
         placeholder: 'Describe the mailing list subscriptions...',
       },
     },
@@ -183,7 +185,9 @@ Example:
   "signupDate": "2024-01-15T00:00:00Z",
   "isActive": true,
   "seats": 5
-}`,
+}
+
+Return ONLY the JSON object - no explanations, no extra text.`,
         placeholder: 'Describe the custom properties...',
       },
     },
@@ -221,7 +225,9 @@ Example:
   "name": "John Smith",
   "confirmationUrl": "https://example.com/confirm?token=abc123",
   "expiresIn": 24
-}`,
+}
+
+Return ONLY the JSON object - no explanations, no extra text.`,
         placeholder: 'Describe the template variables...',
       },
     },
@@ -261,7 +267,9 @@ Example:
     "contentType": "application/pdf",
     "data": "JVBERi0xLjQK..."
   }
-]`,
+]
+
+Return ONLY the JSON array - no explanations, no extra text.`,
         placeholder: 'Describe the attachments...',
       },
     },
@@ -300,7 +308,9 @@ Example:
   "amount": 49.99,
   "currency": "USD",
   "isUpgrade": true
-}`,
+}
+
+Return ONLY the JSON object - no explanations, no extra text.`,
         placeholder: 'Describe the event properties...',
       },
     },
@@ -349,6 +359,7 @@ Example:
         { label: 'Boolean', id: 'boolean' },
         { label: 'Date', id: 'date' },
       ],
+      value: () => 'string',
       condition: {
         field: 'operation',
         value: 'create_contact_property',
@@ -363,6 +374,7 @@ Example:
         { label: 'All Properties', id: 'all' },
         { label: 'Custom Only', id: 'custom' },
       ],
+      value: () => 'all',
       condition: {
         field: 'operation',
         value: 'list_contact_properties',
@@ -497,23 +509,28 @@ Example:
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
     id: { type: 'string', description: 'Contact ID (create/update operations)' },
-    contacts: { type: 'json', description: 'Array of matching contacts (find operation)' },
+    contacts: {
+      type: 'json',
+      description:
+        'Array of matching contacts (id, email, firstName, lastName, source, subscribed, userGroup, userId, mailingLists, optInStatus)',
+    },
     message: { type: 'string', description: 'Status message (delete operation)' },
     mailingLists: {
       type: 'json',
-      description: 'Array of mailing lists (list mailing lists operation)',
+      description: 'Array of mailing lists (id, name, description, isPublic)',
     },
     transactionalEmails: {
       type: 'json',
-      description: 'Array of transactional email templates (list transactional emails operation)',
+      description: 'Array of transactional email templates (id, name, lastUpdated, dataVariables)',
     },
     pagination: {
       type: 'json',
-      description: 'Pagination info (list transactional emails operation)',
+      description:
+        'Pagination info (totalResults, returnedResults, perPage, totalPages, nextCursor, nextPage)',
     },
     properties: {
       type: 'json',
-      description: 'Array of contact properties (list contact properties operation)',
+      description: 'Array of contact properties (key, label, type)',
     },
   },
 }
