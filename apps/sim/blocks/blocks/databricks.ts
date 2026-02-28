@@ -12,7 +12,7 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
     'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.',
   docsLink: 'https://docs.sim.ai/tools/databricks',
   category: 'tools',
-  bgColor: '#FF3621',
+  bgColor: '#F9F7F4',
   icon: DatabricksIcon,
   subBlocks: [
     {
