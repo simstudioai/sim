@@ -1,0 +1,273 @@
+---
+title: Loops
+description: Manage contacts and send emails with Loops
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="loops"
+  color="#FAFAF9"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Loops](https://loops.so/) is an email platform built for modern SaaS companies, offering transactional emails, marketing campaigns, and event-driven automations through a clean API. This integration connects Loops directly into Sim workflows.
+
+With Loops in Sim, you can:
+
+- **Manage contacts**: Create, update, find, and delete contacts in your Loops audience
+- **Send transactional emails**: Trigger templated transactional emails with dynamic data variables
+- **Fire events**: Send events to Loops to trigger automated email sequences and workflows
+- **Manage subscriptions**: Control mailing list subscriptions and contact properties programmatically
+- **Enrich contact data**: Attach custom properties, user groups, and mailing list memberships to contacts
+
+In Sim, the Loops integration enables your agents to manage email operations as part of their workflows. Supported operations include:
+
+- **Create Contact**: Add a new contact to your Loops audience with email, name, and custom properties.
+- **Update Contact**: Update an existing contact or create one if no match exists (upsert behavior).
+- **Find Contact**: Look up a contact by email address or userId.
+- **Delete Contact**: Remove a contact from your audience.
+- **Send Transactional Email**: Send a templated transactional email to a recipient with dynamic data variables.
+- **Send Event**: Trigger a Loops event to start automated email sequences for a contact.
+
+Configure the Loops block with your API key from the Loops dashboard (Settings > API), select an operation, and provide the required parameters. Your agents can then manage contacts and send emails as part of any workflow.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.
+
+
+
+## Tools
+
+### `loops_create_contact`
+
+Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | Yes | The email address for the new contact |
+| `firstName` | string | No | The contact first name |
+| `lastName` | string | No | The contact last name |
+| `source` | string | No | Custom source value replacing the default "API" |
+| `subscribed` | boolean | No | Whether the contact receives campaign emails \(defaults to true\) |
+| `userGroup` | string | No | Group to segment the contact into \(one group per contact\) |
+| `userId` | string | No | Unique user identifier from your application |
+| `mailingLists` | json | No | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
+| `customProperties` | json | No | Custom contact properties as key-value pairs \(string, number, boolean, or date values\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact was created successfully |
+| `id` | string | The Loops-assigned ID of the created contact |
+
+### `loops_update_contact`
+
+Update an existing contact in Loops by email or userId. Creates a new contact if no match is found (upsert). Can update name, subscription status, user group, mailing lists, and custom properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The contact email address \(at least one of email or userId is required\) |
+| `userId` | string | No | The contact userId \(at least one of email or userId is required\) |
+| `firstName` | string | No | The contact first name |
+| `lastName` | string | No | The contact last name |
+| `source` | string | No | Custom source value replacing the default "API" |
+| `subscribed` | boolean | No | Whether the contact receives campaign emails \(sending true re-subscribes unsubscribed contacts\) |
+| `userGroup` | string | No | Group to segment the contact into \(one group per contact\) |
+| `mailingLists` | json | No | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
+| `customProperties` | json | No | Custom contact properties as key-value pairs \(send null to reset a property\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact was updated successfully |
+| `id` | string | The Loops-assigned ID of the updated or created contact |
+
+### `loops_find_contact`
+
+Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The contact email address to search for \(at least one of email or userId is required\) |
+| `userId` | string | No | The contact userId to search for \(at least one of email or userId is required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Array of matching contact objects \(empty array if no match found\) |
+|   ↳ `id` | string | Loops-assigned contact ID |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstName` | string | Contact first name |
+|   ↳ `lastName` | string | Contact last name |
+|   ↳ `source` | string | Source the contact was created from |
+|   ↳ `subscribed` | boolean | Whether the contact receives campaign emails |
+|   ↳ `userGroup` | string | Contact user group |
+|   ↳ `userId` | string | External user identifier |
+|   ↳ `mailingLists` | object | Mailing list IDs mapped to subscription status |
+|   ↳ `optInStatus` | string | Double opt-in status: pending, accepted, rejected, or null |
+
+### `loops_delete_contact`
+
+Delete a contact from Loops by email address or userId. At least one identifier must be provided.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The email address of the contact to delete \(at least one of email or userId is required\) |
+| `userId` | string | No | The userId of the contact to delete \(at least one of email or userId is required\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact was deleted successfully |
+| `message` | string | Status message from the API |
+
+### `loops_send_transactional_email`
+
+Send a transactional email to a recipient using a Loops template. Supports dynamic data variables for personalization and optionally adds the recipient to your audience.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | Yes | The email address of the recipient |
+| `transactionalId` | string | Yes | The ID of the transactional email template to send |
+| `dataVariables` | json | No | Template data variables as key-value pairs \(string or number values\) |
+| `addToAudience` | boolean | No | Whether to create the recipient as a contact if they do not already exist \(default: false\) |
+| `attachments` | json | No | Array of file attachments. Each object must have filename \(string\), contentType \(MIME type string\), and data \(base64-encoded string\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the transactional email was sent successfully |
+
+### `loops_send_event`
+
+Send an event to Loops to trigger automated email sequences for a contact. Identify the contact by email or userId and include optional event properties and mailing list changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `email` | string | No | The email address of the contact \(at least one of email or userId is required\) |
+| `userId` | string | No | The userId of the contact \(at least one of email or userId is required\) |
+| `eventName` | string | Yes | The name of the event to trigger |
+| `eventProperties` | json | No | Event data as key-value pairs \(string, number, boolean, or date values\) |
+| `mailingLists` | json | No | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the event was sent successfully |
+
+### `loops_list_mailing_lists`
+
+Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mailingLists` | array | Array of mailing list objects |
+|   ↳ `id` | string | The mailing list ID |
+|   ↳ `name` | string | The mailing list name |
+|   ↳ `description` | string | The mailing list description \(null if not set\) |
+|   ↳ `isPublic` | boolean | Whether the list is public or private |
+
+### `loops_list_transactional_emails`
+
+Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `perPage` | string | No | Number of results per page \(10-50, default: 20\) |
+| `cursor` | string | No | Pagination cursor from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionalEmails` | array | Array of published transactional email templates |
+|   ↳ `id` | string | The transactional email template ID |
+|   ↳ `name` | string | The template name |
+|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `dataVariables` | array | Template data variable names |
+| `pagination` | object | Pagination information |
+|   ↳ `totalResults` | number | Total number of results |
+|   ↳ `returnedResults` | number | Number of results returned |
+|   ↳ `perPage` | number | Results per page |
+|   ↳ `totalPages` | number | Total number of pages |
+|   ↳ `nextCursor` | string | Cursor for next page \(null if no more pages\) |
+|   ↳ `nextPage` | string | URL for next page \(null if no more pages\) |
+
+### `loops_create_contact_property`
+
+Create a new custom contact property in your Loops account. The property name must be in camelCase format.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `name` | string | Yes | The property name in camelCase format \(e.g., "favoriteColor"\) |
+| `type` | string | Yes | The property data type \(e.g., "string", "number", "boolean", "date"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact property was created successfully |
+
+### `loops_list_contact_properties`
+
+Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Loops API key for authentication |
+| `list` | string | No | Filter type: "all" for all properties \(default\) or "custom" for custom properties only |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `properties` | array | Array of contact property objects |
+|   ↳ `key` | string | The property key \(camelCase identifier\) |
+|   ↳ `label` | string | The property display label |
+|   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
+
+

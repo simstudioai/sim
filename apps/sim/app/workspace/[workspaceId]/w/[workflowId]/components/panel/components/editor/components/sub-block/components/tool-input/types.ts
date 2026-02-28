@@ -2,6 +2,11 @@
  * Represents a tool selected and configured in the workflow
  *
  * @remarks
+ * Valid types include:
+ * - Standard block types (e.g., 'api', 'search', 'function')
+ * - 'custom-tool': User-defined tools with custom code
+ * - 'mcp': Individual MCP tool from a connected server
+ *
  * For custom tools (new format), we only store: type, customToolId, usageControl, isExpanded.
  * Everything else (title, schema, code) is loaded dynamically from the database.
  * Legacy custom tools with inline schema/code are still supported for backwards compatibility.
@@ -13,7 +18,7 @@ export interface StoredTool {
   title?: string
   /** Direct tool ID for execution (optional for new custom tool format) */
   toolId?: string
-  /** Parameter values configured by the user (optional for new custom tool format) */
+  /** Parameter values configured by the user */
   params?: Record<string, string>
   /** Whether the tool details are expanded in UI */
   isExpanded?: boolean

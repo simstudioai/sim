@@ -40,6 +40,67 @@ vi.mock('@/stores/workflows/workflow/utils', () => ({
   generateParallelBlocks: () => ({}),
 }))
 
+vi.mock('@/blocks', () => ({
+  getBlock: () => null,
+  getAllBlocks: () => ({}),
+  getAllBlockTypes: () => [],
+  getBlockByToolName: () => null,
+  getBlocksByCategory: () => [],
+  isValidBlockType: () => false,
+  registry: {},
+}))
+
+vi.mock('@/tools/utils', () => ({
+  getTool: () => null,
+}))
+
+vi.mock('@/triggers', () => ({
+  getTrigger: () => null,
+  isTriggerValid: () => false,
+}))
+
+vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
+  getEffectiveBlockOutputs: () => ({}),
+}))
+
+vi.mock('@/lib/workflows/subblocks/visibility', () => ({
+  buildDefaultCanonicalModes: () => ({}),
+}))
+
+vi.mock('@/lib/workflows/triggers/triggers', () => ({
+  TRIGGER_TYPES: {},
+  classifyStartBlockType: () => null,
+  StartBlockPath: {},
+  getTriggerOutputs: () => ({}),
+}))
+
+vi.mock('@/hooks/use-trigger-config-aggregation', () => ({
+  populateTriggerFieldsFromConfig: () => [],
+}))
+
+vi.mock('@/executor/constants', () => ({
+  isAnnotationOnlyBlock: () => false,
+  BLOCK_DIMENSIONS: { MIN_HEIGHT: 100 },
+  HANDLE_POSITIONS: {},
+}))
+
+vi.mock('@/stores/workflows/registry/store', () => ({
+  useWorkflowRegistry: {
+    getState: () => ({
+      activeWorkflowId: null,
+    }),
+  },
+}))
+
+vi.mock('@/stores/workflows/subblock/store', () => ({
+  useSubBlockStore: {
+    getState: () => ({
+      workflowValues: {},
+      getValue: () => null,
+    }),
+  },
+}))
+
 import { WorkflowDiffEngine } from './diff-engine'
 
 function createMockBlock(overrides: Partial<BlockState> = {}): BlockState {

@@ -1,4 +1,5 @@
 import {
+  databaseMock,
   drizzleOrmMock,
   loggerMock,
   setupGlobalFetchMock,
@@ -10,6 +11,7 @@ import '@testing-library/jest-dom/vitest'
 setupGlobalFetchMock()
 setupGlobalStorageMocks()
 
+vi.mock('@sim/db', () => databaseMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
 

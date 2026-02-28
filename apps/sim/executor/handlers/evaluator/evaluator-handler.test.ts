@@ -418,6 +418,7 @@ describe('EvaluatorBlockHandler', () => {
       refreshToken: 'mock-refresh-token',
       expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
     }
+    ;(mockDb.db.query as any).account = { findFirst: vi.fn() }
     vi.spyOn(mockDb.db.query.account, 'findFirst').mockResolvedValue(mockAccount as any)
 
     mockFetch.mockImplementationOnce(() => {

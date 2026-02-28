@@ -160,4 +160,7 @@ async function initializeOpenTelemetry() {
 
 export async function register() {
   await initializeOpenTelemetry()
+
+  const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
+  startMemoryTelemetry()
 }

@@ -1,6 +1,9 @@
+/**
+ * @vitest-environment node
+ */
 import { EventEmitter } from 'node:events'
 import { createEnvMock, loggerMock } from '@sim/testing'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
   connected: boolean
@@ -186,14 +189,17 @@ async function loadExecutionModule(options: {
     spawn: spawnMock,
   }))
 
-  const mod = await import('./isolated-vm')
+  const mod = await import('@/lib/execution/isolated-vm')
   return { ...mod, spawnMock, secureFetchMock }
 }
 
 describe('isolated-vm scheduler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.resetModules()
   })
 
   it('recovers from an initial spawn failure and drains queued work', async () => {
@@ -234,7 +240,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:a',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await new Promise((resolve) => setTimeout(resolve, 1))
 
     const second = await executeInIsolatedVM({
       code: 'return 2',
@@ -271,7 +277,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await new Promise((resolve) => setTimeout(resolve, 1))
 
     const second = await executeInIsolatedVM({
       code: 'return 2',
@@ -374,7 +380,7 @@ describe('isolated-vm scheduler', () => {
       envOverrides: {
         IVM_MAX_PER_WORKER: '1',
       },
-      spawns: [() => createReadyProcWithDelay(10)],
+      spawns: [() => createReadyProcWithDelay(1)],
     })
 
     const completionOrder: string[] = []

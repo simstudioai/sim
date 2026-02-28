@@ -1,0 +1,284 @@
+---
+title: Luma
+description: Manage events and guests on Luma
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="luma"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Luma](https://lu.ma/) is an event management platform that makes it easy to create, manage, and share events with your community.
+
+With Luma integrated into Sim, your agents can:
+
+- **Create events**: Set up new events with name, time, timezone, description, and visibility settings.
+- **Update events**: Modify existing event details like name, time, description, and visibility.
+- **Get event details**: Retrieve full details for any event by its ID.
+- **List calendar events**: Browse your calendar's events with date range filtering and pagination.
+- **Manage guest lists**: View attendees for an event, filtered by approval status.
+- **Add guests**: Invite new guests to events programmatically.
+
+By connecting Sim with Luma, you can automate event operations within your agent workflows. Automatically create events based on triggers, sync guest lists, monitor registrations, and manage your event calendar—all handled directly by your agents via the Luma API.
+
+Whether you're running community meetups, conferences, or internal team events, the Luma tool makes it easy to coordinate event management within your Sim workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.
+
+
+
+## Tools
+
+### `luma_get_event`
+
+Retrieve details of a Luma event including name, time, location, hosts, and visibility settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID \(starts with evt-\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Event details |
+|   ↳ `id` | string | Event ID |
+|   ↳ `name` | string | Event name |
+|   ↳ `startAt` | string | Event start time \(ISO 8601\) |
+|   ↳ `endAt` | string | Event end time \(ISO 8601\) |
+|   ↳ `timezone` | string | Event timezone \(IANA\) |
+|   ↳ `durationInterval` | string | Event duration \(ISO 8601 interval, e.g. PT2H\) |
+|   ↳ `createdAt` | string | Event creation timestamp \(ISO 8601\) |
+|   ↳ `description` | string | Event description \(plain text\) |
+|   ↳ `descriptionMd` | string | Event description \(Markdown\) |
+|   ↳ `coverUrl` | string | Event cover image URL |
+|   ↳ `url` | string | Event page URL on lu.ma |
+|   ↳ `visibility` | string | Event visibility \(public, members-only, private\) |
+|   ↳ `meetingUrl` | string | Virtual meeting URL |
+|   ↳ `geoAddressJson` | json | Structured location/address data |
+|   ↳ `geoLatitude` | string | Venue latitude coordinate |
+|   ↳ `geoLongitude` | string | Venue longitude coordinate |
+|   ↳ `calendarId` | string | Associated calendar ID |
+| `hosts` | array | Event hosts |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
+|   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
+
+### `luma_create_event`
+
+Create a new event on Luma with a name, start time, timezone, and optional details like description, location, and visibility.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `name` | string | Yes | Event name/title |
+| `startAt` | string | Yes | Event start time in ISO 8601 format \(e.g., 2025-03-15T18:00:00Z\) |
+| `timezone` | string | Yes | IANA timezone \(e.g., America/New_York, Europe/London\) |
+| `endAt` | string | No | Event end time in ISO 8601 format \(e.g., 2025-03-15T20:00:00Z\) |
+| `durationInterval` | string | No | Event duration as ISO 8601 interval \(e.g., PT2H for 2 hours, PT30M for 30 minutes\). Used if endAt is not provided. |
+| `descriptionMd` | string | No | Event description in Markdown format |
+| `meetingUrl` | string | No | Virtual meeting URL for online events \(e.g., Zoom, Google Meet link\) |
+| `visibility` | string | No | Event visibility: public, members-only, or private \(defaults to public\) |
+| `coverUrl` | string | No | Cover image URL \(must be a Luma CDN URL from images.lumacdn.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Created event details |
+|   ↳ `id` | string | Event ID |
+|   ↳ `name` | string | Event name |
+|   ↳ `startAt` | string | Event start time \(ISO 8601\) |
+|   ↳ `endAt` | string | Event end time \(ISO 8601\) |
+|   ↳ `timezone` | string | Event timezone \(IANA\) |
+|   ↳ `durationInterval` | string | Event duration \(ISO 8601 interval, e.g. PT2H\) |
+|   ↳ `createdAt` | string | Event creation timestamp \(ISO 8601\) |
+|   ↳ `description` | string | Event description \(plain text\) |
+|   ↳ `descriptionMd` | string | Event description \(Markdown\) |
+|   ↳ `coverUrl` | string | Event cover image URL |
+|   ↳ `url` | string | Event page URL on lu.ma |
+|   ↳ `visibility` | string | Event visibility \(public, members-only, private\) |
+|   ↳ `meetingUrl` | string | Virtual meeting URL |
+|   ↳ `geoAddressJson` | json | Structured location/address data |
+|   ↳ `geoLatitude` | string | Venue latitude coordinate |
+|   ↳ `geoLongitude` | string | Venue longitude coordinate |
+|   ↳ `calendarId` | string | Associated calendar ID |
+| `hosts` | array | Event hosts |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
+|   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
+
+### `luma_update_event`
+
+Update an existing Luma event. Only the fields you provide will be changed; all other fields remain unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID to update \(starts with evt-\) |
+| `name` | string | No | New event name/title |
+| `startAt` | string | No | New start time in ISO 8601 format \(e.g., 2025-03-15T18:00:00Z\) |
+| `timezone` | string | No | New IANA timezone \(e.g., America/New_York, Europe/London\) |
+| `endAt` | string | No | New end time in ISO 8601 format \(e.g., 2025-03-15T20:00:00Z\) |
+| `durationInterval` | string | No | New duration as ISO 8601 interval \(e.g., PT2H for 2 hours\). Used if endAt is not provided. |
+| `descriptionMd` | string | No | New event description in Markdown format |
+| `meetingUrl` | string | No | New virtual meeting URL \(e.g., Zoom, Google Meet link\) |
+| `visibility` | string | No | New visibility: public, members-only, or private |
+| `coverUrl` | string | No | New cover image URL \(must be a Luma CDN URL from images.lumacdn.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Updated event details |
+|   ↳ `id` | string | Event ID |
+|   ↳ `name` | string | Event name |
+|   ↳ `startAt` | string | Event start time \(ISO 8601\) |
+|   ↳ `endAt` | string | Event end time \(ISO 8601\) |
+|   ↳ `timezone` | string | Event timezone \(IANA\) |
+|   ↳ `durationInterval` | string | Event duration \(ISO 8601 interval, e.g. PT2H\) |
+|   ↳ `createdAt` | string | Event creation timestamp \(ISO 8601\) |
+|   ↳ `description` | string | Event description \(plain text\) |
+|   ↳ `descriptionMd` | string | Event description \(Markdown\) |
+|   ↳ `coverUrl` | string | Event cover image URL |
+|   ↳ `url` | string | Event page URL on lu.ma |
+|   ↳ `visibility` | string | Event visibility \(public, members-only, private\) |
+|   ↳ `meetingUrl` | string | Virtual meeting URL |
+|   ↳ `geoAddressJson` | json | Structured location/address data |
+|   ↳ `geoLatitude` | string | Venue latitude coordinate |
+|   ↳ `geoLongitude` | string | Venue longitude coordinate |
+|   ↳ `calendarId` | string | Associated calendar ID |
+| `hosts` | array | Event hosts |
+|   ↳ `id` | string | Host ID |
+|   ↳ `name` | string | Host display name |
+|   ↳ `firstName` | string | Host first name |
+|   ↳ `lastName` | string | Host last name |
+|   ↳ `email` | string | Host email address |
+|   ↳ `avatarUrl` | string | Host avatar image URL |
+
+### `luma_list_events`
+
+List events from your Luma calendar with optional date range filtering, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `after` | string | No | Return events after this ISO 8601 datetime \(e.g., 2025-01-01T00:00:00Z\) |
+| `before` | string | No | Return events before this ISO 8601 datetime \(e.g., 2025-12-31T23:59:59Z\) |
+| `paginationLimit` | number | No | Maximum number of events to return per page |
+| `paginationCursor` | string | No | Pagination cursor from a previous response \(next_cursor\) to fetch the next page of results |
+| `sortColumn` | string | No | Column to sort by \(only start_at is supported\) |
+| `sortDirection` | string | No | Sort direction: asc, desc, asc nulls last, or desc nulls last |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of calendar events |
+|   ↳ `id` | string | Event ID |
+|   ↳ `name` | string | Event name |
+|   ↳ `startAt` | string | Event start time \(ISO 8601\) |
+|   ↳ `endAt` | string | Event end time \(ISO 8601\) |
+|   ↳ `timezone` | string | Event timezone \(IANA\) |
+|   ↳ `durationInterval` | string | Event duration \(ISO 8601 interval, e.g. PT2H\) |
+|   ↳ `createdAt` | string | Event creation timestamp \(ISO 8601\) |
+|   ↳ `description` | string | Event description \(plain text\) |
+|   ↳ `descriptionMd` | string | Event description \(Markdown\) |
+|   ↳ `coverUrl` | string | Event cover image URL |
+|   ↳ `url` | string | Event page URL on lu.ma |
+|   ↳ `visibility` | string | Event visibility \(public, members-only, private\) |
+|   ↳ `meetingUrl` | string | Virtual meeting URL |
+|   ↳ `geoAddressJson` | json | Structured location/address data |
+|   ↳ `geoLatitude` | string | Venue latitude coordinate |
+|   ↳ `geoLongitude` | string | Venue longitude coordinate |
+|   ↳ `calendarId` | string | Associated calendar ID |
+| `hasMore` | boolean | Whether more results are available for pagination |
+| `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
+
+### `luma_get_guests`
+
+Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID \(starts with evt-\) |
+| `approvalStatus` | string | No | Filter by approval status: approved, session, pending_approval, invited, declined, or waitlist |
+| `paginationLimit` | number | No | Maximum number of guests to return per page |
+| `paginationCursor` | string | No | Pagination cursor from a previous response \(next_cursor\) to fetch the next page of results |
+| `sortColumn` | string | No | Column to sort by: name, email, created_at, registered_at, or checked_in_at |
+| `sortDirection` | string | No | Sort direction: asc, desc, asc nulls last, or desc nulls last |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `guests` | array | List of event guests |
+|   ↳ `id` | string | Guest ID |
+|   ↳ `email` | string | Guest email address |
+|   ↳ `name` | string | Guest full name |
+|   ↳ `firstName` | string | Guest first name |
+|   ↳ `lastName` | string | Guest last name |
+|   ↳ `approvalStatus` | string | Guest approval status \(approved, session, pending_approval, invited, declined, waitlist\) |
+|   ↳ `registeredAt` | string | Registration timestamp \(ISO 8601\) |
+|   ↳ `invitedAt` | string | Invitation timestamp \(ISO 8601\) |
+|   ↳ `joinedAt` | string | Join timestamp \(ISO 8601\) |
+|   ↳ `checkedInAt` | string | Check-in timestamp \(ISO 8601\) |
+|   ↳ `phoneNumber` | string | Guest phone number |
+| `hasMore` | boolean | Whether more results are available for pagination |
+| `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
+
+### `luma_add_guests`
+
+Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID \(starts with evt-\) |
+| `guests` | string | Yes | JSON array of guest objects. Each guest requires an "email" field and optionally "name", "first_name", "last_name". Example: \[\{"email": "user@example.com", "name": "John Doe"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `guests` | array | List of added guests with their assigned status and ticket info |
+|   ↳ `id` | string | Guest ID |
+|   ↳ `email` | string | Guest email address |
+|   ↳ `name` | string | Guest full name |
+|   ↳ `firstName` | string | Guest first name |
+|   ↳ `lastName` | string | Guest last name |
+|   ↳ `approvalStatus` | string | Guest approval status \(approved, session, pending_approval, invited, declined, waitlist\) |
+|   ↳ `registeredAt` | string | Registration timestamp \(ISO 8601\) |
+|   ↳ `invitedAt` | string | Invitation timestamp \(ISO 8601\) |
+|   ↳ `joinedAt` | string | Join timestamp \(ISO 8601\) |
+|   ↳ `checkedInAt` | string | Check-in timestamp \(ISO 8601\) |
+|   ↳ `phoneNumber` | string | Guest phone number |
+
+

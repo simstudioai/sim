@@ -184,3 +184,339 @@ export const transformUser = (user: any): XUser => ({
     tweetCount: user.public_metrics?.tweet_count || 0,
   },
 })
+
+/**
+ * Trend object from X API (WOEID trends)
+ */
+export interface XTrend {
+  trendName: string
+  tweetCount: number | null
+}
+
+/**
+ * Personalized trend object from X API
+ */
+export interface XPersonalizedTrend {
+  trendName: string
+  postCount: number | null
+  category: string | null
+  trendingSince: string | null
+}
+
+/**
+ * Transforms raw X API trend data (WOEID) into the XTrend format
+ */
+export const transformTrend = (trend: any): XTrend => ({
+  trendName: trend.trend_name ?? trend.name ?? '',
+  tweetCount: trend.tweet_count ?? null,
+})
+
+/**
+ * Transforms raw X API personalized trend data into the XPersonalizedTrend format
+ */
+export const transformPersonalizedTrend = (trend: any): XPersonalizedTrend => ({
+  trendName: trend.trend_name ?? '',
+  postCount: trend.post_count ?? null,
+  category: trend.category ?? null,
+  trendingSince: trend.trending_since ?? null,
+})
+
+// --- New Tool Parameter Interfaces ---
+
+export interface XSearchTweetsParams extends XBaseParams {
+  query: string
+  maxResults?: number
+  startTime?: string
+  endTime?: string
+  sinceId?: string
+  untilId?: string
+  sortOrder?: string
+  nextToken?: string
+}
+
+export interface XGetUserTweetsParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  startTime?: string
+  endTime?: string
+  sinceId?: string
+  untilId?: string
+  exclude?: string
+  paginationToken?: string
+}
+
+export interface XGetUserMentionsParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  startTime?: string
+  endTime?: string
+  sinceId?: string
+  untilId?: string
+  paginationToken?: string
+}
+
+export interface XGetUserTimelineParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  startTime?: string
+  endTime?: string
+  sinceId?: string
+  untilId?: string
+  exclude?: string
+  paginationToken?: string
+}
+
+export interface XGetTweetsByIdsParams extends XBaseParams {
+  ids: string
+}
+
+export interface XGetTweetsByIdsResponse extends ToolResponse {
+  output: {
+    tweets: XTweet[]
+  }
+}
+
+export interface XGetBookmarksParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XCreateBookmarkParams extends XBaseParams {
+  userId: string
+  tweetId: string
+}
+
+export interface XCreateBookmarkResponse extends ToolResponse {
+  output: {
+    bookmarked: boolean
+  }
+}
+
+export interface XDeleteBookmarkParams extends XBaseParams {
+  userId: string
+  tweetId: string
+}
+
+export interface XDeleteBookmarkResponse extends ToolResponse {
+  output: {
+    bookmarked: boolean
+  }
+}
+
+export interface XCreateTweetParams extends XBaseParams {
+  text: string
+  replyToTweetId?: string
+  quoteTweetId?: string
+  mediaIds?: string
+  replySettings?: string
+}
+
+export interface XCreateTweetResponse extends ToolResponse {
+  output: {
+    id: string
+    text: string
+  }
+}
+
+export interface XDeleteTweetParams extends XBaseParams {
+  tweetId: string
+}
+
+export interface XDeleteTweetResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+  }
+}
+
+export interface XGetMeParams extends XBaseParams {}
+
+export interface XGetMeResponse extends ToolResponse {
+  output: {
+    user: XUser
+  }
+}
+
+export interface XSearchUsersParams extends XBaseParams {
+  query: string
+  maxResults?: number
+  nextToken?: string
+}
+
+export interface XGetFollowersParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XGetFollowingParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XManageFollowParams extends XBaseParams {
+  userId: string
+  targetUserId: string
+  action: string
+}
+
+export interface XManageFollowResponse extends ToolResponse {
+  output: {
+    following: boolean
+    pendingFollow: boolean
+  }
+}
+
+export interface XGetBlockingParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XManageBlockParams extends XBaseParams {
+  userId: string
+  targetUserId: string
+  action: string
+}
+
+export interface XManageBlockResponse extends ToolResponse {
+  output: {
+    blocking: boolean
+  }
+}
+
+export interface XGetLikedTweetsParams extends XBaseParams {
+  userId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XGetLikingUsersParams extends XBaseParams {
+  tweetId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XManageLikeParams extends XBaseParams {
+  userId: string
+  tweetId: string
+  action: string
+}
+
+export interface XManageLikeResponse extends ToolResponse {
+  output: {
+    liked: boolean
+  }
+}
+
+export interface XManageRetweetParams extends XBaseParams {
+  userId: string
+  tweetId: string
+  action: string
+}
+
+export interface XManageRetweetResponse extends ToolResponse {
+  output: {
+    retweeted: boolean
+  }
+}
+
+export interface XGetRetweetedByParams extends XBaseParams {
+  tweetId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XGetQuoteTweetsParams extends XBaseParams {
+  tweetId: string
+  maxResults?: number
+  paginationToken?: string
+}
+
+export interface XGetTrendsByWoeidParams extends XBaseParams {
+  woeid: string
+  maxTrends?: number
+}
+
+export interface XGetPersonalizedTrendsParams extends XBaseParams {}
+
+export interface XGetUsageParams extends XBaseParams {
+  days?: number
+}
+
+export interface XGetUsageResponse extends ToolResponse {
+  output: {
+    capResetDay: number | null
+    projectId: string
+    projectCap: number | null
+    projectUsage: number | null
+    dailyProjectUsage: Array<{ date: string; usage: number }>
+    dailyClientAppUsage: Array<{
+      clientAppId: string
+      usage: Array<{ date: string; usage: number }>
+    }>
+  }
+}
+
+export interface XHideReplyParams extends XBaseParams {
+  tweetId: string
+  hidden: boolean
+}
+
+export interface XHideReplyResponse extends ToolResponse {
+  output: {
+    hidden: boolean
+  }
+}
+
+export interface XManageMuteParams extends XBaseParams {
+  userId: string
+  targetUserId: string
+  action: string
+}
+
+export interface XManageMuteResponse extends ToolResponse {
+  output: {
+    muting: boolean
+  }
+}
+
+// Common response types for list endpoints
+export interface XTweetListResponse extends ToolResponse {
+  output: {
+    tweets: XTweet[]
+    includes?: {
+      users: XUser[]
+    }
+    meta: {
+      resultCount: number
+      newestId: string | null
+      oldestId: string | null
+      nextToken: string | null
+      previousToken: string | null
+    }
+  }
+}
+
+export interface XUserListResponse extends ToolResponse {
+  output: {
+    users: XUser[]
+    meta: {
+      resultCount: number
+      nextToken: string | null
+    }
+  }
+}
+
+export interface XTrendListResponse extends ToolResponse {
+  output: {
+    trends: XTrend[]
+  }
+}
+
+export interface XPersonalizedTrendListResponse extends ToolResponse {
+  output: {
+    trends: XPersonalizedTrend[]
+  }
+}

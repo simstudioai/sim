@@ -1,0 +1,165 @@
+---
+title: Gamma
+description: Generate presentations, documents, and webpages with AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gamma"
+  color="#002253"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gamma](https://gamma.app/) is an AI-powered platform for creating presentations, documents, webpages, and social posts. Gamma's API lets you programmatically generate polished, visually rich content from text prompts, adapt existing templates, and manage workspace assets like themes and folders.
+
+With Gamma, you can:
+
+- **Generate presentations and documents:** Create slide decks, documents, webpages, and social posts from text input with full control over format, tone, and image sourcing.
+- **Create from templates:** Adapt existing Gamma templates with custom prompts to quickly produce tailored content.
+- **Check generation status:** Poll for completion of async generation jobs and retrieve the final Gamma URL.
+- **Browse themes and folders:** List available workspace themes and folders to organize and style your generated content.
+
+In Sim, the Gamma integration enables your agents to automatically generate presentations and documents, create content from templates, and manage workspace assets directly within your workflows. This allows you to automate content creation pipelines, batch-produce slide decks, and integrate AI-generated presentations into broader business automation scenarios.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Gamma into the workflow. Can generate presentations, documents, webpages, and social posts from text, create from templates, check generation status, and browse themes and folders.
+
+
+
+## Tools
+
+### `gamma_generate`
+
+Generate a new Gamma presentation, document, webpage, or social post from text input.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Gamma API key |
+| `inputText` | string | Yes | Text and image URLs used to generate your gamma \(1-100,000 tokens\) |
+| `textMode` | string | Yes | How to handle input text: generate \(AI expands\), condense \(AI summarizes\), or preserve \(keep as-is\) |
+| `format` | string | No | Output format: presentation, document, webpage, or social \(default: presentation\) |
+| `themeId` | string | No | Custom Gamma workspace theme ID \(use List Themes to find available themes\) |
+| `numCards` | number | No | Number of cards/slides to generate \(1-60 for Pro, 1-75 for Ultra; default: 10\) |
+| `cardSplit` | string | No | How to split content into cards: auto or inputTextBreaks \(default: auto\) |
+| `cardDimensions` | string | No | Card aspect ratio. Presentation: fluid, 16x9, 4x3. Document: fluid, pageless, letter, a4. Social: 1x1, 4x5, 9x16 |
+| `additionalInstructions` | string | No | Additional instructions for the AI generation \(max 2000 chars\) |
+| `exportAs` | string | No | Automatically export the generated gamma as pdf or pptx |
+| `folderIds` | string | No | Comma-separated folder IDs to store the generated gamma in |
+| `textAmount` | string | No | Amount of text per card: brief, medium, detailed, or extensive |
+| `textTone` | string | No | Tone of the generated text, e.g. "professional", "casual" \(max 500 chars\) |
+| `textAudience` | string | No | Target audience for the generated text, e.g. "executives", "students" \(max 500 chars\) |
+| `textLanguage` | string | No | Language code for the generated text \(default: en\) |
+| `imageSource` | string | No | Where to source images: aiGenerated, pictographic, unsplash, webAllImages, webFreeToUse, webFreeToUseCommercially, giphy, placeholder, or noImages |
+| `imageModel` | string | No | AI image generation model to use when imageSource is aiGenerated |
+| `imageStyle` | string | No | Style directive for AI-generated images, e.g. "watercolor", "photorealistic" \(max 500 chars\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `generationId` | string | The ID of the generation job. Use with Check Status to poll for completion. |
+
+### `gamma_generate_from_template`
+
+Generate a new Gamma by adapting an existing template with a prompt.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Gamma API key |
+| `gammaId` | string | Yes | The ID of the template gamma to adapt |
+| `prompt` | string | Yes | Instructions for how to adapt the template \(1-100,000 tokens\) |
+| `themeId` | string | No | Custom Gamma workspace theme ID to apply |
+| `exportAs` | string | No | Automatically export the generated gamma as pdf or pptx |
+| `folderIds` | string | No | Comma-separated folder IDs to store the generated gamma in |
+| `imageModel` | string | No | AI image generation model to use when imageSource is aiGenerated |
+| `imageStyle` | string | No | Style directive for AI-generated images, e.g. "watercolor", "photorealistic" \(max 500 chars\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `generationId` | string | The ID of the generation job. Use with Check Status to poll for completion. |
+
+### `gamma_check_status`
+
+Check the status of a Gamma generation job. Returns the gamma URL when completed, or error details if failed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Gamma API key |
+| `generationId` | string | Yes | The generation ID returned by the Generate or Generate from Template tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `generationId` | string | The generation ID that was checked |
+| `status` | string | Generation status: pending, completed, or failed |
+| `gammaUrl` | string | URL of the generated gamma \(only present when status is completed\) |
+| `credits` | object | Credit usage information \(only present when status is completed\) |
+|   ↳ `deducted` | number | Number of credits deducted for this generation |
+|   ↳ `remaining` | number | Remaining credits in the account |
+| `error` | object | Error details \(only present when status is failed\) |
+|   ↳ `message` | string | Human-readable error message |
+|   ↳ `statusCode` | number | HTTP status code of the error |
+
+### `gamma_list_themes`
+
+List available themes in your Gamma workspace. Returns theme IDs, names, and keywords for styling.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Gamma API key |
+| `query` | string | No | Search query to filter themes by name \(case-insensitive\) |
+| `limit` | number | No | Maximum number of themes to return per page \(max 50\) |
+| `after` | string | No | Pagination cursor from a previous response \(nextCursor\) to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `themes` | array | List of available themes |
+|   ↳ `id` | string | Theme ID \(use with themeId parameter\) |
+|   ↳ `name` | string | Theme display name |
+|   ↳ `type` | string | Theme type: standard or custom |
+|   ↳ `colorKeywords` | array | Color descriptors for this theme |
+|   ↳ `toneKeywords` | array | Tone descriptors for this theme |
+| `hasMore` | boolean | Whether more results are available on the next page |
+| `nextCursor` | string | Pagination cursor to pass as the after parameter for the next page |
+
+### `gamma_list_folders`
+
+List available folders in your Gamma workspace. Returns folder IDs and names for organizing generated content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Gamma API key |
+| `query` | string | No | Search query to filter folders by name \(case-sensitive\) |
+| `limit` | number | No | Maximum number of folders to return per page \(max 50\) |
+| `after` | string | No | Pagination cursor from a previous response \(nextCursor\) to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | List of available folders |
+|   ↳ `id` | string | Folder ID \(use with folderIds parameter\) |
+|   ↳ `name` | string | Folder display name |
+| `hasMore` | boolean | Whether more results are available on the next page |
+| `nextCursor` | string | Pagination cursor to pass as the after parameter for the next page |
+
+

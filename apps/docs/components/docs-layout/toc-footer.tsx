@@ -13,7 +13,7 @@ export function TOCFooter() {
         <div className='text-balance font-semibold text-base leading-tight'>
           Start building today
         </div>
-        <div className='text-muted-foreground'>Trusted by over 60,000 builders.</div>
+        <div className='text-muted-foreground'>Trusted by over 70,000 builders.</div>
         <div className='text-muted-foreground'>
           Build Agentic workflows visually on a drag-and-drop canvas or with natural language.
         </div>

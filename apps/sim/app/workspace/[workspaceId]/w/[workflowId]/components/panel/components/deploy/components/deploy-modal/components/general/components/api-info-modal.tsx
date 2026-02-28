@@ -268,7 +268,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                           </Badge>
                         </div>
                       </div>
-                      <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
                         <div className='flex flex-col gap-[6px]'>
                           <Label className='text-[13px]'>Description</Label>
                           <Input

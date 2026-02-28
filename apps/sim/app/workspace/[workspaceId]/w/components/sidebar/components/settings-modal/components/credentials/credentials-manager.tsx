@@ -1139,31 +1139,6 @@ export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
             {createType === 'oauth' ? (
               <div className='flex flex-col gap-[10px]'>
                 <div>
-                  <Label>
-                    Display name<span className='ml-1'>*</span>
-                  </Label>
-                  <Input
-                    value={createDisplayName}
-                    onChange={(event) => setCreateDisplayName(event.target.value)}
-                    placeholder='Secret name'
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-[6px]'
-                  />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={createDescription}
-                    onChange={(event) => setCreateDescription(event.target.value)}
-                    placeholder='Optional description'
-                    maxLength={500}
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-[6px] min-h-[80px] resize-none'
-                  />
-                </div>
-                <div>
                   <Label>Account</Label>
                   <div className='mt-[6px]'>
                     <Combobox
@@ -1201,6 +1176,31 @@ export function CredentialsManager({ onOpenChange }: CredentialsManagerProps) {
                       }
                     />
                   </div>
+                </div>
+                <div>
+                  <Label>
+                    Display name<span className='ml-1'>*</span>
+                  </Label>
+                  <Input
+                    value={createDisplayName}
+                    onChange={(event) => setCreateDisplayName(event.target.value)}
+                    placeholder='Secret name'
+                    autoComplete='off'
+                    data-lpignore='true'
+                    className='mt-[6px]'
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    value={createDescription}
+                    onChange={(event) => setCreateDescription(event.target.value)}
+                    placeholder='Optional description'
+                    maxLength={500}
+                    autoComplete='off'
+                    data-lpignore='true'
+                    className='mt-[6px] min-h-[80px] resize-none'
+                  />
                 </div>
               </div>
             ) : (

@@ -249,7 +249,7 @@ export class AgentBlockHandler implements BlockHandler {
     const otherResults = await Promise.all(
       otherTools.map(async (tool) => {
         try {
-          if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
+          if (tool.type && tool.type !== 'custom-tool') {
             await validateBlockType(ctx.userId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {

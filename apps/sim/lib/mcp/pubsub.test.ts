@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRedis, loggerMock, type MockRedis } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Extend the @sim/testing Redis mock with the methods RedisMcpPubSub uses. */
 function createPubSubRedis(): MockRedis & { removeAllListeners: ReturnType<typeof vi.fn> } {
@@ -17,26 +17,40 @@ function createPubSubRedis(): MockRedis & { removeAllListeners: ReturnType<typeo
   return { ...mock, removeAllListeners: vi.fn().mockReturnThis() }
 }
 
-/** Shared setup: resets modules and applies base mocks. Returns the two Redis instances. */
+const { MockRedisConstructor } = vi.hoisted(() => ({
+  MockRedisConstructor: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/config/env', () => ({ env: { REDIS_URL: 'redis://localhost:6379' } }))
+vi.mock('ioredis', () => ({
+  default: MockRedisConstructor,
+}))
+
+/**
+ * Because pubsub.ts creates a singleton at module scope, each test needs
+ * a fresh module evaluation to get its own RedisMcpPubSub instance.
+ */
 async function setupPubSub() {
   const instances: ReturnType<typeof createPubSubRedis>[] = []
 
-  vi.resetModules()
-  vi.doMock('@sim/logger', () => loggerMock)
-  vi.doMock('@/lib/core/config/env', () => ({ env: { REDIS_URL: 'redis://localhost:6379' } }))
-  vi.doMock('ioredis', () => ({
-    default: vi.fn().mockImplementation(() => {
-      const instance = createPubSubRedis()
-      instances.push(instance)
-      return instance
-    }),
-  }))
+  MockRedisConstructor.mockImplementation(() => {
+    const instance = createPubSubRedis()
+    instances.push(instance)
+    return instance
+  })
 
-  const { mcpPubSub } = await import('./pubsub')
+  vi.resetModules()
+
+  const { mcpPubSub } = await import('@/lib/mcp/pubsub')
   const [pub, sub] = instances
 
   return { mcpPubSub, pub, sub, instances }
 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('RedisMcpPubSub', () => {
   it('creates two Redis clients (pub and sub)', async () => {
