@@ -337,6 +337,7 @@ export async function POST(req: NextRequest) {
             incrementSSEConnections('wand')
             const reader = response.body?.getReader()
             if (!reader) {
+              wandStreamClosed = true
               decrementSSEConnections('wand')
               controller.close()
               return
