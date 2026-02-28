@@ -12,7 +12,7 @@ import {
   getActiveSSEConnectionsByRoute,
 } from '@/lib/monitoring/sse-connections'
 
-const logger = createLogger('MemoryTelemetry')
+const logger = createLogger('MemoryTelemetry', { logLevel: 'INFO' })
 
 const MB = 1024 * 1024
 
