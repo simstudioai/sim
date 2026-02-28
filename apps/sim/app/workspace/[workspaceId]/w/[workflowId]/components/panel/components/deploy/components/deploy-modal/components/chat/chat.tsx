@@ -437,7 +437,11 @@ export function ChatDeploy({
             >
               Cancel
             </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteChatMutation.isPending}>
+            <Button
+              variant='destructive'
+              onClick={handleDelete}
+              disabled={deleteChatMutation.isPending}
+            >
               {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
