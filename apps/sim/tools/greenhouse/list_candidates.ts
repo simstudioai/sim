@@ -87,7 +87,7 @@ export const greenhouseListCandidatesTool: ToolConfig<
       if (params.updated_after) url.searchParams.append('updated_after', params.updated_after)
       if (params.updated_before) url.searchParams.append('updated_before', params.updated_before)
       if (params.job_id) url.searchParams.append('job_id', params.job_id)
-      if (params.email) url.searchParams.append('email', params.email)
+      if (params.email) url.searchParams.append('email_address', params.email)
       if (params.candidate_ids) url.searchParams.append('candidate_ids', params.candidate_ids)
       return url.toString()
     },

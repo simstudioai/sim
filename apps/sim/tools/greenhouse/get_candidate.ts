@@ -31,7 +31,7 @@ export const greenhouseGetCandidateTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseGetCandidateParams) =>
-      `https://harvest.greenhouse.io/v1/candidates/${params.candidateId}`,
+      `https://harvest.greenhouse.io/v1/candidates/${params.candidateId.trim()}`,
     method: 'GET',
     headers: (params: GreenhouseGetCandidateParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
