@@ -121,6 +121,7 @@ export function ChatDeploy({
   const [formData, setFormData] = useState<ChatFormData>(initialFormData)
   const [errors, setErrors] = useState<FormErrors>({})
   const formRef = useRef<HTMLFormElement>(null)
+  const [formInitCounter, setFormInitCounter] = useState(0)
 
   const createChatMutation = useCreateChat()
   const updateChatMutation = useUpdateChat()
@@ -272,6 +273,7 @@ export function ChatDeploy({
 
       await onRefetchChat()
       setHasInitializedForm(false)
+      setFormInitCounter((c) => c + 1)
     } catch (error: any) {
       newTab?.close()
       if (error.message?.includes('identifier')) {
@@ -295,6 +297,7 @@ export function ChatDeploy({
 
       setImageUrl(null)
       setHasInitializedForm(false)
+      setFormInitCounter((c) => c + 1)
       await onRefetchChat()
 
       onDeploymentComplete?.()
@@ -370,7 +373,7 @@ export function ChatDeploy({
           </div>
 
           <AuthSelector
-            key={existingChat?.id ?? 'new'}
+            key={`${existingChat?.id ?? 'new'}-${formInitCounter}`}
             authType={formData.authType}
             password={formData.password}
             emails={formData.emails}
@@ -631,6 +634,12 @@ function AuthSelector({
     emails.map((email) => ({ value: email, isValid: true }))
   )
 
+  useEffect(() => {
+    if (!copySuccess) return
+    const timer = setTimeout(() => setCopySuccess(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copySuccess])
+
   const handleGeneratePassword = () => {
     const newPassword = generatePassword(24)
     onPasswordChange(newPassword)
@@ -639,7 +648,6 @@ function AuthSelector({
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
   }
 
   const addEmail = (email: string): boolean => {
