@@ -113,7 +113,7 @@ export function DeployModal({
   const [showA2aDeleteConfirm, setShowA2aDeleteConfirm] = useState(false)
 
   const [chatSuccess, setChatSuccess] = useState(false)
-  const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
   const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)

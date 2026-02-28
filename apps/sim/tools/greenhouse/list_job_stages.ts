@@ -45,7 +45,7 @@ export const greenhouseListJobStagesTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseListJobStagesParams) => {
-      const url = new URL(`https://harvest.greenhouse.io/v1/jobs/${params.jobId}/stages`)
+      const url = new URL(`https://harvest.greenhouse.io/v1/jobs/${params.jobId.trim()}/stages`)
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))
       return url.toString()

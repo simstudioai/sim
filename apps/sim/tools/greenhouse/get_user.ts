@@ -25,7 +25,7 @@ export const greenhouseGetUserTool: ToolConfig<GreenhouseGetUserParams, Greenhou
 
     request: {
       url: (params: GreenhouseGetUserParams) =>
-        `https://harvest.greenhouse.io/v1/users/${params.userId}`,
+        `https://harvest.greenhouse.io/v1/users/${params.userId.trim()}`,
       method: 'GET',
       headers: (params: GreenhouseGetUserParams) => ({
         Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

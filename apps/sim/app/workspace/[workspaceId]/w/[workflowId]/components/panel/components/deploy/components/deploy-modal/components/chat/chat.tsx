@@ -180,11 +180,9 @@ export function ChatDeploy({
       Boolean(existingChat)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
-  const [prevIsFormValid, setPrevIsFormValid] = useState(isFormValid)
-  if (prevIsFormValid !== isFormValid) {
-    setPrevIsFormValid(isFormValid)
+  useEffect(() => {
     onValidationChange?.(isFormValid)
-  }
+  }, [isFormValid, onValidationChange])
 
   useEffect(() => {
     if (existingChat && !hasInitializedForm) {
@@ -510,11 +508,9 @@ function IdentifierInput({
     isEditingExisting
   )
 
-  const [prevIsValid, setPrevIsValid] = useState(isValid)
-  if (prevIsValid !== isValid) {
-    setPrevIsValid(isValid)
+  useEffect(() => {
     onValidationChange?.(isValid)
-  }
+  }, [isValid, onValidationChange])
 
   const handleChange = (newValue: string) => {
     const lowercaseValue = newValue.toLowerCase()
