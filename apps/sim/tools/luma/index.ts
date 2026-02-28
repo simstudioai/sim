@@ -5,6 +5,8 @@ import { getGuestsTool } from '@/tools/luma/get_guests'
 import { listEventsTool } from '@/tools/luma/list_events'
 import { updateEventTool } from '@/tools/luma/update_event'
 
+export * from './types'
+
 export const lumaAddGuestsTool = addGuestsTool
 export const lumaCreateEventTool = createEventTool
 export const lumaGetEventTool = getEventTool

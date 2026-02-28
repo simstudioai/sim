@@ -45,7 +45,7 @@ export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResp
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Column to sort by (e.g., start_at)',
+      description: 'Column to sort by (only start_at is supported)',
     },
     sortDirection: {
       type: 'string',

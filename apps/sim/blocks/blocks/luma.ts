@@ -370,10 +370,25 @@ Return ONLY the ISO 8601 timestamp - no explanations, no quotes, no extra text.`
   },
 
   outputs: {
-    event: { type: 'json', description: 'Event details' },
-    hosts: { type: 'json', description: 'Event hosts' },
-    events: { type: 'json', description: 'List of events' },
-    guests: { type: 'json', description: 'List of guests' },
+    event: {
+      type: 'json',
+      description:
+        'Event details (id, name, startAt, endAt, timezone, durationInterval, createdAt, description, descriptionMd, coverUrl, url, visibility, meetingUrl, geoAddressJson, geoLatitude, geoLongitude, calendarId)',
+    },
+    hosts: {
+      type: 'json',
+      description: 'Event hosts (id, name, firstName, lastName, email, avatarUrl)',
+    },
+    events: {
+      type: 'json',
+      description:
+        'List of events, each with id, name, startAt, endAt, timezone, durationInterval, createdAt, description, descriptionMd, coverUrl, url, visibility, meetingUrl, geoAddressJson, geoLatitude, geoLongitude, calendarId',
+    },
+    guests: {
+      type: 'json',
+      description:
+        'List of guests (id, email, name, firstName, lastName, approvalStatus, registeredAt, invitedAt, joinedAt, checkedInAt, phoneNumber)',
+    },
     hasMore: { type: 'boolean', description: 'Whether more results are available' },
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },
   },

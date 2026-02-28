@@ -27,7 +27,7 @@ export const getEventTool: ToolConfig<LumaGetEventParams, LumaGetEventResponse> 
   request: {
     url: (params) => {
       const url = new URL('https://public-api.luma.com/v1/event/get')
-      url.searchParams.set('id', params.eventId)
+      url.searchParams.set('id', params.eventId.trim())
       return url.toString()
     },
     method: 'GET',
@@ -46,8 +46,12 @@ export const getEventTool: ToolConfig<LumaGetEventParams, LumaGetEventResponse> 
 
     const event = data.event
     const hosts = (data.hosts ?? []).map((h: Record<string, unknown>) => ({
+      id: (h.id as string) ?? null,
       name: (h.name as string) ?? null,
+      firstName: (h.first_name as string) ?? null,
+      lastName: (h.last_name as string) ?? null,
       email: (h.email as string) ?? null,
+      avatarUrl: (h.avatar_url as string) ?? null,
     }))
 
     return {
