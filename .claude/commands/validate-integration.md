@@ -79,7 +79,6 @@ For **every** tool file, check:
 - [ ] All nullable fields use `?? null`
 - [ ] All optional arrays use `?? []`
 - [ ] Error cases are handled: checks for missing/empty data and returns meaningful error
-- [ ] `createLogger` is imported from `@sim/logger` and used for error logging
 - [ ] Does NOT do raw JSON dumps — extracts meaningful, individual fields
 
 ### Outputs
@@ -216,8 +215,6 @@ If any tools support pagination:
 
 ## Step 7: Validate Error Handling
 
-- [ ] Every tool imports `createLogger` from `@sim/logger`
-- [ ] Every tool creates a logger: `const logger = createLogger('{ToolName}')`
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
@@ -278,7 +275,7 @@ After fixing, confirm:
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
 - [ ] Validated OAuth scopes alignment across auth.ts, oauth.ts, block, and modal (if OAuth)
 - [ ] Validated pagination consistency across tools and block
-- [ ] Validated error handling (logger, error checks, meaningful messages)
+- [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
