@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { GetContactParams, GetContactResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendGetContactTool')
 
 export const resendGetContactTool: ToolConfig<GetContactParams, GetContactResult> = {
   id: 'resend_get_contact',
@@ -24,7 +27,7 @@ export const resendGetContactTool: ToolConfig<GetContactParams, GetContactResult
 
   request: {
     url: (params: GetContactParams) =>
-      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId)}`,
+      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId.trim())}`,
     method: 'GET',
     headers: (params: GetContactParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,
@@ -35,15 +38,31 @@ export const resendGetContactTool: ToolConfig<GetContactParams, GetContactResult
   transformResponse: async (response: Response): Promise<GetContactResult> => {
     const data = await response.json()
 
+    if (!data.id) {
+      logger.error('Resend Get Contact API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to retrieve contact',
+        output: {
+          id: '',
+          email: '',
+          firstName: '',
+          lastName: '',
+          createdAt: '',
+          unsubscribed: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
         id: data.id,
-        email: data.email,
-        firstName: data.first_name || '',
-        lastName: data.last_name || '',
-        createdAt: data.created_at || '',
-        unsubscribed: data.unsubscribed || false,
+        email: data.email ?? '',
+        firstName: data.first_name ?? '',
+        lastName: data.last_name ?? '',
+        createdAt: data.created_at ?? '',
+        unsubscribed: data.unsubscribed ?? false,
       },
     }
   },

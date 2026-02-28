@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ListContactsParams, ListContactsResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendListContactsTool')
 
 export const resendListContactsTool: ToolConfig<ListContactsParams, ListContactsResult> = {
   id: 'resend_list_contacts',
@@ -28,11 +31,23 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
   transformResponse: async (response: Response): Promise<ListContactsResult> => {
     const data = await response.json()
 
+    if (data.message) {
+      logger.error('Resend List Contacts API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to list contacts',
+        output: {
+          contacts: [],
+          hasMore: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        contacts: data.data || [],
-        hasMore: data.has_more || false,
+        contacts: data.data ?? [],
+        hasMore: data.has_more ?? false,
       },
     }
   },

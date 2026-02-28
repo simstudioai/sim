@@ -1,5 +1,6 @@
 import { ResendIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const ResendBlock: BlockConfig = {
   type: 'resend',
@@ -11,6 +12,7 @@ export const ResendBlock: BlockConfig = {
   category: 'tools',
   bgColor: '#181C1E',
   icon: ResendIcon,
+  authMode: AuthMode.ApiKey,
 
   subBlocks: [
     {
@@ -18,16 +20,13 @@ export const ResendBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Email Operations
         { label: 'Send Email', id: 'send_email' },
         { label: 'Get Email', id: 'get_email' },
-        // Contact Operations
         { label: 'Create Contact', id: 'create_contact' },
         { label: 'List Contacts', id: 'list_contacts' },
         { label: 'Get Contact', id: 'get_contact' },
         { label: 'Update Contact', id: 'update_contact' },
         { label: 'Delete Contact', id: 'delete_contact' },
-        // Domain Operations
         { label: 'List Domains', id: 'list_domains' },
       ],
       value: () => 'send_email',
@@ -41,7 +40,6 @@ export const ResendBlock: BlockConfig = {
       password: true,
     },
 
-    // Send Email fields
     {
       id: 'fromAddress',
       title: 'From Address',
@@ -80,7 +78,7 @@ export const ResendBlock: BlockConfig = {
 "Order confirmation" -> "Your Order #12345 is Confirmed"
 "Newsletter about new features" -> "New Features You'll Love"
 
-Return ONLY the subject line - no explanations.`,
+Return ONLY the subject line - no explanations, no extra text.`,
         placeholder: 'Describe the email topic...',
       },
     },
@@ -100,7 +98,7 @@ Return ONLY the subject line - no explanations.`,
 - Keep paragraphs short
 - Include appropriate greeting and sign-off
 
-Return ONLY the email body - no explanations.`,
+Return ONLY the email body - no explanations, no extra text.`,
         placeholder: 'Describe the email content...',
       },
     },
@@ -114,6 +112,7 @@ Return ONLY the email body - no explanations.`,
       ],
       value: () => 'text',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
     },
     {
       id: 'cc',
@@ -121,6 +120,7 @@ Return ONLY the email body - no explanations.`,
       type: 'short-input',
       placeholder: 'cc@example.com',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
     },
     {
       id: 'bcc',
@@ -128,6 +128,7 @@ Return ONLY the email body - no explanations.`,
       type: 'short-input',
       placeholder: 'bcc@example.com',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
     },
     {
       id: 'replyTo',
@@ -135,6 +136,7 @@ Return ONLY the email body - no explanations.`,
       type: 'short-input',
       placeholder: 'reply@example.com',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
     },
     {
       id: 'scheduledAt',
@@ -142,6 +144,14 @@ Return ONLY the email body - no explanations.`,
       type: 'short-input',
       placeholder: '2024-08-05T11:52:01.858Z',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Generate an ISO 8601 timestamp for scheduling email delivery. Return ONLY the timestamp - no explanations, no extra text.',
+        placeholder: 'Describe when to send (e.g., "tomorrow at 9am")...',
+      },
     },
     {
       id: 'tags',
@@ -149,9 +159,15 @@ Return ONLY the email body - no explanations.`,
       type: 'short-input',
       placeholder: 'category:welcome,type:onboarding',
       condition: { field: 'operation', value: 'send_email' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate comma-separated key:value pairs for email tags based on the description. Example format: "category:welcome,type:onboarding". Return ONLY the tag pairs - no explanations, no extra text.',
+        placeholder: 'Describe the email tags...',
+      },
     },
 
-    // Get Email fields
     {
       id: 'emailId',
       title: 'Email ID',
@@ -161,7 +177,6 @@ Return ONLY the email body - no explanations.`,
       required: true,
     },
 
-    // Create Contact fields
     {
       id: 'email',
       title: 'Email',
@@ -196,7 +211,6 @@ Return ONLY the email body - no explanations.`,
       condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
     },
 
-    // Get/Update/Delete Contact fields
     {
       id: 'contactId',
       title: 'Contact ID or Email',
@@ -239,7 +253,6 @@ Return ONLY the email body - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     resendApiKey: { type: 'string', description: 'Resend API key' },
-    // Send email inputs
     fromAddress: { type: 'string', description: 'Email address to send from' },
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
@@ -250,9 +263,7 @@ Return ONLY the email body - no explanations.`,
     replyTo: { type: 'string', description: 'Reply-to email address' },
     scheduledAt: { type: 'string', description: 'Scheduled send time in ISO 8601 format' },
     tags: { type: 'string', description: 'Email tags as key:value pairs' },
-    // Get email inputs
     emailId: { type: 'string', description: 'Email ID to retrieve' },
-    // Contact inputs
     email: { type: 'string', description: 'Contact email address' },
     firstName: { type: 'string', description: 'Contact first name' },
     lastName: { type: 'string', description: 'Contact last name' },
@@ -262,24 +273,22 @@ Return ONLY the email body - no explanations.`,
 
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
-    // Send email outputs
+    id: { type: 'string', description: 'Email or contact ID' },
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email body content' },
-    // Get email outputs
-    id: { type: 'string', description: 'Email or contact ID' },
     from: { type: 'string', description: 'Sender email address' },
     html: { type: 'string', description: 'HTML email content' },
     text: { type: 'string', description: 'Plain text email content' },
     lastEvent: { type: 'string', description: 'Last event status' },
     createdAt: { type: 'string', description: 'Creation timestamp' },
+    scheduledAt: { type: 'string', description: 'Scheduled send timestamp' },
     tags: { type: 'json', description: 'Email tags as name-value pairs' },
-    // Contact outputs
     email: { type: 'string', description: 'Contact email address' },
     firstName: { type: 'string', description: 'Contact first name' },
     lastName: { type: 'string', description: 'Contact last name' },
+    unsubscribed: { type: 'boolean', description: 'Whether the contact is unsubscribed' },
     contacts: { type: 'json', description: 'Array of contacts' },
-    // Domain outputs
     domains: { type: 'json', description: 'Array of domains' },
     hasMore: { type: 'boolean', description: 'Whether more results are available' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },

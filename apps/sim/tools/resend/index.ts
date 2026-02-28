@@ -4,7 +4,7 @@ export { resendGetContactTool } from '@/tools/resend/get_contact'
 export { resendGetEmailTool } from '@/tools/resend/get_email'
 export { resendListContactsTool } from '@/tools/resend/list_contacts'
 export { resendListDomainsTool } from '@/tools/resend/list_domains'
-export { mailSendTool } from '@/tools/resend/send'
+export { resendSendTool } from '@/tools/resend/send'
 export type {
   CreateContactParams,
   CreateContactResult,

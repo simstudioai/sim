@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { DeleteContactParams, DeleteContactResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendDeleteContactTool')
 
 export const resendDeleteContactTool: ToolConfig<DeleteContactParams, DeleteContactResult> = {
   id: 'resend_delete_contact',
@@ -24,7 +27,7 @@ export const resendDeleteContactTool: ToolConfig<DeleteContactParams, DeleteCont
 
   request: {
     url: (params: DeleteContactParams) =>
-      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId)}`,
+      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId.trim())}`,
     method: 'DELETE',
     headers: (params: DeleteContactParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,
@@ -35,10 +38,22 @@ export const resendDeleteContactTool: ToolConfig<DeleteContactParams, DeleteCont
   transformResponse: async (response: Response): Promise<DeleteContactResult> => {
     const data = await response.json()
 
+    if (data.message && !data.deleted) {
+      logger.error('Resend Delete Contact API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to delete contact',
+        output: {
+          id: '',
+          deleted: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        id: data.contact || data.id || '',
+        id: data.contact ?? data.id ?? '',
         deleted: data.deleted ?? true,
       },
     }

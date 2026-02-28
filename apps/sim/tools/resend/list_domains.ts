@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ListDomainsParams, ListDomainsResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendListDomainsTool')
 
 export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsResult> = {
   id: 'resend_list_domains',
@@ -28,10 +31,22 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
   transformResponse: async (response: Response): Promise<ListDomainsResult> => {
     const data = await response.json()
 
+    if (data.message) {
+      logger.error('Resend List Domains API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to list domains',
+        output: {
+          domains: [],
+          hasMore: false,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        domains: (data.data || []).map(
+        domains: (data.data ?? []).map(
           (domain: {
             id: string
             name: string
@@ -46,7 +61,7 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
             createdAt: domain.created_at,
           })
         ),
-        hasMore: data.has_more || false,
+        hasMore: data.has_more ?? false,
       },
     }
   },

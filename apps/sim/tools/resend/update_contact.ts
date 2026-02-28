@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { UpdateContactParams, UpdateContactResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendUpdateContactTool')
 
 export const resendUpdateContactTool: ToolConfig<UpdateContactParams, UpdateContactResult> = {
   id: 'resend_update_contact',
@@ -42,7 +45,7 @@ export const resendUpdateContactTool: ToolConfig<UpdateContactParams, UpdateCont
 
   request: {
     url: (params: UpdateContactParams) =>
-      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId)}`,
+      `https://api.resend.com/contacts/${encodeURIComponent(params.contactId.trim())}`,
     method: 'PATCH',
     headers: (params: UpdateContactParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,
@@ -57,6 +60,17 @@ export const resendUpdateContactTool: ToolConfig<UpdateContactParams, UpdateCont
 
   transformResponse: async (response: Response): Promise<UpdateContactResult> => {
     const data = await response.json()
+
+    if (!data.id) {
+      logger.error('Resend Update Contact API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to update contact',
+        output: {
+          id: '',
+        },
+      }
+    }
 
     return {
       success: true,
