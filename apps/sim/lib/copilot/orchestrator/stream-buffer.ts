@@ -237,6 +237,15 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
         error: error instanceof Error ? error.message : String(error),
       })
       pending = batch.concat(pending)
+      if (pending.length > config.eventLimit) {
+        const dropped = pending.length - config.eventLimit
+        pending = pending.slice(-config.eventLimit)
+        logger.warn('Dropped oldest pending stream events due to sustained Redis failure', {
+          streamId,
+          dropped,
+          remaining: pending.length,
+        })
+      }
     }
   }
 

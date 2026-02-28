@@ -10,6 +10,7 @@ const EVENT_LIMIT = 1000
 const RESERVE_BATCH = 100
 const FLUSH_INTERVAL_MS = 15
 const FLUSH_MAX_BATCH = 200
+const MAX_PENDING_EVENTS = 1000
 
 function getEventsKey(executionId: string) {
   return `${REDIS_PREFIX}${executionId}:events`
@@ -184,6 +185,15 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
         stack: error instanceof Error ? error.stack : undefined,
       })
       pending = batch.concat(pending)
+      if (pending.length > MAX_PENDING_EVENTS) {
+        const dropped = pending.length - MAX_PENDING_EVENTS
+        pending = pending.slice(-MAX_PENDING_EVENTS)
+        logger.warn('Dropped oldest pending events due to sustained Redis failure', {
+          executionId,
+          dropped,
+          remaining: pending.length,
+        })
+      }
     }
   }
 

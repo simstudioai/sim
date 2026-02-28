@@ -7,6 +7,7 @@ import {
   getExecutionMeta,
   readExecutionEvents,
 } from '@/lib/execution/event-buffer'
+import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
@@ -73,8 +74,10 @@ export async function GET(
 
     let closed = false
 
+    let sseDecremented = false
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        incrementSSEConnections('execution-stream-reconnect')
         let lastEventId = fromEventId
         const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
 
@@ -142,11 +145,20 @@ export async function GET(
               controller.close()
             } catch {}
           }
+        } finally {
+          if (!sseDecremented) {
+            sseDecremented = true
+            decrementSSEConnections('execution-stream-reconnect')
+          }
         }
       },
       cancel() {
         closed = true
         logger.info('Client disconnected from reconnection stream', { executionId })
+        if (!sseDecremented) {
+          sseDecremented = true
+          decrementSSEConnections('execution-stream-reconnect')
+        }
       },
     })
 
