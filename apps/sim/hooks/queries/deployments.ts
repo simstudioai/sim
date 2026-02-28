@@ -217,8 +217,8 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
     chatExists: statusQuery.data?.isDeployed ?? false,
     existingChat: detailQuery.data ?? null,
     refetch: async () => {
-      await statusQuery.refetch()
-      if (statusQuery.data?.deployment?.id) {
+      const statusResult = await statusQuery.refetch()
+      if (statusResult.data?.deployment?.id) {
         await detailQuery.refetch()
       }
     },

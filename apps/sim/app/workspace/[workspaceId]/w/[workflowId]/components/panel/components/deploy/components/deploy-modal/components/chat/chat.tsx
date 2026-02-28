@@ -108,7 +108,6 @@ export function ChatDeploy({
   onVersionActivated,
 }: ChatDeployProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
 
   const showDeleteConfirmation =
@@ -181,9 +180,11 @@ export function ChatDeploy({
       Boolean(existingChat)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
-  useEffect(() => {
+  const [prevIsFormValid, setPrevIsFormValid] = useState(isFormValid)
+  if (prevIsFormValid !== isFormValid) {
+    setPrevIsFormValid(isFormValid)
     onValidationChange?.(isFormValid)
-  }, [isFormValid, onValidationChange])
+  }
 
   useEffect(() => {
     if (existingChat && !hasInitializedForm) {
@@ -222,13 +223,20 @@ export function ChatDeploy({
 
     setChatSubmitting(true)
 
+    const isNewChat = !existingChat?.id
+
+    // Open window before async operation to avoid popup blockers
+    const newTab = isNewChat ? window.open('', '_blank') : null
+
     try {
       if (!validateForm(!!existingChat)) {
+        newTab?.close()
         setChatSubmitting(false)
         return
       }
 
       if (!isIdentifierValid && formData.identifier !== existingChat?.identifier) {
+        newTab?.close()
         setError('identifier', 'Please wait for identifier validation to complete')
         setChatSubmitting(false)
         return
@@ -257,13 +265,17 @@ export function ChatDeploy({
       onDeployed?.()
       onVersionActivated?.()
 
-      if (chatUrl) {
-        window.open(chatUrl, '_blank', 'noopener,noreferrer')
+      if (newTab && chatUrl) {
+        newTab.opener = null
+        newTab.location.href = chatUrl
+      } else if (newTab) {
+        newTab.close()
       }
 
-      setHasInitializedForm(false)
       await onRefetchChat()
+      setHasInitializedForm(false)
     } catch (error: any) {
+      newTab?.close()
       if (error.message?.includes('identifier')) {
         setError('identifier', error.message)
       } else {
@@ -278,8 +290,6 @@ export function ChatDeploy({
     if (!existingChat || !existingChat.id) return
 
     try {
-      setIsDeleting(true)
-
       await deleteChatMutation.mutateAsync({
         chatId: existingChat.id,
         workflowId,
@@ -294,7 +304,6 @@ export function ChatDeploy({
       logger.error('Failed to delete chat:', error)
       setError('general', error.message || 'An unexpected error occurred while deleting')
     } finally {
-      setIsDeleting(false)
       setShowDeleteConfirmation(false)
     }
   }
@@ -424,12 +433,12 @@ export function ChatDeploy({
             <Button
               variant='default'
               onClick={() => setShowDeleteConfirmation(false)}
-              disabled={isDeleting}
+              disabled={deleteChatMutation.isPending}
             >
               Cancel
             </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete'}
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteChatMutation.isPending}>
+              {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -497,9 +506,11 @@ function IdentifierInput({
     isEditingExisting
   )
 
-  useEffect(() => {
+  const [prevIsValid, setPrevIsValid] = useState(isValid)
+  if (prevIsValid !== isValid) {
+    setPrevIsValid(isValid)
     onValidationChange?.(isValid)
-  }, [isValid, onValidationChange])
+  }
 
   const handleChange = (newValue: string) => {
     const lowercaseValue = newValue.toLowerCase()
