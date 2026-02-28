@@ -1162,12 +1162,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
         }
       },
-      async cancel() {
+      cancel() {
         isStreamClosed = true
         logger.info(`[${requestId}] Client disconnected from SSE stream`)
-        timeoutController.abort()
-        timeoutController.cleanup()
-        await eventWriter.close().catch(() => {})
         if (!sseDecremented) {
           sseDecremented = true
           decrementSSEConnections('workflow-execute')
