@@ -444,11 +444,29 @@ Output only the ISO 8601 timestamp string, nothing else.`,
   },
 
   outputs: {
-    candidates: { type: 'json', description: 'List of candidates' },
-    jobs: { type: 'json', description: 'List of jobs' },
-    applications: { type: 'json', description: 'List of applications' },
-    notes: { type: 'json', description: 'List of notes' },
-    offers: { type: 'json', description: 'List of offers' },
+    candidates: {
+      type: 'json',
+      description:
+        'List of candidates (id, name, primaryEmailAddress, primaryPhoneNumber, createdAt, updatedAt)',
+    },
+    jobs: {
+      type: 'json',
+      description:
+        'List of jobs (id, title, status, employmentType, departmentId, locationId, createdAt, updatedAt)',
+    },
+    applications: {
+      type: 'json',
+      description:
+        'List of applications (id, status, candidate, job, currentInterviewStage, source, createdAt, updatedAt)',
+    },
+    notes: {
+      type: 'json',
+      description: 'List of notes (id, content, author, createdAt)',
+    },
+    offers: {
+      type: 'json',
+      description: 'List of offers (id, status, candidate, job, createdAt, updatedAt)',
+    },
     id: { type: 'string', description: 'Resource UUID' },
     name: { type: 'string', description: 'Resource name' },
     title: { type: 'string', description: 'Job title' },

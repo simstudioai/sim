@@ -318,4 +318,4 @@ After creating all tools, you MUST validate every tool before finishing:
 3. **Verify consistency** across tools:
    - Shared types in `types.ts` match all tools that use them
    - Tool IDs in the barrel export match the tool file definitions
-   - Error handling is consistent (logger imports, error checks)
+   - Error handling is consistent (error checks, meaningful messages)
