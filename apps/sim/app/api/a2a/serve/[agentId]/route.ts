@@ -19,7 +19,10 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
+import {
+  decrementSSEConnections,
+  incrementSSEConnections,
+} from '@/lib/monitoring/sse-connections'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import {
@@ -631,9 +634,11 @@ async function handleMessageStream(
   }
 
   const encoder = new TextEncoder()
+  let messageStreamDecremented = false
 
   const stream = new ReadableStream({
     async start(controller) {
+      incrementSSEConnections('a2a-message')
       const sendEvent = (event: string, data: unknown) => {
         try {
           const jsonRpcResponse = {
@@ -842,7 +847,17 @@ async function handleMessageStream(
         })
       } finally {
         await releaseLock(lockKey, lockValue)
+        if (!messageStreamDecremented) {
+          messageStreamDecremented = true
+          decrementSSEConnections('a2a-message')
+        }
         controller.close()
+      }
+    },
+    cancel() {
+      if (!messageStreamDecremented) {
+        messageStreamDecremented = true
+        decrementSSEConnections('a2a-message')
       }
     },
   })
