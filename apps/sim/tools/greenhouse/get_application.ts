@@ -31,7 +31,7 @@ export const greenhouseGetApplicationTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseGetApplicationParams) =>
-      `https://harvest.greenhouse.io/v1/applications/${params.applicationId}`,
+      `https://harvest.greenhouse.io/v1/applications/${params.applicationId.trim()}`,
     method: 'GET',
     headers: (params: GreenhouseGetApplicationParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

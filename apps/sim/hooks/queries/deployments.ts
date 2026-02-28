@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
@@ -209,6 +210,13 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
     enabled: Boolean(chatId) && statusQuery.isSuccess && (options?.enabled ?? true),
   })
 
+  const refetch = useCallback(async () => {
+    const statusResult = await statusQuery.refetch()
+    if (statusResult.data?.deployment?.id) {
+      await detailQuery.refetch()
+    }
+  }, [statusQuery.refetch, detailQuery.refetch])
+
   return {
     isLoading:
       statusQuery.isLoading || Boolean(statusQuery.data?.isDeployed && detailQuery.isLoading),
@@ -216,12 +224,7 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
     error: statusQuery.error ?? detailQuery.error,
     chatExists: statusQuery.data?.isDeployed ?? false,
     existingChat: detailQuery.data ?? null,
-    refetch: async () => {
-      await statusQuery.refetch()
-      if (statusQuery.data?.deployment?.id) {
-        await detailQuery.refetch()
-      }
-    },
+    refetch,
   }
 }
 

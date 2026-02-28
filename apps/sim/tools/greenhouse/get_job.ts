@@ -25,7 +25,7 @@ export const greenhouseGetJobTool: ToolConfig<GreenhouseGetJobParams, Greenhouse
 
   request: {
     url: (params: GreenhouseGetJobParams) =>
-      `https://harvest.greenhouse.io/v1/jobs/${params.jobId}`,
+      `https://harvest.greenhouse.io/v1/jobs/${params.jobId.trim()}`,
     method: 'GET',
     headers: (params: GreenhouseGetJobParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
