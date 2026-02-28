@@ -95,13 +95,13 @@ export const loopsCreateContactTool: ToolConfig<
         Object.assign(body, props)
       }
 
-      body.email = params.email
-      if (params.firstName) body.firstName = params.firstName
-      if (params.lastName) body.lastName = params.lastName
-      if (params.source) body.source = params.source
+      body.email = params.email.trim()
+      if (params.firstName) body.firstName = params.firstName.trim()
+      if (params.lastName) body.lastName = params.lastName.trim()
+      if (params.source) body.source = params.source.trim()
       if (params.subscribed != null) body.subscribed = params.subscribed
-      if (params.userGroup) body.userGroup = params.userGroup
-      if (params.userId) body.userId = params.userId
+      if (params.userGroup) body.userGroup = params.userGroup.trim()
+      if (params.userId) body.userId = params.userId.trim()
 
       if (params.mailingLists) {
         body.mailingLists =

@@ -64,8 +64,8 @@ export const loopsSendTransactionalEmailTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        email: params.email,
-        transactionalId: params.transactionalId,
+        email: params.email.trim(),
+        transactionalId: params.transactionalId.trim(),
       }
 
       if (params.dataVariables) {

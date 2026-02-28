@@ -37,8 +37,8 @@ export const loopsFindContactTool: ToolConfig<LoopsFindContactParams, LoopsFindC
         throw new Error('At least one of email or userId is required to find a contact')
       }
       const base = 'https://app.loops.so/api/v1/contacts/find'
-      if (params.email) return `${base}?email=${encodeURIComponent(params.email)}`
-      return `${base}?userId=${encodeURIComponent(params.userId!)}`
+      if (params.email) return `${base}?email=${encodeURIComponent(params.email.trim())}`
+      return `${base}?userId=${encodeURIComponent(params.userId!.trim())}`
     },
     method: 'GET',
     headers: (params) => ({

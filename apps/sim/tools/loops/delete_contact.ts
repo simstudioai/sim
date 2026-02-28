@@ -46,8 +46,8 @@ export const loopsDeleteContactTool: ToolConfig<
         throw new Error('At least one of email or userId is required to delete a contact')
       }
       const body: Record<string, unknown> = {}
-      if (params.email) body.email = params.email
-      if (params.userId) body.userId = params.userId
+      if (params.email) body.email = params.email.trim()
+      if (params.userId) body.userId = params.userId.trim()
       return body
     },
   },
