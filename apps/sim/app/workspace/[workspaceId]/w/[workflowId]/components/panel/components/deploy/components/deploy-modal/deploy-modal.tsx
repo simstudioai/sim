@@ -233,6 +233,7 @@ export function DeployModal({
       setActiveTab('general')
       setDeployError(null)
       setDeployWarnings([])
+      setChatSuccess(false)
     }
     return () => {
       if (chatSuccessTimeoutRef.current) {
