@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { CreateContactParams, CreateContactResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('ResendCreateContactTool')
 
 export const resendCreateContactTool: ToolConfig<CreateContactParams, CreateContactResult> = {
   id: 'resend_create_contact',
@@ -57,6 +60,17 @@ export const resendCreateContactTool: ToolConfig<CreateContactParams, CreateCont
 
   transformResponse: async (response: Response): Promise<CreateContactResult> => {
     const data = await response.json()
+
+    if (!data.id) {
+      logger.error('Resend Create Contact API error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.message || 'Failed to create contact',
+        output: {
+          id: '',
+        },
+      }
+    }
 
     return {
       success: true,
