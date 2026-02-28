@@ -59,8 +59,12 @@ export interface LumaAddGuestsParams {
 }
 
 export interface LumaHostEntry {
+  id: string | null
   name: string | null
+  firstName: string | null
+  lastName: string | null
   email: string | null
+  avatarUrl: string | null
 }
 
 export interface LumaEventEntry {
@@ -141,8 +145,12 @@ export interface LumaAddGuestsResponse extends ToolResponse {
 }
 
 export const LUMA_HOST_OUTPUT_PROPERTIES = {
-  name: { type: 'string' as const, description: 'Host name' },
+  id: { type: 'string' as const, description: 'Host ID' },
+  name: { type: 'string' as const, description: 'Host display name' },
+  firstName: { type: 'string' as const, description: 'Host first name' },
+  lastName: { type: 'string' as const, description: 'Host last name' },
   email: { type: 'string' as const, description: 'Host email address' },
+  avatarUrl: { type: 'string' as const, description: 'Host avatar image URL' },
 }
 
 export const LUMA_EVENT_OUTPUT_PROPERTIES = {

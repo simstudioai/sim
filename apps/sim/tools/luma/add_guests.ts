@@ -47,7 +47,7 @@ export const addGuestsTool: ToolConfig<LumaAddGuestsParams, LumaAddGuestsRespons
         guestsArray = [{ email: params.guests }]
       }
       return {
-        event_id: params.eventId,
+        event_id: params.eventId.trim(),
         guests: guestsArray,
       }
     },
