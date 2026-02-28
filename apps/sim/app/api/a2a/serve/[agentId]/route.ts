@@ -19,6 +19,7 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import {
@@ -1016,16 +1017,22 @@ async function handleTaskResubscribe(
   let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
 
   const abortSignal = request.signal
-  abortSignal.addEventListener('abort', () => {
-    isCancelled = true
-    if (pollTimeoutId) {
-      clearTimeout(pollTimeoutId)
-      pollTimeoutId = null
-    }
-  })
+  abortSignal.addEventListener(
+    'abort',
+    () => {
+      isCancelled = true
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId)
+        pollTimeoutId = null
+      }
+    },
+    { once: true }
+  )
 
+  let sseDecremented = false
   const stream = new ReadableStream({
     async start(controller) {
+      incrementSSEConnections('a2a-resubscribe')
       const sendEvent = (event: string, data: unknown): boolean => {
         if (isCancelled || abortSignal.aborted) return false
         try {
@@ -1046,6 +1053,10 @@ async function handleTaskResubscribe(
         if (pollTimeoutId) {
           clearTimeout(pollTimeoutId)
           pollTimeoutId = null
+        }
+        if (!sseDecremented) {
+          sseDecremented = true
+          decrementSSEConnections('a2a-resubscribe')
         }
       }
 
@@ -1164,6 +1175,10 @@ async function handleTaskResubscribe(
       if (pollTimeoutId) {
         clearTimeout(pollTimeoutId)
         pollTimeoutId = null
+      }
+      if (!sseDecremented) {
+        sseDecremented = true
+        decrementSSEConnections('a2a-resubscribe')
       }
     },
   })

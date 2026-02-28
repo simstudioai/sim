@@ -716,9 +716,15 @@ function spawnWorker(): Promise<WorkerInfo> {
 
         proc.on('message', (message: unknown) => handleWorkerMessage(workerId, message))
 
+        const MAX_STDERR_SIZE = 64 * 1024
         let stderrData = ''
         proc.stderr?.on('data', (data: Buffer) => {
-          stderrData += data.toString()
+          if (stderrData.length < MAX_STDERR_SIZE) {
+            stderrData += data.toString()
+            if (stderrData.length > MAX_STDERR_SIZE) {
+              stderrData = stderrData.slice(0, MAX_STDERR_SIZE)
+            }
+          }
         })
 
         const startTimeout = setTimeout(() => {
