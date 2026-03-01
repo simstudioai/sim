@@ -1,5 +1,6 @@
 import type React from 'react'
 import { findNeighbour } from 'fumadocs-core/page-tree'
+import { createAPIPage } from 'fumadocs-openapi/ui'
 import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
@@ -12,22 +13,65 @@ import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
+import { ResponseSection } from '@/components/ui/response-section'
+import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
+
+const SUPPORTED_LANGUAGES = new Set(['en', 'es', 'fr', 'de', 'ja', 'zh'])
+
+const APIPage = createAPIPage(openapi, {
+  playground: { enabled: false },
+  content: {
+    renderOperationLayout: async (slots) => {
+      return (
+        <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4'>
+          <div className='min-w-0 flex-1'>
+            {slots.header}
+            {slots.apiPlayground}
+            {slots.description}
+            {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
+            {slots.paremeters}
+            {slots.body && <div className='api-section-divider'>{slots.body}</div>}
+            <ResponseSection>{slots.responses}</ResponseSection>
+            {slots.callbacks}
+          </div>
+          <div className='@4xl:sticky @4xl:top-[calc(var(--fd-docs-row-1,2rem)+1rem)] @4xl:w-[400px]'>
+            {slots.apiExample}
+          </div>
+        </div>
+      )
+    },
+  },
+})
 
 export default async function Page(props: { params: Promise<{ slug?: string[]; lang: string }> }) {
   const params = await props.params
-  const page = source.getPage(params.slug, params.lang)
+  const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
+  const lang = isValidLang ? params.lang : 'en'
+  const slug = isValidLang ? params.slug : [params.lang, ...(params.slug ?? [])]
+  const page = source.getPage(slug, lang)
   if (!page) notFound()
 
-  const data = page.data as PageData
-  const MDX = data.body
+  const data = page.data as PageData & {
+    _openapi?: { method?: string }
+    getAPIPageProps?: () => any
+  }
+  const isOpenAPI = '_openapi' in data && data._openapi != null
+  const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
   const baseUrl = 'https://docs.sim.ai'
-  const markdownContent = await data.getText('processed')
 
   const pageTreeRecord = source.pageTree as Record<string, any>
   const pageTree =
     pageTreeRecord[params.lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
-  const neighbours = pageTree ? findNeighbour(pageTree, page.url) : null
+  const rawNeighbours = pageTree ? findNeighbour(pageTree, page.url) : null
+  const neighbours = isApiReference
+    ? {
+        previous: rawNeighbours?.previous?.url.includes('/api-reference/')
+          ? rawNeighbours.previous
+          : undefined,
+        next: rawNeighbours?.next?.url.includes('/api-reference/') ? rawNeighbours.next : undefined,
+      }
+    : rawNeighbours
 
   const generateBreadcrumbs = () => {
     const breadcrumbs: Array<{ name: string; url: string }> = [
@@ -169,6 +213,62 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     </div>
   )
 
+  if (isOpenAPI && data.getAPIPageProps) {
+    const apiProps = data.getAPIPageProps()
+    const apiPageContent = getApiSpecContent(
+      data.title,
+      data.description,
+      apiProps.operations ?? []
+    )
+
+    return (
+      <>
+        <StructuredData
+          title={data.title}
+          description={data.description || ''}
+          url={`${baseUrl}${page.url}`}
+          lang={params.lang}
+          breadcrumb={breadcrumbs}
+        />
+        <DocsPage
+          toc={data.toc}
+          breadcrumb={{
+            enabled: false,
+          }}
+          tableOfContent={{
+            style: 'clerk',
+            enabled: false,
+          }}
+          tableOfContentPopover={{
+            style: 'clerk',
+            enabled: false,
+          }}
+          footer={{
+            enabled: true,
+            component: <CustomFooter />,
+          }}
+        >
+          <div className='api-page-header relative mt-6 sm:mt-0'>
+            <div className='absolute top-1 right-0 flex items-center gap-2'>
+              <div className='hidden sm:flex'>
+                <LLMCopyButton content={apiPageContent} />
+              </div>
+              <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
+            </div>
+            <DocsTitle>{data.title}</DocsTitle>
+            <DocsDescription>{data.description}</DocsDescription>
+          </div>
+          <DocsBody>
+            <APIPage {...apiProps} />
+          </DocsBody>
+        </DocsPage>
+      </>
+    )
+  }
+
+  const MDX = (data as PageData).body
+  const markdownContent = await (data as PageData).getText('processed')
+
   return (
     <>
       <StructuredData
@@ -252,7 +352,10 @@ export async function generateMetadata(props: {
   params: Promise<{ slug?: string[]; lang: string }>
 }) {
   const params = await props.params
-  const page = source.getPage(params.slug, params.lang)
+  const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
+  const lang = isValidLang ? params.lang : 'en'
+  const slug = isValidLang ? params.slug : [params.lang, ...(params.slug ?? [])]
+  const page = source.getPage(slug, lang)
   if (!page) notFound()
 
   const data = page.data as PageData
@@ -286,10 +389,10 @@ export async function generateMetadata(props: {
       url: fullUrl,
       siteName: 'Sim Documentation',
       type: 'article',
-      locale: params.lang === 'en' ? 'en_US' : `${params.lang}_${params.lang.toUpperCase()}`,
+      locale: lang === 'en' ? 'en_US' : `${lang}_${lang.toUpperCase()}`,
       alternateLocale: ['en', 'es', 'fr', 'de', 'ja', 'zh']
-        .filter((lang) => lang !== params.lang)
-        .map((lang) => (lang === 'en' ? 'en_US' : `${lang}_${lang.toUpperCase()}`)),
+        .filter((l) => l !== lang)
+        .map((l) => (l === 'en' ? 'en_US' : `${l}_${l.toUpperCase()}`)),
       images: [
         {
           url: ogImageUrl,
@@ -323,13 +426,13 @@ export async function generateMetadata(props: {
     alternates: {
       canonical: fullUrl,
       languages: {
-        'x-default': `${baseUrl}${page.url.replace(`/${params.lang}`, '')}`,
-        en: `${baseUrl}${page.url.replace(`/${params.lang}`, '')}`,
-        es: `${baseUrl}/es${page.url.replace(`/${params.lang}`, '')}`,
-        fr: `${baseUrl}/fr${page.url.replace(`/${params.lang}`, '')}`,
-        de: `${baseUrl}/de${page.url.replace(`/${params.lang}`, '')}`,
-        ja: `${baseUrl}/ja${page.url.replace(`/${params.lang}`, '')}`,
-        zh: `${baseUrl}/zh${page.url.replace(`/${params.lang}`, '')}`,
+        'x-default': `${baseUrl}${page.url.replace(`/${lang}`, '')}`,
+        en: `${baseUrl}${page.url.replace(`/${lang}`, '')}`,
+        es: `${baseUrl}/es${page.url.replace(`/${lang}`, '')}`,
+        fr: `${baseUrl}/fr${page.url.replace(`/${lang}`, '')}`,
+        de: `${baseUrl}/de${page.url.replace(`/${lang}`, '')}`,
+        ja: `${baseUrl}/ja${page.url.replace(`/${lang}`, '')}`,
+        zh: `${baseUrl}/zh${page.url.replace(`/${lang}`, '')}`,
       },
     },
   }

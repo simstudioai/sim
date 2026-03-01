@@ -1,0 +1,16 @@
+{
+  "title": "API Reference",
+  "root": true,
+  "pages": [
+    "getting-started",
+    "authentication",
+    "---SDKs---",
+    "python",
+    "typescript",
+    "---Endpoints---",
+    "(generated)/workflows",
+    "(generated)/logs",
+    "(generated)/usage",
+    "(generated)/audit-logs"
+  ]
+}
