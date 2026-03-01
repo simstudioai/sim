@@ -8,7 +8,7 @@ import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
 import {
   buildParallelSentinelStartId,
   buildSentinelStartId,
-  extractBaseBlockId,
+  normalizeNodeId,
 } from '@/executor/utils/subflow-utils'
 import type {
   SerializedBlock,
@@ -156,7 +156,7 @@ export class DAGBuilder {
     }
 
     const hasConnections = Array.from(sentinelStartNode.outgoingEdges.values()).some((edge) =>
-      nodes.includes(extractBaseBlockId(edge.target))
+      nodes.includes(normalizeNodeId(edge.target))
     )
 
     if (!hasConnections) {

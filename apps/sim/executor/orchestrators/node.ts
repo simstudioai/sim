@@ -276,7 +276,7 @@ export class NodeExecutionOrchestrator {
     ) {
       const loopId = node.metadata.loopId
       if (loopId) {
-        this.loopOrchestrator.clearLoopExecutionState(loopId)
+        this.loopOrchestrator.clearLoopExecutionState(loopId, ctx)
         this.loopOrchestrator.restoreLoopEdges(loopId)
       }
     }

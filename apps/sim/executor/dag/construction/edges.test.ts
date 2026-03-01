@@ -1102,4 +1102,237 @@ describe('EdgeConstructor', () => {
       })
     })
   })
+
+  describe('Nested loop wiring', () => {
+    it('should wire inner loop sentinels into outer loop sentinel chain', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+      const innerFunctionId = 'func-2'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [functionId, innerLoopId],
+        iterations: 5,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        functionId,
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [
+          createMockBlock(functionId),
+          createMockBlock(innerFunctionId),
+          createMockBlock(innerLoopId, 'loop'),
+        ],
+        [{ source: functionId, target: innerLoopId }],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([functionId, innerLoopId, innerFunctionId]),
+        new Set([
+          functionId,
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const outerStartTargets = Array.from(outerStartNode.outgoingEdges.values()).map(
+        (e) => e.target
+      )
+      expect(outerStartTargets).toContain(functionId)
+
+      const funcNode = dag.nodes.get(functionId)!
+      const funcTargets = Array.from(funcNode.outgoingEdges.values()).map((e) => e.target)
+      expect(funcTargets).toContain(innerSentinelStart)
+
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const innerEndEdges = Array.from(innerEndNode.outgoingEdges.values())
+      const exitEdge = innerEndEdges.find((e) => e.target === outerSentinelEnd)
+      expect(exitEdge).toBeDefined()
+      expect(exitEdge!.sourceHandle).toBe('loop_exit')
+
+      const backEdge = innerEndEdges.find((e) => e.target === innerSentinelStart)
+      expect(backEdge).toBeDefined()
+      expect(backEdge!.sourceHandle).toBe('loop_continue')
+
+      const outerEndNode = dag.nodes.get(outerSentinelEnd)!
+      const outerBackEdge = Array.from(outerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelStart
+      )
+      expect(outerBackEdge).toBeDefined()
+      expect(outerBackEdge!.sourceHandle).toBe('loop_continue')
+    })
+
+    it('should correctly identify boundary nodes when inner loop is the only node', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const innerFunctionId = 'func-inner'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [innerLoopId],
+        iterations: 2,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(innerFunctionId), createMockBlock(innerLoopId, 'loop')],
+        [],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([innerLoopId, innerFunctionId]),
+        new Set([
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const outerStartTargets = Array.from(outerStartNode.outgoingEdges.values()).map(
+        (e) => e.target
+      )
+      expect(outerStartTargets).toContain(innerSentinelStart)
+
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const exitEdge = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelEnd
+      )
+      expect(exitEdge).toBeDefined()
+      expect(exitEdge!.sourceHandle).toBe('loop_exit')
+    })
+
+    it('should not drop intra-loop edges when target is a nested loop block', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+      const innerFunctionId = 'func-2'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [functionId, innerLoopId],
+        iterations: 5,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        functionId,
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [
+          createMockBlock(functionId),
+          createMockBlock(innerFunctionId),
+          createMockBlock(innerLoopId, 'loop'),
+        ],
+        [{ source: functionId, target: innerLoopId }],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([functionId, innerLoopId, innerFunctionId]),
+        new Set([
+          functionId,
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const funcNode = dag.nodes.get(functionId)!
+      const edgeToInnerStart = Array.from(funcNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(edgeToInnerStart).toBeDefined()
+
+      const innerStartNode = dag.nodes.get(innerSentinelStart)!
+      expect(innerStartNode.incomingEdges.has(functionId)).toBe(true)
+    })
+  })
 })

@@ -327,22 +327,60 @@ export class LoopOrchestrator {
     return result
   }
 
-  clearLoopExecutionState(loopId: string): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
-    if (!loopConfig) {
-      logger.warn('Loop config not found for state clearing', { loopId })
-      return
+  clearLoopExecutionState(loopId: string, ctx?: ExecutionContext): void {
+    const allNodeIds = this.collectAllLoopNodeIds(loopId)
+
+    for (const nodeId of allNodeIds) {
+      this.state.unmarkExecuted(nodeId)
     }
+
+    if (ctx) {
+      this.resetNestedLoopScopes(loopId, ctx)
+    }
+  }
+
+  /**
+   * Deletes loop scopes for any nested loops so they re-initialize
+   * on the next outer iteration.
+   */
+  private resetNestedLoopScopes(loopId: string, ctx: ExecutionContext): void {
+    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    if (!loopConfig) return
+
+    for (const nodeId of loopConfig.nodes) {
+      if (this.dag.loopConfigs.has(nodeId)) {
+        ctx.loopExecutions?.delete(nodeId)
+        this.resetNestedLoopScopes(nodeId, ctx)
+      }
+    }
+  }
+
+  /**
+   * Collects all effective DAG node IDs for a loop, recursively including
+   * sentinel IDs for any nested loop blocks.
+   *
+   * NOTE: This currently handles loop-in-loop nesting only.
+   * Parallel-in-loop and parallel-in-parallel nesting is not yet supported.
+   */
+  private collectAllLoopNodeIds(loopId: string): Set<string> {
+    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    if (!loopConfig) return new Set()
 
     const sentinelStartId = buildSentinelStartId(loopId)
     const sentinelEndId = buildSentinelEndId(loopId)
-    const loopNodes = loopConfig.nodes
+    const result = new Set([sentinelStartId, sentinelEndId])
 
-    this.state.unmarkExecuted(sentinelStartId)
-    this.state.unmarkExecuted(sentinelEndId)
-    for (const loopNodeId of loopNodes) {
-      this.state.unmarkExecuted(loopNodeId)
+    for (const nodeId of loopConfig.nodes) {
+      if (this.dag.loopConfigs.has(nodeId)) {
+        for (const id of this.collectAllLoopNodeIds(nodeId)) {
+          result.add(id)
+        }
+      } else {
+        result.add(nodeId)
+      }
     }
+
+    return result
   }
 
   restoreLoopEdges(loopId: string): void {
@@ -352,10 +390,7 @@ export class LoopOrchestrator {
       return
     }
 
-    const sentinelStartId = buildSentinelStartId(loopId)
-    const sentinelEndId = buildSentinelEndId(loopId)
-    const loopNodes = loopConfig.nodes
-    const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
+    const allLoopNodeIds = this.collectAllLoopNodeIds(loopId)
 
     if (this.edgeManager) {
       this.edgeManager.clearDeactivatedEdgesForNodes(allLoopNodeIds)

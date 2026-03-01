@@ -5,7 +5,7 @@ import {
   isRouterBlockType,
   isRouterV2BlockType,
 } from '@/executor/constants'
-import type { DAG } from '@/executor/dag/builder'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildBranchNodeId,
   buildParallelSentinelEndId,
@@ -258,11 +258,12 @@ export class EdgeConstructor {
         target = sentinelStartId
       }
 
-      if (this.edgeCrossesLoopBoundary(source, target, blocksInLoops, dag)) {
+      if (this.edgeCrossesLoopBoundary(originalSource, originalTarget, blocksInLoops, dag)) {
         continue
       }
 
-      if (loopSentinelStartId && !blocksInLoops.has(originalTarget)) {
+      const sourceLoopNodes = dag.loopConfigs.get(originalSource)?.nodes
+      if (loopSentinelStartId && !sourceLoopNodes?.includes(originalTarget)) {
         this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
       }
 
@@ -304,11 +305,17 @@ export class EdgeConstructor {
       const { startNodes, terminalNodes } = this.findLoopBoundaryNodes(nodes, dag, reachableBlocks)
 
       for (const startNodeId of startNodes) {
-        this.addEdge(dag, sentinelStartId, startNodeId)
+        const resolvedId = this.resolveLoopBlockToSentinelStart(startNodeId, dag)
+        this.addEdge(dag, sentinelStartId, resolvedId)
       }
 
       for (const terminalNodeId of terminalNodes) {
-        this.addEdge(dag, terminalNodeId, sentinelEndId)
+        const resolvedId = this.resolveLoopBlockToSentinelEnd(terminalNodeId, dag)
+        if (resolvedId !== terminalNodeId) {
+          this.addEdge(dag, resolvedId, sentinelEndId, EDGE.LOOP_EXIT)
+        } else {
+          this.addEdge(dag, resolvedId, sentinelEndId)
+        }
       }
 
       this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.LOOP_CONTINUE, undefined, true)
@@ -406,24 +413,75 @@ export class EdgeConstructor {
     this.addEdge(dag, sourceNodeId, targetNodeId, sourceHandle, targetHandle)
   }
 
+  /**
+   * Resolves the DAG node to inspect for a given loop child.
+   * If the child is a nested loop block, returns its sentinel start node;
+   * otherwise returns the regular DAG node.
+   *
+   * NOTE: This currently handles loop-in-loop nesting only.
+   * Parallel-in-loop and parallel-in-parallel nesting is not yet supported.
+   */
+  private resolveLoopChildNode(
+    nodeId: string,
+    dag: DAG,
+    sentinel: 'start' | 'end'
+  ): { resolvedId: string; node: DAGNode | undefined } {
+    if (dag.loopConfigs.has(nodeId)) {
+      const resolvedId =
+        sentinel === 'start' ? buildSentinelStartId(nodeId) : buildSentinelEndId(nodeId)
+      return { resolvedId, node: dag.nodes.get(resolvedId) }
+    }
+    return { resolvedId: nodeId, node: dag.nodes.get(nodeId) }
+  }
+
+  private resolveLoopBlockToSentinelStart(nodeId: string, dag: DAG): string {
+    if (dag.loopConfigs.has(nodeId)) {
+      return buildSentinelStartId(nodeId)
+    }
+    return nodeId
+  }
+
+  private resolveLoopBlockToSentinelEnd(nodeId: string, dag: DAG): string {
+    if (dag.loopConfigs.has(nodeId)) {
+      return buildSentinelEndId(nodeId)
+    }
+    return nodeId
+  }
+
+  /**
+   * Builds the set of effective DAG node IDs for a loop's children,
+   * mapping nested loop block IDs to their sentinel IDs.
+   */
+  private buildEffectiveNodeSet(nodes: string[], dag: DAG): Set<string> {
+    const effective = new Set<string>()
+    for (const nodeId of nodes) {
+      if (dag.loopConfigs.has(nodeId)) {
+        effective.add(buildSentinelStartId(nodeId))
+        effective.add(buildSentinelEndId(nodeId))
+      } else {
+        effective.add(nodeId)
+      }
+    }
+    return effective
+  }
+
   private findLoopBoundaryNodes(
     nodes: string[],
     dag: DAG,
-    reachableBlocks: Set<string>
+    _reachableBlocks: Set<string>
   ): { startNodes: string[]; terminalNodes: string[] } {
-    const nodesSet = new Set(nodes)
+    const effectiveNodeSet = this.buildEffectiveNodeSet(nodes, dag)
     const startNodesSet = new Set<string>()
     const terminalNodesSet = new Set<string>()
 
     for (const nodeId of nodes) {
-      const node = dag.nodes.get(nodeId)
+      const { node } = this.resolveLoopChildNode(nodeId, dag, 'start')
 
       if (!node) continue
 
       let hasIncomingFromLoop = false
-
       for (const incomingNodeId of node.incomingEdges) {
-        if (nodesSet.has(incomingNodeId)) {
+        if (effectiveNodeSet.has(incomingNodeId)) {
           hasIncomingFromLoop = true
           break
         }
@@ -435,14 +493,17 @@ export class EdgeConstructor {
     }
 
     for (const nodeId of nodes) {
-      const node = dag.nodes.get(nodeId)
+      const { node } = this.resolveLoopChildNode(nodeId, dag, 'end')
 
       if (!node) continue
 
       let hasOutgoingToLoop = false
+      for (const [, edge] of node.outgoingEdges) {
+        const isBackEdge =
+          edge.sourceHandle === EDGE.LOOP_CONTINUE || edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
+        if (isBackEdge) continue
 
-      for (const [_, edge] of node.outgoingEdges) {
-        if (nodesSet.has(edge.target)) {
+        if (effectiveNodeSet.has(edge.target)) {
           hasOutgoingToLoop = true
           break
         }
