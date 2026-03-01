@@ -28,7 +28,6 @@ const APIPage = createAPIPage(openapi, {
           <div className='min-w-0 flex-1'>
             {slots.header}
             {slots.apiPlayground}
-            {slots.description}
             {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
             {slots.paremeters}
             {slots.body && <div className='api-section-divider'>{slots.body}</div>}
@@ -85,7 +84,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     let currentPath = ''
 
     urlParts.forEach((part, index) => {
-      if (index === 0 && ['en', 'es', 'fr', 'de', 'ja', 'zh'].includes(part)) {
+      if (index === 0 && SUPPORTED_LANGUAGES.has(part)) {
         currentPath = `/${part}`
         return
       }

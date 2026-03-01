@@ -53,14 +53,14 @@ export function Navbar() {
               Documentation
             </Link>
             <Link
-              href='/api-reference/authentication'
+              href='/api-reference/getting-started'
               className={cn(
                 'rounded-xl px-3 py-2 font-normal text-[0.9375rem] leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground',
                 isApiReference ? 'text-foreground' : 'text-foreground/60'
               )}
               style={navLinkStyle}
             >
-              API Reference
+              API
             </Link>
             <Link
               href='https://sim.ai'

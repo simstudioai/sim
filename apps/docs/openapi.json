@@ -29,6 +29,14 @@
         "summary": "Execute Workflow",
         "description": "Execute a deployed workflow. Supports synchronous, asynchronous, and streaming modes. For async execution, the response includes a statusUrl you can poll for results.",
         "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/workflows/{id}/execute\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"input\": {\n      \"key\": \"value\"\n    }\n  }'"
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -112,6 +120,14 @@
         "summary": "Cancel Execution",
         "description": "Cancel a running workflow execution. Only effective for executions that are still in progress.",
         "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/workflows/{id}/executions/{executionId}/cancel\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -170,6 +186,14 @@
         "summary": "List Workflows",
         "description": "Retrieve all workflows in a workspace with cursor-based pagination.",
         "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/workflows?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -261,6 +285,14 @@
         "summary": "Get Workflow",
         "description": "Retrieve details for a single workflow, including its input fields and deployment status.",
         "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/workflows/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -311,6 +343,14 @@
         "summary": "Get Job Status",
         "description": "Poll the status of an asynchronous workflow execution. Use the jobId returned from the Execute Workflow endpoint when the execution is queued asynchronously.",
         "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/jobs/{jobId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "jobId",
@@ -352,6 +392,14 @@
         "summary": "Query Logs",
         "description": "List workflow execution logs with advanced filtering and cursor-based pagination. Supports filtering by workflow, trigger type, date range, duration, cost, and more.",
         "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -555,6 +603,14 @@
         "summary": "Get Log Details",
         "description": "Retrieve detailed information about a specific log entry, including workflow metadata, execution data, and cost breakdown.",
         "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -605,6 +661,14 @@
         "summary": "Get Execution Details",
         "description": "Retrieve the full execution state snapshot, including the workflow state at time of execution and detailed metadata.",
         "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs/executions/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "executionId",
@@ -712,6 +776,14 @@
         "summary": "List Audit Logs",
         "description": "Retrieve audit logs for your organization with cursor-based pagination. Requires an Enterprise subscription and organization admin or owner role.",
         "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/audit-logs?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "action",
@@ -847,6 +919,14 @@
         "summary": "Get Audit Log Details",
         "description": "Retrieve a single audit log entry by ID. Requires an Enterprise subscription and organization admin or owner role.",
         "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/audit-logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -900,7 +980,14 @@
         "summary": "Get Usage Limits",
         "description": "Retrieve your current rate limits, usage spending, and storage consumption for the billing period.",
         "tags": ["Usage"],
-        "parameters": [],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/users/me/usage-limits\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
         "responses": {
           "200": {
             "description": "Current rate limits, usage, and storage information.",

@@ -92,7 +92,6 @@ html {
 [data-sidebar-container],
 #nd-sidebar {
   background: transparent !important;
-  background-color: transparent !important;
   border: none !important;
   --color-fd-muted: transparent !important;
   --color-fd-card: transparent !important;
@@ -102,9 +101,7 @@ html {
 aside[data-sidebar],
 aside#nd-sidebar {
   background: transparent !important;
-  background-color: transparent !important;
   border: none !important;
-  border-right: none !important;
 }
 
 /* Fumadocs v16: Add sidebar placeholder styling for grid area */
@@ -440,10 +437,6 @@ aside[data-sidebar],
 #nd-sidebar,
 #nd-sidebar * {
   border: none !important;
-  border-right: none !important;
-  border-left: none !important;
-  border-top: none !important;
-  border-bottom: none !important;
 }
 
 /* Override fumadocs background colors for sidebar */
@@ -453,7 +446,6 @@ aside[data-sidebar],
   --color-fd-muted: transparent !important;
   --color-fd-secondary: transparent !important;
   background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* Force normal text flow in sidebar */
@@ -582,9 +574,7 @@ video {
   border-style: solid !important;
 }
 
-/* ============================================================
-   API Reference Pages — Mintlify-style overrides
-   ============================================================ */
+/* API Reference Pages — Mintlify-style overrides */
 
 /* OpenAPI pages: span main + TOC grid columns for wide two-column layout.
    The grid has columns: spacer | sidebar | main | toc | spacer.
@@ -677,6 +667,8 @@ html.dark #nd-page span.font-mono.font-medium[class*="text-red"] {
 #nd-sidebar a span.font-mono.font-medium {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
   font-size: 10px !important;
   line-height: 1 !important;
   padding: 2.5px 4px;
@@ -1004,8 +996,8 @@ html.dark .response-section-dropdown-item:hover {
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
-  background-color: rgb(235 235 238);
-  color: rgb(90 90 99);
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1026,14 +1018,14 @@ html.dark
   display: none;
 }
 
-/* Required badge — order 3, added as ::after on the flex row when it contains a required field */
+/* Required badge — order 3, light red pill */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 226 226);
+  background-color: rgb(254 235 235);
   color: rgb(220 38 38);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
@@ -1045,7 +1037,7 @@ html.dark
 html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
-  background-color: rgb(127 29 29 / 0.3);
+  background-color: rgb(127 29 29 / 0.2);
   color: rgb(252 165 165);
 }
 
@@ -1090,8 +1082,8 @@ html.dark
   line-height: 1.25rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: rgb(235 235 238);
-  color: rgb(90 90 99);
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
   display: inline-flex;
@@ -1112,8 +1104,8 @@ html.dark
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(235 235 238);
-  color: rgb(90 90 99);
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1129,13 +1121,13 @@ html.dark
   color: rgb(212 212 216);
 }
 
-/* "required" badge via ::after on the auth flex row */
+/* "required" badge via ::after on the auth flex row — light red pill */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 226 226);
+  background-color: rgb(254 235 235);
   color: rgb(220 38 38);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
@@ -1148,7 +1140,7 @@ html.dark
   #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose::after {
-  background-color: rgb(127 29 29 / 0.3);
+  background-color: rgb(127 29 29 / 0.2);
   color: rgb(252 165 165);
 }
 
@@ -1201,8 +1193,8 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
-  background-color: rgb(235 235 238);
-  color: rgb(90 90 99);
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
   padding: 0.125rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
