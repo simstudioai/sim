@@ -226,15 +226,6 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_incident' },
       mode: 'advanced',
     },
-    {
-      id: 'resolution',
-      title: 'Resolution Note',
-      type: 'long-input',
-      placeholder: 'Resolution note (when resolving)',
-      condition: { field: 'operation', value: 'update_incident' },
-      mode: 'advanced',
-    },
-
     // --- Add Note fields ---
     {
       id: 'noteIncidentId',
@@ -407,7 +398,6 @@ export const PagerDutyBlock: BlockConfig = {
     updateTitle: { type: 'string', description: 'New incident title' },
     updateUrgency: { type: 'string', description: 'New urgency level' },
     updateEscalationLevel: { type: 'string', description: 'Escalation level number' },
-    resolution: { type: 'string', description: 'Resolution note' },
     listSortBy: { type: 'string', description: 'Sort field' },
     listLimit: { type: 'string', description: 'Max results for incidents' },
     serviceQuery: { type: 'string', description: 'Service name filter' },

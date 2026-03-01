@@ -56,12 +56,6 @@ export const updateIncidentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Escalation level to escalate to',
     },
-    resolution: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Resolution note (when resolving)',
-    },
   },
 
   request: {
@@ -85,8 +79,6 @@ export const updateIncidentTool: ToolConfig<
       if (params.escalationLevel) {
         incident.escalation_level = Number(params.escalationLevel)
       }
-      if (params.resolution) incident.resolution = params.resolution
-
       return { incident }
     },
   },

@@ -83,7 +83,6 @@ export interface PagerDutyUpdateIncidentParams extends PagerDutyWriteParams {
   title?: string
   urgency?: string
   escalationLevel?: string
-  resolution?: string
 }
 
 export interface PagerDutyUpdateIncidentResponse extends ToolResponse {
