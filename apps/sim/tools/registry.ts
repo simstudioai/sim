@@ -42,6 +42,19 @@ import {
   algoliaSearchTool,
   algoliaUpdateSettingsTool,
 } from '@/tools/algolia'
+import {
+  amplitudeEventSegmentationTool,
+  amplitudeGetActiveUsersTool,
+  amplitudeGetRevenueTool,
+  amplitudeGroupIdentifyTool,
+  amplitudeIdentifyUserTool,
+  amplitudeListEventsTool,
+  amplitudeRealtimeActiveUsersTool,
+  amplitudeSendEventTool,
+  amplitudeUserActivityTool,
+  amplitudeUserProfileTool,
+  amplitudeUserSearchTool,
+} from '@/tools/amplitude'
 import { apifyRunActorAsyncTool, apifyRunActorSyncTool } from '@/tools/apify'
 import {
   apolloAccountBulkCreateTool,
@@ -786,6 +799,7 @@ import {
   googleMapsTimezoneTool,
   googleMapsValidateAddressTool,
 } from '@/tools/google_maps'
+import { googlePagespeedAnalyzeTool } from '@/tools/google_pagespeed'
 import {
   googleSheetsAppendTool,
   googleSheetsAppendV2Tool,
@@ -1444,6 +1458,14 @@ import {
   outlookReadTool,
   outlookSendTool,
 } from '@/tools/outlook'
+import {
+  pagerdutyAddNoteTool,
+  pagerdutyCreateIncidentTool,
+  pagerdutyListIncidentsTool,
+  pagerdutyListOncallsTool,
+  pagerdutyListServicesTool,
+  pagerdutyUpdateIncidentTool,
+} from '@/tools/pagerduty'
 import { parallelDeepResearchTool, parallelExtractTool, parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
@@ -2248,6 +2270,17 @@ export const tools: Record<string, ToolConfig> = {
   a2a_send_message: a2aSendMessageTool,
   a2a_set_push_notification: a2aSetPushNotificationTool,
   airweave_search: airweaveSearchTool,
+  amplitude_send_event: amplitudeSendEventTool,
+  amplitude_identify_user: amplitudeIdentifyUserTool,
+  amplitude_group_identify: amplitudeGroupIdentifyTool,
+  amplitude_user_search: amplitudeUserSearchTool,
+  amplitude_user_activity: amplitudeUserActivityTool,
+  amplitude_user_profile: amplitudeUserProfileTool,
+  amplitude_event_segmentation: amplitudeEventSegmentationTool,
+  amplitude_get_active_users: amplitudeGetActiveUsersTool,
+  amplitude_realtime_active_users: amplitudeRealtimeActiveUsersTool,
+  amplitude_list_events: amplitudeListEventsTool,
+  amplitude_get_revenue: amplitudeGetRevenueTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_search: arxivSearchTool,
@@ -3163,6 +3196,7 @@ export const tools: Record<string, ToolConfig> = {
   google_maps_speed_limits: googleMapsSpeedLimitsTool,
   google_maps_timezone: googleMapsTimezoneTool,
   google_maps_validate_address: googleMapsValidateAddressTool,
+  google_pagespeed_analyze: googlePagespeedAnalyzeTool,
   google_tasks_create: googleTasksCreateTool,
   google_tasks_delete: googleTasksDeleteTool,
   google_tasks_get: googleTasksGetTool,
@@ -3637,6 +3671,12 @@ export const tools: Record<string, ToolConfig> = {
   outlook_mark_unread: outlookMarkUnreadTool,
   outlook_delete: outlookDeleteTool,
   outlook_copy: outlookCopyTool,
+  pagerduty_list_incidents: pagerdutyListIncidentsTool,
+  pagerduty_create_incident: pagerdutyCreateIncidentTool,
+  pagerduty_update_incident: pagerdutyUpdateIncidentTool,
+  pagerduty_add_note: pagerdutyAddNoteTool,
+  pagerduty_list_services: pagerdutyListServicesTool,
+  pagerduty_list_oncalls: pagerdutyListOncallsTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   linear_get_issue: linearGetIssueTool,

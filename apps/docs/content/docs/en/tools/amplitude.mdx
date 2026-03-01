@@ -1,0 +1,313 @@
+---
+title: Amplitude
+description: Track events and query analytics from Amplitude
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="amplitude"
+  color="#1B1F3B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amplitude](https://amplitude.com/) is a leading digital analytics platform that helps teams understand user behavior, measure product performance, and make data-driven decisions at scale.
+
+The Amplitude integration in Sim connects with the Amplitude HTTP and Dashboard REST APIs using API key and secret key authentication, allowing your agents to track events, manage user properties, and query analytics data programmatically. This API-based approach ensures secure access to Amplitude's full suite of analytics capabilities.
+
+With the Amplitude integration, your agents can:
+
+- **Track events**: Send custom events to Amplitude with rich properties, revenue data, and user context directly from your workflows
+- **Identify users**: Set and update user properties using operations like $set, $setOnce, $add, $append, and $unset to maintain detailed user profiles
+- **Search for users**: Look up users by User ID, Device ID, or Amplitude ID to retrieve profile information and metadata
+- **Query event analytics**: Run event segmentation queries with grouping, custom metrics (uniques, totals, averages, DAU percentages), and flexible date ranges
+- **Monitor user activity**: Retrieve event streams for specific users to understand individual user journeys and behavior patterns
+- **Analyze active users**: Get active or new user counts over time with daily, weekly, or monthly granularity
+- **Track revenue**: Access revenue LTV metrics including ARPU, ARPPU, total revenue, and paying user counts
+
+In Sim, the Amplitude integration enables powerful analytics automation scenarios. Your agents can track product events in real time based on workflow triggers, enrich user profiles as new data becomes available, query segmentation data to inform downstream decisions, or build monitoring workflows that alert on changes in key metrics. By connecting Sim with Amplitude, you can build intelligent agents that bridge the gap between analytics insights and automated action, enabling data-driven workflows that respond to user behavior patterns and product performance trends.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.
+
+
+
+## Tools
+
+### `amplitude_send_event`
+
+Track an event in Amplitude using the HTTP V2 API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `userId` | string | No | User ID \(required if no device_id\) |
+| `deviceId` | string | No | Device ID \(required if no user_id\) |
+| `eventType` | string | Yes | Name of the event \(e.g., "page_view", "purchase"\) |
+| `eventProperties` | string | No | JSON object of custom event properties |
+| `userProperties` | string | No | JSON object of user properties to set \(supports $set, $setOnce, $add, $append, $unset\) |
+| `time` | string | No | Event timestamp in milliseconds since epoch |
+| `sessionId` | string | No | Session start time in milliseconds since epoch |
+| `insertId` | string | No | Unique ID for deduplication \(within 7-day window\) |
+| `appVersion` | string | No | Application version string |
+| `platform` | string | No | Platform \(e.g., "Web", "iOS", "Android"\) |
+| `country` | string | No | Two-letter country code |
+| `language` | string | No | Language code \(e.g., "en"\) |
+| `ip` | string | No | IP address for geo-location |
+| `price` | string | No | Price of the item purchased |
+| `quantity` | string | No | Quantity of items purchased |
+| `revenue` | string | No | Revenue amount |
+| `productId` | string | No | Product identifier |
+| `revenueType` | string | No | Revenue type \(e.g., "purchase", "refund"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | Response code \(200 for success\) |
+| `eventsIngested` | number | Number of events ingested |
+| `payloadSizeBytes` | number | Size of the payload in bytes |
+| `serverUploadTime` | number | Server upload timestamp |
+
+### `amplitude_identify_user`
+
+Set user properties in Amplitude using the Identify API. Supports $set, $setOnce, $add, $append, $unset operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `userId` | string | No | User ID \(required if no device_id\) |
+| `deviceId` | string | No | Device ID \(required if no user_id\) |
+| `userProperties` | string | Yes | JSON object of user properties. Use operations like $set, $setOnce, $add, $append, $unset. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | HTTP response status code |
+| `message` | string | Response message |
+
+### `amplitude_group_identify`
+
+Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append, $unset operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `groupType` | string | Yes | Group classification \(e.g., "company", "org_id"\) |
+| `groupValue` | string | Yes | Specific group identifier \(e.g., "Acme Corp"\) |
+| `groupProperties` | string | Yes | JSON object of group properties. Use operations like $set, $setOnce, $add, $append, $unset. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | HTTP response status code |
+| `message` | string | Response message |
+
+### `amplitude_user_search`
+
+Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard REST API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `user` | string | Yes | User ID, Device ID, or Amplitude ID to search for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | List of matching users |
+|   ↳ `amplitudeId` | number | Amplitude internal user ID |
+|   ↳ `userId` | string | External user ID |
+| `type` | string | Match type \(e.g., match_user_or_device_id\) |
+
+### `amplitude_user_activity`
+
+Get the event stream for a specific user by their Amplitude ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `amplitudeId` | string | Yes | Amplitude internal user ID |
+| `offset` | string | No | Offset for pagination \(default 0\) |
+| `limit` | string | No | Maximum number of events to return \(default 1000, max 1000\) |
+| `direction` | string | No | Sort direction: "latest" or "earliest" \(default: latest\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of user events |
+|   ↳ `eventType` | string | Type of event |
+|   ↳ `eventTime` | string | Event timestamp |
+|   ↳ `eventProperties` | json | Custom event properties |
+|   ↳ `userProperties` | json | User properties at event time |
+|   ↳ `sessionId` | number | Session ID |
+|   ↳ `platform` | string | Platform |
+|   ↳ `country` | string | Country |
+|   ↳ `city` | string | City |
+| `userData` | json | User metadata |
+|   ↳ `userId` | string | External user ID |
+|   ↳ `canonicalAmplitudeId` | number | Canonical Amplitude ID |
+|   ↳ `numEvents` | number | Total event count |
+|   ↳ `numSessions` | number | Total session count |
+|   ↳ `platform` | string | Primary platform |
+|   ↳ `country` | string | Country |
+
+### `amplitude_user_profile`
+
+Get a user profile including properties, cohort memberships, and computed properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `userId` | string | No | External user ID \(required if no device_id\) |
+| `deviceId` | string | No | Device ID \(required if no user_id\) |
+| `getAmpProps` | string | No | Include Amplitude user properties \(true/false, default: false\) |
+| `getCohortIds` | string | No | Include cohort IDs the user belongs to \(true/false, default: false\) |
+| `getComputations` | string | No | Include computed user properties \(true/false, default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | External user ID |
+| `deviceId` | string | Device ID |
+| `ampProps` | json | Amplitude user properties \(library, first_used, last_used, custom properties\) |
+| `cohortIds` | array | List of cohort IDs the user belongs to |
+| `computations` | json | Computed user properties |
+
+### `amplitude_event_segmentation`
+
+Query event analytics data with segmentation. Get event counts, uniques, averages, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `eventType` | string | Yes | Event type name to analyze |
+| `start` | string | Yes | Start date in YYYYMMDD format |
+| `end` | string | Yes | End date in YYYYMMDD format |
+| `metric` | string | No | Metric type: uniques, totals, pct_dau, average, histogram, sums, value_avg, or formula \(default: uniques\) |
+| `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `groupBy` | string | No | Property name to group by \(prefix custom user properties with "gp:"\) |
+| `limit` | string | No | Maximum number of group-by values \(max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Time-series data arrays indexed by series |
+| `seriesLabels` | array | Labels for each data series |
+| `seriesCollapsed` | json | Collapsed aggregate totals per series |
+| `xValues` | array | Date values for the x-axis |
+
+### `amplitude_get_active_users`
+
+Get active or new user counts over a date range from the Dashboard REST API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `start` | string | Yes | Start date in YYYYMMDD format |
+| `end` | string | Yes | End date in YYYYMMDD format |
+| `metric` | string | No | Metric type: "active" or "new" \(default: active\) |
+| `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Array of data series with user counts per time interval |
+| `seriesMeta` | array | Metadata labels for each data series \(e.g., segment names\) |
+| `xValues` | array | Date values for the x-axis |
+
+### `amplitude_realtime_active_users`
+
+Get real-time active user counts at 5-minute granularity for the last 2 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Array of data series with active user counts at 5-minute intervals |
+| `seriesLabels` | array | Labels for each series \(e.g., "Today", "Yesterday"\) |
+| `xValues` | array | Time values for the x-axis \(e.g., "15:00", "15:05"\) |
+
+### `amplitude_list_events`
+
+List all event types in the Amplitude project with their weekly totals and unique counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of event types in the project |
+|   ↳ `value` | string | Event type name |
+|   ↳ `displayName` | string | Event display name |
+|   ↳ `totals` | number | Weekly total count |
+|   ↳ `hidden` | boolean | Whether the event is hidden |
+|   ↳ `deleted` | boolean | Whether the event is deleted |
+
+### `amplitude_get_revenue`
+
+Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Amplitude API Key |
+| `secretKey` | string | Yes | Amplitude Secret Key |
+| `start` | string | Yes | Start date in YYYYMMDD format |
+| `end` | string | Yes | End date in YYYYMMDD format |
+| `metric` | string | No | Metric: 0 \(ARPU\), 1 \(ARPPU\), 2 \(Total Revenue\), 3 \(Paying Users\) |
+| `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Array of revenue data series |
+| `seriesLabels` | array | Labels for each data series |
+| `xValues` | array | Date values for the x-axis |
+
+
