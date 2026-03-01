@@ -116,8 +116,22 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
 
     outputs: {
       oncalls: {
-        type: 'json',
+        type: 'array',
         description: 'Array of on-call entries',
+        items: {
+          type: 'object',
+          properties: {
+            userName: { type: 'string', description: 'On-call user name' },
+            userId: { type: 'string', description: 'On-call user ID' },
+            escalationLevel: { type: 'number', description: 'Escalation level' },
+            escalationPolicyName: { type: 'string', description: 'Escalation policy name' },
+            escalationPolicyId: { type: 'string', description: 'Escalation policy ID' },
+            scheduleName: { type: 'string', description: 'Schedule name' },
+            scheduleId: { type: 'string', description: 'Schedule ID' },
+            start: { type: 'string', description: 'On-call start time' },
+            end: { type: 'string', description: 'On-call end time' },
+          },
+        },
       },
       total: {
         type: 'number',

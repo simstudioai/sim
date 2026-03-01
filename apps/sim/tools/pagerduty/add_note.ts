@@ -35,7 +35,7 @@ export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteRes
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId}/notes`,
+    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId.trim()}/notes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

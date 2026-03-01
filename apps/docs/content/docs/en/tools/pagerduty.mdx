@@ -56,7 +56,20 @@ List incidents from PagerDuty with optional filters.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `incidents` | json | Array of incidents |
+| `incidents` | array | Array of incidents |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `incidentNumber` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status |
+|   ↳ `urgency` | string | Incident urgency |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `serviceName` | string | Service name |
+|   ↳ `serviceId` | string | Service ID |
+|   ↳ `assigneeName` | string | Assignee name |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `htmlUrl` | string | PagerDuty web URL |
 | `total` | number | Total number of matching incidents |
 | `more` | boolean | Whether more results are available |
 
@@ -158,7 +171,15 @@ List services from PagerDuty with optional name filter.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `services` | json | Array of services |
+| `services` | array | Array of services |
+|   ↳ `id` | string | Service ID |
+|   ↳ `name` | string | Service name |
+|   ↳ `description` | string | Service description |
+|   ↳ `status` | string | Service status |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `escalationPolicyId` | string | Escalation policy ID |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `htmlUrl` | string | PagerDuty web URL |
 | `total` | number | Total number of matching services |
 | `more` | boolean | Whether more results are available |
 
@@ -181,7 +202,16 @@ List current on-call entries from PagerDuty.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `oncalls` | json | Array of on-call entries |
+| `oncalls` | array | Array of on-call entries |
+|   ↳ `userName` | string | On-call user name |
+|   ↳ `userId` | string | On-call user ID |
+|   ↳ `escalationLevel` | number | Escalation level |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `escalationPolicyId` | string | Escalation policy ID |
+|   ↳ `scheduleName` | string | Schedule name |
+|   ↳ `scheduleId` | string | Schedule ID |
+|   ↳ `start` | string | On-call start time |
+|   ↳ `end` | string | On-call end time |
 | `total` | number | Total number of matching on-call entries |
 | `more` | boolean | Whether more results are available |
 

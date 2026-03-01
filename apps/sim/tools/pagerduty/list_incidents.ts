@@ -128,8 +128,26 @@ export const listIncidentsTool: ToolConfig<
 
   outputs: {
     incidents: {
-      type: 'json',
+      type: 'array',
       description: 'Array of incidents',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Incident ID' },
+          incidentNumber: { type: 'number', description: 'Incident number' },
+          title: { type: 'string', description: 'Incident title' },
+          status: { type: 'string', description: 'Incident status' },
+          urgency: { type: 'string', description: 'Incident urgency' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          updatedAt: { type: 'string', description: 'Last updated timestamp' },
+          serviceName: { type: 'string', description: 'Service name' },
+          serviceId: { type: 'string', description: 'Service ID' },
+          assigneeName: { type: 'string', description: 'Assignee name' },
+          assigneeId: { type: 'string', description: 'Assignee ID' },
+          escalationPolicyName: { type: 'string', description: 'Escalation policy name' },
+          htmlUrl: { type: 'string', description: 'PagerDuty web URL' },
+        },
+      },
     },
     total: {
       type: 'number',

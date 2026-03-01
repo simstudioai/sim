@@ -84,7 +84,8 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        prompt:
+          'Generate an ISO 8601 timestamp. Return ONLY the timestamp string - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -97,7 +98,8 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        prompt:
+          'Generate an ISO 8601 timestamp. Return ONLY the timestamp string - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -217,6 +219,14 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'updateEscalationLevel',
+      title: 'Escalation Level',
+      type: 'short-input',
+      placeholder: 'Escalation level number (e.g., 2)',
+      condition: { field: 'operation', value: 'update_incident' },
+      mode: 'advanced',
+    },
+    {
       id: 'resolution',
       title: 'Resolution Note',
       type: 'long-input',
@@ -293,7 +303,8 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        prompt:
+          'Generate an ISO 8601 timestamp. Return ONLY the timestamp string - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -306,7 +317,8 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        prompt:
+          'Generate an ISO 8601 timestamp. Return ONLY the timestamp string - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -346,6 +358,7 @@ export const PagerDutyBlock: BlockConfig = {
             if (params.updateStatus) result.status = params.updateStatus
             if (params.updateTitle) result.title = params.updateTitle
             if (params.updateUrgency) result.urgency = params.updateUrgency
+            if (params.updateEscalationLevel) result.escalationLevel = params.updateEscalationLevel
             break
 
           case 'add_note':
@@ -393,6 +406,7 @@ export const PagerDutyBlock: BlockConfig = {
     assigneeId: { type: 'string', description: 'Assignee user ID' },
     updateTitle: { type: 'string', description: 'New incident title' },
     updateUrgency: { type: 'string', description: 'New urgency level' },
+    updateEscalationLevel: { type: 'string', description: 'Escalation level number' },
     resolution: { type: 'string', description: 'Resolution note' },
     listSortBy: { type: 'string', description: 'Sort field' },
     listLimit: { type: 'string', description: 'Max results for incidents' },

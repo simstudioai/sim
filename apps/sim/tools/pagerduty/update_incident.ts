@@ -65,7 +65,7 @@ export const updateIncidentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId}`,
+    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId.trim()}`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

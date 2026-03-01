@@ -80,8 +80,21 @@ export const listServicesTool: ToolConfig<
 
   outputs: {
     services: {
-      type: 'json',
+      type: 'array',
       description: 'Array of services',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Service ID' },
+          name: { type: 'string', description: 'Service name' },
+          description: { type: 'string', description: 'Service description' },
+          status: { type: 'string', description: 'Service status' },
+          escalationPolicyName: { type: 'string', description: 'Escalation policy name' },
+          escalationPolicyId: { type: 'string', description: 'Escalation policy ID' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          htmlUrl: { type: 'string', description: 'PagerDuty web URL' },
+        },
+      },
     },
     total: {
       type: 'number',
