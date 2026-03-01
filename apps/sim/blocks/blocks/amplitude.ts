@@ -719,7 +719,7 @@ export const AmplitudeBlock: BlockConfig = {
     },
     userData: {
       type: 'json',
-      description: 'User metadata (user_activity, user_profile)',
+      description: 'User metadata (user_activity)',
     },
     series: {
       type: 'json',
