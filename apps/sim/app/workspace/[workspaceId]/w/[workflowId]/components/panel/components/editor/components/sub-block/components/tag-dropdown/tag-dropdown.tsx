@@ -1167,21 +1167,44 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       {} as Record<string, { type: string; id: string }>
     )
 
-    let loopBlockGroup: BlockTagGroup | null = null
+    const loopBlockGroups: BlockTagGroup[] = []
+    const ancestorLoopIds = new Set<string>()
+
+    const findAncestorLoops = (targetId: string) => {
+      for (const [loopId, loop] of Object.entries(loops)) {
+        if (loop.nodes.includes(targetId) && !ancestorLoopIds.has(loopId)) {
+          ancestorLoopIds.add(loopId)
+          const loopBlock = blocks[loopId]
+          if (loopBlock) {
+            const loopType = loop.loopType || 'for'
+            const loopBlockName = loopBlock.name || loopBlock.type
+            const normalizedLoopName = normalizeName(loopBlockName)
+            const contextualTags: string[] = [`${normalizedLoopName}.index`]
+            if (loopType === 'forEach') {
+              contextualTags.push(`${normalizedLoopName}.currentItem`)
+              contextualTags.push(`${normalizedLoopName}.items`)
+            }
+            loopBlockGroups.push({
+              blockName: loopBlockName,
+              blockId: loopId,
+              blockType: 'loop',
+              tags: contextualTags,
+              distance: 0,
+              isContextual: true,
+            })
+          }
+          findAncestorLoops(loopId)
+        }
+      }
+    }
 
     const isLoopBlock = blocks[blockId]?.type === 'loop'
-    const currentLoop = isLoopBlock ? loops[blockId] : null
-
-    const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
-
-    let containingLoopBlockId: string | null = null
-
-    if (currentLoop && isLoopBlock) {
-      containingLoopBlockId = blockId
-      const loopType = currentLoop.loopType || 'for'
-
+    if (isLoopBlock && loops[blockId]) {
+      const loop = loops[blockId]
+      ancestorLoopIds.add(blockId)
       const loopBlock = blocks[blockId]
       if (loopBlock) {
+        const loopType = loop.loopType || 'for'
         const loopBlockName = loopBlock.name || loopBlock.type
         const normalizedLoopName = normalizeName(loopBlockName)
         const contextualTags: string[] = [`${normalizedLoopName}.index`]
@@ -1189,40 +1212,18 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           contextualTags.push(`${normalizedLoopName}.currentItem`)
           contextualTags.push(`${normalizedLoopName}.items`)
         }
-
-        loopBlockGroup = {
+        loopBlockGroups.push({
           blockName: loopBlockName,
           blockId: blockId,
           blockType: 'loop',
           tags: contextualTags,
           distance: 0,
           isContextual: true,
-        }
+        })
       }
-    } else if (containingLoop) {
-      const [loopId, loop] = containingLoop
-      containingLoopBlockId = loopId
-      const loopType = loop.loopType || 'for'
-
-      const containingLoopBlock = blocks[loopId]
-      if (containingLoopBlock) {
-        const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
-        const normalizedLoopName = normalizeName(loopBlockName)
-        const contextualTags: string[] = [`${normalizedLoopName}.index`]
-        if (loopType === 'forEach') {
-          contextualTags.push(`${normalizedLoopName}.currentItem`)
-          contextualTags.push(`${normalizedLoopName}.items`)
-        }
-
-        loopBlockGroup = {
-          blockName: loopBlockName,
-          blockId: loopId,
-          blockType: 'loop',
-          tags: contextualTags,
-          distance: 0,
-          isContextual: true,
-        }
-      }
+      findAncestorLoops(blockId)
+    } else {
+      findAncestorLoops(blockId)
     }
 
     let parallelBlockGroup: BlockTagGroup | null = null
@@ -1275,7 +1276,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!blockConfig) {
         if (accessibleBlock.type === 'loop' || accessibleBlock.type === 'parallel') {
           if (
-            accessibleBlockId === containingLoopBlockId ||
+            ancestorLoopIds.has(accessibleBlockId) ||
             accessibleBlockId === containingParallelBlockId
           ) {
             continue
@@ -1366,9 +1367,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
 
     const finalBlockTagGroups: BlockTagGroup[] = []
-    if (loopBlockGroup) {
-      finalBlockTagGroups.push(loopBlockGroup)
-    }
+    finalBlockTagGroups.push(...loopBlockGroups)
     if (parallelBlockGroup) {
       finalBlockTagGroups.push(parallelBlockGroup)
     }
@@ -1569,21 +1568,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
         if (variableObj) {
           processedTag = tag
-        }
-      } else if (
-        blockGroup?.isContextual &&
-        (blockGroup.blockType === 'loop' || blockGroup.blockType === 'parallel')
-      ) {
-        const tagParts = tag.split('.')
-        if (tagParts.length === 1) {
-          processedTag = blockGroup.blockType
-        } else {
-          const lastPart = tagParts[tagParts.length - 1]
-          if (['index', 'currentItem', 'items'].includes(lastPart)) {
-            processedTag = `${blockGroup.blockType}.${lastPart}`
-          } else {
-            processedTag = tag
-          }
         }
       }
 

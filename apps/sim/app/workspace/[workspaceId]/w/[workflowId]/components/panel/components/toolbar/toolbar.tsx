@@ -67,9 +67,6 @@ const ToolbarItem = memo(function ToolbarItem({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
-      if (!isTrigger && (item.type === 'loop' || item.type === 'parallel')) {
-        document.body.classList.add('sim-drag-subflow')
-      }
       const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
       onDragStart(e, item.type, isTriggerCapable, {
         name: item.name,
@@ -80,11 +77,7 @@ const ToolbarItem = memo(function ToolbarItem({
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart, isTrigger]
   )
 
-  const handleDragEnd = useCallback(() => {
-    if (!isTrigger) {
-      document.body.classList.remove('sim-drag-subflow')
-    }
-  }, [isTrigger])
+  const handleDragEnd = useCallback(() => {}, [])
 
   const handleClick = useCallback(() => {
     onClick(item.type, isTriggerCapable)
