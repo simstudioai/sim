@@ -290,16 +290,40 @@ export class WorkflowBlockHandler implements BlockHandler {
     if (nodeMetadata.isLoopNode && nodeMetadata.loopId) {
       const loopScope = ctx.loopExecutions?.get(nodeMetadata.loopId)
       if (loopScope && loopScope.iteration !== undefined) {
+        const parentIterations = this.buildParentIterations(ctx, nodeMetadata.loopId)
         return {
           iterationCurrent: loopScope.iteration,
           iterationTotal: loopScope.maxIterations,
           iterationType: 'loop',
           iterationContainerId: nodeMetadata.loopId,
+          ...(parentIterations.length > 0 && { parentIterations }),
         }
       }
     }
 
     return undefined
+  }
+
+  private buildParentIterations(
+    ctx: ExecutionContext,
+    loopId: string
+  ): NonNullable<IterationContext['parentIterations']> {
+    const parents: NonNullable<IterationContext['parentIterations']> = []
+    let currentLoopId = loopId
+    while (ctx.loopParentMap?.has(currentLoopId)) {
+      const parentLoopId = ctx.loopParentMap.get(currentLoopId)!
+      const parentScope = ctx.loopExecutions?.get(parentLoopId)
+      if (parentScope && parentScope.iteration !== undefined) {
+        parents.unshift({
+          iterationCurrent: parentScope.iteration,
+          iterationTotal: parentScope.maxIterations,
+          iterationType: 'loop',
+          iterationContainerId: parentLoopId,
+        })
+      }
+      currentLoopId = parentLoopId
+    }
+    return parents
   }
 
   /**

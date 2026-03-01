@@ -40,7 +40,6 @@ import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
@@ -499,45 +498,56 @@ export class BlockExecutor {
     }
   }
 
-  private createIterationContext(
-    iterationCurrent: number,
-    iterationType: SubflowType,
-    iterationContainerId?: string,
-    iterationTotal?: number
-  ): IterationContext {
-    return {
-      iterationCurrent,
-      iterationTotal,
-      iterationType,
-      iterationContainerId,
-    }
-  }
-
   private getIterationContext(ctx: ExecutionContext, node: DAGNode): IterationContext | undefined {
     if (!node?.metadata) return undefined
 
     if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal !== undefined) {
-      return this.createIterationContext(
-        node.metadata.branchIndex,
-        'parallel',
-        node.metadata.parallelId,
-        node.metadata.branchTotal
-      )
+      return {
+        iterationCurrent: node.metadata.branchIndex,
+        iterationTotal: node.metadata.branchTotal,
+        iterationType: 'parallel',
+        iterationContainerId: node.metadata.parallelId,
+      }
     }
 
     if (node.metadata.isLoopNode && node.metadata.loopId) {
       const loopScope = ctx.loopExecutions?.get(node.metadata.loopId)
       if (loopScope && loopScope.iteration !== undefined) {
-        return this.createIterationContext(
-          loopScope.iteration,
-          'loop',
-          node.metadata.loopId,
-          loopScope.maxIterations
-        )
+        const parentIterations = this.buildParentIterations(ctx, node.metadata.loopId)
+        const result: IterationContext = {
+          iterationCurrent: loopScope.iteration,
+          iterationTotal: loopScope.maxIterations,
+          iterationType: 'loop',
+          iterationContainerId: node.metadata.loopId,
+          ...(parentIterations.length > 0 && { parentIterations }),
+        }
+        return result
       }
     }
 
     return undefined
+  }
+
+  private buildParentIterations(
+    ctx: ExecutionContext,
+    loopId: string
+  ): IterationContext['parentIterations'] & object {
+    const parents: NonNullable<IterationContext['parentIterations']> = []
+    let currentLoopId = loopId
+    while (ctx.loopParentMap?.has(currentLoopId)) {
+      const parentLoopId = ctx.loopParentMap.get(currentLoopId)!
+      const parentScope = ctx.loopExecutions?.get(parentLoopId)
+      if (parentScope && parentScope.iteration !== undefined) {
+        parents.unshift({
+          iterationCurrent: parentScope.iteration,
+          iterationTotal: parentScope.maxIterations,
+          iterationType: 'loop',
+          iterationContainerId: parentLoopId,
+        })
+      }
+      currentLoopId = parentLoopId
+    }
+    return parents
   }
 
   private preparePauseResumeSelfReference(

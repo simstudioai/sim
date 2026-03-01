@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isReference, parseReferencePath, REFERENCE } from '@/executor/constants'
+import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import {
@@ -12,9 +12,23 @@ import type { SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('LoopResolver')
 
 export class LoopResolver implements Resolver {
-  constructor(private workflow: SerializedWorkflow) {}
+  private loopNameToId: Map<string, string>
 
-  private static KNOWN_PROPERTIES = ['iteration', 'index', 'item', 'currentItem', 'items']
+  constructor(private workflow: SerializedWorkflow) {
+    this.loopNameToId = new Map()
+    for (const block of workflow.blocks) {
+      if (workflow.loops[block.id] && block.metadata?.name) {
+        this.loopNameToId.set(normalizeName(block.metadata.name), block.id)
+      }
+    }
+  }
+
+  private static RUNTIME_PROPERTIES = ['iteration', 'index', 'item', 'currentItem', 'items']
+  private static OUTPUT_PROPERTIES = ['result', 'results']
+  private static KNOWN_PROPERTIES = [
+    ...LoopResolver.RUNTIME_PROPERTIES,
+    ...LoopResolver.OUTPUT_PROPERTIES,
+  ]
 
   canResolve(reference: string): boolean {
     if (!isReference(reference)) {
@@ -25,7 +39,7 @@ export class LoopResolver implements Resolver {
       return false
     }
     const [type] = parts
-    return type === REFERENCE.PREFIX.LOOP
+    return type === REFERENCE.PREFIX.LOOP || this.loopNameToId.has(type)
   }
 
   resolve(reference: string, context: ResolutionContext): any {
@@ -35,14 +49,55 @@ export class LoopResolver implements Resolver {
       return undefined
     }
 
-    const loopId = this.findLoopForBlock(context.currentNodeId)
-    let loopScope = context.loopScope
+    const [firstPart, ...rest] = parts
+    const isGenericRef = firstPart === REFERENCE.PREFIX.LOOP
 
-    if (!loopScope) {
-      if (!loopId) {
+    let targetLoopId: string | undefined
+
+    if (isGenericRef) {
+      targetLoopId = this.findInnermostLoopForBlock(context.currentNodeId)
+      if (!targetLoopId && !context.loopScope) {
         return undefined
       }
-      loopScope = context.executionContext.loopExecutions?.get(loopId)
+    } else {
+      targetLoopId = this.loopNameToId.get(firstPart)
+      if (!targetLoopId) {
+        return undefined
+      }
+    }
+
+    if (rest.length > 0) {
+      const property = rest[0]
+
+      if (LoopResolver.OUTPUT_PROPERTIES.includes(property)) {
+        return this.resolveOutput(targetLoopId!, rest.slice(1), context)
+      }
+
+      if (!LoopResolver.KNOWN_PROPERTIES.includes(property)) {
+        const isForEach = targetLoopId
+          ? this.isForEachLoop(targetLoopId)
+          : context.loopScope?.items !== undefined
+        const availableFields = isForEach
+          ? ['index', 'currentItem', 'items', 'result']
+          : ['index', 'result']
+        throw new InvalidFieldError(firstPart, property, availableFields)
+      }
+
+      if (!isGenericRef && targetLoopId) {
+        if (!this.isBlockInLoopOrDescendant(context.currentNodeId, targetLoopId)) {
+          logger.warn('Block is not inside the referenced loop', {
+            reference,
+            blockId: context.currentNodeId,
+            loopId: targetLoopId,
+          })
+          return undefined
+        }
+      }
+    }
+
+    let loopScope = isGenericRef ? context.loopScope : undefined
+    if (!loopScope && targetLoopId) {
+      loopScope = context.executionContext.loopExecutions?.get(targetLoopId)
     }
 
     if (!loopScope) {
@@ -50,26 +105,20 @@ export class LoopResolver implements Resolver {
       return undefined
     }
 
-    const isForEach = loopId ? this.isForEachLoop(loopId) : loopScope.items !== undefined
-
-    if (parts.length === 1) {
-      const result: Record<string, any> = {
+    if (rest.length === 0) {
+      const obj: Record<string, any> = {
         index: loopScope.iteration,
       }
       if (loopScope.item !== undefined) {
-        result.currentItem = loopScope.item
+        obj.currentItem = loopScope.item
       }
       if (loopScope.items !== undefined) {
-        result.items = loopScope.items
+        obj.items = loopScope.items
       }
-      return result
+      return obj
     }
 
-    const [_, property, ...pathParts] = parts
-    if (!LoopResolver.KNOWN_PROPERTIES.includes(property)) {
-      const availableFields = isForEach ? ['index', 'currentItem', 'items'] : ['index']
-      throw new InvalidFieldError('loop', property, availableFields)
-    }
+    const [property, ...pathParts] = rest
 
     let value: any
     switch (property) {
@@ -93,7 +142,23 @@ export class LoopResolver implements Resolver {
     return value
   }
 
-  private findLoopForBlock(blockId: string): string | undefined {
+  private resolveOutput(
+    loopId: string,
+    pathParts: string[],
+    context: ResolutionContext
+  ): any {
+    const output = context.executionState.getBlockOutput(loopId)
+    if (!output) {
+      return undefined
+    }
+    const value = (output as Record<string, any>).results
+    if (pathParts.length > 0) {
+      return navigatePath(value, pathParts)
+    }
+    return value
+  }
+
+  private findInnermostLoopForBlock(blockId: string): string | undefined {
     const baseId = extractBaseBlockId(blockId)
     for (const loopId of Object.keys(this.workflow.loops || {})) {
       const loopConfig = this.workflow.loops[loopId]
@@ -101,8 +166,41 @@ export class LoopResolver implements Resolver {
         return loopId
       }
     }
-
     return undefined
+  }
+
+  private isBlockInLoopOrDescendant(blockId: string, targetLoopId: string): boolean {
+    const baseId = extractBaseBlockId(blockId)
+    const targetLoop = this.workflow.loops?.[targetLoopId]
+    if (!targetLoop) {
+      return false
+    }
+    if (targetLoop.nodes.includes(baseId)) {
+      return true
+    }
+    const directLoopId = this.findInnermostLoopForBlock(blockId)
+    if (!directLoopId || directLoopId === targetLoopId) {
+      return false
+    }
+    return this.isLoopNestedInside(directLoopId, targetLoopId)
+  }
+
+  private isLoopNestedInside(childLoopId: string, ancestorLoopId: string): boolean {
+    const ancestorLoop = this.workflow.loops?.[ancestorLoopId]
+    if (!ancestorLoop) {
+      return false
+    }
+    if (ancestorLoop.nodes.includes(childLoopId)) {
+      return true
+    }
+    for (const nodeId of ancestorLoop.nodes) {
+      if (this.workflow.loops[nodeId]) {
+        if (this.isLoopNestedInside(childLoopId, nodeId)) {
+          return true
+        }
+      }
+    }
+    return false
   }
 
   private isForEachLoop(loopId: string): boolean {

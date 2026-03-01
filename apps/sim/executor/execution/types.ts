@@ -49,11 +49,24 @@ export interface SerializableExecutionState {
   completedPauseContexts?: string[]
 }
 
+/**
+ * Represents the iteration state of an ancestor loop in a nested loop chain.
+ * Used to propagate parent iteration context through SSE events.
+ * Currently only covers loop-in-loop nesting; parallel nesting is not yet supported.
+ */
+export interface ParentIteration {
+  iterationCurrent: number
+  iterationTotal?: number
+  iterationType: SubflowType
+  iterationContainerId: string
+}
+
 export interface IterationContext {
   iterationCurrent: number
   iterationTotal?: number
   iterationType: SubflowType
   iterationContainerId?: string
+  parentIterations?: ParentIteration[]
 }
 
 export interface ChildWorkflowContext {

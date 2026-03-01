@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -67,6 +68,7 @@ export class DAGExecutor {
       savedIncomingEdges,
     })
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
+    context.loopParentMap = this.buildLoopParentMap(dag)
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -208,6 +210,7 @@ export class DAGExecutor {
       snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
+    context.loopParentMap = this.buildLoopParentMap(dag)
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -369,6 +372,24 @@ export class DAGExecutor {
     }
 
     return { context, state }
+  }
+
+  /**
+   * Builds a child-loop -> parent-loop mapping for nested loop iteration tracking.
+   *
+   * NOTE: This currently handles loop-in-loop nesting only.
+   * Parallel-in-loop and parallel-in-parallel nesting is not yet supported.
+   */
+  private buildLoopParentMap(dag: DAG): Map<string, string> {
+    const parentMap = new Map<string, string>()
+    for (const [loopId, config] of dag.loopConfigs) {
+      for (const nodeId of config.nodes) {
+        if (dag.loopConfigs.has(nodeId)) {
+          parentMap.set(nodeId, loopId)
+        }
+      }
+    }
+    return parentMap
   }
 
   private initializeStarterBlock(
