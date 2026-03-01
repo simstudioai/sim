@@ -4,6 +4,7 @@ import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
 import { AlgoliaBlock } from '@/blocks/blocks/algolia'
+import { AmplitudeBlock } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock } from '@/blocks/blocks/apify'
@@ -56,6 +57,7 @@ import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_forms'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
+import { GooglePagespeedBlock } from '@/blocks/blocks/google_pagespeed'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock, GoogleSlidesV2Block } from '@/blocks/blocks/google_slides'
 import { GoogleTasksBlock } from '@/blocks/blocks/google_tasks'
@@ -112,6 +114,7 @@ import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
+import { PagerDutyBlock } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
@@ -193,6 +196,7 @@ export const registry: Record<string, BlockConfig> = {
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
   algolia: AlgoliaBlock,
+  amplitude: AmplitudeBlock,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,
@@ -250,6 +254,7 @@ export const registry: Record<string, BlockConfig> = {
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
   google_maps: GoogleMapsBlock,
+  google_pagespeed: GooglePagespeedBlock,
   google_tasks: GoogleTasksBlock,
   google_translate: GoogleTranslateBlock,
   gong: GongBlock,
@@ -313,6 +318,7 @@ export const registry: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
+  pagerduty: PagerDutyBlock,
   parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
