@@ -14,10 +14,11 @@ import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
+import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
 
-const SUPPORTED_LANGUAGES = new Set(['en', 'es', 'fr', 'de', 'ja', 'zh'])
+const SUPPORTED_LANGUAGES = new Set(i18n.languages)
 
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
@@ -53,15 +54,14 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
 
   const data = page.data as PageData & {
     _openapi?: { method?: string }
-    getAPIPageProps?: () => any
+    getAPIPageProps?: () => unknown
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
   const baseUrl = 'https://docs.sim.ai'
 
-  const pageTreeRecord = source.pageTree as Record<string, any>
-  const pageTree =
-    pageTreeRecord[params.lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
+  const pageTreeRecord = source.pageTree as Record<string, unknown>
+  const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
   const rawNeighbours = pageTree ? findNeighbour(pageTree, page.url) : null
   const neighbours = isApiReference
     ? {
@@ -226,7 +226,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           title={data.title}
           description={data.description || ''}
           url={`${baseUrl}${page.url}`}
-          lang={params.lang}
+          lang={lang}
           breadcrumb={breadcrumbs}
         />
         <DocsPage
@@ -274,7 +274,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         title={data.title}
         description={data.description || ''}
         url={`${baseUrl}${page.url}`}
-        lang={params.lang}
+        lang={lang}
         breadcrumb={breadcrumbs}
       />
       <DocsPage

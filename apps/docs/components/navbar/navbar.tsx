@@ -8,14 +8,9 @@ import { SimLogoFull } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
-const navLinkStyle = {
-  fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-}
-
 export function Navbar() {
   const pathname = usePathname()
-  const isApiReference = pathname.startsWith('/api-reference')
+  const isApiReference = pathname.includes('/api-reference')
 
   return (
     <nav className='sticky top-0 z-50 border-border/50 border-b bg-background/80 backdrop-blur-md backdrop-saturate-150'>
@@ -48,7 +43,6 @@ export function Navbar() {
                 'rounded-xl px-3 py-2 font-normal text-[0.9375rem] leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground',
                 !isApiReference ? 'text-foreground' : 'text-foreground/60'
               )}
-              style={navLinkStyle}
             >
               Documentation
             </Link>
@@ -58,7 +52,6 @@ export function Navbar() {
                 'rounded-xl px-3 py-2 font-normal text-[0.9375rem] leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground',
                 isApiReference ? 'text-foreground' : 'text-foreground/60'
               )}
-              style={navLinkStyle}
             >
               API
             </Link>
@@ -67,7 +60,6 @@ export function Navbar() {
               target='_blank'
               rel='noopener noreferrer'
               className='rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground'
-              style={navLinkStyle}
             >
               Platform
             </Link>

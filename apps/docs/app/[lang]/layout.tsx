@@ -55,7 +55,7 @@ type LayoutProps = {
   params: Promise<{ lang: string }>
 }
 
-const SUPPORTED_LANGUAGES = new Set(['en', 'es', 'fr', 'de', 'ja', 'zh'])
+const SUPPORTED_LANGUAGES = new Set(i18n.languages)
 
 export default async function Layout({ children, params }: LayoutProps) {
   const { lang: rawLang } = await params

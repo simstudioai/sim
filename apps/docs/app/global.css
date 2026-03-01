@@ -160,7 +160,6 @@ aside#nd-sidebar {
 #nd-sidebar > div {
   padding: 0.5rem 12px 12px;
   background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* Override sidebar item styling to match Raindrop */
