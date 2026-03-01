@@ -1458,6 +1458,14 @@ import {
   outlookReadTool,
   outlookSendTool,
 } from '@/tools/outlook'
+import {
+  pagerdutyAddNoteTool,
+  pagerdutyCreateIncidentTool,
+  pagerdutyListIncidentsTool,
+  pagerdutyListOncallsTool,
+  pagerdutyListServicesTool,
+  pagerdutyUpdateIncidentTool,
+} from '@/tools/pagerduty'
 import { parallelDeepResearchTool, parallelExtractTool, parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
@@ -3663,6 +3671,12 @@ export const tools: Record<string, ToolConfig> = {
   outlook_mark_unread: outlookMarkUnreadTool,
   outlook_delete: outlookDeleteTool,
   outlook_copy: outlookCopyTool,
+  pagerduty_list_incidents: pagerdutyListIncidentsTool,
+  pagerduty_create_incident: pagerdutyCreateIncidentTool,
+  pagerduty_update_incident: pagerdutyUpdateIncidentTool,
+  pagerduty_add_note: pagerdutyAddNoteTool,
+  pagerduty_list_services: pagerdutyListServicesTool,
+  pagerduty_list_oncalls: pagerdutyListOncallsTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   linear_get_issue: linearGetIssueTool,
