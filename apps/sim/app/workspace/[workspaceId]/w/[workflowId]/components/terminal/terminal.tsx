@@ -60,6 +60,7 @@ import { openCopilotWithMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Terminal height configuration constants
@@ -279,12 +280,11 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
     children.some((c) => c.entry.isCanceled || c.children.some((gc) => gc.entry.isCanceled)) &&
     !hasRunningDescendant
 
-  const displayName =
-    entry.blockType === 'loop'
-      ? 'Loop'
-      : entry.blockType === 'parallel'
-        ? 'Parallel'
-        : entry.blockName
+  const containerId = entry.iterationContainerId
+  const storeBlockName = useWorkflowStore(
+    (state) => (containerId ? state.blocks[containerId]?.name : undefined)
+  )
+  const displayName = storeBlockName || entry.blockName
 
   return (
     <div className='flex min-w-0 flex-col'>
