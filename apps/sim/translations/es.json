@@ -888,6 +888,106 @@
         "thinking_level": "Nivel de Pensamiento"
       }
     },
+    "browser_use_block": {
+      "name": "Browser Use",
+      "description": "Ejecutar tareas de automatización del navegador"
+    },
+    "cursor_block": {
+      "name": "Cursor",
+      "description": "Automatización web usando Cursor"
+    },
+    "dspy_block": {
+      "name": "DSPy",
+      "description": "Ejecutar predicciones usando programas DSPy auto-hospedados"
+    },
+    "elevenlabs_block": {
+      "name": "ElevenLabs",
+      "description": "Convertir texto a voz usando ElevenLabs"
+    },
+    "enrich_block": {
+      "name": "Enrich",
+      "description": "Enriquecimiento de datos B2B e inteligencia de LinkedIn"
+    },
+    "evaluator_block": {
+      "name": "Evaluador",
+      "description": "Evaluar contenido con métricas personalizables"
+    },
+    "firecrawl_block": {
+      "name": "Firecrawl",
+      "description": "Web scraping y extracción de datos"
+    },
+    "greptile_block": {
+      "name": "Greptile",
+      "description": "Búsqueda y comprensión de código"
+    },
+    "guardrails_block": {
+      "name": "Guardrails",
+      "description": "Validar contenido con guardrails"
+    },
+    "human_in_the_loop_block": {
+      "name": "Human in the Loop",
+      "description": "Pausar flujo de trabajo y esperar entrada humana"
+    },
+    "huggingface_block": {
+      "name": "Hugging Face",
+      "description": "Usar API de Inferencia de Hugging Face"
+    },
+    "image_generator_block": {
+      "name": "Generador de Imágenes",
+      "description": "Generar imágenes usando IA"
+    },
+    "knowledge_block": {
+      "name": "Conocimiento",
+      "description": "Usar búsqueda vectorial en bases de conocimiento"
+    },
+    "langsmith_block": {
+      "name": "LangSmith",
+      "description": "Enviar ejecuciones de flujo de trabajo a LangSmith para observabilidad"
+    },
+    "mcp_block": {
+      "name": "Herramienta MCP",
+      "description": "Ejecutar herramientas desde servidores Model Context Protocol"
+    },
+    "mem0_block": {
+      "name": "Mem0",
+      "description": "Gestión de memoria del agente"
+    },
+    "memory_block": {
+      "name": "Memoria",
+      "description": "Agregar y gestionar almacenamiento de memoria"
+    },
+    "mistral_parse_block": {
+      "name": "Mistral Parser",
+      "description": "Extraer texto de documentos PDF"
+    },
+    "openai_block": {
+      "name": "Embeddings",
+      "description": "Generar embeddings de OpenAI"
+    },
+    "perplexity_block": {
+      "name": "Perplexity",
+      "description": "Usar Perplexity AI para chat y búsqueda"
+    },
+    "stagehand_block": {
+      "name": "Stagehand",
+      "description": "Automatización web usando Stagehand"
+    },
+    "thinking_block": {
+      "name": "Pensamiento",
+      "description": "Fuerza el modelo a describir su proceso de pensamiento"
+    },
+    "translate_block": {
+      "name": "Traducir",
+      "description": "Traducir texto a cualquier idioma"
+    },
+    "video_generator_block": {
+      "name": "Generador de Vídeos",
+      "description": "Generar vídeos a partir de texto usando IA"
+    },
+    "vision_block": {
+      "name": "Visión",
+      "description": "Analizar imágenes con modelos de visión"
+    },
     "condition_block": {
       "name": "Condición",
       "description": "Crear lógica de ramificación",

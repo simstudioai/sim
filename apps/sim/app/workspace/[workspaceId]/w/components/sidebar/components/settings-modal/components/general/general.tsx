@@ -561,7 +561,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </p>
 
       <div className='flex items-center justify-between border-t pt-[16px]'>
-        <Label htmlFor='theme-select'>{t('settings.general.labels.language')}</Label>
+        <Label>{t('settings.general.labels.language')}</Label>
         <LocaleSelector />
       </div>
 

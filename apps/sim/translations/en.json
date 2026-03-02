@@ -888,6 +888,106 @@
         "thinking_level": "Thinking Level"
       }
     },
+    "browser_use_block": {
+      "name": "Browser Use",
+      "description": "Run browser automation tasks"
+    },
+    "cursor_block": {
+      "name": "Cursor",
+      "description": "Web automation using Cursor"
+    },
+    "dspy_block": {
+      "name": "DSPy",
+      "description": "Run predictions using self-hosted DSPy programs"
+    },
+    "elevenlabs_block": {
+      "name": "ElevenLabs",
+      "description": "Convert text to speech using ElevenLabs"
+    },
+    "enrich_block": {
+      "name": "Enrich",
+      "description": "B2B data enrichment and LinkedIn intelligence"
+    },
+    "evaluator_block": {
+      "name": "Evaluator",
+      "description": "Evaluate content with customizable metrics"
+    },
+    "firecrawl_block": {
+      "name": "Firecrawl",
+      "description": "Web scraping and data extraction"
+    },
+    "greptile_block": {
+      "name": "Greptile",
+      "description": "Code search and understanding"
+    },
+    "guardrails_block": {
+      "name": "Guardrails",
+      "description": "Validate content with guardrails"
+    },
+    "human_in_the_loop_block": {
+      "name": "Human in the Loop",
+      "description": "Pause workflow and wait for human input"
+    },
+    "huggingface_block": {
+      "name": "Hugging Face",
+      "description": "Use Hugging Face Inference API"
+    },
+    "image_generator_block": {
+      "name": "Image Generator",
+      "description": "Generate images using AI"
+    },
+    "knowledge_block": {
+      "name": "Knowledge",
+      "description": "Use vector search on knowledge bases"
+    },
+    "langsmith_block": {
+      "name": "LangSmith",
+      "description": "Forward workflow runs to LangSmith for observability"
+    },
+    "mcp_block": {
+      "name": "MCP Tool",
+      "description": "Execute tools from Model Context Protocol servers"
+    },
+    "mem0_block": {
+      "name": "Mem0",
+      "description": "Agent memory management"
+    },
+    "memory_block": {
+      "name": "Memory",
+      "description": "Add and manage memory storage"
+    },
+    "mistral_parse_block": {
+      "name": "Mistral Parser",
+      "description": "Extract text from PDF documents"
+    },
+    "openai_block": {
+      "name": "Embeddings",
+      "description": "Generate OpenAI embeddings"
+    },
+    "perplexity_block": {
+      "name": "Perplexity",
+      "description": "Use Perplexity AI for chat and search"
+    },
+    "stagehand_block": {
+      "name": "Stagehand",
+      "description": "Web automation using Stagehand"
+    },
+    "thinking_block": {
+      "name": "Thinking",
+      "description": "Forces model to outline its thought process"
+    },
+    "translate_block": {
+      "name": "Translate",
+      "description": "Translate text to any language"
+    },
+    "video_generator_block": {
+      "name": "Video Generator",
+      "description": "Generate videos from text using AI"
+    },
+    "vision_block": {
+      "name": "Vision",
+      "description": "Analyze images with vision models"
+    },
     "condition_block": {
       "name": "Condition",
       "description": "Create branching logic",

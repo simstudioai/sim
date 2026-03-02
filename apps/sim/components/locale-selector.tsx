@@ -1,12 +1,12 @@
 'use client'
 
 import { type Locale, useLocale } from 'next-intl'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui'
 import { useTranslations } from 'next-intl'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { changeLocale } from '@/lib/localization/change-locale.server'
 import { useMutation } from '@tanstack/react-query'
+import { Combobox } from './emcn'
 
 export default function LocaleSelector() {
   const t = useTranslations()
@@ -36,17 +36,22 @@ export default function LocaleSelector() {
   }
 
   return (
-    <Select value={locale} onValueChange={handleLocaleChange}>
-      <SelectTrigger disabled={isChangingLocale} className='w-[180px]'>
-        <SelectValue placeholder={selectedLocaleLabel} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectItem value='en'>{t('localization.en')}</SelectItem>
-          <SelectItem value='pt'>{t('localization.pt')}</SelectItem>
-          <SelectItem value='es'>{t('localization.es')}</SelectItem>
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+    <div className='w-[160px]'>
+      <Combobox
+        size='sm'
+        align='end'
+        dropdownWidth={160}
+        value={String(locale)}
+        onChange={(value) => {
+          handleLocaleChange(value as Locale)
+        }}
+        placeholder={selectedLocaleLabel}
+        options={[
+          { label: t('localization.en'), value: 'en' },
+          { label: t('localization.pt'), value: 'pt' },
+          { label: t('localization.es'), value: 'es' },
+        ]}
+      />
+    </div>
   )
 }

@@ -888,6 +888,106 @@
         "thinking_level": "Nível de Pensamento"
       }
     },
+    "browser_use_block": {
+      "name": "Browser Use",
+      "description": "Executar tarefas de automação do navegador"
+    },
+    "cursor_block": {
+      "name": "Cursor",
+      "description": "Automação web usando Cursor"
+    },
+    "dspy_block": {
+      "name": "DSPy",
+      "description": "Executar previsões usando programas DSPy auto-hospedados"
+    },
+    "elevenlabs_block": {
+      "name": "ElevenLabs",
+      "description": "Converter texto em fala usando ElevenLabs"
+    },
+    "enrich_block": {
+      "name": "Enrich",
+      "description": "Enriquecimento de dados B2B e inteligência do LinkedIn"
+    },
+    "evaluator_block": {
+      "name": "Avaliador",
+      "description": "Avaliar conteúdo com métricas personalizáveis"
+    },
+    "firecrawl_block": {
+      "name": "Firecrawl",
+      "description": "Web scraping e extração de dados"
+    },
+    "greptile_block": {
+      "name": "Greptile",
+      "description": "Busca e compreensão de código"
+    },
+    "guardrails_block": {
+      "name": "Guardrails",
+      "description": "Validar conteúdo com guardrails"
+    },
+    "human_in_the_loop_block": {
+      "name": "Human in the Loop",
+      "description": "Pausar fluxo de trabalho e aguardar entrada humana"
+    },
+    "huggingface_block": {
+      "name": "Hugging Face",
+      "description": "Usar API de Inferência Hugging Face"
+    },
+    "image_generator_block": {
+      "name": "Gerador de Imagens",
+      "description": "Gerar imagens usando IA"
+    },
+    "knowledge_block": {
+      "name": "Conhecimento",
+      "description": "Usar busca vetorial em bases de conhecimento"
+    },
+    "langsmith_block": {
+      "name": "LangSmith",
+      "description": "Encaminhar execuções de fluxo de trabalho para LangSmith para observabilidade"
+    },
+    "mcp_block": {
+      "name": "Ferramenta MCP",
+      "description": "Executar ferramentas de servidores Model Context Protocol"
+    },
+    "mem0_block": {
+      "name": "Mem0",
+      "description": "Gerenciamento de memória do agente"
+    },
+    "memory_block": {
+      "name": "Memória",
+      "description": "Adicionar e gerenciar armazenamento de memória"
+    },
+    "mistral_parse_block": {
+      "name": "Mistral Parser",
+      "description": "Extrair texto de documentos PDF"
+    },
+    "openai_block": {
+      "name": "Embeddings",
+      "description": "Gerar embeddings do OpenAI"
+    },
+    "perplexity_block": {
+      "name": "Perplexity",
+      "description": "Usar Perplexity AI para chat e busca"
+    },
+    "stagehand_block": {
+      "name": "Stagehand",
+      "description": "Automação web usando Stagehand"
+    },
+    "thinking_block": {
+      "name": "Pensamento",
+      "description": "Força o modelo a descrever seu processo de pensamento"
+    },
+    "translate_block": {
+      "name": "Traduzir",
+      "description": "Traduzir texto para qualquer idioma"
+    },
+    "video_generator_block": {
+      "name": "Gerador de Vídeos",
+      "description": "Gerar vídeos a partir de texto usando IA"
+    },
+    "vision_block": {
+      "name": "Visão",
+      "description": "Analisar imagens com modelos de visão"
+    },
     "condition_block": {
       "name": "Condição",
       "description": "Criar lógica de ramificação",
