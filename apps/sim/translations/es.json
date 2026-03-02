@@ -4,6 +4,8 @@
     "en": "EN - inglés",
     "es": "ES - español"
   },
+  "helper_text.need_help": "¿Necesitas ayuda?",
+  "links.contact_support": "Contactar soporte",
   "network_error": "Error de red. Verifique su conexión e intente nuevamente.",
   "too_many_requests": "Demasiadas solicitudes. Espere un momento antes de intentarlo nuevamente.",
   "sign_in_with_sso": "Iniciar sesión con SSO",
@@ -69,8 +71,6 @@
     "page_title": "Iniciar sesión",
     "page_sub_title": "Ingrese sus datos"
   },
-  "helper_text.need_help": "¿Necesitas ayuda?",
-  "links.contact_support": "Contactar soporte",
   "generic": {
     "loading": "Cargando"
   }
