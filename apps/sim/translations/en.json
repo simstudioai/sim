@@ -4,7 +4,36 @@
     "en": "EN - english",
     "es": "ES - Spanish"
   },
+  "helper_text.need_help": "Need help?",
+  "links.contact_support": "Contact support",
+  "network_error": "Network error. Please check your connection and try again.",
+  "too_many_requests": "Too many requests. Please wait a moment before trying again.",
+  "sign_in_with_sso": "Sign in with SSO",
+  "social_login": {
+    "buttons": {
+      "github": "GitHub",
+      "google": "Google",
+      "connecting": "Connecting..."
+    },
+    "errors": {
+      "account_exists": "An account with this email already exists. Please sign in.",
+      "network": "Network error. Please check your connection and try again.",
+      "rate_limit": "Too many attempts. Please try again later.",
+      "github": {
+        "default": "Failed to sign in with GitHub",
+        "cancelled": "GitHub sign in was cancelled. Please try again."
+      },
+      "google": {
+        "default": "Failed to sign in with Google",
+        "cancelled": "Google sign in was cancelled. Please try again."
+      }
+    }
+  },
   "sign_up": {
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "creating_account": "Creating account",
+    "name_title": "Name can only contain letters, spaces, hyphens, and apostrophes",
     "page_title": "Create an account",
     "page_sub_title": "Create an account or log in",
     "full_name_label": "Full name",
@@ -17,10 +46,32 @@
     "already_have_account": "Already have an account?",
     "sign_in_redirect_label": "Sign In",
     "create_account_warning": "By creating an account, you agree to our <terms>Terms of Service</terms> and <policy>Privacy Policy</policy>",
-    "divider_label": "Or continue with"
+    "divider_label": "Or continue with",
+    "disabled_registration_warning": "Registration is disabled, please contact your admin.",
+    "validations": {
+      "password_max_128_characters": "Password must be less than 128 characters long.",
+      "password_min_8_character": "Password must be at least 8 characters long.",
+      "password_min_1_uppercase_letter": "Password must include at least one uppercase letter.",
+      "password_min_1_lowercase_letter": "Password must include at least one lowercase letter.",
+      "password_min_1_number": "Password must include at least one number.",
+      "password_min_1_special_character": "Password must include at least one special character.",
+      "name_required": "Name is required.",
+      "name_cannot_be_empty": "Name cannot be empty.",
+      "name_invalid_format": "Name can only contain letters, spaces, hyphens, and apostrophes.",
+      "name_cannot_contain_spaces": "Name cannot contain consecutive spaces.",
+      "email_required": "Email is required.",
+      "email_invalid": "Please enter a valid email address.",
+      "truncated_name_error": "Name will be truncated to 100 characters. Please shorten your name.",
+      "failed_to_create_account": "Failed to create account",
+      "account_with_same_email_already_exists": "An account with this email already exists. Please sign in instead.",
+      "email_sign_up_is_not_enabled":"Email signup is currently disabled."
+    }
   },
   "sign_in": {
     "page_title": "Sign in",
     "page_sub_title": "Enter your details"
+  },
+  "generic": {
+    "loading": "Loading"
   }
 }

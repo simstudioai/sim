@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { useBrandConfig } from '@/ee/whitelabeling'
 
@@ -23,17 +24,18 @@ export interface SupportFooterProps {
  */
 export function SupportFooter({ position = 'fixed' }: SupportFooterProps) {
   const brandConfig = useBrandConfig()
+  const t = useTranslations()
 
   return (
     <div
       className={`${inter.className} auth-text-muted right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed ${position}`}
     >
-      Need help?{' '}
+      {t('helper_text.need_help')}{' '}
       <a
         href={`mailto:${brandConfig.supportEmail}`}
         className='auth-link underline-offset-4 transition hover:underline'
       >
-        Contact support
+        {t('links.contact_support')}
       </a>
     </div>
   )

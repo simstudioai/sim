@@ -5,6 +5,7 @@ import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { client } from '@/lib/auth/auth-client'
 import { inter } from '@/app/_styles/fonts/inter/inter'
+import { useTranslations } from 'next-intl'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -21,16 +22,16 @@ export function SocialLoginButtons({
   isProduction,
   children,
 }: SocialLoginButtonsProps) {
+  const t = useTranslations('social_login')
+
   const [isGithubLoading, setIsGithubLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Set mounted state to true on client-side
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Only render on the client side to avoid hydration errors
   if (!mounted) return null
 
   async function signInWithGithub() {
@@ -40,17 +41,19 @@ export function SocialLoginButtons({
     try {
       await client.signIn.social({ provider: 'github', callbackURL })
     } catch (err: any) {
-      let errorMessage = 'Failed to sign in with GitHub'
+      let errorMessage = t('errors.github.default')
 
       if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
+        errorMessage = t('errors.account_exists')
       } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'GitHub sign in was cancelled. Please try again.'
+        errorMessage = t('errors.github.cancelled')
       } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
+        errorMessage = t('errors.network')
       } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
+        errorMessage = t('errors.rate_limit')
       }
+
+      console.error(errorMessage)
     } finally {
       setIsGithubLoading(false)
     }
@@ -63,17 +66,19 @@ export function SocialLoginButtons({
     try {
       await client.signIn.social({ provider: 'google', callbackURL })
     } catch (err: any) {
-      let errorMessage = 'Failed to sign in with Google'
+      let errorMessage = t('errors.google.default')
 
       if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
+        errorMessage = t('errors.account_exists')
       } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'Google sign in was cancelled. Please try again.'
+        errorMessage = t('errors.google.cancelled')
       } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
+        errorMessage = t('errors.network')
       } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
+        errorMessage = t('errors.rate_limit')
       }
+
+      console.error(errorMessage)
     } finally {
       setIsGoogleLoading(false)
     }
@@ -87,7 +92,7 @@ export function SocialLoginButtons({
       onClick={signInWithGithub}
     >
       <GithubIcon className='!h-[18px] !w-[18px] mr-1' />
-      {isGithubLoading ? 'Connecting...' : 'GitHub'}
+      {isGithubLoading ? t('buttons.connecting') : t('buttons.github')}
     </Button>
   )
 
@@ -99,7 +104,7 @@ export function SocialLoginButtons({
       onClick={signInWithGoogle}
     >
       <GoogleIcon className='!h-[18px] !w-[18px] mr-1' />
-      {isGoogleLoading ? 'Connecting...' : 'Google'}
+      {isGoogleLoading ? t('buttons.connecting') : t('buttons.google')}
     </Button>
   )
 

@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
@@ -19,60 +18,11 @@ import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import LocaleSelector from '@/components/locale-selector'
 import { useTranslations } from 'next-intl'
+import { usePasswordValidations } from '@/hooks/sign-up/use-password-validations'
+import { useNameValidations } from '@/hooks/sign-up/use-name-validations'
+import { useValidateEmail } from '@/hooks/sign-up/use-validate-email'
 
 const logger = createLogger('SignupForm')
-
-const PASSWORD_VALIDATIONS = {
-  minLength: { regex: /.{8,}/, message: 'Password must be at least 8 characters long.' },
-  uppercase: {
-    regex: /(?=.*?[A-Z])/,
-    message: 'Password must include at least one uppercase letter.',
-  },
-  lowercase: {
-    regex: /(?=.*?[a-z])/,
-    message: 'Password must include at least one lowercase letter.',
-  },
-  number: { regex: /(?=.*?[0-9])/, message: 'Password must include at least one number.' },
-  special: {
-    regex: /(?=.*?[#?!@$%^&*-])/,
-    message: 'Password must include at least one special character.',
-  },
-}
-
-const NAME_VALIDATIONS = {
-  required: {
-    test: (value: string) => Boolean(value && typeof value === 'string'),
-    message: 'Name is required.',
-  },
-  notEmpty: {
-    test: (value: string) => value.trim().length > 0,
-    message: 'Name cannot be empty.',
-  },
-  validCharacters: {
-    regex: /^[\p{L}\s\-']+$/u,
-    message: 'Name can only contain letters, spaces, hyphens, and apostrophes.',
-  },
-  noConsecutiveSpaces: {
-    regex: /^(?!.*\s\s).*$/,
-    message: 'Name cannot contain consecutive spaces.',
-  },
-}
-
-const validateEmailField = (emailValue: string): string[] => {
-  const errors: string[] = []
-
-  if (!emailValue || !emailValue.trim()) {
-    errors.push('Email is required.')
-    return errors
-  }
-
-  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
-  if (!validation.isValid) {
-    errors.push(validation.reason || 'Please enter a valid email address.')
-  }
-
-  return errors
-}
 
 function SignupFormContent({
   githubAvailable,
@@ -100,6 +50,10 @@ function SignupFormContent({
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
   const buttonClass = useBrandedButtonClass()
+
+  const PASSWORD_VALIDATIONS = usePasswordValidations()
+  const NAME_VALIDATIONS = useNameValidations()
+  const validateEmailField = useValidateEmail()
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
@@ -260,7 +214,7 @@ function SignupFormContent({
       }
 
       if (trimmedName.length > 100) {
-        setNameErrors(['Name will be truncated to 100 characters. Please shorten your name.'])
+        setNameErrors([t('sign_up.validations.truncated_name_error')])
         setShowNameValidationError(true)
         setIsLoading(false)
         return
@@ -277,36 +231,34 @@ function SignupFormContent({
         {
           onError: (ctx) => {
             logger.error('Signup error:', ctx.error)
-            const errorMessage: string[] = ['Failed to create account']
+            const errorMessage: string[] = [t('sign_up.validations.failed_to_create_account')]
 
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
-              errorMessage.push(
-                'An account with this email already exists. Please sign in instead.'
-              )
+              errorMessage.push(t('sign_up.validations.account_with_same_email_already_exists'))
               setEmailError(errorMessage[0])
             } else if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
             ) {
-              errorMessage.push('Email signup is currently disabled.')
+              errorMessage.push(t('sign_up.validations.email_sign_up_is_not_enabled'))
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('INVALID_EMAIL')) {
-              errorMessage.push('Please enter a valid email address.')
+              errorMessage.push(t('sign_up.validations.email_invalid'))
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('PASSWORD_TOO_SHORT')) {
-              errorMessage.push('Password must be at least 8 characters long.')
+              errorMessage.push(t('sign_up.validations.password_min_8_character'))
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('PASSWORD_TOO_LONG')) {
-              errorMessage.push('Password must be less than 128 characters long.')
+              errorMessage.push(t('sign_up.validations.password_max_128_characters'))
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('network')) {
-              errorMessage.push('Network error. Please check your connection and try again.')
+              errorMessage.push(t('network_error'))
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('rate limit')) {
-              errorMessage.push('Too many requests. Please wait a moment before trying again.')
+              errorMessage.push(t('too_many_requests'))
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else {
@@ -387,7 +339,7 @@ function SignupFormContent({
                 type='text'
                 autoCapitalize='words'
                 autoComplete='name'
-                title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                title={t('sign_up.name_title')}
                 value={name}
                 onChange={handleNameChange}
                 className={cn(
@@ -463,7 +415,9 @@ function SignupFormContent({
                   type='button'
                   onClick={() => setShowPassword(!showPassword)}
                   className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={
+                    showPassword ? t('sign_up.hide_password') : t('sign_up.show_password')
+                  }
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -482,7 +436,7 @@ function SignupFormContent({
             type='submit'
             disabled={isLoading}
             loading={isLoading}
-            loadingText='Creating account'
+            loadingText={t('sign_up.creating_account')}
           >
             {t('sign_up.create_account')}
           </BrandedButton>
@@ -592,9 +546,13 @@ export default function SignupPage({
   googleAvailable: boolean
   isProduction: boolean
 }) {
+  const t = useTranslations()
+
   return (
     <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
+      fallback={
+        <div className='flex h-screen items-center justify-center'>{t('generic.loading')}...</div>
+      }
     >
       <SignupFormContent
         githubAvailable={githubAvailable}

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface SSOLoginButtonProps {
   callbackURL?: string
@@ -23,6 +24,7 @@ export function SSOLoginButton({
   primaryClassName,
 }: SSOLoginButtonProps) {
   const router = useRouter()
+  const t = useTranslations()
 
   if (!isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))) {
     return null
@@ -47,7 +49,7 @@ export function SSOLoginButton({
       variant={variant === 'outline' ? 'outline' : undefined}
       className={cn(variant === 'outline' ? outlineBtnClasses : primaryBtnClasses, className)}
     >
-      Sign in with SSO
+      {t('sign_in_with_sso')}
     </Button>
   )
 }
