@@ -136,5 +136,784 @@
   },
   "generic": {
     "loading": "Cargando"
+  },
+  "settings": {
+    "title": "Configuración",
+    "description": "Configuración del usuario y workspace",
+    "sections": {
+      "account": "Cuenta",
+      "tools": "Herramientas",
+      "subscription": "Suscripción",
+      "system": "Sistema",
+      "enterprise": "Empresa",
+      "superuser": "Superusuario"
+    },
+    "nav": {
+      "general": "General",
+      "template_profile": "Perfil de Plantilla",
+      "access_control": "Control de Acceso",
+      "subscription": "Suscripción",
+      "team": "Equipo",
+      "secrets": "Secretos",
+      "custom_tools": "Herramientas Personalizadas",
+      "skills": "Habilidades",
+      "mcp_tools": "Herramientas MCP",
+      "sim_keys": "Claves Sim",
+      "mcp_servers": "Servidores MCP",
+      "byok": "BYOK",
+      "copilot_keys": "Claves Copilot",
+      "files": "Archivos",
+      "email_polling": "Sondeo de Correo",
+      "single_sign_on": "Inicio de Sesión Único",
+      "debug": "Depuración"
+    },
+    "general": {
+      "errors": {
+        "failed_update_picture": "Error al actualizar la imagen de perfil",
+        "failed_remove_picture": "Error al eliminar la imagen de perfil"
+      },
+      "aria": {
+        "save_name": "Guardar nombre",
+        "edit_name": "Editar nombre"
+      },
+      "labels": {
+        "theme": "Tema",
+        "auto_connect": "Conexión Automática",
+        "error_notifications": "Notificaciones de Error",
+        "snap_to_grid": "Ajustar a Cuadrícula",
+        "show_canvas_controls": "Mostrar Controles de Lienzo",
+        "allow_telemetry": "Permitir Telemetría",
+        "training_controls": "Controles de Entrenamiento",
+        "super_admin_mode": "Modo Superadministrador",
+        "language": "Idioma"
+      },
+      "placeholders": {
+        "select_theme": "Seleccione tema",
+        "select_size": "Seleccione tamaño"
+      },
+      "theme": {
+        "system": "Sistema",
+        "light": "Claro",
+        "dark": "Oscuro"
+      },
+      "snap_grid": {
+        "off": "Desactivado"
+      },
+      "telemetry_description": "Ayúdenos a mejorar compartiendo datos de uso anónimos",
+      "buttons": {
+        "sign_out": "Cerrar Sesión",
+        "reset_password": "Restablecer Contraseña",
+        "home_page": "Página de Inicio"
+      },
+      "reset_password": {
+        "title": "Restablecer Contraseña",
+        "description": "Se enviará un enlace de restablecimiento de contraseña a {email}",
+        "cancel": "Cancelar",
+        "sending": "Enviando...",
+        "sent": "Enviado",
+        "send_reset_email": "Enviar Correo de Restablecimiento",
+        "errors": {
+          "failed_send": "Error al enviar el correo de restablecimiento de contraseña"
+        }
+      }
+    },
+    "debug": {
+      "description": "Importar un workflow por ID junto con sus chats de copilot asociados.",
+      "placeholders": {
+        "workflow_id": "Ingrese ID del workflow"
+      },
+      "buttons": {
+        "importing": "Importando...",
+        "import": "Importar"
+      }
+    },
+    "usage_header": {
+      "payment_failed": "Pago fallido"
+    },
+    "usage_limit": {
+      "aria": {
+        "save_limit": "Guardar límite"
+      },
+      "buttons": {
+        "edit_limit": "Editar Límite"
+      }
+    },
+    "subscription": {
+      "seats_count": "{count} asientos",
+      "badges": {
+        "get_help": "Obtener Ayuda",
+        "fix_now": "Reparar Ahora",
+        "upgrade": "Actualizar",
+        "increase_limit": "Aumentar Límite"
+      },
+      "plans": {
+        "pro": "Pro",
+        "team": "Equipo",
+        "enterprise": "Empresarial"
+      },
+      "per_month": "/mes",
+      "buttons": {
+        "upgrade": "Actualizar",
+        "upgrade_to_pro": "Actualizar a Pro",
+        "upgrade_to_team": "Actualizar a Equipo",
+        "contact": "Contactar"
+      },
+      "labels": {
+        "next_billing_date": "Próxima Fecha de Facturación",
+        "usage_notifications": "Notificaciones de uso",
+        "billed_account": "Cuenta Facturada"
+      },
+      "usage_notifications_description": "Enviarme un email cuando alcance el 80% de uso",
+      "tooltips": {
+        "billed_account": "El uso de este workspace será facturado a esta cuenta"
+      },
+      "no_admins_available": "Sin administradores disponibles",
+      "placeholders": {
+        "select_admin": "Seleccionar administrador"
+      }
+    },
+    "cancel_subscription": {
+      "end_of_billing_period": "fin del período de facturación actual",
+      "labels": {
+        "restore_subscription": "Restaurar Suscripción",
+        "manage_subscription": "Gestionar Suscripción"
+      },
+      "keep_access_until": "Mantendrá acceso hasta {date}",
+      "buttons": {
+        "error": "Error",
+        "restore": "Restaurar",
+        "manage": "Gestionar",
+        "cancel": "Cancelar",
+        "keep_subscription": "Mantener Suscripción",
+        "restoring": "Restaurando...",
+        "restore_subscription": "Restaurar Suscripción",
+        "redirecting": "Redirigiendo...",
+        "continue": "Continuar"
+      },
+      "modal": {
+        "restore_title": "Restaurar Suscripción {plan}",
+        "cancel_title": "Cancelar Suscripción {plan}",
+        "restore_description": "Su suscripción está configurada para cancelarse al final del período de facturación. ¿Desea mantener su suscripción activa?",
+        "cancel_description": "Será redirigido a Stripe para gestionar su suscripción. Mantendrá acceso hasta {date}, luego se degradará al plan gratuito. Puede restaurar su suscripción en cualquier momento.",
+        "keep_features_until": "- Mantener todas las características hasta {date}",
+        "no_more_charges": "- Sin más cargos",
+        "data_preserved": "- Datos preservados",
+        "can_reactivate": "- Puede reactivar en cualquier momento"
+      }
+    },
+    "credit_balance": {
+      "labels": {
+        "credit_balance": "Saldo de Créditos:",
+        "amount_usd": "Cantidad (USD)"
+      },
+      "buttons": {
+        "add_credits": "Agregar Créditos",
+        "cancel": "Cancelar",
+        "processing": "Procesando...",
+        "purchase": "Comprar"
+      },
+      "success_message": "¡Créditos agregados exitosamente!",
+      "errors": {
+        "minimum_purchase": "La compra mínima es de $10",
+        "maximum_purchase": "La compra máxima es de $1,000",
+        "failed_to_purchase": "Error al comprar créditos"
+      },
+      "credits_info": "Los créditos se usan antes de los cargos por exceso. Mín: $10, Máx: $1,000.",
+      "credits_info_team": "Los créditos no son reembolsables y no caducan. Se aplicarán automáticamente a su uso del equipo.",
+      "credits_info_personal": "Los créditos no son reembolsables y no caducan. Se aplicarán automáticamente a su uso."
+    },
+    "plan_card": {
+      "error": "Error",
+      "aria": {
+        "plan_action": "{action} plan {name}"
+      }
+    },
+    "referral_code": {
+      "labels": {
+        "referral_code": "Código de Referencia"
+      },
+      "credits_applied": "+${amount} créditos aplicados",
+      "placeholders": {
+        "enter_code": "Ingrese código"
+      },
+      "buttons": {
+        "redeeming": "Canjeando...",
+        "redeem": "Canjear"
+      },
+      "errors": {
+        "could_not_redeem": "No se pudo canjear el código",
+        "failed_to_redeem": "Error al canjear código"
+      }
+    },
+    "create_api_key": {
+      "title": "Crear Clave de API",
+      "description_workspace": "Esta clave se utilizará para solicitudes de API del workspace. Su clave está cifrada y almacenada de forma segura.",
+      "description_personal": "Esta clave se utilizará para solicitudes de API personales. Su clave está cifrada y almacenada de forma segura.",
+      "key_type": "Tipo de Clave",
+      "personal": "Personal",
+      "workspace": "Workspace",
+      "name_label": "Nombre de la Clave",
+      "placeholders": {
+        "name": "p. ej., Desarrollo, Producción"
+      },
+      "cancel": "Cancelar",
+      "create": "Crear",
+      "creating": "Creando...",
+      "success_title": "Clave de API Creada",
+      "success_description": "Esta es la única vez que verá su clave de API. <strong>Cópiela ahora y guárdela de forma segura.</strong>",
+      "aria": {
+        "copy_to_clipboard": "Copiar al portapapeles"
+      }
+    },
+    "member_invitation": {
+      "title": "Invitar Miembros",
+      "description": "Invita miembros del equipo para colaborar",
+      "placeholders": {
+        "email": "Ingrese dirección de correo electrónico",
+        "another_email": "Agregue otro correo electrónico"
+      },
+      "labels": {
+        "workspaces": "Workspaces",
+        "access": "Nivel de Acceso"
+      },
+      "permissions": {
+        "read": "Solo Ver",
+        "write": "Editar Contenido",
+        "admin": "Acceso Total"
+      },
+      "titles": {
+        "view_only": "Solo Ver - Puede ver flujos de trabajo y ejecuciones",
+        "edit_content": "Editar Contenido - Puede crear y modificar flujos de trabajo",
+        "full_access": "Acceso Total - Puede administrar la configuración del equipo"
+      },
+      "loading": "Cargando workspaces...",
+      "no_workspaces": "Sin workspaces disponibles",
+      "buttons": {
+        "invite": "Invitar",
+        "inviting": "Invitando...",
+        "no_seats": "Sin Asientos Disponibles"
+      },
+      "success": "Invitación enviada exitosamente",
+      "success_with_workspaces": "Invitación enviada exitosamente a {count} workspace(s)"
+    },
+    "remove_member": {
+      "remove_team_member": "Eliminar Miembro del Equipo",
+      "leave_organization": "Salir de la Organización",
+      "confirm_leave": "¿Está seguro de que desea salir de esta organización? Perderá acceso a todos los workspaces.",
+      "cannot_undo": "Esta acción no se puede deshacer.",
+      "labels": {
+        "reduce_seats": "Reducir Asientos"
+      },
+      "reduce_seats_description": "Reducir asientos disminuirá su factura mensual. Puede agregar más asientos después si es necesario.",
+      "buttons": {
+        "cancel": "Cancelar",
+        "remove": "Eliminar",
+        "leave": "Salir"
+      }
+    },
+    "no_organization": {
+      "title": "Crear Su Primer Equipo",
+      "description": "Configure un equipo {plan} para colaborar con su organización",
+      "plans": {
+        "team": "Equipo",
+        "enterprise": "Empresarial"
+      },
+      "labels": {
+        "team_name": "Nombre del Equipo",
+        "team_url": "URL del Equipo (subdominio)",
+        "organization_name": "Nombre de la Organización",
+        "organization_slug": "Slug de la Organización"
+      },
+      "placeholders": {
+        "team_name": "Nombre de su equipo",
+        "team_url": "url-del-equipo",
+        "organization_name": "Nombre de su organización",
+        "organization_slug": "org-slug"
+      },
+      "buttons": {
+        "create_team_workspace": "Crear Equipo",
+        "creating": "Creando..."
+      },
+      "modal": {
+        "title": "Crear Equipo",
+        "description": "Configure su equipo para comenzar a colaborar con su organización"
+      }
+    },
+    "custom_tools": {
+      "placeholders": {
+        "search": "Buscar herramientas..."
+      },
+      "buttons": {
+        "add": "Agregar",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "deleting": "Eliminando...",
+        "cancel": "Cancelar"
+      },
+      "errors": {
+        "failed_to_load": "Error al cargar herramientas"
+      },
+      "empty_state": "Haga clic en \"Agregar\" arriba para comenzar",
+      "unnamed_tool": "Herramienta Sin Nombre",
+      "no_results": "No se encontraron herramientas que coincidan con \"{searchTerm}\"",
+      "delete_dialog": {
+        "title": "Eliminar Herramienta Personalizada",
+        "confirm_message": "¿Está seguro de que desea eliminar <name>{toolName}</name>? <warning>Esta acción no se puede deshacer.</warning>"
+      }
+    },
+    "skills": {
+      "placeholders": {
+        "search": "Buscar habilidades..."
+      },
+      "buttons": {
+        "add": "Agregar",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "deleting": "Eliminando...",
+        "cancel": "Cancelar"
+      },
+      "errors": {
+        "failed_to_load": "Error al cargar habilidades"
+      },
+      "empty_state": "Haga clic en \"Agregar\" arriba para comenzar",
+      "no_results": "No se encontraron habilidades que coincidan con \"{searchTerm}\"",
+      "delete_dialog": {
+        "title": "Eliminar Habilidad",
+        "confirm_message": "¿Está seguro de que desea eliminar <name>{skillName}</name>? <warning>Esta acción no se puede deshacer.</warning>"
+      }
+    },
+    "files": {
+      "placeholders": {
+        "search": "Buscar archivos..."
+      },
+      "buttons": {
+        "upload": "Cargar",
+        "uploading": "Cargando...",
+        "upload_progress": "{completed}/{total}"
+      },
+      "empty_state": "Sin archivos cargados aún",
+      "no_results": "No se encontraron archivos que coincidan con \"{search}\"",
+      "table": {
+        "name": "Nombre",
+        "size": "Tamaño",
+        "uploaded": "Cargado",
+        "actions": "Acciones"
+      },
+      "aria": {
+        "dismiss": "Descartar {fileName}",
+        "download": "Descargar {fileName}",
+        "delete": "Eliminar {fileName}"
+      },
+      "tooltips": {
+        "download": "Descargar archivo",
+        "delete": "Eliminar archivo"
+      }
+    },
+    "byok": {
+      "description": "Utilice sus propias claves de API para proveedores de modelos alojados.",
+      "buttons": {
+        "update": "Actualizar",
+        "delete": "Eliminar",
+        "add_key": "Agregar Clave",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "saving": "Guardando...",
+        "deleting": "Eliminando..."
+      },
+      "errors": {
+        "save_failed": "Error al guardar la clave de API"
+      },
+      "modal": {
+        "update_title": "Actualizar Clave de API {name}",
+        "add_title": "Agregar Clave de API {name}",
+        "description": "Esta clave se utilizará para todas las solicitudes {name} en este workspace. Su clave está cifrada y almacenada de forma segura.",
+        "enter_api_key": "Ingrese su clave de API"
+      },
+      "delete_dialog": {
+        "title": "Eliminar Clave de API",
+        "confirm_message": "¿Está seguro de que desea eliminar la clave de API <name>{providerName}</name>? Este workspace volverá a utilizar claves alojadas en la plataforma."
+      }
+    },
+    "copilot": {
+      "placeholders": {
+        "search": "Buscar claves de API...",
+        "key_name": "p. ej., Desarrollo, Producción"
+      },
+      "buttons": {
+        "create": "Crear",
+        "creating": "Creando...",
+        "delete": "Eliminar",
+        "deleting": "Eliminando...",
+        "cancel": "Cancelar"
+      },
+      "errors": {
+        "duplicate_name": "Ya existe una clave de API Copilot llamada \"{name}\". Por favor, elija un nombre diferente.",
+        "create_failed": "Error al crear la clave de API. Por favor, verifique su conexión e intente nuevamente."
+      },
+      "empty_state": "Haga clic en \"Crear\" arriba para comenzar",
+      "unnamed_key": "Clave Sin Nombre",
+      "last_used": "último uso: {date}",
+      "last_used_never": "Nunca",
+      "no_results": "No se encontraron claves de API que coincidan con \"{searchTerm}\"",
+      "create_dialog": {
+        "title": "Crear nueva clave de API",
+        "description": "Esta clave permitirá el acceso a las características de Copilot. Asegúrese de copiarla después de la creación ya que no podrá verla nuevamente.",
+        "name_label": "Ingrese un nombre para su clave de API para ayudar a identificarla más tarde."
+      },
+      "new_key_dialog": {
+        "title": "Su clave de API ha sido creada",
+        "description": "Esta es la única vez que verá su clave de API. <bold>Cópiela ahora y guárdela de forma segura.</bold>"
+      },
+      "delete_dialog": {
+        "title": "Eliminar clave de API",
+        "confirm_message": "Eliminar <name>{keyName}</name> revocará inmediatamente el acceso para cualquier integración que la use. <warning>Esta acción no se puede deshacer.</warning>"
+      },
+      "aria": {
+        "copy_to_clipboard": "Copiar al portapapeles"
+      }
+    },
+    "skill_modal": {
+      "title_edit": "Editar Habilidad",
+      "title_create": "Crear Habilidad",
+      "labels": {
+        "name": "Nombre",
+        "description": "Descripción",
+        "content": "Contenido"
+      },
+      "placeholders": {
+        "name": "mi-nombre-habilidad",
+        "description": "Lo que hace esta habilidad y cuándo usarla...",
+        "content": "Instrucciones de habilidad en markdown..."
+      },
+      "hints": {
+        "name_format": "Letras minúsculas, números y guiones (p. ej. mi-habilidad)"
+      },
+      "buttons": {
+        "delete": "Eliminar",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "saving": "Guardando...",
+        "update": "Actualizar",
+        "create": "Crear"
+      },
+      "errors": {
+        "name_required": "El nombre es obligatorio",
+        "name_too_long": "El nombre debe tener 64 caracteres o menos",
+        "name_format": "El nombre debe estar en formato kebab-case (p. ej. mi-habilidad)",
+        "description_required": "La descripción es obligatoria",
+        "content_required": "El contenido es obligatorio",
+        "save_failed": "Error al guardar la habilidad. Por favor, intente nuevamente."
+      }
+    },
+    "mcp": {
+      "form_field": {
+        "optional": "(opcional)"
+      }
+    },
+    "team_management": {
+      "yourself": "usted",
+      "this_member": "este miembro",
+      "alerts": {
+        "team_upgrade": "Actualización de equipo a {seats} asientos - integración necesaria"
+      },
+      "single_organization_notice": "<bold>Nota:</bold> Los usuarios solo pueden ser parte de una organización a la vez.",
+      "team_information": "Información del Equipo",
+      "billing_information": "Información de Facturación",
+      "labels": {
+        "team_id": "ID del Equipo:",
+        "created": "Creado:",
+        "your_role": "Su Rol:"
+      },
+      "billing": {
+        "minimum_charge": "Su equipo se factura un mínimo de ${amount}/mes por {seats} asientos licenciados",
+        "pooled_usage": "Todo el uso de los miembros del equipo se agrupa desde un límite compartido",
+        "usage_exceeded": "Cuando el uso agrupado excede el límite, todos los miembros están bloqueados para usar el servicio",
+        "increase_limit": "Puede aumentar el límite de uso para permitir un uso más alto",
+        "overage": "Cualquier uso más allá del costo mínimo del asiento se factura como exceso al final del período de facturación"
+      },
+      "add_seats": {
+        "title": "Agregar Asientos del Equipo",
+        "description": "Cada asiento cuesta ${cost}/mes y proporciona ${cost} en créditos de inferencia mensual. Ajuste el número de asientos licenciados para su equipo.",
+        "confirm_button": "Actualizar Asientos"
+      }
+    },
+    "team_members": {
+      "title": "Miembros del Equipo",
+      "empty": "Sin miembros del equipo aún.",
+      "badges": {
+        "pending": "Pendiente"
+      },
+      "labels": {
+        "usage": "Uso"
+      },
+      "buttons": {
+        "remove": "Eliminar",
+        "sending": "Enviando...",
+        "resend": "Reenviar",
+        "resend_cooldown": "Reenviar ({seconds}s)",
+        "cancelling": "Cancelando...",
+        "cancel": "Cancelar",
+        "leave_organization": "Salir de la Organización"
+      }
+    },
+    "team_seats": {
+      "seat": "asiento",
+      "seats": "asientos",
+      "labels": {
+        "number_of_seats": "Número de Asientos",
+        "current_seats": "Asientos Actuales",
+        "new_seats": "Nuevos Asientos",
+        "monthly_cost_change": "Cambio de Costo Mensual"
+      },
+      "placeholders": {
+        "select_seats": "Seleccionar asientos"
+      },
+      "team_info": "Su equipo tendrá {seats} asientos a ${total}/mes.",
+      "buttons": {
+        "cancel": "Cancelar",
+        "updating": "Actualizando..."
+      },
+      "tooltips": {
+        "reactivate": "Por favor, reactive su suscripción antes de modificar asientos."
+      }
+    },
+    "team_seats_overview": {
+      "title": "Asientos",
+      "no_subscription_title": "Sin Suscripción Activa",
+      "no_subscription_description": "Configure una suscripción de equipo para gestionar asientos y facturación.",
+      "buttons": {
+        "setup_subscription": "Configurar Suscripción"
+      },
+      "badges": {
+        "add_seats": "+ Agregar Asientos"
+      },
+      "used": "{count} usado",
+      "total": "{count} total",
+      "enterprise_message": "Los planes empresariales tienen asientos ilimitados. Comuníquese con soporte para ajustar su plan."
+    }
+  },
+  "workflows": {
+    "title": "Flujos de Trabajo",
+    "canvas": {
+      "modes": {
+        "pointer": "Puntero",
+        "hand": "Mano"
+      },
+      "controls": {
+        "fit_to_view": "Ajustar a la vista"
+      }
+    },
+    "context_menu": {
+      "buttons": {
+        "open_in_new_tab": "Abrir en nueva pestaña",
+        "rename": "Renombrar",
+        "create_workflow": "Crear flujo de trabajo",
+        "create_folder": "Crear carpeta",
+        "change_color": "Cambiar color",
+        "duplicate": "Duplicar",
+        "export": "Exportar",
+        "delete": "Eliminar",
+        "leave": "Salir"
+      }
+    },
+    "delete_modal": {
+      "titles": {
+        "workflow_single": "Eliminar flujo de trabajo",
+        "workflow_multiple": "Eliminar flujos de trabajo",
+        "folder_single": "Eliminar carpeta",
+        "folder_multiple": "Eliminar carpetas",
+        "mixed": "Eliminar elementos",
+        "workspace": "Eliminar espacio de trabajo"
+      },
+      "descriptions": {
+        "workflow_single_named": "¿Está seguro de que desea eliminar el flujo de trabajo '{name}'?",
+        "workflow_single_unnamed": "¿Está seguro de que desea eliminar este flujo de trabajo?",
+        "workflow_multiple_named": "¿Está seguro de que desea eliminar {names}?",
+        "workflow_multiple_unnamed": "¿Está seguro de que desea eliminar estos flujos de trabajo?",
+        "folder_single_named": "¿Está seguro de que desea eliminar la carpeta '{name}'?",
+        "folder_single_unnamed": "¿Está seguro de que desea eliminar esta carpeta?",
+        "folder_multiple_named": "¿Está seguro de que desea eliminar {names}?",
+        "folder_multiple_unnamed": "¿Está seguro de que desea eliminar estas carpetas?",
+        "mixed_named": "¿Está seguro de que desea eliminar {names}?",
+        "mixed_unnamed": "¿Está seguro de que desea eliminar estos elementos?",
+        "workspace_single_named": "¿Está seguro de que desea eliminar el espacio de trabajo '{name}'?",
+        "workspace_single_unnamed": "¿Está seguro de que desea eliminar este espacio de trabajo?",
+        "cannot_undo": "Esta acción no se puede deshacer."
+      },
+      "buttons": {
+        "cancel": "Cancelar",
+        "delete": "Eliminar",
+        "deleting": "Eliminando..."
+      }
+    },
+    "errors": {
+      "triggers_in_loop": "Los activadores no pueden colocarse dentro de flujos de sub-trabajo de bucle o paralelos.",
+      "nested_subflows": "Los subflujos no pueden anidarse dentro de otros subflujos.",
+      "locked_blocks_delete": "No se pueden eliminar bloques bloqueados o bloques dentro de contenedores bloqueados.",
+      "single_trigger_block": "Un flujo de trabajo solo puede tener un bloque de activador {triggerName}. Por favor, elimine el existente antes de agregar uno nuevo.",
+      "single_instance_block": "Un flujo de trabajo solo puede tener un bloque {blockName}. Por favor, elimine el existente antes de agregar uno nuevo.",
+      "legacy_start_block_exists": "No se pueden agregar nuevos bloques de activador cuando existe un bloque Start heredado. Disponible en flujos de trabajo más nuevos.",
+      "cycle_detected": "No se puede crear conexión: crearía un ciclo en el flujo de trabajo.",
+      "invalid_connection": "No se puede crear conexión: origen o destino inválido."
+    },
+    "notifications": {
+      "credential_connected": "Credencial de \"{displayName}\" conectada exitosamente.",
+      "reconnected_successfully": "\"{displayName}\" reconectado exitosamente.",
+      "account_already_connected": "Esta cuenta ya está conectada como \"{existingName}\".",
+      "protected_blocks_skipped": "Se omitieron {count} bloque(s) protegido(s)",
+      "operations": {
+        "duplicating": "Duplicando...",
+        "exporting": "Exportando...",
+        "deleting": "Eliminando..."
+      }
+    },
+    "block_menu": {
+      "clipboard": {
+        "copy": "Copiar",
+        "paste": "Pegar"
+      },
+      "edit": {
+        "duplicate": "Duplicar",
+        "rename": "Renombrar",
+        "open_editor": "Abrir Editor",
+        "flip_handles": "Voltear Asas"
+      },
+      "state": {
+        "enable": "Habilitar",
+        "disable": "Deshabilitar",
+        "toggle_enabled": "Alternar Habilitación",
+        "parent_disabled": "El padre está deshabilitado",
+        "lock": "Bloquear",
+        "unlock": "Desbloquear",
+        "toggle_lock": "Alternar Bloqueo",
+        "parent_locked": "El padre está bloqueado"
+      },
+      "subflow": {
+        "remove_from_subflow": "Eliminar del Subflujo"
+      },
+      "execution": {
+        "run_from_block": "Ejecutar desde bloque",
+        "run_until_block": "Ejecutar hasta bloque"
+      },
+      "destructive": {
+        "delete": "Eliminar"
+      }
+    },
+    "canvas_menu": {
+      "history": {
+        "undo": "Deshacer",
+        "redo": "Rehacer"
+      },
+      "edit": {
+        "paste": "Pegar",
+        "add_block": "Agregar Bloque",
+        "auto_layout": "Diseño Automático",
+        "auto_layout_disabled": "Desbloquea bloques para usar el diseño automático",
+        "fit_to_view": "Ajustar a la Vista"
+      },
+      "navigation": {
+        "open_logs": "Abrir Registros",
+        "open_variables": "Abrir Variables",
+        "close_variables": "Cerrar Variables",
+        "open_chat": "Abrir Chat",
+        "close_chat": "Cerrar Chat"
+      }
+    },
+    "command_list": {
+      "templates": "Plantillas",
+      "new_agent": "Nuevo Agente",
+      "logs": "Registros",
+      "search_blocks": "Buscar Bloques"
+    }
+  },
+  "blocks": {
+    "title": "Bloques",
+    "categories": {
+      "tools": "Herramientas",
+      "triggers": "Activadores",
+      "control": "Flujo de Control",
+      "data": "Datos",
+      "integrations": "Integraciones"
+    },
+    "search": {
+      "placeholder": "Buscar bloques...",
+      "no_results": "No se encontraron bloques"
+    },
+    "common": {
+      "labels": {
+        "name": "Nombre",
+        "description": "Descripción",
+        "url": "URL",
+        "method": "Método",
+        "headers": "Encabezados",
+        "body": "Cuerpo",
+        "query_params": "Parámetros de Consulta",
+        "timeout": "Tiempo de Espera (ms)",
+        "credentials": "Credenciales",
+        "api_key": "Clave de API",
+        "provider": "Proveedor",
+        "model": "Modelo",
+        "temperature": "Temperatura",
+        "max_tokens": "Tokens Máximos"
+      },
+      "placeholders": {
+        "select_option": "Seleccione una opción",
+        "enter_value": "Ingrese un valor",
+        "optional": "Opcional"
+      },
+      "errors": {
+        "required_field": "{field} es obligatorio",
+        "invalid_format": "Formato inválido para {field}",
+        "failed_to_load": "Error al cargar {item}"
+      }
+    },
+    "api_block": {
+      "name": "API",
+      "description": "Realizar solicitudes HTTP a cualquier API",
+      "methods": {
+        "get": "GET",
+        "post": "POST",
+        "put": "PUT",
+        "delete": "DELETE",
+        "patch": "PATCH"
+      }
+    },
+    "agent_block": {
+      "name": "Agente",
+      "description": "Crear agentes de IA con acceso a herramientas",
+      "labels": {
+        "system_prompt": "Indicación del Sistema",
+        "model": "Modelo",
+        "tools": "Herramientas Disponibles",
+        "thinking_level": "Nivel de Pensamiento"
+      }
+    },
+    "condition_block": {
+      "name": "Condición",
+      "description": "Crear lógica de ramificación",
+      "labels": {
+        "condition": "Condición",
+        "success": "Éxito",
+        "error": "Error"
+      }
+    },
+    "function_block": {
+      "name": "Función",
+      "description": "Escribir código personalizado",
+      "labels": {
+        "code": "Código"
+      }
+    },
+    "loop_block": {
+      "name": "Bucle",
+      "description": "Repetir bloques sobre una colección"
+    },
+    "subflow_block": {
+      "name": "Subflujo",
+      "description": "Llamar a otro flujo de trabajo",
+      "labels": {
+        "workflow": "Flujo de Trabajo"
+      }
+    }
   }
 }

@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Badge, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
@@ -37,6 +38,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     },
     ref
   ) => {
+    const t = useTranslations()
     const [inputValue, setInputValue] = useState(() => currentLimit.toString())
     const [hasError, setHasError] = useState(false)
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
@@ -211,7 +213,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
               className='h-[12px] w-[12px] flex-shrink-0 p-0'
               onClick={handleSubmit}
               disabled={isUpdating}
-              aria-label='Save limit'
+              aria-label={t('settings.usage_limit.aria.save_limit')}
             >
               {hasError ? (
                 <X className='h-[12px] w-[12px] text-[var(--text-error)]' />
@@ -232,7 +234,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 className='cursor-pointer'
                 onClick={handleStartEdit}
               >
-                Edit Limit
+                {t('settings.usage_limit.buttons.edit_limit')}
               </Badge>
             )}
           </>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Button, Input, Label } from '@/components/emcn'
 
 const logger = createLogger('ReferralCode')
@@ -15,6 +16,7 @@ interface ReferralCodeProps {
  * One-time use per account — shows success or "already redeemed" state.
  */
 export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
+  const t = useTranslations()
   const [code, setCode] = useState('')
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,11 +47,13 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
         setCode('')
         onRedeemComplete?.()
       } else {
-        setError(data.error || 'Code could not be redeemed')
+        setError(data.error || t('settings.referral_code.errors.could_not_redeem'))
       }
     } catch (err) {
       logger.error('Referral code redemption failed', { error: err })
-      setError(err instanceof Error ? err.message : 'Failed to redeem code')
+      setError(
+        err instanceof Error ? err.message : t('settings.referral_code.errors.failed_to_redeem')
+      )
     } finally {
       setIsRedeeming(false)
     }
@@ -58,9 +62,9 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
   if (success) {
     return (
       <div className='flex items-center justify-between'>
-        <Label>Referral Code</Label>
+        <Label>{t('settings.referral_code.labels.referral_code')}</Label>
         <span className='text-[12px] text-[var(--text-secondary)]'>
-          +${success.bonusAmount} credits applied
+          {t('settings.referral_code.credits_applied', { amount: success.bonusAmount })}
         </span>
       </div>
     )
@@ -69,7 +73,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
   return (
     <div className='flex flex-col'>
       <div className='flex items-center justify-between gap-[12px]'>
-        <Label className='shrink-0'>Referral Code</Label>
+        <Label className='shrink-0'>{t('settings.referral_code.labels.referral_code')}</Label>
         <div className='flex items-center gap-[8px]'>
           <Input
             type='text'
@@ -81,7 +85,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleRedeem()
             }}
-            placeholder='Enter code'
+            placeholder={t('settings.referral_code.placeholders.enter_code')}
             className='h-[32px] w-[140px] text-[12px]'
             disabled={isRedeeming}
           />
@@ -91,7 +95,9 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
             onClick={handleRedeem}
             disabled={isRedeeming || !code.trim()}
           >
-            {isRedeeming ? 'Redeeming...' : 'Redeem'}
+            {isRedeeming
+              ? t('settings.referral_code.buttons.redeeming')
+              : t('settings.referral_code.buttons.redeem')}
           </Button>
         </div>
       </div>

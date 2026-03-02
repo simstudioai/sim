@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChevronDown,
@@ -36,6 +37,7 @@ const logger = createLogger('WorkflowControls')
  * Floating controls for canvas mode, undo/redo, and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
+  const t = useTranslations()
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore()
@@ -126,7 +128,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 </Button>
               </div>
             </PopoverTrigger>
-            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {mode === 'hand'
+                ? t('workflows.canvas.modes.hand')
+                : t('workflows.canvas.modes.pointer')}
+            </Tooltip.Content>
           </Tooltip.Root>
           <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
             <PopoverItem
@@ -136,7 +142,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               }}
             >
               <Hand className='h-3 w-3' />
-              <span>Mover</span>
+              <span>{t('workflows.canvas.modes.hand')}</span>
             </PopoverItem>
             <PopoverItem
               onClick={() => {
@@ -145,7 +151,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               }}
             >
               <Cursor className='h-3 w-3' />
-              <span>Pointer</span>
+              <span>{t('workflows.canvas.modes.pointer')}</span>
             </PopoverItem>
           </PopoverContent>
         </Popover>

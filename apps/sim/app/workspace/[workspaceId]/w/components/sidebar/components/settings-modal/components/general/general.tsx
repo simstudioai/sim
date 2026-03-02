@@ -22,11 +22,13 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { useTranslations } from 'next-intl'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/hooks/use-profile-picture-upload'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
+import LocaleSelector from '@/components/locale-selector'
 
 const logger = createLogger('General')
 
@@ -120,6 +122,7 @@ interface GeneralProps {
 }
 
 export function General({ onOpenChange }: GeneralProps) {
+  const t = useTranslations()
   const router = useRouter()
   const brandConfig = useBrandConfig()
   const { data: session } = useSession()
@@ -193,7 +196,9 @@ export function General({ onOpenChange }: GeneralProps) {
         })
         .catch(() => {
           setUploadError(
-            url ? 'Failed to update profile picture' : 'Failed to remove profile picture'
+            url
+              ? t('settings.general.errors.failed_update_picture')
+              : t('settings.general.errors.failed_remove_picture')
           )
         })
     },
@@ -289,7 +294,7 @@ export function General({ onOpenChange }: GeneralProps) {
       }, 1500)
     } catch (error) {
       logger.error('Error resetting password:', error)
-      setResetPasswordError('Failed to send email')
+      setResetPasswordError(t('settings.general.reset_password.errors.failed_send'))
 
       setTimeout(() => {
         setResetPasswordError(null)
@@ -448,7 +453,7 @@ export function General({ onOpenChange }: GeneralProps) {
                   className='h-[12px] w-[12px] flex-shrink-0 p-0'
                   onClick={handleUpdateName}
                   disabled={updateProfile.isPending}
-                  aria-label='Save name'
+                  aria-label={t('settings.general.aria.save_name')}
                 >
                   <Check className='h-[12px] w-[12px]' />
                 </Button>
@@ -460,7 +465,7 @@ export function General({ onOpenChange }: GeneralProps) {
                   variant='ghost'
                   className='h-[10.5px] w-[10.5px] flex-shrink-0 p-0'
                   onClick={() => setIsEditingName(true)}
-                  aria-label='Edit name'
+                  aria-label={t('settings.general.aria.edit_name')}
                 >
                   <Pencil className='h-[10.5px] w-[10.5px]' />
                 </Button>
@@ -473,7 +478,7 @@ export function General({ onOpenChange }: GeneralProps) {
       {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
 
       <div className='flex items-center justify-between border-b pb-[12px]'>
-        <Label htmlFor='theme-select'>Theme</Label>
+        <Label htmlFor='theme-select'>{t('settings.general.labels.theme')}</Label>
         <div className='w-[100px]'>
           <Combobox
             size='sm'
@@ -481,18 +486,18 @@ export function General({ onOpenChange }: GeneralProps) {
             dropdownWidth={140}
             value={settings?.theme}
             onChange={handleThemeChange}
-            placeholder='Select theme'
+            placeholder={t('settings.general.placeholders.select_theme')}
             options={[
-              { label: 'System', value: 'system' },
-              { label: 'Light', value: 'light' },
-              { label: 'Dark', value: 'dark' },
+              { label: t('settings.general.theme.system'), value: 'system' },
+              { label: t('settings.general.theme.light'), value: 'light' },
+              { label: t('settings.general.theme.dark'), value: 'dark' },
             ]}
           />
         </div>
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+        <Label htmlFor='auto-connect'>{t('settings.general.labels.auto_connect')}</Label>
         <Switch
           id='auto-connect'
           checked={settings?.autoConnect ?? true}
@@ -501,7 +506,9 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='error-notifications'>Workflow error notifications</Label>
+        <Label htmlFor='error-notifications'>
+          {t('settings.general.labels.error_notifications')}
+        </Label>
         <Switch
           id='error-notifications'
           checked={settings?.errorNotificationsEnabled ?? true}
@@ -510,7 +517,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+        <Label htmlFor='snap-to-grid'>{t('settings.general.labels.snap_to_grid')}</Label>
         <div className='w-[100px]'>
           <Combobox
             size='sm'
@@ -518,9 +525,9 @@ export function General({ onOpenChange }: GeneralProps) {
             dropdownWidth={140}
             value={String(snapToGridValue)}
             onChange={handleSnapToGridChange}
-            placeholder='Select size'
+            placeholder={t('settings.general.placeholders.select_size')}
             options={[
-              { label: 'Off', value: '0' },
+              { label: t('settings.general.snap_grid.off'), value: '0' },
               { label: '10px', value: '10' },
               { label: '20px', value: '20' },
               { label: '30px', value: '30' },
@@ -532,7 +539,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='show-action-bar'>Show canvas controls</Label>
+        <Label htmlFor='show-action-bar'>{t('settings.general.labels.show_canvas_controls')}</Label>
         <Switch
           id='show-action-bar'
           checked={settings?.showActionBar ?? true}
@@ -541,7 +548,7 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <div className='flex items-center justify-between border-t pt-[16px]'>
-        <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
+        <Label htmlFor='telemetry'>{t('settings.general.labels.allow_telemetry')}</Label>
         <Switch
           id='telemetry'
           checked={settings?.telemetryEnabled ?? true}
@@ -550,13 +557,19 @@ export function General({ onOpenChange }: GeneralProps) {
       </div>
 
       <p className='-mt-[8px] text-[12px] text-[var(--text-muted)]'>
-        We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out at any
-        time.
+        {t('settings.general.telemetry_description')}
       </p>
+
+      <div className='flex items-center justify-between border-t pt-[16px]'>
+        <Label htmlFor='theme-select'>{t('settings.general.labels.language')}</Label>
+        <LocaleSelector />
+      </div>
 
       {isTrainingEnabled && (
         <div className='flex items-center justify-between'>
-          <Label htmlFor='training-controls'>Training controls</Label>
+          <Label htmlFor='training-controls'>
+            {t('settings.general.labels.training_controls')}
+          </Label>
           <Switch
             id='training-controls'
             checked={settings?.showTrainingControls ?? false}
@@ -567,7 +580,7 @@ export function General({ onOpenChange }: GeneralProps) {
 
       {!loadingSuperUser && isSuperUser && (
         <div className='flex items-center justify-between'>
-          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Label htmlFor='super-user-mode'>{t('settings.general.labels.super_admin_mode')}</Label>
           <Switch
             id='super-user-mode'
             checked={settings?.superUserModeEnabled ?? true}
@@ -580,10 +593,10 @@ export function General({ onOpenChange }: GeneralProps) {
         {!isAuthDisabled && (
           <>
             <Button onClick={handleSignOut} variant='active'>
-              Sign out
+              {t('settings.general.buttons.sign_out')}
             </Button>
             <Button onClick={() => setShowResetPasswordModal(true)} variant='active'>
-              Reset password
+              {t('settings.general.buttons.reset_password')}
             </Button>
           </>
         )}
@@ -593,7 +606,7 @@ export function General({ onOpenChange }: GeneralProps) {
             variant='active'
             className='ml-auto'
           >
-            Home Page
+            {t('settings.general.buttons.home_page')}
           </Button>
         )}
       </div>
@@ -601,12 +614,14 @@ export function General({ onOpenChange }: GeneralProps) {
       {/* Password Reset Confirmation Modal */}
       <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>
         <ModalContent size='sm'>
-          <ModalHeader>Reset Password</ModalHeader>
+          <ModalHeader>{t('settings.general.reset_password.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              A password reset link will be sent to{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
-              Click the link in the email to create a new password.
+              {t.rich('settings.general.reset_password.description', {
+                email: () => (
+                  <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>
+                ),
+              })}
             </p>
             {resetPasswordError && (
               <p className='mt-[8px] text-[12px] text-[var(--text-error)]'>{resetPasswordError}</p>
@@ -617,7 +632,7 @@ export function General({ onOpenChange }: GeneralProps) {
               onClick={() => setShowResetPasswordModal(false)}
               disabled={isResettingPassword || resetPasswordSuccess}
             >
-              Cancel
+              {t('settings.general.reset_password.cancel')}
             </Button>
             <Button
               variant='tertiary'
@@ -625,10 +640,10 @@ export function General({ onOpenChange }: GeneralProps) {
               disabled={isResettingPassword || resetPasswordSuccess}
             >
               {isResettingPassword
-                ? 'Sending...'
+                ? t('settings.general.reset_password.sending')
                 : resetPasswordSuccess
-                  ? 'Sent'
-                  : 'Send Reset Email'}
+                  ? t('settings.general.reset_password.sent')
+                  : t('settings.general.reset_password.send_reset_email')}
             </Button>
           </ModalFooter>
         </ModalContent>

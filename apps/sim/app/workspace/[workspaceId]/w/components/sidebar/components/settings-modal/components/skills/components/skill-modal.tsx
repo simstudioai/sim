@@ -2,6 +2,7 @@
 
 import type { ChangeEvent } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -41,6 +42,7 @@ export function SkillModal({
   onDelete,
   initialValues,
 }: SkillModalProps) {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -77,19 +79,19 @@ export function SkillModal({
     const newErrors: FieldErrors = {}
 
     if (!name.trim()) {
-      newErrors.name = 'Name is required'
+      newErrors.name = t('settings.skill_modal.errors.name_required')
     } else if (name.length > 64) {
-      newErrors.name = 'Name must be 64 characters or less'
+      newErrors.name = t('settings.skill_modal.errors.name_too_long')
     } else if (!KEBAB_CASE_REGEX.test(name)) {
-      newErrors.name = 'Name must be kebab-case (e.g. my-skill)'
+      newErrors.name = t('settings.skill_modal.errors.name_format')
     }
 
     if (!description.trim()) {
-      newErrors.description = 'Description is required'
+      newErrors.description = t('settings.skill_modal.errors.description_required')
     }
 
     if (!content.trim()) {
-      newErrors.content = 'Content is required'
+      newErrors.content = t('settings.skill_modal.errors.content_required')
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -117,7 +119,7 @@ export function SkillModal({
       const message =
         error instanceof Error && error.message.includes('already exists')
           ? error.message
-          : 'Failed to save skill. Please try again.'
+          : t('settings.skill_modal.errors.save_failed')
       setErrors({ general: message })
     } finally {
       setSaving(false)
@@ -127,16 +129,20 @@ export function SkillModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='xl'>
-        <ModalHeader>{initialValues ? 'Edit Skill' : 'Create Skill'}</ModalHeader>
+        <ModalHeader>
+          {initialValues
+            ? t('settings.skill_modal.title_edit')
+            : t('settings.skill_modal.title_create')}
+        </ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>
             <div className='flex flex-col gap-[4px]'>
               <Label htmlFor='skill-name' className='font-medium text-[13px]'>
-                Name
+                {t('settings.skill_modal.labels.name')}
               </Label>
               <Input
                 id='skill-name'
-                placeholder='my-skill-name'
+                placeholder={t('settings.skill_modal.placeholders.name')}
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
@@ -148,18 +154,18 @@ export function SkillModal({
                 <p className='text-[12px] text-[var(--text-error)]'>{errors.name}</p>
               ) : (
                 <span className='text-[11px] text-[var(--text-muted)]'>
-                  Lowercase letters, numbers, and hyphens (e.g. my-skill)
+                  {t('settings.skill_modal.hints.name_format')}
                 </span>
               )}
             </div>
 
             <div className='flex flex-col gap-[4px]'>
               <Label htmlFor='skill-description' className='font-medium text-[13px]'>
-                Description
+                {t('settings.skill_modal.labels.description')}
               </Label>
               <Input
                 id='skill-description'
-                placeholder='What this skill does and when to use it...'
+                placeholder={t('settings.skill_modal.placeholders.description')}
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value)
@@ -175,11 +181,11 @@ export function SkillModal({
 
             <div className='flex flex-col gap-[4px]'>
               <Label htmlFor='skill-content' className='font-medium text-[13px]'>
-                Content
+                {t('settings.skill_modal.labels.content')}
               </Label>
               <Textarea
                 id='skill-content'
-                placeholder='Skill instructions in markdown...'
+                placeholder={t('settings.skill_modal.placeholders.content')}
                 value={content}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                   setContent(e.target.value)
@@ -201,17 +207,21 @@ export function SkillModal({
         <ModalFooter className='items-center justify-between'>
           {initialValues && onDelete ? (
             <Button variant='destructive' onClick={() => onDelete(initialValues.id)}>
-              Delete
+              {t('settings.skill_modal.buttons.delete')}
             </Button>
           ) : (
             <div />
           )}
           <div className='flex gap-2'>
             <Button variant='default' onClick={() => onOpenChange(false)}>
-              Cancel
+              {t('settings.skill_modal.buttons.cancel')}
             </Button>
             <Button variant='tertiary' onClick={handleSave} disabled={saving || !hasChanges}>
-              {saving ? 'Saving...' : initialValues ? 'Update' : 'Create'}
+              {saving
+                ? t('settings.skill_modal.buttons.saving')
+                : initialValues
+                  ? t('settings.skill_modal.buttons.update')
+                  : t('settings.skill_modal.buttons.create')}
             </Button>
           </div>
         </ModalFooter>

@@ -1,43 +1,41 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteModalProps {
-  /**
-   * Whether the modal is open
-   */
   isOpen: boolean
-  /**
-   * Callback when modal should close
-   */
   onClose: () => void
-  /**
-   * Callback when delete is confirmed
-   */
   onConfirm: () => void
-  /**
-   * Whether the delete operation is in progress
-   */
   isDeleting: boolean
-  /**
-   * Type of item being deleted
-   * - 'mixed' is used when both workflows and folders are selected
-   */
   itemType: 'workflow' | 'folder' | 'workspace' | 'mixed'
-  /**
-   * Name(s) of the item(s) being deleted (optional, for display)
-   * Can be a single name or an array of names for multiple items
-   */
   itemName?: string | string[]
 }
 
-/**
- * Reusable delete confirmation modal for workflow, folder, and workspace items.
- * Displays a warning message and confirmation buttons.
- *
- * @param props - Component props
- * @returns Delete confirmation modal
- */
+const TITLE_KEYS: Record<string, string> = {
+  'workflow-single': 'workflows.delete_modal.titles.workflow_single',
+  'workflow-multiple': 'workflows.delete_modal.titles.workflow_multiple',
+  'folder-single': 'workflows.delete_modal.titles.folder_single',
+  'folder-multiple': 'workflows.delete_modal.titles.folder_multiple',
+  mixed: 'workflows.delete_modal.titles.mixed',
+  workspace: 'workflows.delete_modal.titles.workspace',
+} as const
+
+const DESCRIPTION_KEYS: Record<string, string> = {
+  'workflow-single-named': 'workflows.delete_modal.descriptions.workflow_single_named',
+  'workflow-single-unnamed': 'workflows.delete_modal.descriptions.workflow_single_unnamed',
+  'workflow-multiple-named': 'workflows.delete_modal.descriptions.workflow_multiple_named',
+  'workflow-multiple-unnamed': 'workflows.delete_modal.descriptions.workflow_multiple_unnamed',
+  'folder-single-named': 'workflows.delete_modal.descriptions.folder_single_named',
+  'folder-single-unnamed': 'workflows.delete_modal.descriptions.folder_single_unnamed',
+  'folder-multiple-named': 'workflows.delete_modal.descriptions.folder_multiple_named',
+  'folder-multiple-unnamed': 'workflows.delete_modal.descriptions.folder_multiple_unnamed',
+  'mixed-named': 'workflows.delete_modal.descriptions.mixed_named',
+  'mixed-unnamed': 'workflows.delete_modal.descriptions.mixed_unnamed',
+  'workspace-named': 'workflows.delete_modal.descriptions.workspace_single_named',
+  'workspace-unnamed': 'workflows.delete_modal.descriptions.workspace_single_unnamed',
+} as const
+
 export function DeleteModal({
   isOpen,
   onClose,
@@ -46,100 +44,39 @@ export function DeleteModal({
   itemType,
   itemName,
 }: DeleteModalProps) {
-  const isMultiple = Array.isArray(itemName) && itemName.length > 1
-  const isSingle = !isMultiple
+  const t = useTranslations()
 
-  const displayNames = Array.isArray(itemName) ? itemName : itemName ? [itemName] : []
+  const names = Array.isArray(itemName) ? itemName : itemName ? [itemName] : []
+  const isMultiple = names.length > 1
+  const hasNames = names.length > 0
 
-  let title = ''
-  if (itemType === 'workflow') {
-    title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
-  } else if (itemType === 'folder') {
-    title = isMultiple ? 'Delete Folders' : 'Delete Folder'
-  } else if (itemType === 'mixed') {
-    title = 'Delete Items'
-  } else {
-    title = 'Delete Workspace'
+  const getTitleKey = (): string => {
+    if (itemType === 'mixed' || itemType === 'workspace') {
+      return TITLE_KEYS[itemType]
+    }
+    const key = `${itemType}-${isMultiple ? 'multiple' : 'single'}`
+    return TITLE_KEYS[key as keyof typeof TITLE_KEYS]
   }
 
-  const renderDescription = () => {
-    if (itemType === 'workflow') {
-      if (isMultiple) {
-        return (
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {displayNames.join(', ')}
-            </span>
-            ? This will permanently remove all associated blocks, executions, and configuration.
-          </>
-        )
-      }
-      if (isSingle && displayNames.length > 0) {
-        return (
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated blocks, executions, and configuration.
-          </>
-        )
-      }
-      return 'Are you sure you want to delete this workflow? This will permanently remove all associated blocks, executions, and configuration.'
-    }
-
-    if (itemType === 'folder') {
-      if (isMultiple) {
-        return (
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {displayNames.join(', ')}
-            </span>
-            ? This will permanently remove all workflows, logs, and knowledge bases within these
-            folders.
-          </>
-        )
-      }
-      if (isSingle && displayNames.length > 0) {
-        return (
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated workflows, logs, and knowledge bases.
-          </>
-        )
-      }
-      return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
-    }
-
-    if (itemType === 'mixed') {
-      if (displayNames.length > 0) {
-        return (
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {displayNames.join(', ')}
-            </span>
-            ? This will permanently remove all selected workflows and folders, including their
-            contents.
-          </>
-        )
-      }
-      return 'Are you sure you want to delete the selected items? This will permanently remove all selected workflows and folders, including their contents.'
-    }
-
-    // workspace type
-    if (isSingle && displayNames.length > 0) {
-      return (
-        <>
-          Are you sure you want to delete{' '}
-          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-          will permanently remove all associated workflows, folders, logs, and knowledge bases.
-        </>
-      )
-    }
-    return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
+  const getDescriptionKey = (): string => {
+    const type = itemType === 'mixed' ? 'mixed' : itemType === 'workspace' ? 'workspace' : itemType
+    const plurality = itemType === 'workspace' ? 'single' : isMultiple ? 'multiple' : 'single'
+    const named = hasNames ? 'named' : 'unnamed'
+    const key = `${type}-${plurality}-${named}`
+    return (
+      DESCRIPTION_KEYS[key as keyof typeof DESCRIPTION_KEYS] ??
+      'workflows.delete_modal.descriptions.workflow_single_unnamed'
+    )
   }
+
+  const title = t(getTitleKey() as any)
+  const descriptionKey = getDescriptionKey()
+
+  const descriptionText = hasNames
+    ? isMultiple
+      ? t(descriptionKey as any, { names: names.join(', ') })
+      : t(descriptionKey as any, { name: names[0] })
+    : t(descriptionKey as any)
 
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
@@ -147,16 +84,20 @@ export function DeleteModal({
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
-            {renderDescription()}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {descriptionText}{' '}
+            <span className='text-[var(--text-error)]'>
+              {t('workflows.delete_modal.descriptions.cannot_undo')}
+            </span>
           </p>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onClose} disabled={isDeleting}>
-            Cancel
+            {t('workflows.delete_modal.buttons.cancel')}
           </Button>
           <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting
+              ? t('workflows.delete_modal.buttons.deleting')
+              : t('workflows.delete_modal.buttons.delete')}
           </Button>
         </ModalFooter>
       </ModalContent>

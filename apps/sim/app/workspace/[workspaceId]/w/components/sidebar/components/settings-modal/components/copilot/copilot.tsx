@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, Copy, Plus, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Input as EmcnInput,
@@ -46,6 +47,7 @@ function CopilotKeySkeleton() {
  * Provides functionality to create, view, and delete copilot API keys.
  */
 export function Copilot() {
+  const t = useTranslations()
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
@@ -75,9 +77,7 @@ export function Copilot() {
     const trimmedName = newKeyName.trim()
     const isDuplicate = keys.some((k) => k.name === trimmedName)
     if (isDuplicate) {
-      setCreateError(
-        `A Copilot API key named "${trimmedName}" already exists. Please choose a different name.`
-      )
+      setCreateError(t('settings.copilot.errors.duplicate_name', { name: trimmedName }))
       return
     }
 
@@ -93,7 +93,7 @@ export function Copilot() {
       }
     } catch (error) {
       logger.error('Failed to generate copilot API key', { error })
-      setCreateError('Failed to create API key. Please check your connection and try again.')
+      setCreateError(t('settings.copilot.errors.create_failed'))
     }
   }
 
@@ -117,7 +117,7 @@ export function Copilot() {
   }
 
   const formatLastUsed = (dateString?: string | null) => {
-    if (!dateString) return 'Never'
+    if (!dateString) return t('settings.copilot.last_used_never')
     return formatDate(new Date(dateString))
   }
 
@@ -136,7 +136,7 @@ export function Copilot() {
               strokeWidth={2}
             />
             <Input
-              placeholder='Search API keys...'
+              placeholder={t('settings.copilot.placeholders.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -151,7 +151,7 @@ export function Copilot() {
             disabled={isLoading}
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
-            Create
+            {t('settings.copilot.buttons.create')}
           </Button>
         </div>
 
@@ -165,7 +165,7 @@ export function Copilot() {
             </div>
           ) : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-              Click "Create" above to get started
+              {t('settings.copilot.empty_state')}
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -174,10 +174,14 @@ export function Copilot() {
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                     <div className='flex items-center gap-[6px]'>
                       <span className='max-w-[280px] truncate font-medium text-[14px]'>
-                        {key.name || 'Unnamed Key'}
+                        {key.name || t('settings.copilot.unnamed_key')}
                       </span>
                       <span className='text-[13px] text-[var(--text-secondary)]'>
-                        (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                        (
+                        {t('settings.copilot.last_used', {
+                          date: formatLastUsed(key.lastUsed).toLowerCase(),
+                        })}
+                        )
                       </span>
                     </div>
                     <p className='truncate text-[13px] text-[var(--text-muted)]'>
@@ -192,13 +196,13 @@ export function Copilot() {
                       setShowDeleteDialog(true)
                     }}
                   >
-                    Delete
+                    {t('settings.copilot.buttons.delete')}
                   </Button>
                 </div>
               ))}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                  No API keys found matching "{searchTerm}"
+                  {t('settings.copilot.no_results', { searchTerm })}
                 </div>
               )}
             </div>
@@ -209,16 +213,15 @@ export function Copilot() {
       {/* Create API Key Dialog */}
       <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <ModalContent size='sm'>
-          <ModalHeader>Create new API key</ModalHeader>
+          <ModalHeader>{t('settings.copilot.create_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              This key will allow access to Copilot features. Make sure to copy it after creation as
-              you won't be able to see it again.
+              {t('settings.copilot.create_dialog.description')}
             </p>
 
             <div className='mt-[16px] flex flex-col gap-[8px]'>
               <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Enter a name for your API key to help you identify it later.
+                {t('settings.copilot.create_dialog.name_label')}
               </p>
               <EmcnInput
                 value={newKeyName}
@@ -226,7 +229,7 @@ export function Copilot() {
                   setNewKeyName(e.target.value)
                   if (createError) setCreateError(null)
                 }}
-                placeholder='e.g., Development, Production'
+                placeholder={t('settings.copilot.placeholders.key_name')}
                 className='h-9'
                 autoFocus
               />
@@ -245,7 +248,7 @@ export function Copilot() {
                 setCreateError(null)
               }}
             >
-              Cancel
+              {t('settings.copilot.buttons.cancel')}
             </Button>
             <Button
               type='button'
@@ -253,7 +256,9 @@ export function Copilot() {
               onClick={handleCreateKey}
               disabled={!newKeyName.trim() || generateKey.isPending}
             >
-              {generateKey.isPending ? 'Creating...' : 'Create'}
+              {generateKey.isPending
+                ? t('settings.copilot.buttons.creating')
+                : t('settings.copilot.buttons.create')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -271,13 +276,14 @@ export function Copilot() {
         }}
       >
         <ModalContent size='sm'>
-          <ModalHeader>Your API key has been created</ModalHeader>
+          <ModalHeader>{t('settings.copilot.new_key_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              This is the only time you will see your API key.{' '}
-              <span className='font-semibold text-[var(--text-primary)]'>
-                Copy it now and store it securely.
-              </span>
+              {t.rich('settings.copilot.new_key_dialog.description', {
+                bold: (chunks) => (
+                  <span className='font-semibold text-[var(--text-primary)]'>{chunks}</span>
+                ),
+              })}
             </p>
 
             {newKey && (
@@ -297,7 +303,7 @@ export function Copilot() {
                   ) : (
                     <Copy className='h-[14px] w-[14px]' />
                   )}
-                  <span className='sr-only'>Copy to clipboard</span>
+                  <span className='sr-only'>{t('settings.copilot.aria.copy_to_clipboard')}</span>
                 </Button>
               </div>
             )}
@@ -308,15 +314,16 @@ export function Copilot() {
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete API key</ModalHeader>
+          <ModalHeader>{t('settings.copilot.delete_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Deleting{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {deleteKey?.name || 'Unnamed Key'}
-              </span>{' '}
-              will immediately revoke access for any integrations using it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {t.rich('settings.copilot.delete_dialog.confirm_message', {
+                name: (chunks) => (
+                  <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                ),
+                warning: (chunks) => <span className='text-[var(--text-error)]'>{chunks}</span>,
+                keyName: deleteKey?.name || t('settings.copilot.unnamed_key'),
+              })}
             </p>
           </ModalBody>
           <ModalFooter>
@@ -328,14 +335,16 @@ export function Copilot() {
               }}
               disabled={deleteKeyMutation.isPending}
             >
-              Cancel
+              {t('settings.copilot.buttons.cancel')}
             </Button>
             <Button
               variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteKeyMutation.isPending}
             >
-              {deleteKeyMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteKeyMutation.isPending
+                ? t('settings.copilot.buttons.deleting')
+                : t('settings.copilot.buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

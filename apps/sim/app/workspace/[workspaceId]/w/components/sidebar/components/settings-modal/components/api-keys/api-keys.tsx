@@ -18,6 +18,7 @@ import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useTranslations } from 'next-intl'
 import {
   type ApiKey,
   useApiKeys,
@@ -34,6 +35,7 @@ interface ApiKeysProps {
 }
 
 export function ApiKeys({ onOpenChange }: ApiKeysProps) {
+  const t = useTranslations()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const params = useParams()
@@ -128,7 +130,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   }, [shouldScrollToBottom])
 
   const formatLastUsed = (dateString?: string) => {
-    if (!dateString) return 'Never'
+    if (!dateString) return t('settings.api_keys.never')
     return formatDate(new Date(dateString))
   }
 
@@ -142,7 +144,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
             strokeWidth={2}
           />
           <Input
-            placeholder='Search Sim keys...'
+            placeholder={t('settings.api_keys.placeholders.search')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -160,7 +162,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           disabled={createButtonDisabled}
         >
           <Plus className='mr-[6px] h-[13px] w-[13px]' />
-          Create
+          {t('settings.api_keys.buttons.create')}
         </Button>
       </div>
 
@@ -182,7 +184,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           </div>
         ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-            Click "Create" above to get started
+            {t('settings.api_keys.empty_state')}
           </div>
         ) : (
           <div className='flex flex-col gap-[16px]'>
@@ -191,11 +193,11 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               {!searchTerm.trim() ? (
                 <div className='flex flex-col gap-[8px]'>
                   <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                    Workspace
+                    {t('settings.api_keys.sections.workspace')}
                   </div>
                   {workspaceKeys.length === 0 ? (
                     <div className='text-[13px] text-[var(--text-muted)]'>
-                      No workspace Sim keys yet
+                      {t('settings.api_keys.no_workspace_keys')}
                     </div>
                   ) : (
                     workspaceKeys.map((key) => (
@@ -222,7 +224,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                           }}
                           disabled={!canManageWorkspaceKeys}
                         >
-                          Delete
+                          {t('settings.api_keys.buttons.delete')}
                         </Button>
                       </div>
                     ))
@@ -231,7 +233,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               ) : filteredWorkspaceKeys.length > 0 ? (
                 <div className='flex flex-col gap-[8px]'>
                   <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                    Workspace
+                    {t('settings.api_keys.sections.workspace')}
                   </div>
                   {filteredWorkspaceKeys.map(({ key }) => (
                     <div key={key.id} className='flex items-center justify-between gap-[12px]'>
@@ -257,7 +259,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                         }}
                         disabled={!canManageWorkspaceKeys}
                       >
-                        Delete
+                        {t('settings.api_keys.buttons.delete')}
                       </Button>
                     </div>
                   ))}
@@ -268,7 +270,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
                 <div className='flex flex-col gap-[8px]'>
                   <div className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                    Personal
+                    {t('settings.api_keys.sections.personal')}
                   </div>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflicts.includes(key.name)
@@ -296,13 +298,12 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                               setShowDeleteDialog(true)
                             }}
                           >
-                            Delete
+                            {t('settings.api_keys.buttons.delete')}
                           </Button>
                         </div>
                         {isConflict && (
                           <div className='text-[12px] text-[var(--text-error)] leading-tight'>
-                            Workspace Sim key with the same name overrides this. Rename your
-                            personal key to use it.
+                            {t('settings.api_keys.conflict_warning')}
                           </div>
                         )}
                       </div>
@@ -317,7 +318,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                 filteredWorkspaceKeys.length === 0 &&
                 (personalKeys.length > 0 || workspaceKeys.length > 0) && (
                   <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                    No Sim keys found matching "{searchTerm}"
+                    {t('settings.api_keys.no_results', { searchTerm })}
                   </div>
                 )}
             </>
@@ -331,7 +332,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           <div className='mt-auto flex items-center justify-between'>
             <div className='flex items-center gap-[8px]'>
               <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Allow personal Sim keys
+                {t('settings.api_keys.allow_personal_keys')}
               </span>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -343,7 +344,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top' className='max-w-xs text-[12px]'>
-                  Allow collaborators to create and use their own keys with billing charged to them.
+                  {t('settings.api_keys.allow_personal_keys_tooltip')}
                 </Tooltip.Content>
               </Tooltip.Root>
             </div>
@@ -383,13 +384,15 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Sim key</ModalHeader>
+          <ModalHeader>{t('settings.api_keys.delete_modal.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Deleting{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span> will
-              immediately revoke access for any integrations using it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {t.rich('settings.api_keys.delete_modal.description', {
+                name: () => (
+                  <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>
+                ),
+                warning: (chunks) => <span className='text-[var(--text-error)]'>{chunks}</span>,
+              })}
             </p>
           </ModalBody>
           <ModalFooter>
@@ -401,14 +404,16 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               }}
               disabled={deleteApiKeyMutation.isPending}
             >
-              Cancel
+              {t('settings.api_keys.delete_modal.cancel')}
             </Button>
             <Button
               variant='destructive'
               onClick={handleDeleteKey}
               disabled={deleteApiKeyMutation.isPending}
             >
-              {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteApiKeyMutation.isPending
+                ? t('settings.api_keys.delete_modal.deleting')
+                : t('settings.api_keys.delete_modal.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

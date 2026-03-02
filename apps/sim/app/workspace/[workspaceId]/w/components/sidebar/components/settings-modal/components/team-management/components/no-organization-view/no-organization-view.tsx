@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Input,
@@ -39,6 +42,8 @@ export function NoOrganizationView({
   createOrgDialogOpen,
   setCreateOrgDialogOpen,
 }: NoOrganizationViewProps) {
+  const t = useTranslations()
+
   if (hasTeamPlan || hasEnterprisePlan) {
     return (
       <div>
@@ -46,11 +51,14 @@ export function NoOrganizationView({
           {/* Header - matching settings page style */}
           <div>
             <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>
-              Create Your Team Workspace
+              {t('settings.no_organization.title')}
             </h4>
             <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>
-              You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
-              workspace to start collaborating with your team.
+              {t('settings.no_organization.description', {
+                plan: hasEnterprisePlan
+                  ? t('settings.no_organization.plans.enterprise')
+                  : t('settings.no_organization.plans.team'),
+              })}
             </p>
           </div>
 
@@ -67,13 +75,13 @@ export function NoOrganizationView({
             />
             <div>
               <Label htmlFor='team-name-field' className='font-medium text-[12px]'>
-                Team Name
+                {t('settings.no_organization.labels.team_name')}
               </Label>
               <Input
                 id='team-name-field'
                 value={orgName}
                 onChange={onOrgNameChange}
-                placeholder='My Team'
+                placeholder={t('settings.no_organization.placeholders.team_name')}
                 className='mt-[4px]'
                 name='team_name_field'
                 autoComplete='off'
@@ -86,7 +94,7 @@ export function NoOrganizationView({
 
             <div>
               <Label htmlFor='orgSlug' className='font-medium text-[12px]'>
-                Team URL
+                {t('settings.no_organization.labels.team_url')}
               </Label>
               <div className='mt-[4px] flex items-center'>
                 <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
@@ -96,7 +104,7 @@ export function NoOrganizationView({
                   id='orgSlug'
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
-                  placeholder='my-team'
+                  placeholder={t('settings.no_organization.placeholders.team_url')}
                   className='rounded-l-none'
                 />
               </div>
@@ -112,7 +120,9 @@ export function NoOrganizationView({
                   onClick={onCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                 >
-                  {isCreatingOrg ? 'Creating...' : 'Create Team Workspace'}
+                  {isCreatingOrg
+                    ? t('settings.no_organization.buttons.creating')
+                    : t('settings.no_organization.buttons.create_team_workspace')}
                 </Button>
               </div>
             </div>
@@ -122,10 +132,8 @@ export function NoOrganizationView({
         <Modal open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
           <ModalContent className='sm:max-w-md'>
             <ModalHeader>
-              <ModalTitle>Create Team Organization</ModalTitle>
-              <ModalDescription>
-                Create a new team organization to manage members and billing.
-              </ModalDescription>
+              <ModalTitle>{t('settings.no_organization.modal.title')}</ModalTitle>
+              <ModalDescription>{t('settings.no_organization.modal.description')}</ModalDescription>
             </ModalHeader>
 
             <div className='flex flex-col gap-[16px]'>
@@ -140,11 +148,11 @@ export function NoOrganizationView({
               />
               <div>
                 <Label htmlFor='org-name-field' className='font-medium text-[12px]'>
-                  Organization Name
+                  {t('settings.no_organization.labels.organization_name')}
                 </Label>
                 <Input
                   id='org-name-field'
-                  placeholder='Enter organization name'
+                  placeholder={t('settings.no_organization.placeholders.organization_name')}
                   value={orgName}
                   onChange={onOrgNameChange}
                   disabled={isCreatingOrg}
@@ -160,11 +168,11 @@ export function NoOrganizationView({
 
               <div>
                 <Label htmlFor='org-slug-field' className='font-medium text-[12px]'>
-                  Organization Slug
+                  {t('settings.no_organization.labels.organization_slug')}
                 </Label>
                 <Input
                   id='org-slug-field'
-                  placeholder='organization-slug'
+                  placeholder={t('settings.no_organization.placeholders.organization_slug')}
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
                   disabled={isCreatingOrg}
@@ -187,14 +195,16 @@ export function NoOrganizationView({
                 onClick={() => setCreateOrgDialogOpen(false)}
                 disabled={isCreatingOrg}
               >
-                Cancel
+                {t('settings.no_organization.buttons.cancel')}
               </Button>
               <Button
                 variant='tertiary'
                 onClick={onCreateOrganization}
                 disabled={isCreatingOrg || !orgName.trim()}
               >
-                {isCreatingOrg ? 'Creating...' : 'Create Organization'}
+                {isCreatingOrg
+                  ? t('settings.no_organization.buttons.creating')
+                  : t('settings.no_organization.buttons.create_organization')}
               </Button>
             </ModalFooter>
           </ModalContent>
@@ -206,10 +216,11 @@ export function NoOrganizationView({
   return (
     <div className='flex flex-col gap-[20px]'>
       <div className='flex flex-col gap-[8px]'>
-        <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>No Team Workspace</h3>
+        <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>
+          {t('settings.no_organization.no_workspace_title')}
+        </h3>
         <p className='text-[12px] text-[var(--text-secondary)]'>
-          You don't have a team workspace yet. To collaborate with others, first upgrade to a team
-          or enterprise plan.
+          {t('settings.no_organization.no_workspace_description')}
         </p>
       </div>
 
@@ -223,7 +234,7 @@ export function NoOrganizationView({
             window.dispatchEvent(event)
           }}
         >
-          Upgrade to Team Plan
+          {t('settings.no_organization.buttons.upgrade_to_team')}
         </Button>
       </div>
     </div>

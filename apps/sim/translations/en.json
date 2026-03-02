@@ -136,5 +136,784 @@
   },
   "generic": {
     "loading": "Loading"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "User settings and workspace configuration",
+    "sections": {
+      "account": "Account",
+      "tools": "Tools",
+      "subscription": "Subscription",
+      "system": "System",
+      "enterprise": "Enterprise",
+      "superuser": "Superuser"
+    },
+    "nav": {
+      "general": "General",
+      "template_profile": "Template Profile",
+      "access_control": "Access Control",
+      "subscription": "Subscription",
+      "team": "Team",
+      "secrets": "Secrets",
+      "custom_tools": "Custom Tools",
+      "skills": "Skills",
+      "mcp_tools": "MCP Tools",
+      "sim_keys": "Sim Keys",
+      "mcp_servers": "MCP Servers",
+      "byok": "BYOK",
+      "copilot_keys": "Copilot Keys",
+      "files": "Files",
+      "email_polling": "Email Polling",
+      "single_sign_on": "Single Sign On",
+      "debug": "Debug"
+    },
+    "general": {
+      "errors": {
+        "failed_update_picture": "Failed to update profile picture",
+        "failed_remove_picture": "Failed to remove profile picture"
+      },
+      "aria": {
+        "save_name": "Save name",
+        "edit_name": "Edit name"
+      },
+      "labels": {
+        "theme": "Theme",
+        "auto_connect": "Auto Connect",
+        "error_notifications": "Error Notifications",
+        "snap_to_grid": "Snap to Grid",
+        "show_canvas_controls": "Show Canvas Controls",
+        "allow_telemetry": "Allow Telemetry",
+        "training_controls": "Training Controls",
+        "super_admin_mode": "Super Admin Mode",
+        "language": "Language"
+      },
+      "placeholders": {
+        "select_theme": "Select theme",
+        "select_size": "Select size"
+      },
+      "theme": {
+        "system": "System",
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "snap_grid": {
+        "off": "Off"
+      },
+      "telemetry_description": "Help us improve by sharing anonymous usage data",
+      "buttons": {
+        "sign_out": "Sign Out",
+        "reset_password": "Reset Password",
+        "home_page": "Home Page"
+      },
+      "reset_password": {
+        "title": "Reset Password",
+        "description": "A password reset link will be sent to {email}",
+        "cancel": "Cancel",
+        "sending": "Sending...",
+        "sent": "Sent",
+        "send_reset_email": "Send Reset Email",
+        "errors": {
+          "failed_send": "Failed to send password reset email"
+        }
+      }
+    },
+    "debug": {
+      "description": "Import a workflow by ID along with its associated copilot chats.",
+      "placeholders": {
+        "workflow_id": "Enter workflow ID"
+      },
+      "buttons": {
+        "importing": "Importing...",
+        "import": "Import"
+      }
+    },
+    "usage_header": {
+      "payment_failed": "Payment failed"
+    },
+    "usage_limit": {
+      "aria": {
+        "save_limit": "Save limit"
+      },
+      "buttons": {
+        "edit_limit": "Edit Limit"
+      }
+    },
+    "subscription": {
+      "seats_count": "{count} seats",
+      "badges": {
+        "get_help": "Get Help",
+        "fix_now": "Fix Now",
+        "upgrade": "Upgrade",
+        "increase_limit": "Increase Limit"
+      },
+      "plans": {
+        "pro": "Pro",
+        "team": "Team",
+        "enterprise": "Enterprise"
+      },
+      "per_month": "/month",
+      "buttons": {
+        "upgrade": "Upgrade",
+        "upgrade_to_pro": "Upgrade to Pro",
+        "upgrade_to_team": "Upgrade to Team",
+        "contact": "Contact"
+      },
+      "labels": {
+        "next_billing_date": "Next Billing Date",
+        "usage_notifications": "Usage notifications",
+        "billed_account": "Billed Account"
+      },
+      "usage_notifications_description": "Email me when I reach 80% usage",
+      "tooltips": {
+        "billed_account": "Usage from this workspace will be billed to this account"
+      },
+      "no_admins_available": "No admins available",
+      "placeholders": {
+        "select_admin": "Select admin"
+      }
+    },
+    "cancel_subscription": {
+      "end_of_billing_period": "end of current billing period",
+      "labels": {
+        "restore_subscription": "Restore Subscription",
+        "manage_subscription": "Manage Subscription"
+      },
+      "keep_access_until": "You'll keep access until {date}",
+      "buttons": {
+        "error": "Error",
+        "restore": "Restore",
+        "manage": "Manage",
+        "cancel": "Cancel",
+        "keep_subscription": "Keep Subscription",
+        "restoring": "Restoring...",
+        "restore_subscription": "Restore Subscription",
+        "redirecting": "Redirecting...",
+        "continue": "Continue"
+      },
+      "modal": {
+        "restore_title": "Restore {plan} Subscription",
+        "cancel_title": "Cancel {plan} Subscription",
+        "restore_description": "Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?",
+        "cancel_description": "You'll be redirected to Stripe to manage your subscription. You'll keep access until {date}, then downgrade to free plan. You can restore your subscription at any time.",
+        "keep_features_until": "- Keep all features until {date}",
+        "no_more_charges": "- No more charges",
+        "data_preserved": "- Data preserved",
+        "can_reactivate": "- Can reactivate anytime"
+      }
+    },
+    "credit_balance": {
+      "labels": {
+        "credit_balance": "Credit Balance:",
+        "amount_usd": "Amount (USD)"
+      },
+      "buttons": {
+        "add_credits": "Add Credits",
+        "cancel": "Cancel",
+        "processing": "Processing...",
+        "purchase": "Purchase"
+      },
+      "success_message": "Credits added successfully!",
+      "errors": {
+        "minimum_purchase": "Minimum purchase is $10",
+        "maximum_purchase": "Maximum purchase is $1,000",
+        "failed_to_purchase": "Failed to purchase credits"
+      },
+      "credits_info": "Credits are used before overage charges. Min: $10, Max: $1,000.",
+      "credits_info_team": "Credits are non-refundable and don't expire. They'll be applied automatically to your team usage.",
+      "credits_info_personal": "Credits are non-refundable and don't expire. They'll be applied automatically to your usage."
+    },
+    "plan_card": {
+      "error": "Error",
+      "aria": {
+        "plan_action": "{action} {name} plan"
+      }
+    },
+    "referral_code": {
+      "labels": {
+        "referral_code": "Referral Code"
+      },
+      "credits_applied": "+${amount} credits applied",
+      "placeholders": {
+        "enter_code": "Enter code"
+      },
+      "buttons": {
+        "redeeming": "Redeeming...",
+        "redeem": "Redeem"
+      },
+      "errors": {
+        "could_not_redeem": "Code could not be redeemed",
+        "failed_to_redeem": "Failed to redeem code"
+      }
+    },
+    "create_api_key": {
+      "title": "Create API Key",
+      "description_workspace": "This key will be used for workspace API requests. Your key is encrypted and stored securely.",
+      "description_personal": "This key will be used for personal API requests. Your key is encrypted and stored securely.",
+      "key_type": "Key Type",
+      "personal": "Personal",
+      "workspace": "Workspace",
+      "name_label": "Key Name",
+      "placeholders": {
+        "name": "e.g., Development, Production"
+      },
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating...",
+      "success_title": "API Key Created",
+      "success_description": "This is the only time you will see your API key. <strong>Copy it now and store it securely.</strong>",
+      "aria": {
+        "copy_to_clipboard": "Copy to clipboard"
+      }
+    },
+    "member_invitation": {
+      "title": "Invite Members",
+      "description": "Invite team members to collaborate",
+      "placeholders": {
+        "email": "Enter email address",
+        "another_email": "Add another email"
+      },
+      "labels": {
+        "workspaces": "Workspaces",
+        "access": "Access Level"
+      },
+      "permissions": {
+        "read": "View Only",
+        "write": "Edit Content",
+        "admin": "Full Access"
+      },
+      "titles": {
+        "view_only": "View Only - Can view workflows and executions",
+        "edit_content": "Edit Content - Can create and modify workflows",
+        "full_access": "Full Access - Can manage team settings"
+      },
+      "loading": "Loading workspaces...",
+      "no_workspaces": "No workspaces available",
+      "buttons": {
+        "invite": "Invite",
+        "inviting": "Inviting...",
+        "no_seats": "No Available Seats"
+      },
+      "success": "Invitation sent successfully",
+      "success_with_workspaces": "Invitation sent successfully to {count} workspace(s)"
+    },
+    "remove_member": {
+      "remove_team_member": "Remove Team Member",
+      "leave_organization": "Leave Organization",
+      "confirm_leave": "Are you sure you want to leave this organization? You will lose access to all workspaces.",
+      "cannot_undo": "This action cannot be undone.",
+      "labels": {
+        "reduce_seats": "Reduce Seats"
+      },
+      "reduce_seats_description": "Reducing seats will lower your monthly bill. You can add more seats later if needed.",
+      "buttons": {
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "leave": "Leave"
+      }
+    },
+    "no_organization": {
+      "title": "Create Your First Team",
+      "description": "Set up a {plan} team to collaborate with your team",
+      "plans": {
+        "team": "Team",
+        "enterprise": "Enterprise"
+      },
+      "labels": {
+        "team_name": "Team Name",
+        "team_url": "Team URL (subdomain)",
+        "organization_name": "Organization Name",
+        "organization_slug": "Organization Slug"
+      },
+      "placeholders": {
+        "team_name": "Your team name",
+        "team_url": "team-url",
+        "organization_name": "Your organization name",
+        "organization_slug": "org-slug"
+      },
+      "buttons": {
+        "create_team_workspace": "Create Team",
+        "creating": "Creating..."
+      },
+      "modal": {
+        "title": "Create Team",
+        "description": "Set up your team to start collaborating with your organization"
+      }
+    },
+    "custom_tools": {
+      "placeholders": {
+        "search": "Search tools..."
+      },
+      "buttons": {
+        "add": "Add",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "cancel": "Cancel"
+      },
+      "errors": {
+        "failed_to_load": "Failed to load tools"
+      },
+      "empty_state": "Click \"Add\" above to get started",
+      "unnamed_tool": "Unnamed Tool",
+      "no_results": "No tools found matching \"{searchTerm}\"",
+      "delete_dialog": {
+        "title": "Delete Custom Tool",
+        "confirm_message": "Are you sure you want to delete <name>{toolName}</name>? <warning>This action cannot be undone.</warning>"
+      }
+    },
+    "skills": {
+      "placeholders": {
+        "search": "Search skills..."
+      },
+      "buttons": {
+        "add": "Add",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "cancel": "Cancel"
+      },
+      "errors": {
+        "failed_to_load": "Failed to load skills"
+      },
+      "empty_state": "Click \"Add\" above to get started",
+      "no_results": "No skills found matching \"{searchTerm}\"",
+      "delete_dialog": {
+        "title": "Delete Skill",
+        "confirm_message": "Are you sure you want to delete <name>{skillName}</name>? <warning>This action cannot be undone.</warning>"
+      }
+    },
+    "files": {
+      "placeholders": {
+        "search": "Search files..."
+      },
+      "buttons": {
+        "upload": "Upload",
+        "uploading": "Uploading...",
+        "upload_progress": "{completed}/{total}"
+      },
+      "empty_state": "No files uploaded yet",
+      "no_results": "No files found matching \"{search}\"",
+      "table": {
+        "name": "Name",
+        "size": "Size",
+        "uploaded": "Uploaded",
+        "actions": "Actions"
+      },
+      "aria": {
+        "dismiss": "Dismiss {fileName}",
+        "download": "Download {fileName}",
+        "delete": "Delete {fileName}"
+      },
+      "tooltips": {
+        "download": "Download file",
+        "delete": "Delete file"
+      }
+    },
+    "byok": {
+      "description": "Use your own API keys for hosted model providers.",
+      "buttons": {
+        "update": "Update",
+        "delete": "Delete",
+        "add_key": "Add Key",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving...",
+        "deleting": "Deleting..."
+      },
+      "errors": {
+        "save_failed": "Failed to save API key"
+      },
+      "modal": {
+        "update_title": "Update {name} API Key",
+        "add_title": "Add {name} API Key",
+        "description": "This key will be used for all {name} requests in this workspace. Your key is encrypted and stored securely.",
+        "enter_api_key": "Enter your API key"
+      },
+      "delete_dialog": {
+        "title": "Delete API Key",
+        "confirm_message": "Are you sure you want to delete the <name>{providerName}</name> API key? This workspace will revert to using platform hosted keys."
+      }
+    },
+    "copilot": {
+      "placeholders": {
+        "search": "Search API keys...",
+        "key_name": "e.g., Development, Production"
+      },
+      "buttons": {
+        "create": "Create",
+        "creating": "Creating...",
+        "delete": "Delete",
+        "deleting": "Deleting...",
+        "cancel": "Cancel"
+      },
+      "errors": {
+        "duplicate_name": "A Copilot API key named \"{name}\" already exists. Please choose a different name.",
+        "create_failed": "Failed to create API key. Please check your connection and try again."
+      },
+      "empty_state": "Click \"Create\" above to get started",
+      "unnamed_key": "Unnamed Key",
+      "last_used": "last used: {date}",
+      "last_used_never": "Never",
+      "no_results": "No API keys found matching \"{searchTerm}\"",
+      "create_dialog": {
+        "title": "Create new API key",
+        "description": "This key will allow access to Copilot features. Make sure to copy it after creation as you won't be able to see it again.",
+        "name_label": "Enter a name for your API key to help you identify it later."
+      },
+      "new_key_dialog": {
+        "title": "Your API key has been created",
+        "description": "This is the only time you will see your API key. <bold>Copy it now and store it securely.</bold>"
+      },
+      "delete_dialog": {
+        "title": "Delete API key",
+        "confirm_message": "Deleting <name>{keyName}</name> will immediately revoke access for any integrations using it. <warning>This action cannot be undone.</warning>"
+      },
+      "aria": {
+        "copy_to_clipboard": "Copy to clipboard"
+      }
+    },
+    "skill_modal": {
+      "title_edit": "Edit Skill",
+      "title_create": "Create Skill",
+      "labels": {
+        "name": "Name",
+        "description": "Description",
+        "content": "Content"
+      },
+      "placeholders": {
+        "name": "my-skill-name",
+        "description": "What this skill does and when to use it...",
+        "content": "Skill instructions in markdown..."
+      },
+      "hints": {
+        "name_format": "Lowercase letters, numbers, and hyphens (e.g. my-skill)"
+      },
+      "buttons": {
+        "delete": "Delete",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving...",
+        "update": "Update",
+        "create": "Create"
+      },
+      "errors": {
+        "name_required": "Name is required",
+        "name_too_long": "Name must be 64 characters or less",
+        "name_format": "Name must be kebab-case (e.g. my-skill)",
+        "description_required": "Description is required",
+        "content_required": "Content is required",
+        "save_failed": "Failed to save skill. Please try again."
+      }
+    },
+    "mcp": {
+      "form_field": {
+        "optional": "(optional)"
+      }
+    },
+    "team_management": {
+      "yourself": "yourself",
+      "this_member": "this member",
+      "alerts": {
+        "team_upgrade": "Team upgrade to {seats} seats - integration needed"
+      },
+      "single_organization_notice": "<bold>Note:</bold> Users can only be part of one organization at a time.",
+      "team_information": "Team Information",
+      "billing_information": "Billing Information",
+      "labels": {
+        "team_id": "Team ID:",
+        "created": "Created:",
+        "your_role": "Your Role:"
+      },
+      "billing": {
+        "minimum_charge": "Your team is billed a minimum of ${amount}/month for {seats} licensed seats",
+        "pooled_usage": "All team member usage is pooled together from a shared limit",
+        "usage_exceeded": "When pooled usage exceeds the limit, all members are blocked from using the service",
+        "increase_limit": "You can increase the usage limit to allow for higher usage",
+        "overage": "Any usage beyond the minimum seat cost is billed as overage at the end of the billing period"
+      },
+      "add_seats": {
+        "title": "Add Team Seats",
+        "description": "Each seat costs ${cost}/month and provides ${cost} in monthly inference credits. Adjust the number of licensed seats for your team.",
+        "confirm_button": "Update Seats"
+      }
+    },
+    "team_members": {
+      "title": "Team Members",
+      "empty": "No team members yet.",
+      "badges": {
+        "pending": "Pending"
+      },
+      "labels": {
+        "usage": "Usage"
+      },
+      "buttons": {
+        "remove": "Remove",
+        "sending": "Sending...",
+        "resend": "Resend",
+        "resend_cooldown": "Resend ({seconds}s)",
+        "cancelling": "Cancelling...",
+        "cancel": "Cancel",
+        "leave_organization": "Leave Organization"
+      }
+    },
+    "team_seats": {
+      "seat": "seat",
+      "seats": "seats",
+      "labels": {
+        "number_of_seats": "Number of Seats",
+        "current_seats": "Current Seats",
+        "new_seats": "New Seats",
+        "monthly_cost_change": "Monthly Cost Change"
+      },
+      "placeholders": {
+        "select_seats": "Select seats"
+      },
+      "team_info": "Your team will have {seats} seats at ${total}/month.",
+      "buttons": {
+        "cancel": "Cancel",
+        "updating": "Updating..."
+      },
+      "tooltips": {
+        "reactivate": "Please reactivate your subscription before modifying seats."
+      }
+    },
+    "team_seats_overview": {
+      "title": "Seats",
+      "no_subscription_title": "No Active Subscription",
+      "no_subscription_description": "Set up a team subscription to manage seats and billing.",
+      "buttons": {
+        "setup_subscription": "Set Up Subscription"
+      },
+      "badges": {
+        "add_seats": "+ Add Seats"
+      },
+      "used": "{count} used",
+      "total": "{count} total",
+      "enterprise_message": "Enterprise plans have unlimited seats. Contact support to adjust your plan."
+    }
+  },
+  "workflows": {
+    "title": "Workflows",
+    "canvas": {
+      "modes": {
+        "pointer": "Pointer",
+        "hand": "Hand"
+      },
+      "controls": {
+        "fit_to_view": "Fit to view"
+      }
+    },
+    "context_menu": {
+      "buttons": {
+        "open_in_new_tab": "Open in new tab",
+        "rename": "Rename",
+        "create_workflow": "Create workflow",
+        "create_folder": "Create folder",
+        "change_color": "Change color",
+        "duplicate": "Duplicate",
+        "export": "Export",
+        "delete": "Delete",
+        "leave": "Leave"
+      }
+    },
+    "delete_modal": {
+      "titles": {
+        "workflow_single": "Delete Workflow",
+        "workflow_multiple": "Delete Workflows",
+        "folder_single": "Delete Folder",
+        "folder_multiple": "Delete Folders",
+        "mixed": "Delete Items",
+        "workspace": "Delete Workspace"
+      },
+      "descriptions": {
+        "workflow_single_named": "Are you sure you want to delete the workflow '{name}'?",
+        "workflow_single_unnamed": "Are you sure you want to delete this workflow?",
+        "workflow_multiple_named": "Are you sure you want to delete {names}?",
+        "workflow_multiple_unnamed": "Are you sure you want to delete these workflows?",
+        "folder_single_named": "Are you sure you want to delete the folder '{name}'?",
+        "folder_single_unnamed": "Are you sure you want to delete this folder?",
+        "folder_multiple_named": "Are you sure you want to delete {names}?",
+        "folder_multiple_unnamed": "Are you sure you want to delete these folders?",
+        "mixed_named": "Are you sure you want to delete {names}?",
+        "mixed_unnamed": "Are you sure you want to delete these items?",
+        "workspace_single_named": "Are you sure you want to delete the workspace '{name}'?",
+        "workspace_single_unnamed": "Are you sure you want to delete this workspace?",
+        "cannot_undo": "This action cannot be undone."
+      },
+      "buttons": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting..."
+      }
+    },
+    "errors": {
+      "triggers_in_loop": "Triggers cannot be placed inside loop or parallel subflows.",
+      "nested_subflows": "Subflows cannot be nested inside other subflows.",
+      "locked_blocks_delete": "Cannot delete locked blocks or blocks inside locked containers.",
+      "single_trigger_block": "A workflow can only have one {triggerName} trigger block. Please remove the existing one before adding a new one.",
+      "single_instance_block": "A workflow can only have one {blockName} block. Please remove the existing one before adding a new one.",
+      "legacy_start_block_exists": "Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.",
+      "cycle_detected": "Cannot create connection: would create a cycle in the workflow.",
+      "invalid_connection": "Cannot create connection: invalid source or target."
+    },
+    "notifications": {
+      "credential_connected": "\"{displayName}\" credential connected successfully.",
+      "reconnected_successfully": "\"{displayName}\" reconnected successfully.",
+      "account_already_connected": "This account is already connected as \"{existingName}\".",
+      "protected_blocks_skipped": "Skipped {count} protected block(s)",
+      "operations": {
+        "duplicating": "Duplicating...",
+        "exporting": "Exporting...",
+        "deleting": "Deleting..."
+      }
+    },
+    "block_menu": {
+      "clipboard": {
+        "copy": "Copy",
+        "paste": "Paste"
+      },
+      "edit": {
+        "duplicate": "Duplicate",
+        "rename": "Rename",
+        "open_editor": "Open Editor",
+        "flip_handles": "Flip Handles"
+      },
+      "state": {
+        "enable": "Enable",
+        "disable": "Disable",
+        "toggle_enabled": "Toggle Enabled",
+        "parent_disabled": "Parent is disabled",
+        "lock": "Lock",
+        "unlock": "Unlock",
+        "toggle_lock": "Toggle Lock",
+        "parent_locked": "Parent is locked"
+      },
+      "subflow": {
+        "remove_from_subflow": "Remove from Subflow"
+      },
+      "execution": {
+        "run_from_block": "Run from block",
+        "run_until_block": "Run until block"
+      },
+      "destructive": {
+        "delete": "Delete"
+      }
+    },
+    "canvas_menu": {
+      "history": {
+        "undo": "Undo",
+        "redo": "Redo"
+      },
+      "edit": {
+        "paste": "Paste",
+        "add_block": "Add Block",
+        "auto_layout": "Auto-layout",
+        "auto_layout_disabled": "Unlock blocks to use auto-layout",
+        "fit_to_view": "Fit to View"
+      },
+      "navigation": {
+        "open_logs": "Open Logs",
+        "open_variables": "Open Variables",
+        "close_variables": "Close Variables",
+        "open_chat": "Open Chat",
+        "close_chat": "Close Chat"
+      }
+    },
+    "command_list": {
+      "templates": "Templates",
+      "new_agent": "New Agent",
+      "logs": "Logs",
+      "search_blocks": "Search Blocks"
+    }
+  },
+  "blocks": {
+    "title": "Blocks",
+    "categories": {
+      "tools": "Tools",
+      "triggers": "Triggers",
+      "control": "Control Flow",
+      "data": "Data",
+      "integrations": "Integrations"
+    },
+    "search": {
+      "placeholder": "Search blocks...",
+      "no_results": "No blocks found"
+    },
+    "common": {
+      "labels": {
+        "name": "Name",
+        "description": "Description",
+        "url": "URL",
+        "method": "Method",
+        "headers": "Headers",
+        "body": "Body",
+        "query_params": "Query Parameters",
+        "timeout": "Timeout (ms)",
+        "credentials": "Credentials",
+        "api_key": "API Key",
+        "provider": "Provider",
+        "model": "Model",
+        "temperature": "Temperature",
+        "max_tokens": "Max Tokens"
+      },
+      "placeholders": {
+        "select_option": "Select an option",
+        "enter_value": "Enter a value",
+        "optional": "Optional"
+      },
+      "errors": {
+        "required_field": "{field} is required",
+        "invalid_format": "Invalid format for {field}",
+        "failed_to_load": "Failed to load {item}"
+      }
+    },
+    "api_block": {
+      "name": "API",
+      "description": "Make HTTP requests to any API",
+      "methods": {
+        "get": "GET",
+        "post": "POST",
+        "put": "PUT",
+        "delete": "DELETE",
+        "patch": "PATCH"
+      }
+    },
+    "agent_block": {
+      "name": "Agent",
+      "description": "Create AI agents with tool access",
+      "labels": {
+        "system_prompt": "System Prompt",
+        "model": "Model",
+        "tools": "Available Tools",
+        "thinking_level": "Thinking Level"
+      }
+    },
+    "condition_block": {
+      "name": "Condition",
+      "description": "Create branching logic",
+      "labels": {
+        "condition": "Condition",
+        "success": "Success",
+        "error": "Error"
+      }
+    },
+    "function_block": {
+      "name": "Function",
+      "description": "Write custom code",
+      "labels": {
+        "code": "Code"
+      }
+    },
+    "loop_block": {
+      "name": "Loop",
+      "description": "Repeat blocks over a collection"
+    },
+    "subflow_block": {
+      "name": "Subflow",
+      "description": "Call another workflow",
+      "labels": {
+        "workflow": "Workflow"
+      }
+    }
   }
 }

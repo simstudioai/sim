@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Checkbox,
@@ -31,22 +34,29 @@ export function RemoveMemberDialog({
   onCancel,
   isSelfRemoval = false,
 }: RemoveMemberDialogProps) {
+  const t = useTranslations()
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
-        <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
+        <ModalHeader>
+          {isSelfRemoval
+            ? t('settings.remove_member.leave_organization')
+            : t('settings.remove_member.remove_team_member')}
+        </ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
-            {isSelfRemoval ? (
-              'Are you sure you want to leave this organization? You will lose access to all team resources.'
-            ) : (
-              <>
-                Are you sure you want to remove{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{memberName}</span> from
-                the team?
-              </>
-            )}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {isSelfRemoval
+              ? t('settings.remove_member.confirm_leave')
+              : t.rich('settings.remove_member.confirm_remove', {
+                  name: memberName,
+                  bold: (chunks) => (
+                    <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                  ),
+                })}{' '}
+            <span className='text-[var(--text-error)]'>
+              {t('settings.remove_member.cannot_undo')}
+            </span>
           </p>
 
           {!isSelfRemoval && (
@@ -58,12 +68,11 @@ export function RemoveMemberDialog({
                   onCheckedChange={(checked) => onShouldReduceSeatsChange(checked === true)}
                 />
                 <label htmlFor='reduce-seats' className='text-[12px] text-[var(--text-primary)]'>
-                  Also reduce seat count in my subscription
+                  {t('settings.remove_member.labels.reduce_seats')}
                 </label>
               </div>
               <p className='mt-[4px] text-[12px] text-[var(--text-muted)]'>
-                If selected, your team seat count will be reduced by 1, lowering your monthly
-                billing.
+                {t('settings.remove_member.reduce_seats_description')}
               </p>
             </div>
           )}
@@ -78,10 +87,12 @@ export function RemoveMemberDialog({
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onCancel}>
-            Cancel
+            {t('settings.remove_member.buttons.cancel')}
           </Button>
           <Button variant='destructive' onClick={() => onConfirmRemove(shouldReduceSeats)}>
-            {isSelfRemoval ? 'Leave Organization' : 'Remove'}
+            {isSelfRemoval
+              ? t('settings.remove_member.buttons.leave')
+              : t('settings.remove_member.buttons.remove')}
           </Button>
         </ModalFooter>
       </ModalContent>

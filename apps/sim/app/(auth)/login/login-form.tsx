@@ -26,6 +26,7 @@ import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 import { useTranslations } from 'next-intl'
+import LocaleSelector from '@/components/locale-selector'
 
 const logger = createLogger('LoginForm')
 
@@ -605,8 +606,8 @@ export default function LoginPage({
             </Link>
           ),
         })}
+        <LocaleSelector />
       </div>
-
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
         <DialogContent className='auth-card auth-card-shadow max-w-[540px] rounded-[10px] border backdrop-blur-sm'>
           <DialogHeader>

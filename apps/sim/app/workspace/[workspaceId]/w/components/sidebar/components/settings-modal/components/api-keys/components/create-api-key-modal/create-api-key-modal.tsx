@@ -15,6 +15,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateApiKeyModal')
 
@@ -43,6 +44,7 @@ export function CreateApiKeyModal({
   defaultKeyType = 'personal',
   onKeyCreated,
 }: CreateApiKeyModalProps) {
+  const t = useTranslations()
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -113,19 +115,19 @@ export function CreateApiKeyModal({
       {/* Create API Key Dialog */}
       <Modal open={open} onOpenChange={onOpenChange}>
         <ModalContent size='sm'>
-          <ModalHeader>Create new Sim key</ModalHeader>
+          <ModalHeader>{t('settings.create_api_key.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               {keyType === 'workspace'
-                ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
-                : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
+                ? t('settings.create_api_key.description_workspace')
+                : t('settings.create_api_key.description_personal')}
             </p>
 
             <div className='mt-[16px] flex flex-col gap-[16px]'>
               {canManageWorkspaceKeys && (
                 <div className='flex flex-col gap-[8px]'>
                   <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                    Sim Key Type
+                    {t('settings.create_api_key.key_type')}
                   </p>
                   <ButtonGroup
                     value={keyType}
@@ -135,15 +137,17 @@ export function CreateApiKeyModal({
                     }}
                   >
                     <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
-                      Personal
+                      {t('settings.create_api_key.personal')}
                     </ButtonGroupItem>
-                    <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
+                    <ButtonGroupItem value='workspace'>
+                      {t('settings.create_api_key.workspace')}
+                    </ButtonGroupItem>
                   </ButtonGroup>
                 </div>
               )}
               <div className='flex flex-col gap-[8px]'>
                 <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                  Enter a name for your Sim key to help you identify it later.
+                  {t('settings.create_api_key.name_label')}
                 </p>
                 {/* Hidden decoy fields to prevent browser autofill */}
                 <input
@@ -165,7 +169,7 @@ export function CreateApiKeyModal({
                     setKeyName(e.target.value)
                     if (createError) setCreateError(null)
                   }}
-                  placeholder='e.g., Development, Production'
+                  placeholder={t('settings.create_api_key.placeholders.name')}
                   className='h-9'
                   autoFocus
                   name='api_key_label'
@@ -186,7 +190,7 @@ export function CreateApiKeyModal({
 
           <ModalFooter>
             <Button variant='default' onClick={handleClose}>
-              Cancel
+              {t('settings.create_api_key.cancel')}
             </Button>
             <Button
               type='button'
@@ -198,7 +202,9 @@ export function CreateApiKeyModal({
                 (keyType === 'workspace' && !canManageWorkspaceKeys)
               }
             >
-              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
+              {createApiKeyMutation.isPending
+                ? t('settings.create_api_key.creating')
+                : t('settings.create_api_key.create')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -216,13 +222,14 @@ export function CreateApiKeyModal({
         }}
       >
         <ModalContent size='sm'>
-          <ModalHeader>Your Sim key has been created</ModalHeader>
+          <ModalHeader>{t('settings.create_api_key.success_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              This is the only time you will see your Sim key.{' '}
-              <span className='font-semibold text-[var(--text-primary)]'>
-                Copy it now and store it securely.
-              </span>
+              {t.rich('settings.create_api_key.success_description', {
+                strong: (chunks) => (
+                  <span className='font-semibold text-[var(--text-primary)]'>{chunks}</span>
+                ),
+              })}
             </p>
 
             {newKey && (
@@ -242,7 +249,9 @@ export function CreateApiKeyModal({
                   ) : (
                     <Copy className='h-[14px] w-[14px]' />
                   )}
-                  <span className='sr-only'>Copy to clipboard</span>
+                  <span className='sr-only'>
+                    {t('settings.create_api_key.aria.copy_to_clipboard')}
+                  </span>
                 </Button>
               </div>
             )}

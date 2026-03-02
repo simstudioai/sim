@@ -39,6 +39,7 @@ import { getSubscriptionStatus } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { useTranslations } from 'next-intl'
 import {
   ApiKeys,
   BYOK,
@@ -105,7 +106,7 @@ type NavigationSection =
 
 type NavigationItem = {
   id: SettingsSection
-  label: string
+  labelKey: string
   icon: React.ComponentType<{ className?: string }>
   section: NavigationSection
   hideWhenBillingDisabled?: boolean
@@ -116,21 +117,26 @@ type NavigationItem = {
   requiresSuperUser?: boolean
 }
 
-const sectionConfig: { key: NavigationSection; title: string }[] = [
-  { key: 'account', title: 'Account' },
-  { key: 'tools', title: 'Tools' },
-  { key: 'subscription', title: 'Subscription' },
-  { key: 'system', title: 'System' },
-  { key: 'enterprise', title: 'Enterprise' },
-  { key: 'superuser', title: 'Superuser' },
+const sectionConfig = [
+  { key: 'account' as const, titleKey: 'settings.sections.account' as const },
+  { key: 'tools' as const, titleKey: 'settings.sections.tools' as const },
+  { key: 'subscription' as const, titleKey: 'settings.sections.subscription' as const },
+  { key: 'system' as const, titleKey: 'settings.sections.system' as const },
+  { key: 'enterprise' as const, titleKey: 'settings.sections.enterprise' as const },
+  { key: 'superuser' as const, titleKey: 'settings.sections.superuser' as const },
 ]
 
 const allNavigationItems: NavigationItem[] = [
-  { id: 'general', label: 'General', icon: Settings, section: 'account' },
-  { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  { id: 'general', labelKey: 'settings.nav.general' as const, icon: Settings, section: 'account' },
+  {
+    id: 'template-profile',
+    labelKey: 'settings.nav.template_profile' as const,
+    icon: User,
+    section: 'account',
+  },
   {
     id: 'access-control',
-    label: 'Access Control',
+    labelKey: 'settings.nav.access_control' as const,
     icon: ShieldCheck,
     section: 'enterprise',
     requiresHosted: true,
@@ -139,44 +145,64 @@ const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'subscription',
-    label: 'Subscription',
+    labelKey: 'settings.nav.subscription' as const,
     icon: Card,
     section: 'subscription',
     hideWhenBillingDisabled: true,
   },
   {
     id: 'team',
-    label: 'Team',
+    labelKey: 'settings.nav.team' as const,
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'credentials', label: 'Secrets', icon: Key, section: 'account' },
-  { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
-  { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
-  { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
-  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
+  { id: 'credentials', labelKey: 'settings.nav.secrets' as const, icon: Key, section: 'account' },
+  {
+    id: 'custom-tools',
+    labelKey: 'settings.nav.custom_tools' as const,
+    icon: Wrench,
+    section: 'tools',
+  },
+  {
+    id: 'skills',
+    labelKey: 'settings.nav.skills' as const,
+    icon: AgentSkillsIcon,
+    section: 'tools',
+  },
+  { id: 'mcp', labelKey: 'settings.nav.mcp_tools' as const, icon: McpIcon, section: 'tools' },
+  {
+    id: 'apikeys',
+    labelKey: 'settings.nav.sim_keys' as const,
+    icon: TerminalWindow,
+    section: 'system',
+  },
+  {
+    id: 'workflow-mcp-servers',
+    labelKey: 'settings.nav.mcp_servers' as const,
+    icon: Server,
+    section: 'system',
+  },
   {
     id: 'byok',
-    label: 'BYOK',
+    labelKey: 'settings.nav.byok' as const,
     icon: KeySquare,
     section: 'system',
     requiresHosted: true,
   },
   {
     id: 'copilot',
-    label: 'Copilot Keys',
+    labelKey: 'settings.nav.copilot_keys' as const,
     icon: HexSimple,
     section: 'system',
     requiresHosted: true,
   },
-  { id: 'files', label: 'Files', icon: Files, section: 'system' },
+  { id: 'files', labelKey: 'settings.nav.files' as const, icon: Files, section: 'system' },
   {
     id: 'credential-sets',
-    label: 'Email Polling',
+    labelKey: 'settings.nav.email_polling' as const,
     icon: Mail,
     section: 'system',
     requiresHosted: true,
@@ -184,7 +210,7 @@ const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'sso',
-    label: 'Single Sign-On',
+    labelKey: 'settings.nav.single_sign_on' as const,
     icon: LogIn,
     section: 'enterprise',
     requiresHosted: true,
@@ -193,7 +219,7 @@ const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'debug',
-    label: 'Debug',
+    labelKey: 'settings.nav.debug' as const,
     icon: Bug,
     section: 'superuser',
     requiresSuperUser: true,
@@ -201,6 +227,7 @@ const allNavigationItems: NavigationItem[] = [
 ]
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
+  const t = useTranslations()
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const { initialSection, mcpServerId, clearInitialState } = useSettingsModalStore()
   const [pendingMcpServerId, setPendingMcpServerId] = useState<string | null>(null)
@@ -468,23 +495,21 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     <SModal open={open} onOpenChange={handleDialogOpenChange}>
       <SModalContent>
         <VisuallyHidden.Root>
-          <DialogPrimitive.Title>Settings</DialogPrimitive.Title>
+          <DialogPrimitive.Title>{t('settings.title')}</DialogPrimitive.Title>
         </VisuallyHidden.Root>
         <VisuallyHidden.Root>
-          <DialogPrimitive.Description>
-            Configure your workspace settings, secrets, and preferences
-          </DialogPrimitive.Description>
+          <DialogPrimitive.Description>{t('settings.description')}</DialogPrimitive.Description>
         </VisuallyHidden.Root>
 
         <SModalSidebar>
-          <SModalSidebarHeader>Settings</SModalSidebarHeader>
-          {sectionConfig.map(({ key, title }) => {
+          <SModalSidebarHeader>{t('settings.title')}</SModalSidebarHeader>
+          {sectionConfig.map(({ key, titleKey }) => {
             const sectionItems = navigationItems.filter((item) => item.section === key)
             if (sectionItems.length === 0) return null
 
             return (
               <SModalSidebarSection key={key}>
-                <SModalSidebarSectionTitle>{title}</SModalSidebarSectionTitle>
+                <SModalSidebarSectionTitle>{t(titleKey)}</SModalSidebarSectionTitle>
                 {sectionItems.map((item) => (
                   <SModalSidebarItem
                     key={item.id}
@@ -494,7 +519,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     onClick={() => handleSectionChange(item.id)}
                     data-section={item.id}
                   >
-                    {item.label}
+                    {t(item.labelKey as any)}
                   </SModalSidebarItem>
                 ))}
               </SModalSidebarSection>
@@ -504,8 +529,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
         <SModalMain>
           <SModalMainHeader>
-            {navigationItems.find((item) => item.id === effectiveActiveSection)?.label ||
-              effectiveActiveSection}
+            {(() => {
+              const item = navigationItems.find((item) => item.id === effectiveActiveSection)
+              return item ? t(item.labelKey as any) : effectiveActiveSection
+            })()}
           </SModalMainHeader>
           <SModalMainBody>
             {effectiveActiveSection === 'general' && <General onOpenChange={onOpenChange} />}

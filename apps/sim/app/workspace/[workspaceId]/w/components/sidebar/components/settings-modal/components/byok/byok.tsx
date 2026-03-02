@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -78,6 +79,7 @@ function BYOKKeySkeleton() {
 }
 
 export function BYOK() {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -111,7 +113,7 @@ export function BYOK() {
       setApiKeyInput('')
       setShowApiKey(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save API key'
+      const message = err instanceof Error ? err.message : t('settings.byok.errors.save_failed')
       setError(message)
       logger.error('Failed to save BYOK key', { error: err })
     }
@@ -141,9 +143,7 @@ export function BYOK() {
   return (
     <>
       <div className='flex h-full flex-col gap-[16px]'>
-        <p className='text-[13px] text-[var(--text-secondary)]'>
-          Use your own API keys for hosted model providers.
-        </p>
+        <p className='text-[13px] text-[var(--text-secondary)]'>{t('settings.byok.description')}</p>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {isLoading ? (
@@ -175,13 +175,13 @@ export function BYOK() {
                     {existingKey ? (
                       <div className='flex flex-shrink-0 items-center gap-[8px]'>
                         <Button variant='default' onClick={() => openEditModal(provider.id)}>
-                          Update
+                          {t('settings.byok.buttons.update')}
                         </Button>
                         <Button
                           variant='ghost'
                           onClick={() => setDeleteConfirmProvider(provider.id)}
                         >
-                          Delete
+                          {t('settings.byok.buttons.delete')}
                         </Button>
                       </div>
                     ) : (
@@ -190,7 +190,7 @@ export function BYOK() {
                         className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
                         onClick={() => openEditModal(provider.id)}
                       >
-                        Add Key
+                        {t('settings.byok.buttons.add_key')}
                       </Button>
                     )}
                   </div>
@@ -216,20 +216,26 @@ export function BYOK() {
           <ModalHeader>
             {editingProvider && (
               <>
-                {getKeyForProvider(editingProvider) ? 'Update' : 'Add'}{' '}
-                {PROVIDERS.find((p) => p.id === editingProvider)?.name} API Key
+                {getKeyForProvider(editingProvider)
+                  ? t('settings.byok.modal.update_title', {
+                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+                    })
+                  : t('settings.byok.modal.add_title', {
+                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+                    })}
               </>
             )}
           </ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
-              requests in this workspace. Your key is encrypted and stored securely.
+              {t('settings.byok.modal.description', {
+                name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+              })}
             </p>
 
             <div className='mt-[16px] flex flex-col gap-[8px]'>
               <p className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                Enter your API key
+                {t('settings.byok.modal.enter_api_key')}
               </p>
               {/* Hidden decoy fields to prevent browser autofill */}
               <input
@@ -291,14 +297,16 @@ export function BYOK() {
                 setError(null)
               }}
             >
-              Cancel
+              {t('settings.byok.buttons.cancel')}
             </Button>
             <Button
               variant='tertiary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
             >
-              {upsertKey.isPending ? 'Saving...' : 'Save'}
+              {upsertKey.isPending
+                ? t('settings.byok.buttons.saving')
+                : t('settings.byok.buttons.save')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -306,22 +314,25 @@ export function BYOK() {
 
       <Modal open={!!deleteConfirmProvider} onOpenChange={() => setDeleteConfirmProvider(null)}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete API Key</ModalHeader>
+          <ModalHeader>{t('settings.byok.delete_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete the{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
-              </span>{' '}
-              API key? This workspace will revert to using platform hosted keys.
+              {t.rich('settings.byok.delete_dialog.confirm_message', {
+                name: (chunks) => (
+                  <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                ),
+                providerName: PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name,
+              })}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
-              Cancel
+              {t('settings.byok.buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
-              {deleteKey.isPending ? 'Deleting...' : 'Delete'}
+              {deleteKey.isPending
+                ? t('settings.byok.buttons.deleting')
+                : t('settings.byok.buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -1,4 +1,7 @@
+'use client'
+
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Combobox,
@@ -42,6 +45,7 @@ export function TeamSeats({
   showCostBreakdown = false,
   isCancelledAtPeriodEnd = false,
 }: TeamSeatsProps) {
+  const t = useTranslations()
   const [selectedSeats, setSelectedSeats] = useState(initialSeats)
 
   useEffect(() => {
@@ -56,7 +60,7 @@ export function TeamSeats({
 
   const seatOptions: ComboboxOption[] = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => ({
     value: num.toString(),
-    label: `${num} ${num === 1 ? 'seat' : 'seats'}`,
+    label: `${num} ${num === 1 ? t('settings.team_seats.seat') : t('settings.team_seats.seats')}`,
   }))
 
   return (
@@ -68,7 +72,7 @@ export function TeamSeats({
 
           <div className='mt-[16px] flex flex-col gap-[4px]'>
             <Label htmlFor='seats' className='text-[12px]'>
-              Number of seats
+              {t('settings.team_seats.labels.number_of_seats')}
             </Label>
             <Combobox
               options={seatOptions}
@@ -79,29 +83,34 @@ export function TeamSeats({
                   setSelectedSeats(num)
                 }
               }}
-              placeholder='Select or enter number of seats'
+              placeholder={t('settings.team_seats.placeholders.select_seats')}
               editable
               disabled={isLoading}
             />
           </div>
 
           <p className='mt-[12px] text-[12px] text-[var(--text-muted)]'>
-            Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
-            total of ${totalMonthlyCost} inference credits per month.
+            {t('settings.team_seats.team_info', { seats: selectedSeats, total: totalMonthlyCost })}
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
             <div className='mt-[16px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[12px] py-[10px]'>
               <div className='flex justify-between text-[12px]'>
-                <span className='text-[var(--text-muted)]'>Current seats:</span>
+                <span className='text-[var(--text-muted)]'>
+                  {t('settings.team_seats.labels.current_seats')}
+                </span>
                 <span className='text-[var(--text-primary)]'>{currentSeats}</span>
               </div>
               <div className='mt-[8px] flex justify-between text-[12px]'>
-                <span className='text-[var(--text-muted)]'>New seats:</span>
+                <span className='text-[var(--text-muted)]'>
+                  {t('settings.team_seats.labels.new_seats')}
+                </span>
                 <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
               <div className='mt-[12px] flex justify-between border-[var(--border-1)] border-t pt-[12px] text-[12px]'>
-                <span className='font-medium text-[var(--text-primary)]'>Monthly cost change:</span>
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {t('settings.team_seats.labels.monthly_cost_change')}
+                </span>
                 <span className='font-medium text-[var(--text-primary)]'>
                   {costChange > 0 ? '+' : ''}${costChange}
                 </span>
@@ -118,7 +127,7 @@ export function TeamSeats({
 
         <ModalFooter>
           <Button variant='default' onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancel
+            {t('settings.team_seats.buttons.cancel')}
           </Button>
 
           <Tooltip.Root>
@@ -134,16 +143,13 @@ export function TeamSeats({
                     isCancelledAtPeriodEnd
                   }
                 >
-                  {isLoading ? 'Updating...' : confirmButtonText}
+                  {isLoading ? t('settings.team_seats.buttons.updating') : confirmButtonText}
                 </Button>
               </span>
             </Tooltip.Trigger>
             {isCancelledAtPeriodEnd && (
               <Tooltip.Content>
-                <p>
-                  To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
-                  reactivate
-                </p>
+                <p>{t('settings.team_seats.tooltips.reactivate')}</p>
               </Tooltip.Content>
             )}
           </Tooltip.Root>

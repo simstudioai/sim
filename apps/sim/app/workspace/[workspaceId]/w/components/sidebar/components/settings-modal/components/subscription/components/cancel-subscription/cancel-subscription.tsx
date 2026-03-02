@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Label,
@@ -51,6 +52,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const t = useTranslations()
 
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
@@ -191,13 +193,13 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   }
 
   const formatDate = (date: Date | null) => {
-    if (!date) return 'end of current billing period'
+    if (!date) return t('settings.cancel_subscription.end_of_billing_period')
 
     try {
       const dateObj = date instanceof Date ? date : new Date(date)
 
       if (Number.isNaN(dateObj.getTime())) {
-        return 'end of current billing period'
+        return t('settings.cancel_subscription.end_of_billing_period')
       }
 
       return new Intl.DateTimeFormat('en-US', {
@@ -207,7 +209,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       }).format(dateObj)
     } catch (err) {
       logger.warn('Invalid date in cancel subscription', { date, error: err })
-      return 'end of current billing period'
+      return t('settings.cancel_subscription.end_of_billing_period')
     }
   }
 
@@ -218,10 +220,16 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-[2px]'>
-          <Label>{isCancelAtPeriodEnd ? 'Restore Subscription' : 'Manage Subscription'}</Label>
+          <Label>
+            {isCancelAtPeriodEnd
+              ? t('settings.cancel_subscription.labels.restore_subscription')
+              : t('settings.cancel_subscription.labels.manage_subscription')}
+          </Label>
           {isCancelAtPeriodEnd && (
             <span className='text-[12px] text-[var(--text-muted)]'>
-              You'll keep access until {formatDate(periodEndDate)}
+              {t('settings.cancel_subscription.keep_access_until', {
+                date: formatDate(periodEndDate),
+              })}
             </span>
           )}
         </div>
@@ -234,32 +242,42 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             error && 'border-[var(--text-error)] text-[var(--text-error)]'
           )}
         >
-          {error ? 'Error' : isCancelAtPeriodEnd ? 'Restore' : 'Manage'}
+          {error
+            ? t('settings.cancel_subscription.buttons.error')
+            : isCancelAtPeriodEnd
+              ? t('settings.cancel_subscription.buttons.restore')
+              : t('settings.cancel_subscription.buttons.manage')}
         </Button>
       </div>
 
       <Modal open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <ModalContent size='sm'>
           <ModalHeader>
-            {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} Subscription
+            {isCancelAtPeriodEnd
+              ? t('settings.cancel_subscription.modal.restore_title', { plan: subscription.plan })
+              : t('settings.cancel_subscription.modal.cancel_title', { plan: subscription.plan })}
           </ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               {isCancelAtPeriodEnd
-                ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
-                : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
-                    periodEndDate
-                  )}, then downgrade to free plan. You can restore your subscription at any time.`}
+                ? t('settings.cancel_subscription.modal.restore_description')
+                : t('settings.cancel_subscription.modal.cancel_description', {
+                    date: formatDate(periodEndDate),
+                  })}
             </p>
 
             {!isCancelAtPeriodEnd && (
               <div className='mt-[12px]'>
                 <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                   <ul className='space-y-[4px] text-[12px] text-[var(--text-secondary)]'>
-                    <li>- Keep all features until {formatDate(periodEndDate)}</li>
-                    <li>- No more charges</li>
-                    <li>- Data preserved</li>
-                    <li>- Can reactivate anytime</li>
+                    <li>
+                      {t('settings.cancel_subscription.modal.keep_features_until', {
+                        date: formatDate(periodEndDate),
+                      })}
+                    </li>
+                    <li>{t('settings.cancel_subscription.modal.no_more_charges')}</li>
+                    <li>{t('settings.cancel_subscription.modal.data_preserved')}</li>
+                    <li>{t('settings.cancel_subscription.modal.can_reactivate')}</li>
                   </ul>
                 </div>
               </div>
@@ -271,16 +289,22 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
               onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >
-              {isCancelAtPeriodEnd ? 'Cancel' : 'Keep Subscription'}
+              {isCancelAtPeriodEnd
+                ? t('settings.cancel_subscription.buttons.cancel')
+                : t('settings.cancel_subscription.buttons.keep_subscription')}
             </Button>
 
             {currentSubscriptionStatus.isPaid && isCancelAtPeriodEnd ? (
               <Button variant='tertiary' onClick={handleKeep} disabled={isLoading}>
-                {isLoading ? 'Restoring...' : 'Restore Subscription'}
+                {isLoading
+                  ? t('settings.cancel_subscription.buttons.restoring')
+                  : t('settings.cancel_subscription.buttons.restore_subscription')}
               </Button>
             ) : (
               <Button variant='destructive' onClick={handleCancel} disabled={isLoading}>
-                {isLoading ? 'Redirecting...' : 'Continue'}
+                {isLoading
+                  ? t('settings.cancel_subscription.buttons.redirecting')
+                  : t('settings.cancel_subscription.buttons.continue')}
               </Button>
             )}
           </ModalFooter>

@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Layout, Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
@@ -56,12 +57,20 @@ const commands: CommandItem[] = [
  * Centered on the screen for empty workflows
  */
 export function CommandList() {
+  const t = useTranslations()
   const params = useParams()
   const router = useRouter()
   const { open: openSearchModal } = useSearchModalStore()
   const preventZoomRef = usePreventZoom()
 
   const workspaceId = params.workspaceId as string | undefined
+
+  const commandLabels = {
+    Templates: t('workflows.command_list.templates'),
+    'New Agent': t('workflows.command_list.new_agent'),
+    Logs: t('workflows.command_list.logs'),
+    'Search Blocks': t('workflows.command_list.search_blocks'),
+  } as const
 
   /**
    * Handle click on a command row.
@@ -202,6 +211,8 @@ export function CommandList() {
         {commands.map((command) => {
           const Icon = command.icon
           const shortcuts = Array.isArray(command.shortcut) ? command.shortcut : [command.shortcut]
+          const translatedLabel =
+            commandLabels[command.label as keyof typeof commandLabels] || command.label
           return (
             <div
               key={command.label}
@@ -212,7 +223,7 @@ export function CommandList() {
               <div className='flex items-center gap-[8px]'>
                 <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
                 <span className='font-medium text-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'>
-                  {command.label}
+                  {translatedLabel}
                 </span>
               </div>
 

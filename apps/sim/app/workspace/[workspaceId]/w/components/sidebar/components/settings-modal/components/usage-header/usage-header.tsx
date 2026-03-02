@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { getFilledPillColor, USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client'
 
@@ -36,6 +37,7 @@ export function UsageHeader({
   isBlocked,
   progressValue,
 }: UsageHeaderProps) {
+  const t = useTranslations()
   const progress = progressValue ?? (limit > 0 ? Math.min((current / limit) * 100, 100) : 0)
   const filledPillsCount = Math.ceil((progress / 100) * PILL_COUNT)
 
@@ -58,7 +60,7 @@ export function UsageHeader({
           <div className='flex items-center gap-[4px]'>
             {isBlocked ? (
               <span className='font-medium text-[14px] text-[var(--text-error)]'>
-                Payment failed
+                {t('settings.usage_header.payment_failed')}
               </span>
             ) : (
               <>

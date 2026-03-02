@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
@@ -27,6 +28,7 @@ function CustomToolSkeleton() {
 }
 
 export function CustomTools() {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -108,7 +110,7 @@ export function CustomTools() {
               strokeWidth={2}
             />
             <Input
-              placeholder='Search tools...'
+              placeholder={t('settings.custom_tools.placeholders.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
@@ -117,7 +119,7 @@ export function CustomTools() {
           </div>
           <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
-            Add
+            {t('settings.custom_tools.buttons.add')}
           </Button>
         </div>
 
@@ -125,7 +127,9 @@ export function CustomTools() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
               <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                {error instanceof Error ? error.message : 'Failed to load tools'}
+                {error instanceof Error
+                  ? error.message
+                  : t('settings.custom_tools.errors.failed_to_load')}
               </p>
             </div>
           ) : isLoading ? (
@@ -136,7 +140,7 @@ export function CustomTools() {
             </div>
           ) : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-              Click "Add" above to get started
+              {t('settings.custom_tools.empty_state')}
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -144,7 +148,7 @@ export function CustomTools() {
                 <div key={tool.id} className='flex items-center justify-between gap-[12px]'>
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                     <span className='truncate font-medium text-[14px]'>
-                      {tool.title || 'Unnamed Tool'}
+                      {tool.title || t('settings.custom_tools.unnamed_tool')}
                     </span>
                     {tool.schema?.function?.description && (
                       <p className='truncate text-[13px] text-[var(--text-muted)]'>
@@ -154,21 +158,23 @@ export function CustomTools() {
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     <Button variant='default' onClick={() => setEditingTool(tool.id)}>
-                      Edit
+                      {t('settings.custom_tools.buttons.edit')}
                     </Button>
                     <Button
                       variant='ghost'
                       onClick={() => handleDeleteClick(tool.id)}
                       disabled={deletingTools.has(tool.id)}
                     >
-                      {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
+                      {deletingTools.has(tool.id)
+                        ? t('settings.custom_tools.buttons.deleting')
+                        : t('settings.custom_tools.buttons.delete')}
                     </Button>
                   </div>
                 </div>
               ))}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                  No tools found matching "{searchTerm}"
+                  {t('settings.custom_tools.no_results', { searchTerm })}
                 </div>
               )}
             </div>
@@ -201,20 +207,24 @@ export function CustomTools() {
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Custom Tool</ModalHeader>
+          <ModalHeader>{t('settings.custom_tools.delete_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {t.rich('settings.custom_tools.delete_dialog.confirm_message', {
+                toolName: toolToDelete?.name,
+                name: (chunks) => (
+                  <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                ),
+                warning: (chunks) => <span className='text-[var(--text-error)]'>{chunks}</span>,
+              })}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
-              Cancel
+              {t('settings.custom_tools.buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDeleteTool}>
-              Delete
+              {t('settings.custom_tools.buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

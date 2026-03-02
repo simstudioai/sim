@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -40,6 +41,8 @@ export function PlanCard({
   horizontal = false,
   inlineButton = false,
 }: PlanCardProps) {
+  const t = useTranslations()
+
   const renderPrice = () => {
     if (typeof price === 'string') {
       return (
@@ -72,9 +75,9 @@ export function PlanCard({
           <Button
             onClick={onButtonClick}
             variant={isError ? 'outline' : 'tertiary'}
-            aria-label={`${buttonText} ${name} plan`}
+            aria-label={t('settings.plan_card.aria.plan_action', { action: buttonText, name })}
           >
-            {isError ? 'Error' : buttonText}
+            {isError ? t('settings.plan_card.error') : buttonText}
           </Button>
         </div>
         <ul className='flex flex-wrap items-center gap-x-[16px] gap-y-[8px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
@@ -133,9 +136,9 @@ export function PlanCard({
           onClick={onButtonClick}
           className={cn(!inlineButton && 'w-full')}
           variant={isError ? 'outline' : 'tertiary'}
-          aria-label={`${buttonText} ${name} plan`}
+          aria-label={t('settings.plan_card.aria.plan_action', { action: buttonText, name })}
         >
-          {isError ? 'Error' : buttonText}
+          {isError ? t('settings.plan_card.error') : buttonText}
         </Button>
       </div>
     </article>

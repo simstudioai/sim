@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Popover,
@@ -322,6 +323,7 @@ export function ContextMenu({
   showLeave = false,
   disableLeave = false,
 }: ContextMenuProps) {
+  const t = useTranslations()
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
   // Sync hexInput when currentColor changes (e.g., opening menu on different workflow)
@@ -405,7 +407,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Open in new tab
+            {t('workflows.context_menu.buttons.open_in_new_tab')}
           </PopoverItem>
         )}
         {hasNavigationSection && (hasEditSection || hasCopySection) && <PopoverDivider rootOnly />}
@@ -420,7 +422,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Rename
+            {t('workflows.context_menu.buttons.rename')}
           </PopoverItem>
         )}
         {showCreate && onCreate && (
@@ -432,7 +434,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Create workflow
+            {t('workflows.context_menu.buttons.create_workflow')}
           </PopoverItem>
         )}
         {showCreateFolder && onCreateFolder && (
@@ -444,13 +446,13 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Create folder
+            {t('workflows.context_menu.buttons.create_folder')}
           </PopoverItem>
         )}
         {showColorChange && onColorChange && (
           <PopoverFolder
             id='color-picker'
-            title='Change color'
+            title={t('workflows.context_menu.buttons.change_color')}
             expandOnHover
             className={disableColorChange ? 'pointer-events-none opacity-50' : ''}
           >
@@ -506,7 +508,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Duplicate
+            {t('workflows.context_menu.buttons.duplicate')}
           </PopoverItem>
         )}
         {showExport && onExport && (
@@ -518,7 +520,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Export
+            {t('workflows.context_menu.buttons.export')}
           </PopoverItem>
         )}
 
@@ -533,7 +535,7 @@ export function ContextMenu({
               onClose()
             }}
           >
-            Leave
+            {t('workflows.context_menu.buttons.leave')}
           </PopoverItem>
         )}
         <PopoverItem
@@ -544,7 +546,7 @@ export function ContextMenu({
             onClose()
           }}
         >
-          Delete
+          {t('workflows.context_menu.buttons.delete')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import { Label } from '@/components/emcn'
 
 interface FormFieldProps {
@@ -7,12 +8,16 @@ interface FormFieldProps {
 }
 
 export function FormField({ label, children, optional }: FormFieldProps) {
+  const t = useTranslations()
+
   return (
     <div className='flex items-center justify-between gap-[12px]'>
       <Label className='w-[100px] shrink-0 font-medium text-[13px] text-[var(--text-secondary)]'>
         {label}
         {optional && (
-          <span className='ml-1 font-normal text-[11px] text-[var(--text-muted)]'>(optional)</span>
+          <span className='ml-1 font-normal text-[11px] text-[var(--text-muted)]'>
+            {t('settings.mcp.form_field.optional')}
+          </span>
         )}
       </Label>
       <div className='relative flex-1'>{children}</div>

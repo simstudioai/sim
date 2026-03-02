@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
@@ -28,6 +29,7 @@ function SkillSkeleton() {
 }
 
 export function Skills() {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -102,7 +104,7 @@ export function Skills() {
               strokeWidth={2}
             />
             <Input
-              placeholder='Search skills...'
+              placeholder={t('settings.skills.placeholders.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
@@ -111,7 +113,7 @@ export function Skills() {
           </div>
           <Button onClick={() => setShowAddForm(true)} disabled={isLoading} variant='tertiary'>
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
-            Add
+            {t('settings.skills.buttons.add')}
           </Button>
         </div>
 
@@ -119,7 +121,9 @@ export function Skills() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
               <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
-                {error instanceof Error ? error.message : 'Failed to load skills'}
+                {error instanceof Error
+                  ? error.message
+                  : t('settings.skills.errors.failed_to_load')}
               </p>
             </div>
           ) : isLoading ? (
@@ -130,7 +134,7 @@ export function Skills() {
             </div>
           ) : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-              Click "Add" above to get started
+              {t('settings.skills.empty_state')}
             </div>
           ) : (
             <div className='flex flex-col gap-[8px]'>
@@ -142,21 +146,23 @@ export function Skills() {
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
                     <Button variant='default' onClick={() => setEditingSkill(s)}>
-                      Edit
+                      {t('settings.skills.buttons.edit')}
                     </Button>
                     <Button
                       variant='ghost'
                       onClick={() => handleDeleteClick(s.id)}
                       disabled={deletingSkills.has(s.id)}
                     >
-                      {deletingSkills.has(s.id) ? 'Deleting...' : 'Delete'}
+                      {deletingSkills.has(s.id)
+                        ? t('settings.skills.buttons.deleting')
+                        : t('settings.skills.buttons.delete')}
                     </Button>
                   </div>
                 </div>
               ))}
               {showNoResults && (
                 <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-                  No skills found matching "{searchTerm}"
+                  {t('settings.skills.no_results', { searchTerm })}
                 </div>
               )}
             </div>
@@ -182,20 +188,24 @@ export function Skills() {
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Skill</ModalHeader>
+          <ModalHeader>{t('settings.skills.delete_dialog.title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {t.rich('settings.skills.delete_dialog.confirm_message', {
+                skillName: skillToDelete?.name ?? '',
+                name: (chunks) => (
+                  <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                ),
+                warning: (chunks) => <span className='text-[var(--text-error)]'>{chunks}</span>,
+              })}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
-              Cancel
+              {t('settings.skills.buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDeleteSkill}>
-              Delete
+              {t('settings.skills.buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

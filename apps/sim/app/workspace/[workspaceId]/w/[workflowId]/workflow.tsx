@@ -2,6 +2,7 @@
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import ReactFlow, {
   applyNodeChanges,
   ConnectionLineType,
@@ -227,6 +228,7 @@ interface BlockData {
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
  */
 const WorkflowContent = React.memo(() => {
+  const t = useTranslations()
   const [isCanvasReady, setIsCanvasReady] = useState(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
@@ -280,7 +282,7 @@ const WorkflowContent = React.memo(() => {
         if (reconnect) {
           addNotification({
             level: 'info',
-            message: `"${displayName}" reconnected successfully.`,
+            message: t('workflows.notifications.reconnected_successfully', { displayName }),
           })
           window.dispatchEvent(
             new CustomEvent('oauth-credentials-updated', {
@@ -302,14 +304,14 @@ const WorkflowContent = React.memo(() => {
         if (oauthCredentials.length > preCount) {
           addNotification({
             level: 'info',
-            message: `"${displayName}" credential connected successfully.`,
+            message: t('workflows.notifications.credential_connected', { displayName }),
           })
         } else {
           const existing = oauthCredentials.find((c) => c.providerId === providerId)
           const existingName = existing?.displayName || displayName
           addNotification({
             level: 'info',
-            message: `This account is already connected as "${existingName}".`,
+            message: t('workflows.notifications.account_already_connected', { existingName }),
           })
         }
       } catch {
@@ -998,7 +1000,7 @@ const WorkflowContent = React.memo(() => {
         if (hasTrigger) {
           addNotification({
             level: 'error',
-            message: 'Triggers cannot be placed inside loop or parallel subflows.',
+            message: t('workflows.errors.triggers_in_loop'),
             workflowId: activeWorkflowId || undefined,
           })
           return
@@ -1009,7 +1011,7 @@ const WorkflowContent = React.memo(() => {
         if (hasSubflow) {
           addNotification({
             level: 'error',
-            message: 'Subflows cannot be nested inside other subflows.',
+            message: t('workflows.errors.nested_subflows'),
             workflowId: activeWorkflowId || undefined,
           })
           return
@@ -1144,14 +1146,16 @@ const WorkflowContent = React.memo(() => {
       if (allProtected) {
         addNotification({
           level: 'info',
-          message: 'Cannot delete locked blocks or blocks inside locked containers',
+          message: t('workflows.errors.locked_blocks_delete'),
           workflowId: activeWorkflowId || undefined,
         })
         return
       }
       addNotification({
         level: 'info',
-        message: `Skipped ${protectedIds.length} protected block(s)`,
+        message: t('workflows.notifications.protected_blocks_skipped', {
+          count: protectedIds.length,
+        }),
         workflowId: activeWorkflowId || undefined,
       })
     }
@@ -1564,8 +1568,8 @@ const WorkflowContent = React.memo(() => {
       if (triggerIssue) {
         const message =
           triggerIssue.issue === 'legacy'
-            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-            : `A workflow can only have one ${triggerIssue.triggerName} trigger block. Please remove the existing one before adding a new one.`
+            ? t('workflows.errors.legacy_start_block_exists')
+            : t('workflows.errors.single_trigger_block', { triggerName: triggerIssue.triggerName })
         addNotification({
           level: 'error',
           message,
@@ -1578,7 +1582,9 @@ const WorkflowContent = React.memo(() => {
       if (singleInstanceIssue) {
         addNotification({
           level: 'error',
-          message: `A workflow can only have one ${singleInstanceIssue.blockName} block. Please remove the existing one before adding a new one.`,
+          message: t('workflows.errors.single_instance_block', {
+            blockName: singleInstanceIssue.blockName,
+          }),
           workflowId: activeWorkflowId || undefined,
         })
         return true
@@ -1586,7 +1592,7 @@ const WorkflowContent = React.memo(() => {
 
       return false
     },
-    [blocks, addNotification, activeWorkflowId]
+    [blocks, addNotification, activeWorkflowId, t]
   )
 
   /**
@@ -1660,7 +1666,7 @@ const WorkflowContent = React.memo(() => {
           if (isTriggerBlock) {
             addNotification({
               level: 'error',
-              message: 'Triggers cannot be placed inside loop or parallel subflows.',
+              message: t('workflows.errors.triggers_in_loop'),
               workflowId: activeWorkflowId || undefined,
             })
             return
@@ -1926,10 +1932,10 @@ const WorkflowContent = React.memo(() => {
       const { type, triggerName } = event.detail
       const message =
         type === 'trigger_in_subflow'
-          ? 'Triggers cannot be placed inside loop or parallel subflows.'
+          ? t('workflows.errors.triggers_in_loop')
           : type === 'legacy_incompatibility'
-            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-            : `A workflow can only have one ${triggerName || 'trigger'} trigger block. Please remove the existing one before adding a new one.`
+            ? t('workflows.errors.legacy_start_block_exists')
+            : t('workflows.errors.single_trigger_block', { triggerName: triggerName || 'trigger' })
       addNotification({
         level: 'error',
         message,
@@ -1942,7 +1948,7 @@ const WorkflowContent = React.memo(() => {
     return () => {
       window.removeEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
     }
-  }, [addNotification, activeWorkflowId])
+  }, [addNotification, activeWorkflowId, t])
 
   /** Handles drop events on the ReactFlow canvas. */
   const onDrop = useCallback(
@@ -3041,7 +3047,7 @@ const WorkflowContent = React.memo(() => {
         if (block && TriggerUtils.isTriggerBlock(block)) {
           addNotification({
             level: 'error',
-            message: 'Triggers cannot be placed inside loop or parallel subflows.',
+            message: t('workflows.errors.triggers_in_loop'),
             workflowId: activeWorkflowId || undefined,
           })
           logger.warn('Prevented trigger block from being placed inside a container', {
@@ -3517,14 +3523,16 @@ const WorkflowContent = React.memo(() => {
         if (allProtected) {
           addNotification({
             level: 'info',
-            message: 'Cannot delete locked blocks or blocks inside locked containers',
+            message: t('workflows.errors.locked_blocks_delete'),
             workflowId: activeWorkflowId || undefined,
           })
           return
         }
         addNotification({
           level: 'info',
-          message: `Skipped ${protectedIds.length} protected block(s)`,
+          message: t('workflows.notifications.protected_blocks_skipped', {
+            count: protectedIds.length,
+          }),
           workflowId: activeWorkflowId || undefined,
         })
       }

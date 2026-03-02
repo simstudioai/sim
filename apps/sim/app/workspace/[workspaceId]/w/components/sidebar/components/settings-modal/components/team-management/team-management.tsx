@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import type { TagItem } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -39,6 +40,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 const logger = createLogger('TeamManagement')
 
 export function TeamManagement() {
+  const t = useTranslations()
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
 
@@ -186,8 +188,8 @@ export function TeamManagement() {
 
       const isLeavingSelf = member.user?.email === session.user.email
       const displayName = isLeavingSelf
-        ? 'yourself'
-        : member.user?.name || member.user?.email || 'this member'
+        ? t('settings.team_management.yourself')
+        : member.user?.name || member.user?.email || t('settings.team_management.this_member')
 
       setRemoveMemberDialog({
         open: true,
@@ -277,7 +279,7 @@ export function TeamManagement() {
     async (seats: number) => {
       if (!session?.user || !activeOrganization?.id) return
       logger.info('Team upgrade requested', { seats, organizationId: activeOrganization?.id })
-      alert(`Team upgrade to ${seats} seats - integration needed`)
+      alert(t('settings.team_management.alerts.team_upgrade', { seats }))
     },
     [session?.user?.id, activeOrganization?.id]
   )
@@ -426,8 +428,9 @@ export function TeamManagement() {
         {adminOrOwner && (
           <div className='rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[10px]'>
             <p className='text-[12px] text-[var(--text-muted)]'>
-              <span className='font-medium'>Note:</span> Users can only be part of one organization
-              at a time.
+              {t.rich('settings.team_management.single_organization_notice', {
+                bold: (chunks) => <span className='font-medium'>{chunks}</span>,
+              })}
             </p>
           </div>
         )}
@@ -435,7 +438,7 @@ export function TeamManagement() {
         {/* Team Information */}
         <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
           <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
-            <span>Team Information</span>
+            <span>{t('settings.team_management.team_information')}</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
               fill='none'
@@ -452,19 +455,25 @@ export function TeamManagement() {
           </summary>
           <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px] text-[12px]'>
             <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Team ID:</span>
+              <span className='text-[var(--text-muted)]'>
+                {t('settings.team_management.labels.team_id')}
+              </span>
               <span className='font-mono text-[10px] text-[var(--text-primary)]'>
                 {displayOrganization.id}
               </span>
             </div>
             <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Created:</span>
+              <span className='text-[var(--text-muted)]'>
+                {t('settings.team_management.labels.created')}
+              </span>
               <span className='text-[var(--text-primary)]'>
                 {new Date(displayOrganization.createdAt).toLocaleDateString()}
               </span>
             </div>
             <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Your Role:</span>
+              <span className='text-[var(--text-muted)]'>
+                {t('settings.team_management.labels.your_role')}
+              </span>
               <span className='font-medium text-[var(--text-primary)] capitalize'>{userRole}</span>
             </div>
           </div>
@@ -474,7 +483,7 @@ export function TeamManagement() {
         {hasTeamPlan && !hasEnterprisePlan && (
           <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
             <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
-              <span>Billing Information</span>
+              <span>{t('settings.team_management.billing_information')}</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'
                 fill='none'
@@ -492,20 +501,15 @@ export function TeamManagement() {
             <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
               <ul className='ml-4 flex list-disc flex-col gap-[8px] text-[12px] text-[var(--text-muted)]'>
                 <li>
-                  Your team is billed a minimum of $
-                  {(subscriptionData?.seats ?? 0) * DEFAULT_TEAM_TIER_COST_LIMIT}
-                  /month for {subscriptionData?.seats ?? 0} licensed seats
+                  {t('settings.team_management.billing.minimum_charge', {
+                    amount: (subscriptionData?.seats ?? 0) * DEFAULT_TEAM_TIER_COST_LIMIT,
+                    seats: subscriptionData?.seats ?? 0,
+                  })}
                 </li>
-                <li>All team member usage is pooled together from a shared limit</li>
-                <li>
-                  When pooled usage exceeds the limit, all members are blocked from using the
-                  service
-                </li>
-                <li>You can increase the usage limit to allow for higher usage</li>
-                <li>
-                  Any usage beyond the minimum seat cost is billed as overage at the end of the
-                  billing period
-                </li>
+                <li>{t('settings.team_management.billing.pooled_usage')}</li>
+                <li>{t('settings.team_management.billing.usage_exceeded')}</li>
+                <li>{t('settings.team_management.billing.increase_limit')}</li>
+                <li>{t('settings.team_management.billing.overage')}</li>
               </ul>
             </div>
           </details>
@@ -543,8 +547,10 @@ export function TeamManagement() {
         <TeamSeats
           open={isAddSeatDialogOpen}
           onOpenChange={setIsAddSeatDialogOpen}
-          title='Add Team Seats'
-          description={`Each seat costs $${DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
+          title={t('settings.team_management.add_seats.title')}
+          description={t('settings.team_management.add_seats.description', {
+            cost: DEFAULT_TEAM_TIER_COST_LIMIT,
+          })}
           currentSeats={totalSeats}
           initialSeats={newSeatCount}
           isLoading={isUpdatingSeats}
@@ -553,7 +559,7 @@ export function TeamManagement() {
             setNewSeatCount(selectedSeats)
             await confirmAddSeats(selectedSeats)
           }}
-          confirmButtonText='Update Seats'
+          confirmButtonText={t('settings.team_management.add_seats.confirm_button')}
           showCostBreakdown={true}
           isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
         />

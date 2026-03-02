@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown } from 'lucide-react'
 import {
   Button,
@@ -29,6 +30,7 @@ interface PermissionSelectorProps {
 
 const PermissionSelector = React.memo<PermissionSelectorProps>(
   ({ value, onChange, disabled = false, className = '' }) => {
+    const t = useTranslations()
     return (
       <ButtonGroup
         value={value}
@@ -39,23 +41,23 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
         <ButtonGroupItem
           value='read'
           className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
-          title='View only'
+          title={t('settings.member_invitation.titles.view_only')}
         >
-          Read
+          {t('settings.member_invitation.permissions.read')}
         </ButtonGroupItem>
         <ButtonGroupItem
           value='write'
           className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
-          title='Edit content'
+          title={t('settings.member_invitation.titles.edit_content')}
         >
-          Write
+          {t('settings.member_invitation.permissions.write')}
         </ButtonGroupItem>
         <ButtonGroupItem
           value='admin'
           className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
-          title='Full access'
+          title={t('settings.member_invitation.titles.full_access')}
         >
-          Admin
+          {t('settings.member_invitation.permissions.admin')}
         </ButtonGroupItem>
       </ButtonGroup>
     )
@@ -99,6 +101,7 @@ export function MemberInvitationCard({
   invitationError = null,
   isLoadingWorkspaces = false,
 }: MemberInvitationCardProps) {
+  const t = useTranslations()
   const selectedCount = selectedWorkspaces.length
   const hasAvailableSeats = availableSeats > 0
   const hasValidEmails = inviteEmails.some((e) => e.isValid)
@@ -122,9 +125,11 @@ export function MemberInvitationCard({
   return (
     <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
       <div className='px-[14px] py-[10px]'>
-        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Invite Team Members</h4>
+        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>
+          {t('settings.member_invitation.title')}
+        </h4>
         <p className='text-[12px] text-[var(--text-muted)]'>
-          Add new members to your team and optionally give them access to specific workspaces
+          {t('settings.member_invitation.description')}
         </p>
       </div>
 
@@ -135,8 +140,8 @@ export function MemberInvitationCard({
               items={inviteEmails}
               onAdd={handleAddEmail}
               onRemove={handleRemoveEmail}
-              placeholder='Enter email addresses'
-              placeholderWithTags='Add another email'
+              placeholder={t('settings.member_invitation.placeholders.email')}
+              placeholderWithTags={t('settings.member_invitation.placeholders.another_email')}
               disabled={isInviting || !hasAvailableSeats}
               triggerKeys={['Enter', ',', ' ']}
               maxHeight='max-h-24'
@@ -158,7 +163,7 @@ export function MemberInvitationCard({
                 className='min-w-[110px]'
               >
                 <span className='flex-1 text-left'>
-                  Workspaces
+                  {t('settings.member_invitation.labels.workspaces')}
                   {selectedCount > 0 && ` (${selectedCount})`}
                 </span>
                 <ChevronDown
@@ -180,11 +185,15 @@ export function MemberInvitationCard({
             >
               {isLoadingWorkspaces ? (
                 <div className='px-[6px] py-[16px] text-center'>
-                  <p className='text-[12px] text-[var(--text-tertiary)]'>Loading...</p>
+                  <p className='text-[12px] text-[var(--text-tertiary)]'>
+                    {t('settings.member_invitation.loading')}
+                  </p>
                 </div>
               ) : userWorkspaces.length === 0 ? (
                 <div className='px-[6px] py-[16px] text-center'>
-                  <p className='text-[12px] text-[var(--text-tertiary)]'>No workspaces available</p>
+                  <p className='text-[12px] text-[var(--text-tertiary)]'>
+                    {t('settings.member_invitation.no_workspaces')}
+                  </p>
                 </div>
               ) : (
                 <div className='flex flex-col gap-[2px]'>
@@ -218,7 +227,9 @@ export function MemberInvitationCard({
                         </PopoverItem>
                         {isSelected && (
                           <div className='ml-[31px] flex items-center gap-[6px] pb-[4px]'>
-                            <span className='text-[11px] text-[var(--text-tertiary)]'>Access:</span>
+                            <span className='text-[11px] text-[var(--text-tertiary)]'>
+                              {t('settings.member_invitation.labels.access')}
+                            </span>
                             <PermissionSelector
                               value={
                                 (['read', 'write', 'admin'].includes(
@@ -244,7 +255,11 @@ export function MemberInvitationCard({
             onClick={() => onInviteMember()}
             disabled={!hasValidEmails || isInviting || !hasAvailableSeats}
           >
-            {isInviting ? 'Inviting...' : hasAvailableSeats ? 'Invite' : 'No Seats'}
+            {isInviting
+              ? t('settings.member_invitation.buttons.inviting')
+              : hasAvailableSeats
+                ? t('settings.member_invitation.buttons.invite')
+                : t('settings.member_invitation.buttons.no_seats')}
           </Button>
         </div>
 
@@ -258,9 +273,9 @@ export function MemberInvitationCard({
 
         {inviteSuccess && (
           <p className='text-[11px] text-[var(--text-success)] leading-tight'>
-            Invitation sent successfully
-            {selectedCount > 0 &&
-              ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}
+            {selectedCount > 0
+              ? t('settings.member_invitation.success_with_workspaces', { count: selectedCount })
+              : t('settings.member_invitation.success')}
           </p>
         )}
       </div>

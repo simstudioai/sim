@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Badge, Button } from '@/components/emcn'
 import { Skeleton } from '@/components/ui/skeleton'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
@@ -55,6 +58,8 @@ export function TeamSeatsOverview({
   onReduceSeats,
   onAddSeatDialog,
 }: TeamSeatsOverviewProps) {
+  const t = useTranslations()
+
   if (isLoadingSubscription) {
     return <TeamSeatsSkeleton />
   }
@@ -65,10 +70,10 @@ export function TeamSeatsOverview({
         <div className='flex flex-col items-center gap-[12px] px-[14px] py-[16px] text-center'>
           <div className='flex flex-col gap-[4px]'>
             <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-              No Team Subscription Found
+              {t('settings.team_seats_overview.no_subscription_title')}
             </p>
             <p className='text-[12px] text-[var(--text-muted)]'>
-              Your subscription may need to be transferred to this organization.
+              {t('settings.team_seats_overview.no_subscription_description')}
             </p>
           </div>
           <Button
@@ -78,7 +83,7 @@ export function TeamSeatsOverview({
             }}
             disabled={isLoading}
           >
-            Set Up Team Subscription
+            {t('settings.team_seats_overview.buttons.setup_subscription')}
           </Button>
         </div>
       </div>
@@ -93,7 +98,9 @@ export function TeamSeatsOverview({
         {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[8px]'>
-            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Seats</span>
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+              {t('settings.team_seats_overview.title')}
+            </span>
             {!isEnterprise && (
               <Badge
                 variant='blue-secondary'
@@ -101,17 +108,17 @@ export function TeamSeatsOverview({
                 className='cursor-pointer'
                 onClick={onAddSeatDialog}
               >
-                Add Seats
+                {t('settings.team_seats_overview.badges.add_seats')}
               </Badge>
             )}
           </div>
           <div className='flex items-center gap-[4px] text-[12px] tabular-nums'>
             <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
-              {usedSeats} used
+              {t('settings.team_seats_overview.used', { count: usedSeats })}
             </span>
             <span className='font-medium text-[var(--text-secondary)]'>/</span>
             <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
-              {totalSeats} total
+              {t('settings.team_seats_overview.total', { count: totalSeats })}
             </span>
           </div>
         </div>
@@ -136,7 +143,7 @@ export function TeamSeatsOverview({
         {isEnterprise && (
           <div className='pt-[4px] text-center'>
             <p className='text-[12px] text-[var(--text-muted)]'>
-              Contact support for enterprise usage limit changes
+              {t('settings.team_seats_overview.enterprise_message')}
             </p>
           </div>
         )}

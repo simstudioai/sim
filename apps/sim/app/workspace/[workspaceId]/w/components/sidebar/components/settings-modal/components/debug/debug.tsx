@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import { Button, Input as EmcnInput } from '@/components/emcn'
 import { workflowKeys } from '@/hooks/queries/workflows'
@@ -14,6 +15,7 @@ const logger = createLogger('DebugSettings')
  * Allows importing workflows by ID for debugging purposes.
  */
 export function Debug() {
+  const t = useTranslations()
   const params = useParams()
   const queryClient = useQueryClient()
   const workspaceId = params?.workspaceId as string
@@ -56,15 +58,13 @@ export function Debug() {
 
   return (
     <div className='flex h-full flex-col gap-[16px]'>
-      <p className='text-[13px] text-[var(--text-secondary)]'>
-        Import a workflow by ID along with its associated copilot chats.
-      </p>
+      <p className='text-[13px] text-[var(--text-secondary)]'>{t('settings.debug.description')}</p>
 
       <div className='flex gap-[8px]'>
         <EmcnInput
           value={workflowId}
           onChange={(e) => setWorkflowId(e.target.value)}
-          placeholder='Enter workflow ID'
+          placeholder={t('settings.debug.placeholders.workflow_id')}
           disabled={isImporting}
         />
         <Button
@@ -72,7 +72,7 @@ export function Debug() {
           onClick={handleImport}
           disabled={isImporting || !workflowId.trim()}
         >
-          {isImporting ? 'Importing...' : 'Import'}
+          {isImporting ? t('settings.debug.buttons.importing') : t('settings.debug.buttons.import')}
         </Button>
       </div>
     </div>

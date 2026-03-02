@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from '@/components/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
@@ -49,6 +50,7 @@ export function TeamMembers({
   isAdminOrOwner,
   onRemoveMember,
 }: TeamMembersProps) {
+  const t = useTranslations()
   const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
   const [resendingInvitations, setResendingInvitations] = useState<Set<string>>(new Set())
   const [resentInvitations, setResentInvitations] = useState<Set<string>>(new Set())
@@ -121,7 +123,11 @@ export function TeamMembers({
   }
 
   if (teamItems.length === 0) {
-    return <div className='text-center text-[var(--text-muted)] text-sm'>No team members yet.</div>
+    return (
+      <div className='text-center text-[var(--text-muted)] text-sm'>
+        {t('settings.team_members.empty')}
+      </div>
+    )
   }
 
   const currentUserMember = organization.members?.find((m) => m.user?.email === currentUserEmail)
@@ -200,7 +206,9 @@ export function TeamMembers({
     <div className='flex flex-col gap-[16px]'>
       {/* Header */}
       <div>
-        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Team Members</h4>
+        <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>
+          {t('settings.team_members.title')}
+        </h4>
       </div>
 
       {/* Members list */}
@@ -236,7 +244,7 @@ export function TeamMembers({
                   )}
                   {item.type === 'invitation' && (
                     <Badge variant='gray-secondary' size='sm'>
-                      Pending
+                      {t('settings.team_members.badges.pending')}
                     </Badge>
                   )}
                 </div>
@@ -253,7 +261,7 @@ export function TeamMembers({
                     onClick={() => onRemoveMember(item.member)}
                     className='h-8'
                   >
-                    Remove
+                    {t('settings.team_members.buttons.remove')}
                   </Button>
                 )}
             </div>
@@ -263,7 +271,9 @@ export function TeamMembers({
               <div className='ml-[16px] flex flex-col items-end'>
                 {item.type === 'member' ? (
                   <>
-                    <div className='text-[12px] text-[var(--text-muted)]'>Usage</div>
+                    <div className='text-[12px] text-[var(--text-muted)]'>
+                      {t('settings.team_members.labels.usage')}
+                    </div>
                     <div className='font-medium text-[12px] text-[var(--text-primary)] tabular-nums'>
                       {isLoadingUsage ? (
                         <span className='inline-block h-3 w-12 animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
@@ -284,10 +294,12 @@ export function TeamMembers({
                       className='h-8'
                     >
                       {resendingInvitations.has(item.invitation.id)
-                        ? 'Sending...'
+                        ? t('settings.team_members.buttons.sending')
                         : resendCooldowns[item.invitation.id]
-                          ? `Resend (${resendCooldowns[item.invitation.id]}s)`
-                          : 'Resend'}
+                          ? t('settings.team_members.buttons.resend_cooldown', {
+                              seconds: resendCooldowns[item.invitation.id],
+                            })
+                          : t('settings.team_members.buttons.resend')}
                     </Button>
                     <Button
                       variant='ghost'
@@ -295,7 +307,9 @@ export function TeamMembers({
                       disabled={cancellingInvitations.has(item.invitation.id)}
                       className='h-8'
                     >
-                      {cancellingInvitations.has(item.invitation.id) ? 'Cancelling...' : 'Cancel'}
+                      {cancellingInvitations.has(item.invitation.id)
+                        ? t('settings.team_members.buttons.cancelling')
+                        : t('settings.team_members.buttons.cancel')}
                     </Button>
                   </div>
                 )}
@@ -318,7 +332,7 @@ export function TeamMembers({
               onRemoveMember(currentUserMember)
             }}
           >
-            Leave Organization
+            {t('settings.team_members.buttons.leave_organization')}
           </Button>
         </div>
       )}

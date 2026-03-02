@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, Label, Switch, Tooltip } from '@/components/emcn'
@@ -174,6 +175,7 @@ export function Subscription() {
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const logger = createLogger('Subscription')
+  const t = useTranslations()
 
   const {
     data: subscriptionData,
@@ -311,15 +313,19 @@ export function Subscription() {
       return { text: '', variant: 'blue-secondary' }
     }
     if (permissions.showTeamMemberView || subscription.isEnterprise) {
-      return { text: `${subscription.seats} seats`, variant: 'blue-secondary' }
+      return {
+        text: t('settings.subscription.seats_count', { count: subscription.seats }),
+        variant: 'blue-secondary',
+      }
     }
-    if (isDispute) return { text: 'Get Help', variant: 'red' }
-    if (isBlocked) return { text: 'Fix Now', variant: 'red' }
-    if (subscription.isFree) return { text: 'Upgrade', variant: 'blue-secondary' }
+    if (isDispute) return { text: t('settings.subscription.badges.get_help'), variant: 'red' }
+    if (isBlocked) return { text: t('settings.subscription.badges.fix_now'), variant: 'red' }
+    if (subscription.isFree)
+      return { text: t('settings.subscription.badges.upgrade'), variant: 'blue-secondary' }
     if (isCritical && permissions.canEditUsageLimit) {
-      return { text: 'Increase Limit', variant: 'red' }
+      return { text: t('settings.subscription.badges.increase_limit'), variant: 'red' }
     }
-    return { text: 'Increase Limit', variant: 'blue-secondary' }
+    return { text: t('settings.subscription.badges.increase_limit'), variant: 'blue-secondary' }
   }
   const badgeConfig = getBadgeConfig()
 
@@ -397,11 +403,15 @@ export function Subscription() {
           return (
             <PlanCard
               key='pro'
-              name='Pro'
+              name={t('settings.subscription.plans.pro')}
               price={CONSTANTS.PRO_PRICE}
-              priceSubtext='/month'
+              priceSubtext={t('settings.subscription.per_month')}
               features={PRO_PLAN_FEATURES}
-              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
+              buttonText={
+                subscription.isFree
+                  ? t('settings.subscription.buttons.upgrade')
+                  : t('settings.subscription.buttons.upgrade_to_pro')
+              }
               onButtonClick={() => handleUpgradeWithErrorHandling('pro')}
               isError={upgradeError === 'pro'}
             />
@@ -411,11 +421,15 @@ export function Subscription() {
           return (
             <PlanCard
               key='team'
-              name='Team'
+              name={t('settings.subscription.plans.team')}
               price={CONSTANTS.TEAM_PRICE}
-              priceSubtext='/month'
+              priceSubtext={t('settings.subscription.per_month')}
               features={TEAM_PLAN_FEATURES}
-              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
+              buttonText={
+                subscription.isFree
+                  ? t('settings.subscription.buttons.upgrade')
+                  : t('settings.subscription.buttons.upgrade_to_team')
+              }
               onButtonClick={() => handleUpgradeWithErrorHandling('team')}
               isError={upgradeError === 'team'}
             />
@@ -425,10 +439,10 @@ export function Subscription() {
           return (
             <PlanCard
               key='enterprise'
-              name='Enterprise'
+              name={t('settings.subscription.plans.enterprise')}
               price=''
               features={ENTERPRISE_PLAN_FEATURES}
-              buttonText='Contact'
+              buttonText={t('settings.subscription.buttons.contact')}
               onButtonClick={handleContactEnterprise}
               inlineButton={options?.horizontal}
             />
@@ -457,7 +471,7 @@ export function Subscription() {
           onBadgeClick={permissions.showTeamMemberView ? undefined : handleBadgeClick}
           seatsText={
             permissions.canManageTeam || subscription.isEnterprise
-              ? `${subscription.seats} seats`
+              ? t('settings.subscription.seats_count', { count: subscription.seats })
               : undefined
           }
           current={usage.current}
@@ -572,7 +586,7 @@ export function Subscription() {
         !permissions.showTeamMemberView &&
         !permissions.isEnterpriseMember && (
           <div className='flex items-center justify-between'>
-            <Label>Next Billing Date</Label>
+            <Label>{t('settings.subscription.labels.next_billing_date')}</Label>
             <span className='text-[12px] text-[var(--text-secondary)]'>
               {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
             </span>
@@ -601,19 +615,21 @@ export function Subscription() {
       {!isLoading && isTeamAdmin && (
         <div className='mt-auto flex items-center justify-between'>
           <div className='flex items-center gap-[6px]'>
-            <Label htmlFor='billed-account'>Billed Account</Label>
+            <Label htmlFor='billed-account'>
+              {t('settings.subscription.labels.billed_account')}
+            </Label>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>Usage from this workspace will be billed to this account</span>
+                <span>{t('settings.subscription.tooltips.billed_account')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
           {workspaceAdmins.length === 0 ? (
             <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[12px] text-[var(--text-muted)]'>
-              No admins available
+              {t('settings.subscription.no_admins_available')}
             </div>
           ) : (
             <div className='w-[200px]'>
@@ -632,7 +648,7 @@ export function Subscription() {
                   }
                 }}
                 disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
-                placeholder='Select admin'
+                placeholder={t('settings.subscription.placeholders.select_admin')}
                 options={workspaceAdmins.map((admin) => ({
                   label: admin.email,
                   value: admin.userId,
@@ -647,6 +663,7 @@ export function Subscription() {
 }
 
 function BillingUsageNotificationsToggle() {
+  const t = useTranslations()
   const enabled = useBillingUsageNotifications()
   const updateSetting = useUpdateGeneralSetting()
   const isLoading = updateSetting.isPending
@@ -654,9 +671,11 @@ function BillingUsageNotificationsToggle() {
   return (
     <div className='flex items-center justify-between'>
       <div className='flex flex-col gap-[4px]'>
-        <Label htmlFor='usage-notifications'>Usage notifications</Label>
+        <Label htmlFor='usage-notifications'>
+          {t('settings.subscription.labels.usage_notifications')}
+        </Label>
         <span className='text-[12px] text-[var(--text-muted)]'>
-          Email me when I reach 80% usage
+          {t('settings.subscription.usage_notifications_description')}
         </span>
       </div>
       <Switch

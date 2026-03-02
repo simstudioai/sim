@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowDown, Loader2, Plus, Search, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -75,6 +76,7 @@ const PLAN_NAMES = {
 } as const
 
 export function Files() {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
@@ -286,7 +288,7 @@ export function Files() {
             strokeWidth={2}
           />
           <Input
-            placeholder='Search files...'
+            placeholder={t('settings.files.placeholders.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             disabled={permissionsLoading}
@@ -311,10 +313,13 @@ export function Files() {
             >
               <Plus className='mr-[6px] h-[13px] w-[13px]' />
               {uploading && uploadProgress.total > 0
-                ? `${uploadProgress.completed}/${uploadProgress.total}`
+                ? t('settings.files.buttons.upload_progress', {
+                    completed: uploadProgress.completed,
+                    total: uploadProgress.total,
+                  })
                 : uploading
-                  ? 'Uploading...'
-                  : 'Upload'}
+                  ? t('settings.files.buttons.uploading')
+                  : t('settings.files.buttons.upload')}
             </Button>
           </>
         )}
@@ -326,27 +331,27 @@ export function Files() {
           renderTableSkeleton()
         ) : files.length === 0 && failedFiles.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-            No files uploaded yet
+            {t('settings.files.empty_state')}
           </div>
         ) : filteredFiles.length === 0 && failedFiles.length === 0 ? (
           <div className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
-            No files found matching "{search}"
+            {t('settings.files.no_results', { search })}
           </div>
         ) : (
           <Table className='table-fixed text-[13px]'>
             <TableHeader>
               <TableRow className='hover:bg-transparent'>
                 <TableHead className='w-[56%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                  Name
+                  {t('settings.files.table.name')}
                 </TableHead>
                 <TableHead className='w-[14%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
-                  Size
+                  {t('settings.files.table.size')}
                 </TableHead>
                 <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
-                  Uploaded
+                  {t('settings.files.table.uploaded')}
                 </TableHead>
                 <TableHead className='w-[15%] px-[12px] py-[8px] text-left text-[12px] text-[var(--text-secondary)]'>
-                  Actions
+                  {t('settings.files.table.actions')}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -380,7 +385,7 @@ export function Files() {
                         variant='ghost'
                         onClick={() => setFailedFiles((prev) => prev.filter((_, i) => i !== index))}
                         className='h-[28px] w-[28px] p-0'
-                        aria-label={`Dismiss ${fileName}`}
+                        aria-label={t('settings.files.aria.dismiss', { fileName })}
                       >
                         <X className='h-[14px] w-[14px]' />
                       </Button>
@@ -420,7 +425,9 @@ export function Files() {
                               onClick={() => handleDownload(file)}
                               className='h-[28px] w-[28px] p-0'
                               disabled={downloadingFileId === file.id}
-                              aria-label={`Download ${file.name}`}
+                              aria-label={t('settings.files.aria.download', {
+                                fileName: file.name,
+                              })}
                             >
                               {downloadingFileId === file.id ? (
                                 <Loader2 className='h-[14px] w-[14px] animate-spin' />
@@ -429,7 +436,7 @@ export function Files() {
                               )}
                             </Button>
                           </Tooltip.Trigger>
-                          <Tooltip.Content>Download file</Tooltip.Content>
+                          <Tooltip.Content>{t('settings.files.tooltips.download')}</Tooltip.Content>
                         </Tooltip.Root>
                         {userPermissions.canEdit && (
                           <Tooltip.Root>
@@ -439,12 +446,14 @@ export function Files() {
                                 onClick={() => handleDelete(file)}
                                 className='h-[28px] w-[28px] p-0'
                                 disabled={deleteFile.isPending}
-                                aria-label={`Delete ${file.name}`}
+                                aria-label={t('settings.files.aria.delete', {
+                                  fileName: file.name,
+                                })}
                               >
                                 <Trash className='h-[14px] w-[14px]' />
                               </Button>
                             </Tooltip.Trigger>
-                            <Tooltip.Content>Delete file</Tooltip.Content>
+                            <Tooltip.Content>{t('settings.files.tooltips.delete')}</Tooltip.Content>
                           </Tooltip.Root>
                         )}
                       </div>

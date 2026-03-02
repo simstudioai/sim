@@ -1,6 +1,6 @@
 ---
 name: next-intl-auto-i18n
-description: Automatically refactor React/Next.js components to use next-intl without namespaces and output English JSON.
+description: Automatically refactor React/Next.js components to use next-intl without namespaces
 ---
 
 # Next-Intl Auto I18n Refactoring
@@ -14,13 +14,11 @@ Your job is to:
 1. Convert the component to use next-intl
 2. Replace all user-visible and accessibility text with t() calls
 3. Use no namespaces
-4. Output the refactored component
-5. Output the English JSON containing every key used
 
 Do not include explanations.
 
 ---
-## 0. Dont translate logger info or error messages that are not user-facing.
+## 0. Don't translate logger info or error messages that are not user-facing.
 
 ## 0.1 Do not translate error messages or similars as keys to be rendered as translations later. For example, if there is an error message like "Invalid email address", do not create a key like "errors.invalid_email" with the value "Invalid email address". If possible, just create a new hook that calls useTranslation inside it and returns the same object or function with translated texts and keep the code in the same file. For example, if there is an error message like "Invalid email address", create a new hook called useErrorMessages that calls useTranslation and returns an object with the same keys but translated values. Then, replace the error message in the code with the corresponding key from the useErrorMessages hook. This way, you can keep the code organized and avoid creating unnecessary keys in the translation JSON.
 
@@ -231,23 +229,14 @@ After:
 
 ## 8. Output Format (STRICT)
 
-You must output:
-
-1) The fully transformed component code
-   - With correct imports
-   - With t() used everywhere required
-   - With no remaining hardcoded user-facing strings
-
-2) Then output the English JSON object containing ALL keys used
-
-The JSON must:
-
+You must:
+- translate associated files
+- output the refactored component
+- if needed, modify translation files (en, es, pt) maintaining the same keys but with translated values
 - include every key referenced in the component
 - use snake_case
 - preserve the same semantic grouping used in the keys
-- contain only English strings
 
 Do NOT include explanations.
 Do NOT include comments.
 Do NOT include markdown.
-Only output the code followed by the JSON.
