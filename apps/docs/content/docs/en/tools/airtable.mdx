@@ -26,11 +26,62 @@ In Sim, the Airtable integration enables your agents to interact with your Airta
 
 ## Usage Instructions
 
-Integrates Airtable into the workflow. Can create, get, list, or update Airtable records. Can be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
+Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
 
 
 
 ## Tools
+
+### `airtable_list_bases`
+
+List all Airtable bases the user has access to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `offset` | string | No | Pagination offset for retrieving additional bases |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bases` | array | List of Airtable bases |
+|   ↳ `id` | string | Base ID \(starts with "app"\) |
+|   ↳ `name` | string | Base name |
+|   ↳ `permissionLevel` | string | Permission level \(none, read, comment, edit, create\) |
+| `metadata` | json | Pagination and count metadata |
+|   ↳ `offset` | string | Offset for next page of results |
+|   ↳ `totalBases` | number | Number of bases returned |
+
+### `airtable_list_tables`
+
+List all tables and their schema in an Airtable base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | List of tables in the base with their schema |
+|   ↳ `id` | string | Table ID \(starts with "tbl"\) |
+|   ↳ `name` | string | Table name |
+|   ↳ `description` | string | Table description |
+|   ↳ `primaryFieldId` | string | ID of the primary field |
+|   ↳ `fields` | array | List of fields in the table |
+|     ↳ `id` | string | Field ID \(starts with "fld"\) |
+|     ↳ `name` | string | Field name |
+|     ↳ `type` | string | Field type \(singleLineText, multilineText, number, checkbox, singleSelect, multipleSelects, date, dateTime, attachment, linkedRecord, etc.\) |
+|     ↳ `description` | string | Field description |
+|     ↳ `options` | json | Field-specific options \(choices, etc.\) |
+| `metadata` | json | Base info and count metadata |
+|   ↳ `baseId` | string | The base ID queried |
+|   ↳ `totalTables` | number | Number of tables in the base |
 
 ### `airtable_list_records`
 
@@ -49,8 +100,13 @@ Read records from an Airtable table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Array of retrieved Airtable records |
+| `records` | array | Array of retrieved Airtable records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
 | `metadata` | json | Operation metadata including pagination offset and total records count |
+|   ↳ `offset` | string | Pagination offset for next page |
+|   ↳ `totalRecords` | number | Number of records returned |
 
 ### `airtable_get_record`
 
@@ -68,8 +124,12 @@ Retrieve a single record from an Airtable table by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Retrieved Airtable record with id, createdTime, and fields |
-| `metadata` | json | Operation metadata including record count |
+| `record` | json | Retrieved Airtable record |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of records returned \(always 1\) |
 
 ### `airtable_create_records`
 
@@ -88,8 +148,12 @@ Write new records to an Airtable table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Array of created Airtable records |
+| `records` | array | Array of created Airtable records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
 | `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of records created |
 
 ### `airtable_update_record`
 
@@ -108,8 +172,13 @@ Update an existing record in an Airtable table by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `record` | json | Updated Airtable record with id, createdTime, and fields |
-| `metadata` | json | Operation metadata including record count and updated field names |
+| `record` | json | Updated Airtable record |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of records updated \(always 1\) |
+|   ↳ `updatedFields` | array | List of field names that were updated |
 
 ### `airtable_update_multiple_records`
 
@@ -127,7 +196,12 @@ Update multiple existing records in an Airtable table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Array of updated Airtable records |
-| `metadata` | json | Operation metadata including record count and updated record IDs |
+| `records` | array | Array of updated Airtable records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of records updated |
+|   ↳ `updatedRecordIds` | array | List of updated record IDs |
 
 

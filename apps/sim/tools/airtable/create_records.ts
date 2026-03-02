@@ -41,7 +41,8 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
   },
 
   request: {
-    url: (params) => `https://api.airtable.com/v0/${params.baseId}/${params.tableId}`,
+    url: (params) =>
+      `https://api.airtable.com/v0/${params.baseId?.trim()}/${params.tableId?.trim()}`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -55,9 +56,9 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
     return {
       success: true,
       output: {
-        records: data.records || [],
+        records: data.records ?? [],
         metadata: {
-          recordCount: (data.records || []).length,
+          recordCount: (data.records ?? []).length,
         },
       },
     }
@@ -65,20 +66,23 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
 
   outputs: {
     records: {
-      type: 'json',
+      type: 'array',
       description: 'Array of created Airtable records',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          createdTime: { type: 'string' },
-          fields: { type: 'object' },
+          id: { type: 'string', description: 'Record ID' },
+          createdTime: { type: 'string', description: 'Record creation timestamp' },
+          fields: { type: 'json', description: 'Record field values' },
         },
       },
     },
     metadata: {
       type: 'json',
       description: 'Operation metadata',
+      properties: {
+        recordCount: { type: 'number', description: 'Number of records created' },
+      },
     },
   },
 }
