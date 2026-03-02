@@ -81,12 +81,12 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * @returns Array of node IDs representing the hierarchy path
    */
   const getNodeHierarchy = useCallback(
-    (nodeId: string): string[] => {
+    (nodeId: string, maxDepth = 100): string[] => {
       const node = getNodes().find((n) => n.id === nodeId)
-      if (!node) return [nodeId]
+      if (!node || maxDepth <= 0) return [nodeId]
       const parentId = blocks?.[nodeId]?.data?.parentId
       if (!parentId) return [nodeId]
-      return [...getNodeHierarchy(parentId), nodeId]
+      return [...getNodeHierarchy(parentId, maxDepth - 1), nodeId]
     },
     [getNodes, blocks]
   )

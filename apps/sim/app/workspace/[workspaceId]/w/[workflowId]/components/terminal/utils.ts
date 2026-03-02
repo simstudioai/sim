@@ -327,9 +327,7 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
     const subflowDuration =
       iterationType === 'parallel' ? subflowEndMs - subflowStartMs : totalDuration
 
-    const subflowExecutionOrder = Math.min(
-      ...allRelevantBlocks.map((b) => b.executionOrder)
-    )
+    const subflowExecutionOrder = Math.min(...allRelevantBlocks.map((b) => b.executionOrder))
     const firstIteration = iterationGroups[0]
     const syntheticSubflow: ConsoleEntry = {
       id: `${idPrefix}subflow-${iterationType}-${iterationContainerId}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
@@ -355,8 +353,7 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
 
       const strippedNestedEntries: ConsoleEntry[] = matchingNestedEntries.map((e) => ({
         ...e,
-        parentIterations:
-          e.parentIterations!.length > 1 ? e.parentIterations!.slice(1) : undefined,
+        parentIterations: e.parentIterations!.length > 1 ? e.parentIterations!.slice(1) : undefined,
       }))
 
       const iterBlocks = iterGroup.blocks
@@ -410,9 +407,8 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
       })
 
       const childPrefix = `${idPrefix}${iterationContainerId}-${iterGroup.iterationCurrent}-`
-      const nestedSubflowNodes = strippedNestedEntries.length > 0
-        ? buildEntryTree(strippedNestedEntries, childPrefix)
-        : []
+      const nestedSubflowNodes =
+        strippedNestedEntries.length > 0 ? buildEntryTree(strippedNestedEntries, childPrefix) : []
 
       const allChildren = [...blockNodes, ...nestedSubflowNodes]
       allChildren.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)

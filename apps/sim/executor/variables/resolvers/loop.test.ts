@@ -19,14 +19,7 @@ interface BlockDef {
   name: string
 }
 
-/**
- * Creates a minimal workflow for testing.
- */
-function createTestWorkflow(
-  loops: Record<string, LoopDef> = {},
-  blockDefs: BlockDef[] = []
-) {
-  // Ensure each loop has required fields
+function createTestWorkflow(loops: Record<string, LoopDef> = {}, blockDefs: BlockDef[] = []) {
   const normalizedLoops: Record<string, { id: string; nodes: string[]; iterations: number }> = {}
   for (const [key, loop] of Object.entries(loops)) {
     normalizedLoops[key] = {
@@ -54,9 +47,6 @@ function createTestWorkflow(
   }
 }
 
-/**
- * Creates a test loop scope.
- */
 function createLoopScope(overrides: Partial<LoopScope> = {}): LoopScope {
   return {
     iteration: 0,
@@ -66,9 +56,6 @@ function createLoopScope(overrides: Partial<LoopScope> = {}): LoopScope {
   }
 }
 
-/**
- * Creates a minimal ResolutionContext for testing.
- */
 function createTestContext(
   currentNodeId: string,
   loopScope?: LoopScope,
@@ -333,19 +320,17 @@ describe('LoopResolver', () => {
 
   describe('named loop references', () => {
     it.concurrent('should resolve named loop by block name', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       expect(resolver.canResolve('<loop1.index>')).toBe(true)
     })
 
     it.concurrent('should resolve index via named reference for block inside the loop', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       const loopScope = createLoopScope({ iteration: 3 })
       const loopExecutions = new Map([['loop-1', loopScope]])
@@ -380,10 +365,9 @@ describe('LoopResolver', () => {
     })
 
     it.concurrent('should return undefined for index when block is outside the loop', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       const loopScope = createLoopScope({ iteration: 3 })
       const loopExecutions = new Map([['loop-1', loopScope]])
@@ -393,10 +377,9 @@ describe('LoopResolver', () => {
     })
 
     it.concurrent('should resolve result from anywhere after loop completes', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       const results = [[{ response: 'a' }], [{ response: 'b' }]]
       const ctx = createTestContext('block-outside', undefined, new Map(), {
@@ -408,10 +391,9 @@ describe('LoopResolver', () => {
     })
 
     it.concurrent('should resolve result with nested path', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       const results = [[{ response: 'a' }], [{ response: 'b' }]]
       const ctx = createTestContext('block-outside', undefined, new Map(), {
@@ -439,10 +421,9 @@ describe('LoopResolver', () => {
     })
 
     it.concurrent('should throw InvalidFieldError for unknown property on named ref', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       const loopScope = createLoopScope({ iteration: 0 })
       const loopExecutions = new Map([['loop-1', loopScope]])
@@ -452,10 +433,9 @@ describe('LoopResolver', () => {
     })
 
     it.concurrent('should not resolve named ref when no matching block exists', () => {
-      const workflow = createTestWorkflow(
-        { 'loop-1': { nodes: ['block-1'] } },
-        [{ id: 'loop-1', name: 'Loop 1' }]
-      )
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
       const resolver = new LoopResolver(workflow)
       expect(resolver.canResolve('<loop99.index>')).toBe(false)
     })

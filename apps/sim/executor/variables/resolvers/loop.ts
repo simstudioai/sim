@@ -23,10 +23,13 @@ export class LoopResolver implements Resolver {
     }
   }
 
-  private static RUNTIME_PROPERTIES = ['iteration', 'index', 'item', 'currentItem', 'items']
   private static OUTPUT_PROPERTIES = ['result', 'results']
   private static KNOWN_PROPERTIES = [
-    ...LoopResolver.RUNTIME_PROPERTIES,
+    'iteration',
+    'index',
+    'item',
+    'currentItem',
+    'items',
     ...LoopResolver.OUTPUT_PROPERTIES,
   ]
 
@@ -142,11 +145,7 @@ export class LoopResolver implements Resolver {
     return value
   }
 
-  private resolveOutput(
-    loopId: string,
-    pathParts: string[],
-    context: ResolutionContext
-  ): any {
+  private resolveOutput(loopId: string, pathParts: string[], context: ResolutionContext): any {
     const output = context.executionState.getBlockOutput(loopId)
     if (!output) {
       return undefined
@@ -185,7 +184,14 @@ export class LoopResolver implements Resolver {
     return this.isLoopNestedInside(directLoopId, targetLoopId)
   }
 
-  private isLoopNestedInside(childLoopId: string, ancestorLoopId: string): boolean {
+  private isLoopNestedInside(
+    childLoopId: string,
+    ancestorLoopId: string,
+    visited = new Set<string>()
+  ): boolean {
+    if (visited.has(ancestorLoopId)) return false
+    visited.add(ancestorLoopId)
+
     const ancestorLoop = this.workflow.loops?.[ancestorLoopId]
     if (!ancestorLoop) {
       return false
@@ -195,7 +201,7 @@ export class LoopResolver implements Resolver {
     }
     for (const nodeId of ancestorLoop.nodes) {
       if (this.workflow.loops[nodeId]) {
-        if (this.isLoopNestedInside(childLoopId, nodeId)) {
+        if (this.isLoopNestedInside(childLoopId, nodeId, visited)) {
           return true
         }
       }

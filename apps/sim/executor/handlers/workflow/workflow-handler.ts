@@ -7,7 +7,6 @@ import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
-import type { IterationContext } from '@/executor/execution/types'
 import type {
   BlockHandler,
   ExecutionContext,
@@ -16,6 +15,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
@@ -168,9 +168,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         const effectiveBlockId = nodeMetadata
           ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
           : block.id
-        const iterationContext = nodeMetadata
-          ? this.getIterationContext(ctx, nodeMetadata)
-          : undefined
+        const iterationContext = nodeMetadata ? getIterationContext(ctx, nodeMetadata) : undefined
         ctx.onChildWorkflowInstanceReady?.(
           effectiveBlockId,
           instanceId,
@@ -266,64 +264,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         cause: error instanceof Error ? error : undefined,
       })
     }
-  }
-
-  private getIterationContext(
-    ctx: ExecutionContext,
-    nodeMetadata: {
-      loopId?: string
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-      isLoopNode?: boolean
-    }
-  ): IterationContext | undefined {
-    if (nodeMetadata.branchIndex !== undefined && nodeMetadata.branchTotal !== undefined) {
-      return {
-        iterationCurrent: nodeMetadata.branchIndex,
-        iterationTotal: nodeMetadata.branchTotal,
-        iterationType: 'parallel',
-        iterationContainerId: nodeMetadata.parallelId,
-      }
-    }
-
-    if (nodeMetadata.isLoopNode && nodeMetadata.loopId) {
-      const loopScope = ctx.loopExecutions?.get(nodeMetadata.loopId)
-      if (loopScope && loopScope.iteration !== undefined) {
-        const parentIterations = this.buildParentIterations(ctx, nodeMetadata.loopId)
-        return {
-          iterationCurrent: loopScope.iteration,
-          iterationTotal: loopScope.maxIterations,
-          iterationType: 'loop',
-          iterationContainerId: nodeMetadata.loopId,
-          ...(parentIterations.length > 0 && { parentIterations }),
-        }
-      }
-    }
-
-    return undefined
-  }
-
-  private buildParentIterations(
-    ctx: ExecutionContext,
-    loopId: string
-  ): NonNullable<IterationContext['parentIterations']> {
-    const parents: NonNullable<IterationContext['parentIterations']> = []
-    let currentLoopId = loopId
-    while (ctx.loopParentMap?.has(currentLoopId)) {
-      const parentLoopId = ctx.loopParentMap.get(currentLoopId)!
-      const parentScope = ctx.loopExecutions?.get(parentLoopId)
-      if (parentScope && parentScope.iteration !== undefined) {
-        parents.unshift({
-          iterationCurrent: parentScope.iteration,
-          iterationTotal: parentScope.maxIterations,
-          iterationType: 'loop',
-          iterationContainerId: parentLoopId,
-        })
-      }
-      currentLoopId = parentLoopId
-    }
-    return parents
   }
 
   /**

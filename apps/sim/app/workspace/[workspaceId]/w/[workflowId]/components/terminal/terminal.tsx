@@ -264,25 +264,19 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
 }) {
   const { entry, children } = node
   const BlockIcon = getBlockIcon(entry.blockType)
-  const hasError =
-    Boolean(entry.error) ||
-    children.some((c) => c.entry.error || c.children.some((gc) => gc.entry.error))
+  const hasError = Boolean(entry.error) || hasErrorInTree(children)
   const bgColor = getBlockColor(entry.blockType)
   const nodeId = entry.id
   const isExpanded = expandedNodes.has(nodeId)
   const hasChildren = children.length > 0
 
-  // Check if any nested block is running or canceled
-  const hasRunningDescendant = children.some(
-    (c) => c.entry.isRunning || c.children.some((gc) => gc.entry.isRunning)
-  )
-  const hasCanceledDescendant =
-    children.some((c) => c.entry.isCanceled || c.children.some((gc) => gc.entry.isCanceled)) &&
-    !hasRunningDescendant
+  // Check if any nested block is running or canceled (recursive for arbitrary nesting depth)
+  const hasRunningDescendant = hasRunningInTree(children)
+  const hasCanceledDescendant = hasCanceledInTree(children) && !hasRunningDescendant
 
   const containerId = entry.iterationContainerId
-  const storeBlockName = useWorkflowStore(
-    (state) => (containerId ? state.blocks[containerId]?.name : undefined)
+  const storeBlockName = useWorkflowStore((state) =>
+    containerId ? state.blocks[containerId]?.name : undefined
   )
   const displayName = storeBlockName || entry.blockName
 

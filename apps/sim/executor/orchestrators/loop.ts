@@ -16,6 +16,9 @@ import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   addSubflowErrorLog,
+  buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
@@ -283,7 +286,6 @@ export class LoopOrchestrator {
     const output = { results }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
 
-    // Emit onBlockComplete for the loop container so the UI can track it
     if (this.contextExtensions?.onBlockComplete) {
       const now = new Date().toISOString()
       this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
@@ -357,10 +359,7 @@ export class LoopOrchestrator {
 
   /**
    * Collects all effective DAG node IDs for a loop, recursively including
-   * sentinel IDs for any nested loop blocks.
-   *
-   * NOTE: This currently handles loop-in-loop nesting only.
-   * Parallel-in-loop and parallel-in-parallel nesting is not yet supported.
+   * sentinel IDs for any nested subflow blocks (loops and parallels).
    */
   private collectAllLoopNodeIds(loopId: string): Set<string> {
     const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
@@ -375,8 +374,42 @@ export class LoopOrchestrator {
         for (const id of this.collectAllLoopNodeIds(nodeId)) {
           result.add(id)
         }
+      } else if (this.dag.parallelConfigs.has(nodeId)) {
+        for (const id of this.collectAllParallelNodeIds(nodeId)) {
+          result.add(id)
+        }
       } else {
         result.add(nodeId)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Collects all effective DAG node IDs for a parallel, including
+   * sentinel IDs and branch template nodes, recursively handling nested subflows.
+   */
+  private collectAllParallelNodeIds(parallelId: string): Set<string> {
+    const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+    if (!parallelConfig) return new Set()
+
+    const sentinelStartId = buildParallelSentinelStartId(parallelId)
+    const sentinelEndId = buildParallelSentinelEndId(parallelId)
+    const result = new Set([sentinelStartId, sentinelEndId])
+
+    for (const nodeId of parallelConfig.nodes) {
+      if (this.dag.loopConfigs.has(nodeId)) {
+        for (const id of this.collectAllLoopNodeIds(nodeId)) {
+          result.add(id)
+        }
+      } else if (this.dag.parallelConfigs.has(nodeId)) {
+        for (const id of this.collectAllParallelNodeIds(nodeId)) {
+          result.add(id)
+        }
+      } else {
+        result.add(nodeId)
+        result.add(buildBranchNodeId(nodeId, 0))
       }
     }
 
@@ -400,8 +433,9 @@ export class LoopOrchestrator {
       const nodeToRestore = this.dag.nodes.get(nodeId)
       if (!nodeToRestore) continue
 
-      for (const [potentialSourceId, potentialSourceNode] of this.dag.nodes) {
-        if (!allLoopNodeIds.has(potentialSourceId)) continue
+      for (const potentialSourceId of allLoopNodeIds) {
+        const potentialSourceNode = this.dag.nodes.get(potentialSourceId)
+        if (!potentialSourceNode) continue
 
         for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
@@ -485,16 +519,6 @@ export class LoopOrchestrator {
 
   shouldExecuteLoopNode(_ctx: ExecutionContext, _nodeId: string, _loopId: string): boolean {
     return true
-  }
-
-  private findLoopForNode(nodeId: string): string | undefined {
-    for (const [loopId, config] of this.dag.loopConfigs) {
-      const nodes = (config as any).nodes || []
-      if (nodes.includes(nodeId)) {
-        return loopId
-      }
-    }
-    return undefined
   }
 
   private async evaluateWhileCondition(

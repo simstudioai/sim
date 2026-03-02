@@ -1021,12 +1021,20 @@ const WorkflowContent = React.memo(() => {
           return
         }
 
-        // Check if any pasted block is a subflow - subflows cannot be nested
-        const hasSubflow = pastedBlocksArray.some((b) => b.type === 'loop' || b.type === 'parallel')
-        if (hasSubflow) {
+        // Prevent cycle: pasting a container that is the target container itself or one of its ancestors
+        const ancestorIds = new Set<string>()
+        let walkId: string | undefined = targetContainer.loopId
+        while (walkId) {
+          ancestorIds.add(walkId)
+          walkId = blocks[walkId]?.data?.parentId as string | undefined
+        }
+        const wouldCreateCycle = pastedBlocksArray.some(
+          (b) => (b.type === 'loop' || b.type === 'parallel') && ancestorIds.has(b.id)
+        )
+        if (wouldCreateCycle) {
           addNotification({
             level: 'error',
-            message: 'Subflows cannot be nested inside other subflows.',
+            message: 'Cannot paste a subflow inside itself or its own descendant.',
             workflowId: activeWorkflowId || undefined,
           })
           return
@@ -1725,7 +1733,10 @@ const WorkflowContent = React.memo(() => {
             const relativePosition = clampPositionToContainer(
               rawPosition,
               containerInfo.dimensions,
-              { width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH, height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT }
+              {
+                width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+                height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+              }
             )
 
             const existingChildBlocks = Object.values(blocks)
@@ -2163,7 +2174,6 @@ const WorkflowContent = React.memo(() => {
         const containerInfo = isPointInLoopNode(position)
 
         // Highlight container if hovering over it
-        
 
         if (containerInfo) {
           const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
@@ -2356,6 +2366,13 @@ const WorkflowContent = React.memo(() => {
 
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
+        // Compute nesting depth so children always render above parents
+        let depth = 0
+        let pid = block.data?.parentId as string | undefined
+        while (pid && depth < 100) {
+          depth++
+          pid = blocks[pid]?.data?.parentId as string | undefined
+        }
         nodeArray.push({
           id: block.id,
           type: 'subflowNode',
@@ -2364,6 +2381,7 @@ const WorkflowContent = React.memo(() => {
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
           draggable: !isBlockProtected(block.id, blocks),
+          zIndex: depth,
           className: block.data?.parentId ? 'nested-subflow-node' : undefined,
           data: {
             ...block.data,
@@ -2632,18 +2650,14 @@ const WorkflowContent = React.memo(() => {
           if (childNodes.length === 0) continue
 
           const childPositions = childNodes.map((node) => {
-            const nodePosition =
-              node.id === movedNodeId ? movedNodePosition : node.position
+            const nodePosition = node.id === movedNodeId ? movedNodePosition : node.position
             const dims = computedDimensions.get(node.id)
             const width = dims?.width ?? node.data?.width ?? getBlockDimensions(node.id).width
             const height = dims?.height ?? node.data?.height ?? getBlockDimensions(node.id).height
             return { x: nodePosition.x, y: nodePosition.y, width, height }
           })
 
-          computedDimensions.set(
-            containerId,
-            calculateContainerDimensions(childPositions)
-          )
+          computedDimensions.set(containerId, calculateContainerDimensions(childPositions))
         }
 
         return currentNodes.map((node) => {
