@@ -342,6 +342,7 @@ async function generateWithRunway(
     })
 
     if (!statusResponse.ok) {
+      await statusResponse.text().catch(() => {})
       throw new Error(`Runway status check failed: ${statusResponse.status}`)
     }
 
@@ -352,6 +353,7 @@ async function generateWithRunway(
 
       const videoResponse = await fetch(statusData.output[0])
       if (!videoResponse.ok) {
+        await videoResponse.text().catch(() => {})
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
@@ -448,6 +450,7 @@ async function generateWithVeo(
     )
 
     if (!statusResponse.ok) {
+      await statusResponse.text().catch(() => {})
       throw new Error(`Veo status check failed: ${statusResponse.status}`)
     }
 
@@ -472,6 +475,7 @@ async function generateWithVeo(
       })
 
       if (!videoResponse.ok) {
+        await videoResponse.text().catch(() => {})
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
@@ -561,6 +565,7 @@ async function generateWithLuma(
     )
 
     if (!statusResponse.ok) {
+      await statusResponse.text().catch(() => {})
       throw new Error(`Luma status check failed: ${statusResponse.status}`)
     }
 
@@ -576,6 +581,7 @@ async function generateWithLuma(
 
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
+        await videoResponse.text().catch(() => {})
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 
@@ -679,6 +685,7 @@ async function generateWithMiniMax(
     )
 
     if (!statusResponse.ok) {
+      await statusResponse.text().catch(() => {})
       throw new Error(`MiniMax status check failed: ${statusResponse.status}`)
     }
 
@@ -712,6 +719,7 @@ async function generateWithMiniMax(
       )
 
       if (!fileResponse.ok) {
+        await fileResponse.text().catch(() => {})
         throw new Error(`Failed to download video: ${fileResponse.status}`)
       }
 
@@ -725,6 +733,7 @@ async function generateWithMiniMax(
       // Download the actual video file
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
+        await videoResponse.text().catch(() => {})
         throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
       }
 
@@ -881,6 +890,7 @@ async function generateWithFalAI(
     )
 
     if (!statusResponse.ok) {
+      await statusResponse.text().catch(() => {})
       throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
     }
 
@@ -899,6 +909,7 @@ async function generateWithFalAI(
       )
 
       if (!resultResponse.ok) {
+        await resultResponse.text().catch(() => {})
         throw new Error(`Failed to fetch result: ${resultResponse.status}`)
       }
 
@@ -911,6 +922,7 @@ async function generateWithFalAI(
 
       const videoResponse = await fetch(videoUrl)
       if (!videoResponse.ok) {
+        await videoResponse.text().catch(() => {})
         throw new Error(`Failed to download video: ${videoResponse.status}`)
       }
 

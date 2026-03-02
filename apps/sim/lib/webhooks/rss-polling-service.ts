@@ -278,6 +278,7 @@ async function fetchNewRssItems(
     })
 
     if (!response.ok) {
+      await response.text().catch(() => {})
       throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`)
     }
 
