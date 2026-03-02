@@ -21,7 +21,10 @@ import {
 import {
   airtableCreateRecordsTool,
   airtableGetRecordTool,
+  airtableListBasesTool,
   airtableListRecordsTool,
+  airtableListTablesTool,
+  airtableUpdateMultipleRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { airweaveSearchTool } from '@/tools/airweave'
@@ -3431,7 +3434,10 @@ export const tools: Record<string, ToolConfig> = {
   algolia_delete_by_filter: algoliaDeleteByFilterTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
+  airtable_list_bases: airtableListBasesTool,
   airtable_list_records: airtableListRecordsTool,
+  airtable_list_tables: airtableListTablesTool,
+  airtable_update_multiple_records: airtableUpdateMultipleRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
   attio_assert_record: attioAssertRecordTool,
   attio_create_comment: attioCreateCommentTool,
