@@ -142,6 +142,7 @@ describe('WorkflowBlockHandler', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        text: () => Promise.resolve(''),
       })
 
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
@@ -168,6 +169,7 @@ describe('WorkflowBlockHandler', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        text: () => Promise.resolve(''),
       })
 
       const result = await (handler as any).loadChildWorkflow(workflowId)
