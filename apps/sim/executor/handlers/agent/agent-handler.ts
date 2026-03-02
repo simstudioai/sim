@@ -357,6 +357,7 @@ export class AgentBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
+        await response.text().catch(() => {})
         logger.error(`Failed to fetch custom tools: ${response.status}`)
         return null
       }

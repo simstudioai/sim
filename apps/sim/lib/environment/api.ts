@@ -11,6 +11,7 @@ export async function fetchPersonalEnvironment(): Promise<Record<string, Environ
   const response = await fetch(API_ENDPOINTS.ENVIRONMENT)
 
   if (!response.ok) {
+    await response.text().catch(() => {})
     throw new Error(`Failed to load environment variables: ${response.statusText}`)
   }
 
@@ -29,6 +30,7 @@ export async function fetchWorkspaceEnvironment(
   const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId))
 
   if (!response.ok) {
+    await response.text().catch(() => {})
     throw new Error(`Failed to load workspace environment: ${response.statusText}`)
   }
 

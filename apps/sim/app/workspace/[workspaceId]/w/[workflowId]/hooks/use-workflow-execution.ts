@@ -732,7 +732,7 @@ export function useWorkflowExecution() {
         const stream = new ReadableStream({
           async start(controller) {
             const { encodeSSE } = await import('@/lib/core/utils/sse')
-            const streamedContent = new Map<string, string>()
+            const streamedChunks = new Map<string, string[]>()
             const streamReadingPromises: Promise<void>[] = []
 
             const safeEnqueue = (data: Uint8Array) => {
@@ -832,8 +832,8 @@ export function useWorkflowExecution() {
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
 
-                if (blockId && !streamedContent.has(blockId)) {
-                  streamedContent.set(blockId, '')
+                if (blockId && !streamedChunks.has(blockId)) {
+                  streamedChunks.set(blockId, [])
                 }
 
                 try {
@@ -847,13 +847,13 @@ export function useWorkflowExecution() {
                     }
                     const chunk = new TextDecoder().decode(value)
                     if (blockId) {
-                      streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
+                      streamedChunks.get(blockId)!.push(chunk)
                     }
 
                     let chunkToSend = chunk
                     if (blockId && !processedFirstChunk.has(blockId)) {
                       processedFirstChunk.add(blockId)
-                      if (streamedContent.size > 1) {
+                      if (streamedChunks.size > 1) {
                         chunkToSend = `\n\n${chunk}`
                       }
                     }
@@ -871,7 +871,7 @@ export function useWorkflowExecution() {
             // Handle non-streaming blocks (like Function blocks)
             const onBlockComplete = async (blockId: string, output: any) => {
               // Skip if this block already had streaming content (avoid duplicates)
-              if (streamedContent.has(blockId)) {
+              if (streamedChunks.has(blockId)) {
                 logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
                   blockId,
                 })
@@ -908,13 +908,13 @@ export function useWorkflowExecution() {
                       : JSON.stringify(outputValue, null, 2)
 
                   // Add separator if this isn't the first output
-                  const separator = streamedContent.size > 0 ? '\n\n' : ''
+                  const separator = streamedChunks.size > 0 ? '\n\n' : ''
 
                   // Send the non-streaming block output as a chunk
                   safeEnqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
 
                   // Track that we've sent output for this block
-                  streamedContent.set(blockId, formattedOutput)
+                  streamedChunks.set(blockId, [formattedOutput])
                 }
               }
             }
@@ -954,6 +954,12 @@ export function useWorkflowExecution() {
                       log.durationMs = completionTime - startTime
                     }
                   })
+                }
+
+                // Resolve chunks to final strings for consumption
+                const streamedContent = new Map<string, string>()
+                for (const [id, chunks] of streamedChunks) {
+                  streamedContent.set(id, chunks.join(''))
                 }
 
                 // Update streamed content and apply tokenization
@@ -1303,7 +1309,7 @@ export function useWorkflowExecution() {
 
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
-      const streamedContent = new Map<string, string>()
+      const streamedChunks = new Map<string, string[]>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1361,8 +1367,10 @@ export function useWorkflowExecution() {
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
-              const existing = streamedContent.get(data.blockId) || ''
-              streamedContent.set(data.blockId, existing + data.chunk)
+              if (!streamedChunks.has(data.blockId)) {
+                streamedChunks.set(data.blockId, [])
+              }
+              streamedChunks.get(data.blockId)!.push(data.chunk)
 
               // Call onStream callback if provided (create a fake StreamingExecution)
               if (onStream && isExecutingFromChat) {
@@ -1377,7 +1385,7 @@ export function useWorkflowExecution() {
                   stream,
                   execution: {
                     success: true,
-                    output: { content: existing + data.chunk },
+                    output: { content: '' },
                     blockId: data.blockId,
                   } as any,
                 }

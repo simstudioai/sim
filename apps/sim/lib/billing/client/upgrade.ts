@@ -43,6 +43,7 @@ export function useSubscriptionUpgrade() {
         try {
           const orgsResponse = await fetch('/api/organizations')
           if (!orgsResponse.ok) {
+            await orgsResponse.text().catch(() => {})
             throw new Error('Failed to check organization status')
           }
 

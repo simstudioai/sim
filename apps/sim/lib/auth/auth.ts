@@ -773,6 +773,7 @@ export const auth = betterAuth({
               })
 
               if (!profileResponse.ok) {
+                await profileResponse.text().catch(() => {})
                 logger.error('Failed to fetch GitHub profile', {
                   status: profileResponse.status,
                   statusText: profileResponse.statusText,
@@ -850,6 +851,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -889,6 +891,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -929,6 +932,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -969,6 +973,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1009,6 +1014,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1049,6 +1055,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1090,6 +1097,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1129,6 +1137,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1170,6 +1179,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1211,6 +1221,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1251,6 +1262,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1291,6 +1303,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1352,6 +1365,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1391,6 +1405,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1485,6 +1500,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1533,6 +1549,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1572,6 +1589,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1619,6 +1637,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1701,6 +1720,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Pipedrive user info', {
                   status: response.status,
                 })
@@ -1848,6 +1868,7 @@ export const auth = betterAuth({
               )
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Salesforce user info', {
                   status: response.status,
                 })
@@ -1915,6 +1936,7 @@ export const auth = betterAuth({
               )
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching X user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2009,6 +2031,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Confluence user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2120,6 +2143,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Jira user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2177,6 +2201,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Airtable user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2226,6 +2251,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Notion user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2293,6 +2319,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Reddit user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2540,6 +2567,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Asana user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2606,6 +2634,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Slack auth.test failed', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2665,6 +2694,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Webflow user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2716,6 +2746,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch LinkedIn user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2778,6 +2809,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Zoom user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2845,6 +2877,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Spotify user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2893,6 +2926,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch WordPress.com user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2942,6 +2976,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Cal.com user info', {
                   status: response.status,
                   statusText: response.statusText,
