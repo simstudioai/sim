@@ -55,7 +55,7 @@ Sim provides a visual drag-and-drop interface for building and deploying AI agen
 
 ## Optional
 
-- [Careers](${baseUrl}/careers): Join the Sim team
+- [Careers](https://jobs.ashbyhq.com/sim): Join the Sim team
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
 `

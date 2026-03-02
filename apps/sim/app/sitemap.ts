@@ -29,10 +29,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
     },
     {
-      url: `${baseUrl}/careers`,
-      lastModified: new Date('2024-10-06'),
-    },
-    {
       url: `${baseUrl}/terms`,
       lastModified: new Date('2024-10-14'),
     },
