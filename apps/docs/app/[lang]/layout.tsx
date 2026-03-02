@@ -55,8 +55,11 @@ type LayoutProps = {
   params: Promise<{ lang: string }>
 }
 
+const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
+
 export default async function Layout({ children, params }: LayoutProps) {
-  const { lang } = await params
+  const { lang: rawLang } = await params
+  const lang = SUPPORTED_LANGUAGES.has(rawLang) ? rawLang : 'en'
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -107,6 +110,7 @@ export default async function Layout({ children, params }: LayoutProps) {
               title: <SimLogoFull className='h-7 w-auto' />,
             }}
             sidebar={{
+              tabs: false,
               defaultOpenLevel: 0,
               collapsible: false,
               footer: null,

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
 
 /* Prevent overscroll bounce effect on the page */
 html,
@@ -8,18 +9,12 @@ body {
   overscroll-behavior: none;
 }
 
+/* Reserve scrollbar space to prevent layout jitter between pages */
+html {
+  scrollbar-gutter: stable;
+}
+
 @theme {
-  --color-fd-primary: #33c482; /* Green from Sim logo */
-  --font-geist-sans: var(--font-geist-sans);
-  --font-geist-mono: var(--font-geist-mono);
-}
-
-/* Ensure primary color is set in both light and dark modes */
-:root {
-  --color-fd-primary: #33c482;
-}
-
-.dark {
   --color-fd-primary: #33c482;
 }
 
@@ -34,12 +29,6 @@ body {
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* Target any potential border classes */
-* {
-  --fd-border-sidebar: transparent !important;
-}
-
-/* Override any CSS custom properties for borders */
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
@@ -86,7 +75,6 @@ body {
 [data-sidebar-container],
 #nd-sidebar {
   background: transparent !important;
-  background-color: transparent !important;
   border: none !important;
   --color-fd-muted: transparent !important;
   --color-fd-card: transparent !important;
@@ -96,9 +84,7 @@ body {
 aside[data-sidebar],
 aside#nd-sidebar {
   background: transparent !important;
-  background-color: transparent !important;
   border: none !important;
-  border-right: none !important;
 }
 
 /* Fumadocs v16: Add sidebar placeholder styling for grid area */
@@ -157,7 +143,6 @@ aside#nd-sidebar {
 #nd-sidebar > div {
   padding: 0.5rem 12px 12px;
   background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* Override sidebar item styling to match Raindrop */
@@ -434,10 +419,6 @@ aside[data-sidebar],
 #nd-sidebar,
 #nd-sidebar * {
   border: none !important;
-  border-right: none !important;
-  border-left: none !important;
-  border-top: none !important;
-  border-bottom: none !important;
 }
 
 /* Override fumadocs background colors for sidebar */
@@ -447,7 +428,6 @@ aside[data-sidebar],
   --color-fd-muted: transparent !important;
   --color-fd-secondary: transparent !important;
   background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* Force normal text flow in sidebar */
@@ -564,16 +544,682 @@ main[data-main] {
   padding-top: 1.5rem !important;
 }
 
-/* Override Fumadocs default content padding */
-article[data-content],
-div[data-content] {
-  padding-top: 1.5rem !important;
-}
-
-/* Remove any unwanted borders/outlines from video elements */
+/* Remove any unwanted outlines from video elements */
 video {
   outline: none !important;
-  border-style: solid !important;
+}
+
+/* API Reference Pages — Mintlify-style overrides */
+
+/* OpenAPI pages: span main + TOC grid columns for wide two-column layout.
+   The grid has columns: spacer | sidebar | main | toc | spacer.
+   By spanning columns 3-4, the article fills both main and toc areas,
+   while the grid structure stays identical to non-OpenAPI pages (no jitter). */
+#nd-page:has(.api-page-header) {
+  grid-column: 3 / span 2 !important;
+  max-width: 1400px !important;
+}
+
+/* Hide the empty TOC aside on OpenAPI pages so it doesn't overlay content */
+#nd-docs-layout:has(#nd-page .api-page-header) #nd-toc {
+  display: none;
+}
+
+/* Hide the default "Response Body" heading rendered by fumadocs-openapi */
+.response-section-wrapper > .response-section-content > h2,
+.response-section-wrapper > .response-section-content > h3 {
+  display: none !important;
+}
+
+/* Hide default accordion triggers (status code rows) — we show our own dropdown */
+.response-section-wrapper [data-orientation="vertical"] > [data-state] > h3 {
+  display: none !important;
+}
+
+/* Ensure API reference pages use the same font as the rest of the docs */
+#nd-page:has(.api-page-header),
+#nd-page:has(.api-page-header) h2,
+#nd-page:has(.api-page-header) h3,
+#nd-page:has(.api-page-header) h4,
+#nd-page:has(.api-page-header) p,
+#nd-page:has(.api-page-header) span,
+#nd-page:has(.api-page-header) div,
+#nd-page:has(.api-page-header) label,
+#nd-page:has(.api-page-header) button {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Method badge pills in page content — colored background pills */
+#nd-page span.font-mono.font-medium[class*="text-green"] {
+  background-color: rgb(220 252 231 / 0.6);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+html.dark #nd-page span.font-mono.font-medium[class*="text-green"] {
+  background-color: rgb(34 197 94 / 0.15);
+}
+
+#nd-page span.font-mono.font-medium[class*="text-blue"] {
+  background-color: rgb(219 234 254 / 0.6);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+html.dark #nd-page span.font-mono.font-medium[class*="text-blue"] {
+  background-color: rgb(59 130 246 / 0.15);
+}
+
+#nd-page span.font-mono.font-medium[class*="text-orange"] {
+  background-color: rgb(255 237 213 / 0.6);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+html.dark #nd-page span.font-mono.font-medium[class*="text-orange"] {
+  background-color: rgb(249 115 22 / 0.15);
+}
+
+#nd-page span.font-mono.font-medium[class*="text-red"] {
+  background-color: rgb(254 226 226 / 0.6);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+html.dark #nd-page span.font-mono.font-medium[class*="text-red"] {
+  background-color: rgb(239 68 68 / 0.15);
+}
+
+/* Sidebar links with method badges — flex for vertical centering */
+#nd-sidebar a:has(span.font-mono.font-medium) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px;
+}
+
+/* Sidebar method badges — ensure proper inline flex display */
+#nd-sidebar a span.font-mono.font-medium {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  padding: 2.5px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Sidebar GET badges */
+#nd-sidebar a span.font-mono.font-medium[class*="text-green"] {
+  background-color: rgb(220 252 231 / 0.6);
+}
+html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-green"] {
+  background-color: rgb(34 197 94 / 0.15);
+}
+
+/* Sidebar POST badges */
+#nd-sidebar a span.font-mono.font-medium[class*="text-blue"] {
+  background-color: rgb(219 234 254 / 0.6);
+}
+html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-blue"] {
+  background-color: rgb(59 130 246 / 0.15);
+}
+
+/* Sidebar PUT badges */
+#nd-sidebar a span.font-mono.font-medium[class*="text-orange"] {
+  background-color: rgb(255 237 213 / 0.6);
+}
+html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-orange"] {
+  background-color: rgb(249 115 22 / 0.15);
+}
+
+/* Sidebar DELETE badges */
+#nd-sidebar a span.font-mono.font-medium[class*="text-red"] {
+  background-color: rgb(254 226 226 / 0.6);
+}
+html.dark #nd-sidebar a span.font-mono.font-medium[class*="text-red"] {
+  background-color: rgb(239 68 68 / 0.15);
+}
+
+/* Code block containers — match regular docs styling */
+#nd-page:has(.api-page-header) figure.shiki {
+  border-radius: 0.75rem !important;
+  background-color: var(--color-fd-card) !important;
+}
+
+/* Hide "Filter Properties" search bar everywhere — main page and popovers */
+input[placeholder="Filter Properties"] {
+  display: none !important;
+}
+div:has(> input[placeholder="Filter Properties"]) {
+  display: none !important;
+}
+/* Remove top border on first visible property after hidden Filter Properties */
+div:has(> input[placeholder="Filter Properties"]) + .text-sm.border-t {
+  border-top: none !important;
+}
+
+/* Hide "TypeScript Definitions" copy panel on API pages */
+#nd-page:has(.api-page-header) div.not-prose.rounded-xl.border.p-3.mb-4 {
+  display: none !important;
+}
+#nd-page:has(.api-page-header) div.not-prose.rounded-xl.border.p-3:has(> div > p.font-medium) {
+  display: none !important;
+}
+
+/* Hide info tags (Format, Default, etc.) everywhere — main page and popovers */
+div.flex.flex-row.gap-2.flex-wrap.not-prose:has(> div.bg-fd-secondary) {
+  display: none !important;
+}
+div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
+  display: none !important;
+}
+
+/* Method+path bar — cleaner, lighter styling like Gumloop.
+   Override bg-fd-card CSS variable directly for reliability. */
+#nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
+  --color-fd-card: rgb(249 250 251) !important;
+  background-color: rgb(249 250 251) !important;
+  border-color: rgb(229 231 235) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose {
+  --color-fd-card: rgb(24 24 27) !important;
+  background-color: rgb(24 24 27) !important;
+  border-color: rgb(63 63 70) !important;
+}
+/* Method badge inside path bar — cleaner sans-serif, softer colors */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.6875rem !important;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+/* POST — softer blue */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-blue"] {
+  color: rgb(37 99 235) !important;
+  background-color: rgb(219 234 254 / 0.7) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-blue"] {
+  color: rgb(96 165 250) !important;
+  background-color: rgb(59 130 246 / 0.15) !important;
+}
+/* GET — softer green */
+#nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-green"] {
+  color: rgb(22 163 74) !important;
+  background-color: rgb(220 252 231 / 0.7) !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  span.font-mono.font-medium[class*="text-green"] {
+  color: rgb(74 222 128) !important;
+  background-color: rgb(34 197 94 / 0.15) !important;
+}
+
+/* Path text inside method+path bar — monospace, bright like Gumloop */
+#nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
+  color: rgb(55 65 81) !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 0.8125rem !important;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.flex.flex-row.items-center.rounded-xl.border.not-prose
+  code {
+  color: rgb(229 231 235) !important;
+}
+
+/* Inline code in API pages — neutral color instead of red.
+   Exclude code inside the method+path bar (handled above). */
+#nd-page:has(.api-page-header) .prose :not(pre) > code {
+  color: rgb(79 70 229) !important;
+}
+html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
+  color: rgb(165 180 252) !important;
+}
+
+/* Response Section — custom dropdown-based rendering (Mintlify style) */
+
+/* Hide divider lines between accordion items */
+.response-section-wrapper [data-orientation="vertical"].divide-y > * {
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+}
+.response-section-wrapper [data-orientation="vertical"].divide-y {
+  border-top: none !important;
+}
+
+/* Remove content type labels inside accordion items (we show one in the header) */
+.response-section-wrapper [data-orientation="vertical"] p.not-prose:has(code.text-xs) {
+  display: none !important;
+}
+
+/* Hide the top-level response description (e.g. "Execution was successfully cancelled.")
+   but NOT field descriptions inside Schema which also use prose-no-margin.
+   The response description is a direct child of AccordionContent (role=region) with mb-2. */
+.response-section-wrapper [data-orientation="vertical"] [role="region"] > .prose-no-margin.mb-2,
+.response-section-wrapper
+  [data-orientation="vertical"]
+  [role="region"]
+  > div
+  > .prose-no-margin.mb-2 {
+  display: none !important;
+}
+
+/* Remove left padding on accordion content so it aligns with Path Parameters */
+.response-section-wrapper [data-orientation="vertical"] [role="region"] {
+  padding-inline-start: 0 !important;
+}
+
+/* Response section header */
+.response-section-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.response-section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-fd-foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.response-section-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+/* Status code dropdown */
+.response-section-dropdown-wrapper {
+  position: relative;
+}
+
+.response-section-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-fd-muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: color 0.15s;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+.response-section-dropdown-trigger:hover {
+  color: var(--color-fd-foreground);
+}
+
+.response-section-chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  transition: transform 0.15s;
+}
+.response-section-chevron-open {
+  transform: rotate(180deg);
+}
+
+.response-section-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 50;
+  min-width: 5rem;
+  background-color: white;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  padding: 0.25rem;
+  overflow: hidden;
+}
+html.dark .response-section-dropdown-menu {
+  background-color: rgb(24 24 27);
+  border-color: rgb(63 63 70);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+}
+
+.response-section-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-fd-muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+.response-section-dropdown-item:hover {
+  background-color: rgb(243 244 246);
+  color: var(--color-fd-foreground);
+}
+html.dark .response-section-dropdown-item:hover {
+  background-color: rgb(39 39 42);
+}
+.response-section-dropdown-item-selected {
+  color: var(--color-fd-foreground);
+}
+
+.response-section-check {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.response-section-content-type {
+  font-size: 0.875rem;
+  color: var(--color-fd-muted-foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Response schema container — remove border to match Path Parameters style */
+.response-section-wrapper [data-orientation="vertical"] .border.px-3.py-2.rounded-lg {
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent;
+}
+
+/* Property row — reorder: name (1) → type badge (2) → required badge (3) */
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Name span — order 1 */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.font-medium.font-mono.text-fd-primary {
+  order: 1;
+}
+
+/* Type badge — order 2, grey pill like Mintlify */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground {
+  order: 2;
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground {
+  background-color: rgb(39 39 42);
+  color: rgb(212 212 216);
+}
+
+/* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
+#nd-page:has(.api-page-header) span.font-medium.font-mono.text-fd-primary > span.text-red-400 {
+  display: none;
+}
+
+/* Required badge — order 3, light red pill */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
+  content: "required";
+  order: 3;
+  display: inline-flex;
+  align-items: center;
+  background-color: rgb(254 235 235);
+  color: rgb(220 38 38);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
+  background-color: rgb(127 29 29 / 0.2);
+  color: rgb(252 165 165);
+}
+
+/* Optional "?" indicator — hide it */
+#nd-page:has(.api-page-header)
+  span.font-medium.font-mono.text-fd-primary
+  > span.text-fd-muted-foreground {
+  display: none;
+}
+
+/* Hide the auth scheme type label (e.g. "apiKey") next to Authorization heading */
+#nd-page:has(.api-page-header) .flex.items-start.justify-between.gap-2 > div.not-prose {
+  display: none !important;
+}
+
+/* Auth property — replace "<token>" with "string" badge, add "header" and "required" badges.
+   Auth properties use my-4 (vs py-4 for regular properties). */
+
+/* Auth property flex row — name: order 1, type: order 2, ::before "header": order 3, ::after "required": order 4 */
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.font-medium.font-mono.text-fd-primary {
+  order: 1;
+}
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground {
+  order: 2;
+  font-size: 0;
+  padding: 0 !important;
+  background: none !important;
+  line-height: 0;
+}
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground::after {
+  content: "string";
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground::after {
+  background-color: rgb(39 39 42);
+  color: rgb(212 212 216);
+}
+
+/* "header" badge via ::before on the auth flex row */
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
+  content: "header";
+  order: 3;
+  display: inline-flex;
+  align-items: center;
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose::before {
+  background-color: rgb(39 39 42);
+  color: rgb(212 212 216);
+}
+
+/* "required" badge via ::after on the auth flex row — light red pill */
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
+  content: "required";
+  order: 4;
+  display: inline-flex;
+  align-items: center;
+  background-color: rgb(254 235 235);
+  color: rgb(220 38 38);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+html.dark
+  #nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose::after {
+  background-color: rgb(127 29 29 / 0.2);
+  color: rgb(252 165 165);
+}
+
+/* Hide "In: header" text below auth property — redundant with the header badge */
+#nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
+  display: none !important;
+}
+
+/* Section dividers — bottom border after Authorization and Body sections. */
+.api-section-divider {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgb(229 231 235 / 0.6);
+}
+html.dark .api-section-divider {
+  border-bottom-color: rgb(255 255 255 / 0.07);
+}
+
+/* Property rows — breathing room like Mintlify.
+   Regular properties use border-t py-4; auth properties use border-t my-4. */
+#nd-page:has(.api-page-header) .text-sm.border-t.py-4 {
+  padding-top: 1.25rem !important;
+  padding-bottom: 1.25rem !important;
+}
+#nd-page:has(.api-page-header) .text-sm.border-t.my-4 {
+  margin-top: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+  padding-top: 1.25rem;
+}
+
+/* Divider lines between fields — very subtle like Mintlify */
+#nd-page:has(.api-page-header) .text-sm.border-t {
+  border-color: rgb(229 231 235 / 0.6);
+}
+html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
+  border-color: rgb(255 255 255 / 0.07);
+}
+
+/* Body/Callback section "application/json" label — remove inline code styling */
+#nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
+#nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  color: var(--color-fd-muted-foreground) !important;
+  font-size: 0.875rem !important;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+}
+
+/* Object/array type triggers in property rows — order 2 + badge chip styling */
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
+  order: 2;
+  background-color: rgb(240 240 243);
+  color: rgb(100 100 110);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+html.dark
+  #nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span:has(> button) {
+  background-color: rgb(39 39 42);
+  color: rgb(212 212 216);
+}
+
+/* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
+#nd-page:has(.api-page-header) .min-w-0.flex-1 h2 {
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Code examples in right column — wrap long lines instead of horizontal scroll */
+#nd-page:has(.api-page-header) pre {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+}
+#nd-page:has(.api-page-header) pre code {
+  width: 100% !important;
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+}
+
+/* API page header — constrain title/copy-page to left content column, not full width.
+   Only applies on OpenAPI pages (which have the two-column layout). */
+@media (min-width: 1280px) {
+  .api-page-header {
+    max-width: calc(100% - 400px - 1.5rem);
+  }
+}
+
+/* Footer navigation — constrain to left content column on OpenAPI pages only.
+   Target pages that contain the two-column layout via :has() selector. */
+#nd-page:has(.api-page-header) > div:last-child {
+  max-width: calc(100% - 400px - 1.5rem);
+}
+@media (max-width: 1024px) {
+  #nd-page:has(.api-page-header) > div:last-child {
+    max-width: 100%;
+  }
 }
 
 /* Tailwind v4 content sources */
