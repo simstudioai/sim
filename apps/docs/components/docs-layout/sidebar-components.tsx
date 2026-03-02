@@ -52,15 +52,26 @@ export function SidebarItem({ item }: { item: Item }) {
   )
 }
 
+function isApiReferenceFolder(node: Folder): boolean {
+  if (node.index?.url.includes('/api-reference/')) return true
+  for (const child of node.children) {
+    if (child.type === 'page' && child.url.includes('/api-reference/')) return true
+    if (child.type === 'folder' && isApiReferenceFolder(child)) return true
+  }
+  return false
+}
+
 export function SidebarFolder({ item, children }: { item: Folder; children: ReactNode }) {
   const pathname = usePathname()
   const hasActiveChild = checkHasActiveChild(item, pathname)
+  const isApiRef = isApiReferenceFolder(item)
+  const isOnApiRefPage = stripLangPrefix(pathname).startsWith('/api-reference')
   const hasChildren = item.children.length > 0
-  const [open, setOpen] = useState(hasActiveChild)
+  const [open, setOpen] = useState(hasActiveChild || (isApiRef && isOnApiRefPage))
 
   useEffect(() => {
-    setOpen(hasActiveChild)
-  }, [hasActiveChild])
+    setOpen(hasActiveChild || (isApiRef && isOnApiRefPage))
+  }, [hasActiveChild, isApiRef, isOnApiRefPage])
 
   const active = item.index ? isActive(item.index.url, pathname, false) : false
 
@@ -157,16 +168,18 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
       {hasChildren && (
         <div
           className={cn(
-            'overflow-hidden transition-all duration-200 ease-in-out',
-            open ? 'max-h-[10000px] opacity-100' : 'max-h-0 opacity-0'
+            'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
+            open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
           )}
         >
-          {/* Mobile: simple indent */}
-          <div className='ml-4 flex flex-col gap-0.5 lg:hidden'>{children}</div>
-          {/* Desktop: styled with border */}
-          <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-gray-200/60 border-l pl-2.5 lg:block dark:border-gray-700/60'>
-            {children}
-          </ul>
+          <div className='overflow-hidden'>
+            {/* Mobile: simple indent */}
+            <div className='ml-4 flex flex-col gap-0.5 lg:hidden'>{children}</div>
+            {/* Desktop: styled with border */}
+            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-gray-200/60 border-l pl-2.5 lg:block dark:border-gray-700/60'>
+              {children}
+            </ul>
+          </div>
         </div>
       )}
     </div>
