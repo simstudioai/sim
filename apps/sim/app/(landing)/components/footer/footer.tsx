@@ -77,12 +77,14 @@ export default function Footer({ fullWidth = false }: FooterProps) {
               >
                 Status
               </Link>
-              <Link
-                href='/careers'
+              <a
+                href='https://jobs.ashbyhq.com/sim'
+                target='_blank'
+                rel='noopener noreferrer'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
                 Careers
-              </Link>
+              </a>
               <Link
                 href='/privacy'
                 target='_blank'
