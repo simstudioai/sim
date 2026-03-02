@@ -60,7 +60,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   const page = source.getPage(slug, lang)
   if (!page) notFound()
 
-  const data = page.data as PageData & {
+  const data = page.data as unknown as PageData & {
     _openapi?: { method?: string }
     getAPIPageProps?: () => ApiPageProps
   }
