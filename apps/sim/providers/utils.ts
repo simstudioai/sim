@@ -73,6 +73,7 @@ async function fetchWorkflowMetadata(
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
+      await response.text().catch(() => {})
       logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
       return null
     }

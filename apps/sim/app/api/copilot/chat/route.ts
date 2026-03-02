@@ -405,13 +405,17 @@ export async function POST(req: NextRequest) {
               },
             })
           } finally {
-            controller.close()
+            try {
+              controller.close()
+            } catch {
+              // controller may already be closed by cancel()
+            }
           }
         },
         async cancel() {
           clientDisconnected = true
           if (eventWriter) {
-            await eventWriter.flush()
+            await eventWriter.close().catch(() => {})
           }
         },
       })

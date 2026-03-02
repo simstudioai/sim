@@ -29,6 +29,7 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
     })
 
     if (!response.ok) {
+      await response.text().catch(() => {})
       logger.warn('Failed to fetch OpenRouter model capabilities', {
         status: response.status,
       })

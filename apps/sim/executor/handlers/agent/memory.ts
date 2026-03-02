@@ -116,21 +116,22 @@ export class Memory {
     ctx: ExecutionContext,
     inputs: AgentInputs
   ): ReadableStream<Uint8Array> {
-    let accumulatedContent = ''
+    const chunks: string[] = []
     const decoder = new TextDecoder()
 
     const transformStream = new TransformStream<Uint8Array, Uint8Array>({
       transform: (chunk, controller) => {
         controller.enqueue(chunk)
         const decoded = decoder.decode(chunk, { stream: true })
-        accumulatedContent += decoded
+        chunks.push(decoded)
       },
 
       flush: () => {
-        if (accumulatedContent.trim()) {
+        const content = chunks.join('')
+        if (content.trim()) {
           this.appendToMemory(ctx, inputs, {
             role: 'assistant',
-            content: accumulatedContent,
+            content,
           }).catch((error) => logger.error('Failed to persist streaming response:', error))
         }
       },
