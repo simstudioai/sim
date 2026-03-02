@@ -44,11 +44,8 @@ function resolveRefs(obj: unknown, spec: Record<string, unknown>, depth = 0): un
   return obj
 }
 
-function formatSchema(schema: unknown, indent = 0): string {
+function formatSchema(schema: unknown): string {
   return JSON.stringify(schema, null, 2)
-    .split('\n')
-    .map((line) => '  '.repeat(indent) + line)
-    .join('\n')
 }
 
 let cachedSpec: Record<string, unknown> | null = null

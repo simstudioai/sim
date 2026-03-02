@@ -25,8 +25,8 @@ export function StructuredData({
     headline: title,
     description: description,
     url: url,
-    datePublished: dateModified || new Date().toISOString(),
-    dateModified: dateModified || new Date().toISOString(),
+    ...(dateModified && { datePublished: dateModified }),
+    ...(dateModified && { dateModified }),
     author: {
       '@type': 'Organization',
       name: 'Sim Team',
@@ -91,12 +91,6 @@ export function StructuredData({
     inLanguage: ['en', 'es', 'fr', 'de', 'ja', 'zh'],
   }
 
-  const faqStructuredData = title.toLowerCase().includes('faq') && {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: [],
-  }
-
   const softwareStructuredData = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
@@ -148,15 +142,6 @@ export function StructuredData({
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteStructuredData),
-          }}
-        />
-      )}
-      {faqStructuredData && (
-        <Script
-          id='faq-structured-data'
-          type='application/ld+json'
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(faqStructuredData),
           }}
         />
       )}

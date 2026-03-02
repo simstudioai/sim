@@ -1,5 +1,7 @@
 import type React from 'react'
+import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
+import type { ApiPageProps } from 'fumadocs-openapi/ui'
 import { createAPIPage } from 'fumadocs-openapi/ui'
 import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
@@ -18,7 +20,15 @@ import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
 
-const SUPPORTED_LANGUAGES = new Set(i18n.languages)
+const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
+const BASE_URL = 'https://docs.sim.ai'
+
+function resolveLangAndSlug(params: { slug?: string[]; lang: string }) {
+  const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
+  const lang = isValidLang ? params.lang : 'en'
+  const slug = isValidLang ? params.slug : [params.lang, ...(params.slug ?? [])]
+  return { lang, slug }
+}
 
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
@@ -46,21 +56,18 @@ const APIPage = createAPIPage(openapi, {
 
 export default async function Page(props: { params: Promise<{ slug?: string[]; lang: string }> }) {
   const params = await props.params
-  const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
-  const lang = isValidLang ? params.lang : 'en'
-  const slug = isValidLang ? params.slug : [params.lang, ...(params.slug ?? [])]
+  const { lang, slug } = resolveLangAndSlug(params)
   const page = source.getPage(slug, lang)
   if (!page) notFound()
 
   const data = page.data as PageData & {
     _openapi?: { method?: string }
-    getAPIPageProps?: () => unknown
+    getAPIPageProps?: () => ApiPageProps
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
-  const baseUrl = 'https://docs.sim.ai'
 
-  const pageTreeRecord = source.pageTree as Record<string, unknown>
+  const pageTreeRecord = source.pageTree as Record<string, Root>
   const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
   const rawNeighbours = pageTree ? findNeighbour(pageTree, page.url) : null
   const neighbours = isApiReference
@@ -76,7 +83,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     const breadcrumbs: Array<{ name: string; url: string }> = [
       {
         name: 'Home',
-        url: baseUrl,
+        url: BASE_URL,
       },
     ]
 
@@ -99,12 +106,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       if (index === urlParts.length - 1) {
         breadcrumbs.push({
           name: data.title,
-          url: `${baseUrl}${page.url}`,
+          url: `${BASE_URL}${page.url}`,
         })
       } else {
         breadcrumbs.push({
           name: name,
-          url: `${baseUrl}${currentPath}`,
+          url: `${BASE_URL}${currentPath}`,
         })
       }
     })
@@ -116,7 +123,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
 
   const CustomFooter = () => (
     <div className='mt-12'>
-      {/* Navigation links */}
       <div className='flex items-center justify-between py-8'>
         {neighbours?.previous ? (
           <Link
@@ -143,10 +149,8 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         )}
       </div>
 
-      {/* Divider line */}
       <div className='border-border border-t' />
 
-      {/* Social icons */}
       <div className='flex items-center gap-4 py-6'>
         <Link
           href='https://x.com/simdotai'
@@ -225,7 +229,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         <StructuredData
           title={data.title}
           description={data.description || ''}
-          url={`${baseUrl}${page.url}`}
+          url={`${BASE_URL}${page.url}`}
           lang={lang}
           breadcrumb={breadcrumbs}
         />
@@ -273,7 +277,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       <StructuredData
         title={data.title}
         description={data.description || ''}
-        url={`${baseUrl}${page.url}`}
+        url={`${BASE_URL}${page.url}`}
         lang={lang}
         breadcrumb={breadcrumbs}
       />
@@ -351,17 +355,14 @@ export async function generateMetadata(props: {
   params: Promise<{ slug?: string[]; lang: string }>
 }) {
   const params = await props.params
-  const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
-  const lang = isValidLang ? params.lang : 'en'
-  const slug = isValidLang ? params.slug : [params.lang, ...(params.slug ?? [])]
+  const { lang, slug } = resolveLangAndSlug(params)
   const page = source.getPage(slug, lang)
   if (!page) notFound()
 
   const data = page.data as PageData
-  const baseUrl = 'https://docs.sim.ai'
-  const fullUrl = `${baseUrl}${page.url}`
+  const fullUrl = `${BASE_URL}${page.url}`
 
-  const ogImageUrl = `${baseUrl}/api/og?title=${encodeURIComponent(data.title)}`
+  const ogImageUrl = `${BASE_URL}/api/og?title=${encodeURIComponent(data.title)}`
 
   return {
     title: data.title,
@@ -425,13 +426,13 @@ export async function generateMetadata(props: {
     alternates: {
       canonical: fullUrl,
       languages: {
-        'x-default': `${baseUrl}${page.url.replace(`/${lang}`, '')}`,
-        en: `${baseUrl}${page.url.replace(`/${lang}`, '')}`,
-        es: `${baseUrl}/es${page.url.replace(`/${lang}`, '')}`,
-        fr: `${baseUrl}/fr${page.url.replace(`/${lang}`, '')}`,
-        de: `${baseUrl}/de${page.url.replace(`/${lang}`, '')}`,
-        ja: `${baseUrl}/ja${page.url.replace(`/${lang}`, '')}`,
-        zh: `${baseUrl}/zh${page.url.replace(`/${lang}`, '')}`,
+        'x-default': `${BASE_URL}${page.url.replace(`/${lang}`, '')}`,
+        en: `${BASE_URL}${page.url.replace(`/${lang}`, '')}`,
+        es: `${BASE_URL}/es${page.url.replace(`/${lang}`, '')}`,
+        fr: `${BASE_URL}/fr${page.url.replace(`/${lang}`, '')}`,
+        de: `${BASE_URL}/de${page.url.replace(`/${lang}`, '')}`,
+        ja: `${BASE_URL}/ja${page.url.replace(`/${lang}`, '')}`,
+        zh: `${BASE_URL}/zh${page.url.replace(`/${lang}`, '')}`,
       },
     },
   }

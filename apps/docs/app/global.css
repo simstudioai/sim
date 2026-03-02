@@ -15,17 +15,6 @@ html {
 }
 
 @theme {
-  --color-fd-primary: #33c482; /* Green from Sim logo */
-  --font-geist-sans: var(--font-geist-sans);
-  --font-geist-mono: var(--font-geist-mono);
-}
-
-/* Ensure primary color is set in both light and dark modes */
-:root {
-  --color-fd-primary: #33c482;
-}
-
-.dark {
   --color-fd-primary: #33c482;
 }
 
@@ -40,12 +29,6 @@ html {
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* Target any potential border classes */
-* {
-  --fd-border-sidebar: transparent !important;
-}
-
-/* Override any CSS custom properties for borders */
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
@@ -561,16 +544,9 @@ main[data-main] {
   padding-top: 1.5rem !important;
 }
 
-/* Override Fumadocs default content padding */
-article[data-content],
-div[data-content] {
-  padding-top: 1.5rem !important;
-}
-
-/* Remove any unwanted borders/outlines from video elements */
+/* Remove any unwanted outlines from video elements */
 video {
   outline: none !important;
-  border-style: solid !important;
 }
 
 /* API Reference Pages — Mintlify-style overrides */
