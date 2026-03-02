@@ -1,0 +1,84 @@
+---
+title: Google PageSpeed
+description: Analyze webpage performance with Google PageSpeed Insights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_pagespeed"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google PageSpeed Insights](https://pagespeed.web.dev/) is a web performance analysis tool powered by Lighthouse that evaluates the quality of web pages across multiple dimensions including performance, accessibility, SEO, and best practices.
+
+With the Google PageSpeed integration in Sim, you can:
+
+- **Analyze webpage performance**: Get detailed performance scores and metrics for any public URL, including First Contentful Paint, Largest Contentful Paint, and Speed Index
+- **Evaluate accessibility**: Check how well a webpage meets accessibility standards and identify areas for improvement
+- **Audit SEO**: Assess a page's search engine optimization and discover opportunities to improve rankings
+- **Review best practices**: Verify that a webpage follows modern web development best practices
+- **Compare strategies**: Run analyses using either desktop or mobile strategies to understand performance across device types
+- **Localize results**: Retrieve analysis results in different locales for internationalized reporting
+
+In Sim, the Google PageSpeed integration enables your agents to programmatically audit web pages as part of automated workflows. This is useful for monitoring site performance over time, triggering alerts when scores drop below thresholds, generating performance reports, and ensuring that deployed changes meet quality standards before release.
+
+### Getting Your API Key
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Enable the **PageSpeed Insights API** from the API Library
+4. Navigate to **Credentials** and create an API key
+5. Use the API key in the Sim block configuration
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Analyze web pages for performance, accessibility, SEO, and best practices using Google PageSpeed Insights API powered by Lighthouse.
+
+
+
+## Tools
+
+### `google_pagespeed_analyze`
+
+Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google PageSpeed Insights API Key |
+| `url` | string | Yes | The URL of the webpage to analyze |
+| `category` | string | No | Lighthouse categories to analyze \(comma-separated\): performance, accessibility, best-practices, seo |
+| `strategy` | string | No | Analysis strategy: desktop or mobile |
+| `locale` | string | No | Locale for results \(e.g., en, fr, de\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `finalUrl` | string | The final URL after redirects |
+| `performanceScore` | number | Performance category score \(0-1\) |
+| `accessibilityScore` | number | Accessibility category score \(0-1\) |
+| `bestPracticesScore` | number | Best Practices category score \(0-1\) |
+| `seoScore` | number | SEO category score \(0-1\) |
+| `firstContentfulPaint` | string | Time to First Contentful Paint \(display value\) |
+| `firstContentfulPaintMs` | number | Time to First Contentful Paint in milliseconds |
+| `largestContentfulPaint` | string | Time to Largest Contentful Paint \(display value\) |
+| `largestContentfulPaintMs` | number | Time to Largest Contentful Paint in milliseconds |
+| `totalBlockingTime` | string | Total Blocking Time \(display value\) |
+| `totalBlockingTimeMs` | number | Total Blocking Time in milliseconds |
+| `cumulativeLayoutShift` | string | Cumulative Layout Shift \(display value\) |
+| `cumulativeLayoutShiftValue` | number | Cumulative Layout Shift numeric value |
+| `speedIndex` | string | Speed Index \(display value\) |
+| `speedIndexMs` | number | Speed Index in milliseconds |
+| `interactive` | string | Time to Interactive \(display value\) |
+| `interactiveMs` | number | Time to Interactive in milliseconds |
+| `overallCategory` | string | Overall loading experience category \(FAST, AVERAGE, SLOW, or NONE\) |
+| `analysisTimestamp` | string | UTC timestamp of the analysis |
+| `lighthouseVersion` | string | Version of Lighthouse used for the analysis |
+
+

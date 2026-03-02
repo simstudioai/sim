@@ -1,0 +1,1893 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API",
+    "description": "API for executing workflows, querying logs, and managing resources in Sim.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "Workflows", "description": "Execute workflows and manage workflow resources" },
+    { "name": "Logs", "description": "Query execution logs and retrieve details" },
+    { "name": "Usage", "description": "Check rate limits and billing usage" },
+    { "name": "Audit Logs", "description": "View audit trail of workspace activity" }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/workflows/{id}/execute": {
+      "post": {
+        "operationId": "executeWorkflow",
+        "summary": "Execute Workflow",
+        "description": "Execute a deployed workflow. Supports synchronous, asynchronous, and streaming modes. For async execution, the response includes a statusUrl you can poll for results.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/workflows/{id}/execute\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"input\": {\n      \"key\": \"value\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the deployed workflow to execute.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Execution configuration including input values and execution mode options.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "description": "Key-value pairs matching the workflow's defined input fields. Use the Get Workflow endpoint to discover available input fields.",
+                    "additionalProperties": true
+                  },
+                  "triggerType": {
+                    "type": "string",
+                    "description": "How this execution was triggered. Defaults to api when called via the REST API. Recorded in execution logs for filtering."
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "When true, returns results as Server-Sent Events (SSE) for real-time block-by-block output streaming."
+                  },
+                  "selectedOutputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of specific block IDs whose outputs to include in the response. When omitted, all block outputs are returned."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synchronous execution completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionResult"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Asynchronous execution has been queued. Poll the statusUrl for results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncExecutionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}/executions/{executionId}/cancel": {
+      "post": {
+        "operationId": "cancelExecution",
+        "summary": "Cancel Execution",
+        "description": "Cancel a running workflow execution. Only effective for executions that are still in progress.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/workflows/{id}/executions/{executionId}/cancel\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the execution to cancel.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution was successfully cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the cancellation was successful."
+                    },
+                    "executionId": {
+                      "type": "string",
+                      "description": "The ID of the cancelled execution."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows": {
+      "get": {
+        "operationId": "listWorkflows",
+        "summary": "List Workflows",
+        "description": "Retrieve all workflows in a workspace with cursor-based pagination.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/workflows?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The unique identifier for your workspace. Found in the Sim dashboard URL or workspace settings.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "description": "Filter results to only include workflows within this folder.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployedOnly",
+            "in": "query",
+            "description": "When true, only return workflows that have been deployed. Useful for listing workflows available for API execution.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of workflows to return per page. Must be between 1 and 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor returned from a previous request's nextCursor field. Omit for the first page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of workflows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "Array of workflow summary objects for the current page.",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Cursor for fetching the next page of results. null when there are no more results."
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{id}": {
+      "get": {
+        "operationId": "getWorkflow",
+        "summary": "Get Workflow",
+        "description": "Retrieve details for a single workflow, including its input fields and deployment status.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/workflows/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workflow details including input field definitions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The full workflow detail object.",
+                      "$ref": "#/components/schemas/WorkflowDetail"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJobStatus",
+        "summary": "Get Job Status",
+        "description": "Poll the status of an asynchronous workflow execution. Use the jobId returned from the Execute Workflow endpoint when the execution is queued asynchronously.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/jobs/{jobId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "The job identifier returned in the async execution response.",
+            "schema": {
+              "type": "string",
+              "example": "job_4a3b2c1d0e"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status of the job. When completed, includes the execution output.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/logs": {
+      "get": {
+        "operationId": "queryLogs",
+        "summary": "Query Logs",
+        "description": "List workflow execution logs with advanced filtering and cursor-based pagination. Supports filtering by workflow, trigger type, date range, duration, cost, and more.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The unique identifier for your workspace.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflowIds",
+            "in": "query",
+            "description": "Comma-separated list of workflow IDs to filter by. Only logs from these workflows will be returned.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderIds",
+            "in": "query",
+            "description": "Comma-separated list of folder IDs. Returns logs for all workflows within these folders.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "triggers",
+            "in": "query",
+            "description": "Comma-separated trigger types to filter by: api, webhook, schedule, manual, chat.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Filter logs by severity level. info for successful executions, error for failed ones.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Only return logs after this ISO 8601 timestamp (inclusive).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Only return logs before this ISO 8601 timestamp (inclusive).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "query",
+            "description": "Filter by an exact execution ID. Useful for looking up a specific run.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDurationMs",
+            "in": "query",
+            "description": "Only return logs where execution took at least this many milliseconds.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "maxDurationMs",
+            "in": "query",
+            "description": "Only return logs where execution took at most this many milliseconds.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "minCost",
+            "in": "query",
+            "description": "Only return logs where execution cost at least this amount in USD.",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxCost",
+            "in": "query",
+            "description": "Only return logs where execution cost at most this amount in USD.",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Filter by the AI model used during execution (e.g., gpt-4o, claude-sonnet-4-20250514).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "description": "Response detail level. basic returns summary fields only. full includes execution data, trace spans, and outputs.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeTraceSpans",
+            "in": "query",
+            "description": "When true, includes block-level execution trace spans with timing and input/output data.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "includeFinalOutput",
+            "in": "query",
+            "description": "When true, includes the workflow's final output in each log entry.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of log entries to return per page.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor returned from a previous request's nextCursor field.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Sort order by execution start time. desc returns newest first.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of execution logs matching the filter criteria.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "Array of log entries for the current page.",
+                      "items": {
+                        "$ref": "#/components/schemas/LogEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Cursor for fetching the next page. null when there are no more results."
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/logs/{id}": {
+      "get": {
+        "operationId": "getLogDetails",
+        "summary": "Get Log Details",
+        "description": "Retrieve detailed information about a specific log entry, including workflow metadata, execution data, and cost breakdown.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the log entry.",
+            "schema": {
+              "type": "string",
+              "example": "log_7x8y9z0a1b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed log entry with full execution data and cost breakdown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The full log detail object.",
+                      "$ref": "#/components/schemas/LogDetail"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/logs/executions/{executionId}": {
+      "get": {
+        "operationId": "getExecutionDetails",
+        "summary": "Get Execution Details",
+        "description": "Retrieve the full execution state snapshot, including the workflow state at time of execution and detailed metadata.",
+        "tags": ["Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/logs/executions/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The unique execution identifier.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full execution state snapshot with workflow state and metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "executionId": {
+                      "type": "string",
+                      "description": "The unique identifier for this execution."
+                    },
+                    "workflowId": {
+                      "type": "string",
+                      "description": "The workflow that was executed."
+                    },
+                    "workflowState": {
+                      "type": "object",
+                      "description": "Snapshot of the workflow configuration at the time of execution.",
+                      "properties": {
+                        "blocks": {
+                          "type": "object",
+                          "description": "Map of block IDs to their configuration and state during execution."
+                        },
+                        "edges": {
+                          "type": "array",
+                          "description": "List of connections between blocks defining the execution flow.",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "loops": {
+                          "type": "object",
+                          "description": "Loop configurations defining iterative execution patterns."
+                        },
+                        "parallels": {
+                          "type": "object",
+                          "description": "Parallel execution group configurations."
+                        }
+                      }
+                    },
+                    "executionMetadata": {
+                      "type": "object",
+                      "description": "Metadata about the execution including timing and cost information.",
+                      "properties": {
+                        "trigger": {
+                          "type": "string",
+                          "description": "How the execution was triggered (e.g., api, manual, schedule)."
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp when execution started."
+                        },
+                        "endedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp when execution completed."
+                        },
+                        "totalDurationMs": {
+                          "type": "integer",
+                          "description": "Total execution duration in milliseconds."
+                        },
+                        "cost": {
+                          "type": "object",
+                          "description": "Cost breakdown for this execution including per-model details."
+                        }
+                      }
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "operationId": "listAuditLogs",
+        "summary": "List Audit Logs",
+        "description": "Retrieve audit logs for your organization with cursor-based pagination. Requires an Enterprise subscription and organization admin or owner role.",
+        "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/audit-logs?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Filter by action type (e.g., workflow.created, workflow.deployed, member.invited).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceType",
+            "in": "query",
+            "description": "Filter by resource type (e.g., workflow, workspace, member).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "description": "Filter by a specific resource ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "description": "Filter to audit logs from a specific workspace.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "description": "Filter by the user who performed the action. Must be a member of your organization.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Only return logs after this ISO 8601 timestamp (inclusive).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Only return logs before this ISO 8601 timestamp (inclusive).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "includeDeparted",
+            "in": "query",
+            "description": "When true, includes audit logs from users who have left the organization.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of audit log entries to return per page. Must be between 1 and 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor returned from a previous request's nextCursor field.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of audit log entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "Array of audit log entries for the current page.",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLogEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Cursor for fetching the next page. null when there are no more results."
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs/{id}": {
+      "get": {
+        "operationId": "getAuditLogDetails",
+        "summary": "Get Audit Log Details",
+        "description": "Retrieve a single audit log entry by ID. Requires an Enterprise subscription and organization admin or owner role.",
+        "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/audit-logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique audit log entry identifier.",
+            "schema": {
+              "type": "string",
+              "example": "audit_2c3d4e5f6g"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit log entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The audit log entry.",
+                      "$ref": "#/components/schemas/AuditLogEntry"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/users/me/usage-limits": {
+      "get": {
+        "operationId": "getUsageLimits",
+        "summary": "Get Usage Limits",
+        "description": "Retrieve your current rate limits, usage spending, and storage consumption for the billing period.",
+        "tags": ["Usage"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/users/me/usage-limits\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current rate limits, usage, and storage information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageLimits"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "schemas": {
+      "WorkflowSummary": {
+        "type": "object",
+        "description": "Summary representation of a workflow returned in list operations.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable workflow name.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional description of what the workflow does.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "color": {
+            "type": "string",
+            "description": "Hex color code used for the workflow icon in the dashboard (e.g., #33c482).",
+            "example": "#33c482"
+          },
+          "folderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The folder this workflow belongs to. null if at the workspace root.",
+            "example": "folder_abc123"
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "The workspace this workflow belongs to.",
+            "example": "ws_xyz789"
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow is currently deployed and available for API execution.",
+            "example": true
+          },
+          "deployedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp of the most recent deployment. null if never deployed.",
+            "example": "2025-06-15T10:30:00Z"
+          },
+          "runCount": {
+            "type": "integer",
+            "description": "Total number of times this workflow has been executed.",
+            "example": 142
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp of the most recent execution. null if never run.",
+            "example": "2025-06-20T14:15:22Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was created.",
+            "example": "2025-01-10T09:00:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was last modified.",
+            "example": "2025-06-18T16:45:00Z"
+          }
+        }
+      },
+      "WorkflowDetail": {
+        "type": "object",
+        "description": "Full workflow representation including input field definitions and configuration.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable workflow name.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional description of what the workflow does.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "color": {
+            "type": "string",
+            "description": "Hex color code used for the workflow icon in the dashboard.",
+            "example": "#33c482"
+          },
+          "folderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The folder this workflow belongs to. null if at the workspace root.",
+            "example": "folder_abc123"
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "The workspace this workflow belongs to.",
+            "example": "ws_xyz789"
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow is currently deployed and available for API execution.",
+            "example": true
+          },
+          "deployedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp of the most recent deployment. null if never deployed.",
+            "example": "2025-06-15T10:30:00Z"
+          },
+          "runCount": {
+            "type": "integer",
+            "description": "Total number of times this workflow has been executed.",
+            "example": 142
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp of the most recent execution. null if never run.",
+            "example": "2025-06-20T14:15:22Z"
+          },
+          "variables": {
+            "type": "object",
+            "description": "Workflow-level variables and their current values.",
+            "example": {}
+          },
+          "inputs": {
+            "type": "object",
+            "description": "The workflow's input field definitions. Use these to construct the input object when executing the workflow.",
+            "properties": {
+              "fields": {
+                "type": "object",
+                "description": "Map of field names to their type definitions and configuration.",
+                "additionalProperties": true,
+                "example": {}
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was created.",
+            "example": "2025-01-10T09:00:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the workflow was last modified.",
+            "example": "2025-06-18T16:45:00Z"
+          }
+        }
+      },
+      "ExecutionResult": {
+        "type": "object",
+        "description": "Result of a synchronous workflow execution.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the workflow executed successfully without errors.",
+            "example": true
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique identifier for this execution. Use this to query logs or cancel the execution.",
+            "example": "exec_9f8e7d6c5b"
+          },
+          "output": {
+            "type": "object",
+            "description": "Workflow output keyed by block name and output field. Structure depends on the workflow's block configuration.",
+            "additionalProperties": true,
+            "example": {
+              "result": "Hello, world!"
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message if the execution failed. null on success.",
+            "example": null
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Execution timing metadata.",
+            "properties": {
+              "duration": {
+                "type": "integer",
+                "description": "Total execution duration in milliseconds.",
+                "example": 1250
+              },
+              "startTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when execution started.",
+                "example": "2025-06-20T14:15:22Z"
+              },
+              "endTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when execution completed.",
+                "example": "2025-06-20T14:15:23Z"
+              }
+            }
+          }
+        }
+      },
+      "AsyncExecutionResult": {
+        "type": "object",
+        "description": "Response returned when a workflow execution is queued for asynchronous processing.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the execution was successfully queued.",
+            "example": true
+          },
+          "async": {
+            "type": "boolean",
+            "description": "Always true for async executions. Use this to distinguish from synchronous responses.",
+            "example": true
+          },
+          "jobId": {
+            "type": "string",
+            "description": "Internal job queue identifier for tracking the execution.",
+            "example": "job_4a3b2c1d0e"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique execution identifier. Use this to query execution status or cancel.",
+            "example": "exec_9f8e7d6c5b"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable status message (e.g., \"Execution queued\").",
+            "example": "Execution queued"
+          },
+          "statusUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to poll for execution status and results. Returns the full execution result once complete.",
+            "example": "https://www.sim.ai/api/jobs/job_4a3b2c1d0e"
+          }
+        }
+      },
+      "LogEntry": {
+        "type": "object",
+        "description": "Summary of a single workflow execution log entry.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique log entry identifier.",
+            "example": "log_7x8y9z0a1b"
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "The workflow that was executed.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique execution identifier for this run.",
+            "example": "exec_9f8e7d6c5b"
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity. info for successful executions, error for failures.",
+            "example": "info"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "How the execution was triggered (e.g., api, manual, webhook, schedule, chat).",
+            "example": "api"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution started.",
+            "example": "2025-06-20T14:15:22Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution completed.",
+            "example": "2025-06-20T14:15:23Z"
+          },
+          "totalDurationMs": {
+            "type": "integer",
+            "description": "Total execution duration in milliseconds.",
+            "example": 1250
+          },
+          "cost": {
+            "type": "object",
+            "description": "Cost summary for this execution.",
+            "properties": {
+              "total": {
+                "type": "number",
+                "description": "Total cost of this execution in USD.",
+                "example": 0.0032
+              }
+            }
+          },
+          "files": {
+            "type": "object",
+            "nullable": true,
+            "description": "File outputs produced during execution. null if no files were generated.",
+            "example": null
+          }
+        }
+      },
+      "LogDetail": {
+        "type": "object",
+        "description": "Detailed log entry with full execution data, workflow metadata, and cost breakdown.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique log entry identifier.",
+            "example": "log_7x8y9z0a1b"
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "The workflow that was executed.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "Unique execution identifier for this run.",
+            "example": "exec_9f8e7d6c5b"
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity. info for successful executions, error for failures.",
+            "example": "info"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "How the execution was triggered (e.g., api, manual, webhook, schedule, chat).",
+            "example": "api"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution started.",
+            "example": "2025-06-20T14:15:22Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when execution completed.",
+            "example": "2025-06-20T14:15:23Z"
+          },
+          "totalDurationMs": {
+            "type": "integer",
+            "description": "Total execution duration in milliseconds.",
+            "example": 1250
+          },
+          "workflow": {
+            "type": "object",
+            "description": "Summary metadata about the workflow at the time of execution.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique workflow identifier.",
+                "example": "wf_1a2b3c4d5e"
+              },
+              "name": {
+                "type": "string",
+                "description": "Workflow name at the time of execution.",
+                "example": "Customer Support Agent"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true,
+                "description": "Workflow description at the time of execution.",
+                "example": "Routes incoming support tickets and drafts responses"
+              }
+            }
+          },
+          "executionData": {
+            "type": "object",
+            "description": "Detailed execution data including block-level traces and final output.",
+            "properties": {
+              "traceSpans": {
+                "type": "array",
+                "description": "Block-level execution traces with timing, inputs, and outputs for each block that ran.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "finalOutput": {
+                "type": "object",
+                "description": "The workflow's final output after all blocks completed."
+              }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "description": "Detailed cost breakdown for this execution.",
+            "properties": {
+              "total": {
+                "type": "number",
+                "description": "Total cost of this execution in USD.",
+                "example": 0.0032
+              },
+              "tokens": {
+                "type": "object",
+                "description": "Aggregate token usage across all AI model calls in this execution.",
+                "properties": {
+                  "prompt": {
+                    "type": "integer",
+                    "description": "Total prompt (input) tokens consumed.",
+                    "example": 450
+                  },
+                  "completion": {
+                    "type": "integer",
+                    "description": "Total completion (output) tokens generated.",
+                    "example": 120
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Total tokens (prompt + completion).",
+                    "example": 570
+                  }
+                }
+              },
+              "models": {
+                "type": "object",
+                "description": "Per-model cost and token breakdown. Keys are model identifiers (e.g., gpt-4o, claude-sonnet-4-20250514).",
+                "additionalProperties": {
+                  "type": "object",
+                  "description": "Cost and token details for a specific model.",
+                  "properties": {
+                    "input": {
+                      "type": "number",
+                      "description": "Cost of prompt tokens for this model in USD."
+                    },
+                    "output": {
+                      "type": "number",
+                      "description": "Cost of completion tokens for this model in USD."
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total cost for this model in USD."
+                    },
+                    "tokens": {
+                      "type": "object",
+                      "description": "Token usage for this specific model.",
+                      "properties": {
+                        "prompt": {
+                          "type": "integer",
+                          "description": "Prompt tokens consumed by this model."
+                        },
+                        "completion": {
+                          "type": "integer",
+                          "description": "Completion tokens generated by this model."
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total tokens for this model."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "description": "Rate limit and usage information included in every API response.",
+        "properties": {
+          "workflowExecutionRateLimit": {
+            "type": "object",
+            "description": "Current rate limit status for workflow executions.",
+            "properties": {
+              "sync": {
+                "description": "Rate limit bucket for synchronous executions.",
+                "$ref": "#/components/schemas/RateLimitBucket"
+              },
+              "async": {
+                "description": "Rate limit bucket for asynchronous executions.",
+                "$ref": "#/components/schemas/RateLimitBucket"
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "description": "Current billing period usage and plan limits.",
+            "properties": {
+              "currentPeriodCost": {
+                "type": "number",
+                "description": "Total spend in the current billing period in USD.",
+                "example": 1.25
+              },
+              "limit": {
+                "type": "number",
+                "description": "Maximum allowed spend for the current billing period in USD.",
+                "example": 50.0
+              },
+              "plan": {
+                "type": "string",
+                "description": "Your current subscription plan (e.g., free, pro, team).",
+                "example": "pro"
+              },
+              "isExceeded": {
+                "type": "boolean",
+                "description": "Whether the usage limit has been exceeded. Executions may be blocked when true.",
+                "example": false
+              }
+            }
+          }
+        }
+      },
+      "RateLimitBucket": {
+        "type": "object",
+        "description": "Rate limit status for a specific execution type.",
+        "properties": {
+          "requestsPerMinute": {
+            "type": "integer",
+            "description": "Maximum number of requests allowed per minute.",
+            "example": 60
+          },
+          "maxBurst": {
+            "type": "integer",
+            "description": "Maximum number of concurrent requests allowed in a burst.",
+            "example": 10
+          },
+          "remaining": {
+            "type": "integer",
+            "description": "Number of requests remaining in the current rate limit window.",
+            "example": 59
+          },
+          "resetAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the rate limit window resets.",
+            "example": "2025-06-20T14:16:00Z"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "description": "Status of an asynchronous job.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request was successful.",
+            "example": true
+          },
+          "taskId": {
+            "type": "string",
+            "description": "The unique identifier of the job.",
+            "example": "job_4a3b2c1d0e"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "processing", "completed", "failed"],
+            "description": "Current status of the job.",
+            "example": "completed"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Timing metadata for the job.",
+            "properties": {
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when the job started processing.",
+                "example": "2025-06-20T14:15:22Z"
+              },
+              "completedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when the job completed. Present only when status is completed or failed.",
+                "example": "2025-06-20T14:15:23Z"
+              },
+              "duration": {
+                "type": "integer",
+                "description": "Duration of the job in milliseconds. Present only when status is completed or failed.",
+                "example": 1250
+              }
+            }
+          },
+          "output": {
+            "description": "The workflow execution output. Present only when status is completed.",
+            "type": "object",
+            "example": {
+              "result": "Hello, world!"
+            }
+          },
+          "error": {
+            "description": "Error details. Present only when status is failed.",
+            "type": "string",
+            "example": null
+          },
+          "estimatedDuration": {
+            "type": "integer",
+            "description": "Estimated duration in milliseconds. Present only when status is queued or processing.",
+            "example": 2000
+          }
+        }
+      },
+      "AuditLogEntry": {
+        "type": "object",
+        "description": "An enterprise audit log entry recording an action taken in the workspace.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the audit log entry.",
+            "example": "audit_2c3d4e5f6g"
+          },
+          "workspaceId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The workspace where the action occurred.",
+            "example": "ws_xyz789"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The user ID of the person who performed the action.",
+            "example": "user_abc123"
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the person who performed the action.",
+            "example": "Jane Smith"
+          },
+          "actorEmail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email address of the person who performed the action.",
+            "example": "jane@example.com"
+          },
+          "action": {
+            "type": "string",
+            "description": "The action that was performed (e.g., workflow.created, member.invited).",
+            "example": "workflow.deployed"
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "The type of resource affected (e.g., workflow, workspace, member).",
+            "example": "workflow"
+          },
+          "resourceId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The unique identifier of the affected resource.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "resourceName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the affected resource.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Human-readable description of the action.",
+            "example": "Deployed workflow Customer Support Agent"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Additional context about the action.",
+            "example": null
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the action occurred.",
+            "example": "2025-06-20T14:15:22Z"
+          }
+        }
+      },
+      "UsageLimits": {
+        "type": "object",
+        "description": "Current rate limits, usage, and storage information for the authenticated user.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request was successful."
+          },
+          "rateLimit": {
+            "type": "object",
+            "description": "Rate limit status for workflow executions.",
+            "properties": {
+              "sync": {
+                "description": "Rate limit bucket for synchronous executions.",
+                "allOf": [
+                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "isLimited": {
+                        "type": "boolean",
+                        "description": "Whether the rate limit has been reached."
+                      }
+                    }
+                  }
+                ]
+              },
+              "async": {
+                "description": "Rate limit bucket for asynchronous executions.",
+                "allOf": [
+                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "isLimited": {
+                        "type": "boolean",
+                        "description": "Whether the rate limit has been reached."
+                      }
+                    }
+                  }
+                ]
+              },
+              "authType": {
+                "type": "string",
+                "description": "The authentication type used (api or manual)."
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "description": "Current billing period usage.",
+            "properties": {
+              "currentPeriodCost": {
+                "type": "number",
+                "description": "Total spend in the current billing period in USD."
+              },
+              "limit": {
+                "type": "number",
+                "description": "Maximum allowed spend for the current billing period in USD."
+              },
+              "plan": {
+                "type": "string",
+                "description": "Your current subscription plan (e.g., free, pro, team)."
+              }
+            }
+          },
+          "storage": {
+            "type": "object",
+            "description": "File storage usage.",
+            "properties": {
+              "usedBytes": {
+                "type": "integer",
+                "description": "Total storage used in bytes."
+              },
+              "limitBytes": {
+                "type": "integer",
+                "description": "Maximum storage allowed in bytes."
+              },
+              "percentUsed": {
+                "type": "number",
+                "description": "Percentage of storage used (0-100)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request parameters. Check the details array for specific validation errors.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Human-readable error message describing the validation failure."
+                },
+                "details": {
+                  "type": "array",
+                  "description": "List of specific validation errors with field-level details.",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Invalid or missing API key. Ensure the X-API-Key header is set with a valid key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Access denied. You do not have permission to access this resource. For audit log endpoints, this requires an Enterprise subscription and organization admin/owner role.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found. Verify the ID is correct and belongs to your workspace.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded. Wait for the duration specified in the Retry-After header before retrying.",
+        "headers": {
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "Human-readable error message with rate limit details."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

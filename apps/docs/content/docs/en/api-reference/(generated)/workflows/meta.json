@@ -1,0 +1,3 @@
+{
+  "pages": ["executeWorkflow", "cancelExecution", "listWorkflows", "getWorkflow", "getJobStatus"]
+}

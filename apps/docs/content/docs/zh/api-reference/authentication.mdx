@@ -1,0 +1,94 @@
+---
+title: Authentication
+description: API key types, generation, and how to authenticate requests
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+To access the Sim API, you need an API key. Sim supports two types of API keys — **personal keys** and **workspace keys** — each with different billing and access behaviors.
+
+## Key Types
+
+|  | **Personal Keys** | **Workspace Keys** |
+| --- | --- | --- |
+| **Billed to** | Your individual account | Workspace owner |
+| **Scope** | Across workspaces you have access to | Shared across the workspace |
+| **Managed by** | Each user individually | Workspace admins |
+| **Permissions** | Must be enabled at workspace level | Require admin permissions |
+
+<Callout type="info">
+  Workspace admins can disable personal API key usage for their workspace. If disabled, only workspace keys can be used.
+</Callout>
+
+## Generating API Keys
+
+To generate a key, open the Sim platform and navigate to **Settings**, then go to **Sim Keys** and click **Create**.
+
+<Callout type="warn">
+  API keys are only shown once when generated. Store your key securely — you will not be able to view it again.
+</Callout>
+
+## Using API Keys
+
+Pass your API key in the `X-API-Key` header with every request:
+
+<Tabs items={['curl', 'TypeScript', 'Python']}>
+  <Tab value="curl">
+    ```bash
+    curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -d '{"inputs": {}}'
+    ```
+  </Tab>
+  <Tab value="TypeScript">
+    ```typescript
+    const response = await fetch(
+      'https://www.sim.ai/api/workflows/{workflowId}/execute',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.SIM_API_KEY!,
+        },
+        body: JSON.stringify({ inputs: {} }),
+      }
+    )
+    ```
+  </Tab>
+  <Tab value="Python">
+    ```python
+    import requests
+
+    response = requests.post(
+        "https://www.sim.ai/api/workflows/{workflowId}/execute",
+        headers={
+            "Content-Type": "application/json",
+            "X-API-Key": os.environ["SIM_API_KEY"],
+        },
+        json={"inputs": {}},
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Where Keys Are Used
+
+API keys authenticate access to:
+
+- **Workflow execution** — run deployed workflows via the API
+- **Logs API** — query workflow execution logs and metrics
+- **MCP servers** — authenticate connections to deployed MCP servers
+- **SDKs** — the [Python](/api-reference/python) and [TypeScript](/api-reference/typescript) SDKs use API keys for all operations
+
+## Security
+
+- Keys use the `sk-sim-` prefix and are encrypted at rest
+- Keys can be revoked at any time from the dashboard
+- Use environment variables to store keys — never hardcode them in source code
+- For browser-based applications, use a backend proxy to avoid exposing keys to the client
+
+<Callout type="warn">
+  Never expose your API key in client-side code. Use a server-side proxy to make authenticated requests on behalf of your frontend.
+</Callout>

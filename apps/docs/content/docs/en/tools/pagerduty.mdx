@@ -1,0 +1,217 @@
+---
+title: PagerDuty
+description: Manage incidents and on-call schedules with PagerDuty
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pagerduty"
+  color="#06AC38"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[PagerDuty](https://www.pagerduty.com/) is a leading incident management platform that helps engineering and operations teams detect, triage, and resolve infrastructure and application issues in real time. PagerDuty integrates with monitoring tools, orchestrates on-call schedules, and ensures the right people are alerted when incidents occur.
+
+The PagerDuty integration in Sim connects with the PagerDuty REST API v2 using API key authentication, enabling your agents to manage the full incident lifecycle and query on-call information programmatically.
+
+With the PagerDuty integration, your agents can:
+
+- **List and filter incidents**: Retrieve incidents filtered by status (triggered, acknowledged, resolved), service, date range, and sort order to monitor your operational health
+- **Create incidents**: Trigger new incidents on specific services with custom titles, descriptions, urgency levels, and assignees directly from your workflows
+- **Update incidents**: Acknowledge or resolve incidents, change urgency, and add resolution notes to keep your incident management in sync with automated processes
+- **Add notes to incidents**: Attach contextual information, investigation findings, or automated diagnostics as notes on existing incidents
+- **List services**: Query your PagerDuty service catalog to discover service IDs and metadata for use in other operations
+- **Check on-call schedules**: Retrieve current on-call entries filtered by escalation policy or schedule to determine who is responsible at any given time
+
+In Sim, the PagerDuty integration enables powerful incident automation scenarios. Your agents can automatically create incidents based on monitoring alerts, enrich incidents with diagnostic data from other tools, resolve incidents when automated remediation succeeds, or build escalation workflows that check on-call schedules and route notifications accordingly. By connecting Sim with PagerDuty, you can build intelligent agents that bridge the gap between detection and response, reducing mean time to resolution and ensuring consistent incident handling across your organization.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.
+
+
+
+## Tools
+
+### `pagerduty_list_incidents`
+
+List incidents from PagerDuty with optional filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `statuses` | string | No | Comma-separated statuses to filter \(triggered, acknowledged, resolved\) |
+| `serviceIds` | string | No | Comma-separated service IDs to filter |
+| `since` | string | No | Start date filter \(ISO 8601 format\) |
+| `until` | string | No | End date filter \(ISO 8601 format\) |
+| `sortBy` | string | No | Sort field \(e.g., created_at:desc\) |
+| `limit` | string | No | Maximum number of results \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | Array of incidents |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `incidentNumber` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status |
+|   ↳ `urgency` | string | Incident urgency |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `serviceName` | string | Service name |
+|   ↳ `serviceId` | string | Service ID |
+|   ↳ `assigneeName` | string | Assignee name |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `htmlUrl` | string | PagerDuty web URL |
+| `total` | number | Total number of matching incidents |
+| `more` | boolean | Whether more results are available |
+
+### `pagerduty_create_incident`
+
+Create a new incident in PagerDuty.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
+| `title` | string | Yes | Incident title/summary |
+| `serviceId` | string | Yes | ID of the PagerDuty service |
+| `urgency` | string | No | Urgency level \(high or low\) |
+| `body` | string | No | Detailed description of the incident |
+| `escalationPolicyId` | string | No | Escalation policy ID to assign |
+| `assigneeId` | string | No | User ID to assign the incident to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created incident ID |
+| `incidentNumber` | number | Incident number |
+| `title` | string | Incident title |
+| `status` | string | Incident status |
+| `urgency` | string | Incident urgency |
+| `createdAt` | string | Creation timestamp |
+| `serviceName` | string | Service name |
+| `serviceId` | string | Service ID |
+| `htmlUrl` | string | PagerDuty web URL |
+
+### `pagerduty_update_incident`
+
+Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
+| `incidentId` | string | Yes | ID of the incident to update |
+| `status` | string | No | New status \(acknowledged or resolved\) |
+| `title` | string | No | New incident title |
+| `urgency` | string | No | New urgency \(high or low\) |
+| `escalationLevel` | string | No | Escalation level to escalate to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Incident ID |
+| `incidentNumber` | number | Incident number |
+| `title` | string | Incident title |
+| `status` | string | Updated status |
+| `urgency` | string | Updated urgency |
+| `updatedAt` | string | Last updated timestamp |
+| `htmlUrl` | string | PagerDuty web URL |
+
+### `pagerduty_add_note`
+
+Add a note to an existing PagerDuty incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
+| `incidentId` | string | Yes | ID of the incident to add the note to |
+| `content` | string | Yes | Note content text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Note ID |
+| `content` | string | Note content |
+| `createdAt` | string | Creation timestamp |
+| `userName` | string | Name of the user who created the note |
+
+### `pagerduty_list_services`
+
+List services from PagerDuty with optional name filter.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `query` | string | No | Filter services by name |
+| `limit` | string | No | Maximum number of results \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `services` | array | Array of services |
+|   ↳ `id` | string | Service ID |
+|   ↳ `name` | string | Service name |
+|   ↳ `description` | string | Service description |
+|   ↳ `status` | string | Service status |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `escalationPolicyId` | string | Escalation policy ID |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `htmlUrl` | string | PagerDuty web URL |
+| `total` | number | Total number of matching services |
+| `more` | boolean | Whether more results are available |
+
+### `pagerduty_list_oncalls`
+
+List current on-call entries from PagerDuty.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PagerDuty REST API Key |
+| `escalationPolicyIds` | string | No | Comma-separated escalation policy IDs to filter |
+| `scheduleIds` | string | No | Comma-separated schedule IDs to filter |
+| `since` | string | No | Start time filter \(ISO 8601 format\) |
+| `until` | string | No | End time filter \(ISO 8601 format\) |
+| `limit` | string | No | Maximum number of results \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `oncalls` | array | Array of on-call entries |
+|   ↳ `userName` | string | On-call user name |
+|   ↳ `userId` | string | On-call user ID |
+|   ↳ `escalationLevel` | number | Escalation level |
+|   ↳ `escalationPolicyName` | string | Escalation policy name |
+|   ↳ `escalationPolicyId` | string | Escalation policy ID |
+|   ↳ `scheduleName` | string | Schedule name |
+|   ↳ `scheduleId` | string | Schedule ID |
+|   ↳ `start` | string | On-call start time |
+|   ↳ `end` | string | On-call end time |
+| `total` | number | Total number of matching on-call entries |
+| `more` | boolean | Whether more results are available |
+
+
