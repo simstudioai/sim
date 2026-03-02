@@ -359,7 +359,7 @@ export async function generateMetadata(props: {
   const page = source.getPage(slug, lang)
   if (!page) notFound()
 
-  const data = page.data as PageData
+  const data = page.data as unknown as PageData
   const fullUrl = `${BASE_URL}${page.url}`
 
   const ogImageUrl = `${BASE_URL}/api/og?title=${encodeURIComponent(data.title)}`
