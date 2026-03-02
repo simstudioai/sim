@@ -359,6 +359,15 @@ import {
   dropboxUploadTool,
 } from '@/tools/dropbox'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
+import {
+  dubCreateLinkTool,
+  dubDeleteLinkTool,
+  dubGetAnalyticsTool,
+  dubGetLinkTool,
+  dubListLinksTool,
+  dubUpdateLinkTool,
+  dubUpsertLinkTool,
+} from '@/tools/dub'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
 import {
   dynamodbDeleteTool,
@@ -2834,6 +2843,13 @@ export const tools: Record<string, ToolConfig> = {
   databricks_list_jobs: databricksListJobsTool,
   databricks_list_runs: databricksListRunsTool,
   databricks_run_job: databricksRunJobTool,
+  dub_create_link: dubCreateLinkTool,
+  dub_delete_link: dubDeleteLinkTool,
+  dub_get_analytics: dubGetAnalyticsTool,
+  dub_get_link: dubGetLinkTool,
+  dub_list_links: dubListLinksTool,
+  dub_update_link: dubUpdateLinkTool,
+  dub_upsert_link: dubUpsertLinkTool,
   duckduckgo_search: duckduckgoSearchTool,
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,

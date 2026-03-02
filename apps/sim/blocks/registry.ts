@@ -30,6 +30,7 @@ import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
+import { DubBlock } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
@@ -224,6 +225,7 @@ export const registry: Record<string, BlockConfig> = {
   discord: DiscordBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
+  dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   elasticsearch: ElasticsearchBlock,
