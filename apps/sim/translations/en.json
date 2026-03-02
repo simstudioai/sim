@@ -4,8 +4,12 @@
     "en": "EN - english",
     "es": "ES - Spanish"
   },
-  "helper_text.need_help": "Need help?",
-  "links.contact_support": "Contact support",
+  "helper_text": {
+    "need_help": "Need help?"
+  },
+  "links": { 
+    "contact_support": "Contact support"
+  },
   "network_error": "Network error. Please check your connection and try again.",
   "too_many_requests": "Too many requests. Please wait a moment before trying again.",
   "sign_in_with_sso": "Sign in with SSO",
@@ -69,7 +73,66 @@
   },
   "sign_in": {
     "page_title": "Sign in",
-    "page_sub_title": "Enter your details"
+    "page_sub_title": "Enter your details",
+    "labels": {
+      "email": "Email",
+      "password": "Password"
+    },
+    "placeholders": {
+      "email": "Enter your email",
+      "password": "Enter your password"
+    },
+    "buttons": {
+      "sign_in": "Sign in",
+      "signing_in": "Signing in"
+    },
+    "links": {
+      "forgot_password": "Forgot password?",
+      "no_account": "Don't have an account?",
+      "sign_up": "Sign up"
+    },
+    "aria": {
+      "hide_password": "Hide password",
+      "show_password": "Show password"
+    },
+    "divider_label": "Or continue with",
+    "agreement": "By signing in, you agree to our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
+    "reset_password": {
+      "title": "Reset Password",
+      "description": "Enter your email address and we'll send you a link to reset your password if your account exists.",
+      "send_reset_link": "Send Reset Link",
+      "sending": "Sending",
+      "errors": {
+        "enter_email": "Please enter your email address",
+        "invalid_email": "Please enter a valid email address",
+        "no_account_found": "No account found with this email address",
+        "failed": "Failed to request password reset"
+      },
+      "messages": {
+        "success": "Password reset link sent to your email"
+      }
+    },
+    "errors": {
+      "email_required": "Email is required.",
+      "email_invalid": "Please enter a valid email address.",
+      "password_required": "Password is required.",
+      "password_not_empty": "Password cannot be empty.",
+      "invalid_credentials": "Invalid email or password",
+      "email_sign_in_disabled": "Email sign in is currently disabled.",
+      "invalid_credentials_retry": "Invalid email or password. Please try again.",
+      "no_account_found": "No account found with this email. Please sign up first.",
+      "missing_credentials": "Please enter both email and password.",
+      "email_password_disabled": "Email and password login is disabled.",
+      "failed_to_create_session": "Failed to create session. Please try again later.",
+      "too_many_attempts": "Too many login attempts. Please try again later or reset your password.",
+      "account_locked": "Your account has been locked for security. Please reset your password.",
+      "network_error": "Network error. Please check your connection and try again.",
+      "rate_limit": "Too many requests. Please wait a moment before trying again.",
+      "login_failed": "Login failed. Please try again."
+    },
+    "messages": {
+      "reset_success": "Password reset successful. Please sign in with your new password."
+    }
   },
   "generic": {
     "loading": "Loading"

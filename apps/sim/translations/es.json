@@ -4,8 +4,12 @@
     "en": "EN - inglés",
     "es": "ES - español"
   },
-  "helper_text.need_help": "¿Necesitas ayuda?",
-  "links.contact_support": "Contactar soporte",
+  "helper_text": {
+    "need_help": "¿Necesita ayuda?"
+  },
+  "links": { 
+    "contact_support": "Contactar soporte"
+  },
   "network_error": "Error de red. Verifique su conexión e intente nuevamente.",
   "too_many_requests": "Demasiadas solicitudes. Espere un momento antes de intentarlo nuevamente.",
   "sign_in_with_sso": "Iniciar sesión con SSO",
@@ -69,7 +73,66 @@
   },
   "sign_in": {
     "page_title": "Iniciar sesión",
-    "page_sub_title": "Ingrese sus datos"
+    "page_sub_title": "Ingrese sus datos",
+    "labels": {
+      "email": "Correo electrónico",
+      "password": "Contraseña"
+    },
+    "placeholders": {
+      "email": "Ingrese su correo electrónico",
+      "password": "Ingrese su contraseña"
+    },
+    "buttons": {
+      "sign_in": "Iniciar sesión",
+      "signing_in": "Iniciando sesión"
+    },
+    "links": {
+      "forgot_password": "¿Olvidó su contraseña?",
+      "no_account": "¿No tiene una cuenta?",
+      "sign_up": "Registrarse"
+    },
+    "aria": {
+      "hide_password": "Ocultar contraseña",
+      "show_password": "Mostrar contraseña"
+    },
+    "divider_label": "O continúe con",
+    "agreement": "Al iniciar sesión, acepta nuestros <terms>Términos de servicio</terms> y <privacy>Política de privacidad</privacy>",
+    "reset_password": {
+      "title": "Restablecer Contraseña",
+      "description": "Ingrese su dirección de correo electrónico y le enviaremos un enlace para restablecer su contraseña si su cuenta existe.",
+      "send_reset_link": "Enviar Enlace de Restablecimiento",
+      "sending": "Enviando",
+      "errors": {
+        "enter_email": "Por favor, ingrese su dirección de correo electrónico",
+        "invalid_email": "Por favor, ingrese una dirección de correo electrónico válida",
+        "no_account_found": "No se encontró ninguna cuenta con esta dirección de correo electrónico",
+        "failed": "Error al solicitar restablecimiento de contraseña"
+      },
+      "messages": {
+        "success": "Enlace de restablecimiento de contraseña enviado a su correo electrónico"
+      }
+    },
+    "errors": {
+      "email_required": "El correo electrónico es obligatorio.",
+      "email_invalid": "Por favor, ingrese una dirección de correo electrónico válida.",
+      "password_required": "La contraseña es obligatoria.",
+      "password_not_empty": "La contraseña no puede estar vacía.",
+      "invalid_credentials": "Correo electrónico o contraseña inválidos",
+      "email_sign_in_disabled": "El inicio de sesión por correo electrónico está deshabilitado actualmente.",
+      "invalid_credentials_retry": "Correo electrónico o contraseña inválidos. Por favor, intente nuevamente.",
+      "no_account_found": "No se encontró ninguna cuenta con este correo electrónico. Por favor, regístrese primero.",
+      "missing_credentials": "Por favor, ingrese correo electrónico y contraseña.",
+      "email_password_disabled": "El inicio de sesión por correo electrónico y contraseña está deshabilitado.",
+      "failed_to_create_session": "Error al crear la sesión. Por favor, intente nuevamente más tarde.",
+      "too_many_attempts": "Demasiados intentos de inicio de sesión. Por favor, intente nuevamente más tarde o restablezca su contraseña.",
+      "account_locked": "Su cuenta ha sido bloqueada por seguridad. Por favor, restablezca su contraseña.",
+      "network_error": "Error de red. Verifique su conexión e intente nuevamente.",
+      "rate_limit": "Demasiadas solicitudes. Espere un momento antes de intentarlo nuevamente.",
+      "login_failed": "Error al iniciar sesión. Por favor, intente nuevamente."
+    },
+    "messages": {
+      "reset_success": "Contraseña restablecida con éxito. Por favor, inicie sesión con su nueva contraseña."
+    }
   },
   "generic": {
     "loading": "Cargando"

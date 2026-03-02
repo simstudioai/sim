@@ -4,8 +4,12 @@
     "en": "EN - inglês",
     "es": "ES - espanhol"
   },
-  "helper_text.need_help": "Precisa de ajuda?",
-  "links.contact_support": "Entre em contato com o suporte",
+  "helper_text": {
+    "need_help": "Precisa de ajuda?"
+  },
+  "links": { 
+    "contact_support": "Entre em contato com o suporte"
+  },
   "network_error": "Erro de rede. Verifique sua conexão e tente novamente.",
   "too_many_requests": "Muitas solicitações. Aguarde um momento antes de tentar novamente.",
   "sign_in_with_sso": "Entrar com SSO",
@@ -69,7 +73,66 @@
   },
   "sign_in": {
     "page_title": "Entrar",
-    "page_sub_title": "Insira seus dados"
+    "page_sub_title": "Insira seus dados",
+    "labels": {
+      "email": "Email",
+      "password": "Senha"
+    },
+    "placeholders": {
+      "email": "Digite seu email",
+      "password": "Digite sua senha"
+    },
+    "buttons": {
+      "sign_in": "Entrar",
+      "signing_in": "Entrando"
+    },
+    "links": {
+      "forgot_password": "Esqueceu a senha?",
+      "no_account": "Não tem uma conta?",
+      "sign_up": "Cadastre-se"
+    },
+    "aria": {
+      "hide_password": "Ocultar senha",
+      "show_password": "Mostrar senha"
+    },
+    "divider_label": "Ou continue com",
+    "agreement": "Ao entrar, você concorda com nossos <terms>Termos de Serviço</terms> e <privacy>Política de Privacidade</privacy>",
+    "reset_password": {
+      "title": "Redefinir Senha",
+      "description": "Digite seu endereço de email e enviaremos um link para redefinir sua senha, caso sua conta exista.",
+      "send_reset_link": "Enviar Link de Redefinição",
+      "sending": "Enviando",
+      "errors": {
+        "enter_email": "Por favor, digite seu endereço de email",
+        "invalid_email": "Por favor, digite um endereço de email válido",
+        "no_account_found": "Nenhuma conta encontrada com este endereço de email",
+        "failed": "Falha ao solicitar redefinição de senha"
+      },
+      "messages": {
+        "success": "Link de redefinição de senha enviado para seu email"
+      }
+    },
+    "errors": {
+      "email_required": "O email é obrigatório.",
+      "email_invalid": "Por favor, insira um endereço de email válido.",
+      "password_required": "A senha é obrigatória.",
+      "password_not_empty": "A senha não pode estar vazia.",
+      "invalid_credentials": "Email ou senha inválidos",
+      "email_sign_in_disabled": "O login por email está desativado no momento.",
+      "invalid_credentials_retry": "Email ou senha inválidos. Por favor, tente novamente.",
+      "no_account_found": "Nenhuma conta encontrada com este email. Por favor, cadastre-se primeiro.",
+      "missing_credentials": "Por favor, insira email e senha.",
+      "email_password_disabled": "O login por email e senha está desativado.",
+      "failed_to_create_session": "Falha ao criar sessão. Por favor, tente novamente mais tarde.",
+      "too_many_attempts": "Muitas tentativas de login. Por favor, tente novamente mais tarde ou redefina sua senha.",
+      "account_locked": "Sua conta foi bloqueada por segurança. Por favor, redefina sua senha.",
+      "network_error": "Erro de rede. Verifique sua conexão e tente novamente.",
+      "rate_limit": "Muitas solicitações. Aguarde um momento antes de tentar novamente.",
+      "login_failed": "Falha no login. Por favor, tente novamente."
+    },
+    "messages": {
+      "reset_success": "Senha redefinida com sucesso. Por favor, entre com sua nova senha."
+    }
   },
   "generic": {
     "loading": "Carregando"

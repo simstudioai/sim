@@ -29,33 +29,6 @@ import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LoginForm')
 
-const validateEmailField = (emailValue: string): string[] => {
-  const errors: string[] = []
-
-  if (!emailValue || !emailValue.trim()) {
-    errors.push('Email is required.')
-    return errors
-  }
-
-  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
-  if (!validation.isValid) {
-    errors.push(validation.reason || 'Please enter a valid email address.')
-  }
-
-  return errors
-}
-
-const PASSWORD_VALIDATIONS = {
-  required: {
-    test: (value: string) => Boolean(value && typeof value === 'string'),
-    message: 'Password is required.',
-  },
-  notEmpty: {
-    test: (value: string) => value.trim().length > 0,
-    message: 'Password cannot be empty.',
-  },
-}
-
 const validateCallbackUrl = (url: string): boolean => {
   try {
     if (url.startsWith('/')) {
@@ -74,20 +47,74 @@ const validateCallbackUrl = (url: string): boolean => {
   }
 }
 
-const validatePassword = (passwordValue: string): string[] => {
-  const errors: string[] = []
+function useLoginValidation() {
+  const t = useTranslations()
 
-  if (!PASSWORD_VALIDATIONS.required.test(passwordValue)) {
-    errors.push(PASSWORD_VALIDATIONS.required.message)
+  const validateEmailField = (emailValue: string): string[] => {
+    const errors: string[] = []
+
+    if (!emailValue || !emailValue.trim()) {
+      errors.push(t('sign_in.errors.email_required'))
+      return errors
+    }
+
+    const validation = quickValidateEmail(emailValue.trim().toLowerCase())
+    if (!validation.isValid) {
+      errors.push(validation.reason || t('sign_in.errors.email_invalid'))
+    }
+
     return errors
   }
 
-  if (!PASSWORD_VALIDATIONS.notEmpty.test(passwordValue)) {
-    errors.push(PASSWORD_VALIDATIONS.notEmpty.message)
+  const validatePassword = (passwordValue: string): string[] => {
+    const errors: string[] = []
+
+    if (!Boolean(passwordValue && typeof passwordValue === 'string')) {
+      errors.push(t('sign_in.errors.password_required'))
+      return errors
+    }
+
+    if (!(passwordValue.trim().length > 0)) {
+      errors.push(t('sign_in.errors.password_not_empty'))
+      return errors
+    }
+
     return errors
   }
 
-  return errors
+  return { validateEmailField, validatePassword }
+}
+
+function useLoginErrorMessages() {
+  const t = useTranslations()
+
+  return {
+    invalidCredentials: t('sign_in.errors.invalid_credentials'),
+    emailSignInDisabled: t('sign_in.errors.email_sign_in_disabled'),
+    invalidCredentialsRetry: t('sign_in.errors.invalid_credentials_retry'),
+    noAccountFound: t('sign_in.errors.no_account_found'),
+    missingCredentials: t('sign_in.errors.missing_credentials'),
+    emailPasswordDisabled: t('sign_in.errors.email_password_disabled'),
+    failedToCreateSession: t('sign_in.errors.failed_to_create_session'),
+    tooManyAttempts: t('sign_in.errors.too_many_attempts'),
+    accountLocked: t('sign_in.errors.account_locked'),
+    networkError: t('sign_in.errors.network_error'),
+    rateLimit: t('sign_in.errors.rate_limit'),
+    loginFailed: t('sign_in.errors.login_failed'),
+    resetSuccess: t('sign_in.messages.reset_success'),
+  }
+}
+
+function useResetPasswordMessages() {
+  const t = useTranslations()
+
+  return {
+    enterEmail: t('sign_in.reset_password.errors.enter_email'),
+    invalidEmail: t('sign_in.reset_password.errors.invalid_email'),
+    noAccountFound: t('sign_in.reset_password.errors.no_account_found'),
+    failed: t('sign_in.reset_password.errors.failed'),
+    success: t('sign_in.reset_password.messages.success'),
+  }
 }
 
 export default function LoginPage({
@@ -100,6 +127,9 @@ export default function LoginPage({
   isProduction: boolean
 }) {
   const t = useTranslations()
+  const { validateEmailField, validatePassword } = useLoginValidation()
+  const loginErrors = useLoginErrorMessages()
+  const resetMessages = useResetPasswordMessages()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -144,7 +174,7 @@ export default function LoginPage({
 
       const resetSuccess = searchParams.get('resetSuccess') === 'true'
       if (resetSuccess) {
-        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
+        setResetSuccessMessage(loginErrors.resetSuccess)
       }
     }
   }, [searchParams])
@@ -229,41 +259,37 @@ export default function LoginPage({
             }
 
             errorHandled = true
-            const errorMessage: string[] = ['Invalid email or password']
+            const errorMessage: string[] = [loginErrors.invalidCredentials]
 
             if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign in is not enabled')
             ) {
-              errorMessage.push('Email sign in is currently disabled.')
+              errorMessage.push(loginErrors.emailSignInDisabled)
             } else if (
               ctx.error.code?.includes('INVALID_CREDENTIALS') ||
               ctx.error.message?.includes('invalid password')
             ) {
-              errorMessage.push('Invalid email or password. Please try again.')
+              errorMessage.push(loginErrors.invalidCredentialsRetry)
             } else if (
               ctx.error.code?.includes('USER_NOT_FOUND') ||
               ctx.error.message?.includes('not found')
             ) {
-              errorMessage.push('No account found with this email. Please sign up first.')
+              errorMessage.push(loginErrors.noAccountFound)
             } else if (ctx.error.code?.includes('MISSING_CREDENTIALS')) {
-              errorMessage.push('Please enter both email and password.')
+              errorMessage.push(loginErrors.missingCredentials)
             } else if (ctx.error.code?.includes('EMAIL_PASSWORD_DISABLED')) {
-              errorMessage.push('Email and password login is disabled.')
+              errorMessage.push(loginErrors.emailPasswordDisabled)
             } else if (ctx.error.code?.includes('FAILED_TO_CREATE_SESSION')) {
-              errorMessage.push('Failed to create session. Please try again later.')
+              errorMessage.push(loginErrors.failedToCreateSession)
             } else if (ctx.error.code?.includes('too many attempts')) {
-              errorMessage.push(
-                'Too many login attempts. Please try again later or reset your password.'
-              )
+              errorMessage.push(loginErrors.tooManyAttempts)
             } else if (ctx.error.code?.includes('account locked')) {
-              errorMessage.push(
-                'Your account has been locked for security. Please reset your password.'
-              )
+              errorMessage.push(loginErrors.accountLocked)
             } else if (ctx.error.code?.includes('network')) {
-              errorMessage.push('Network error. Please check your connection and try again.')
+              errorMessage.push(loginErrors.networkError)
             } else if (ctx.error.message?.includes('rate limit')) {
-              errorMessage.push('Too many requests. Please wait a moment before trying again.')
+              errorMessage.push(loginErrors.rateLimit)
             }
 
             setResetSuccessMessage(null)
@@ -277,7 +303,7 @@ export default function LoginPage({
         // Show error if not already handled by onError callback
         if (!errorHandled) {
           setResetSuccessMessage(null)
-          const errorMessage = result?.error?.message || 'Login failed. Please try again.'
+          const errorMessage = result?.error?.message || loginErrors.loginFailed
           setPasswordErrors([errorMessage])
           setShowValidationError(true)
         }
@@ -306,7 +332,7 @@ export default function LoginPage({
     if (!forgotPasswordEmail) {
       setResetStatus({
         type: 'error',
-        message: 'Please enter your email address',
+        message: resetMessages.enterEmail,
       })
       return
     }
@@ -315,7 +341,7 @@ export default function LoginPage({
     if (!emailValidation.isValid) {
       setResetStatus({
         type: 'error',
-        message: 'Please enter a valid email address',
+        message: resetMessages.invalidEmail,
       })
       return
     }
@@ -337,20 +363,20 @@ export default function LoginPage({
 
       if (!response.ok) {
         const errorData = await response.json()
-        let errorMessage = errorData.message || 'Failed to request password reset'
+        let errorMessage = resetMessages.failed
 
         if (
-          errorMessage.includes('Invalid body parameters') ||
-          errorMessage.includes('invalid email')
+          errorData.message?.includes('Invalid body parameters') ||
+          errorData.message?.includes('invalid email')
         ) {
-          errorMessage = 'Please enter a valid email address'
-        } else if (errorMessage.includes('Email is required')) {
-          errorMessage = 'Please enter your email address'
+          errorMessage = resetMessages.invalidEmail
+        } else if (errorData.message?.includes('Email is required')) {
+          errorMessage = resetMessages.enterEmail
         } else if (
-          errorMessage.includes('user not found') ||
-          errorMessage.includes('User not found')
+          errorData.message?.includes('user not found') ||
+          errorData.message?.includes('User not found')
         ) {
-          errorMessage = 'No account found with this email address'
+          errorMessage = resetMessages.noAccountFound
         }
 
         throw new Error(errorMessage)
@@ -358,7 +384,7 @@ export default function LoginPage({
 
       setResetStatus({
         type: 'success',
-        message: 'Password reset link sent to your email',
+        message: resetMessages.success,
       })
 
       setTimeout(() => {
@@ -369,7 +395,7 @@ export default function LoginPage({
       logger.error('Error requesting password reset:', { error })
       setResetStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to request password reset',
+        message: error instanceof Error ? error.message : resetMessages.failed,
       })
     } finally {
       setIsSubmittingReset(false)
@@ -388,7 +414,7 @@ export default function LoginPage({
     <>
       <div className='space-y-1 text-center'>
         <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-           {t('sign_in.page_title')}
+          {t('sign_in.page_title')}
         </h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {t('sign_in.page_sub_title')}
@@ -419,12 +445,12 @@ export default function LoginPage({
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='email'>{t('sign_in.labels.email')}</Label>
               </div>
               <Input
                 id='email'
                 name='email'
-                placeholder='Enter your email'
+                placeholder={t('sign_in.placeholders.email')}
                 required
                 autoCapitalize='none'
                 autoComplete='email'
@@ -448,13 +474,13 @@ export default function LoginPage({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>Password</Label>
+                <Label htmlFor='password'>{t('sign_in.labels.password')}</Label>
                 <button
                   type='button'
                   onClick={() => setForgotPasswordOpen(true)}
                   className='font-medium text-muted-foreground text-xs transition hover:text-foreground'
                 >
-                  Forgot password?
+                  {t('sign_in.links.forgot_password')}
                 </button>
               </div>
               <div className='relative'>
@@ -466,7 +492,7 @@ export default function LoginPage({
                   autoCapitalize='none'
                   autoComplete='current-password'
                   autoCorrect='off'
-                  placeholder='Enter your password'
+                  placeholder={t('sign_in.placeholders.password')}
                   value={password}
                   onChange={handlePasswordChange}
                   className={cn(
@@ -480,7 +506,9 @@ export default function LoginPage({
                   type='button'
                   onClick={() => setShowPassword(!showPassword)}
                   className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={
+                    showPassword ? t('sign_in.aria.hide_password') : t('sign_in.aria.show_password')
+                  }
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -499,9 +527,9 @@ export default function LoginPage({
             type='submit'
             disabled={isLoading}
             loading={isLoading}
-            loadingText='Signing in'
+            loadingText={t('sign_in.buttons.signing_in')}
           >
-            Sign in
+            {t('sign_in.buttons.sign_in')}
           </BrandedButton>
         </form>
       )}
@@ -513,7 +541,9 @@ export default function LoginPage({
             <div className='auth-divider w-full border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+            <span className='bg-white px-4 font-[340] text-muted-foreground'>
+              {t('sign_in.divider_label')}
+            </span>
           </div>
         </div>
       )}
@@ -540,12 +570,12 @@ export default function LoginPage({
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
         <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
-          <span className='font-normal'>Don't have an account? </span>
+          <span className='font-normal'>{t('sign_in.links.no_account')} </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
             className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
-            Sign up
+            {t('sign_in.links.sign_up')}
           </Link>
         </div>
       )}
@@ -553,47 +583,50 @@ export default function LoginPage({
       <div
         className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
       >
-        By signing in, you agree to our{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
-        >
-          Privacy Policy
-        </Link>
+        {t.rich('sign_in.agreement', {
+          terms: (chunks) => (
+            <Link
+              href='/terms'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='auth-link underline-offset-4 transition hover:underline'
+            >
+              {chunks}
+            </Link>
+          ),
+          privacy: (chunks) => (
+            <Link
+              href='/privacy'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='auth-link underline-offset-4 transition hover:underline'
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </div>
 
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
         <DialogContent className='auth-card auth-card-shadow max-w-[540px] rounded-[10px] border backdrop-blur-sm'>
           <DialogHeader>
             <DialogTitle className='font-semibold text-black text-xl tracking-tight'>
-              Reset Password
+              {t('sign_in.reset_password.title')}
             </DialogTitle>
             <DialogDescription className='text-muted-foreground text-sm'>
-              Enter your email address and we'll send you a link to reset your password if your
-              account exists.
+              {t('sign_in.reset_password.description')}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='reset-email'>Email</Label>
+                <Label htmlFor='reset-email'>{t('sign_in.labels.email')}</Label>
               </div>
               <Input
                 id='reset-email'
                 value={forgotPasswordEmail}
                 onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                placeholder='Enter your email'
+                placeholder={t('sign_in.placeholders.email')}
                 required
                 type='email'
                 className={cn(
@@ -618,9 +651,9 @@ export default function LoginPage({
               onClick={handleForgotPassword}
               disabled={isSubmittingReset}
               loading={isSubmittingReset}
-              loadingText='Sending'
+              loadingText={t('sign_in.reset_password.sending')}
             >
-              Send Reset Link
+              {t('sign_in.reset_password.send_reset_link')}
             </BrandedButton>
           </div>
         </DialogContent>
