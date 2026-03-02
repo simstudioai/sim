@@ -1,75 +1,77 @@
 {
   "localization": {
-    "pt": "PT - portuguese",
-    "en": "EN - english",
-    "es": "ES - Spanish"
+    "pt": "PT - português",
+    "en": "EN - inglês",
+    "es": "ES - espanhol"
   },
-  "network_error": "Network error. Please check your connection and try again.",
-  "too_many_requests": "Too many requests. Please wait a moment before trying again.",
-  "sign_in_with_sso": "Sign in with SSO",
+  "network_error": "Erro de rede. Verifique sua conexão e tente novamente.",
+  "too_many_requests": "Muitas solicitações. Aguarde um momento antes de tentar novamente.",
+  "sign_in_with_sso": "Entrar com SSO",
   "social_login": {
     "buttons": {
       "github": "GitHub",
       "google": "Google",
-      "connecting": "Connecting..."
+      "connecting": "Conectando..."
     },
     "errors": {
-      "account_exists": "An account with this email already exists. Please sign in.",
-      "network": "Network error. Please check your connection and try again.",
-      "rate_limit": "Too many attempts. Please try again later.",
+      "account_exists": "Uma conta com este email já existe. Por favor, faça login.",
+      "network": "Erro de rede. Verifique sua conexão e tente novamente.",
+      "rate_limit": "Muitas tentativas. Por favor, tente novamente mais tarde.",
       "github": {
-        "default": "Failed to sign in with GitHub",
-        "cancelled": "GitHub sign in was cancelled. Please try again."
+        "default": "Falha ao entrar com o GitHub",
+        "cancelled": "O login com o GitHub foi cancelado. Por favor, tente novamente."
       },
       "google": {
-        "default": "Failed to sign in with Google",
-        "cancelled": "Google sign in was cancelled. Please try again."
+        "default": "Falha ao entrar com o Google",
+        "cancelled": "O login com o Google foi cancelado. Por favor, tente novamente."
       }
     }
   },
   "sign_up": {
-    "hide_password": "Hide password",
-    "show_password": "Show password",
-    "creating_account": "Creating account",
-    "name_title": "Name can only contain letters, spaces, hyphens, and apostrophes",
-    "page_title": "Create an account",
-    "page_sub_title": "Create an account or log in",
-    "full_name_label": "Full name",
-    "full_name_placeholder": "Enter your name",
+    "hide_password": "Ocultar senha",
+    "show_password": "Mostrar senha",
+    "creating_account": "Criando conta",
+    "name_title": "O nome pode conter apenas letras, espaços, hífens e apóstrofos",
+    "page_title": "Criar uma conta",
+    "page_sub_title": "Crie uma conta ou faça login",
+    "full_name_label": "Nome completo",
+    "full_name_placeholder": "Digite seu nome",
     "email_label": "Email",
-    "email_placeholder": "Enter your email",
-    "password_label": "Password",
-    "password_placeholder": "Enter your password",
-    "create_account": "Create account",
-    "already_have_account": "Already have an account?",
-    "sign_in_redirect_label": "Sign In",
-    "create_account_warning": "By creating an account, you agree to our <terms>Terms of Service</terms> and <policy>Privacy Policy</policy>",
-    "divider_label": "Or continue with",
-    "disabled_registration_warning": "Registration is disabled, please contact your admin.",
+    "email_placeholder": "Digite seu email",
+    "password_label": "Senha",
+    "password_placeholder": "Digite sua senha",
+    "create_account": "Criar conta",
+    "already_have_account": "Já tem uma conta?",
+    "sign_in_redirect_label": "Entrar",
+    "create_account_warning": "Ao criar uma conta, você concorda com nossos <terms>Termos de Serviço</terms> e <policy>Política de Privacidade</policy>",
+    "divider_label": "Ou continue com",
+    "disabled_registration_warning": "O registro está desativado, entre em contato com o administrador.",
     "validations": {
-      "password_max_128_characters": "Password must be less than 128 characters long.",
-      "password_min_8_character": "Password must be at least 8 characters long.",
-      "password_min_1_uppercase_letter": "Password must include at least one uppercase letter.",
-      "password_min_1_lowercase_letter": "Password must include at least one lowercase letter.",
-      "password_min_1_number": "Password must include at least one number.",
-      "password_min_1_special_character": "Password must include at least one special character.",
-      "name_required": "Name is required.",
-      "name_cannot_be_empty": "Name cannot be empty.",
-      "name_invalid_format": "Name can only contain letters, spaces, hyphens, and apostrophes.",
-      "name_cannot_contain_spaces": "Name cannot contain consecutive spaces.",
-      "email_required": "Email is required.",
-      "email_invalid": "Please enter a valid email address.",
-      "truncated_name_error": "Name will be truncated to 100 characters. Please shorten your name.",
-      "failed_to_create_account": "Failed to create account",
-      "account_with_same_email_already_exists": "An account with this email already exists. Please sign in instead.",
-      "email_sign_up_is_not_enabled":"Email signup is currently disabled."
+      "password_max_128_characters": "A senha deve ter menos de 128 caracteres.",
+      "password_min_8_character": "A senha deve ter pelo menos 8 caracteres.",
+      "password_min_1_uppercase_letter": "A senha deve incluir pelo menos uma letra maiúscula.",
+      "password_min_1_lowercase_letter": "A senha deve incluir pelo menos uma letra minúscula.",
+      "password_min_1_number": "A senha deve incluir pelo menos um número.",
+      "password_min_1_special_character": "A senha deve incluir pelo menos um caractere especial.",
+      "name_required": "O nome é obrigatório.",
+      "name_cannot_be_empty": "O nome não pode estar vazio.",
+      "name_invalid_format": "O nome pode conter apenas letras, espaços, hífens e apóstrofos.",
+      "name_cannot_contain_spaces": "O nome não pode conter espaços consecutivos.",
+      "email_required": "O email é obrigatório.",
+      "email_invalid": "Por favor, insira um endereço de email válido.",
+      "truncated_name_error": "O nome será truncado para 100 caracteres. Por favor, encurte seu nome.",
+      "failed_to_create_account": "Falha ao criar conta",
+      "account_with_same_email_already_exists": "Uma conta com este email já existe. Por favor, faça login.",
+      "email_sign_up_is_not_enabled": "O cadastro por email está desativado no momento."
     }
   },
   "sign_in": {
-    "page_title": "Sign in",
-    "page_sub_title": "Enter your details"
+    "page_title": "Entrar",
+    "page_sub_title": "Insira seus dados"
   },
+  "helper_text.need_help": "Ajuda necessária?",
+  "links.contact_support": "Entre em contato com o suporte",
   "generic": {
-    "loading": "Loading"
+    "loading": "Carregando"
   }
 }
