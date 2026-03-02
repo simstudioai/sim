@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const upsertLinkTool: ToolConfig<DubUpsertLinkParams, DubUpsertLinkResponse> = {
   id: 'dub_upsert_link',
   name: 'Dub Upsert Link',
-  description: 'Create or update a short link by its URL. If a link with the same URL already exists, update it. Otherwise, create a new link.',
+  description:
+    'Create or update a short link by its URL. If a link with the same URL already exists, update it. Otherwise, create a new link.',
   version: '1.0.0',
 
   params: {

@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkResponse> = {
   id: 'dub_update_link',
   name: 'Dub Update Link',
-  description: 'Update an existing short link. You can modify the destination URL, slug, metadata, UTM parameters, and more.',
+  description:
+    'Update an existing short link. You can modify the destination URL, slug, metadata, UTM parameters, and more.',
   version: '1.0.0',
 
   params: {

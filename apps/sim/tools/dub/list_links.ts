@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse> = {
   id: 'dub_list_links',
   name: 'Dub List Links',
-  description: 'Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.',
+  description:
+    'Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.',
   version: '1.0.0',
 
   params: {
@@ -70,7 +71,8 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       if (params.domain) url.searchParams.set('domain', params.domain)
       if (params.search) url.searchParams.set('search', params.search)
       if (params.tagIds) url.searchParams.set('tagIds', params.tagIds)
-      if (params.showArchived !== undefined) url.searchParams.set('showArchived', String(params.showArchived))
+      if (params.showArchived !== undefined)
+        url.searchParams.set('showArchived', String(params.showArchived))
       if (params.sortBy) url.searchParams.set('sortBy', params.sortBy)
       if (params.sortOrder) url.searchParams.set('sortOrder', params.sortOrder)
       if (params.page) url.searchParams.set('page', String(params.page))
@@ -129,7 +131,8 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
   outputs: {
     links: {
       type: 'json',
-      description: 'Array of link objects (id, domain, key, url, shortLink, clicks, tags, createdAt)',
+      description:
+        'Array of link objects (id, domain, key, url, shortLink, clicks, tags, createdAt)',
     },
     count: {
       type: 'number',

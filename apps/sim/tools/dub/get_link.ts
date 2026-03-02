@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const getLinkTool: ToolConfig<DubGetLinkParams, DubGetLinkResponse> = {
   id: 'dub_get_link',
   name: 'Dub Get Link',
-  description: 'Retrieve information about a short link by its link ID, external ID, or domain + key combination.',
+  description:
+    'Retrieve information about a short link by its link ID, external ID, or domain + key combination.',
   version: '1.0.0',
 
   params: {

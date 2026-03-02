@@ -478,8 +478,15 @@ export const DubBlock: BlockConfig<DubResponse> = {
     utm_campaign: { type: 'string', description: 'UTM campaign parameter', optional: true },
     utm_term: { type: 'string', description: 'UTM term parameter', optional: true },
     utm_content: { type: 'string', description: 'UTM content parameter', optional: true },
-    links: { type: 'json', description: 'Array of links (id, domain, key, url, shortLink, clicks, tags, createdAt)' },
+    links: {
+      type: 'json',
+      description: 'Array of links (id, domain, key, url, shortLink, clicks, tags, createdAt)',
+    },
     count: { type: 'number', description: 'Number of links returned (list operation)' },
-    data: { type: 'json', description: 'Grouped analytics data (timeseries, countries, devices, etc.)', optional: true },
+    data: {
+      type: 'json',
+      description: 'Grouped analytics data (timeseries, countries, devices, etc.)',
+      optional: true,
+    },
   },
 }

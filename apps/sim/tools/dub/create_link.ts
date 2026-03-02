@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const createLinkTool: ToolConfig<DubCreateLinkParams, DubCreateLinkResponse> = {
   id: 'dub_create_link',
   name: 'Dub Create Link',
-  description: 'Create a new short link with Dub. Supports custom domains, slugs, UTM parameters, and more.',
+  description:
+    'Create a new short link with Dub. Supports custom domains, slugs, UTM parameters, and more.',
   version: '1.0.0',
 
   params: {

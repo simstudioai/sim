@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const getAnalyticsTool: ToolConfig<DubGetAnalyticsParams, DubGetAnalyticsResponse> = {
   id: 'dub_get_analytics',
   name: 'Dub Get Analytics',
-  description: 'Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.',
+  description:
+    'Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.',
   version: '1.0.0',
 
   params: {
@@ -24,7 +25,8 @@ export const getAnalyticsTool: ToolConfig<DubGetAnalyticsParams, DubGetAnalytics
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Group results by: count (default), timeseries, countries, cities, devices, browsers, os, referers, top_links, top_urls',
+      description:
+        'Group results by: count (default), timeseries, countries, cities, devices, browsers, os, referers, top_links, top_urls',
     },
     linkId: {
       type: 'string',
