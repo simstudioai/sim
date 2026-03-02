@@ -269,8 +269,8 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     )
   }
 
-  const MDX = (data as PageData).body
-  const markdownContent = await (data as PageData).getText('processed')
+  const MDX = data.body
+  const markdownContent = await data.getText('processed')
 
   return (
     <>
