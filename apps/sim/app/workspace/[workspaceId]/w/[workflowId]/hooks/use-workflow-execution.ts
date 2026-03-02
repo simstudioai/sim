@@ -1394,12 +1394,11 @@ export function useWorkflowExecution() {
                   },
                 })
 
-                const accumulated = streamedChunks.get(data.blockId)!.join('')
                 const streamingExec: StreamingExecution = {
                   stream,
                   execution: {
                     success: true,
-                    output: { content: accumulated },
+                    output: { content: '' },
                     blockId: data.blockId,
                   } as any,
                 }
