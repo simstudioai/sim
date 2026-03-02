@@ -1,0 +1,318 @@
+---
+title: Dub
+description: Link management with Dub
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dub"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dub](https://dub.co/) is an open-source link management platform for modern marketing teams. It provides powerful short link creation, analytics, and tracking capabilities with enterprise-grade infrastructure.
+
+With the Dub integration in Sim, you can:
+
+- **Create short links**: Generate branded short links with custom domains, slugs, and UTM parameters
+- **Upsert links**: Create or update links idempotently by destination URL
+- **Retrieve link info**: Look up link details by ID, external ID, or domain + key combination
+- **Update links**: Modify destination URLs, metadata, UTM parameters, and link settings
+- **Delete links**: Remove short links by ID or external ID
+- **List links**: Search and filter links with pagination, sorting, and tag filtering
+- **Get analytics**: Retrieve click, lead, and sales analytics with grouping by time, geography, device, browser, referer, and more
+
+In Sim, the Dub integration enables your agents to manage short links and track their performance programmatically. Use it to create trackable links as part of marketing workflows, monitor link engagement, and make data-driven decisions based on click analytics and conversion metrics.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.
+
+
+
+## Tools
+
+### `dub_create_link`
+
+Create a new short link with Dub. Supports custom domains, slugs, UTM parameters, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `url` | string | Yes | The destination URL of the short link |
+| `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
+| `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
+| `externalId` | string | No | External ID for the link in your database |
+| `tagIds` | string | No | Comma-separated tag IDs to assign to the link |
+| `comments` | string | No | Comments for the short link |
+| `expiresAt` | string | No | Expiration date in ISO 8601 format |
+| `password` | string | No | Password to protect the short link |
+| `rewrite` | boolean | No | Whether to enable link cloaking |
+| `archived` | boolean | No | Whether to archive the link |
+| `title` | string | No | Custom OG title for the link preview |
+| `description` | string | No | Custom OG description for the link preview |
+| `utm_source` | string | No | UTM source parameter |
+| `utm_medium` | string | No | UTM medium parameter |
+| `utm_campaign` | string | No | UTM campaign parameter |
+| `utm_term` | string | No | UTM term parameter |
+| `utm_content` | string | No | UTM content parameter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the created link |
+| `domain` | string | Domain of the short link |
+| `key` | string | Slug of the short link |
+| `url` | string | Destination URL |
+| `shortLink` | string | Full short link URL |
+| `qrCode` | string | QR code URL for the short link |
+| `archived` | boolean | Whether the link is archived |
+| `externalId` | string | External ID |
+| `title` | string | OG title |
+| `description` | string | OG description |
+| `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `clicks` | number | Number of clicks |
+| `leads` | number | Number of leads |
+| `sales` | number | Number of sales |
+| `saleAmount` | number | Total sale amount in cents |
+| `lastClicked` | string | Last clicked timestamp |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `utm_source` | string | UTM source parameter |
+| `utm_medium` | string | UTM medium parameter |
+| `utm_campaign` | string | UTM campaign parameter |
+| `utm_term` | string | UTM term parameter |
+| `utm_content` | string | UTM content parameter |
+
+### `dub_upsert_link`
+
+Create or update a short link by its URL. If a link with the same URL already exists, update it. Otherwise, create a new link.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `url` | string | Yes | The destination URL of the short link |
+| `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
+| `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
+| `externalId` | string | No | External ID for the link in your database |
+| `tagIds` | string | No | Comma-separated tag IDs to assign to the link |
+| `comments` | string | No | Comments for the short link |
+| `expiresAt` | string | No | Expiration date in ISO 8601 format |
+| `password` | string | No | Password to protect the short link |
+| `rewrite` | boolean | No | Whether to enable link cloaking |
+| `archived` | boolean | No | Whether to archive the link |
+| `title` | string | No | Custom OG title for the link preview |
+| `description` | string | No | Custom OG description for the link preview |
+| `utm_source` | string | No | UTM source parameter |
+| `utm_medium` | string | No | UTM medium parameter |
+| `utm_campaign` | string | No | UTM campaign parameter |
+| `utm_term` | string | No | UTM term parameter |
+| `utm_content` | string | No | UTM content parameter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the link |
+| `domain` | string | Domain of the short link |
+| `key` | string | Slug of the short link |
+| `url` | string | Destination URL |
+| `shortLink` | string | Full short link URL |
+| `qrCode` | string | QR code URL for the short link |
+| `archived` | boolean | Whether the link is archived |
+| `externalId` | string | External ID |
+| `title` | string | OG title |
+| `description` | string | OG description |
+| `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `clicks` | number | Number of clicks |
+| `leads` | number | Number of leads |
+| `sales` | number | Number of sales |
+| `saleAmount` | number | Total sale amount in cents |
+| `lastClicked` | string | Last clicked timestamp |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `utm_source` | string | UTM source parameter |
+| `utm_medium` | string | UTM medium parameter |
+| `utm_campaign` | string | UTM campaign parameter |
+| `utm_term` | string | UTM term parameter |
+| `utm_content` | string | UTM content parameter |
+
+### `dub_get_link`
+
+Retrieve information about a short link by its link ID, external ID, or domain + key combination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `linkId` | string | No | The unique ID of the short link |
+| `externalId` | string | No | The external ID of the link in your database |
+| `domain` | string | No | The domain of the link \(use with key\) |
+| `key` | string | No | The slug of the link \(use with domain\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the link |
+| `domain` | string | Domain of the short link |
+| `key` | string | Slug of the short link |
+| `url` | string | Destination URL |
+| `shortLink` | string | Full short link URL |
+| `qrCode` | string | QR code URL for the short link |
+| `archived` | boolean | Whether the link is archived |
+| `externalId` | string | External ID |
+| `title` | string | OG title |
+| `description` | string | OG description |
+| `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `clicks` | number | Number of clicks |
+| `leads` | number | Number of leads |
+| `sales` | number | Number of sales |
+| `saleAmount` | number | Total sale amount in cents |
+| `lastClicked` | string | Last clicked timestamp |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `utm_source` | string | UTM source parameter |
+| `utm_medium` | string | UTM medium parameter |
+| `utm_campaign` | string | UTM campaign parameter |
+| `utm_term` | string | UTM term parameter |
+| `utm_content` | string | UTM content parameter |
+
+### `dub_update_link`
+
+Update an existing short link. You can modify the destination URL, slug, metadata, UTM parameters, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `linkId` | string | Yes | The link ID or external ID prefixed with ext_ |
+| `url` | string | No | New destination URL |
+| `domain` | string | No | New custom domain |
+| `key` | string | No | New custom slug |
+| `title` | string | No | Custom OG title |
+| `description` | string | No | Custom OG description |
+| `externalId` | string | No | External ID for the link |
+| `tagIds` | string | No | Comma-separated tag IDs |
+| `comments` | string | No | Comments for the short link |
+| `expiresAt` | string | No | Expiration date in ISO 8601 format |
+| `password` | string | No | Password to protect the link |
+| `rewrite` | boolean | No | Whether to enable link cloaking |
+| `archived` | boolean | No | Whether to archive the link |
+| `utm_source` | string | No | UTM source parameter |
+| `utm_medium` | string | No | UTM medium parameter |
+| `utm_campaign` | string | No | UTM campaign parameter |
+| `utm_term` | string | No | UTM term parameter |
+| `utm_content` | string | No | UTM content parameter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the updated link |
+| `domain` | string | Domain of the short link |
+| `key` | string | Slug of the short link |
+| `url` | string | Destination URL |
+| `shortLink` | string | Full short link URL |
+| `qrCode` | string | QR code URL for the short link |
+| `archived` | boolean | Whether the link is archived |
+| `externalId` | string | External ID |
+| `title` | string | OG title |
+| `description` | string | OG description |
+| `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `clicks` | number | Number of clicks |
+| `leads` | number | Number of leads |
+| `sales` | number | Number of sales |
+| `saleAmount` | number | Total sale amount in cents |
+| `lastClicked` | string | Last clicked timestamp |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `utm_source` | string | UTM source parameter |
+| `utm_medium` | string | UTM medium parameter |
+| `utm_campaign` | string | UTM campaign parameter |
+| `utm_term` | string | UTM term parameter |
+| `utm_content` | string | UTM content parameter |
+
+### `dub_delete_link`
+
+Delete a short link by its link ID or external ID (prefixed with ext_).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `linkId` | string | Yes | The link ID or external ID prefixed with ext_ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted link |
+
+### `dub_list_links`
+
+Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `domain` | string | No | Filter by domain |
+| `search` | string | No | Search query matched against the short link slug and destination URL |
+| `tagIds` | string | No | Comma-separated tag IDs to filter by |
+| `showArchived` | boolean | No | Whether to include archived links \(defaults to false\) |
+| `sortBy` | string | No | Sort by field: createdAt, clicks, saleAmount, or lastClicked |
+| `sortOrder` | string | No | Sort order: asc or desc |
+| `page` | number | No | Page number \(default: 1\) |
+| `pageSize` | number | No | Number of links per page \(default: 100, max: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `links` | json | Array of link objects \(id, domain, key, url, shortLink, clicks, tags, createdAt\) |
+| `count` | number | Number of links returned |
+
+### `dub_get_analytics`
+
+Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `event` | string | No | Event type: clicks \(default\), leads, sales, or composite |
+| `groupBy` | string | No | Group results by: count \(default\), timeseries, countries, cities, devices, browsers, os, referers, top_links, top_urls |
+| `linkId` | string | No | Filter by link ID |
+| `externalId` | string | No | Filter by external ID \(prefix with ext_\) |
+| `domain` | string | No | Filter by domain |
+| `interval` | string | No | Time interval: 24h \(default\), 7d, 30d, 90d, 1y, mtd, qtd, ytd, or all |
+| `start` | string | No | Start date/time in ISO 8601 format \(overrides interval\) |
+| `end` | string | No | End date/time in ISO 8601 format \(defaults to now\) |
+| `country` | string | No | Filter by country \(ISO 3166-1 alpha-2 code\) |
+| `timezone` | string | No | IANA timezone for timeseries data \(defaults to UTC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `clicks` | number | Total number of clicks |
+| `leads` | number | Total number of leads |
+| `sales` | number | Total number of sales |
+| `saleAmount` | number | Total sale amount in cents |
+| `data` | json | Grouped analytics data \(timeseries, countries, devices, etc.\) |
+
+
