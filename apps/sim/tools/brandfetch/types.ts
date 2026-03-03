@@ -34,7 +34,7 @@ export interface BrandColor {
 }
 
 export interface BrandFont {
-  name: string
+  name: string | null
   type: string
   origin: string
   originId: string | null

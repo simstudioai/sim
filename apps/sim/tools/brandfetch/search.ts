@@ -50,7 +50,7 @@ export const brandfetchSearchTool: ToolConfig<BrandfetchSearchParams, Brandfetch
       output: {
         results: results.map((item: Partial<BrandfetchSearchResult>) => ({
           brandId: item.brandId ?? '',
-          name: item.name ?? '',
+          name: item.name ?? null,
           domain: item.domain ?? '',
           claimed: item.claimed ?? false,
           icon: item.icon ?? null,
