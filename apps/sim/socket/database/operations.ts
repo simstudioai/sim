@@ -1345,11 +1345,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (
-        isBlockProtected(edgeToRemove.sourceBlockId) ||
-        isBlockProtected(edgeToRemove.targetBlockId)
-      ) {
-        logger.info(`Skipping edge remove - source or target block is protected`)
+      if (isBlockProtected(edgeToRemove.targetBlockId)) {
+        logger.info(`Skipping edge remove - target block is protected`)
         break
       }
 
