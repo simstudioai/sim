@@ -1246,8 +1246,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (isBlockProtected(payload.source) || isBlockProtected(payload.target)) {
-        logger.info(`Skipping edge add - source or target block is protected`)
+      if (isBlockProtected(payload.target)) {
+        logger.info(`Skipping edge add - target block is protected`)
         break
       }
 
