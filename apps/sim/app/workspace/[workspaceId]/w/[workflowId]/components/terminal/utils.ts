@@ -464,27 +464,40 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
           iterationContainerId: iterGroup.iterationContainerId,
         }
 
-        const blockNodes: EntryNode[] = iterBlocks.map((block) => {
-          if (isWorkflowBlockType(block.blockType)) {
-            const instanceKey = block.childWorkflowInstanceId ?? block.blockId
-            const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
-            const rawChildren = allDescendants.map((c) => ({
-              ...c,
-              childWorkflowBlockId:
-                c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
-            }))
-            return {
-              entry: block,
-              children: buildEntryTree(rawChildren),
-              nodeType: 'workflow' as const,
-            }
-          }
-          return { entry: block, children: [], nodeType: 'block' as const }
-        })
-
         const childPrefix = `${idPrefix}${iterationContainerId}-${iterGroup.iterationCurrent}-`
         const nestedSubflowNodes =
           strippedNestedEntries.length > 0 ? buildEntryTree(strippedNestedEntries, childPrefix) : []
+
+        // Filter out container completion events when matching nested subflow nodes exist,
+        // to avoid duplicating them as both a flat block row and an expandable subflow.
+        const hasNestedSubflows = nestedSubflowNodes.length > 0
+        const blockNodes: EntryNode[] = iterBlocks
+          .filter((block) => {
+            if (
+              hasNestedSubflows &&
+              (block.blockType === 'loop' || block.blockType === 'parallel')
+            ) {
+              return false
+            }
+            return true
+          })
+          .map((block) => {
+            if (isWorkflowBlockType(block.blockType)) {
+              const instanceKey = block.childWorkflowInstanceId ?? block.blockId
+              const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
+              const rawChildren = allDescendants.map((c) => ({
+                ...c,
+                childWorkflowBlockId:
+                  c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
+              }))
+              return {
+                entry: block,
+                children: buildEntryTree(rawChildren),
+                nodeType: 'workflow' as const,
+              }
+            }
+            return { entry: block, children: [], nodeType: 'block' as const }
+          })
 
         const allChildren = [...blockNodes, ...nestedSubflowNodes]
         allChildren.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
