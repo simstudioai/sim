@@ -43,7 +43,7 @@ export const listConferenceRecordsTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Page token from a previous list request',
     },
   },
