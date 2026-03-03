@@ -1,0 +1,83 @@
+---
+title: Brandfetch
+description: Look up brand assets, logos, colors, and company info
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="brandfetch"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.
+
+
+
+## Tools
+
+### `brandfetch_get_brand`
+
+Retrieve brand assets including logos, colors, fonts, and company info by domain, ticker, ISIN, or crypto symbol
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brandfetch API key |
+| `identifier` | string | Yes | Brand identifier: domain \(nike.com\), stock ticker \(NKE\), ISIN \(US6541061031\), or crypto symbol \(BTC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique brand identifier |
+| `name` | string | Brand name |
+| `domain` | string | Brand domain |
+| `claimed` | boolean | Whether the brand profile is claimed |
+| `description` | string | Short brand description |
+| `longDescription` | string | Detailed brand description |
+| `links` | array | Social media and website links |
+|   ↳ `name` | string | Link name \(e.g., twitter, linkedin\) |
+|   ↳ `url` | string | Link URL |
+| `logos` | array | Brand logos with formats and themes |
+|   ↳ `type` | string | Logo type \(logo, icon, symbol, other\) |
+|   ↳ `theme` | string | Logo theme \(light, dark\) |
+|   ↳ `formats` | array | Available formats with src URL, format, width, and height |
+| `colors` | array | Brand colors with hex values and types |
+|   ↳ `hex` | string | Hex color code |
+|   ↳ `type` | string | Color type \(accent, dark, light, brand\) |
+|   ↳ `brightness` | number | Brightness value |
+| `fonts` | array | Brand fonts with names and types |
+|   ↳ `name` | string | Font name |
+|   ↳ `type` | string | Font type \(title, body\) |
+|   ↳ `origin` | string | Font origin \(google, custom, system\) |
+| `company` | json | Company firmographic data including employees, location, and industries |
+| `qualityScore` | number | Data quality score from 0 to 1 |
+| `isNsfw` | boolean | Whether the brand contains adult content |
+
+### `brandfetch_search`
+
+Search for brands by name and find their domains and logos
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brandfetch API key |
+| `name` | string | Yes | Company or brand name to search for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | List of matching brands |
+|   ↳ `brandId` | string | Unique brand identifier |
+|   ↳ `name` | string | Brand name |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `claimed` | boolean | Whether the brand profile is claimed |
+|   ↳ `icon` | string | Brand icon URL |
+
+
