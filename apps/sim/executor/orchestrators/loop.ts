@@ -414,6 +414,7 @@ export class LoopOrchestrator {
             for (const key of ctx.loopExecutions.keys()) {
               if (key.startsWith(clonePrefix)) {
                 ctx.loopExecutions.delete(key)
+                ctx.subflowParentMap?.delete(key)
               }
             }
           }
