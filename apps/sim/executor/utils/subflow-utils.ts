@@ -152,12 +152,9 @@ export function findEffectiveContainerId(
   currentNodeId: string,
   executionMap: Map<string, unknown>
 ): string {
-  // If the original ID already exists, use it directly
-  if (executionMap.has(originalId)) {
-    return originalId
-  }
-
-  // Extract __obranch-N suffix from the current node ID
+  // Prefer the cloned variant when currentNodeId carries an __obranch-N suffix.
+  // During concurrent parallel-in-loop execution both the original (branch 0)
+  // and cloned variants coexist in the map; the clone is the correct scope.
   const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
   if (match) {
     const candidateId = buildClonedSubflowId(
@@ -167,6 +164,11 @@ export function findEffectiveContainerId(
     if (executionMap.has(candidateId)) {
       return candidateId
     }
+  }
+
+  // Use the original ID if it exists (non-cloned or branch-0 case)
+  if (executionMap.has(originalId)) {
+    return originalId
   }
 
   // Fallback: scan execution map for a cloned variant

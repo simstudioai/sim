@@ -2561,7 +2561,10 @@ const WorkflowContent = React.memo(() => {
         for (const edge of boundaryEdges) {
           const movedEnd = movingNodeIds.has(edge.source) ? edge.source : edge.target
           let id: string | undefined = movedEnd
+          const seen = new Set<string>()
           while (id) {
+            if (seen.has(id)) break
+            seen.add(id)
             if (validBlockIdSet.has(id)) {
               const list = boundaryEdgesByNode.get(id) ?? []
               list.push(edge)
