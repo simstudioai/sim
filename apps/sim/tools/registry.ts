@@ -811,6 +811,14 @@ import {
   googleMapsTimezoneTool,
   googleMapsValidateAddressTool,
 } from '@/tools/google_maps'
+import {
+  googleMeetCreateSpaceTool,
+  googleMeetEndConferenceTool,
+  googleMeetGetConferenceRecordTool,
+  googleMeetGetSpaceTool,
+  googleMeetListConferenceRecordsTool,
+  googleMeetListParticipantsTool,
+} from '@/tools/google_meet'
 import { googlePagespeedAnalyzeTool } from '@/tools/google_pagespeed'
 import {
   googleSheetsAppendTool,
@@ -3215,6 +3223,12 @@ export const tools: Record<string, ToolConfig> = {
   google_maps_speed_limits: googleMapsSpeedLimitsTool,
   google_maps_timezone: googleMapsTimezoneTool,
   google_maps_validate_address: googleMapsValidateAddressTool,
+  google_meet_create_space: googleMeetCreateSpaceTool,
+  google_meet_end_conference: googleMeetEndConferenceTool,
+  google_meet_get_conference_record: googleMeetGetConferenceRecordTool,
+  google_meet_get_space: googleMeetGetSpaceTool,
+  google_meet_list_conference_records: googleMeetListConferenceRecordsTool,
+  google_meet_list_participants: googleMeetListParticipantsTool,
   google_pagespeed_analyze: googlePagespeedAnalyzeTool,
   google_tasks_create: googleTasksCreateTool,
   google_tasks_delete: googleTasksDeleteTool,
