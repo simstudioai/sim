@@ -694,6 +694,32 @@
   },
   "workflows": {
     "title": "Flujos de Trabajo",
+    "search_modal": {
+      "placeholders": {
+        "search": "Buscar cualquier cosa..."
+      },
+      "messages": {
+        "no_results": "No se encontraron resultados."
+      },
+      "groups": {
+        "blocks": "Bloques",
+        "tools": "Herramientas",
+        "triggers": "Disparadores",
+        "workflows": "Flujos de Trabajo",
+        "tool_operations": "Operaciones de Herramientas",
+        "workspaces": "Espacios de Trabajo",
+        "docs": "Documentos",
+        "pages": "Páginas"
+      },
+      "labels": {
+        "logs": "Registros",
+        "templates": "Plantillas",
+        "knowledge_base": "Base de Conocimientos",
+        "help": "Ayuda",
+        "settings": "Configuración",
+        "current": "(actual)"
+      }
+    },
     "canvas": {
       "modes": {
         "pointer": "Puntero",
@@ -824,9 +850,43 @@
       "new_agent": "Nuevo Agente",
       "logs": "Registros",
       "search_blocks": "Buscar Bloques"
+    },
+    "panel": {
+      "tabs": {
+        "copilot": "Copilot",
+        "toolbar": "Barra de Herramientas",
+        "editor": "Editor"
+      },
+      "menu": {
+        "auto_layout": "Diseño automático",
+        "variables": "Variables",
+        "export_workflow": "Exportar flujo de trabajo",
+        "duplicate_workflow": "Duplicar flujo de trabajo",
+        "delete_workflow": "Eliminar flujo de trabajo"
+      },
+      "buttons": {
+        "run": "Ejecutar",
+        "stop": "Detener"
+      },
+      "messages": {
+        "auto_layout_locked": "Desbloquea los bloques para usar el diseño automático",
+        "delete_confirmation": "¿Está seguro de que desea eliminar <workflowName/>? Esto eliminará permanentemente todos los bloques, ejecuciones y configuración asociados."
+      },
+      "modal": {
+        "delete_title": "Eliminar Flujo de Trabajo"
+      },
+      "buttons_modal": {
+        "cancel": "Cancelar",
+        "delete": "Eliminar",
+        "deleting": "Eliminando..."
+      },
+      "error_messages": {
+        "cannot_undo": "Esta acción no se puede deshacer."
+      }
     }
   },
   "blocks": {
+    "next_step": "Siguiente paso",
     "title": "Bloques",
     "categories": {
       "tools": "Herramientas",
@@ -885,7 +945,28 @@
         "system_prompt": "Indicación del Sistema",
         "model": "Modelo",
         "tools": "Herramientas Disponibles",
-        "thinking_level": "Nivel de Pensamiento"
+        "thinking_level": "Nivel de Pensamiento",
+        "messages": "Mensajes",
+        "google_cloud_account": "Cuenta de Google Cloud",
+        "reasoning_effort": "Esfuerzo de Razonamiento",
+        "verbosity": "Verbosidad",
+        "azure_endpoint": "Punto de Conexión de Azure",
+        "azure_api_version": "Versión de API de Azure",
+        "vertex_ai_project": "Proyecto de Vertex AI",
+        "vertex_ai_location": "Ubicación de Vertex AI",
+        "aws_access_key_id": "ID de Clave de Acceso de AWS",
+        "aws_secret_access_key": "Clave de Acceso Secreto de AWS",
+        "aws_region": "Región de AWS",
+        "api_key": "Clave de API",
+        "skills": "Habilidades",
+        "memory": "Memoria",
+        "conversation_id": "ID de Conversación",
+        "sliding_window_size": "Tamaño de Ventana Deslizante",
+        "max_tokens": "Máximo de Tokens",
+        "max_output_tokens": "Máximo de Tokens de Salida",
+        "temperature": "Temperatura",
+        "response_format": "Formato de Respuesta",
+        "previous_interaction_id": "ID de Interacción Anterior"
       }
     },
     "browser_use_block": {
@@ -1013,6 +1094,279 @@
       "description": "Llamar a otro flujo de trabajo",
       "labels": {
         "workflow": "Flujo de Trabajo"
+      }
+    },
+    "workflow_block": {
+      "badges": {
+        "disabled": "deshabilitado",
+        "locked": "bloqueado",
+        "deploying": "Implementando...",
+        "undeployed": "no implementado",
+        "redeploy": "reimplementar",
+        "webhook": "Webhook"
+      },
+      "labels": {
+        "context": "Contexto",
+        "route": "Ruta {number}",
+        "error": "error",
+        "path": "Ruta"
+      },
+      "tooltips": {
+        "admin_required": "Se requiere permiso de administrador para implementar",
+        "click_deploy": "Haga clic para implementar",
+        "click_redeploy": "Haga clic para reimplementar",
+        "click_reactivate": "Haga clic para reactivar",
+        "webhook_trigger": "Este flujo de trabajo se activa mediante un webhook."
+      }
+    },
+    "action_bar": {
+      "tooltips": {
+        "run_from_block": "Ejecutar desde bloque",
+        "execution_in_progress": "Ejecución en curso",
+        "previous_blocks_first": "Ejecute los bloques anteriores primero",
+        "block_locked": "Bloque bloqueado",
+        "disable_block": "Desactivar bloque",
+        "enable_block": "Activar bloque",
+        "parent_disabled": "Contenedor superior deshabilitado",
+        "parent_locked": "Contenedor superior bloqueado",
+        "unlock_block": "Desbloquear bloque",
+        "lock_block": "Bloquear bloque",
+        "duplicate_block": "Duplicar bloque",
+        "vertical_ports": "Puertos verticales",
+        "horizontal_ports": "Puertos horizontales",
+        "remove_from_subflow": "Eliminar de subflujo",
+        "delete_block": "Eliminar bloque",
+        "connection_lost": "Conexión perdida - por favor actualice",
+        "read_only_mode": "Modo de solo lectura"
+      }
+    }
+  },
+  "sub_blocks": {
+    "short_input": {
+      "title": "Texto",
+      "placeholder": "Ingrese texto"
+    },
+    "long_input": {
+      "title": "Texto Largo",
+      "placeholder": "Ingrese texto largo"
+    },
+    "dropdown": {
+      "title": "Desplegable",
+      "placeholder": "Seleccione opción"
+    },
+    "combobox": {
+      "title": "Desplegable Busca ble",
+      "placeholder": "Busque y seleccione"
+    },
+    "slider": {
+      "title": "Control Deslizante",
+      "placeholder": "Seleccione valor"
+    },
+    "table": {
+      "title": "Tabla",
+      "placeholder": "Ingrese datos de tabla"
+    },
+    "code": {
+      "title": "Código",
+      "placeholder": "Escriba su código"
+    },
+    "switch": {
+      "title": "Alternar",
+      "placeholder": "Habilitar/Deshabilitar"
+    },
+    "tool_input": {
+      "title": "Configuración de Herramienta",
+      "placeholder": "Configurar herramienta"
+    },
+    "skill_input": {
+      "title": "Selección de Habilidad",
+      "placeholder": "Seleccione habilidad"
+    },
+    "checkbox_list": {
+      "title": "Selección Múltiple",
+      "placeholder": "Seleccione opciones"
+    },
+    "grouped_checkbox_list": {
+      "title": "Selección Agrupada",
+      "placeholder": "Seleccione de grupos"
+    },
+    "condition_input": {
+      "title": "Condición",
+      "placeholder": "Defina condición"
+    },
+    "eval_input": {
+      "title": "Evaluación",
+      "placeholder": "Ingrese evaluación"
+    },
+    "time_input": {
+      "title": "Hora",
+      "placeholder": "Seleccione hora"
+    },
+    "oauth_input": {
+      "title": "Credencial OAuth",
+      "placeholder": "Seleccione credencial"
+    },
+    "webhook_config": {
+      "title": "Configuración de Webhook",
+      "placeholder": "Configurar webhook"
+    },
+    "schedule_info": {
+      "title": "Información de Calendario",
+      "placeholder": "Información de calendario"
+    },
+    "file_selector": {
+      "title": "Selector de Archivo",
+      "placeholder": "Seleccione archivo"
+    },
+    "sheet_selector": {
+      "title": "Selector de Hoja",
+      "placeholder": "Seleccione hoja"
+    },
+    "project_selector": {
+      "title": "Selector de Proyecto",
+      "placeholder": "Seleccione proyecto"
+    },
+    "channel_selector": {
+      "title": "Selector de Canal",
+      "placeholder": "Seleccione canal"
+    },
+    "user_selector": {
+      "title": "Selector de Usuario",
+      "placeholder": "Seleccione usuario"
+    },
+    "folder_selector": {
+      "title": "Selector de Carpeta",
+      "placeholder": "Seleccione carpeta"
+    },
+    "knowledge_base_selector": {
+      "title": "Base de Conocimiento",
+      "placeholder": "Seleccione base de conocimiento"
+    },
+    "knowledge_tag_filters": {
+      "title": "Filtros de Etiqueta",
+      "placeholder": "Seleccione etiquetas"
+    },
+    "document_selector": {
+      "title": "Selector de Documento",
+      "placeholder": "Seleccione documento"
+    },
+    "document_tag_entry": {
+      "title": "Etiquetas de Documento",
+      "placeholder": "Ingrese etiquetas"
+    },
+    "mcp_server_selector": {
+      "title": "Servidor MCP",
+      "placeholder": "Seleccione servidor"
+    },
+    "mcp_tool_selector": {
+      "title": "Herramienta MCP",
+      "placeholder": "Seleccione herramienta"
+    },
+    "mcp_dynamic_args": {
+      "title": "Argumentos MCP",
+      "placeholder": "Ingrese argumentos"
+    },
+    "input_format": {
+      "title": "Formato de Entrada",
+      "placeholder": "Defina estructura de entrada"
+    },
+    "response_format": {
+      "title": "Formato de Respuesta",
+      "placeholder": "Defina estructura de respuesta"
+    },
+    "filter_builder": {
+      "title": "Filtros",
+      "placeholder": "Agregue filtros"
+    },
+    "sort_builder": {
+      "title": "Ordenamiento",
+      "placeholder": "Agregue ordenamiento"
+    },
+    "trigger_save": {
+      "title": "Guardar Desencadenador",
+      "placeholder": "Guardar configuración"
+    },
+    "file_upload": {
+      "title": "Carga de Archivo",
+      "placeholder": "Cargar archivo"
+    },
+    "input_mapping": {
+      "title": "Mapeo de Entrada",
+      "placeholder": "Mapear entradas"
+    },
+    "variables_input": {
+      "title": "Variables",
+      "placeholder": "Establecer variables"
+    },
+    "messages_input": {
+      "title": "Mensajes",
+      "placeholder": "Ingrese mensajes"
+    },
+    "workflow_selector": {
+      "title": "Flujo de Trabajo",
+      "placeholder": "Seleccione flujo de trabajo"
+    },
+    "workflow_input_mapper": {
+      "title": "Entradas de Flujo de Trabajo",
+      "placeholder": "Mapear entradas de flujo de trabajo"
+    },
+    "text": {
+      "title": "Visualización de Texto",
+      "placeholder": "Mostrar texto"
+    },
+    "router_input": {
+      "title": "Configuración de Enrutador",
+      "placeholder": "Defina rutas"
+    },
+    "table_selector": {
+      "title": "Selector de Tabla",
+      "placeholder": "Seleccione tabla"
+    }
+  },
+  "sub_block_panel": {
+    "tool_input": {
+      "placeholders": {
+        "add_tool": "Agregar herramienta...",
+        "search_tools": "Buscar herramientas...",
+        "select_operation": "Seleccionar operación",
+        "parameter": "Ingrese {name}{type}"
+      },
+      "labels": {
+        "operation": "Operación"
+      },
+      "messages": {
+        "no_workflow_selected": "Seleccione un flujo de trabajo para configurar sus entradas",
+        "no_input_fields": "Este flujo de trabajo no tiene campos de entrada personalizados",
+        "no_tools_found": "No se encontraron herramientas"
+      },
+      "sections": {
+        "create_tool": "Crear Herramienta",
+        "add_mcp_server": "Agregar Servidor MCP"
+      },
+      "deployment": {
+        "deploying": "Desplegando...",
+        "undeployed": "no desplegado",
+        "redeploy": "redesplegación",
+        "click_to_deploy": "Haga clic para desplegar",
+        "click_to_redeploy": "Haga clic para redesplegación",
+        "admin_required": "Se requiere permiso de administrador para desplegar"
+      },
+      "usage_control": {
+        "auto": "Auto",
+        "force": "Forzar",
+        "none": "Ninguno",
+        "auto_description": "Dejar que el LLM decida",
+        "force_description": "Siempre proporcionar al LLM",
+        "none_description": "Nunca proporcionar al LLM"
+      },
+      "aria_labels": {
+        "tool_usage_control": "Control de uso de herramientas",
+        "remove_tool": "Eliminar herramienta"
+      }
+    },
+    "table": {
+      "aria_labels": {
+        "delete_row": "Eliminar fila"
       }
     }
   }

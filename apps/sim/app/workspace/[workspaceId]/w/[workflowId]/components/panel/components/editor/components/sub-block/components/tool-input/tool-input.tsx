@@ -1,5 +1,6 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -154,10 +155,12 @@ function WorkflowInputMapperInput({
     [parsedValue, onChange]
   )
 
+  const t = useTranslations('sub_block_panel.tool_input')
+
   if (!workflowId) {
     return (
       <div className='rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-4 text-center text-[var(--text-muted)] text-sm'>
-        Select a workflow to configure its inputs
+        {t('messages.no_workflow_selected')}
       </div>
     )
   }
@@ -173,7 +176,7 @@ function WorkflowInputMapperInput({
   if (inputFields.length === 0) {
     return (
       <div className='rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-4 text-center text-[var(--text-muted)] text-sm'>
-        This workflow has no custom input fields
+        {t('messages.no_input_fields')}
       </div>
     )
   }
@@ -185,7 +188,10 @@ function WorkflowInputMapperInput({
           key={field.name}
           blockId={blockId}
           subBlockId={`${paramId}-${field.name}`}
-          placeholder={`Enter ${field.name}${field.type !== 'string' ? ` (${field.type})` : ''}`}
+          placeholder={t('placeholders.parameter', {
+            name: field.name,
+            type: field.type !== 'string' ? ` (${field.type})` : '',
+          })}
           value={String(parsedValue[field.name] ?? '')}
           onChange={(newValue: string) => handleFieldChange(field.name, newValue)}
           disabled={disabled}
@@ -210,6 +216,7 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
+  const t = useTranslations('sub_block_panel.tool_input')
   const { data, isLoading } = useChildDeploymentStatus(workflowId)
   const deployMutation = useDeployChildWorkflow()
   const userPermissions = useUserPermissionsContext()
@@ -255,16 +262,20 @@ function WorkflowToolDeployBadge({
             }
           }}
         >
-          {isDeploying ? 'Deploying...' : !isDeployed ? 'undeployed' : 'redeploy'}
+          {isDeploying
+            ? t('deployment.deploying')
+            : !isDeployed
+              ? t('deployment.undeployed')
+              : t('deployment.redeploy')}
         </Badge>
       </Tooltip.Trigger>
       <Tooltip.Content>
         <span className='text-sm'>
           {!userPermissions.canAdmin
-            ? 'Admin permission required to deploy'
+            ? t('deployment.admin_required')
             : !isDeployed
-              ? 'Click to deploy'
-              : 'Click to redeploy'}
+              ? t('deployment.click_to_deploy')
+              : t('deployment.click_to_redeploy')}
         </span>
       </Tooltip.Content>
     </Tooltip.Root>
@@ -471,6 +482,7 @@ export const ToolInput = memo(function ToolInput({
   disabled = false,
   allowExpandInPreview,
 }: ToolInputProps) {
+  const t = useTranslations('sub_block_panel.tool_input')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
@@ -1228,7 +1240,7 @@ export const ToolInput = memo(function ToolInput({
     const actionItems: ComboboxOption[] = []
     if (!permissionConfig.disableCustomTools) {
       actionItems.push({
-        label: 'Create Tool',
+        label: t('sections.create_tool'),
         value: 'action-create-tool',
         icon: WrenchIcon,
         onSelect: () => {
@@ -1240,7 +1252,7 @@ export const ToolInput = memo(function ToolInput({
     }
     if (!permissionConfig.disableMcpTools) {
       actionItems.push({
-        label: 'Add MCP Server',
+        label: t('sections.add_mcp_server'),
         value: 'action-add-mcp',
         icon: McpIcon,
         onSelect: () => {
@@ -1414,12 +1426,12 @@ export const ToolInput = memo(function ToolInput({
       <Combobox
         options={[]}
         groups={toolGroups}
-        placeholder='Add tool...'
+        placeholder={t('placeholders.add_tool')}
         disabled={disabled}
         searchable
-        searchPlaceholder='Search tools...'
+        searchPlaceholder={t('placeholders.search_tools')}
         maxHeight={240}
-        emptyMessage='No tools found'
+        emptyMessage={t('messages.no_tools_found')}
         onOpenChange={setOpen}
       />
 
@@ -1637,12 +1649,12 @@ export const ToolInput = memo(function ToolInput({
                         <button
                           className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                          aria-label='Tool usage control'
+                          aria-label={t('aria_labels.tool_usage_control')}
                         >
-                          {tool.usageControl === 'auto' && 'Auto'}
-                          {tool.usageControl === 'force' && 'Force'}
-                          {tool.usageControl === 'none' && 'None'}
-                          {!tool.usageControl && 'Auto'}
+                          {tool.usageControl === 'auto' && t('usage_control.auto')}
+                          {tool.usageControl === 'force' && t('usage_control.force')}
+                          {tool.usageControl === 'none' && t('usage_control.none')}
+                          {!tool.usageControl && t('usage_control.auto')}
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -1660,7 +1672,10 @@ export const ToolInput = memo(function ToolInput({
                             setUsageControlPopoverIndex(null)
                           }}
                         >
-                          Auto <span className='text-[var(--text-tertiary)]'>(model decides)</span>
+                          {t('usage_control.auto')}{' '}
+                          <span className='text-[var(--text-tertiary)]'>
+                            ({t('usage_control.auto_description')})
+                          </span>
                         </PopoverItem>
                         <PopoverItem
                           active={tool.usageControl === 'force'}
@@ -1669,7 +1684,10 @@ export const ToolInput = memo(function ToolInput({
                             setUsageControlPopoverIndex(null)
                           }}
                         >
-                          Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
+                          {t('usage_control.force')}{' '}
+                          <span className='text-[var(--text-tertiary)]'>
+                            ({t('usage_control.force_description')})
+                          </span>
                         </PopoverItem>
                         <PopoverItem
                           active={tool.usageControl === 'none'}
@@ -1678,7 +1696,7 @@ export const ToolInput = memo(function ToolInput({
                             setUsageControlPopoverIndex(null)
                           }}
                         >
-                          None
+                          {t('usage_control.none')}
                         </PopoverItem>
                       </PopoverContent>
                     </Popover>
@@ -1689,7 +1707,7 @@ export const ToolInput = memo(function ToolInput({
                       handleRemoveTool(toolIndex)
                     }}
                     className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
-                    aria-label='Remove tool'
+                    aria-label={t('aria_labels.remove_tool')}
                   >
                     <XIcon className='h-[13px] w-[13px]' />
                   </button>
@@ -1705,7 +1723,7 @@ export const ToolInput = memo(function ToolInput({
                     return hasOperations && operationOptions.length > 0 ? (
                       <div className='relative space-y-[6px]'>
                         <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                          Operation
+                          {t('labels.operation')}
                         </div>
                         <Combobox
                           options={operationOptions
@@ -1716,7 +1734,7 @@ export const ToolInput = memo(function ToolInput({
                             }))}
                           value={tool.operation || operationOptions[0].id}
                           onChange={(value) => handleOperationChange(toolIndex, value)}
-                          placeholder='Select operation'
+                          placeholder={t('placeholders.select_operation')}
                           disabled={disabled}
                         />
                       </div>

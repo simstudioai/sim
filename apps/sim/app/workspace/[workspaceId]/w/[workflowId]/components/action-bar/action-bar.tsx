@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -44,6 +45,7 @@ interface ActionBarProps {
  */
 export const ActionBar = memo(
   function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
+    const t = useTranslations()
     const {
       collaborativeBatchAddBlocks,
       collaborativeBatchRemoveBlocks,
@@ -156,7 +158,9 @@ export const ActionBar = memo(
      */
     const getTooltipMessage = (defaultMessage: string) => {
       if (disabled) {
-        return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
+        return userPermissions.isOfflineMode
+          ? t('blocks.action_bar.tooltips.connection_lost')
+          : t('blocks.action_bar.tooltips.read_only_mode')
       }
       return defaultMessage
     }
@@ -193,10 +197,12 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {(() => {
-                if (disabled) return getTooltipMessage('Run from block')
-                if (isExecuting) return 'Execution in progress'
-                if (!dependenciesSatisfied) return 'Run previous blocks first'
-                return 'Run from block'
+                if (disabled)
+                  return getTooltipMessage(t('blocks.action_bar.tooltips.run_from_block'))
+                if (isExecuting) return t('blocks.action_bar.tooltips.execution_in_progress')
+                if (!dependenciesSatisfied)
+                  return t('blocks.action_bar.tooltips.previous_blocks_first')
+                return t('blocks.action_bar.tooltips.run_from_block')
               })()}
             </Tooltip.Content>
           </Tooltip.Root>
@@ -225,10 +231,14 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {isLocked || isParentLocked
-                ? 'Block is locked'
+                ? t('blocks.action_bar.tooltips.block_locked')
                 : !isEnabled && isParentDisabled
-                  ? 'Parent container is disabled'
-                  : getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+                  ? t('blocks.action_bar.tooltips.parent_disabled')
+                  : getTooltipMessage(
+                      isEnabled
+                        ? t('blocks.action_bar.tooltips.disable_block')
+                        : t('blocks.action_bar.tooltips.enable_block')
+                    )}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -253,10 +263,10 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {isLocked && isParentLocked
-                ? 'Parent container is locked'
+                ? t('blocks.action_bar.tooltips.parent_locked')
                 : isLocked
-                  ? 'Unlock Block'
-                  : 'Lock Block'}
+                  ? t('blocks.action_bar.tooltips.unlock_block')
+                  : t('blocks.action_bar.tooltips.lock_block')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -280,8 +290,8 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {isLocked || isParentLocked
-                ? 'Block is locked'
-                : getTooltipMessage('Duplicate Block')}
+                ? t('blocks.action_bar.tooltips.block_locked')
+                : getTooltipMessage(t('blocks.action_bar.tooltips.duplicate_block'))}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -309,8 +319,12 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {isLocked || isParentLocked
-                ? 'Block is locked'
-                : getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+                ? t('blocks.action_bar.tooltips.block_locked')
+                : getTooltipMessage(
+                    horizontalHandles
+                      ? t('blocks.action_bar.tooltips.vertical_ports')
+                      : t('blocks.action_bar.tooltips.horizontal_ports')
+                  )}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -336,8 +350,8 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {isLocked || isParentLocked
-                ? 'Block is locked'
-                : getTooltipMessage('Remove from Subflow')}
+                ? t('blocks.action_bar.tooltips.block_locked')
+                : getTooltipMessage(t('blocks.action_bar.tooltips.remove_from_subflow'))}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -359,7 +373,9 @@ export const ActionBar = memo(
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete Block')}
+            {isLocked || isParentLocked
+              ? t('blocks.action_bar.tooltips.block_locked')
+              : getTooltipMessage(t('blocks.action_bar.tooltips.delete_block'))}
           </Tooltip.Content>
         </Tooltip.Root>
       </div>

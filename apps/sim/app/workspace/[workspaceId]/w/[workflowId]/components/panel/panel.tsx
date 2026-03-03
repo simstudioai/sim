@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { ArrowUp, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -72,6 +73,7 @@ const logger = createLogger('Panel')
  * @returns Panel on the right side of the workflow
  */
 export const Panel = memo(function Panel() {
+  const t = useTranslations('workflows.panel')
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -394,15 +396,15 @@ export const Panel = memo(function Panel() {
                     disabled={
                       isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
                     }
-                    title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
+                    title={hasLockedBlocks ? t('messages.auto_layout_locked') : undefined}
                   >
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
-                    <span>Auto layout</span>
+                    <span>{t('menu.auto_layout')}</span>
                   </PopoverItem>
                   {
                     <PopoverItem onClick={() => setVariablesOpen(!isVariablesOpen)}>
                       <VariableIcon className='h-3 w-3' />
-                      <span>Variables</span>
+                      <span>{t('menu.variables')}</span>
                     </PopoverItem>
                   }
                   {/* <PopoverItem>
@@ -418,14 +420,14 @@ export const Panel = memo(function Panel() {
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
                     <ArrowUp className='h-3 w-3' />
-                    <span>Export workflow</span>
+                    <span>{t('menu.export_workflow')}</span>
                   </PopoverItem>
                   <PopoverItem
                     onClick={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
                   >
                     <Copy className='h-3 w-3' animate={isDuplicating} />
-                    <span>Duplicate workflow</span>
+                    <span>{t('menu.duplicate_workflow')}</span>
                   </PopoverItem>
                   <PopoverItem
                     onClick={() => {
@@ -435,7 +437,7 @@ export const Panel = memo(function Panel() {
                     disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
                   >
                     <Trash className='h-3 w-3' />
-                    <span>Delete workflow</span>
+                    <span>{t('menu.delete_workflow')}</span>
                   </PopoverItem>
                 </PopoverContent>
               </Popover>
@@ -462,7 +464,7 @@ export const Panel = memo(function Panel() {
                 ) : (
                   <Play className='h-[11.5px] w-[11.5px]' />
                 )}
-                {isExecuting ? 'Stop' : 'Run'}
+                {isExecuting ? t('buttons.stop') : t('buttons.run')}
               </Button>
             </div>
           </div>
@@ -567,15 +569,17 @@ export const Panel = memo(function Panel() {
       {/* Delete Confirmation Modal */}
       <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Workflow</ModalHeader>
+          <ModalHeader>{t('modal.delete_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {currentWorkflow?.name ?? 'this workflow'}
-              </span>
-              ? This will permanently remove all associated blocks, executions, and configuration.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              {t.rich('messages.delete_confirmation', {
+                workflowName: () => (
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {currentWorkflow?.name ?? 'this workflow'}
+                  </span>
+                ),
+              })}{' '}
+              <span className='text-[var(--text-error)]'>{t('error_messages.cannot_undo')}</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -584,10 +588,10 @@ export const Panel = memo(function Panel() {
               onClick={() => setIsDeleteModalOpen(false)}
               disabled={isDeleting}
             >
-              Cancel
+              {t('buttons_modal.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDeleteWorkflow} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? t('buttons_modal.deleting') : t('buttons_modal.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

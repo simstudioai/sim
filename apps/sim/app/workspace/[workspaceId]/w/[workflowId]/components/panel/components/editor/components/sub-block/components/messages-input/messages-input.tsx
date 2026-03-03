@@ -21,6 +21,7 @@ import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workf
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useTranslations } from 'next-intl'
 
 const MIN_TEXTAREA_HEIGHT_PX = 80
 const MAX_TEXTAREA_HEIGHT_PX = 320
@@ -522,6 +523,8 @@ export function MessagesInput({
     }
   }, [currentMessages.length])
 
+  const t = useTranslations()
+
   return (
     <div className='flex w-full flex-col gap-[10px]'>
       {currentMessages.map((message, index) => (
@@ -680,7 +683,7 @@ export function MessagesInput({
                       textareaRefs.current[fieldId] = el
                     }}
                     className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
-                    placeholder='Enter message content...'
+                    placeholder={t('sub_blocks.messages_input.placeholder')}
                     value={message.content}
                     onChange={fieldHandlers.onChange}
                     onKeyDown={(e) => {

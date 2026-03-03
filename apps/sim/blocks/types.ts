@@ -199,6 +199,7 @@ export interface ParamConfig {
 
 export interface SubBlockConfig {
   id: string
+  hasTranslations?: boolean
   title?: string
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
@@ -343,6 +344,7 @@ export interface SubBlockConfig {
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   type: string
+  hasTranslations?: boolean
   name: string
   description: string
   category: BlockCategory

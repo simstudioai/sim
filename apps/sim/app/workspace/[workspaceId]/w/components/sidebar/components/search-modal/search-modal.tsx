@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Command } from 'cmdk'
 import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -75,6 +76,7 @@ export function SearchModal({
   workspaces = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
+  const t = useTranslations('workflows.search_modal')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -100,21 +102,21 @@ export function SearchModal({
       [
         {
           id: 'logs',
-          name: 'Logs',
+          name: t('labels.logs'),
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
           shortcut: '⌘⇧L',
         },
         {
           id: 'templates',
-          name: 'Templates',
+          name: t('labels.templates'),
           icon: Layout,
           href: `/workspace/${workspaceId}/templates`,
           hidden: permissionConfig.hideTemplates,
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge Base',
+          name: t('labels.knowledge_base'),
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
@@ -129,13 +131,13 @@ export function SearchModal({
         // },
         {
           id: 'help',
-          name: 'Help',
+          name: t('labels.help'),
           icon: HelpCircle,
           onClick: openHelpModal,
         },
         {
           id: 'settings',
-          name: 'Settings',
+          name: t('labels.settings'),
           icon: Settings,
           onClick: openSettingsModal,
         },
@@ -146,6 +148,7 @@ export function SearchModal({
       openSettingsModal,
       permissionConfig.hideTemplates,
       permissionConfig.hideKnowledgeBaseTab,
+      t,
     ]
   )
 
@@ -295,16 +298,16 @@ export function SearchModal({
             ref={inputRef}
             autoFocus
             onValueChange={handleSearchChange}
-            placeholder='Search anything...'
+            placeholder={t('placeholders.search')}
             className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
           />
           <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
             <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
-              No results found.
+              {t('messages.no_results')}
             </Command.Empty>
 
             {showBlocks && (
-              <Command.Group heading='Blocks' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.blocks')} className={groupHeadingClassName}>
                 {blocks.map((block) => (
                   <CommandItem
                     key={block.id}
@@ -321,7 +324,7 @@ export function SearchModal({
             )}
 
             {showTools && (
-              <Command.Group heading='Tools' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.tools')} className={groupHeadingClassName}>
                 {tools.map((tool) => (
                   <CommandItem
                     key={tool.id}
@@ -338,7 +341,7 @@ export function SearchModal({
             )}
 
             {showTriggers && (
-              <Command.Group heading='Triggers' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.triggers')} className={groupHeadingClassName}>
                 {triggers.map((trigger) => (
                   <CommandItem
                     key={trigger.id}
@@ -355,7 +358,7 @@ export function SearchModal({
             )}
 
             {workflows.length > 0 && (
-              <Command.Group heading='Workflows' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.workflows')} className={groupHeadingClassName}>
                 {workflows.map((workflow) => (
                   <Command.Item
                     key={workflow.id}
@@ -369,7 +372,7 @@ export function SearchModal({
                     />
                     <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workflow.name}
-                      {workflow.isCurrent && ' (current)'}
+                      {workflow.isCurrent && ` ${t('labels.current')}`}
                     </span>
                   </Command.Item>
                 ))}
@@ -377,7 +380,10 @@ export function SearchModal({
             )}
 
             {showToolOperations && (
-              <Command.Group heading='Tool Operations' className={groupHeadingClassName}>
+              <Command.Group
+                heading={t('groups.tool_operations')}
+                className={groupHeadingClassName}
+              >
                 {toolOperations.map((op) => (
                   <CommandItem
                     key={op.id}
@@ -394,7 +400,7 @@ export function SearchModal({
             )}
 
             {workspaces.length > 0 && (
-              <Command.Group heading='Workspaces' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.workspaces')} className={groupHeadingClassName}>
                 {workspaces.map((workspace) => (
                   <Command.Item
                     key={workspace.id}
@@ -404,7 +410,7 @@ export function SearchModal({
                   >
                     <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workspace.name}
-                      {workspace.isCurrent && ' (current)'}
+                      {workspace.isCurrent && ` ${t('labels.current')}`}
                     </span>
                   </Command.Item>
                 ))}
@@ -412,7 +418,7 @@ export function SearchModal({
             )}
 
             {showDocs && (
-              <Command.Group heading='Docs' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.docs')} className={groupHeadingClassName}>
                 {docs.map((doc) => (
                   <CommandItem
                     key={doc.id}
@@ -429,7 +435,7 @@ export function SearchModal({
             )}
 
             {pages.length > 0 && (
-              <Command.Group heading='Pages' className={groupHeadingClassName}>
+              <Command.Group heading={t('groups.pages')} className={groupHeadingClassName}>
                 {pages.map((page) => {
                   const Icon = page.icon
                   return (

@@ -50,6 +50,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -826,6 +827,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   selected,
 }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isPending } = data
+  const t = useTranslations()
 
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -984,6 +986,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     })
 
     visibleSubBlocks.forEach((block) => {
+      const titleKey = `sub_blocks.${block.type.replace(/-/g, '_')}.title` as any
+      const placeholderKey = `sub_blocks.${block.type.replace(/-/g, '_')}.placeholder` as any
+      const title = t.has(titleKey) ? t(titleKey) : block.title
+      const placeholder = t.has(placeholderKey) ? t(placeholderKey) : block.placeholder
+      block.title = title
+      block.placeholder = placeholder
+
       if (currentRowWidth + blockWidth > 1) {
         if (currentRow.length > 0) {
           rows.push([...currentRow])
@@ -1214,7 +1223,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       >
         {isPending && (
           <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
-            Next Step
+            {t('blocks.next_step')}
           </div>
         )}
 
@@ -1284,22 +1293,30 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                         }
                       }}
                     >
-                      {isDeploying ? 'Deploying...' : !childIsDeployed ? 'undeployed' : 'redeploy'}
+                      {isDeploying
+                        ? t('blocks.workflow_block.badges.deploying')
+                        : !childIsDeployed
+                          ? t('blocks.workflow_block.badges.undeployed')
+                          : t('blocks.workflow_block.badges.redeploy')}
                     </Badge>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span className='text-sm'>
                       {!userPermissions.canAdmin
-                        ? 'Admin permission required to deploy'
+                        ? t('blocks.workflow_block.tooltips.admin_required')
                         : !childIsDeployed
-                          ? 'Click to deploy'
-                          : 'Click to redeploy'}
+                          ? t('blocks.workflow_block.tooltips.click_deploy')
+                          : t('blocks.workflow_block.tooltips.click_redeploy')}
                     </span>
                   </Tooltip.Content>
                 </Tooltip.Root>
               )}
-            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
-            {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
+            {!isEnabled && (
+              <Badge variant='gray-secondary'>{t('blocks.workflow_block.badges.disabled')}</Badge>
+            )}
+            {isLocked && (
+              <Badge variant='gray-secondary'>{t('blocks.workflow_block.badges.locked')}</Badge>
+            )}
 
             {type === 'schedule' && shouldShowScheduleBadge && scheduleInfo?.isDisabled && (
               <Tooltip.Root>
@@ -1315,11 +1332,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       }
                     }}
                   >
-                    disabled
+                    {t('blocks.workflow_block.badges.disabled')}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
+                  <span className='text-sm'>
+                    {t('blocks.workflow_block.tooltips.click_reactivate')}
+                  </span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -1328,18 +1347,23 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Badge variant='orange' dot>
-                    Webhook
+                    {t('blocks.workflow_block.badges.webhook')}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top' className='max-w-[300px]'>
                   {webhookProvider && webhookPath ? (
                     <>
-                      <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>
-                      <p className='mt-1 text-muted-foreground text-xs'>Path: {webhookPath}</p>
+                      <p className='text-sm'>
+                        {getProviderName(webhookProvider)}{' '}
+                        {t('blocks.workflow_block.badges.webhook')}
+                      </p>
+                      <p className='mt-1 text-muted-foreground text-xs'>
+                        {t('blocks.workflow_block.labels.path')}: {webhookPath}
+                      </p>
                     </>
                   ) : (
                     <p className='text-muted-foreground text-sm'>
-                      This workflow is triggered by a webhook.
+                      {t('blocks.workflow_block.tooltips.webhook_trigger')}
                     </p>
                   )}
                 </Tooltip.Content>
@@ -1358,11 +1382,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                       reactivateWebhook(webhookId)
                     }}
                   >
-                    disabled
+                    {t('blocks.workflow_block.badges.disabled')}
                   </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span className='text-sm'>Click to reactivate</span>
+                  <span className='text-sm'>
+                    {t('blocks.workflow_block.tooltips.click_reactivate')}
+                  </span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -1387,13 +1413,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               <>
                 <SubBlockRow
                   key='context'
-                  title='Context'
+                  title={t('blocks.workflow_block.labels.context')}
                   value={getDisplayValue(subBlockState.context?.value)}
                 />
                 {routerRows.map((route, index) => (
                   <SubBlockRow
                     key={route.id}
-                    title={`Route ${index + 1}`}
+                    title={t('blocks.workflow_block.labels.route', { number: index + 1 })}
                     value={getDisplayValue(route.value)}
                   />
                 ))}
@@ -1402,6 +1428,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               subBlockRows.map((row, rowIndex) =>
                 row.map((subBlock) => {
                   const rawValue = subBlockState[subBlock.id]?.value
+
                   return (
                     <SubBlockRow
                       key={`${subBlock.id}-${rowIndex}`}
@@ -1421,7 +1448,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 })
               )
             )}
-            {shouldShowDefaultHandles && <SubBlockRow title='error' />}
+            {shouldShowDefaultHandles && (
+              <SubBlockRow title={t('blocks.workflow_block.labels.error')} />
+            )}
           </div>
         )}
 

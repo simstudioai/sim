@@ -1,4 +1,7 @@
+'use client'
+
 import { useEffect, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
@@ -36,6 +39,7 @@ export function Table({
   previewValue,
   disabled = false,
 }: TableProps) {
+  const t = useTranslations('sub_block_panel.table')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<WorkflowTableRow[]>(blockId, subBlockId)
@@ -306,6 +310,7 @@ export function Table({
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
+          aria-label={t('aria_labels.delete_row')}
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
