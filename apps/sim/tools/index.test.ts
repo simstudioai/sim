@@ -13,9 +13,9 @@ import {
   type ExecutionContext,
   type MockFetchResponse,
 } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import * as securityValidation from '@/lib/core/security/input-validation.server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mock state - these are available to vi.mock factories
 const { mockIsHosted, mockEnv, mockGetBYOKKey, mockLogFixedUsage, mockRateLimiterFns } = vi.hoisted(
