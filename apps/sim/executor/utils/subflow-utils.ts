@@ -1,10 +1,7 @@
-import { createLogger } from '@sim/logger'
-import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
+import { LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
-
-const logger = createLogger('SubflowUtils')
 
 const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
 const BRANCH_INDEX_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
@@ -85,19 +82,11 @@ export function extractBaseBlockId(branchNodeId: string): string {
 
 export function extractBranchIndex(branchNodeId: string): number | null {
   const match = branchNodeId.match(BRANCH_INDEX_PATTERN)
-  return match ? Number.parseInt(match[1], PARSING.JSON_RADIX) : null
+  return match ? Number.parseInt(match[1], 10) : null
 }
 
 export function isBranchNodeId(nodeId: string): boolean {
   return BRANCH_PATTERN.test(nodeId)
-}
-
-export function isLoopNode(nodeId: string): boolean {
-  return isLoopSentinelNodeId(nodeId) || nodeId.startsWith(LOOP.SENTINEL.PREFIX)
-}
-
-export function isParallelNode(nodeId: string): boolean {
-  return isBranchNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
 }
 
 const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
@@ -110,7 +99,7 @@ const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
  */
 export function extractOuterBranchIndex(clonedId: string): number | undefined {
   const match = clonedId.match(OUTER_BRANCH_PATTERN)
-  return match ? Number.parseInt(match[1], PARSING.JSON_RADIX) : undefined
+  return match ? Number.parseInt(match[1], 10) : undefined
 }
 
 /**
@@ -157,10 +146,7 @@ export function findEffectiveContainerId(
   // and cloned variants coexist in the map; the clone is the correct scope.
   const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
   if (match) {
-    const candidateId = buildClonedSubflowId(
-      originalId,
-      Number.parseInt(match[1], PARSING.JSON_RADIX)
-    )
+    const candidateId = buildClonedSubflowId(originalId, Number.parseInt(match[1], 10))
     if (executionMap.has(candidateId)) {
       return candidateId
     }

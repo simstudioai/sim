@@ -126,14 +126,6 @@ export function isEventFromEditableElement(e: KeyboardEvent): boolean {
 }
 
 /**
- * Checks if a block type is a subflow (loop or parallel)
- */
-export function isSubflowBlockType(blockType: string): boolean {
-  const lower = blockType?.toLowerCase() || ''
-  return lower === 'loop' || lower === 'parallel'
-}
-
-/**
  * Node type for the tree structure
  */
 export type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'

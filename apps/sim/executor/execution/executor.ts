@@ -71,24 +71,7 @@ export class DAGExecutor {
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
-    loopOrchestrator.setContextExtensions(this.contextExtensions)
-    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-    parallelOrchestrator.setResolver(resolver)
-    parallelOrchestrator.setContextExtensions(this.contextExtensions)
-    const allHandlers = createBlockHandlers()
-    const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
-    const edgeManager = new EdgeManager(dag)
-    loopOrchestrator.setEdgeManager(edgeManager)
-    const nodeOrchestrator = new NodeExecutionOrchestrator(
-      dag,
-      state,
-      blockExecutor,
-      loopOrchestrator,
-      parallelOrchestrator
-    )
-    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+    const engine = this.buildExecutionPipeline(context, dag, state)
     return await engine.run(triggerBlockId)
   }
 
@@ -213,16 +196,28 @@ export class DAGExecutor {
     })
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
+    const engine = this.buildExecutionPipeline(context, dag, state)
+    return await engine.run()
+  }
+
+  private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
-    loopOrchestrator.setContextExtensions(this.contextExtensions)
-    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-    parallelOrchestrator.setResolver(resolver)
-    parallelOrchestrator.setContextExtensions(this.contextExtensions)
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)
-    loopOrchestrator.setEdgeManager(edgeManager)
+    const loopOrchestrator = new LoopOrchestrator(
+      dag,
+      state,
+      resolver,
+      this.contextExtensions,
+      edgeManager
+    )
+    const parallelOrchestrator = new ParallelOrchestrator(
+      dag,
+      state,
+      resolver,
+      this.contextExtensions
+    )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
@@ -230,9 +225,7 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
-
-    return await engine.run()
+    return new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
   }
 
   private createExecutionContext(

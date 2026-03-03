@@ -42,22 +42,13 @@ export interface LoopContinuationResult {
 }
 
 export class LoopOrchestrator {
-  private edgeManager: EdgeManager | null = null
-  private contextExtensions: ContextExtensions | null = null
-
   constructor(
     private dag: DAG,
     private state: BlockStateController,
-    private resolver: VariableResolver
+    private resolver: VariableResolver,
+    private contextExtensions: ContextExtensions | null = null,
+    private edgeManager: EdgeManager | null = null
   ) {}
-
-  setContextExtensions(contextExtensions: ContextExtensions): void {
-    this.contextExtensions = contextExtensions
-  }
-
-  setEdgeManager(edgeManager: EdgeManager): void {
-    this.edgeManager = edgeManager
-  }
 
   initializeLoopScope(ctx: ExecutionContext, loopId: string): LoopScope {
     const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
@@ -103,7 +94,7 @@ export class LoopOrchestrator {
         scope.loopType = 'forEach'
         let items: any[]
         try {
-          items = this.resolveForEachItems(ctx, loopConfig.forEachItems)
+          items = resolveArrayInput(ctx, loopConfig.forEachItems, this.resolver)
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${error instanceof Error ? error.message : String(error)}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
@@ -359,9 +350,8 @@ export class LoopOrchestrator {
     for (const nodeId of loopConfig.nodes) {
       if (this.dag.loopConfigs.has(nodeId)) {
         ctx.loopExecutions?.delete(nodeId)
-        // Delete cloned loop variants (e.g., inner-loop__obranch-N)
-        // Only delete clone entries from subflowParentMap, never the original
-        // structural entries which are needed for SSE iteration context.
+        // Delete cloned loop variants (e.g., inner-loop__obranch-N) but not original
+        // subflowParentMap entries which are needed for SSE iteration context.
         if (ctx.loopExecutions) {
           const prefix = `${nodeId}__obranch-`
           for (const key of ctx.loopExecutions.keys()) {
@@ -400,11 +390,7 @@ export class LoopOrchestrator {
    */
   private deleteParallelScopeAndClones(parallelId: string, ctx: ExecutionContext): void {
     ctx.parallelExecutions?.delete(parallelId)
-    // Do NOT delete the original entry from subflowParentMap — it is a static
-    // structural mapping needed for SSE iteration context on subsequent loop
-    // iterations. Only delete __obranch-N clone entries below.
-
-    // Delete any cloned scopes (e.g., inner-parallel__obranch-1)
+    // Delete cloned scopes (__obranch-N) but not original subflowParentMap entries
     if (ctx.parallelExecutions) {
       const prefix = `${parallelId}__obranch-`
       for (const key of ctx.parallelExecutions.keys()) {
@@ -415,7 +401,6 @@ export class LoopOrchestrator {
       }
     }
 
-    // Recurse into nested subflows within this parallel
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
     if (parallelConfig?.nodes) {
       for (const nodeId of parallelConfig.nodes) {
@@ -483,17 +468,14 @@ export class LoopOrchestrator {
         for (const id of this.collectAllLoopNodeIds(nodeId, visited)) {
           result.add(id)
         }
-        // Also collect cloned loop variants (e.g., loop-1__obranch-N)
         this.collectClonedSubflowNodes(nodeId, result, visited)
       } else if (this.dag.parallelConfigs.has(nodeId)) {
         for (const id of this.collectAllParallelNodeIds(nodeId, visited)) {
           result.add(id)
         }
-        // Also collect cloned parallel variants
         this.collectClonedSubflowNodes(nodeId, result, visited)
       } else {
         result.add(nodeId)
-        // Collect ALL dynamic branch nodes (not just branch 0)
         this.collectAllBranchNodes(nodeId, result)
       }
     }
@@ -605,23 +587,19 @@ export class LoopOrchestrator {
       return true
     }
 
-    // for: skip if maxIterations is 0
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
-        // Set empty output for the loop
         this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
         return false
       }
       return true
     }
 
-    // doWhile: always execute at least once
     if (scope.loopType === 'doWhile') {
       return true
     }
 
-    // while: check condition before first iteration
     if (scope.loopType === 'while') {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
@@ -638,10 +616,6 @@ export class LoopOrchestrator {
       return result
     }
 
-    return true
-  }
-
-  shouldExecuteLoopNode(_ctx: ExecutionContext, _nodeId: string, _loopId: string): boolean {
     return true
   }
 
@@ -663,10 +637,9 @@ export class LoopOrchestrator {
 
       const evaluatedCondition = replaceValidReferences(condition, (match) => {
         const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
-        logger.info('Resolved variable reference in loop condition', {
+        logger.debug('Resolved variable reference in loop condition', {
           reference: match,
           resolvedValue: resolved,
-          resolvedType: typeof resolved,
         })
         if (resolved !== undefined) {
           if (typeof resolved === 'boolean' || typeof resolved === 'number') {
@@ -720,9 +693,5 @@ export class LoopOrchestrator {
       logger.error('Failed to evaluate loop condition', { condition, error })
       return false
     }
-  }
-
-  private resolveForEachItems(ctx: ExecutionContext, items: any): any[] {
-    return resolveArrayInput(ctx, items, this.resolver)
   }
 }

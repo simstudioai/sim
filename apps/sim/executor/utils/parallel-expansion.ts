@@ -10,6 +10,7 @@ import {
   buildSentinelEndId,
   buildSentinelStartId,
   extractBaseBlockId,
+  isLoopSentinelNodeId,
 } from './subflow-utils'
 
 const logger = createLogger('ParallelExpansion')
@@ -99,11 +100,7 @@ export class ParallelExpander {
 
     // Clone nested subflow graphs per outer branch so each branch runs independently.
     // Branch 0 uses the original sentinel/template nodes; branches 1..N get full clones.
-    const clonedSubflows: Array<{
-      clonedId: string
-      originalId: string
-      outerBranchIndex: number
-    }> = []
+    const clonedSubflows: ClonedSubflowInfo[] = []
 
     for (const subflowId of nestedSubflows) {
       const isParallel = dag.parallelConfigs.has(subflowId)
@@ -443,10 +440,11 @@ export class ParallelExpander {
       const terminalNode = dag.nodes.get(terminalNodeId)
       if (!terminalNode) continue
 
-      const edgeId = `${terminalNodeId}→${sentinelEndId}-${EDGE.PARALLEL_EXIT}`
+      const handle = isLoopSentinelNodeId(terminalNodeId) ? EDGE.LOOP_EXIT : EDGE.PARALLEL_EXIT
+      const edgeId = `${terminalNodeId}→${sentinelEndId}-${handle}`
       terminalNode.outgoingEdges.set(edgeId, {
         target: sentinelEndId,
-        sourceHandle: EDGE.PARALLEL_EXIT,
+        sourceHandle: handle,
       })
       sentinelEnd.incomingEdges.add(terminalNodeId)
     }

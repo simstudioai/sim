@@ -1574,5 +1574,123 @@ describe('EdgeConstructor', () => {
         Array.from(funcNode.outgoingEdges.values()).some((e) => e.target === parallelSentinelEnd)
       ).toBe(true)
     })
+
+    it('should wire loop-in-parallel with correct exit handles', () => {
+      const outerParallelId = 'outer-parallel'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+
+      const outerSentinelStart = `parallel-${outerParallelId}-sentinel-start`
+      const outerSentinelEnd = `parallel-${outerParallelId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const dag = createMockDAG([
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+        functionId,
+      ])
+
+      dag.nodes.get(outerSentinelStart)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'start',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(outerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'end',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(innerSentinelStart)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        loopId: innerLoopId,
+      }
+      dag.nodes.get(innerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        loopId: innerLoopId,
+      }
+
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [functionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+      dag.parallelConfigs.set(outerParallelId, {
+        id: outerParallelId,
+        nodes: [innerLoopId],
+        count: 2,
+        parallelType: 'count',
+      })
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(functionId), createMockBlock(innerLoopId, 'loop')],
+        [
+          {
+            source: outerParallelId,
+            target: innerLoopId,
+            sourceHandle: 'parallel-start-source',
+          },
+          {
+            source: innerLoopId,
+            target: functionId,
+            sourceHandle: 'loop-start-source',
+          },
+        ],
+        { [innerLoopId]: innerLoop }
+      )
+
+      const edgeConstructor = new EdgeConstructor()
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set([innerLoopId]),
+        new Set([functionId]),
+        new Set([outerParallelId, innerLoopId, functionId]),
+        new Map()
+      )
+
+      // Outer sentinel-start → inner loop sentinel-start
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const edgeToInnerStart = Array.from(outerStartNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(edgeToInnerStart).toBeDefined()
+
+      // Inner loop sentinel-end → outer parallel sentinel-end with loop_exit handle
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const edgeToOuterEnd = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelEnd
+      )
+      expect(edgeToOuterEnd).toBeDefined()
+      expect(edgeToOuterEnd!.sourceHandle).toBe('loop_exit')
+
+      // Inner loop back-edge: sentinel-end → sentinel-start with loop_continue handle
+      const backEdge = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(backEdge).toBeDefined()
+      expect(backEdge!.sourceHandle).toBe('loop_continue')
+
+      // Inner loop wiring: sentinel-start → function
+      const innerStartNode = dag.nodes.get(innerSentinelStart)!
+      expect(
+        Array.from(innerStartNode.outgoingEdges.values()).some((e) => e.target === functionId)
+      ).toBe(true)
+
+      // Function → inner loop sentinel-end
+      const funcNode = dag.nodes.get(functionId)!
+      expect(
+        Array.from(funcNode.outgoingEdges.values()).some((e) => e.target === innerSentinelEnd)
+      ).toBe(true)
+    })
   })
 })

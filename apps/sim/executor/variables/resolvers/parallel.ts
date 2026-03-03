@@ -12,7 +12,7 @@ import {
   type ResolutionContext,
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedParallel, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ParallelResolver')
 
@@ -81,7 +81,6 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    // For named references, verify the current node is inside the referenced parallel
     if (!isGenericRef) {
       if (!this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)) {
         logger.warn('Block is not inside the referenced parallel', {
@@ -101,19 +100,13 @@ export class ParallelResolver implements Resolver {
     const parallelScope = context.executionContext.parallelExecutions?.get(targetParallelId)
     const distributionItems = parallelScope?.items ?? this.getDistributionItems(parallelConfig)
 
+    const currentItem = this.resolveCurrentItem(distributionItems, branchIndex)
+
     if (rest.length === 0) {
-      const result: Record<string, any> = {
-        index: branchIndex,
-      }
+      const result: Record<string, any> = { index: branchIndex }
       if (distributionItems !== undefined) {
         result.items = distributionItems
-        if (Array.isArray(distributionItems)) {
-          result.currentItem = distributionItems[branchIndex]
-        } else if (typeof distributionItems === 'object' && distributionItems !== null) {
-          const keys = Object.keys(distributionItems)
-          const key = keys[branchIndex]
-          result.currentItem = key !== undefined ? distributionItems[key] : undefined
-        }
+        result.currentItem = currentItem
       }
       return result
     }
@@ -127,21 +120,14 @@ export class ParallelResolver implements Resolver {
       throw new InvalidFieldError(firstPart, property, availableFields)
     }
 
-    let value: any
+    let value: unknown
     switch (property) {
       case 'index':
         value = branchIndex
         break
       case 'currentItem':
-        if (Array.isArray(distributionItems)) {
-          value = distributionItems[branchIndex]
-        } else if (typeof distributionItems === 'object' && distributionItems !== null) {
-          const keys = Object.keys(distributionItems)
-          const key = keys[branchIndex]
-          value = key !== undefined ? distributionItems[key] : undefined
-        } else {
-          return undefined
-        }
+        value = currentItem
+        if (value === undefined) return undefined
         break
       case 'items':
         value = distributionItems
@@ -166,7 +152,6 @@ export class ParallelResolver implements Resolver {
     if (candidateIds.length === 0) return undefined
     if (candidateIds.length === 1) return candidateIds[0]
 
-    // Return the innermost: the parallel that is not an ancestor of any other candidate
     return (
       candidateIds.find((candidateId) =>
         candidateIds.every(
@@ -186,7 +171,6 @@ export class ParallelResolver implements Resolver {
 
     if (targetConfig.nodes.includes(baseId)) return true
 
-    // Check nested parallels recursively
     const directParallelId = this.findInnermostParallelForBlock(blockId)
     if (!directParallelId) return false
     if (directParallelId === targetParallelId) return true
@@ -217,8 +201,23 @@ export class ParallelResolver implements Resolver {
     return false
   }
 
-  private getDistributionItems(parallelConfig: any): any[] {
-    const rawItems = parallelConfig.distributionItems || parallelConfig.distribution || []
+  private resolveCurrentItem(
+    distributionItems: unknown[] | undefined,
+    branchIndex: number
+  ): unknown {
+    if (Array.isArray(distributionItems)) {
+      return distributionItems[branchIndex]
+    }
+    if (typeof distributionItems === 'object' && distributionItems !== null) {
+      const keys = Object.keys(distributionItems)
+      const key = keys[branchIndex]
+      return key !== undefined ? (distributionItems as Record<string, unknown>)[key] : undefined
+    }
+    return undefined
+  }
+
+  private getDistributionItems(parallelConfig: SerializedParallel): unknown[] {
+    const rawItems = parallelConfig.distribution ?? []
 
     // Already an array - return as-is
     if (Array.isArray(rawItems)) {

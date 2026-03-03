@@ -37,22 +37,14 @@ export interface ParallelAggregationResult {
 }
 
 export class ParallelOrchestrator {
-  private resolver: VariableResolver | null = null
-  private contextExtensions: ContextExtensions | null = null
   private expander = new ParallelExpander()
 
   constructor(
     private dag: DAG,
-    private state: BlockStateWriter
+    private state: BlockStateWriter,
+    private resolver: VariableResolver | null = null,
+    private contextExtensions: ContextExtensions | null = null
   ) {}
-
-  setResolver(resolver: VariableResolver): void {
-    this.resolver = resolver
-  }
-
-  setContextExtensions(contextExtensions: ContextExtensions): void {
-    this.contextExtensions = contextExtensions
-  }
 
   initializeParallelScope(
     ctx: ExecutionContext,
@@ -98,7 +90,6 @@ export class ParallelOrchestrator {
       throw new Error(branchError)
     }
 
-    // Handle empty distribution - skip parallel body
     if (isEmpty || branchCount === 0) {
       const scope: ParallelScope = {
         parallelId,
@@ -115,7 +106,6 @@ export class ParallelOrchestrator {
       }
       ctx.parallelExecutions.set(parallelId, scope)
 
-      // Set empty output for the parallel
       this.state.setBlockOutput(parallelId, { results: [] })
 
       logger.info('Parallel scope initialized with empty distribution, skipping body', {
@@ -226,10 +216,6 @@ export class ParallelOrchestrator {
   }
 
   private resolveDistributionItems(ctx: ExecutionContext, config: SerializedParallel): any[] {
-    if (config.parallelType === 'count') {
-      return []
-    }
-
     if (
       config.distribution === undefined ||
       config.distribution === null ||
