@@ -604,6 +604,11 @@ export class EdgeConstructor {
       if (endNode) {
         let hasOutgoingToParallel = false
         for (const [, edge] of endNode.outgoingEdges) {
+          // Skip loop back-edges — they don't count as forward edges within the parallel
+          const isBackEdge =
+            edge.sourceHandle === EDGE.LOOP_CONTINUE || edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
+          if (isBackEdge) continue
+
           const originalTargetId = normalizeNodeId(edge.target)
           if (nodesSet.has(originalTargetId)) {
             hasOutgoingToParallel = true
