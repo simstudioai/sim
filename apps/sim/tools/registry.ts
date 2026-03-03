@@ -749,14 +749,6 @@ import {
 } from '@/tools/google_contacts'
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
 import {
-  googleMeetCreateSpaceTool,
-  googleMeetEndConferenceTool,
-  googleMeetGetConferenceRecordTool,
-  googleMeetGetSpaceTool,
-  googleMeetListConferenceRecordsTool,
-  googleMeetListParticipantsTool,
-} from '@/tools/google_meet'
-import {
   googleDriveCopyTool,
   googleDriveCreateFolderTool,
   googleDriveDeleteTool,
@@ -819,6 +811,14 @@ import {
   googleMapsTimezoneTool,
   googleMapsValidateAddressTool,
 } from '@/tools/google_maps'
+import {
+  googleMeetCreateSpaceTool,
+  googleMeetEndConferenceTool,
+  googleMeetGetConferenceRecordTool,
+  googleMeetGetSpaceTool,
+  googleMeetListConferenceRecordsTool,
+  googleMeetListParticipantsTool,
+} from '@/tools/google_meet'
 import { googlePagespeedAnalyzeTool } from '@/tools/google_pagespeed'
 import {
   googleSheetsAppendTool,

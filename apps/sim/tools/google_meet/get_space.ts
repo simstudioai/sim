@@ -1,8 +1,8 @@
 import {
-  MEET_API_BASE,
   type GoogleMeetApiSpaceResponse,
   type GoogleMeetGetSpaceParams,
   type GoogleMeetGetSpaceResponse,
+  MEET_API_BASE,
 } from '@/tools/google_meet/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -35,9 +35,7 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
   request: {
     url: (params: GoogleMeetGetSpaceParams) => {
       const trimmed = params.spaceName.trim()
-      const name = trimmed.startsWith('spaces/')
-        ? trimmed
-        : `spaces/${trimmed}`
+      const name = trimmed.startsWith('spaces/') ? trimmed : `spaces/${trimmed}`
       return `${MEET_API_BASE}/${name}`
     },
     method: 'GET',
@@ -71,7 +69,15 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
     meetingUri: { type: 'string', description: 'Meeting URL' },
     meetingCode: { type: 'string', description: 'Meeting code' },
     accessType: { type: 'string', description: 'Access type configuration', optional: true },
-    entryPointAccess: { type: 'string', description: 'Entry point access configuration', optional: true },
-    activeConference: { type: 'string', description: 'Active conference record name', optional: true },
+    entryPointAccess: {
+      type: 'string',
+      description: 'Entry point access configuration',
+      optional: true,
+    },
+    activeConference: {
+      type: 'string',
+      description: 'Active conference record name',
+      optional: true,
+    },
   },
 }

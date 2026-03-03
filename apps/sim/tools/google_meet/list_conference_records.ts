@@ -1,8 +1,8 @@
 import {
-  MEET_API_BASE,
   type GoogleMeetApiConferenceRecordListResponse,
   type GoogleMeetListConferenceRecordsParams,
   type GoogleMeetListConferenceRecordsResponse,
+  MEET_API_BASE,
 } from '@/tools/google_meet/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,6 +92,10 @@ export const listConferenceRecordsTool: ToolConfig<
       type: 'json',
       description: 'List of conference records with name, start/end times, and space',
     },
-    nextPageToken: { type: 'string', description: 'Token for next page of results', optional: true },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for next page of results',
+      optional: true,
+    },
   },
 }

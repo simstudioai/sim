@@ -1,9 +1,9 @@
 import {
-  MEET_API_BASE,
   type GoogleMeetApiParticipantListResponse,
   type GoogleMeetApiParticipantResponse,
   type GoogleMeetListParticipantsParams,
   type GoogleMeetListParticipantsResponse,
+  MEET_API_BASE,
 } from '@/tools/google_meet/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -85,7 +85,10 @@ export const listParticipantsTool: ToolConfig<
 
     const getDisplayName = (p: GoogleMeetApiParticipantResponse): string | null => {
       return (
-        p.signedinUser?.displayName ?? p.anonymousUser?.displayName ?? p.phoneUser?.displayName ?? null
+        p.signedinUser?.displayName ??
+        p.anonymousUser?.displayName ??
+        p.phoneUser?.displayName ??
+        null
       )
     }
 
@@ -117,7 +120,11 @@ export const listParticipantsTool: ToolConfig<
       type: 'json',
       description: 'List of participants with name, times, display name, and user type',
     },
-    nextPageToken: { type: 'string', description: 'Token for next page of results', optional: true },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for next page of results',
+      optional: true,
+    },
     totalSize: { type: 'number', description: 'Total number of participants', optional: true },
   },
 }

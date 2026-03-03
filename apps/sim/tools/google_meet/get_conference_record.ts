@@ -1,8 +1,8 @@
 import {
-  MEET_API_BASE,
   type GoogleMeetApiConferenceRecordResponse,
   type GoogleMeetGetConferenceRecordParams,
   type GoogleMeetGetConferenceRecordResponse,
+  MEET_API_BASE,
 } from '@/tools/google_meet/types'
 import type { ToolConfig } from '@/tools/types'
 

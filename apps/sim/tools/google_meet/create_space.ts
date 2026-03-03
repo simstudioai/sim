@@ -1,8 +1,8 @@
 import {
-  MEET_API_BASE,
   type GoogleMeetApiSpaceResponse,
   type GoogleMeetCreateSpaceParams,
   type GoogleMeetCreateSpaceResponse,
+  MEET_API_BASE,
 } from '@/tools/google_meet/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,7 +38,8 @@ export const createSpaceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Entry points allowed: ALL (all entry points) or CREATOR_APP_ONLY (only via app)',
+      description:
+        'Entry points allowed: ALL (all entry points) or CREATOR_APP_ONLY (only via app)',
     },
   },
 
@@ -84,9 +85,16 @@ export const createSpaceTool: ToolConfig<
 
   outputs: {
     name: { type: 'string', description: 'Resource name of the space (e.g., spaces/abc123)' },
-    meetingUri: { type: 'string', description: 'Meeting URL (e.g., https://meet.google.com/abc-defg-hij)' },
+    meetingUri: {
+      type: 'string',
+      description: 'Meeting URL (e.g., https://meet.google.com/abc-defg-hij)',
+    },
     meetingCode: { type: 'string', description: 'Meeting code (e.g., abc-defg-hij)' },
     accessType: { type: 'string', description: 'Access type configuration', optional: true },
-    entryPointAccess: { type: 'string', description: 'Entry point access configuration', optional: true },
+    entryPointAccess: {
+      type: 'string',
+      description: 'Entry point access configuration',
+      optional: true,
+    },
   },
 }
