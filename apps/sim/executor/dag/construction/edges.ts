@@ -421,20 +421,35 @@ export class EdgeConstructor {
       return false
     }
 
-    let sourceLoopId: string | undefined
-    let targetLoopId: string | undefined
-
-    for (const [loopId, loopConfig] of dag.loopConfigs) {
-      if (loopConfig.nodes.includes(source)) {
-        sourceLoopId = loopId
-      }
-
-      if (loopConfig.nodes.includes(target)) {
-        targetLoopId = loopId
-      }
-    }
+    // Find the innermost loop for each block. In nested loops a block appears
+    // in multiple loop configs; we need the most deeply nested one.
+    const sourceLoopId = this.findInnermostLoop(source, dag)
+    const targetLoopId = this.findInnermostLoop(target, dag)
 
     return sourceLoopId !== targetLoopId
+  }
+
+  /**
+   * Finds the innermost loop containing a block. When a block is in nested
+   * loops (A contains B, both list the block), returns B (the one that
+   * doesn't contain any other candidate loop).
+   */
+  private findInnermostLoop(blockId: string, dag: DAG): string | undefined {
+    const candidates: string[] = []
+    for (const [loopId, loopConfig] of dag.loopConfigs) {
+      if (loopConfig.nodes.includes(blockId)) {
+        candidates.push(loopId)
+      }
+    }
+    if (candidates.length <= 1) return candidates[0]
+
+    return candidates.find((candidateId) =>
+      candidates.every((otherId) => {
+        if (otherId === candidateId) return true
+        const candidateConfig = dag.loopConfigs.get(candidateId)
+        return !candidateConfig?.nodes.includes(otherId)
+      })
+    )
   }
 
   private isEdgeReachable(

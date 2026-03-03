@@ -152,12 +152,12 @@ export class ParallelResolver implements Resolver {
     if (candidateIds.length === 0) return undefined
     if (candidateIds.length === 1) return candidateIds[0]
 
-    return (
-      candidateIds.find((candidateId) =>
-        candidateIds.every(
-          (otherId) => otherId === candidateId || !parallels[candidateId]?.nodes.includes(otherId)
-        )
-      ) ?? candidateIds[0]
+    // Return the innermost: the parallel that is not an ancestor of any other candidate.
+    // In a valid DAG, exactly one candidate will satisfy this (circular containment is impossible).
+    return candidateIds.find((candidateId) =>
+      candidateIds.every(
+        (otherId) => otherId === candidateId || !parallels[candidateId]?.nodes.includes(otherId)
+      )
     )
   }
 

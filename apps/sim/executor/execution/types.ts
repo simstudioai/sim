@@ -93,6 +93,7 @@ export interface WorkflowNodeMetadata
     'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
   > {
   nodeId: string
+  executionOrder?: number
 }
 
 export interface ChildWorkflowContext {

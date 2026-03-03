@@ -263,8 +263,11 @@ export class ParallelOrchestrator {
 
     const results: NormalizedBlockOutput[][] = []
     for (let i = 0; i < scope.totalBranches; i++) {
-      const branchOutputs = scope.branchOutputs.get(i) || []
-      results.push(branchOutputs)
+      const branchOutputs = scope.branchOutputs.get(i)
+      if (!branchOutputs) {
+        logger.warn('Missing branch output during parallel aggregation', { parallelId, branch: i })
+      }
+      results.push(branchOutputs ?? [])
     }
     const output = { results }
     this.state.setBlockOutput(parallelId, output)

@@ -175,13 +175,12 @@ export class LoopResolver implements Resolver {
     if (candidateLoopIds.length === 0) return undefined
     if (candidateLoopIds.length === 1) return candidateLoopIds[0]
 
-    // Return the innermost: the loop that is not an ancestor of any other candidate
-    return (
-      candidateLoopIds.find((candidateId) =>
-        candidateLoopIds.every(
-          (otherId) => otherId === candidateId || !loops[candidateId].nodes.includes(otherId)
-        )
-      ) ?? candidateLoopIds[0]
+    // Return the innermost: the loop that is not an ancestor of any other candidate.
+    // In a valid DAG, exactly one candidate will satisfy this (circular containment is impossible).
+    return candidateLoopIds.find((candidateId) =>
+      candidateLoopIds.every(
+        (otherId) => otherId === candidateId || !loops[candidateId].nodes.includes(otherId)
+      )
     )
   }
 

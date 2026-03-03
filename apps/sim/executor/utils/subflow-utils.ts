@@ -152,20 +152,8 @@ export function findEffectiveContainerId(
     }
   }
 
-  // Use the original ID if it exists (non-cloned or branch-0 case)
-  if (executionMap.has(originalId)) {
-    return originalId
-  }
-
-  // Fallback: scan execution map for a cloned variant
-  const prefix = `${originalId}__obranch-`
-  for (const key of executionMap.keys()) {
-    if (key.startsWith(prefix)) {
-      return key
-    }
-  }
-
-  // No clone found — return original (caller handles missing scope)
+  // Return original ID — for branch-0 (non-cloned) or when scope is missing.
+  // Callers handle the missing-scope case gracefully.
   return originalId
 }
 

@@ -1719,7 +1719,6 @@ const WorkflowContent = React.memo(() => {
         const containerInfo = isPointInLoopNode(position)
 
         clearDragHighlights()
-        document.body.classList.remove('sim-drag-subflow')
 
         if (data.type === 'loop' || data.type === 'parallel') {
           const id = crypto.randomUUID()
