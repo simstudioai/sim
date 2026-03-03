@@ -55,7 +55,16 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
   tools: {
     access: ['brandfetch_get_brand', 'brandfetch_search'],
     config: {
-      tool: (params) => `brandfetch_${params.operation}`,
+      tool: (params) => {
+        switch (params.operation) {
+          case 'get_brand':
+            return 'brandfetch_get_brand'
+          case 'search':
+            return 'brandfetch_search'
+          default:
+            return 'brandfetch_get_brand'
+        }
+      },
     },
   },
 

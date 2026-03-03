@@ -1,4 +1,8 @@
-import type { BrandfetchSearchParams, BrandfetchSearchResponse } from '@/tools/brandfetch/types'
+import type {
+  BrandfetchSearchParams,
+  BrandfetchSearchResponse,
+  BrandfetchSearchResult,
+} from '@/tools/brandfetch/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const brandfetchSearchTool: ToolConfig<BrandfetchSearchParams, BrandfetchSearchResponse> = {
@@ -44,21 +48,13 @@ export const brandfetchSearchTool: ToolConfig<BrandfetchSearchParams, Brandfetch
     return {
       success: true,
       output: {
-        results: results.map(
-          (item: {
-            brandId?: string
-            name?: string
-            domain?: string
-            claimed?: boolean
-            icon?: string
-          }) => ({
-            brandId: item.brandId ?? '',
-            name: item.name ?? '',
-            domain: item.domain ?? '',
-            claimed: item.claimed ?? false,
-            icon: item.icon ?? null,
-          })
-        ),
+        results: results.map((item: Partial<BrandfetchSearchResult>) => ({
+          brandId: item.brandId ?? '',
+          name: item.name ?? '',
+          domain: item.domain ?? '',
+          claimed: item.claimed ?? false,
+          icon: item.icon ?? null,
+        })),
       },
     }
   },

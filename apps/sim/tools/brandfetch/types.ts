@@ -17,7 +17,7 @@ export interface BrandLink {
 
 export interface BrandLogo {
   type: string
-  theme: string
+  theme: string | null
   formats: Array<{
     src: string
     format: string
@@ -84,7 +84,7 @@ export interface BrandfetchGetBrandResponse extends ToolResponse {
 
 export interface BrandfetchSearchResult {
   brandId: string
-  name: string
+  name: string | null
   domain: string
   claimed: boolean
   icon: string | null
