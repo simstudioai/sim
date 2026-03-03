@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, Clipboard } from 'lucide-react'
 import { Button, Code, Label, Tooltip } from '@/components/emcn'
 
@@ -10,6 +11,7 @@ interface EmbedCodeGeneratorProps {
 }
 
 export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
+  const t = useTranslations()
   const [copied, setCopied] = useState(false)
 
   const iframeCode = `<iframe
@@ -30,7 +32,7 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
     <div className='pb-[12px]'>
       <div className='mb-[6.5px] flex items-center justify-between'>
         <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Embed Code
+          {t('form_deploy_embed.labels.embed_code')}
         </Label>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -38,14 +40,14 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
               type='button'
               variant='ghost'
               onClick={handleCopy}
-              aria-label='Copy code'
+              aria-label={t('form_deploy_embed.aria.copy_code')}
               className='!p-1.5 -my-1.5'
             >
               {copied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content>
-            <span>{copied ? 'Copied' : 'Copy'}</span>
+            <span>{copied ? t('form_deploy_embed.buttons.copied') : t('form_deploy_embed.buttons.copy')}</span>
           </Tooltip.Content>
         </Tooltip.Root>
       </div>

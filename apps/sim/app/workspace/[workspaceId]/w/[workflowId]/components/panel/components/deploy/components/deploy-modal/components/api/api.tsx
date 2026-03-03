@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, Clipboard } from 'lucide-react'
 import {
   Button,
@@ -67,6 +68,7 @@ export function ApiDeploy({
   selectedStreamingOutputs,
   onSelectedStreamingOutputsChange,
 }: ApiDeployProps) {
+  const t = useTranslations()
   const [asyncExampleType, setAsyncExampleType] = useState<AsyncExampleType>('execute')
   const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [copied, setCopied] = useState<CopiedState>({
@@ -390,13 +392,13 @@ console.log(limits);`
   const getAsyncExampleTitle = () => {
     switch (asyncExampleType) {
       case 'execute':
-        return 'Execute Job'
+        return t('api_deploy.async_examples.execute')
       case 'status':
-        return 'Check Status'
+        return t('api_deploy.async_examples.status')
       case 'rate-limits':
-        return 'Rate Limits'
+        return t('api_deploy.async_examples.rate_limits')
       default:
-        return 'Execute Job'
+        return t('api_deploy.async_examples.execute')
     }
   }
 
@@ -430,13 +432,13 @@ console.log(limits);`
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Language
+            {t('api_deploy.labels.language')}
           </Label>
         </div>
         <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
           {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
             <ButtonGroupItem key={lang} value={lang}>
-              {LANGUAGE_LABELS[lang]}
+              {t(`a2a.languages.${lang}`)}
             </ButtonGroupItem>
           ))}
         </ButtonGroup>
@@ -445,21 +447,23 @@ console.log(limits);`
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Run workflow
+            {t('api_deploy.labels.run_workflow')}
           </Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={() => handleCopy('sync', getSyncCommand())}
-                aria-label='Copy command'
+                aria-label={t('api_deploy.aria.copy_command')}
                 className='!p-1.5 -my-1.5'
               >
                 {copied.sync ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <span>{copied.sync ? 'Copied' : 'Copy'}</span>
+              <span>
+                {copied.sync ? t('api_deploy.buttons.copied') : t('api_deploy.buttons.copy')}
+              </span>
             </Tooltip.Content>
           </Tooltip.Root>
         </div>
@@ -474,7 +478,7 @@ console.log(limits);`
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Run workflow (stream response)
+            {t('api_deploy.labels.run_workflow_stream')}
           </Label>
           <div className='flex items-center gap-[6px]'>
             <Tooltip.Root>
@@ -482,7 +486,7 @@ console.log(limits);`
                 <Button
                   variant='ghost'
                   onClick={() => handleCopy('stream', getStreamCommand())}
-                  aria-label='Copy command'
+                  aria-label={t('api_deploy.aria.copy_command')}
                   className='!p-1.5 -my-1.5'
                 >
                   {copied.stream ? (
@@ -493,14 +497,16 @@ console.log(limits);`
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{copied.stream ? 'Copied' : 'Copy'}</span>
+                <span>
+                  {copied.stream ? t('api_deploy.buttons.copied') : t('api_deploy.buttons.copy')}
+                </span>
               </Tooltip.Content>
             </Tooltip.Root>
             <OutputSelect
               workflowId={workflowId}
               selectedOutputs={selectedStreamingOutputs}
               onOutputSelect={onSelectedStreamingOutputsChange}
-              placeholder='Select outputs'
+              placeholder={t('api_deploy.placeholders.select_outputs')}
               valueMode='label'
               align='end'
             />
@@ -517,7 +523,7 @@ console.log(limits);`
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Run workflow (async)
+            {t('api_deploy.labels.run_workflow_async')}
           </Label>
           <div className='flex items-center gap-[6px]'>
             <Tooltip.Root>
@@ -525,23 +531,25 @@ console.log(limits);`
                 <Button
                   variant='ghost'
                   onClick={() => handleCopy('async', getAsyncCommand())}
-                  aria-label='Copy command'
+                  aria-label={t('api_deploy.aria.copy_command')}
                   className='!p-1.5 -my-1.5'
                 >
                   {copied.async ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{copied.async ? 'Copied' : 'Copy'}</span>
+                <span>
+                  {copied.async ? t('api_deploy.buttons.copied') : t('api_deploy.buttons.copy')}
+                </span>
               </Tooltip.Content>
             </Tooltip.Root>
             <Combobox
               size='sm'
               className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
               options={[
-                { label: 'Execute Job', value: 'execute' },
-                { label: 'Check Status', value: 'status' },
-                { label: 'Rate Limits', value: 'rate-limits' },
+                { label: t('api_deploy.async_examples.execute'), value: 'execute' },
+                { label: t('api_deploy.async_examples.status'), value: 'status' },
+                { label: t('api_deploy.async_examples.rate_limits'), value: 'rate-limits' },
               ]}
               value={asyncExampleType}
               onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}

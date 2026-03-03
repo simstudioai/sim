@@ -735,6 +735,7 @@
     "context_menu": {
       "buttons": {
         "open_in_new_tab": "Abrir em nova aba",
+        "copy_link": "Copiar link",
         "rename": "Renomear",
         "create_workflow": "Criar fluxo de trabalho",
         "create_folder": "Criar pasta",
@@ -743,6 +744,60 @@
         "export": "Exportar",
         "delete": "Deletar",
         "leave": "Sair"
+      }
+    },
+    "sidebar": {
+      "labels": {
+        "workflows": "Fluxos de Trabalho",
+        "search": "Buscar",
+        "import_workflows": "Importar fluxos de trabalho",
+        "create_folder": "Criar pasta",
+        "create_workflow": "Criar fluxo de trabalho"
+      },
+      "loading_states": {
+        "creating_folder": "Criando pasta...",
+        "creating_workflow": "Criando fluxo de trabalho..."
+      },
+      "aria": {
+        "resize_sidebar": "Redimensionar barra lateral",
+        "search_shortcut": "⌘K"
+      },
+      "tooltips": {
+        "import_workflows": "Importar fluxos de trabalho",
+        "create_folder": "Criar pasta",
+        "create_workflow": "Criar fluxo de trabalho"
+      }
+    },
+    "help_modal": {
+      "title": "Ajuda e Suporte",
+      "labels": {
+        "request": "Solicitação",
+        "subject": "Assunto",
+        "message": "Mensagem",
+        "images": "Anexar Imagens (Opcional)",
+        "uploaded_images": "Imagens Enviadas"
+      },
+      "placeholders": {
+        "request": "Selecione um tipo de solicitação",
+        "subject": "Descrição breve de sua solicitação",
+        "message": "Por favor, forneça detalhes sobre sua solicitação...",
+        "images_drop": "Solte imagens aqui ou clique para procurar"
+      },
+      "buttons": {
+        "cancel": "Cancelar",
+        "submit": "Enviar",
+        "submitting": "Enviando...",
+        "error": "Erro",
+        "success": "Sucesso"
+      },
+      "helper_text": {
+        "images": "PNG, JPEG, WebP, GIF (máx 20MB cada)"
+      },
+      "request_types": {
+        "bug": "Relatório de Bug",
+        "feedback": "Feedback",
+        "feature_request": "Solicitação de Recurso",
+        "other": "Outro"
       }
     },
     "delete_modal": {
@@ -2175,6 +2230,441 @@
       "no_results": "Nenhum resultado",
       "iteration_header": "Iteração {{current}}/{{total}}",
       "iteration_header_no_total": "Iteração {{current}}"
+    }
+  },
+  "deploy": {
+    "buttons": {
+      "deploy": "Implantação",
+      "update": "Atualizar",
+      "live": "Ao vivo"
+    },
+    "tooltips": {
+      "empty_workflow": "Não é possível implantar um fluxo de trabalho vazio",
+      "admin_required": "Permissões de administrador obrigatórias",
+      "deploying": "Implantando...",
+      "update_deployment": "Atualizar implementação",
+      "active_deployment": "Implementação ativa",
+      "deploy_workflow": "Implantar fluxo de trabalho"
+    }
+  },
+  "deploy_modal": {
+    "title": "Implantação de fluxo de trabalho",
+    "tabs": {
+      "general": "Geral",
+      "api": "API",
+      "mcp": "MCP",
+      "a2a": "A2A",
+      "chat": "Chat",
+      "template": "Modelo"
+    },
+    "buttons": {
+      "edit_api_info": "Editar informações da API",
+      "generate_api_key": "Gerar chave de API",
+      "delete": "Excluir",
+      "cancel": "Cancelar",
+      "deploy": "Implantar",
+      "undeploy": "Desimplantar",
+      "updating": "Atualizando...",
+      "undeploying": "Desimplantando...",
+      "deploying": "Implantando...",
+      "manage": "Gerenciar",
+      "save_tool": "Salvar ferramenta",
+      "saving": "Salvando...",
+      "publish_template": "Publicar modelo",
+      "update_template": "Atualizar modelo",
+      "publishing": "Publicando...",
+      "publish_agent": "Publicar agente",
+      "unpublish": "Despu­blicar",
+      "launch_chat": "Iniciar chat",
+      "launching": "Iniciando...",
+      "launched": "Iniciado",
+      "updated": "Atualizado",
+      "update": "Atualizar"
+    },
+    "modals": {
+      "undeploy_title": "Desimplantar API",
+      "undeploy_message": "Tem certeza de que deseja desimplantar este fluxo de trabalho?",
+      "undeploy_warning": "Isso remove o ponto final da API e o tornará indisponível para usuários externos.",
+      "delete_agent_title": "Excluir agente A2A",
+      "delete_agent_message": "Tem certeza de que deseja excluir <agent>{agentName}</agent>?",
+      "delete_agent_warning": "Isso removerá permanentemente a configuração do agente."
+    },
+    "status": {
+      "under_review": "Em análise",
+      "live": "Ao vivo",
+      "update_deployment": "Atualizar implantação",
+      "unpublished": "Não publicado"
+    },
+    "chat": {
+      "updating": "Atualizando...",
+      "launching": "Iniciando...",
+      "update": "Atualizar"
+    }
+  },
+  "a2a": {
+    "labels": {
+      "url": "URL",
+      "agent_name": "Nome do agente",
+      "description": "Descrição",
+      "access": "Acesso",
+      "capabilities": "Capacidades",
+      "push_notifications": "Notificações push (webhooks)",
+      "tags": "Rótulos",
+      "language": "Idioma",
+      "send_message": "Enviar mensagem",
+      "stream": "Transmissão"
+    },
+    "placeholders": {
+      "agent_name": "Digite o nome do agente",
+      "description": "Descreva o que este agente faz...",
+      "tags": "Adicionar rótulos",
+      "tags_additional": "Adicionar outro"
+    },
+    "helper_text": {
+      "url": "A URL do endpoint A2A onde os clientes podem descobrir e chamar seu agente",
+      "agent_name": "Nome legível mostrado no Card do Agente",
+      "access_api_key": "Requer cabeçalho X-API-Key ou parâmetro de consulta de chave API",
+      "access_public": "Qualquer pessoa pode chamar este agente sem autenticação",
+      "discovery": "Clientes A2A externos podem descobrir e chamar seu agente. TextPart → <code>start.input</code>, DataPart → <code>start.data</code>, FilePart → <code>start.files</code>.",
+      "add_inputs": "Adicionar campos de entrada A2A necessários ao bloco de início"
+    },
+    "buttons": {
+      "api_key": "Chave API",
+      "public": "Público",
+      "add_inputs": "Adicionar entradas",
+      "copy": "Copiar",
+      "copied": "Copiado"
+    },
+    "aria": {
+      "copy_url": "Copiar URL",
+      "copy_command": "Copiar comando"
+    },
+    "languages": {
+      "curl": "cURL",
+      "python": "Python",
+      "javascript": "JavaScript",
+      "typescript": "TypeScript"
+    }
+  },
+  "api_deploy": {
+    "labels": {
+      "language": "Idioma",
+      "run_workflow": "Executar fluxo de trabalho",
+      "run_workflow_stream": "Executar fluxo de trabalho (resposta de transmissão)",
+      "run_workflow_async": "Executar fluxo de trabalho (async)"
+    },
+    "buttons": {
+      "copy": "Copiar",
+      "copied": "Copiado"
+    },
+    "aria": {
+      "copy_command": "Copiar comando"
+    },
+    "async_examples": {
+      "execute": "Executar trabalho",
+      "status": "Verificar status",
+      "rate_limits": "Limites de taxa"
+    },
+    "placeholders": {
+      "select_outputs": "Selecionar saídas"
+    }
+  },
+  "chat_deploy": {
+    "labels": {
+      "title": "Título",
+      "output": "Saída",
+      "access_control": "Controle de acesso",
+      "password": "Senha",
+      "allowed_emails": "E-mails permitidos",
+      "allowed_sso_emails": "E-mails SSO permitidos",
+      "welcome_message": "Mensagem de boas-vindas",
+      "url": "URL"
+    },
+    "placeholders": {
+      "title": "Assistente de Suporte ao Cliente",
+      "output": "Selecione quais saídas de blocos usar",
+      "chat_url": "meu-chat",
+      "password": "Digite a senha",
+      "password_existing": "Digite nova senha para alterar",
+      "emails": "Digite e-mails ou domínios (@example.com)",
+      "emails_additional": "Adicionar e-mail",
+      "welcome_message": "Digite uma mensagem de boas-vindas para seu chat"
+    },
+    "buttons": {
+      "public": "Público",
+      "password": "Senha",
+      "email": "E-mail",
+      "sso": "SSO",
+      "delete": "Excluir",
+      "deleting": "Excluindo...",
+      "cancel": "Cancelar",
+      "generate": "Gerar",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "show": "Mostrar",
+      "hide": "Ocultar"
+    },
+    "errors": {
+      "identifier_required": "O identificador é obrigatório",
+      "identifier_invalid": "O identificador pode conter apenas letras minúsculas, números e hífens",
+      "title_required": "O título é obrigatório",
+      "password_required": "A senha é obrigatória ao usar proteção por senha",
+      "emails_required_email": "Pelo menos um e-mail ou domínio é necessário ao usar controle de acesso por e-mail",
+      "emails_required_sso": "Pelo menos um e-mail ou domínio é necessário ao usar controle de acesso SSO",
+      "output_blocks_required": "Selecione pelo menos um bloco de saída",
+      "identifier_unavailable": "Este identificador já está em uso",
+      "identifier_check_error": "Erro ao verificar a disponibilidade do identificador"
+    },
+    "helper_text": {
+      "url": "O caminho URL único onde seu chat será acessível",
+      "live_at": "Ativo em:",
+      "password": "Esta senha será necessária para acessar seu chat",
+      "password_existing": "Deixe em branco para manter a senha atual",
+      "welcome_message": "Esta mensagem será exibida quando os usuários abrirem o chat pela primeira vez",
+      "emails": "Adicione e-mails específicos ou domínios completos (@example.com)",
+      "sso_emails": "Adicione e-mails ou domínios que possam acessar via SSO",
+      "name_available": "Nome disponível"
+    },
+    "modal": {
+      "delete_title": "Excluir Chat",
+      "delete_confirmation": "Tem certeza de que deseja excluir {{title}}?",
+      "delete_warning": "Isso removerá o chat em \"{{url}}\" e o tornará indisponível para todos os usuários."
+    },
+    "aria": {
+      "generate_password": "Gerar senha",
+      "copy_password": "Copiar senha",
+      "show_password": "Mostrar senha",
+      "hide_password": "Ocultar senha"
+    }
+  },
+  "form_deploy": {
+    "labels": {
+      "url": "URL",
+      "form_builder": "Construtor de formulários",
+      "access_control": "Controle de acesso",
+      "password": "Senha",
+      "allowed_emails": "E-mails permitidos",
+      "thank_you_message": "Mensagem de agradecimento"
+    },
+    "placeholders": {
+      "form_url": "meu-formulario",
+      "password": "Digite a senha",
+      "password_existing": "Digite nova senha para alterar",
+      "emails": "Digite e-mails ou @dominio.com",
+      "emails_additional": "Adicionar outro",
+      "thank_you_message": "Sua resposta foi enviada com sucesso."
+    },
+    "buttons": {
+      "public": "Público",
+      "password": "Senha",
+      "email": "E-mail"
+    },
+    "errors": {
+      "validation_pending": "Por favor aguarde a conclusão da validação do identificador",
+      "title_required": "O título é obrigatório",
+      "password_required": "A senha é obrigatória",
+      "emails_required": "Pelo menos um e-mail ou domínio é obrigatório",
+      "identifier_invalid": "O identificador só pode conter letras minúsculas, números e hífens",
+      "identifier_check_error": "Erro ao verificar a disponibilidade do identificador",
+      "identifier_unavailable": "Este identificador já está em uso"
+    },
+    "helper_text": {
+      "url": "O caminho de URL único onde seu formulário será acessível",
+      "live_at": "Ao vivo em:",
+      "password": "Esta senha será necessária para acessar seu formulário",
+      "password_existing": "Deixe em branco para manter a senha atual",
+      "thank_you_message": "Esta mensagem será exibida após o envio do formulário",
+      "emails": "Adicionar e-mails específicos ou domínios completos (@exemplo.com)",
+      "name_available": "Nome disponível",
+      "no_input_fields": "Adicione campos de entrada ao bloco de início para criar um formulário."
+    },
+    "aria": {
+      "copy_code": "Copiar código"
+    }
+  },
+  "form_deploy_builder": {
+    "labels": {
+      "required": "Obrigatório",
+      "maps_to": "mapeia para"
+    },
+    "placeholders": {
+      "title": "Título do Formulário",
+      "description": "Descrição",
+      "field_label": "Rótulo",
+      "field_description": "Descrição..."
+    }
+  },
+  "form_deploy_embed": {
+    "labels": {
+      "embed_code": "Código de Incorporação"
+    },
+    "aria": {
+      "copy_code": "Copiar código"
+    },
+    "buttons": {
+      "copy": "Copiar",
+      "copied": "Copiado"
+    }
+  },
+  "general_deploy": {
+    "labels": {
+      "live_workflow": "Workflow Ativo",
+      "preview": "Visualização",
+      "versions": "Versões"
+    },
+    "buttons": {
+      "live": "Ativo",
+      "cancel": "Cancelar",
+      "load_deployment": "Carregar implantação",
+      "promote_to_live": "Promover para ativo"
+    },
+    "tooltips": {
+      "see_preview": "Ver visualização"
+    },
+    "modals": {
+      "load_deployment_title": "Carregar Implantação",
+      "load_deployment_warning": "Isto substituirá seu workflow atual pela versão implantada.",
+      "promote_to_live_title": "Promover para ativo",
+      "promote_to_live_info": "Esta versão se tornará a implantação ativa e servirá todas as solicitações de API."
+    },
+    "messages": {
+      "no_preview": "Implante seu workflow para ver uma visualização"
+    }
+  },
+  "versions_deploy": {
+    "labels": {
+      "version": "Versão",
+      "deployed_by": "Implantado por",
+      "timestamp": "Data/Hora",
+      "live": "Ativo",
+      "inactive": "Inativo",
+      "selected": "Selecionado"
+    },
+    "buttons": {
+      "rename": "Renomear",
+      "add_description": "Adicionar descrição",
+      "edit_description": "Editar descrição",
+      "promote_to_live": "Promover para ativo",
+      "load_deployment": "Carregar implantação"
+    },
+    "messages": {
+      "no_deployments": "Nenhuma implantação ainda"
+    },
+    "tooltips": {
+      "add_description": "Adicionar descrição"
+    }
+  },
+  "version_description_modal": {
+    "labels": {
+      "title": "Descrição da Versão"
+    },
+    "buttons": {
+      "generate": "Gerar",
+      "generating": "Gerando...",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "keep_editing": "Continuar Editando",
+      "discard_changes": "Descartar Alterações"
+    },
+    "messages": {
+      "edit_description": "Editar a",
+      "add_description": "Adicionar uma",
+      "description_for": "descrição para",
+      "unsaved_changes": "Alterações Não Salvas",
+      "unsaved_changes_confirmation": "Você tem alterações não salvas. Tem certeza de que deseja descartá-las?"
+    },
+    "placeholders": {
+      "description": "Descreva as alterações nesta versão de implantação..."
+    }
+  },
+  "api_info_modal": {
+    "labels": {
+      "title": "Editar Informações da API",
+      "description": "Descrição",
+      "access": "Acesso",
+      "parameters": "Parâmetros"
+    },
+    "buttons": {
+      "api_key": "Chave de API",
+      "public": "Público",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "keep_editing": "Continuar Editando",
+      "discard_changes": "Descartar Alterações"
+    },
+    "placeholders": {
+      "description": "Descreva o que esta API de workflow faz...",
+      "parameter_description": "Digite a descrição para"
+    },
+    "helper_text": {
+      "public_access": "Qualquer pessoa pode chamar esta API sem autenticação. Você será cobrado por todo o uso.",
+      "api_key_access": "Requer uma chave de API válida para chamar este endpoint."
+    },
+    "messages": {
+      "unsaved_changes": "Alterações Não Salvas",
+      "unsaved_changes_confirmation": "Você tem alterações não salvas. Tem certeza de que deseja descartá-las?"
+    }
+  },
+  "mcp_deploy": {
+    "labels": {
+      "tool_name": "Nome da ferramenta",
+      "description": "Descrição",
+      "parameters": "Parâmetros",
+      "servers": "Servidores",
+      "parameter_description": "Descrição"
+    },
+    "placeholders": {
+      "tool_name": "ex., reservar_voo",
+      "description": "Descreva o que esta ferramenta faz...",
+      "parameter_description": "Insira a descrição para",
+      "servers": "Selecione servidores...",
+      "servers_search": "Pesquisar servidores..."
+    },
+    "helper_text": {
+      "tool_name": "Use apenas letras minúsculas, números e underscores",
+      "servers_disabled": "Insira um nome de ferramenta para selecionar servidores"
+    },
+    "buttons": {
+      "create_mcp_server": "Criar Servidor MCP"
+    },
+    "messages": {
+      "not_deployed": "Implante seu workflow primeiro para adicioná-lo como uma ferramenta MCP.",
+      "no_servers": "Crie um Servidor MCP em Configurações → Servidores MCP primeiro."
+    }
+  },
+  "template_deploy": {
+    "labels": {
+      "live_template": "Template em Uso",
+      "name": "Nome",
+      "tagline": "Tagline",
+      "description": "Descrição",
+      "creator": "Criador",
+      "tags": "Tags"
+    },
+    "placeholders": {
+      "name": "Agente de Pesquisa Profunda",
+      "tagline": "Um agente de pesquisa profunda que pode encontrar informações sobre qualquer tópico",
+      "description": "Descrição opcional que suporta Markdown",
+      "tags": "Dev, Agentes, Pesquisa, etc.",
+      "tags_additional": "Adicionar mais",
+      "creator_loading": "Carregando...",
+      "creator_select": "Selecione um perfil de criador"
+    },
+    "helper_text": {
+      "creator_required": "Um perfil de criador é necessário para publicar templates."
+    },
+    "buttons": {
+      "create_profile": "Criar Perfil de Template",
+      "cancel": "Cancelar",
+      "delete": "Deletar",
+      "deleting": "Deletando..."
+    },
+    "modals": {
+      "delete_title": "Deletar Template",
+      "delete_confirmation": "Você tem certeza que deseja deletar",
+      "delete_error": "Esta ação não pode ser desfeita."
     }
   }
 }

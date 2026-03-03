@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { Check, Clipboard } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -98,6 +99,7 @@ export function A2aDeploy({
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -668,7 +670,7 @@ console.log(data);`
         <div>
           <div className='mb-[6.5px] flex items-center justify-between'>
             <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              URL
+              {t('a2a.labels.url')}
             </Label>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -680,14 +682,14 @@ console.log(data);`
                     setUrlCopied(true)
                     setTimeout(() => setUrlCopied(false), 2000)
                   }}
-                  aria-label='Copy URL'
+                  aria-label={t('a2a.aria.copy_url')}
                   className='!p-1.5 -my-1.5'
                 >
                   {urlCopied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{urlCopied ? 'Copied' : 'Copy'}</span>
+                <span>{urlCopied ? t('a2a.buttons.copied') : t('a2a.buttons.copy')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
@@ -704,7 +706,7 @@ console.log(data);`
             </div>
           </div>
           <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            The A2A endpoint URL where clients can discover and call your agent
+            {t('a2a.helper_text.url')}
           </p>
         </div>
       )}
@@ -715,17 +717,17 @@ console.log(data);`
           htmlFor='a2a-name'
           className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
         >
-          Agent name <span className='text-red-500'>*</span>
+          {t('a2a.labels.agent_name')} <span className='text-red-500'>*</span>
         </Label>
         <Input
           id='a2a-name'
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder='Enter agent name'
+          placeholder={t('a2a.placeholders.agent_name')}
           required
         />
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-          Human-readable name shown in the Agent Card
+          {t('a2a.helper_text.agent_name')}
         </p>
       </div>
 
@@ -735,13 +737,13 @@ console.log(data);`
           htmlFor='a2a-description'
           className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
         >
-          Description <span className='text-red-500'>*</span>
+          {t('a2a.labels.description')} <span className='text-red-500'>*</span>
         </Label>
         <Textarea
           id='a2a-description'
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder='Describe what this agent does...'
+          placeholder={t('a2a.placeholders.description')}
           className='min-h-[80px] resize-none'
           required
         />
@@ -750,26 +752,26 @@ console.log(data);`
       {/* Access */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Access
+          {t('a2a.labels.access')}
         </Label>
         <ButtonGroup
           value={authScheme}
           onValueChange={(value) => setAuthScheme(value as AuthScheme)}
         >
-          <ButtonGroupItem value='apiKey'>API Key</ButtonGroupItem>
-          <ButtonGroupItem value='none'>Public</ButtonGroupItem>
+          <ButtonGroupItem value='apiKey'>{t('a2a.buttons.api_key')}</ButtonGroupItem>
+          <ButtonGroupItem value='none'>{t('a2a.buttons.public')}</ButtonGroupItem>
         </ButtonGroup>
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
           {authScheme === 'none'
-            ? 'Anyone can call this agent without authentication'
-            : 'Requires X-API-Key header or API key query parameter'}
+            ? t('a2a.helper_text.access_public')
+            : t('a2a.helper_text.access_api_key')}
         </p>
       </div>
 
       {/* Capabilities */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Capabilities
+          {t('a2a.labels.capabilities')}
         </Label>
         <div className='space-y-[8px]'>
           <div className='flex items-center gap-[8px]'>
@@ -779,7 +781,7 @@ console.log(data);`
               onCheckedChange={(checked) => setPushNotificationsEnabled(checked === true)}
             />
             <label htmlFor='a2a-push' className='text-[13px] text-[var(--text-primary)]'>
-              Push notifications (webhooks)
+              {t('a2a.labels.push_notifications')}
             </label>
           </div>
         </div>
@@ -788,7 +790,7 @@ console.log(data);`
       {/* Tags */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Tags
+          {t('a2a.labels.tags')}
         </Label>
         <TagInput
           items={skillTags.map((tag) => ({ value: tag, isValid: true }))}
@@ -802,8 +804,8 @@ console.log(data);`
           onRemove={(_value, index) => {
             setSkillTags((prev) => prev.filter((_, i) => i !== index))
           }}
-          placeholder='Add tags'
-          placeholderWithTags='Add another'
+          placeholder={t('a2a.placeholders.tags')}
+          placeholderWithTags={t('a2a.placeholders.tags_additional')}
           tagVariant='secondary'
           triggerKeys={['Enter', ',']}
         />
@@ -815,13 +817,13 @@ console.log(data);`
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
               <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                Language
+                {t('a2a.labels.language')}
               </Label>
             </div>
             <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
               {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
                 <ButtonGroupItem key={lang} value={lang}>
-                  {LANGUAGE_LABELS[lang]}
+                  {t(`a2a.languages.${lang}`)}
                 </ButtonGroupItem>
               ))}
             </ButtonGroup>
@@ -830,7 +832,7 @@ console.log(data);`
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
               <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                Send message
+                {t('a2a.labels.send_message')}
               </Label>
               <div className='flex items-center gap-[8px]'>
                 <div className='flex items-center gap-[6px]'>
@@ -843,7 +845,7 @@ console.log(data);`
                     htmlFor='a2a-stream-example'
                     className='text-[12px] text-[var(--text-secondary)]'
                   >
-                    Stream
+                    {t('a2a.labels.stream')}
                   </label>
                 </div>
                 <Tooltip.Root>
@@ -852,7 +854,7 @@ console.log(data);`
                       type='button'
                       variant='ghost'
                       onClick={handleCopyCommand}
-                      aria-label='Copy command'
+                      aria-label={t('a2a.aria.copy_command')}
                       className='!p-1.5 -my-1.5'
                     >
                       {codeCopied ? (
@@ -863,7 +865,7 @@ console.log(data);`
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>{codeCopied ? 'Copied' : 'Copy'}</span>
+                    <span>{codeCopied ? t('a2a.buttons.copied') : t('a2a.buttons.copy')}</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </div>
@@ -876,18 +878,17 @@ console.log(data);`
             />
             <div className='mt-[6.5px] flex items-start justify-between gap-2'>
               <p className='text-[11px] text-[var(--text-secondary)]'>
-                External A2A clients can discover and call your agent. TextPart →{' '}
-                <code className='text-[10px]'>&lt;start.input&gt;</code>, DataPart →{' '}
-                <code className='text-[10px]'>&lt;start.data&gt;</code>, FilePart →{' '}
-                <code className='text-[10px]'>&lt;start.files&gt;</code>.
+                {t.rich('a2a.helper_text.discovery', {
+                  code: (chunks) => <code className='text-[10px]'>{chunks}</code>,
+                })}
               </p>
               {missingFields.any && (
                 <div
                   className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
-                  title='Add required A2A input fields to Start block'
+                  title={t('a2a.helper_text.add_inputs')}
                   onClick={handleAddA2AInputs}
                 >
-                  <span className='whitespace-nowrap'>Add inputs</span>
+                  <span className='whitespace-nowrap'>{t('a2a.buttons.add_inputs')}</span>
                 </div>
               )}
             </div>

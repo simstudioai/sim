@@ -735,6 +735,7 @@
     "context_menu": {
       "buttons": {
         "open_in_new_tab": "Abrir en nueva pestaña",
+        "copy_link": "Copiar enlace",
         "rename": "Renombrar",
         "create_workflow": "Crear flujo de trabajo",
         "create_folder": "Crear carpeta",
@@ -743,6 +744,60 @@
         "export": "Exportar",
         "delete": "Eliminar",
         "leave": "Salir"
+      }
+    },
+    "sidebar": {
+      "labels": {
+        "workflows": "Flujos de trabajo",
+        "search": "Buscar",
+        "import_workflows": "Importar flujos de trabajo",
+        "create_folder": "Crear carpeta",
+        "create_workflow": "Crear flujo de trabajo"
+      },
+      "loading_states": {
+        "creating_folder": "Creando carpeta...",
+        "creating_workflow": "Creando flujo de trabajo..."
+      },
+      "aria": {
+        "resize_sidebar": "Redimensionar barra lateral",
+        "search_shortcut": "⌘K"
+      },
+      "tooltips": {
+        "import_workflows": "Importar flujos de trabajo",
+        "create_folder": "Crear carpeta",
+        "create_workflow": "Crear flujo de trabajo"
+      }
+    },
+    "help_modal": {
+      "title": "Ayuda y Soporte",
+      "labels": {
+        "request": "Solicitud",
+        "subject": "Asunto",
+        "message": "Mensaje",
+        "images": "Adjuntar Imágenes (Opcional)",
+        "uploaded_images": "Imágenes Cargadas"
+      },
+      "placeholders": {
+        "request": "Selecciona un tipo de solicitud",
+        "subject": "Descripción breve de tu solicitud",
+        "message": "Por favor, proporciona detalles sobre tu solicitud...",
+        "images_drop": "Suelta imágenes aquí o haz clic para explorar"
+      },
+      "buttons": {
+        "cancel": "Cancelar",
+        "submit": "Enviar",
+        "submitting": "Enviando...",
+        "error": "Error",
+        "success": "Éxito"
+      },
+      "helper_text": {
+        "images": "PNG, JPEG, WebP, GIF (máx 20MB cada uno)"
+      },
+      "request_types": {
+        "bug": "Reporte de Error",
+        "feedback": "Retroalimentación",
+        "feature_request": "Solicitud de Función",
+        "other": "Otro"
       }
     },
     "delete_modal": {
@@ -2169,6 +2224,441 @@
       "no_results": "Sin resultados",
       "iteration_header": "Iteración {{current}}/{{total}}",
       "iteration_header_no_total": "Iteración {{current}}"
+    }
+  },
+  "deploy": {
+    "buttons": {
+      "deploy": "Desplegar",
+      "update": "Actualizar",
+      "live": "En vivo"
+    },
+    "tooltips": {
+      "empty_workflow": "No se puede desplegar un flujo de trabajo vacío",
+      "admin_required": "Se requieren permisos de administrador",
+      "deploying": "Desplegando...",
+      "update_deployment": "Actualizar implementación",
+      "active_deployment": "Implementación activa",
+      "deploy_workflow": "Desplegar flujo de trabajo"
+    }
+  },
+  "deploy_modal": {
+    "title": "Implementación del flujo de trabajo",
+    "tabs": {
+      "general": "General",
+      "api": "API",
+      "mcp": "MCP",
+      "a2a": "A2A",
+      "chat": "Chat",
+      "template": "Plantilla"
+    },
+    "buttons": {
+      "edit_api_info": "Editar información de API",
+      "generate_api_key": "Generar clave de API",
+      "delete": "Eliminar",
+      "cancel": "Cancelar",
+      "deploy": "Desplegar",
+      "undeploy": "Dejar de desplegar",
+      "updating": "Actualizando...",
+      "undeploying": "Dejando de desplegar...",
+      "deploying": "Desplegando...",
+      "manage": "Gestionar",
+      "save_tool": "Guardar herramienta",
+      "saving": "Guardando...",
+      "publish_template": "Publicar plantilla",
+      "update_template": "Actualizar plantilla",
+      "publishing": "Publicando...",
+      "publish_agent": "Publicar agente",
+      "unpublish": "Cancelar publicación",
+      "launch_chat": "Iniciar chat",
+      "launching": "Iniciando...",
+      "launched": "Iniciado",
+      "updated": "Actualizado",
+      "update": "Actualizar"
+    },
+    "modals": {
+      "undeploy_title": "Dejar de desplegar API",
+      "undeploy_message": "¿Está seguro de que desea dejar de desplegar este flujo de trabajo?",
+      "undeploy_warning": "Esto elimará el punto final de la API y no estará disponible para usuarios externos.",
+      "delete_agent_title": "Eliminar agente A2A",
+      "delete_agent_message": "¿Está seguro de que desea eliminar <agent>{agentName}</agent>?",
+      "delete_agent_warning": "Esto eliminará permanentemente la configuración del agente."
+    },
+    "status": {
+      "under_review": "En revisión",
+      "live": "En directo",
+      "update_deployment": "Actualizar implementación",
+      "unpublished": "No publicado"
+    },
+    "chat": {
+      "updating": "Actualizando...",
+      "launching": "Iniciando...",
+      "update": "Actualizar"
+    }
+  },
+  "a2a": {
+    "labels": {
+      "url": "URL",
+      "agent_name": "Nombre del agente",
+      "description": "Descripción",
+      "access": "Acceso",
+      "capabilities": "Capacidades",
+      "push_notifications": "Notificaciones push (webhooks)",
+      "tags": "Etiquetas",
+      "language": "Idioma",
+      "send_message": "Enviar mensaje",
+      "stream": "Transmitir"
+    },
+    "placeholders": {
+      "agent_name": "Ingrese el nombre del agente",
+      "description": "Describa lo que hace este agente...",
+      "tags": "Agregar etiquetas",
+      "tags_additional": "Agregar otra"
+    },
+    "helper_text": {
+      "url": "La URL del punto final A2A donde los clientes pueden descubrir y llamar a su agente",
+      "agent_name": "Nombre legible que se muestra en la Tarjeta del Agente",
+      "access_api_key": "Requiere encabezado X-API-Key o parámetro de consulta de clave API",
+      "access_public": "Cualquiera puede llamar a este agente sin autenticación",
+      "discovery": "Los clientes de A2A externos pueden descubrir y llamar a su agente. TextPart → <code>start.input</code>, DataPart → <code>start.data</code>, FilePart → <code>start.files</code>.",
+      "add_inputs": "Agregar campos de entrada A2A requeridos al bloque de inicio"
+    },
+    "buttons": {
+      "api_key": "Clave API",
+      "public": "Público",
+      "add_inputs": "Agregar entradas",
+      "copy": "Copiar",
+      "copied": "Copiado"
+    },
+    "aria": {
+      "copy_url": "Copiar URL",
+      "copy_command": "Copiar comando"
+    },
+    "languages": {
+      "curl": "cURL",
+      "python": "Python",
+      "javascript": "JavaScript",
+      "typescript": "TypeScript"
+    }
+  },
+  "api_deploy": {
+    "labels": {
+      "language": "Idioma",
+      "run_workflow": "Ejecutar flujo de trabajo",
+      "run_workflow_stream": "Ejecutar flujo de trabajo (respuesta de transmisión)",
+      "run_workflow_async": "Ejecutar flujo de trabajo (async)"
+    },
+    "buttons": {
+      "copy": "Copiar",
+      "copied": "Copiado"
+    },
+    "aria": {
+      "copy_command": "Copiar comando"
+    },
+    "async_examples": {
+      "execute": "Ejecutar trabajo",
+      "status": "Verificar estado",
+      "rate_limits": "Límites de velocidad"
+    },
+    "placeholders": {
+      "select_outputs": "Seleccionar salidas"
+    }
+  },
+  "chat_deploy": {
+    "labels": {
+      "title": "Título",
+      "output": "Salida",
+      "access_control": "Control de acceso",
+      "password": "Contraseña",
+      "allowed_emails": "Correos permitidos",
+      "allowed_sso_emails": "Correos SSO permitidos",
+      "welcome_message": "Mensaje de bienvenida",
+      "url": "URL"
+    },
+    "placeholders": {
+      "title": "Asistente de Soporte al Cliente",
+      "output": "Seleccionar qué salidas de bloques usar",
+      "chat_url": "mi-chat",
+      "password": "Ingrese contraseña",
+      "password_existing": "Ingrese nueva contraseña para cambiar",
+      "emails": "Ingrese correos o dominios (@example.com)",
+      "emails_additional": "Agregar correo",
+      "welcome_message": "Ingrese un mensaje de bienvenida para su chat"
+    },
+    "buttons": {
+      "public": "Público",
+      "password": "Contraseña",
+      "email": "Correo",
+      "sso": "SSO",
+      "delete": "Eliminar",
+      "deleting": "Eliminando...",
+      "cancel": "Cancelar",
+      "generate": "Generar",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "show": "Mostrar",
+      "hide": "Ocultar"
+    },
+    "errors": {
+      "identifier_required": "El identificador es obligatorio",
+      "identifier_invalid": "El identificador solo puede contener letras minúsculas, números y guiones",
+      "title_required": "El título es obligatorio",
+      "password_required": "La contraseña es obligatoria cuando se usa protección por contraseña",
+      "emails_required_email": "Se requiere al menos un correo o dominio cuando se usa control de acceso por correo",
+      "emails_required_sso": "Se requiere al menos un correo o dominio cuando se usa control de acceso SSO",
+      "output_blocks_required": "Por favor seleccione al menos un bloque de salida",
+      "identifier_unavailable": "Este identificador ya está en uso",
+      "identifier_check_error": "Error al verificar la disponibilidad del identificador"
+    },
+    "helper_text": {
+      "url": "La ruta URL única donde su chat será accesible",
+      "live_at": "En vivo en:",
+      "password": "Esta contraseña será requerida para acceder a su chat",
+      "password_existing": "Dejar vacío para mantener la contraseña actual",
+      "welcome_message": "Este mensaje se mostrará cuando los usuarios abran el chat por primera vez",
+      "emails": "Agregue correos específicos o dominios completos (@example.com)",
+      "sso_emails": "Agregue correos o dominios que puedan acceder vía SSO",
+      "name_available": "Nombre disponible"
+    },
+    "modal": {
+      "delete_title": "Eliminar Chat",
+      "delete_confirmation": "¿Está seguro de que desea eliminar {{title}}?",
+      "delete_warning": "Esto eliminará el chat en \"{{url}}\" y lo hará no disponible para todos los usuarios."
+    },
+    "aria": {
+      "generate_password": "Generar contraseña",
+      "copy_password": "Copiar contraseña",
+      "show_password": "Mostrar contraseña",
+      "hide_password": "Ocultar contraseña"
+    }
+  },
+  "form_deploy": {
+    "labels": {
+      "url": "URL",
+      "form_builder": "Constructor de formularios",
+      "access_control": "Control de acceso",
+      "password": "Contraseña",
+      "allowed_emails": "Correos permitidos",
+      "thank_you_message": "Mensaje de agradecimiento"
+    },
+    "placeholders": {
+      "form_url": "mi-formulario",
+      "password": "Ingresar contraseña",
+      "password_existing": "Ingresar nueva contraseña para cambiar",
+      "emails": "Ingresar correos o @dominio.com",
+      "emails_additional": "Agregar otro",
+      "thank_you_message": "Tu respuesta ha sido enviada exitosamente."
+    },
+    "buttons": {
+      "public": "Público",
+      "password": "Contraseña",
+      "email": "Correo"
+    },
+    "errors": {
+      "validation_pending": "Por favor espera a que se complete la validación del identificador",
+      "title_required": "El título es requerido",
+      "password_required": "La contraseña es requerida",
+      "emails_required": "Al menos un correo o dominio es requerido",
+      "identifier_invalid": "El identificador solo puede contener letras minúsculas, números y guiones",
+      "identifier_check_error": "Error al verificar la disponibilidad del identificador",
+      "identifier_unavailable": "Este identificador ya está en uso"
+    },
+    "helper_text": {
+      "url": "La ruta de URL única donde tu formulario será accesible",
+      "live_at": "En vivo en:",
+      "password": "Esta contraseña será requerida para acceder a tu formulario",
+      "password_existing": "Dejar en blanco para mantener la contraseña actual",
+      "thank_you_message": "Este mensaje se mostrará después del envío del formulario",
+      "emails": "Agregar correos específicos o dominios completos (@ejemplo.com)",
+      "name_available": "Nombre disponible",
+      "no_input_fields": "Agrega campos de entrada al bloque de inicio para crear un formulario."
+    },
+    "aria": {
+      "copy_code": "Copiar código"
+    }
+  },
+  "form_deploy_builder": {
+    "labels": {
+      "required": "Requerido",
+      "maps_to": "mapea a"
+    },
+    "placeholders": {
+      "title": "Título del Formulario",
+      "description": "Descripción",
+      "field_label": "Etiqueta",
+      "field_description": "Descripción..."
+    }
+  },
+  "form_deploy_embed": {
+    "labels": {
+      "embed_code": "Código de Inserción"
+    },
+    "aria": {
+      "copy_code": "Copiar código"
+    },
+    "buttons": {
+      "copy": "Copiar",
+      "copied": "Copiado"
+    }
+  },
+  "general_deploy": {
+    "labels": {
+      "live_workflow": "Workflow en vivo",
+      "preview": "Vista previa",
+      "versions": "Versiones"
+    },
+    "buttons": {
+      "live": "En vivo",
+      "cancel": "Cancelar",
+      "load_deployment": "Cargar despliegue",
+      "promote_to_live": "Promover a en vivo"
+    },
+    "tooltips": {
+      "see_preview": "Ver vista previa"
+    },
+    "modals": {
+      "load_deployment_title": "Cargar Despliegue",
+      "load_deployment_warning": "Esto reemplazará tu workflow actual con la versión desplegada.",
+      "promote_to_live_title": "Promover a en vivo",
+      "promote_to_live_info": "Esta versión se convertirá en el despliegue activo y servirá todas las solicitudes de API."
+    },
+    "messages": {
+      "no_preview": "Despliega tu workflow para ver una vista previa"
+    }
+  },
+  "versions_deploy": {
+    "labels": {
+      "version": "Versión",
+      "deployed_by": "Desplegado por",
+      "timestamp": "Marca de tiempo",
+      "live": "En vivo",
+      "inactive": "Inactivo",
+      "selected": "Seleccionado"
+    },
+    "buttons": {
+      "rename": "Renombrar",
+      "add_description": "Agregar descripción",
+      "edit_description": "Editar descripción",
+      "promote_to_live": "Promover a en vivo",
+      "load_deployment": "Cargar despliegue"
+    },
+    "messages": {
+      "no_deployments": "Sin despliegues aún"
+    },
+    "tooltips": {
+      "add_description": "Agregar descripción"
+    }
+  },
+  "version_description_modal": {
+    "labels": {
+      "title": "Descripción de Versión"
+    },
+    "buttons": {
+      "generate": "Generar",
+      "generating": "Generando...",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "keep_editing": "Seguir Editando",
+      "discard_changes": "Descartar Cambios"
+    },
+    "messages": {
+      "edit_description": "Editar la",
+      "add_description": "Agregar una",
+      "description_for": "descripción para",
+      "unsaved_changes": "Cambios sin Guardar",
+      "unsaved_changes_confirmation": "Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos?"
+    },
+    "placeholders": {
+      "description": "Describe los cambios en esta versión de despliegue..."
+    }
+  },
+  "api_info_modal": {
+    "labels": {
+      "title": "Editar Información de API",
+      "description": "Descripción",
+      "access": "Acceso",
+      "parameters": "Parámetros"
+    },
+    "buttons": {
+      "api_key": "Clave de API",
+      "public": "Público",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "keep_editing": "Seguir Editando",
+      "discard_changes": "Descartar Cambios"
+    },
+    "placeholders": {
+      "description": "Describe qué hace este API de workflow...",
+      "parameter_description": "Ingresa descripción para"
+    },
+    "helper_text": {
+      "public_access": "Cualquiera puede llamar a este API sin autenticación. Se te cobrará por todo el uso.",
+      "api_key_access": "Requiere una clave de API válida para llamar a este endpoint."
+    },
+    "messages": {
+      "unsaved_changes": "Cambios sin Guardar",
+      "unsaved_changes_confirmation": "Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos?"
+    }
+  },
+  "mcp_deploy": {
+    "labels": {
+      "tool_name": "Nombre de la herramienta",
+      "description": "Descripción",
+      "parameters": "Parámetros",
+      "servers": "Servidores",
+      "parameter_description": "Descripción"
+    },
+    "placeholders": {
+      "tool_name": "ej., reservar_vuelo",
+      "description": "Describe lo que hace esta herramienta...",
+      "parameter_description": "Ingresa una descripción para",
+      "servers": "Selecciona servidores...",
+      "servers_search": "Buscar servidores..."
+    },
+    "helper_text": {
+      "tool_name": "Usa solo letras minúsculas, números y guiones bajos",
+      "servers_disabled": "Ingresa un nombre de herramienta para seleccionar servidores"
+    },
+    "buttons": {
+      "create_mcp_server": "Crear Servidor MCP"
+    },
+    "messages": {
+      "not_deployed": "Despliega tu flujo de trabajo primero para agregarlo como una herramienta MCP.",
+      "no_servers": "Crea un Servidor MCP en Configuración → Servidores MCP primero."
+    }
+  },
+  "template_deploy": {
+    "labels": {
+      "live_template": "Plantilla en Vivo",
+      "name": "Nombre",
+      "tagline": "Eslogan",
+      "description": "Descripción",
+      "creator": "Creador",
+      "tags": "Etiquetas"
+    },
+    "placeholders": {
+      "name": "Agente de Investigación Profunda",
+      "tagline": "Un agente de investigación profunda que puede encontrar información sobre cualquier tema",
+      "description": "Descripción opcional que admite Markdown",
+      "tags": "Dev, Agentes, Investigación, etc.",
+      "tags_additional": "Agregar otro",
+      "creator_loading": "Cargando...",
+      "creator_select": "Selecciona un perfil de creador"
+    },
+    "helper_text": {
+      "creator_required": "Se requiere un perfil de creador para publicar plantillas."
+    },
+    "buttons": {
+      "create_profile": "Crear Perfil de Plantilla",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "deleting": "Eliminando..."
+    },
+    "modals": {
+      "delete_title": "Eliminar Plantilla",
+      "delete_confirmation": "¿Estás seguro de que deseas eliminar",
+      "delete_error": "Esta acción no se puede deshacer."
     }
   }
 }

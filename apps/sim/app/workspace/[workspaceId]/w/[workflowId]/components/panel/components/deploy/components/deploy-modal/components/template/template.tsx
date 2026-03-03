@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -61,6 +62,7 @@ export function TemplateDeploy({
   onValidationChange,
   onSubmittingChange,
 }: TemplateDeployProps) {
+  const t = useTranslations()
   const { data: session } = useSession()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
@@ -235,7 +237,7 @@ export function TemplateDeploy({
         {existingTemplate?.state && (
           <div>
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Live Template
+              {t('template_deploy.labels.live_template')}
             </Label>
             <div
               ref={previewContainerRef}
@@ -252,10 +254,10 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Name <span className='text-[var(--text-error)]'>*</span>
+            {t('template_deploy.labels.name')} <span className='text-[var(--text-error)]'>*</span>
           </Label>
           <Input
-            placeholder='Deep Research Agent'
+            placeholder={t('template_deploy.placeholders.name')}
             value={formData.name}
             onChange={(e) => updateField('name', e.target.value)}
             disabled={isSubmitting}
@@ -264,10 +266,10 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Tagline
+            {t('template_deploy.labels.tagline')}
           </Label>
           <Input
-            placeholder='A deep research agent that can find information on any topic'
+            placeholder={t('template_deploy.placeholders.tagline')}
             value={formData.tagline}
             onChange={(e) => updateField('tagline', e.target.value)}
             disabled={isSubmitting}
@@ -277,10 +279,10 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Description
+            {t('template_deploy.labels.description')}
           </Label>
           <Textarea
-            placeholder='Optional description that supports Markdown'
+            placeholder={t('template_deploy.placeholders.description')}
             className='min-h-[160px] resize-none'
             value={formData.about}
             onChange={(e) => updateField('about', e.target.value)}
@@ -290,12 +292,12 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Creator <span className='text-[var(--text-error)]'>*</span>
+            {t('template_deploy.labels.creator')} <span className='text-[var(--text-error)]'>*</span>
           </Label>
           {creatorProfiles.length === 0 && !loadingCreators ? (
             <div className='space-y-[8px]'>
               <p className='text-[12px] text-[var(--text-tertiary)]'>
-                A creator profile is required to publish templates.
+                {t('template_deploy.helper_text.creator_required')}
               </p>
               <Button
                 type='button'
@@ -315,7 +317,7 @@ export function TemplateDeploy({
                 }}
                 className='gap-[8px]'
               >
-                <span>Create Template Profile</span>
+                <span>{t('template_deploy.buttons.create_profile')}</span>
               </Button>
             </div>
           ) : (
@@ -327,7 +329,7 @@ export function TemplateDeploy({
               value={formData.creatorId}
               selectedValue={formData.creatorId}
               onChange={(value) => updateField('creatorId', value)}
-              placeholder={loadingCreators ? 'Loading...' : 'Select creator profile'}
+              placeholder={loadingCreators ? t('template_deploy.placeholders.creator_loading') : t('template_deploy.placeholders.creator_select')}
               editable={false}
               filterOptions={false}
               disabled={loadingCreators || isSubmitting}
@@ -337,7 +339,7 @@ export function TemplateDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Tags
+            {t('template_deploy.labels.tags')}
           </Label>
           <TagInput
             items={formData.tags.map((tag) => ({ value: tag, isValid: true }))}
@@ -354,8 +356,8 @@ export function TemplateDeploy({
                 formData.tags.filter((_, i) => i !== index)
               )
             }}
-            placeholder='Dev, Agents, Research, etc.'
-            placeholderWithTags='Add another'
+            placeholder={t('template_deploy.placeholders.tags')}
+            placeholderWithTags={t('template_deploy.placeholders.tags_additional')}
             tagVariant='secondary'
             triggerKeys={['Enter', ',']}
             disabled={isSubmitting}
@@ -372,26 +374,26 @@ export function TemplateDeploy({
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Template</ModalHeader>
+          <ModalHeader>{t('template_deploy.modals.delete_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
+              {t('template_deploy.modals.delete_confirmation')}{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingTemplate?.name || formData.name || 'this template'}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? <span className='text-[var(--text-error)]'>{t('template_deploy.modals.delete_error')}</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>
-              Cancel
+              {t('template_deploy.buttons.cancel')}
             </Button>
             <Button
               variant='destructive'
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteMutation.isPending ? t('template_deploy.buttons.deleting') : t('template_deploy.buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>

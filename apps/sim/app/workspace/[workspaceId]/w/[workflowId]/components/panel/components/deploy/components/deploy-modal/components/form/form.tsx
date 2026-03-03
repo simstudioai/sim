@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import {
@@ -65,12 +66,11 @@ export function FormDeploy({
   setFormSubmitting,
   onDeployed,
 }: FormDeployProps) {
+  const t = useTranslations()
   const [identifier, setIdentifier] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [thankYouMessage, setThankYouMessage] = useState(
-    'Your response has been submitted successfully.'
-  )
+  const [thankYouMessage, setThankYouMessage] = useState('')
   const [authType, setAuthType] = useState<'public' | 'password' | 'email'>('public')
   const [password, setPassword] = useState('')
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
@@ -106,6 +106,12 @@ export function FormDeploy({
     setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
+  useEffect(() => {
+    if (!thankYouMessage) {
+      setThankYouMessage(t('form_deploy.placeholders.thank_you_message'))
+    }
+  }, [])
+
   // Populate form fields when existing form data is loaded
   useEffect(() => {
     if (existingForm) {
@@ -114,7 +120,7 @@ export function FormDeploy({
       setDescription(existingForm.description || '')
       setThankYouMessage(
         existingForm.customizations?.thankYouMessage ||
-          'Your response has been submitted successfully.'
+          t('form_deploy.placeholders.thank_you_message')
       )
       setAuthType(existingForm.authType)
       setEmailItems(
@@ -204,22 +210,22 @@ export function FormDeploy({
       setErrors({})
 
       if (!isIdentifierValid && identifier !== existingForm?.identifier) {
-        setError('identifier', 'Please wait for identifier validation to complete')
+        setError('identifier', t('form_deploy.errors.validation_pending'))
         return
       }
 
       if (!title.trim()) {
-        setError('title', 'Title is required')
+        setError('title', t('form_deploy.errors.title_required'))
         return
       }
 
       if (authType === 'password' && !existingForm?.hasPassword && !password.trim()) {
-        setError('password', 'Password is required')
+        setError('password', t('form_deploy.errors.password_required'))
         return
       }
 
       if (authType === 'email' && allowedEmails.length === 0) {
-        setError('emails', 'At least one email or domain is required')
+        setError('emails', t('form_deploy.errors.emails_required'))
         return
       }
 
@@ -338,7 +344,7 @@ export function FormDeploy({
   if (inputFields.length === 0) {
     return (
       <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-secondary)]'>
-        Add input fields to the Start block to create a form.
+        {t('form_deploy.helper_text.no_input_fields')}
       </div>
     )
   }
@@ -352,7 +358,7 @@ export function FormDeploy({
         {/* URL Input - matching chat style */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            URL
+            {t('form_deploy.labels.url')}
           </Label>
           <div
             className={cn(
@@ -370,7 +376,7 @@ export function FormDeploy({
                   setIdentifier(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
                   clearError('identifier')
                 }}
-                placeholder='my-form'
+                placeholder={t('form_deploy.placeholders.form_url')}
                 className={cn(
                   'rounded-none border-0 pl-0 shadow-none',
                   (isCheckingIdentifier || (identifierValidationPassed && identifier)) &&
@@ -391,7 +397,7 @@ export function FormDeploy({
                       </div>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
-                      <span>Name is available</span>
+                      <span>{t('form_deploy.helper_text.name_available')}</span>
                     </Tooltip.Content>
                   </Tooltip.Root>
                 )
@@ -406,7 +412,7 @@ export function FormDeploy({
           <p className='mt-[6.5px] truncate text-[11px] text-[var(--text-secondary)]'>
             {existingForm && identifier ? (
               <>
-                Live at:{' '}
+                {t('form_deploy.helper_text.live_at')}{' '}
                 <a
                   href={fullUrl}
                   target='_blank'
@@ -417,7 +423,7 @@ export function FormDeploy({
                 </a>
               </>
             ) : (
-              'The unique URL path where your form will be accessible'
+              t('form_deploy.helper_text.url')
             )}
           </p>
         </div>
@@ -425,7 +431,7 @@ export function FormDeploy({
         {/* Form Builder Preview */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Form builder
+            {t('form_deploy.labels.form_builder')}
           </Label>
           <FormBuilder
             title={title}
@@ -444,22 +450,22 @@ export function FormDeploy({
         {/* Access Control */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Access control
+            {t('form_deploy.labels.access_control')}
           </Label>
           <ButtonGroup
             value={authType}
             onValueChange={(val) => setAuthType(val as 'public' | 'password' | 'email')}
           >
-            <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-            <ButtonGroupItem value='password'>Password</ButtonGroupItem>
-            <ButtonGroupItem value='email'>Email</ButtonGroupItem>
+            <ButtonGroupItem value='public'>{t('form_deploy.buttons.public')}</ButtonGroupItem>
+            <ButtonGroupItem value='password'>{t('form_deploy.buttons.password')}</ButtonGroupItem>
+            <ButtonGroupItem value='email'>{t('form_deploy.buttons.email')}</ButtonGroupItem>
           </ButtonGroup>
         </div>
 
         {authType === 'password' && (
           <div>
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Password
+              {t('form_deploy.labels.password')}
             </Label>
             <div className='relative'>
               <Input
@@ -470,7 +476,9 @@ export function FormDeploy({
                   clearError('password')
                 }}
                 placeholder={
-                  existingForm?.hasPassword ? 'Enter new password to change' : 'Enter password'
+                  existingForm?.hasPassword
+                    ? t('form_deploy.placeholders.password_existing')
+                    : t('form_deploy.placeholders.password')
                 }
                 className='pr-[32px]'
               />
@@ -487,8 +495,8 @@ export function FormDeploy({
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
               {existingForm?.hasPassword
-                ? 'Leave empty to keep the current password'
-                : 'This password will be required to access your form'}
+                ? t('form_deploy.helper_text.password_existing')
+                : t('form_deploy.helper_text.password')}
             </p>
           </div>
         )}
@@ -496,7 +504,7 @@ export function FormDeploy({
         {authType === 'email' && (
           <div>
             <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Allowed emails
+              {t('form_deploy.labels.allowed_emails')}
             </Label>
             <TagInput
               items={emailItems}
@@ -516,14 +524,14 @@ export function FormDeploy({
               onRemove={(_value, index) => {
                 setEmailItems((prev) => prev.filter((_, i) => i !== index))
               }}
-              placeholder='Enter emails or @domain.com'
-              placeholderWithTags='Add another'
+              placeholder={t('form_deploy.placeholders.emails')}
+              placeholderWithTags={t('form_deploy.placeholders.emails_additional')}
             />
             {errors.emails && (
               <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{errors.emails}</p>
             )}
             <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-              Add specific emails or entire domains (@example.com)
+              {t('form_deploy.helper_text.emails')}
             </p>
           </div>
         )}
@@ -531,17 +539,17 @@ export function FormDeploy({
         {/* Thank You Message */}
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Thank you message
+            {t('form_deploy.labels.thank_you_message')}
           </Label>
           <Textarea
             value={thankYouMessage}
             onChange={(e) => setThankYouMessage(e.target.value)}
-            placeholder='Your response has been submitted successfully.'
+            placeholder={t('form_deploy.placeholders.thank_you_message')}
             rows={2}
             className='min-h-[60px] resize-none'
           />
           <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            This message will be displayed after form submission
+            {t('form_deploy.helper_text.thank_you_message')}
           </p>
         </div>
 

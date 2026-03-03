@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -85,6 +86,7 @@ export function DeployModal({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeployModalProps) {
+  const t = useTranslations('deploy_modal')
   const queryClient = useQueryClient()
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const deploymentStatus = useWorkflowRegistry((state) =>
@@ -474,7 +476,7 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Workflow Deployment</ModalHeader>
+          <ModalHeader>{t('title')}</ModalHeader>
 
           <ModalTabs
             value={activeTab}
@@ -482,22 +484,22 @@ export function DeployModal({
             className='flex min-h-0 flex-1 flex-col'
           >
             <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
+              <ModalTabsTrigger value='general'>{t('tabs.general')}</ModalTabsTrigger>
               {!permissionConfig.hideDeployApi && (
-                <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
+                <ModalTabsTrigger value='api'>{t('tabs.api')}</ModalTabsTrigger>
               )}
               {!permissionConfig.hideDeployMcp && (
-                <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
+                <ModalTabsTrigger value='mcp'>{t('tabs.mcp')}</ModalTabsTrigger>
               )}
               {!permissionConfig.hideDeployA2a && (
-                <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
+                <ModalTabsTrigger value='a2a'>{t('tabs.a2a')}</ModalTabsTrigger>
               )}
               {!permissionConfig.hideDeployChatbot && (
-                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+                <ModalTabsTrigger value='chat'>{t('tabs.chat')}</ModalTabsTrigger>
               )}
               {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
               {!permissionConfig.hideDeployTemplate && (
-                <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
+                <ModalTabsTrigger value='template'>{t('tabs.template')}</ModalTabsTrigger>
               )}
             </ModalTabsList>
 
@@ -628,6 +630,7 @@ export function DeployModal({
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
               onUndeploy={() => setShowUndeployConfirm(true)}
+              t={t}
             />
           )}
           {activeTab === 'api' && (
@@ -635,14 +638,14 @@ export function DeployModal({
               <div />
               <div className='flex items-center gap-2'>
                 <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
-                  Edit API Info
+                  {t('buttons.edit_api_info')}
                 </Button>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
                   disabled={createButtonDisabled}
                 >
-                  Generate API Key
+                  {t('buttons.generate_api_key')}
                 </Button>
               </div>
             </ModalFooter>
@@ -658,7 +661,7 @@ export function DeployModal({
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
-                    Delete
+                    {t('buttons.delete')}
                   </Button>
                 )}
                 <Button
@@ -669,15 +672,15 @@ export function DeployModal({
                 >
                   {chatSuccess
                     ? chatExists
-                      ? 'Updated'
-                      : 'Launched'
+                      ? t('buttons.updated')
+                      : t('buttons.launched')
                     : chatSubmitting
                       ? chatExists
-                        ? 'Updating...'
-                        : 'Launching...'
+                        ? t('buttons.updating')
+                        : t('buttons.launching')
                       : chatExists
-                        ? 'Update'
-                        : 'Launch Chat'}
+                        ? t('buttons.update')
+                        : t('buttons.launch_chat')}
                 </Button>
               </div>
             </ModalFooter>
@@ -691,7 +694,7 @@ export function DeployModal({
                   variant='default'
                   onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
                 >
-                  Manage
+                  {t('buttons.manage')}
                 </Button>
                 <Button
                   type='button'
@@ -699,7 +702,7 @@ export function DeployModal({
                   onClick={handleMcpToolFormSubmit}
                   disabled={mcpToolSubmitting || !mcpToolCanSave}
                 >
-                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
+                  {mcpToolSubmitting ? t('buttons.saving') : t('buttons.save_tool')}
                 </Button>
               </div>
             </ModalFooter>
@@ -711,6 +714,7 @@ export function DeployModal({
                   status={templateStatus.status}
                   views={templateStatus.views}
                   stars={templateStatus.stars}
+                  t={t}
                 />
               ) : (
                 <div />
@@ -723,7 +727,7 @@ export function DeployModal({
                     onClick={handleTemplateDelete}
                     disabled={templateSubmitting}
                   >
-                    Delete
+                    {t('buttons.delete')}
                   </Button>
                 )}
                 <Button
@@ -733,12 +737,10 @@ export function DeployModal({
                   disabled={templateSubmitting || !templateFormValid}
                 >
                   {templateSubmitting
-                    ? hasExistingTemplate
-                      ? 'Updating...'
-                      : 'Publishing...'
+                    ? t('buttons.publishing')
                     : hasExistingTemplate
-                      ? 'Update Template'
-                      : 'Publish Template'}
+                      ? t('buttons.update_template')
+                      : t('buttons.publish_template')}
                 </Button>
               </div>
             </ModalFooter>
@@ -784,11 +786,11 @@ export function DeployModal({
               {hasA2aAgent ? (
                 isA2aPublished ? (
                   <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
-                    {a2aNeedsRepublish ? 'Update deployment' : 'Live'}
+                    {a2aNeedsRepublish ? t('status.update_deployment') : t('status.live')}
                   </Badge>
                 ) : (
                   <Badge variant='red' size='lg' dot>
-                    Unpublished
+                    {t('status.unpublished')}
                   </Badge>
                 )
               ) : (
@@ -803,7 +805,7 @@ export function DeployModal({
                     onClick={handleA2aPublishNew}
                     disabled={a2aSubmitting || !a2aCanSave}
                   >
-                    {a2aSubmitting ? 'Publishing...' : 'Publish Agent'}
+                    {a2aSubmitting ? t('buttons.publishing') : t('buttons.publish_agent')}
                   </Button>
                 )}
 
@@ -816,7 +818,7 @@ export function DeployModal({
                       onClick={handleA2aUnpublish}
                       disabled={a2aSubmitting}
                     >
-                      Unpublish
+                      {t('buttons.unpublish')}
                     </Button>
                     <Button
                       type='button'
@@ -824,7 +826,7 @@ export function DeployModal({
                       onClick={handleA2aUpdateRepublish}
                       disabled={a2aSubmitting || !a2aCanSave || !a2aNeedsRepublish}
                     >
-                      {a2aSubmitting ? 'Updating...' : 'Update'}
+                      {a2aSubmitting ? t('buttons.updating') : t('buttons.update')}
                     </Button>
                   </>
                 )}
@@ -838,7 +840,7 @@ export function DeployModal({
                       onClick={() => setShowA2aDeleteConfirm(true)}
                       disabled={a2aSubmitting}
                     >
-                      Delete
+                      {t('buttons.delete')}
                     </Button>
                     <Button
                       type='button'
@@ -846,7 +848,7 @@ export function DeployModal({
                       onClick={handleA2aPublish}
                       disabled={a2aSubmitting || !a2aCanSave}
                     >
-                      {a2aSubmitting ? 'Publishing...' : 'Publish'}
+                      {a2aSubmitting ? t('buttons.publishing') : t('buttons.publish_agent')}
                     </Button>
                   </>
                 )}
@@ -858,13 +860,11 @@ export function DeployModal({
 
       <Modal open={showUndeployConfirm} onOpenChange={setShowUndeployConfirm}>
         <ModalContent size='sm'>
-          <ModalHeader>Undeploy API</ModalHeader>
+          <ModalHeader>{t('modals.undeploy_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to undeploy this workflow?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will remove the API endpoint and make it unavailable to external users.
-              </span>
+              {t('modals.undeploy_message')}{' '}
+              <span className='text-[var(--text-error)]'>{t('modals.undeploy_warning')}</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -873,10 +873,10 @@ export function DeployModal({
               onClick={() => setShowUndeployConfirm(false)}
               disabled={isUndeploying}
             >
-              Cancel
+              {t('buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleUndeploy} disabled={isUndeploying}>
-              {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+              {isUndeploying ? t('buttons.undeploying') : t('buttons.undeploy')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -884,17 +884,16 @@ export function DeployModal({
 
       <Modal open={showA2aDeleteConfirm} onOpenChange={setShowA2aDeleteConfirm}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete A2A Agent</ModalHeader>
+          <ModalHeader>{t('modals.delete_agent_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {existingA2aAgent?.name || 'this agent'}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove the agent configuration.
-              </span>
+              {t.rich('modals.delete_agent_message', {
+                agentName: existingA2aAgent?.name || 'this agent',
+                agent: (chunks) => (
+                  <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
+                ),
+              })}{' '}
+              <span className='text-[var(--text-error)]'>{t('modals.delete_agent_warning')}</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -903,10 +902,10 @@ export function DeployModal({
               onClick={() => setShowA2aDeleteConfirm(false)}
               disabled={a2aSubmitting}
             >
-              Cancel
+              {t('buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={handleA2aDelete} disabled={a2aSubmitting}>
-              {a2aSubmitting ? 'Deleting...' : 'Delete'}
+              {t('buttons.delete')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -935,10 +934,11 @@ export function DeployModal({
 
 interface StatusBadgeProps {
   isWarning: boolean
+  t: ReturnType<typeof useTranslations>
 }
 
-function StatusBadge({ isWarning }: StatusBadgeProps) {
-  const label = isWarning ? 'Update deployment' : 'Live'
+function StatusBadge({ isWarning, t }: StatusBadgeProps) {
+  const label = isWarning ? t('status.update_deployment') : t('status.live')
   return (
     <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
       {label}
@@ -950,11 +950,12 @@ interface TemplateStatusBadgeProps {
   status: 'pending' | 'approved' | 'rejected' | null
   views?: number
   stars?: number
+  t: ReturnType<typeof useTranslations>
 }
 
-function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
+function TemplateStatusBadge({ status, views, stars, t }: TemplateStatusBadgeProps) {
   const isPending = status === 'pending'
-  const label = isPending ? 'Under review' : 'Live'
+  const label = isPending ? t('status.under_review') : t('status.live')
 
   const statsText =
     status === 'approved' && views !== undefined && views > 0
@@ -977,6 +978,7 @@ interface GeneralFooterProps {
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
   onUndeploy: () => void
+  t: ReturnType<typeof useTranslations>
 }
 
 function GeneralFooter({
@@ -987,6 +989,7 @@ function GeneralFooter({
   onDeploy,
   onRedeploy,
   onUndeploy,
+  t,
 }: GeneralFooterProps) {
   if (!isDeployed) {
     return (
@@ -994,7 +997,7 @@ function GeneralFooter({
         <div />
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
-            {isSubmitting ? 'Deploying...' : 'Deploy'}
+            {isSubmitting ? t('buttons.deploying') : t('buttons.deploy')}
           </Button>
         </div>
       </ModalFooter>
@@ -1003,7 +1006,7 @@ function GeneralFooter({
 
   return (
     <ModalFooter className='items-center justify-between'>
-      <StatusBadge isWarning={needsRedeployment} />
+      <StatusBadge isWarning={needsRedeployment} t={t} />
       <div className='flex items-center gap-2'>
         <Button
           variant='default'
@@ -1011,11 +1014,11 @@ function GeneralFooter({
           disabled={isUndeploying || isSubmitting}
           className='px-[7px] py-[5px]'
         >
-          {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+          {isUndeploying ? t('buttons.undeploying') : t('buttons.undeploy')}
         </Button>
         {needsRedeployment && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
-            {isSubmitting ? 'Updating...' : 'Update'}
+            {isSubmitting ? t('buttons.updating') : t('buttons.update')}
           </Button>
         )}
       </div>

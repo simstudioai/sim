@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
@@ -98,6 +99,7 @@ export function McpDeploy({
   onSubmittingChange,
   onCanSaveChange,
 }: McpDeployProps) {
+  const t = useTranslations()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
@@ -436,7 +438,7 @@ export function McpDeploy({
   if (!isDeployed) {
     return (
       <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
-        Deploy your workflow first to add it as an MCP tool.
+        {t('mcp_deploy.messages.not_deployed')}
       </div>
     )
   }
@@ -466,13 +468,13 @@ export function McpDeploy({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <p className='text-[13px] text-[var(--text-muted)]'>
-          Create an MCP Server in Settings → MCP Servers first.
+          {t('mcp_deploy.messages.no_servers')}
         </p>
         <Button
           variant='tertiary'
           onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
         >
-          Create MCP Server
+          {t('mcp_deploy.buttons.create_mcp_server')}
         </Button>
       </div>
     )
@@ -502,24 +504,24 @@ export function McpDeploy({
 
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Tool name
+          {t('mcp_deploy.labels.tool_name')}
         </Label>
         <Input
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
-          placeholder='e.g., book_flight'
+          placeholder={t('mcp_deploy.placeholders.tool_name')}
         />
         <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-          Use lowercase letters, numbers, and underscores only
+          {t('mcp_deploy.helper_text.tool_name')}
         </p>
       </div>
 
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Description
+          {t('mcp_deploy.labels.description')}
         </Label>
         <Textarea
-          placeholder='Describe what this tool does...'
+          placeholder={t('mcp_deploy.placeholders.description')}
           className='min-h-[100px] resize-none'
           value={toolDescription}
           onChange={(e) => setToolDescription(e.target.value)}
@@ -529,7 +531,7 @@ export function McpDeploy({
       {inputFormat.length > 0 && (
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Parameters ({inputFormat.length})
+            {t('mcp_deploy.labels.parameters')} ({inputFormat.length})
           </Label>
           <div className='flex flex-col gap-[8px]'>
             {inputFormat.map((field) => (
@@ -549,7 +551,7 @@ export function McpDeploy({
                 </div>
                 <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
                   <div className='flex flex-col gap-[6px]'>
-                    <Label className='text-[13px]'>Description</Label>
+                    <Label className='text-[13px]'>{t('mcp_deploy.labels.parameter_description')}</Label>
                     <Input
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
@@ -558,7 +560,7 @@ export function McpDeploy({
                           [field.name]: e.target.value,
                         }))
                       }
-                      placeholder={`Enter description for ${field.name}`}
+                      placeholder={`${t('mcp_deploy.placeholders.parameter_description')} ${field.name}`}
                     />
                   </div>
                 </div>
@@ -570,16 +572,16 @@ export function McpDeploy({
 
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-          Servers
+          {t('mcp_deploy.labels.servers')}
         </Label>
         <Combobox
           options={serverOptions}
           multiSelect
           multiSelectValues={selectedServerIdsForForm}
           onMultiSelectChange={handleServerSelectionChange}
-          placeholder='Select servers...'
+          placeholder={t('mcp_deploy.placeholders.servers')}
           searchable
-          searchPlaceholder='Search servers...'
+          searchPlaceholder={t('mcp_deploy.placeholders.servers_search')}
           disabled={!toolName.trim() || isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
@@ -587,7 +589,7 @@ export function McpDeploy({
         />
         {!toolName.trim() && (
           <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
-            Enter a tool name to select servers
+            {t('mcp_deploy.helper_text.servers_disabled')}
           </p>
         )}
       </div>

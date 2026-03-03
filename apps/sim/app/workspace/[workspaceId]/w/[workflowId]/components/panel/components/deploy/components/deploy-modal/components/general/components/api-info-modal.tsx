@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -33,6 +34,7 @@ interface ApiInfoModalProps {
 }
 
 export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+  const t = useTranslations()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
   const subBlockValues = useSubBlockStore((state) =>
@@ -212,15 +214,15 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
         <ModalContent className='max-w-[480px]'>
           <ModalHeader>
-            <span>Edit API Info</span>
+            <span>{t('api_info_modal.labels.title')}</span>
           </ModalHeader>
           <ModalBody className='space-y-[12px]'>
             <div>
               <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                Description
+                {t('api_info_modal.labels.description')}
               </Label>
               <Textarea
-                placeholder='Describe what this workflow API does...'
+                placeholder={t('api_info_modal.placeholders.description')}
                 className='min-h-[80px] resize-none'
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -230,19 +232,19 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             {!isPublicApiDisabled && (
               <div>
                 <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                  Access
+                  {t('api_info_modal.labels.access')}
                 </Label>
                 <ButtonGroup
                   value={accessMode}
                   onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
                 >
-                  <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                  <ButtonGroupItem value='api_key'>{t('api_info_modal.buttons.api_key')}</ButtonGroupItem>
+                  <ButtonGroupItem value='public'>{t('api_info_modal.buttons.public')}</ButtonGroupItem>
                 </ButtonGroup>
                 <p className='mt-1 text-[12px] text-[var(--text-secondary)]'>
                   {accessMode === 'public'
-                    ? 'Anyone can call this API without authentication. You will be billed for all usage.'
-                    : 'Requires a valid API key to call this endpoint.'}
+                    ? t('api_info_modal.helper_text.public_access')
+                    : t('api_info_modal.helper_text.api_key_access')}
                 </p>
               </div>
             )}
@@ -250,7 +252,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             {inputFormat.length > 0 && (
               <div>
                 <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-                  Parameters ({inputFormat.length})
+                  {t('api_info_modal.labels.parameters')} ({inputFormat.length})
                 </Label>
                 <div className='flex flex-col gap-[8px]'>
                   {inputFormat.map((field) => (
@@ -270,13 +272,13 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                       </div>
                       <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
                         <div className='flex flex-col gap-[6px]'>
-                          <Label className='text-[13px]'>Description</Label>
+                          <Label className='text-[13px]'>{t('api_info_modal.labels.description')}</Label>
                           <Input
                             value={paramDescriptions[field.name] || ''}
                             onChange={(e) =>
                               handleParamDescriptionChange(field.name, e.target.value)
                             }
-                            placeholder={`Enter description for ${field.name}`}
+                            placeholder={`${t('api_info_modal.placeholders.parameter_description')} ${field.name}`}
                           />
                         </div>
                       </div>
@@ -291,10 +293,10 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
               <p className='mr-auto text-[12px] text-[var(--text-error)]'>{saveError}</p>
             )}
             <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
-              Cancel
+              {t('api_info_modal.buttons.cancel')}
             </Button>
             <Button variant='tertiary' onClick={handleSave} disabled={isSaving || !hasChanges}>
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? t('api_info_modal.buttons.saving') : t('api_info_modal.buttons.save')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -303,19 +305,19 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
         <ModalContent className='max-w-[400px]'>
           <ModalHeader>
-            <span>Unsaved Changes</span>
+            <span>{t('api_info_modal.messages.unsaved_changes')}</span>
           </ModalHeader>
           <ModalBody>
             <p className='text-[14px] text-[var(--text-secondary)]'>
-              You have unsaved changes. Are you sure you want to discard them?
+              {t('api_info_modal.messages.unsaved_changes_confirmation')}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
+              {t('api_info_modal.buttons.keep_editing')}
             </Button>
             <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
+              {t('api_info_modal.buttons.discard_changes')}
             </Button>
           </ModalFooter>
         </ModalContent>

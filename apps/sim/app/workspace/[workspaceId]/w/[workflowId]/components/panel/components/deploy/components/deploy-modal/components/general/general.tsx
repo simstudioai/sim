@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -48,6 +49,7 @@ export function GeneralDeploy({
   onPromoteToLive,
   onLoadDeploymentComplete,
 }: GeneralDeployProps) {
+  const t = useTranslations()
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
@@ -156,7 +158,7 @@ export function GeneralDeploy({
             <Label className='block truncate pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? selectedVersionInfo.name || `v${selectedVersion}`
-                : 'Live Workflow'}
+                : t('general_deploy.labels.live_workflow')}
             </Label>
             <div
               className='absolute top-[-5px] right-0'
@@ -166,7 +168,7 @@ export function GeneralDeploy({
                 value={previewMode}
                 onValueChange={(val) => setPreviewMode(val as PreviewMode)}
               >
-                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
+                <ButtonGroupItem value='active'>{t('general_deploy.buttons.live')}</ButtonGroupItem>
                 <ButtonGroupItem value='selected' className='truncate'>
                   {selectedVersionInfo?.name || `v${selectedVersion}`}
                 </ButtonGroupItem>
@@ -204,12 +206,12 @@ export function GeneralDeploy({
                       <Expand className='h-[14px] w-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>See preview</Tooltip.Content>
+                  <Tooltip.Content side='top'>{t('general_deploy.tooltips.see_preview')}</Tooltip.Content>
                 </Tooltip.Root>
               </>
             ) : (
               <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
-                Deploy your workflow to see a preview
+                {t('general_deploy.messages.no_preview')}
               </div>
             )}
           </div>
@@ -217,7 +219,7 @@ export function GeneralDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            Versions
+            {t('general_deploy.labels.versions')}
           </Label>
           <Versions
             workflowId={workflowId}
@@ -233,7 +235,7 @@ export function GeneralDeploy({
 
       <Modal open={showLoadDialog} onOpenChange={setShowLoadDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Load Deployment</ModalHeader>
+          <ModalHeader>{t('general_deploy.modals.load_deployment_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
@@ -242,16 +244,16 @@ export function GeneralDeploy({
               </span>
               ?{' '}
               <span className='text-[var(--text-error)]'>
-                This will replace your current workflow with the deployed version.
+                {t('general_deploy.modals.load_deployment_warning')}
               </span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowLoadDialog(false)}>
-              Cancel
+              {t('general_deploy.buttons.cancel')}
             </Button>
             <Button variant='destructive' onClick={confirmLoadDeployment}>
-              Load deployment
+              {t('general_deploy.buttons.load_deployment')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -259,7 +261,7 @@ export function GeneralDeploy({
 
       <Modal open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
         <ModalContent size='sm'>
-          <ModalHeader>Promote to live</ModalHeader>
+          <ModalHeader>{t('general_deploy.modals.promote_to_live_title')}</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
@@ -268,16 +270,16 @@ export function GeneralDeploy({
               </span>{' '}
               to live?{' '}
               <span className='text-[var(--text-primary)]'>
-                This version will become the active deployment and serve all API requests.
+                {t('general_deploy.modals.promote_to_live_info')}
               </span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
-              Cancel
+              {t('general_deploy.buttons.cancel')}
             </Button>
             <Button variant='tertiary' onClick={confirmPromoteToLive}>
-              Promote to live
+              {t('general_deploy.buttons.promote_to_live')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -289,7 +291,7 @@ export function GeneralDeploy({
             <ModalHeader>
               {previewMode === 'selected' && selectedVersionInfo
                 ? selectedVersionInfo.name || `v${selectedVersion}`
-                : 'Live Workflow'}
+                : t('general_deploy.labels.live_workflow')}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
               <Preview workflowState={workflowToShow} autoSelectLeftmost />

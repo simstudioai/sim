@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -62,6 +63,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  */
 export const Sidebar = memo(function Sidebar() {
   const params = useParams()
+  const t = useTranslations('workflows')
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
   const router = useRouter()
@@ -250,20 +252,20 @@ export const Sidebar = memo(function Sidebar() {
       [
         {
           id: 'logs',
-          label: 'Logs',
+          label: t('search_modal.labels.logs'),
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
         },
         {
           id: 'templates',
-          label: 'Templates',
+          label: t('search_modal.labels.templates'),
           icon: Layout,
           href: `/workspace/${workspaceId}/templates`,
           hidden: permissionConfig.hideTemplates,
         },
         {
           id: 'knowledge-base',
-          label: 'Knowledge Base',
+          label: t('search_modal.labels.knowledge_base'),
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
@@ -278,18 +280,18 @@ export const Sidebar = memo(function Sidebar() {
         // },
         {
           id: 'help',
-          label: 'Help',
+          label: t('search_modal.labels.help'),
           icon: HelpCircle,
           onClick: () => setIsHelpModalOpen(true),
         },
         {
           id: 'settings',
-          label: 'Settings',
+          label: t('search_modal.labels.settings'),
           icon: Settings,
           onClick: () => openSettingsModal(),
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
+    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab, t]
   )
 
   const isLoading = workflowsLoading || sessionLoading
@@ -562,7 +564,7 @@ export const Sidebar = memo(function Sidebar() {
                 <div className='flex items-center gap-[6px]'>
                   <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                   <p className='translate-y-[0.25px] font-medium text-[var(--text-tertiary)] text-small'>
-                    Search
+                    {t('sidebar.labels.search')}
                   </p>
                 </div>
                 <p className='font-medium text-[var(--text-subtle)] text-small'>⌘K</p>
@@ -574,7 +576,7 @@ export const Sidebar = memo(function Sidebar() {
                 <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[14px]'>
                   <div className='flex items-center justify-between'>
                     <div className='font-medium text-[var(--text-tertiary)] text-small'>
-                      Workflows
+                      {t('sidebar.labels.workflows')}
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>
                       {isImporting ? (
@@ -598,7 +600,7 @@ export const Sidebar = memo(function Sidebar() {
                             </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content>
-                            <p>Import workflows</p>
+                            <p>{t('sidebar.tooltips.import_workflows')}</p>
                           </Tooltip.Content>
                         </Tooltip.Root>
                       )}
@@ -614,7 +616,11 @@ export const Sidebar = memo(function Sidebar() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
+                          <p>
+                            {isCreatingFolder
+                              ? t('sidebar.loading_states.creating_folder')
+                              : t('sidebar.tooltips.create_folder')}
+                          </p>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -629,7 +635,11 @@ export const Sidebar = memo(function Sidebar() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
+                          <p>
+                            {isCreatingWorkflow
+                              ? t('sidebar.loading_states.creating_workflow')
+                              : t('sidebar.tooltips.create_workflow')}
+                          </p>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </div>
@@ -728,7 +738,7 @@ export const Sidebar = memo(function Sidebar() {
               onMouseDown={handleMouseDown}
               role='separator'
               aria-orientation='vertical'
-              aria-label='Resize sidebar'
+              aria-label={t('sidebar.aria.resize_sidebar')}
             />
           )}
         </>

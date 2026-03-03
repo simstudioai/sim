@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { GripVertical } from 'lucide-react'
 import { Switch } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -74,6 +75,7 @@ export function FormBuilder({
   onFieldConfigsChange,
   titleError,
 }: FormBuilderProps) {
+  const t = useTranslations()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [focusedInput, setFocusedInput] = useState<string | null>(null)
@@ -203,7 +205,7 @@ export function FormBuilder({
             }}
             onFocus={() => setFocusedInput('title')}
             onBlur={() => setFocusedInput(null)}
-            placeholder='Form Title'
+            placeholder={t('form_deploy_builder.placeholders.title')}
             maxLength={MAX_LENGTHS.FORM_TITLE}
             className={cn(
               'min-w-0 flex-1 bg-transparent font-medium text-[14px] text-[var(--text-primary)] outline-none',
@@ -229,7 +231,7 @@ export function FormBuilder({
             }}
             onFocus={() => setFocusedInput('description')}
             onBlur={() => setFocusedInput(null)}
-            placeholder='Description'
+            placeholder={t('form_deploy_builder.placeholders.description')}
             maxLength={MAX_LENGTHS.FORM_DESCRIPTION}
             className='min-w-0 flex-1 bg-transparent text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
           />
@@ -290,7 +292,7 @@ export function FormBuilder({
                   }}
                   onFocus={() => setFocusedInput(`field-label-${index}`)}
                   onBlur={() => setFocusedInput(null)}
-                  placeholder='Label'
+                  placeholder={t('form_deploy_builder.placeholders.field_label')}
                   maxLength={MAX_LENGTHS.FIELD_LABEL}
                   className='min-w-0 flex-1 bg-transparent font-medium text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]'
                 />
@@ -298,7 +300,9 @@ export function FormBuilder({
                   <CharacterCounter current={config.label.length} max={MAX_LENGTHS.FIELD_LABEL} />
                 )}
                 <div className='flex items-center gap-[6px]'>
-                  <span className='text-[11px] text-[var(--text-tertiary)]'>Required</span>
+                  <span className='text-[11px] text-[var(--text-tertiary)]'>
+                    {t('form_deploy_builder.labels.required')}
+                  </span>
                   <Switch
                     checked={config.required ?? false}
                     onCheckedChange={(checked) => updateFieldConfig(index, { required: checked })}
@@ -318,7 +322,7 @@ export function FormBuilder({
                   }}
                   onFocus={() => setFocusedInput(`field-desc-${index}`)}
                   onBlur={() => setFocusedInput(null)}
-                  placeholder='Description...'
+                  placeholder={t('form_deploy_builder.placeholders.field_description')}
                   maxLength={MAX_LENGTHS.FIELD_DESCRIPTION}
                   className='min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
                 />
@@ -335,7 +339,7 @@ export function FormBuilder({
                 <span className='text-[10px] text-[var(--text-muted)]'>
                   {config.name ? (
                     <>
-                      maps to <code>{config.name}</code>
+                      {t('form_deploy_builder.labels.maps_to')} <code>{config.name}</code>
                     </>
                   ) : null}
                 </span>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import imageCompression from 'browser-image-compression'
 import { X } from 'lucide-react'
 import Image from 'next/image'
@@ -34,10 +35,10 @@ const SUCCESS_RESET_DELAY_MS = 2000
 const DEFAULT_REQUEST_TYPE = 'bug'
 
 const REQUEST_TYPE_OPTIONS = [
-  { label: 'Bug Report', value: 'bug' },
-  { label: 'Feedback', value: 'feedback' },
-  { label: 'Feature Request', value: 'feature_request' },
-  { label: 'Other', value: 'other' },
+  { label: 'request_types.bug', value: 'bug' },
+  { label: 'request_types.feedback', value: 'feedback' },
+  { label: 'request_types.feature_request', value: 'feature_request' },
+  { label: 'request_types.other', value: 'other' },
 ]
 
 const formSchema = z.object({
@@ -62,6 +63,7 @@ interface HelpModalProps {
 }
 
 export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
+  const t = useTranslations('workflows.help_modal')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -421,21 +423,24 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='md'>
-        <ModalHeader>Help &amp; Support</ModalHeader>
+        <ModalHeader>{t('title')}</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='type'>Request</Label>
+                  <Label htmlFor='type'>{t('labels.request')}</Label>
                   <Combobox
                     id='type'
-                    options={REQUEST_TYPE_OPTIONS}
+                    options={REQUEST_TYPE_OPTIONS.map((opt) => ({
+                      label: t(opt.label as any),
+                      value: opt.value,
+                    }))}
                     value={watch('type') || DEFAULT_REQUEST_TYPE}
                     selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
                     onChange={(value) => setValue('type', value as FormValues['type'])}
-                    placeholder='Select a request type'
+                    placeholder={t('placeholders.request')}
                     editable={false}
                     filterOptions={false}
                     className={cn(errors.type && 'border-[var(--text-error)]')}
@@ -443,20 +448,20 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='subject'>Subject</Label>
+                  <Label htmlFor='subject'>{t('labels.subject')}</Label>
                   <Input
                     id='subject'
-                    placeholder='Brief description of your request'
+                    placeholder={t('placeholders.subject')}
                     {...register('subject')}
                     className={cn(errors.subject && 'border-[var(--text-error)]')}
                   />
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='message'>Message</Label>
+                  <Label htmlFor='message'>{t('labels.message')}</Label>
                   <Textarea
                     id='message'
-                    placeholder='Please provide details about your request...'
+                    placeholder={t('placeholders.message')}
                     rows={6}
                     {...register('message')}
                     className={cn(errors.message && 'border-[var(--text-error)]')}
@@ -464,7 +469,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label>Attach Images (Optional)</Label>
+                  <Label>{t('labels.images')}</Label>
                   <Button
                     type='button'
                     variant='default'
@@ -490,10 +495,10 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                     />
                     <div className='flex flex-col gap-[2px] text-center'>
                       <span className='text-[var(--text-primary)]'>
-                        {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
+                        {isDragging ? t('placeholders.images_drop') : t('placeholders.images_drop')}
                       </span>
                       <span className='text-[11px] text-[var(--text-tertiary)]'>
-                        PNG, JPEG, WebP, GIF (max 20MB each)
+                        {t('helper_text.images')}
                       </span>
                     </div>
                   </Button>
@@ -501,7 +506,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
                 {images.length > 0 && (
                   <div className='space-y-2'>
-                    <Label>Uploaded Images</Label>
+                    <Label>{t('labels.uploaded_images')}</Label>
                     <div className='grid grid-cols-2 gap-3'>
                       {images.map((image, index) => (
                         <div
@@ -537,16 +542,16 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
           <ModalFooter>
             <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
-              Cancel
+              {t('buttons.cancel')}
             </Button>
             <Button type='submit' variant='tertiary' disabled={isSubmitting || isProcessing}>
               {isSubmitting
-                ? 'Submitting...'
+                ? t('buttons.submitting')
                 : submitStatus === 'error'
-                  ? 'Error'
+                  ? t('buttons.error')
                   : submitStatus === 'success'
-                    ? 'Success'
-                    : 'Submit'}
+                    ? t('buttons.success')
+                    : t('buttons.submit')}
             </Button>
           </ModalFooter>
         </form>

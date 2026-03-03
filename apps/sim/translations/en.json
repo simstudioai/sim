@@ -735,6 +735,7 @@
     "context_menu": {
       "buttons": {
         "open_in_new_tab": "Open in new tab",
+        "copy_link": "Copy link",
         "rename": "Rename",
         "create_workflow": "Create workflow",
         "create_folder": "Create folder",
@@ -743,6 +744,60 @@
         "export": "Export",
         "delete": "Delete",
         "leave": "Leave"
+      }
+    },
+    "sidebar": {
+      "labels": {
+        "workflows": "Workflows",
+        "search": "Search",
+        "import_workflows": "Import workflows",
+        "create_folder": "Create folder",
+        "create_workflow": "Create workflow"
+      },
+      "loading_states": {
+        "creating_folder": "Creating folder...",
+        "creating_workflow": "Creating workflow..."
+      },
+      "aria": {
+        "resize_sidebar": "Resize sidebar",
+        "search_shortcut": "⌘K"
+      },
+      "tooltips": {
+        "import_workflows": "Import workflows",
+        "create_folder": "Create folder",
+        "create_workflow": "Create workflow"
+      }
+    },
+    "help_modal": {
+      "title": "Help & Support",
+      "labels": {
+        "request": "Request",
+        "subject": "Subject",
+        "message": "Message",
+        "images": "Attach Images (Optional)",
+        "uploaded_images": "Uploaded Images"
+      },
+      "placeholders": {
+        "request": "Select a request type",
+        "subject": "Brief description of your request",
+        "message": "Please provide details about your request...",
+        "images_drop": "Drop images here or click to browse"
+      },
+      "buttons": {
+        "cancel": "Cancel",
+        "submit": "Submit",
+        "submitting": "Submitting...",
+        "error": "Error",
+        "success": "Success"
+      },
+      "helper_text": {
+        "images": "PNG, JPEG, WebP, GIF (max 20MB each)"
+      },
+      "request_types": {
+        "bug": "Bug Report",
+        "feedback": "Feedback",
+        "feature_request": "Feature Request",
+        "other": "Other"
       }
     },
     "delete_modal": {
@@ -2129,6 +2184,441 @@
       "no_results": "No results",
       "iteration_header": "Iteration {{current}}/{{total}}",
       "iteration_header_no_total": "Iteration {{current}}"
+    }
+  },
+  "deploy": {
+    "buttons": {
+      "deploy": "Deploy",
+      "update": "Update",
+      "live": "Live"
+    },
+    "tooltips": {
+      "empty_workflow": "Cannot deploy an empty workflow",
+      "admin_required": "Admin permissions required",
+      "deploying": "Deploying...",
+      "update_deployment": "Update deployment",
+      "active_deployment": "Active deployment",
+      "deploy_workflow": "Deploy workflow"
+    }
+  },
+  "deploy_modal": {
+    "title": "Workflow Deployment",
+    "tabs": {
+      "general": "General",
+      "api": "API",
+      "mcp": "MCP",
+      "a2a": "A2A",
+      "chat": "Chat",
+      "template": "Template"
+    },
+    "buttons": {
+      "edit_api_info": "Edit API Info",
+      "generate_api_key": "Generate API Key",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "deploy": "Deploy",
+      "undeploy": "Undeploy",
+      "updating": "Updating...",
+      "undeploying": "Undeploying...",
+      "deploying": "Deploying...",
+      "manage": "Manage",
+      "save_tool": "Save Tool",
+      "saving": "Saving...",
+      "publish_template": "Publish Template",
+      "update_template": "Update Template",
+      "publishing": "Publishing...",
+      "publish_agent": "Publish Agent",
+      "unpublish": "Unpublish",
+      "launch_chat": "Launch Chat",
+      "launching": "Launching...",
+      "launched": "Launched",
+      "updated": "Updated",
+      "update": "Update"
+    },
+    "modals": {
+      "undeploy_title": "Undeploy API",
+      "undeploy_message": "Are you sure you want to undeploy this workflow?",
+      "undeploy_warning": "This will remove the API endpoint and make it unavailable to external users.",
+      "delete_agent_title": "Delete A2A Agent",
+      "delete_agent_message": "Are you sure you want to delete <agent>{agentName}</agent>?",
+      "delete_agent_warning": "This will permanently remove the agent configuration."
+    },
+    "status": {
+      "under_review": "Under review",
+      "live": "Live",
+      "update_deployment": "Update deployment",
+      "unpublished": "Unpublished"
+    },
+    "chat": {
+      "updating": "Updating...",
+      "launching": "Launching...",
+      "update": "Update"
+    }
+  },
+  "a2a": {
+    "labels": {
+      "url": "URL",
+      "agent_name": "Agent name",
+      "description": "Description",
+      "access": "Access",
+      "capabilities": "Capabilities",
+      "push_notifications": "Push notifications (webhooks)",
+      "tags": "Tags",
+      "language": "Language",
+      "send_message": "Send message",
+      "stream": "Stream"
+    },
+    "placeholders": {
+      "agent_name": "Enter agent name",
+      "description": "Describe what this agent does...",
+      "tags": "Add tags",
+      "tags_additional": "Add another"
+    },
+    "helper_text": {
+      "url": "The A2A endpoint URL where clients can discover and call your agent",
+      "agent_name": "Human-readable name shown in the Agent Card",
+      "access_api_key": "Requires X-API-Key header or API key query parameter",
+      "access_public": "Anyone can call this agent without authentication",
+      "discovery": "External A2A clients can discover and call your agent. TextPart → <code>start.input</code>, DataPart → <code>start.data</code>, FilePart → <code>start.files</code>.",
+      "add_inputs": "Add required A2A input fields to Start block"
+    },
+    "buttons": {
+      "api_key": "API Key",
+      "public": "Public",
+      "add_inputs": "Add inputs",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "aria": {
+      "copy_url": "Copy URL",
+      "copy_command": "Copy command"
+    },
+    "languages": {
+      "curl": "cURL",
+      "python": "Python",
+      "javascript": "JavaScript",
+      "typescript": "TypeScript"
+    }
+  },
+  "api_deploy": {
+    "labels": {
+      "language": "Language",
+      "run_workflow": "Run workflow",
+      "run_workflow_stream": "Run workflow (stream response)",
+      "run_workflow_async": "Run workflow (async)"
+    },
+    "buttons": {
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "aria": {
+      "copy_command": "Copy command"
+    },
+    "async_examples": {
+      "execute": "Execute Job",
+      "status": "Check Status",
+      "rate_limits": "Rate Limits"
+    },
+    "placeholders": {
+      "select_outputs": "Select outputs"
+    }
+  },
+  "chat_deploy": {
+    "labels": {
+      "title": "Title",
+      "output": "Output",
+      "access_control": "Access control",
+      "password": "Password",
+      "allowed_emails": "Allowed emails",
+      "allowed_sso_emails": "Allowed SSO emails",
+      "welcome_message": "Welcome message",
+      "url": "URL"
+    },
+    "placeholders": {
+      "title": "Customer Support Assistant",
+      "output": "Select which block outputs to use",
+      "chat_url": "my-chat",
+      "password": "Enter password",
+      "password_existing": "Enter new password to change",
+      "emails": "Enter emails or domains (@example.com)",
+      "emails_additional": "Add email",
+      "welcome_message": "Enter a welcome message for your chat"
+    },
+    "buttons": {
+      "public": "Public",
+      "password": "Password",
+      "email": "Email",
+      "sso": "SSO",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "cancel": "Cancel",
+      "generate": "Generate",
+      "copy": "Copy",
+      "copied": "Copied",
+      "show": "Show",
+      "hide": "Hide"
+    },
+    "errors": {
+      "identifier_required": "Identifier is required",
+      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
+      "title_required": "Title is required",
+      "password_required": "Password is required when using password protection",
+      "emails_required_email": "At least one email or domain is required when using email access control",
+      "emails_required_sso": "At least one email or domain is required when using SSO access control",
+      "output_blocks_required": "Please select at least one output block",
+      "identifier_unavailable": "This identifier is already in use",
+      "identifier_check_error": "Error checking identifier availability"
+    },
+    "helper_text": {
+      "url": "The unique URL path where your chat will be accessible",
+      "live_at": "Live at:",
+      "password": "This password will be required to access your chat",
+      "password_existing": "Leave empty to keep the current password",
+      "welcome_message": "This message will be displayed when users first open the chat",
+      "emails": "Add specific emails or entire domains (@example.com)",
+      "sso_emails": "Add emails or domains that can access via SSO",
+      "name_available": "Name is available"
+    },
+    "modal": {
+      "delete_title": "Delete Chat",
+      "delete_confirmation": "Are you sure you want to delete {{title}}?",
+      "delete_warning": "This will remove the chat at \"{{url}}\" and make it unavailable to all users."
+    },
+    "aria": {
+      "generate_password": "Generate password",
+      "copy_password": "Copy password",
+      "show_password": "Show password",
+      "hide_password": "Hide password"
+    }
+  },
+  "form_deploy": {
+    "labels": {
+      "url": "URL",
+      "form_builder": "Form builder",
+      "access_control": "Access control",
+      "password": "Password",
+      "allowed_emails": "Allowed emails",
+      "thank_you_message": "Thank you message"
+    },
+    "placeholders": {
+      "form_url": "my-form",
+      "password": "Enter password",
+      "password_existing": "Enter new password to change",
+      "emails": "Enter emails or @domain.com",
+      "emails_additional": "Add another",
+      "thank_you_message": "Your response has been submitted successfully."
+    },
+    "buttons": {
+      "public": "Public",
+      "password": "Password",
+      "email": "Email"
+    },
+    "errors": {
+      "validation_pending": "Please wait for identifier validation to complete",
+      "title_required": "Title is required",
+      "password_required": "Password is required",
+      "emails_required": "At least one email or domain is required",
+      "identifier_invalid": "Identifier can only contain lowercase letters, numbers, and hyphens",
+      "identifier_check_error": "Error checking identifier availability",
+      "identifier_unavailable": "This identifier is already in use"
+    },
+    "helper_text": {
+      "url": "The unique URL path where your form will be accessible",
+      "live_at": "Live at:",
+      "password": "This password will be required to access your form",
+      "password_existing": "Leave empty to keep the current password",
+      "thank_you_message": "This message will be displayed after form submission",
+      "emails": "Add specific emails or entire domains (@example.com)",
+      "name_available": "Name is available",
+      "no_input_fields": "Add input fields to the Start block to create a form."
+    },
+    "aria": {
+      "copy_code": "Copy code"
+    }
+  },
+  "form_deploy_builder": {
+    "labels": {
+      "required": "Required",
+      "maps_to": "maps to"
+    },
+    "placeholders": {
+      "title": "Form Title",
+      "description": "Description",
+      "field_label": "Label",
+      "field_description": "Description..."
+    }
+  },
+  "form_deploy_embed": {
+    "labels": {
+      "embed_code": "Embed Code"
+    },
+    "aria": {
+      "copy_code": "Copy code"
+    },
+    "buttons": {
+      "copy": "Copy",
+      "copied": "Copied"
+    }
+  },
+  "general_deploy": {
+    "labels": {
+      "live_workflow": "Live Workflow",
+      "preview": "Preview",
+      "versions": "Versions"
+    },
+    "buttons": {
+      "live": "Live",
+      "cancel": "Cancel",
+      "load_deployment": "Load deployment",
+      "promote_to_live": "Promote to live"
+    },
+    "tooltips": {
+      "see_preview": "See preview"
+    },
+    "modals": {
+      "load_deployment_title": "Load Deployment",
+      "load_deployment_warning": "This will replace your current workflow with the deployed version.",
+      "promote_to_live_title": "Promote to live",
+      "promote_to_live_info": "This version will become the active deployment and serve all API requests."
+    },
+    "messages": {
+      "no_preview": "Deploy your workflow to see a preview"
+    }
+  },
+  "versions_deploy": {
+    "labels": {
+      "version": "Version",
+      "deployed_by": "Deployed by",
+      "timestamp": "Timestamp",
+      "live": "Live",
+      "inactive": "Inactive",
+      "selected": "Selected"
+    },
+    "buttons": {
+      "rename": "Rename",
+      "add_description": "Add description",
+      "edit_description": "Edit description",
+      "promote_to_live": "Promote to live",
+      "load_deployment": "Load deployment"
+    },
+    "messages": {
+      "no_deployments": "No deployments yet"
+    },
+    "tooltips": {
+      "add_description": "Add description"
+    }
+  },
+  "version_description_modal": {
+    "labels": {
+      "title": "Version Description"
+    },
+    "buttons": {
+      "generate": "Generate",
+      "generating": "Generating...",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "keep_editing": "Keep Editing",
+      "discard_changes": "Discard Changes"
+    },
+    "messages": {
+      "edit_description": "Edit the",
+      "add_description": "Add a",
+      "description_for": "description for",
+      "unsaved_changes": "Unsaved Changes",
+      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
+    },
+    "placeholders": {
+      "description": "Describe the changes in this deployment version..."
+    }
+  },
+  "api_info_modal": {
+    "labels": {
+      "title": "Edit API Info",
+      "description": "Description",
+      "access": "Access",
+      "parameters": "Parameters"
+    },
+    "buttons": {
+      "api_key": "API Key",
+      "public": "Public",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "keep_editing": "Keep Editing",
+      "discard_changes": "Discard Changes"
+    },
+    "placeholders": {
+      "description": "Describe what this workflow API does...",
+      "parameter_description": "Enter description for"
+    },
+    "helper_text": {
+      "public_access": "Anyone can call this API without authentication. You will be billed for all usage.",
+      "api_key_access": "Requires a valid API key to call this endpoint."
+    },
+    "messages": {
+      "unsaved_changes": "Unsaved Changes",
+      "unsaved_changes_confirmation": "You have unsaved changes. Are you sure you want to discard them?"
+    }
+  },
+  "mcp_deploy": {
+    "labels": {
+      "tool_name": "Tool name",
+      "description": "Description",
+      "parameters": "Parameters",
+      "servers": "Servers",
+      "parameter_description": "Description"
+    },
+    "placeholders": {
+      "tool_name": "e.g., book_flight",
+      "description": "Describe what this tool does...",
+      "parameter_description": "Enter description for",
+      "servers": "Select servers...",
+      "servers_search": "Search servers..."
+    },
+    "helper_text": {
+      "tool_name": "Use lowercase letters, numbers, and underscores only",
+      "servers_disabled": "Enter a tool name to select servers"
+    },
+    "buttons": {
+      "create_mcp_server": "Create MCP Server"
+    },
+    "messages": {
+      "not_deployed": "Deploy your workflow first to add it as an MCP tool.",
+      "no_servers": "Create an MCP Server in Settings → MCP Servers first."
+    }
+  },
+  "template_deploy": {
+    "labels": {
+      "live_template": "Live Template",
+      "name": "Name",
+      "tagline": "Tagline",
+      "description": "Description",
+      "creator": "Creator",
+      "tags": "Tags"
+    },
+    "placeholders": {
+      "name": "Deep Research Agent",
+      "tagline": "A deep research agent that can find information on any topic",
+      "description": "Optional description that supports Markdown",
+      "tags": "Dev, Agents, Research, etc.",
+      "tags_additional": "Add another",
+      "creator_loading": "Loading...",
+      "creator_select": "Select creator profile"
+    },
+    "helper_text": {
+      "creator_required": "A creator profile is required to publish templates."
+    },
+    "buttons": {
+      "create_profile": "Create Template Profile",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleting": "Deleting..."
+    },
+    "modals": {
+      "delete_title": "Delete Template",
+      "delete_confirmation": "Are you sure you want to delete",
+      "delete_error": "This action cannot be undone."
     }
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Loader2 } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
@@ -24,6 +25,7 @@ interface DeployProps {
  * Manages deployed state, change detection, and deployment operations
  */
 export function Deploy({ activeWorkflowId, userPermissions, className }: DeployProps) {
+  const t = useTranslations('deploy')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading =
@@ -76,21 +78,21 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
    */
   const getTooltipText = () => {
     if (isEmpty) {
-      return 'Cannot deploy an empty workflow'
+      return t('tooltips.empty_workflow')
     }
     if (!canDeploy) {
-      return 'Admin permissions required'
+      return t('tooltips.admin_required')
     }
     if (isDeploying) {
-      return 'Deploying...'
+      return t('tooltips.deploying')
     }
     if (changeDetected) {
-      return 'Update deployment'
+      return t('tooltips.update_deployment')
     }
     if (isDeployed) {
-      return 'Active deployment'
+      return t('tooltips.active_deployment')
     }
-    return 'Deploy workflow'
+    return t('tooltips.deploy_workflow')
   }
 
   return (
@@ -107,7 +109,11 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
               disabled={isRegistryLoading || isDisabled}
             >
               {isDeploying && <Loader2 className='h-[13px] w-[13px] animate-spin' />}
-              {changeDetected ? 'Update' : isDeployed ? 'Live' : 'Deploy'}
+              {changeDetected
+                ? t('buttons.update')
+                : isDeployed
+                  ? t('buttons.live')
+                  : t('buttons.deploy')}
             </Button>
           </span>
         </Tooltip.Trigger>

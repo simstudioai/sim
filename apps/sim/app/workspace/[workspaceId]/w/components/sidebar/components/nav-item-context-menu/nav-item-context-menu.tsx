@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 
 interface NavItemContextMenuProps {
@@ -41,6 +42,7 @@ export function NavItemContextMenu({
   onOpenInNewTab,
   onCopyLink,
 }: NavItemContextMenuProps) {
+  const t = useTranslations('workflows.context_menu.buttons')
   return (
     <Popover
       open={isOpen}
@@ -65,7 +67,7 @@ export function NavItemContextMenu({
             onClose()
           }}
         >
-          Open in new tab
+          {t('open_in_new_tab')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -73,7 +75,7 @@ export function NavItemContextMenu({
             onClose()
           }}
         >
-          Copy link
+          {t('copy_link')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

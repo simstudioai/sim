@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
 const DEBOUNCE_MS = 500
@@ -20,6 +21,7 @@ export function useIdentifierValidation(
   originalIdentifier?: string,
   isEditingExisting?: boolean
 ): IdentifierValidationState {
+  const t = useTranslations()
   const [isChecking, setIsChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isValid, setIsValid] = useState(false)
@@ -50,7 +52,7 @@ export function useIdentifierValidation(
     }
 
     if (!IDENTIFIER_PATTERN.test(identifier)) {
-      setError('Identifier can only contain lowercase letters, numbers, and hyphens')
+      setError(t('chat_deploy.errors.identifier_invalid'))
       return
     }
 
@@ -63,17 +65,17 @@ export function useIdentifierValidation(
         const data = await response.json()
 
         if (!response.ok) {
-          setError('Error checking identifier availability')
+          setError(t('chat_deploy.errors.identifier_check_error'))
           setIsValid(false)
         } else if (!data.available) {
-          setError(data.error || 'This identifier is already in use')
+          setError(data.error || t('chat_deploy.errors.identifier_unavailable'))
           setIsValid(false)
         } else {
           setError(null)
           setIsValid(true)
         }
       } catch {
-        setError('Error checking identifier availability')
+        setError(t('chat_deploy.errors.identifier_check_error'))
         setIsValid(false)
       } finally {
         setIsChecking(false)

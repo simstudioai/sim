@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Modal,
@@ -32,6 +33,7 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
+  const t = useTranslations()
   const initialDescriptionRef = useRef(currentDescription || '')
   const [description, setDescription] = useState(initialDescriptionRef.current)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -91,12 +93,12 @@ export function VersionDescriptionModal({
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
         <ModalContent className='max-w-[480px]'>
           <ModalHeader>
-            <span>Version Description</span>
+            <span>{t('version_description_modal.labels.title')}</span>
           </ModalHeader>
           <ModalBody className='space-y-[10px]'>
             <div className='flex items-center justify-between'>
               <p className='text-[12px] text-[var(--text-secondary)]'>
-                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
+                {currentDescription ? t('version_description_modal.messages.edit_description') : t('version_description_modal.messages.add_description')} {t('version_description_modal.messages.description_for')}{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </p>
               <Button
@@ -105,11 +107,11 @@ export function VersionDescriptionModal({
                 onClick={handleGenerateDescription}
                 disabled={isGenerating || updateMutation.isPending}
               >
-                {isGenerating ? 'Generating...' : 'Generate'}
+                {isGenerating ? t('version_description_modal.buttons.generating') : t('version_description_modal.buttons.generate')}
               </Button>
             </div>
             <Textarea
-              placeholder='Describe the changes in this deployment version...'
+              placeholder={t('version_description_modal.placeholders.description')}
               className='min-h-[120px] resize-none'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -132,14 +134,14 @@ export function VersionDescriptionModal({
               onClick={handleCloseAttempt}
               disabled={updateMutation.isPending || isGenerating}
             >
-              Cancel
+              {t('version_description_modal.buttons.cancel')}
             </Button>
             <Button
               variant='tertiary'
               onClick={handleSave}
               disabled={updateMutation.isPending || isGenerating || !hasChanges}
             >
-              {updateMutation.isPending ? 'Saving...' : 'Save'}
+              {updateMutation.isPending ? t('version_description_modal.buttons.saving') : t('version_description_modal.buttons.save')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -148,19 +150,19 @@ export function VersionDescriptionModal({
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
         <ModalContent className='max-w-[400px]'>
           <ModalHeader>
-            <span>Unsaved Changes</span>
+            <span>{t('version_description_modal.messages.unsaved_changes')}</span>
           </ModalHeader>
           <ModalBody>
             <p className='text-[14px] text-[var(--text-secondary)]'>
-              You have unsaved changes. Are you sure you want to discard them?
+              {t('version_description_modal.messages.unsaved_changes_confirmation')}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
+              {t('version_description_modal.buttons.keep_editing')}
             </Button>
             <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
+              {t('version_description_modal.buttons.discard_changes')}
             </Button>
           </ModalFooter>
         </ModalContent>
