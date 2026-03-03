@@ -399,6 +399,7 @@
     "remove_member": {
       "remove_team_member": "Eliminar Miembro del Equipo",
       "leave_organization": "Salir de la Organización",
+      "confirm_remove": "¿Está seguro de que desea eliminar <bold>{name}</bold>? Esta acción no se puede deshacer.",
       "confirm_leave": "¿Está seguro de que desea salir de esta organización? Perderá acceso a todos los workspaces.",
       "cannot_undo": "Esta acción no se puede deshacer.",
       "labels": {
@@ -432,12 +433,17 @@
       },
       "buttons": {
         "create_team_workspace": "Crear Equipo",
-        "creating": "Creando..."
+        "create_organization": "Crear Organización",
+        "creating": "Creando...",
+        "cancel": "Cancelar",
+        "upgrade_to_team": "Actualizar a Plan de Equipo"
       },
       "modal": {
         "title": "Crear Equipo",
         "description": "Configure su equipo para comenzar a colaborar con su organización"
-      }
+      },
+      "no_workspace_title": "Actualice para Desbloquear Funciones de Equipo",
+      "no_workspace_description": "Necesita un plan de Equipo o Empresarial para crear un workspace de equipo. Actualice ahora para comenzar con colaboración en equipo."
     },
     "custom_tools": {
       "placeholders": {
@@ -570,6 +576,33 @@
       },
       "aria": {
         "copy_to_clipboard": "Copiar al portapapeles"
+      }
+    },
+    "api_keys": {
+      "placeholders": {
+        "search": "Buscar claves de API..."
+      },
+      "buttons": {
+        "create": "Crear Clave de API",
+        "delete": "Eliminar"
+      },
+      "sections": {
+        "workspace": "Claves de Workspace",
+        "personal": "Claves Personales"
+      },
+      "never": "Nunca",
+      "empty_state": "Sin claves de API aún. Crea una para comenzar.",
+      "no_workspace_keys": "Sin claves de workspace configuradas",
+      "no_results": "No se encontraron claves de API que coincidan con \"{searchTerm}\"",
+      "conflict_warning": "Este nombre de clave entra en conflicto con una clave de workspace. La clave de workspace tendrá prioridad.",
+      "allow_personal_keys": "Permitir Claves de API Personales",
+      "allow_personal_keys_tooltip": "Cuando está habilitado, los miembros del equipo pueden crear sus propias claves de API. Las claves de workspace siempre tienen prioridad sobre las claves personales.",
+      "delete_modal": {
+        "title": "Eliminar Clave de API",
+        "description": "¿Estás seguro de que deseas eliminar <name>{name}</name>? <warning>Esta acción no se puede deshacer.</warning>",
+        "cancel": "Cancelar",
+        "delete": "Eliminar",
+        "deleting": "Eliminando..."
       }
     },
     "skill_modal": {

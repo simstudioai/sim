@@ -211,7 +211,7 @@ export function CustomTools() {
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               {t.rich('settings.custom_tools.delete_dialog.confirm_message', {
-                toolName: toolToDelete?.name,
+                toolName: toolToDelete?.name || '',
                 name: (chunks) => (
                   <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
                 ),

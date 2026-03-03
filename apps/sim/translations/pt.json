@@ -399,6 +399,7 @@
     "remove_member": {
       "remove_team_member": "Remover Membro do Time",
       "leave_organization": "Sair da Organização",
+      "confirm_remove": "Tem certeza de que deseja remover <bold>{name}</bold>? Esta ação não pode ser desfeita.",
       "confirm_leave": "Tem certeza de que deseja sair desta organização? Você perderá acesso a todos os workspaces.",
       "cannot_undo": "Esta ação não pode ser desfeita.",
       "labels": {
@@ -432,12 +433,17 @@
       },
       "buttons": {
         "create_team_workspace": "Criar Time",
-        "creating": "Criando..."
+        "create_organization": "Criar Organização",
+        "creating": "Criando...",
+        "cancel": "Cancelar",
+        "upgrade_to_team": "Atualizar para Plano de Time"
       },
       "modal": {
         "title": "Criar Time",
         "description": "Configure seu time para começar a colaborar com sua organização"
-      }
+      },
+      "no_workspace_title": "Atualize para Desbloquear Recursos de Time",
+      "no_workspace_description": "Você precisa de um plano Time ou Enterprise para criar um workspace de time. Atualize agora para começar com colaboração em equipe."
     },
     "custom_tools": {
       "placeholders": {
@@ -570,6 +576,33 @@
       },
       "aria": {
         "copy_to_clipboard": "Copiar para a área de transferência"
+      }
+    },
+    "api_keys": {
+      "placeholders": {
+        "search": "Pesquisar chaves de API..."
+      },
+      "buttons": {
+        "create": "Criar Chave de API",
+        "delete": "Deletar"
+      },
+      "sections": {
+        "workspace": "Chaves do Workspace",
+        "personal": "Chaves Pessoais"
+      },
+      "never": "Nunca",
+      "empty_state": "Nenhuma chave de API ainda. Crie uma para começar.",
+      "no_workspace_keys": "Nenhuma chave de workspace configurada",
+      "no_results": "Nenhuma chave de API encontrada correspondendo a \"{searchTerm}\"",
+      "conflict_warning": "Este nome de chave entra em conflito com uma chave de workspace. A chave de workspace terá precedência.",
+      "allow_personal_keys": "Permitir Chaves de API Pessoais",
+      "allow_personal_keys_tooltip": "Quando ativado, os membros da equipe podem criar suas próprias chaves de API. As chaves de workspace sempre têm precedência sobre as chaves pessoais.",
+      "delete_modal": {
+        "title": "Deletar Chave de API",
+        "description": "Tem certeza de que deseja deletar <name>{name}</name>? <warning>Esta ação não pode ser desfeita.</warning>",
+        "cancel": "Cancelar",
+        "delete": "Deletar",
+        "deleting": "Deletando..."
       }
     },
     "skill_modal": {

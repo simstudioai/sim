@@ -218,10 +218,10 @@ export function BYOK() {
               <>
                 {getKeyForProvider(editingProvider)
                   ? t('settings.byok.modal.update_title', {
-                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name || '',
                     })
                   : t('settings.byok.modal.add_title', {
-                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+                      name: PROVIDERS.find((p) => p.id === editingProvider)?.name || '',
                     })}
               </>
             )}
@@ -229,7 +229,7 @@ export function BYOK() {
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               {t('settings.byok.modal.description', {
-                name: PROVIDERS.find((p) => p.id === editingProvider)?.name,
+                name: PROVIDERS.find((p) => p.id === editingProvider)?.name || '',
               })}
             </p>
 
@@ -321,7 +321,7 @@ export function BYOK() {
                 name: (chunks) => (
                   <span className='font-medium text-[var(--text-primary)]'>{chunks}</span>
                 ),
-                providerName: PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name,
+                providerName: PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name || '',
               })}
             </p>
           </ModalBody>

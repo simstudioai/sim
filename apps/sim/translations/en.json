@@ -399,6 +399,7 @@
     "remove_member": {
       "remove_team_member": "Remove Team Member",
       "leave_organization": "Leave Organization",
+      "confirm_remove": "Are you sure you want to remove <bold>{name}</bold>? This action cannot be undone.",
       "confirm_leave": "Are you sure you want to leave this organization? You will lose access to all workspaces.",
       "cannot_undo": "This action cannot be undone.",
       "labels": {
@@ -432,12 +433,17 @@
       },
       "buttons": {
         "create_team_workspace": "Create Team",
-        "creating": "Creating..."
+        "create_organization": "Create Organization",
+        "creating": "Creating...",
+        "cancel": "Cancel",
+        "upgrade_to_team": "Upgrade to Team Plan"
       },
       "modal": {
         "title": "Create Team",
         "description": "Set up your team to start collaborating with your organization"
-      }
+      },
+      "no_workspace_title": "Upgrade to Unlock Team Features",
+      "no_workspace_description": "You need a Team or Enterprise plan to create a team workspace. Upgrade now to get started with team collaboration."
     },
     "custom_tools": {
       "placeholders": {
@@ -570,6 +576,33 @@
       },
       "aria": {
         "copy_to_clipboard": "Copy to clipboard"
+      }
+    },
+    "api_keys": {
+      "placeholders": {
+        "search": "Search API keys..."
+      },
+      "buttons": {
+        "create": "Create API Key",
+        "delete": "Delete"
+      },
+      "sections": {
+        "workspace": "Workspace Keys",
+        "personal": "Personal Keys"
+      },
+      "never": "Never",
+      "empty_state": "No API keys yet. Create one to get started.",
+      "no_workspace_keys": "No workspace keys configured",
+      "no_results": "No API keys found matching \"{searchTerm}\"",
+      "conflict_warning": "This key name conflicts with a workspace key. The workspace key will take precedence.",
+      "allow_personal_keys": "Allow Personal API Keys",
+      "allow_personal_keys_tooltip": "When enabled, team members can create their own API keys. Workspace keys always take precedence over personal keys.",
+      "delete_modal": {
+        "title": "Delete API Key",
+        "description": "Are you sure you want to delete <name>{name}</name>? <warning>This action cannot be undone.</warning>",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting..."
       }
     },
     "skill_modal": {
