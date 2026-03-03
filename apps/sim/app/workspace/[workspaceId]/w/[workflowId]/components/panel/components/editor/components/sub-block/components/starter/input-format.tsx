@@ -1,4 +1,7 @@
+'use client'
+
 import { useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
@@ -101,6 +104,7 @@ export function FieldFormat({
   valuePlaceholder = 'Enter default value',
   descriptionPlaceholder = 'Describe this field',
 }: FieldFormatProps) {
+  const t = useTranslations('sub_blocks.field_format')
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
@@ -322,7 +326,7 @@ export function FieldFormat({
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
           <Plus className='h-[14px] w-[14px]' />
-          <span className='sr-only'>Add {title}</span>
+          <span className='sr-only'>{t('aria.add', { title })}</span>
         </Button>
         <Button
           variant='ghost'
@@ -331,7 +335,7 @@ export function FieldFormat({
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
-          <span className='sr-only'>Delete Field</span>
+          <span className='sr-only'>{t('aria.delete')}</span>
         </Button>
       </div>
     </div>
@@ -347,7 +351,7 @@ export function FieldFormat({
           options={BOOLEAN_OPTIONS}
           value={field.value ?? ''}
           onChange={(v) => !isReadOnly && updateField(field.id, 'value', v)}
-          placeholder='Select value'
+          placeholder={t('placeholders.boolean_value')}
           disabled={isReadOnly}
         />
       )
@@ -554,13 +558,13 @@ export function FieldFormat({
           {!field.collapsed && (
             <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
               <div className='flex flex-col gap-[6px]'>
-                <Label className='text-[13px]'>Name</Label>
+                <Label className='text-[13px]'>{t('labels.name')}</Label>
                 <div className='relative'>{renderNameInput(field)}</div>
               </div>
 
               {showType && (
                 <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Type</Label>
+                  <Label className='text-[13px]'>{t('labels.type')}</Label>
                   <Combobox
                     options={TYPE_OPTIONS}
                     value={field.type}
@@ -572,7 +576,7 @@ export function FieldFormat({
 
               {showDescription && (
                 <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Description</Label>
+                  <Label className='text-[13px]'>{t('labels.description')}</Label>
                   <Input
                     value={field.description ?? ''}
                     onChange={(e) => updateField(field.id, 'description', e.target.value)}
@@ -584,7 +588,7 @@ export function FieldFormat({
 
               {showValue && (
                 <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Value</Label>
+                  <Label className='text-[13px]'>{t('labels.value')}</Label>
                   <div className='relative'>{renderValueInput(field)}</div>
                 </div>
               )}

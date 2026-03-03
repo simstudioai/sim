@@ -1365,6 +1365,28 @@
       "title": "Formato de Respuesta",
       "placeholder": "Defina estructura de respuesta"
     },
+    "field_format": {
+      "labels": {
+        "name": "Nombre",
+        "type": "Tipo",
+        "description": "Descripción",
+        "value": "Valor"
+      },
+      "placeholders": {
+        "name": "nombreDelCampo",
+        "value": "Ingrese valor predeterminado",
+        "description": "Describa este campo",
+        "boolean_value": "Seleccione valor"
+      },
+      "buttons": {
+        "add": "Agregar {title}",
+        "remove": "Eliminar Campo"
+      },
+      "aria": {
+        "add": "Agregar {title}",
+        "delete": "Eliminar Campo"
+      }
+    },
     "filter_builder": {
       "title": "Filtros",
       "placeholder": "Agregue filtros"

@@ -1365,6 +1365,28 @@
       "title": "Response Format",
       "placeholder": "Define response structure"
     },
+    "field_format": {
+      "labels": {
+        "name": "Name",
+        "type": "Type",
+        "description": "Description",
+        "value": "Value"
+      },
+      "placeholders": {
+        "name": "fieldName",
+        "value": "Enter default value",
+        "description": "Describe this field",
+        "boolean_value": "Select value"
+      },
+      "buttons": {
+        "add": "Add {title}",
+        "remove": "Delete Field"
+      },
+      "aria": {
+        "add": "Add {title}",
+        "delete": "Delete Field"
+      }
+    },
     "filter_builder": {
       "title": "Filters",
       "placeholder": "Add filters"
