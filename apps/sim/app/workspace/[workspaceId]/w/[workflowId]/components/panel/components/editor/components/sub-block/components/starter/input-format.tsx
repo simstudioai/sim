@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -96,15 +96,27 @@ export function FieldFormat({
   isPreview = false,
   previewValue,
   disabled = false,
-  title = 'Field',
-  placeholder = 'fieldName',
+  title: propTitle,
+  placeholder: propPlaceholder,
   showType = true,
   showValue = false,
   showDescription = false,
-  valuePlaceholder = 'Enter default value',
-  descriptionPlaceholder = 'Describe this field',
+  valuePlaceholder: propValuePlaceholder,
+  descriptionPlaceholder: propDescriptionPlaceholder,
 }: FieldFormatProps) {
   const t = useTranslations('sub_blocks.field_format')
+
+  const { title, placeholder, valuePlaceholder, descriptionPlaceholder } = useMemo(
+    () => ({
+      title: propTitle ?? t('field_format.title'),
+      placeholder: propPlaceholder ?? t('field_format.placeholder'),
+      valuePlaceholder: propValuePlaceholder ?? t('field_format.value_placeholder'),
+      descriptionPlaceholder:
+        propDescriptionPlaceholder ?? t('field_format.description_placeholder'),
+    }),
+    [propTitle, propPlaceholder, propValuePlaceholder, propDescriptionPlaceholder, t]
+  )
+
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
@@ -603,7 +615,16 @@ export function FieldFormat({
 export function InputFormat(
   props: Omit<FieldFormatProps, 'title' | 'placeholder' | 'showDescription'>
 ) {
-  return <FieldFormat {...props} title='Input' placeholder='firstName' showDescription={true} />
+  const t = useTranslations('sub_blocks.field_format')
+  return (
+    <FieldFormat
+      {...props}
+      title={t('input_format.title')}
+      placeholder={t('input_format.placeholder')}
+      descriptionPlaceholder={t('input_format.description_placeholder')}
+      showDescription={true}
+    />
+  )
 }
 
 export function ResponseFormat(
@@ -612,14 +633,15 @@ export function ResponseFormat(
     'title' | 'placeholder' | 'showType' | 'showValue' | 'valuePlaceholder'
   >
 ) {
+  const t = useTranslations('sub_blocks.field_format')
   return (
     <FieldFormat
       {...props}
-      title='Field'
-      placeholder='output'
+      title={t('response_format.title')}
+      placeholder={t('response_format.placeholder')}
       showType={false}
       showValue={true}
-      valuePlaceholder='Enter return value'
+      valuePlaceholder={t('response_format.value_placeholder')}
     />
   )
 }

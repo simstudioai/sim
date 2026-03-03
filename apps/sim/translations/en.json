@@ -1385,6 +1385,22 @@
       "aria": {
         "add": "Add {title}",
         "delete": "Delete Field"
+      },
+      "field_format": {
+        "title": "Field",
+        "placeholder": "fieldName",
+        "value_placeholder": "Enter default value",
+        "description_placeholder": "Describe this field"
+      },
+      "input_format": {
+        "title": "Input",
+        "placeholder": "firstName",
+        "description_placeholder": "Describe this field"
+      },
+      "response_format": {
+        "title": "Field",
+        "placeholder": "output",
+        "value_placeholder": "Enter return value"
       }
     },
     "filter_builder": {
@@ -1825,6 +1841,27 @@
         "slider_input": {
           "labels": {
             "value": "Value"
+          }
+        },
+        "code": {
+          "placeholders": {
+            "javascript": "Write JavaScript...",
+            "python": "Write Python...",
+            "json": "Write JSON..."
+          },
+          "ai_prompts": {
+            "javascript": "Describe the JavaScript code to generate...",
+            "json_schema": "Describe the JSON schema to generate...",
+            "json_object": "Describe the JSON object to generate...",
+            "python": "Describe the Python function you want to create..."
+          },
+          "buttons": {
+            "copy": "Copy code",
+            "generate": "Generate code with AI"
+          },
+          "aria": {
+            "copy": "Copy code",
+            "generate": "Generate code with AI"
           }
         },
         "switch": {

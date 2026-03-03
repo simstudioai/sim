@@ -1,5 +1,8 @@
+'use client'
+
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
@@ -197,6 +200,7 @@ export const Code = memo(function Code({
   wandControlRef,
   hideInternalWand = false,
 }: CodeProps) {
+  const t = useTranslations('panel.editor.sub_blocks.code')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -257,32 +261,35 @@ export const Code = memo(function Code({
   const aiPromptPlaceholder = useMemo(() => {
     switch (generationType) {
       case 'json-schema':
-        return 'Describe the JSON schema to generate...'
+        return t('ai_prompts.json_schema')
       case 'json-object':
       case 'table-schema':
-        return 'Describe the JSON object to generate...'
+        return t('ai_prompts.json_object')
       default:
-        return 'Describe the JavaScript code to generate...'
+        return t('ai_prompts.javascript')
     }
-  }, [generationType])
+  }, [generationType, t])
 
   const dynamicPlaceholder = useMemo(() => {
     if (languageValue === CodeLanguage.Python) {
-      return 'Write Python...'
+      return t('placeholders.python')
     }
-    return placeholder
-  }, [languageValue, placeholder])
+    if (effectiveLanguage === 'json') {
+      return t('placeholders.json')
+    }
+    return t('placeholders.javascript')
+  }, [languageValue, effectiveLanguage, t])
 
   const dynamicWandConfig = useMemo(() => {
     if (languageValue === CodeLanguage.Python) {
       return {
         ...wandConfig,
         prompt: PYTHON_AI_PROMPT,
-        placeholder: 'Describe the Python function you want to create...',
+        placeholder: t('ai_prompts.python'),
       }
     }
     return wandConfig
-  }, [wandConfig, languageValue])
+  }, [wandConfig, languageValue, t])
 
   const [tableIdValue] = useSubBlockValue<string>(blockId, 'tableId')
 
@@ -780,7 +787,7 @@ export const Code = memo(function Code({
             'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
             'active:scale-95'
           )}
-          aria-label='Copy code'
+          aria-label={t('aria.copy')}
         >
           {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
         </Button>
@@ -810,7 +817,7 @@ export const Code = memo(function Code({
                 size='icon'
                 onClick={isPromptVisible ? hidePromptInline : showPromptInline}
                 disabled={isAiLoading || isAiStreaming}
-                aria-label='Generate code with AI'
+                aria-label={t('aria.generate')}
                 className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
               >
                 <Wand2 className='h-4 w-4' />
