@@ -2637,8 +2637,10 @@ const WorkflowContent = React.memo(() => {
   const updateContainerDimensionsDuringMove = useCallback(
     (movedNodeId: string, movedNodePosition: { x: number; y: number }) => {
       const ancestorIds: string[] = []
+      const visited = new Set<string>()
       let currentId = blocks[movedNodeId]?.data?.parentId
-      while (currentId) {
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId)
         ancestorIds.push(currentId)
         currentId = blocks[currentId]?.data?.parentId
       }

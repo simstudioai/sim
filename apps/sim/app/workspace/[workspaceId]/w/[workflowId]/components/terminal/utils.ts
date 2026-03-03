@@ -397,15 +397,15 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
       iterationType === 'parallel' ? subflowEndMs - subflowStartMs : totalDuration
 
     const subflowExecutionOrder = Math.min(...allRelevantBlocks.map((b) => b.executionOrder))
-    const firstIteration = iterationGroups[0]
+    const metadataSource = allRelevantBlocks[0]
     const syntheticSubflow: ConsoleEntry = {
-      id: `${idPrefix}subflow-${iterationType}-${iterationContainerId}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
+      id: `${idPrefix}subflow-${iterationType}-${iterationContainerId}-${metadataSource.executionId || 'unknown'}`,
       timestamp: new Date(subflowStartMs).toISOString(),
-      workflowId: firstIteration.blocks[0]?.workflowId || '',
+      workflowId: metadataSource.workflowId || '',
       blockId: `${iterationType}-container-${iterationContainerId}`,
       blockName: iterationType.charAt(0).toUpperCase() + iterationType.slice(1),
       blockType: iterationType,
-      executionId: firstIteration.blocks[0]?.executionId,
+      executionId: metadataSource.executionId,
       startedAt: new Date(subflowStartMs).toISOString(),
       executionOrder: subflowExecutionOrder,
       endedAt: new Date(subflowEndMs).toISOString(),
@@ -444,14 +444,15 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
           iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
 
         const iterExecutionOrder = Math.min(...allIterEntries.map((b) => b.executionOrder))
+        const iterMetadataSource = allIterEntries[0]
         const syntheticIteration: ConsoleEntry = {
-          id: `${idPrefix}iteration-${iterationType}-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
+          id: `${idPrefix}iteration-${iterationType}-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}-${iterMetadataSource.executionId || 'unknown'}`,
           timestamp: new Date(iterStartMs).toISOString(),
-          workflowId: iterBlocks[0]?.workflowId || '',
+          workflowId: iterMetadataSource.workflowId || '',
           blockId: `iteration-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}`,
           blockName: `Iteration ${iterGroup.iterationCurrent}${iterGroup.iterationTotal !== undefined ? ` / ${iterGroup.iterationTotal}` : ''}`,
           blockType: iterationType,
-          executionId: iterBlocks[0]?.executionId,
+          executionId: iterMetadataSource.executionId,
           startedAt: new Date(iterStartMs).toISOString(),
           executionOrder: iterExecutionOrder,
           endedAt: new Date(iterEndMs).toISOString(),

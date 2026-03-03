@@ -2,7 +2,7 @@ import { DEFAULTS } from '@/executor/constants'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type { IterationContext, ParentIteration } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
-import { extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
+import { extractOuterBranchIndex, findEffectiveContainerId } from '@/executor/utils/subflow-utils'
 
 /** Maximum ancestor depth to prevent runaway traversal in deeply nested subflows. */
 const MAX_PARENT_DEPTH = DEFAULTS.MAX_NESTING_DEPTH
@@ -70,23 +70,29 @@ export function buildContainerIterationContext(
   if (!parentEntry) return undefined
 
   if (parentEntry.parentType === 'parallel') {
-    const parentScope = ctx.parallelExecutions?.get(parentEntry.parentId)
+    const effectiveParentId = ctx.parallelExecutions
+      ? findEffectiveContainerId(parentEntry.parentId, containerId, ctx.parallelExecutions)
+      : parentEntry.parentId
+    const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
     if (parentScope) {
       return {
         iterationCurrent: extractOuterBranchIndex(containerId) ?? 0,
         iterationTotal: parentScope.totalBranches,
         iterationType: 'parallel',
-        iterationContainerId: parentEntry.parentId,
+        iterationContainerId: effectiveParentId,
       }
     }
   } else if (parentEntry.parentType === 'loop') {
-    const parentScope = ctx.loopExecutions?.get(parentEntry.parentId)
+    const effectiveParentId = ctx.loopExecutions
+      ? findEffectiveContainerId(parentEntry.parentId, containerId, ctx.loopExecutions)
+      : parentEntry.parentId
+    const parentScope = ctx.loopExecutions?.get(effectiveParentId)
     if (parentScope && parentScope.iteration !== undefined) {
       return {
         iterationCurrent: parentScope.iteration,
         iterationTotal: parentScope.maxIterations,
         iterationType: 'loop',
-        iterationContainerId: parentEntry.parentId,
+        iterationContainerId: effectiveParentId,
       }
     }
   }
@@ -121,24 +127,32 @@ export function buildUnifiedParentIterations(
     const { parentId, parentType } = ctx.subflowParentMap.get(currentId)!
 
     if (parentType === 'loop') {
-      const parentScope = ctx.loopExecutions?.get(parentId)
+      // Resolve the effective (possibly cloned) loop ID — at runtime the scope
+      // may live under a cloned ID like `mid-loop__obranch-2` rather than `mid-loop`
+      const effectiveParentId = ctx.loopExecutions
+        ? findEffectiveContainerId(parentId, currentId, ctx.loopExecutions)
+        : parentId
+      const parentScope = ctx.loopExecutions?.get(effectiveParentId)
       if (parentScope && parentScope.iteration !== undefined) {
         parents.unshift({
           iterationCurrent: parentScope.iteration,
           iterationTotal: parentScope.maxIterations,
           iterationType: 'loop',
-          iterationContainerId: parentId,
+          iterationContainerId: effectiveParentId,
         })
       }
     } else {
-      const parentScope = ctx.parallelExecutions?.get(parentId)
+      const effectiveParentId = ctx.parallelExecutions
+        ? findEffectiveContainerId(parentId, currentId, ctx.parallelExecutions)
+        : parentId
+      const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
       if (parentScope) {
         const outerBranchIndex = extractOuterBranchIndex(currentId) ?? 0
         parents.unshift({
           iterationCurrent: outerBranchIndex,
           iterationTotal: parentScope.totalBranches,
           iterationType: 'parallel',
-          iterationContainerId: parentId,
+          iterationContainerId: effectiveParentId,
         })
       }
     }
