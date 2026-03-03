@@ -408,6 +408,15 @@ export class LoopOrchestrator {
           this.deleteParallelScopeAndClones(nodeId, ctx)
         } else if (this.dag.loopConfigs.has(nodeId)) {
           ctx.loopExecutions?.delete(nodeId)
+          // Also delete cloned loop scopes (__obranch-N) created by expandParallel
+          if (ctx.loopExecutions) {
+            const clonePrefix = `${nodeId}__obranch-`
+            for (const key of ctx.loopExecutions.keys()) {
+              if (key.startsWith(clonePrefix)) {
+                ctx.loopExecutions.delete(key)
+              }
+            }
+          }
           this.resetNestedParallelScopes(nodeId, ctx)
         }
       }
