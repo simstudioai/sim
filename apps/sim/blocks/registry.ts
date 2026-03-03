@@ -57,6 +57,7 @@ import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_forms'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
+import { GoogleMeetBlock } from '@/blocks/blocks/google_meet'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
 import { GooglePagespeedBlock } from '@/blocks/blocks/google_pagespeed'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
@@ -255,6 +256,7 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
+  google_meet: GoogleMeetBlock,
   google_maps: GoogleMapsBlock,
   google_pagespeed: GooglePagespeedBlock,
   google_tasks: GoogleTasksBlock,
