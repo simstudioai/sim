@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 
 type CheckpointConfirmationVariant = 'restore' | 'discard'
@@ -28,6 +29,7 @@ export function CheckpointConfirmation({
   onRevert,
   onContinue,
 }: CheckpointConfirmationProps) {
+  const t = useTranslations('panel.copilot_panel.checkpoint_confirmation')
   const isRestoreVariant = variant === 'restore'
 
   return (
@@ -35,12 +37,11 @@ export function CheckpointConfirmation({
       <p className='mb-[8px] text-[12px] text-[var(--text-primary)]'>
         {isRestoreVariant ? (
           <>
-            Revert to checkpoint? This will restore your workflow to the state saved at this
-            checkpoint.{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {t('restore_title')}{' '}
+            <span className='text-[var(--text-error)]'>{t('restore_warning')}</span>
           </>
         ) : (
-          'Continue from a previous message?'
+          t('continue_title')
         )}
       </p>
       <div className='flex gap-[8px]'>
@@ -51,7 +52,7 @@ export function CheckpointConfirmation({
           className='flex-1'
           disabled={isProcessing}
         >
-          Cancel
+          {t('cancel_button')}
         </Button>
         <Button
           onClick={onRevert}
@@ -60,7 +61,7 @@ export function CheckpointConfirmation({
           className='flex-1'
           disabled={isProcessing}
         >
-          {isProcessing ? 'Reverting...' : 'Revert'}
+          {isProcessing ? t('reverting_button') : t('revert_button')}
         </Button>
         {!isRestoreVariant && onContinue && (
           <Button
@@ -70,7 +71,7 @@ export function CheckpointConfirmation({
             className='flex-1'
             disabled={isProcessing}
           >
-            Continue
+            {t('continue_button')}
           </Button>
         )}
       </div>

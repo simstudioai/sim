@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { ArrowUp, Image, Loader2 } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -43,6 +44,8 @@ export function BottomControls({
   onAbort,
   onFileSelect,
 }: BottomControlsProps) {
+  const t = useTranslations('panel.copilot_panel.bottom_controls')
+
   return (
     <div className='flex items-center justify-between gap-2'>
       {/* Left side: Mode Selector + Model Selector */}
@@ -67,7 +70,7 @@ export function BottomControls({
       <div className='flex flex-shrink-0 items-center gap-[10px]'>
         <Badge
           onClick={onFileSelect}
-          title='Attach file'
+          title={t('attach_file_title')}
           className={cn(
             'cursor-pointer rounded-[6px] border-0 bg-transparent p-[0px] dark:bg-transparent',
             disabled && 'cursor-not-allowed opacity-50'
@@ -86,7 +89,7 @@ export function BottomControls({
                 ? 'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
                 : 'bg-[var(--c-383838)] dark:bg-[var(--c-E0E0E0)]'
             )}
-            title='Stop generation'
+            title={t('stop_generation_title')}
           >
             {isAborting ? (
               <Loader2 className='block h-[13px] w-[13px] animate-spin text-white dark:text-black' />

@@ -39,7 +39,7 @@ export function Table({
   previewValue,
   disabled = false,
 }: TableProps) {
-  const t = useTranslations('sub_block_panel.table')
+  const t = useTranslations('panel.editor.sub_blocks.table')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<WorkflowTableRow[]>(blockId, subBlockId)

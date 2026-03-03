@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { memo, useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -46,6 +47,7 @@ export const TodoList = memo(function TodoList({
   collapsed = false,
   className,
 }: TodoListProps) {
+  const t = useTranslations('panel.copilot_panel.todo_list')
   const [isCollapsed, setIsCollapsed] = useState(collapsed)
 
   /**
@@ -77,6 +79,7 @@ export const TodoList = memo(function TodoList({
             variant='ghost'
             onClick={() => setIsCollapsed(!isCollapsed)}
             className='!h-[14px] !w-[14px] !p-0'
+            aria-label={isCollapsed ? t('aria_expand') : t('aria_collapse')}
           >
             {isCollapsed ? (
               <ChevronRight className='h-[14px] w-[14px]' />
@@ -84,7 +87,9 @@ export const TodoList = memo(function TodoList({
               <ChevronDown className='h-[14px] w-[14px]' />
             )}
           </Button>
-          <span className='font-medium text-[var(--text-primary)] text-xs'>Todo:</span>
+          <span className='font-medium text-[var(--text-primary)] text-xs'>
+            {t('header_label')}
+          </span>
           <span className='font-medium text-[var(--text-primary)] text-xs'>
             {completedCount}/{totalCount}
           </span>

@@ -155,7 +155,7 @@ function WorkflowInputMapperInput({
     [parsedValue, onChange]
   )
 
-  const t = useTranslations('sub_block_panel.tool_input')
+  const t = useTranslations('panel.editor.sub_blocks.tool_input')
 
   if (!workflowId) {
     return (
@@ -216,7 +216,7 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const t = useTranslations('sub_block_panel.tool_input')
+  const t = useTranslations('panel.editor.sub_blocks.tool_input')
   const { data, isLoading } = useChildDeploymentStatus(workflowId)
   const deployMutation = useDeployChildWorkflow()
   const userPermissions = useUserPermissionsContext()
@@ -482,7 +482,7 @@ export const ToolInput = memo(function ToolInput({
   disabled = false,
   allowExpandInPreview,
 }: ToolInputProps) {
-  const t = useTranslations('sub_block_panel.tool_input')
+  const t = useTranslations('panel.editor.sub_blocks.tool_input')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string

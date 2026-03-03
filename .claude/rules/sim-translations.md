@@ -20,7 +20,7 @@ Do not include explanations.
 ---
 ## 0. Don't translate logger info or error messages that are not user-facing.
 
-## 0.1 Do not translate error messages or similars as keys to be rendered as translations later. For example, if there is an error message like "Invalid email address", do not create a key like "errors.invalid_email" with the value "Invalid email address". If possible, just create a new hook that calls useTranslation inside it and returns the same object or function with translated texts and keep the code in the same file. For example, if there is an error message like "Invalid email address", create a new hook called useErrorMessages that calls useTranslation and returns an object with the same keys but translated values. Then, replace the error message in the code with the corresponding key from the useErrorMessages hook. This way, you can keep the code organized and avoid creating unnecessary keys in the translation JSON.
+## 0.1 Do not translate error messages or similars as keys to be rendered as translations later. For example, if there is an error message like "Invalid email address", do not create a key like "errors.invalid_email" with the value "Invalid email address". If possible, just create a new hook that calls useTranslation inside it and returns the same object or function with translated texts and keep the code in the same file.
 
 
 ## 1. Detect Component Type

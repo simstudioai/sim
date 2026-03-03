@@ -25,6 +25,7 @@
 'use client'
 
 import * as React from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, GripHorizontal, Pencil, X } from 'lucide-react'
 import { Button, Textarea } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
@@ -91,6 +92,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
   onSave,
   onBuildPlan,
 }) => {
+  const t = useTranslations('panel.copilot_panel.plan_mode_section')
   // Default to 75% of max height
   const defaultHeight = initialHeight ?? Math.floor(maxHeight * 0.75)
   const [height, setHeight] = React.useState(defaultHeight)
@@ -185,7 +187,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
       {/* Header with build/edit/save/clear buttons */}
       <div className='flex flex-shrink-0 items-center justify-between border-[var(--border-1)] border-b py-[6px] pr-[2px] pl-[12px]'>
         <span className='font-[500] text-[11px] text-[var(--text-secondary)] uppercase tracking-wide'>
-          Workflow Plan
+          {t('title')}
         </span>
         <div className='ml-auto flex items-center gap-[4px]'>
           {isEditing ? (
@@ -194,7 +196,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
                 variant='ghost'
                 className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
                 onClick={handleCancel}
-                aria-label='Cancel editing'
+                aria-label={t('cancel_editing_label')}
               >
                 <X className='h-[11px] w-[11px]' />
               </Button>
@@ -202,7 +204,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
                 variant='ghost'
                 className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
                 onClick={handleSave}
-                aria-label='Save changes'
+                aria-label={t('save_label')}
               >
                 <Check className='h-[12px] w-[12px]' />
               </Button>
@@ -214,7 +216,6 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
                   variant='default'
                   onClick={onBuildPlan}
                   className='h-[22px] px-[10px] text-[11px]'
-                  title='Build workflow from plan'
                 >
                   Build Plan
                 </Button>
@@ -224,7 +225,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
                   variant='ghost'
                   className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
                   onClick={handleEdit}
-                  aria-label='Edit workflow plan'
+                  aria-label={t('edit_label')}
                 >
                   <Pencil className='h-[10px] w-[10px]' />
                 </Button>
@@ -234,7 +235,7 @@ const PlanModeSection: React.FC<PlanModeSectionProps> = ({
                   variant='ghost'
                   className='h-[18px] w-[18px] p-0 hover:text-[var(--text-primary)]'
                   onClick={onClear}
-                  aria-label='Clear workflow plan'
+                  aria-label={t('delete_label')}
                 >
                   <Trash className='h-[11px] w-[11px]' />
                 </Button>

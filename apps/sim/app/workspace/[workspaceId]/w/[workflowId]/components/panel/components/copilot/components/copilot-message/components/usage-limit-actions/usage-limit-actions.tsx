@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -17,6 +18,7 @@ function roundUpToNearest50(value: number): number {
 }
 
 export function UsageLimitActions() {
+  const t = useTranslations('panel.copilot_panel.usage_limit_actions')
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const updateUsageLimitMutation = useUpdateUsageLimit()
 
@@ -74,7 +76,7 @@ export function UsageLimitActions() {
   if (!isHosted || !canEdit) {
     return (
       <Button onClick={handleNavigateToUpgrade} variant='default'>
-        Upgrade
+        {t('upgrade_button')}
       </Button>
     )
   }

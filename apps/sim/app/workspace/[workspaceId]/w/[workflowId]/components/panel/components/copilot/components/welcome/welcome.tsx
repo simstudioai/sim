@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 
 /** Props for the Welcome component */
@@ -12,34 +13,36 @@ interface WelcomeProps {
 
 /** Welcome screen displaying suggested questions based on current mode */
 export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
+  const t = useTranslations('panel.copilot_panel.welcome')
+
   const capabilities =
     mode === 'build'
       ? [
           {
-            title: 'Build',
-            question: 'Help me build a workflow',
+            title: t('build_title'),
+            question: t('build_question'),
           },
           {
-            title: 'Debug',
-            question: 'Help debug my workflow',
+            title: t('debug_title'),
+            question: t('debug_question'),
           },
           {
-            title: 'Optimize',
-            question: 'Create a fast workflow',
+            title: t('optimize_title'),
+            question: t('optimize_question'),
           },
         ]
       : [
           {
-            title: 'Get started',
-            question: 'Help me get started',
+            title: t('get_started_title'),
+            question: t('get_started_question'),
           },
           {
-            title: 'Discover tools',
-            question: 'What tools are available?',
+            title: t('discover_tools_title'),
+            question: t('discover_tools_question'),
           },
           {
-            title: 'Create workflow',
-            question: 'How do I create a workflow?',
+            title: t('create_workflow_title'),
+            question: t('create_workflow_question'),
           },
         ]
 
@@ -64,8 +67,7 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
 
       {/* Tips */}
       <p className='pt-[12px] text-center text-[13px] text-[var(--text-secondary)]'>
-        Tip: Use <span className='font-medium'>@</span> to reference chats, workflows, knowledge,
-        blocks, or templates
+        {t('mention_tip', { symbol: t('mention_symbol') })}
       </p>
     </div>
   )

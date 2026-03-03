@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ListTree, MessageSquare, Package } from 'lucide-react'
 import {
   Badge,
@@ -31,6 +32,7 @@ interface ModeSelectorProps {
  * @returns Rendered mode selector dropdown
  */
 export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSelectorProps) {
+  const t = useTranslations('panel.copilot_panel.mode_selector')
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -47,12 +49,12 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
 
   const getModeText = () => {
     if (mode === 'ask') {
-      return 'Ask'
+      return t('ask')
     }
     if (mode === 'plan') {
-      return 'Plan'
+      return t('plan')
     }
-    return 'Build'
+    return t('build')
   }
 
   const handleSelect = (selectedMode: 'ask' | 'build' | 'plan') => {
@@ -126,15 +128,15 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
         <PopoverScrollArea className='space-y-[2px]'>
           <PopoverItem active={mode === 'ask'} onClick={() => handleSelect('ask')}>
             <MessageSquare className='h-3.5 w-3.5' />
-            <span>Ask</span>
+            <span>{t('ask')}</span>
           </PopoverItem>
           {/* <PopoverItem active={mode === 'plan'} onClick={() => handleSelect('plan')}>
             <ListTree className='h-3.5 w-3.5' />
-            <span>Plan</span>
+            <span>{t('plan')}</span>
           </PopoverItem> */}
           <PopoverItem active={mode === 'build'} onClick={() => handleSelect('build')}>
             <Package className='h-3.5 w-3.5' />
-            <span>Build</span>
+            <span>{t('build')}</span>
           </PopoverItem>
         </PopoverScrollArea>
       </PopoverContent>

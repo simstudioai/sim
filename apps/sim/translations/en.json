@@ -1323,50 +1323,743 @@
       "placeholder": "Select table"
     }
   },
-  "sub_block_panel": {
-    "tool_input": {
-      "placeholders": {
-        "add_tool": "Add tool...",
-        "search_tools": "Search tools...",
-        "select_operation": "Select operation",
-        "parameter": "Enter {name}{type}"
+
+  "panel": {
+    "editor": {
+      "messages": {
+        "select_block": "Select a block to edit",
+        "no_subblocks": "This block has no subblocks",
+        "unable_to_load_preview": "Unable to load preview"
       },
       "labels": {
-        "operation": "Operation"
+        "workflow_preview": "Workflow Preview",
+        "connections": "Connections",
+        "additional_fields": "Additional fields"
       },
-      "messages": {
-        "no_workflow_selected": "Select a workflow to configure its inputs",
-        "no_input_fields": "This workflow has no custom input fields",
-        "no_tools_found": "No tools found"
-      },
-      "sections": {
-        "create_tool": "Create Tool",
-        "add_mcp_server": "Add MCP Server"
-      },
-      "deployment": {
-        "deploying": "Deploying...",
-        "undeployed": "undeployed",
-        "redeploy": "redeploy",
-        "click_to_deploy": "Click to deploy",
-        "click_to_redeploy": "Click to redeploy",
-        "admin_required": "Admin permission required to deploy"
-      },
-      "usage_control": {
-        "auto": "Auto",
-        "force": "Force",
-        "none": "None",
-        "auto_description": "Let LLM decide",
-        "force_description": "Always provide to LLM",
-        "none_description": "Never provide to LLM"
+      "buttons": {
+        "open_docs": "Open docs",
+        "toggle_advanced_show": "Show additional fields",
+        "toggle_advanced_hide": "Hide additional fields",
+        "unlock": "Unlock block",
+        "open_workflow": "Open workflow"
       },
       "aria_labels": {
-        "tool_usage_control": "Tool usage control",
-        "remove_tool": "Remove tool"
+        "save_name": "Save name",
+        "rename_block": "Rename block",
+        "open_docs": "Open documentation",
+        "focus_on_block": "Focus on block",
+        "unlock_block": "Unlock block",
+        "expand_connections": "Expand connections",
+        "collapse_connections": "Collapse connections"
+      },
+      "lock_messages": {
+        "block_locked": "Block is locked",
+        "parent_locked": "Parent container is locked",
+        "admin_required": "Admin permission required"
+      },
+      "sub_blocks": {
+        "short_input": {
+          "placeholders": {
+            "default": "Enter text"
+          }
+        },
+        "long_input": {
+          "placeholders": {
+            "default": "Enter text"
+          }
+        },
+        "combobox": {
+          "placeholders": {
+            "default": "Type or select an option..."
+          }
+        },
+        "dropdown": {
+          "placeholders": {
+            "default": "Select an option..."
+          }
+        },
+        "file_upload": {
+          "placeholders": {
+            "loading": "Loading files...",
+            "default": "Select or upload file"
+          },
+          "messages": {
+            "file_deleted": "File deleted",
+            "upload_error": "Upload failed"
+          },
+          "aria_labels": {
+            "clear_file": "Clear selected file"
+          }
+        },
+        "file_selector": {
+          "placeholders": {
+            "default": "Select file"
+          }
+        },
+        "folder_selector": {
+          "placeholders": {
+            "default": "Select folder"
+          }
+        },
+        "credential_selector": {
+          "placeholders": {
+            "default": "Select credential",
+            "fill_required_fields": "Fill in required fields above first"
+          },
+          "messages": {
+            "missing_credential": "Missing credential",
+            "connect_account": "Connect account",
+            "additional_permissions_required": "Additional permissions required"
+          },
+          "buttons": {
+            "update_access": "Update access"
+          },
+          "sections": {
+            "polling_groups": "Polling Groups",
+            "personal_credential": "Personal Credential"
+          },
+          "labels": {
+            "connect_another_account": "Connect another {provider} account",
+            "connect_account_label": "Connect {provider} account"
+          },
+          "aria_labels": {
+            "oauth_required": "OAuth required"
+          }
+        },
+        "time_input": {
+          "placeholders": {
+            "default": "Select time"
+          }
+        },
+        "condition_input": {
+          "labels": {
+            "if": "If",
+            "else_if": "Else If",
+            "else": "Else"
+          },
+          "buttons": {
+            "add_condition": "Add condition"
+          },
+          "aria_labels": {
+            "remove_condition": "Remove condition",
+            "move_condition": "Move condition"
+          }
+        },
+        "filter_builder": {
+          "labels": {
+            "column": "Column",
+            "operator": "Operator",
+            "value": "Value",
+            "condition": "Condition {index}",
+            "logic": "Logic"
+          },
+          "buttons": {
+            "add_rule": "Add rule",
+            "remove_rule": "Remove rule"
+          },
+          "placeholders": {
+            "value": "Enter value"
+          },
+          "LogicalOperator": {
+            "and": "And",
+            "or": "Or"
+          },
+          "aria_labels": {
+            "add_condition": "Add Condition",
+            "delete_condition": "Delete Condition"
+          }
+        },
+        "eval_input": {
+          "labels": {
+            "name": "Name",
+            "description": "Description",
+            "min": "Min",
+            "max": "Max",
+            "metric": "Metric {index}"
+          },
+          "buttons": {
+            "add_metric": "Add metric"
+          },
+          "aria_labels": {
+            "remove_metric": "Remove metric"
+          }
+        },
+        "knowledge_base_selector": {
+          "placeholders": {
+            "default": "Select knowledge base"
+          },
+          "labels": {
+            "search": "Search knowledge bases"
+          }
+        },
+        "messages_input": {
+          "placeholders": {
+            "role": "Select role",
+            "content": "Enter message content"
+          },
+          "buttons": {
+            "add_message": "Add message"
+          },
+          "aria_labels": {
+            "delete_message": "Delete message",
+            "move_message_up": "Move message up",
+            "move_message_down": "Move message down",
+            "add_message_below": "Add message below"
+          }
+        },
+        "selector_combobox": {
+          "placeholders": {
+            "default": "Type or select"
+          },
+          "aria_labels": {
+            "clear_selection": "Clear selection"
+          }
+        },
+        "slack_selector": {
+          "placeholders": {
+            "channel": "Select channel"
+          }
+        },
+        "tag_dropdown": {
+          "placeholders": {
+            "default": "Select tag"
+          }
+        },
+        "tool_input": {
+          "placeholders": {
+            "default": "Select tool",
+            "add_tool": "Add tool...",
+            "search_tools": "Search tools...",
+            "select_operation": "Select operation",
+            "parameter": "Enter {name}{type}"
+          },
+          "labels": {
+            "operation": "Operation"
+          },
+          "messages": {
+            "no_workflow_selected": "Select a workflow to configure its inputs",
+            "no_input_fields": "This workflow has no custom input fields",
+            "no_tools_found": "No tools found"
+          },
+          "sections": {
+            "create_tool": "Create Tool",
+            "add_mcp_server": "Add MCP Server"
+          },
+          "deployment": {
+            "deploying": "Deploying...",
+            "undeployed": "undeployed",
+            "redeploy": "redeploy",
+            "click_to_deploy": "Click to deploy",
+            "click_to_redeploy": "Click to redeploy",
+            "admin_required": "Admin permission required to deploy"
+          },
+          "usage_control": {
+            "auto": "Auto",
+            "force": "Force",
+            "none": "None",
+            "auto_description": "Let LLM decide",
+            "force_description": "Always provide to LLM",
+            "none_description": "Never provide to LLM"
+          },
+          "aria_labels": {
+            "tool_usage_control": "Tool usage control",
+            "remove_tool": "Remove tool"
+          }
+        },
+        "workflow_selector": {
+          "placeholders": {
+            "default": "Select workflow"
+          }
+        },
+        "sheet_selector": {
+          "placeholders": {
+            "default": "Select sheet"
+          }
+        },
+        "project_selector": {
+          "placeholders": {
+            "default": "Select project"
+          }
+        },
+        "document_selector": {
+          "placeholders": {
+            "default": "Select document"
+          }
+        },
+        "variables_input": {
+          "buttons": {
+            "add_variable": "Add variable"
+          },
+          "labels": {
+            "name": "Name",
+            "value": "Value"
+          }
+        },
+        "response_format": {
+          "labels": {
+            "format": "Format",
+            "schema": "Schema"
+          },
+          "messages": {
+            "invalid_json": "Invalid JSON schema"
+          }
+        },
+        "schedule_info": {
+          "labels": {
+            "frequency": "Frequency",
+            "time": "Time"
+          }
+        },
+        "checkbox_list": {
+          "placeholders": {
+            "default": "Select options"
+          }
+        },
+        "document_tag_entry": {
+          "placeholders": {
+            "default": "Add tags",
+            "tag": "Select tag"
+          },
+          "labels": {
+            "document_tags": "Document Tags",
+            "tag": "Tag",
+            "tag_name": "Tag",
+            "value": "Value"
+          },
+          "messages": {
+            "tags_configured": "{count} tag(s) configured",
+            "no_tags": "No tags",
+            "no_tags_defined": "No tags defined for this knowledge base",
+            "define_tags_first": "Define tags at the knowledge base level first"
+          },
+          "aria_labels": {
+            "add_tag": "Add Tag",
+            "delete_tag": "Delete Tag"
+          }
+        },
+        "env_var_dropdown": {
+          "placeholders": {
+            "search": "Search variables"
+          }
+        },
+        "input_mapping": {
+          "buttons": {
+            "add_mapping": "Add mapping"
+          },
+          "labels": {
+            "from": "From",
+            "to": "To",
+            "value": "Value"
+          },
+          "placeholders": {
+            "value": "Enter value or reference"
+          },
+          "messages": {
+            "no_workflow_selected": "No workflow selected",
+            "select_workflow_to_configure": "Select a workflow above to configure inputs",
+            "loading": "loading..."
+          }
+        },
+        "knowledge_tag_filters": {
+          "placeholders": {
+            "default": "Filter by tags",
+            "tag": "Select tag",
+            "operator": "Select operator"
+          },
+          "labels": {
+            "tag_filters": "Tag Filters",
+            "filter": "Filter {index}",
+            "tag": "Tag",
+            "operator": "Operator",
+            "value": "Value",
+            "between_connector": "to"
+          },
+          "messages": {
+            "filters_applied": "{count} filter(s) applied",
+            "no_filters": "No filters"
+          },
+          "aria_labels": {
+            "add_filter": "Add Filter",
+            "delete_filter": "Delete Filter"
+          }
+        },
+        "mcp_dynamic_args": {
+          "labels": {
+            "arguments": "Arguments"
+          }
+        },
+        "mcp_server_modal": {
+          "labels": {
+            "select_server": "Select MCP Server",
+            "select_tool": "Select Tool"
+          }
+        },
+        "sort_builder": {
+          "labels": {
+            "column": "Column",
+            "order": "Order",
+            "sort": "Sort {index}"
+          },
+          "options": {
+            "ascending": "Ascending",
+            "descending": "Descending"
+          },
+          "aria_labels": {
+            "add_sort": "Add Sort",
+            "delete_sort": "Delete Sort"
+          }
+        },
+        "slider_input": {
+          "labels": {
+            "value": "Value"
+          }
+        },
+        "switch": {
+          "aria_labels": {
+            "toggle": "Toggle"
+          }
+        },
+        "table": {
+          "labels": {
+            "rows": "Rows"
+          },
+          "aria_labels": {
+            "delete_row": "Delete row"
+          }
+        },
+        "table_selector": {
+          "placeholders": {
+            "default": "Select table"
+          }
+        },
+        "text_input": {
+          "placeholders": {
+            "default": "Enter text"
+          }
+        },
+        "grouped_checkbox_list": {
+          "placeholders": {
+            "default": "Select options"
+          }
+        },
+        "code_input": {
+          "placeholders": {
+            "default": "Enter code",
+            "javascript": "Write JavaScript...",
+            "python": "Write Python..."
+          }
+        }
       }
     },
-    "table": {
+    "copilot_panel": {
+      "welcome": {
+        "build_title": "Build",
+        "build_question": "Help me build a workflow",
+        "debug_title": "Debug",
+        "debug_question": "Help debug my workflow",
+        "optimize_title": "Optimize",
+        "optimize_question": "Create a fast workflow",
+        "get_started_title": "Get started",
+        "get_started_question": "Help me get started",
+        "discover_tools_title": "Discover tools",
+        "discover_tools_question": "What tools are available?",
+        "create_workflow_title": "Create workflow",
+        "create_workflow_question": "How do I create a workflow?",
+        "mention_tip": "Tip: Use @{symbol} to reference chats, workflows, knowledge, blocks, or templates",
+        "mention_symbol": "@"
+      },
+      "mode_selector": {
+        "ask": "Ask",
+        "build": "Build",
+        "plan": "Plan",
+        "aria_label_expanded": "Open mode selector",
+        "aria_label_collapsed": "Close mode selector"
+      },
+      "model_selector": {
+        "no_models_available": "No models available"
+      },
+      "bottom_controls": {
+        "attach_file_title": "Attach file",
+        "stop_generation_title": "Stop generation"
+      },
+      "todo_list": {
+        "header_label": "Todo:",
+        "aria_expand": "Expand todo list",
+        "aria_collapse": "Collapse todo list"
+      },
+      "plan_mode_section": {
+        "title": "Workflow Plan",
+        "cancel_editing_label": "Cancel editing",
+        "save_label": "Save",
+        "edit_label": "Edit",
+        "delete_label": "Delete"
+      },
+      "checkpoint_confirmation": {
+        "restore_title": "Revert to checkpoint? This will restore your workflow to the state saved at this checkpoint.",
+        "restore_warning": "This action cannot be undone.",
+        "continue_title": "Continue from a previous message?",
+        "cancel_button": "Cancel",
+        "revert_button": "Revert",
+        "reverting_button": "Reverting...",
+        "continue_button": "Continue"
+      },
+      "usage_limit_actions": {
+        "upgrade_button": "Upgrade"
+      },
+      "error_states": {
+        "no_workflow_selected": "No workflow selected"
+      }
+    },
+    "toolbar_panel": {
+      "title": "Toolbar",
+      "search_aria_label": "Search toolbar",
+      "triggers_header": "Triggers",
+      "blocks_header": "Blocks",
+      "context_menu": {
+        "add_to_canvas": "Add to canvas",
+        "view_documentation": "View documentation"
+      }
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "Logs",
+      "loading": "Loading logs...",
+      "error": "Error: {message}",
+      "failed_to_load": "Failed to load logs",
+      "no_logs_found": "No logs found"
+    },
+    "toolbar": {
+      "title": "Logs",
+      "more_options": "More options",
+      "export_csv": "Export as CSV",
+      "configure_notifications": "Configure Notifications",
+      "refresh": "Refresh",
+      "live": "Live",
+      "logs_view": "Logs",
+      "dashboard_view": "Dashboard",
+      "search_placeholder": "Search",
+      "clear_filters": "Clear",
+      "filters_button": "Filters",
+      "filters": {
+        "status": "Status",
+        "workflow": "Workflow",
+        "folder": "Folder",
+        "trigger": "Trigger",
+        "time_range": "Time Range",
+        "all_statuses": "All statuses",
+        "all_workflows": "All workflows",
+        "all_folders": "All folders",
+        "all_triggers": "All triggers",
+        "all_time": "All time",
+        "search_workflows": "Search workflows...",
+        "search_folders": "Search folders...",
+        "search_triggers": "Search triggers..."
+      },
+      "time_ranges": {
+        "all_time": "All time",
+        "past_30_minutes": "Past 30 minutes",
+        "past_hour": "Past hour",
+        "past_6_hours": "Past 6 hours",
+        "past_12_hours": "Past 12 hours",
+        "past_24_hours": "Past 24 hours",
+        "past_3_days": "Past 3 days",
+        "past_7_days": "Past 7 days",
+        "past_14_days": "Past 14 days",
+        "past_30_days": "Past 30 days",
+        "custom_range": "Custom range"
+      }
+    },
+    "logs_list": {
+      "columns": {
+        "date": "Date",
+        "time": "Time",
+        "status": "Status",
+        "workflow": "Workflow",
+        "cost": "Cost",
+        "trigger": "Trigger",
+        "duration": "Duration"
+      },
       "aria_labels": {
-        "delete_row": "Delete row"
+        "open_resume_console": "Open resume console"
+      }
+    },
+    "log_details": {
+      "title": "Log Details",
+      "aria_labels": {
+        "previous_log": "Previous log",
+        "next_log": "Next log",
+        "close": "Close",
+        "resize_panel": "Resize log details panel"
+      },
+      "sections": {
+        "timestamp": "Timestamp",
+        "workflow": "Workflow",
+        "execution_id": "Execution ID",
+        "level": "Level",
+        "trigger": "Trigger",
+        "duration": "Duration",
+        "version": "Version",
+        "workflow_state": "Workflow State",
+        "workflow_output": "Workflow Output",
+        "trace_span": "Trace Span",
+        "cost_breakdown": "Cost Breakdown"
+      },
+      "buttons": {
+        "view_snapshot": "View Snapshot"
+      },
+      "cost_labels": {
+        "base_execution": "Base Execution:",
+        "model_input": "Model Input:",
+        "model_output": "Model Output:",
+        "total": "Total:",
+        "tokens": "Tokens:"
+      },
+      "cost_info": "Total cost includes a base execution charge of {amount} plus any model usage costs."
+    },
+    "workflow_output": {
+      "copy_tooltip": "Copy",
+      "copied_tooltip": "Copied",
+      "search_tooltip": "Search",
+      "close_search_aria": "Close search"
+    },
+    "log_row_context_menu": {
+      "copy_execution_id": "Copy Execution ID",
+      "open_workflow": "Open Workflow",
+      "open_snapshot": "Open Snapshot",
+      "filter_by_workflow": "Filter by Workflow",
+      "clear_filters": "Clear Filters"
+    },
+    "notifications": {
+      "modal_title": "Notification Settings",
+      "tabs": {
+        "webhook": "Webhook",
+        "email": "Email",
+        "slack": "Slack"
+      },
+      "buttons": {
+        "add": "Add",
+        "save": "Save",
+        "cancel": "Cancel",
+        "test": "Test",
+        "sent": "Sent",
+        "failed": "Failed",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "form_labels": {
+        "workflows": "Workflows",
+        "all_workflows": "All Workflows",
+        "webhook_url": "Webhook URL",
+        "webhook_secret": "Secret (optional)",
+        "email_recipients": "Email Recipients",
+        "slack_account": "Slack Account",
+        "slack_channel": "Channel",
+        "log_level_filters": "Log Level Filters",
+        "trigger_type_filters": "Trigger Type Filters",
+        "include_in_payload": "Include in Payload",
+        "rule": "Rule"
+      },
+      "form_placeholders": {
+        "webhook_url": "https://your-app.com/webhook",
+        "webhook_secret": "Webhook secret for signature verification",
+        "select_workflows": "Select workflows...",
+        "email_recipients": "Enter emails",
+        "add_email": "Add email",
+        "select_account": "Select account...",
+        "select_log_levels": "Select log levels...",
+        "select_trigger_types": "Select trigger types...",
+        "select_data": "Select data to include...",
+        "select_rule": "Select rule"
+      },
+      "alert_rules": {
+        "none": "None",
+        "none_description": "Notify on every matching execution",
+        "consecutive_failures": "Consecutive Failures",
+        "consecutive_failures_description": "After X failures in a row",
+        "failure_rate": "Failure Rate",
+        "failure_rate_description": "When failure % exceeds threshold",
+        "latency_threshold": "Latency Threshold",
+        "latency_threshold_description": "When execution exceeds duration",
+        "latency_spike": "Latency Spike",
+        "latency_spike_description": "When slower than average by %",
+        "cost_threshold": "Cost Threshold",
+        "cost_threshold_description": "When execution cost exceeds $",
+        "no_activity": "No Activity",
+        "no_activity_description": "When no executions in time window",
+        "error_count": "Error Count",
+        "error_count_description": "When errors exceed count in window"
+      },
+      "alert_config_labels": {
+        "failure_count": "Failure Count",
+        "failure_rate": "Failure Rate (%)",
+        "window": "Window (hours)",
+        "duration_threshold": "Duration Threshold (seconds)",
+        "latency_spike_percent": "Latency Spike %",
+        "cost_threshold": "Cost Threshold ($)",
+        "inactivity_hours": "Inactivity (hours)",
+        "error_count": "Error Count"
+      },
+      "connect_slack": "Connect Slack",
+      "connecting_slack": "Connecting...",
+      "payload_options": {
+        "final_output": "Final Output",
+        "trace_spans": "Trace Spans",
+        "rate_limits": "Rate Limits",
+        "usage_data": "Usage Data"
+      },
+      "errors": {
+        "workflows_required": "Select at least one workflow or enable \"All Workflows\"",
+        "level_filter_required": "Select at least one log level",
+        "trigger_filter_required": "Select at least one trigger type",
+        "webhook_url_required": "Webhook URL is required",
+        "webhook_url_valid": "URL must start with http:// or https://",
+        "webhook_url_format": "Invalid URL format",
+        "email_required": "At least one email address is required",
+        "email_max": "Maximum 10 email recipients allowed",
+        "email_invalid": "Invalid email addresses: {emails}",
+        "slack_account_required": "Select a Slack account",
+        "slack_channel_required": "Select a Slack channel",
+        "consecutive_failures_range": "Must be between 1 and 100",
+        "failure_rate_range": "Must be between 1 and 100",
+        "window_hours_range": "Must be between 1 and 168 hours",
+        "duration_threshold_range": "Must be between 1s and 1 hour",
+        "latency_spike_range": "Must be between 10% and 1000%",
+        "cost_threshold_range": "Must be between $0.01 and $1000",
+        "inactivity_hours_range": "Must be between 1 and 168 hours",
+        "error_count_range": "Must be between 1 and 1000",
+        "test_sent_successfully": "Test sent successfully",
+        "test_failed": "Test failed",
+        "failed_to_send_test": "Failed to send test",
+        "failed_to_save": "Failed to save notification"
+      },
+      "badges": {
+        "all_workflows": "All workflows",
+        "workflow_count": "{count} workflow(s)"
+      },
+      "subscription_items": {
+        "all_workflows": "All workflows",
+        "workflow_count": "{count} workflow(s)"
+      }
+    },
+    "workflow_selector": {
+      "label": "Workflows",
+      "placeholder": "Select workflows...",
+      "search_placeholder": "Search workflows...",
+      "all_workflows": "All Workflows"
+    },
+    "slack_channel_selector": {
+      "label": "Slack Channel",
+      "placeholder": "Select channel..."
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "line_chart_title": "Success Rate Over Time",
+      "workflows_list_title": "Workflows",
+      "column_headers": {
+        "workflow": "Workflow",
+        "logs": "Logs",
+        "success_rate": "Success Rate"
       }
     }
   }

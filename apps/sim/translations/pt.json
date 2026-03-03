@@ -1369,5 +1369,502 @@
         "delete_row": "Excluir linha"
       }
     }
+  },
+  "panel": {
+    "editor": {
+      "messages": {
+        "select_block": "Selecione um bloco para editar",
+        "no_subblocks": "Este bloco não possui subbloquos",
+        "unable_to_load_preview": "Não foi possível carregar a visualização"
+      },
+      "labels": {
+        "workflow_preview": "Visualização do fluxo de trabalho",
+        "connections": "Conexões",
+        "additional_fields": "Campos adicionais"
+      },
+      "buttons": {
+        "open_docs": "Abrir documentos",
+        "toggle_advanced_show": "Mostrar campos adicionais",
+        "toggle_advanced_hide": "Ocultar campos adicionais",
+        "unlock": "Desbloquear bloco",
+        "open_workflow": "Abrir fluxo de trabalho"
+      },
+      "aria_labels": {
+        "save_name": "Salvar nome",
+        "rename_block": "Renomear bloco",
+        "open_docs": "Abrir documentação",
+        "focus_on_block": "Focar no bloco",
+        "unlock_block": "Desbloquear bloco",
+        "expand_connections": "Expandir conexões",
+        "collapse_connections": "Recolher conexões"
+      },
+      "lock_messages": {
+        "block_locked": "Bloco está bloqueado",
+        "parent_locked": "Contêiner pai está bloqueado",
+        "admin_required": "Permissão de administrador necessária"
+      },
+      "sub_blocks": {
+        "short_input": {
+          "placeholders": {
+            "default": "Digite o texto"
+          }
+        },
+        "long_input": {
+          "placeholders": {
+            "default": "Digite o texto"
+          }
+        },
+        "combobox": {
+          "placeholders": {
+            "default": "Digite ou selecione uma opção..."
+          }
+        },
+        "dropdown": {
+          "placeholders": {
+            "default": "Selecione uma opção..."
+          }
+        },
+        "file_upload": {
+          "placeholders": {
+            "loading": "Carregando arquivos...",
+            "default": "Selecione ou envie arquivo"
+          },
+          "messages": {
+            "file_deleted": "Arquivo deletado",
+            "upload_error": "Erro ao carregar"
+          },
+          "aria_labels": {
+            "clear_file": "Limpar arquivo selecionado"
+          }
+        },
+        "file_selector": {
+          "placeholders": {
+            "default": "Selecione arquivo"
+          }
+        },
+        "folder_selector": {
+          "placeholders": {
+            "default": "Selecione pasta"
+          }
+        },
+        "credential_selector": {
+          "placeholders": {
+            "default": "Selecione credencial",
+            "fill_required_fields": "Preencha os campos obrigatórios acima primeiro"
+          },
+          "messages": {
+            "missing_credential": "Credencial ausente",
+            "connect_account": "Conectar conta",
+            "additional_permissions_required": "Permissões adicionais necessárias"
+          },
+          "buttons": {
+            "update_access": "Atualizar acesso"
+          },
+          "sections": {
+            "polling_groups": "Grupos de sondagem",
+            "personal_credential": "Credencial pessoal"
+          },
+          "labels": {
+            "connect_another_account": "Conectar outra conta {provider}",
+            "connect_account_label": "Conectar conta {provider}"
+          },
+          "aria_labels": {
+            "oauth_required": "OAuth obrigatório"
+          }
+        },
+        "time_input": {
+          "placeholders": {
+            "default": "Selecione horário"
+          }
+        },
+        "condition_input": {
+          "labels": {
+            "if": "Se",
+            "else_if": "Senão se",
+            "else": "Senão"
+          },
+          "buttons": {
+            "add_condition": "Adicionar condição"
+          },
+          "aria_labels": {
+            "remove_condition": "Remover condição",
+            "move_condition": "Mover condição"
+          }
+        },
+        "filter_builder": {
+          "labels": {
+            "column": "Coluna",
+            "operator": "Operador",
+            "value": "Valor",
+            "condition": "Condição {index}",
+            "logic": "Lógica"
+          },
+          "buttons": {
+            "add_rule": "Adicionar regra",
+            "remove_rule": "Remover regra"
+          },
+          "placeholders": {
+            "value": "Digite valor"
+          },
+          "LogicalOperator": {
+            "and": "E",
+            "or": "Ou"
+          },
+          "aria_labels": {
+            "add_condition": "Adicionar condição",
+            "delete_condition": "Deletar condição"
+          }
+        },
+        "eval_input": {
+          "labels": {
+            "name": "Nome",
+            "description": "Descrição",
+            "min": "Mín",
+            "max": "Máx",
+            "metric": "Métrica {index}"
+          },
+          "buttons": {
+            "add_metric": "Adicionar métrica"
+          },
+          "aria_labels": {
+            "remove_metric": "Remover métrica"
+          }
+        },
+        "knowledge_base_selector": {
+          "placeholders": {
+            "default": "Selecione base de conhecimento"
+          },
+          "labels": {
+            "search": "Pesquisar bases de conhecimento"
+          }
+        },
+        "messages_input": {
+          "placeholders": {
+            "role": "Selecione função",
+            "content": "Digite o conteúdo da mensagem"
+          },
+          "buttons": {
+            "add_message": "Adicionar mensagem"
+          },
+          "aria_labels": {
+            "delete_message": "Deletar mensagem",
+            "move_message_up": "Mover mensagem para cima",
+            "move_message_down": "Mover mensagem para baixo",
+            "add_message_below": "Adicionar mensagem abaixo"
+          }
+        },
+        "selector_combobox": {
+          "placeholders": {
+            "default": "Digite ou selecione"
+          },
+          "aria_labels": {
+            "clear_selection": "Limpar seleção"
+          }
+        },
+        "slack_selector": {
+          "placeholders": {
+            "channel": "Selecione canal"
+          }
+        },
+        "tag_dropdown": {
+          "placeholders": {
+            "default": "Selecione tag"
+          }
+        },
+        "tool_input": {
+          "placeholders": {
+            "default": "Selecione ferramenta",
+            "add_tool": "Adicionar ferramenta...",
+            "search_tools": "Pesquisar ferramentas...",
+            "select_operation": "Selecione operação",
+            "parameter": "Digite {name}{type}"
+          },
+          "labels": {
+            "operation": "Operação"
+          },
+          "messages": {
+            "no_workflow_selected": "Selecione um fluxo de trabalho para configurar suas entradas",
+            "no_input_fields": "Este fluxo de trabalho não possui campos de entrada personalizados",
+            "no_tools_found": "Nenhuma ferramenta encontrada"
+          },
+          "sections": {
+            "create_tool": "Criar ferramenta",
+            "add_mcp_server": "Adicionar servidor MCP"
+          },
+          "deployment": {
+            "deploying": "Implantando...",
+            "undeployed": "não implantado",
+            "redeploy": "reimplantar",
+            "click_to_deploy": "Clique para implantar",
+            "click_to_redeploy": "Clique para reimplantar",
+            "admin_required": "Permissão de administrador necessária para implantar"
+          },
+          "usage_control": {
+            "auto": "Auto",
+            "force": "Força",
+            "none": "Nenhum",
+            "auto_description": "Deixar o LLM decidir",
+            "force_description": "Sempre forneça ao LLM",
+            "none_description": "Nunca forneça ao LLM"
+          },
+          "aria_labels": {
+            "tool_usage_control": "Controle de uso de ferramenta",
+            "remove_tool": "Remover ferramenta"
+          }
+        },
+        "workflow_selector": {
+          "placeholders": {
+            "default": "Selecione fluxo de trabalho"
+          }
+        },
+        "sheet_selector": {
+          "placeholders": {
+            "default": "Selecione planilha"
+          }
+        },
+        "project_selector": {
+          "placeholders": {
+            "default": "Selecione projeto"
+          }
+        },
+        "document_selector": {
+          "placeholders": {
+            "default": "Selecione documento"
+          }
+        },
+        "variables_input": {
+          "buttons": {
+            "add_variable": "Adicionar variável"
+          },
+          "labels": {
+            "name": "Nome",
+            "value": "Valor"
+          }
+        },
+        "response_format": {
+          "labels": {
+            "format": "Formato",
+            "schema": "Esquema"
+          },
+          "messages": {
+            "invalid_json": "Esquema JSON inválido"
+          }
+        },
+        "schedule_info": {
+          "labels": {
+            "frequency": "Frequência",
+            "time": "Horário"
+          }
+        },
+        "checkbox_list": {
+          "placeholders": {
+            "default": "Selecione opções"
+          }
+        },
+        "document_tag_entry": {
+          "placeholders": {
+            "default": "Adicionar tags",
+            "tag": "Selecione tag"
+          },
+          "labels": {
+            "document_tags": "Tags do documento",
+            "tag": "Tag",
+            "tag_name": "Tag",
+            "value": "Valor"
+          },
+          "messages": {
+            "tags_configured": "{count} tag(s) configurada(s)",
+            "no_tags": "Sem tags",
+            "no_tags_defined": "Nenhuma tag definida para esta base de conhecimento",
+            "define_tags_first": "Defina tags primeiro no nível da base de conhecimento"
+          },
+          "aria_labels": {
+            "add_tag": "Adicionar tag",
+            "delete_tag": "Deletar tag"
+          }
+        },
+        "env_var_dropdown": {
+          "placeholders": {
+            "search": "Pesquisar variáveis"
+          }
+        },
+        "input_mapping": {
+          "buttons": {
+            "add_mapping": "Adicionar mapeamento"
+          },
+          "labels": {
+            "from": "De",
+            "to": "Para",
+            "value": "Valor"
+          },
+          "placeholders": {
+            "value": "Digite valor ou referência"
+          },
+          "messages": {
+            "no_workflow_selected": "Nenhum fluxo de trabalho selecionado",
+            "select_workflow_to_configure": "Selecione um fluxo de trabalho acima para configurar entradas",
+            "loading": "carregando..."
+          }
+        },
+        "knowledge_tag_filters": {
+          "placeholders": {
+            "default": "Filtrar por tags",
+            "tag": "Selecione tag",
+            "operator": "Selecione operador"
+          },
+          "labels": {
+            "tag_filters": "Filtros de tags",
+            "filter": "Filtro {index}",
+            "tag": "Tag",
+            "operator": "Operador",
+            "value": "Valor",
+            "between_connector": "a"
+          },
+          "messages": {
+            "filters_applied": "{count} filtro(s) aplicado(s)",
+            "no_filters": "Sem filtros"
+          },
+          "aria_labels": {
+            "add_filter": "Adicionar filtro",
+            "delete_filter": "Deletar filtro"
+          }
+        },
+        "mcp_dynamic_args": {
+          "labels": {
+            "arguments": "Argumentos"
+          }
+        },
+        "mcp_server_modal": {
+          "labels": {
+            "select_server": "Selecione servidor MCP",
+            "select_tool": "Selecione ferramenta"
+          }
+        },
+        "sort_builder": {
+          "labels": {
+            "column": "Coluna",
+            "order": "Ordem",
+            "sort": "Ordenação {index}"
+          },
+          "options": {
+            "ascending": "Ascendente",
+            "descending": "Descendente"
+          },
+          "aria_labels": {
+            "add_sort": "Adicionar ordenação",
+            "delete_sort": "Deletar ordenação"
+          }
+        },
+        "slider_input": {
+          "labels": {
+            "value": "Valor"
+          }
+        },
+        "switch": {
+          "aria_labels": {
+            "toggle": "Alternar"
+          }
+        },
+        "table": {
+          "labels": {
+            "rows": "Linhas"
+          },
+          "aria_labels": {
+            "delete_row": "Remover linha"
+          }
+        },
+        "table_selector": {
+          "placeholders": {
+            "default": "Selecione tabela"
+          }
+        },
+        "text_input": {
+          "placeholders": {
+            "default": "Digite o texto"
+          }
+        },
+        "grouped_checkbox_list": {
+          "placeholders": {
+            "default": "Selecione opções"
+          }
+        },
+        "code_input": {
+          "placeholders": {
+            "default": "Digite o código",
+            "javascript": "Digite JavaScript...",
+            "python": "Digite Python..."
+          }
+        }
+      }
+    },
+    "copilot_panel": {
+      "welcome": {
+        "build_title": "Construir",
+        "build_question": "Ajude-me a construir um fluxo de trabalho",
+        "debug_title": "Depurar",
+        "debug_question": "Ajude-me a depurar meu fluxo de trabalho",
+        "optimize_title": "Otimizar",
+        "optimize_question": "Crie um fluxo de trabalho rápido",
+        "get_started_title": "Começar",
+        "get_started_question": "Ajude-me a começar",
+        "discover_tools_title": "Descobrir ferramentas",
+        "discover_tools_question": "Quais ferramentas estão disponíveis?",
+        "create_workflow_title": "Criar fluxo de trabalho",
+        "create_workflow_question": "Como crio um fluxo de trabalho?",
+        "mention_tip": "Dica: Use @{symbol} para fazer referência a chats, fluxos de trabalho, conhecimento, blocos ou modelos",
+        "mention_symbol": "@"
+      },
+      "mode_selector": {
+        "ask": "Perguntar",
+        "build": "Construir",
+        "plan": "Planejar",
+        "aria_label_expanded": "Abrir seletor de modo",
+        "aria_label_collapsed": "Fechar seletor de modo"
+      },
+      "model_selector": {
+        "no_models_available": "Nenhum modelo disponível"
+      },
+      "bottom_controls": {
+        "attach_file_title": "Anexar arquivo",
+        "stop_generation_title": "Parar geração"
+      },
+      "todo_list": {
+        "header_label": "A fazer:",
+        "aria_expand": "Expandir lista de tarefas",
+        "aria_collapse": "Recolher lista de tarefas"
+      },
+      "plan_mode_section": {
+        "title": "Plano de fluxo de trabalho",
+        "cancel_editing_label": "Cancelar edição",
+        "save_label": "Salvar",
+        "edit_label": "Editar",
+        "delete_label": "Excluir"
+      },
+      "checkpoint_confirmation": {
+        "restore_title": "Reverter para ponto de controle? Isso restaurará seu fluxo de trabalho para o estado salvo neste ponto de controle.",
+        "restore_warning": "Esta ação não pode ser desfeita.",
+        "continue_title": "Continuar de uma mensagem anterior?",
+        "cancel_button": "Cancelar",
+        "revert_button": "Reverter",
+        "reverting_button": "Revertendo...",
+        "continue_button": "Continuar"
+      },
+      "usage_limit_actions": {
+        "upgrade_button": "Atualizar"
+      },
+      "error_states": {
+        "no_workflow_selected": "Nenhum fluxo de trabalho selecionado"
+      }
+    },
+    "toolbar_panel": {
+      "title": "Barra de ferramentas",
+      "search_aria_label": "Pesquisar na barra de ferramentas",
+      "triggers_header": "Disparadores",
+      "blocks_header": "Blocos",
+      "context_menu": {
+        "add_to_canvas": "Adicionar à tela",
+        "view_documentation": "Ver documentação"
+      }
+    }
   }
 }

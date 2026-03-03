@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Popover,
@@ -48,6 +49,7 @@ function getIconForProvider(provider: string): React.ComponentType<{ className?:
  * @returns Rendered model selector dropdown
  */
 export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: ModelSelectorProps) {
+  const t = useTranslations('panel.copilot_panel.model_selector')
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -82,7 +84,7 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
     const model =
       modelOptions.find((m) => m.value === selectedModel) ??
       modelOptions.find((m) => m.value.endsWith(`/${selectedModel}`))
-    return model?.label || selectedModel || 'No models available'
+    return model?.label || selectedModel || t('no_models_available')
   }
 
   const getModelIcon = () => {
@@ -146,7 +148,6 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
           <Badge
             variant='outline'
             className='min-w-0 max-w-full cursor-pointer rounded-[6px]'
-            title='Choose model'
             aria-expanded={open}
             onMouseDown={(e) => {
               e.stopPropagation()
@@ -180,7 +181,9 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
               </PopoverItem>
             ))
           ) : (
-            <div className='px-2 py-2 text-[var(--text-muted)] text-xs'>No models available</div>
+            <div className='px-2 py-2 text-[var(--text-muted)] text-xs'>
+              {t('no_models_available')}
+            </div>
           )}
         </PopoverScrollArea>
       </PopoverContent>

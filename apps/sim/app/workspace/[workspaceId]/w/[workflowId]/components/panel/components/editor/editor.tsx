@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import isEqual from 'lodash/isEqual'
 import {
   BookOpen,
@@ -78,6 +79,7 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
+  const t = useTranslations('panel.editor')
   const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
     usePanelEditorStore(
       useShallow((state) => ({
@@ -373,7 +375,7 @@ export function Editor() {
                     variant='ghost'
                     className='p-0'
                     onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
-                    aria-label='Unlock block'
+                    aria-label={t('aria_labels.unlock_block')}
                   >
                     <Unlock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
                   </Button>
@@ -386,10 +388,10 @@ export function Editor() {
               <Tooltip.Content side='top'>
                 <p>
                   {isParentLocked
-                    ? 'Parent container is locked'
+                    ? t('lock_messages.parent_locked')
                     : userPermissions.canAdmin && currentBlock.locked
-                      ? 'Unlock block'
-                      : 'Block is locked'}
+                      ? t('aria_labels.unlock_block')
+                      : t('lock_messages.block_locked')}
                 </p>
               </Tooltip.Content>
             </Tooltip.Root>
@@ -403,7 +405,9 @@ export function Editor() {
                   className='p-0'
                   onClick={isRenaming ? handleSaveRename : handleStartRename}
                   disabled={!canEditBlock}
-                  aria-label={isRenaming ? 'Save name' : 'Rename block'}
+                  aria-label={
+                    isRenaming ? t('aria_labels.save_name') : t('aria_labels.rename_block')
+                  }
                 >
                   {isRenaming ? (
                     <Check className='h-[14px] w-[14px]' />
@@ -413,7 +417,7 @@ export function Editor() {
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
-                <p>{isRenaming ? 'Save name' : 'Rename block'}</p>
+                <p>{isRenaming ? t('aria_labels.save_name') : t('aria_labels.rename_block')}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
@@ -441,13 +445,13 @@ export function Editor() {
                 variant='ghost'
                 className='p-0'
                 onClick={handleOpenDocs}
-                aria-label='Open documentation'
+                aria-label={t('aria_labels.open_docs')}
               >
                 <BookOpen className='h-[14px] w-[14px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              <p>Open docs</p>
+              <p>{t('buttons.open_docs')}</p>
             </Tooltip.Content>
           </Tooltip.Root>
         </div>
@@ -455,7 +459,7 @@ export function Editor() {
 
       {!currentBlockId || !currentBlock ? (
         <div className='flex flex-1 items-center justify-center text-[#8D8D8D] text-[13px]'>
-          Select a block to edit
+          {t('messages.select_block')}
         </div>
       ) : isSubflow ? (
         <SubflowEditor
@@ -484,7 +488,7 @@ export function Editor() {
                 <>
                   <div className='subblock-content flex flex-col gap-[9.5px]'>
                     <div className='pl-[2px] font-medium text-[13px] text-[var(--text-primary)] leading-none'>
-                      Workflow Preview
+                      {t('labels.workflow_preview')}
                     </div>
                     <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
                       {isLoadingChildWorkflow ? (
@@ -516,13 +520,15 @@ export function Editor() {
                                 <ExternalLink className='h-[12px] w-[12px]' />
                               </Button>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                            <Tooltip.Content side='top'>
+                              {t('buttons.open_workflow')}
+                            </Tooltip.Content>
                           </Tooltip.Root>
                         </>
                       ) : (
                         <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                           <span className='text-[13px] text-[var(--text-tertiary)]'>
-                            Unable to load preview
+                            {t('messages.unable_to_load_preview')}
                           </span>
                         </div>
                       )}
@@ -535,7 +541,7 @@ export function Editor() {
               )}
               {subBlocks.length === 0 && !isWorkflowBlock ? (
                 <div className='flex h-full items-center justify-center text-center text-[#8D8D8D] text-[13px]'>
-                  This block has no subblocks
+                  {t('messages.no_subblocks')}
                 </div>
               ) : (
                 <div className='flex flex-col'>
@@ -609,8 +615,8 @@ export function Editor() {
                         className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                       >
                         {displayAdvancedOptions
-                          ? 'Hide additional fields'
-                          : 'Show additional fields'}
+                          ? t('buttons.toggle_advanced_hide')
+                          : t('buttons.toggle_advanced_show')}
                         <ChevronDown
                           className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />
@@ -622,7 +628,7 @@ export function Editor() {
                     <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                       <span className='whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)]'>
-                        Additional fields
+                        {t('labels.additional_fields')}
                       </span>
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                     </div>
@@ -688,7 +694,9 @@ export function Editor() {
                 role='button'
                 tabIndex={0}
                 aria-label={
-                  isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'
+                  isConnectionsAtMinHeight
+                    ? t('aria_labels.expand_connections')
+                    : t('aria_labels.collapse_connections')
                 }
               >
                 <ChevronUp
@@ -698,7 +706,7 @@ export function Editor() {
                   }
                 />
                 <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                  Connections
+                  {t('labels.connections')}
                 </div>
               </div>
 

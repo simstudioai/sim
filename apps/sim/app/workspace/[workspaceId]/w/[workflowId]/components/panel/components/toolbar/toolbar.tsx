@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/emcn'
@@ -287,6 +288,7 @@ const TRIGGERS_MIN_THRESHOLD = 50
 
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
+    const t = useTranslations('panel.toolbar_panel')
     const rootRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const triggersContentRef = useRef<HTMLDivElement>(null)
@@ -718,13 +720,13 @@ export const Toolbar = memo(
           className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'
           onClick={handleSearchClick}
         >
-          <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Toolbar</h2>
+          <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>{t('title')}</h2>
           <div className='flex shrink-0 items-center gap-[8px]'>
             {!isSearchActive ? (
               <Button
                 variant='ghost'
                 className='p-0'
-                aria-label='Search toolbar'
+                aria-label={t('search_aria_label')}
                 onClick={handleSearchClick}
               >
                 <Search className='h-[14px] w-[14px]' />
@@ -756,7 +758,7 @@ export const Toolbar = memo(
               ref={triggersHeaderRef}
               className='px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
             >
-              Triggers
+              {t('triggers_header')}
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
               <div ref={triggersContentRef} className='space-y-[2px] pb-[8px]'>
@@ -790,7 +792,7 @@ export const Toolbar = memo(
               onClick={handleBlocksHeaderClick}
               className='cursor-pointer px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
             >
-              Blocks
+              {t('blocks_header')}
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
               <div className='space-y-[2px] pb-[8px]'>
