@@ -123,12 +123,46 @@ export class ParallelOrchestrator {
       items
     )
 
-    // Register cloned subflows in the parent map so iteration context resolves correctly
+    // Register cloned subflows in the parent map so iteration context resolves correctly.
+    // Build a per-branch clone map so nested clones point to the cloned parent, not the original.
     if (clonedSubflows.length > 0 && ctx.subflowParentMap) {
+      const branchCloneMaps = new Map<number, Map<string, string>>()
+      for (const clone of clonedSubflows) {
+        let map = branchCloneMaps.get(clone.outerBranchIndex)
+        if (!map) {
+          map = new Map()
+          branchCloneMaps.set(clone.outerBranchIndex, map)
+        }
+        map.set(clone.originalId, clone.clonedId)
+      }
+
       for (const clone of clonedSubflows) {
         const originalEntry = ctx.subflowParentMap.get(clone.originalId)
         if (originalEntry) {
-          ctx.subflowParentMap.set(clone.clonedId, originalEntry)
+          const cloneMap = branchCloneMaps.get(clone.outerBranchIndex)
+          const clonedParentId = cloneMap?.get(originalEntry.parentId)
+          if (clonedParentId) {
+            // Parent was also cloned — this is the original (branch 0) inside the cloned parent
+            ctx.subflowParentMap.set(clone.clonedId, {
+              parentId: clonedParentId,
+              parentType: originalEntry.parentType,
+              branchIndex: 0,
+            })
+          } else {
+            // Parent was not cloned — direct child of the expanding parallel
+            ctx.subflowParentMap.set(clone.clonedId, {
+              parentId: parallelId,
+              parentType: 'parallel',
+              branchIndex: clone.outerBranchIndex,
+            })
+          }
+        } else {
+          // Not in parent map — direct child of the expanding parallel
+          ctx.subflowParentMap.set(clone.clonedId, {
+            parentId: parallelId,
+            parentType: 'parallel',
+            branchIndex: clone.outerBranchIndex,
+          })
         }
       }
     }

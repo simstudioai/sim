@@ -1531,3 +1531,443 @@ describe('stripCustomToolPrefix', () => {
     expect(stripCustomToolPrefix('regular_tool')).toBe('regular_tool')
   })
 })
+
+describe('nested subflow grouping via parentIterations', () => {
+  it.concurrent('parallel-in-parallel (P1 → P2 → leaf) with only leaf BlockLogs', () => {
+    // Sentinel blocks do NOT produce BlockLogs. Only leaf blocks have logs.
+    // Each leaf has parentIterations = full ancestor chain (outermost → innermost).
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      metadata: { duration: 4000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        // P1 iter 0, P2 iter 0
+        {
+          blockId: 'func-1__obranch-0__obranch-0',
+          blockName: 'Func (iteration 0)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p2',
+          iterationIndex: 0,
+          executionOrder: 1,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+          ],
+        },
+        // P1 iter 0, P2 iter 1
+        {
+          blockId: 'func-1__obranch-1__obranch-0',
+          blockName: 'Func (iteration 1)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p2',
+          iterationIndex: 1,
+          executionOrder: 2,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+          ],
+        },
+        // P1 iter 1, P2 iter 0
+        {
+          blockId: 'func-1__obranch-0__obranch-1',
+          blockName: 'Func (iteration 0)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:02.000Z',
+          endedAt: '2024-01-01T10:00:03.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p2__obranch-1',
+          iterationIndex: 0,
+          executionOrder: 3,
+          parentIterations: [
+            {
+              iterationCurrent: 1,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+          ],
+        },
+        // P1 iter 1, P2 iter 1
+        {
+          blockId: 'func-1__obranch-1__obranch-1',
+          blockName: 'Func (iteration 1)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:03.000Z',
+          endedAt: '2024-01-01T10:00:04.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p2__obranch-1',
+          iterationIndex: 1,
+          executionOrder: 4,
+          parentIterations: [
+            {
+              iterationCurrent: 1,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+          ],
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const workflow = traceSpans[0]
+    expect(workflow.name).toBe('Workflow Execution')
+
+    // Should have one top-level parallel container (P1)
+    const p1 = workflow.children!.find((s) => s.type === 'parallel')!
+    expect(p1).toBeDefined()
+    expect(p1.children).toHaveLength(2) // 2 iterations of P1
+
+    // P1 iteration 0 → nested P2 container
+    const p1Iter0 = p1.children![0]
+    expect(p1Iter0.name).toBe('Iteration 0')
+    const p2InIter0 = p1Iter0.children!.find((s) => s.type === 'parallel')
+    expect(p2InIter0).toBeDefined()
+    expect(p2InIter0!.children).toHaveLength(2) // 2 iterations of P2
+
+    // P1 iteration 1 → nested P2 container
+    const p1Iter1 = p1.children![1]
+    expect(p1Iter1.name).toBe('Iteration 1')
+    const p2InIter1 = p1Iter1.children!.find((s) => s.type === 'parallel')
+    expect(p2InIter1).toBeDefined()
+    expect(p2InIter1!.children).toHaveLength(2)
+
+    // Leaf spans inside P2 iterations
+    expect(p2InIter0!.children![0].children![0].name).toBe('Func')
+  })
+
+  it.concurrent('loop-in-loop nests correctly with parentIterations', () => {
+    // Only leaf blocks produce BlockLogs in loops too
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        // Outer iter 0, inner iter 0
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent (iteration 0)',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          loopId: 'inner-loop',
+          iterationIndex: 0,
+          executionOrder: 1,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'loop',
+              iterationContainerId: 'outer-loop',
+            },
+          ],
+        },
+        // Outer iter 0, inner iter 1
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent (iteration 1)',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          loopId: 'inner-loop',
+          iterationIndex: 1,
+          executionOrder: 2,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'loop',
+              iterationContainerId: 'outer-loop',
+            },
+          ],
+        },
+        // Outer iter 1, inner iter 0
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent (iteration 0)',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:02.000Z',
+          endedAt: '2024-01-01T10:00:03.000Z',
+          durationMs: 1000,
+          success: true,
+          loopId: 'inner-loop',
+          iterationIndex: 0,
+          executionOrder: 3,
+          parentIterations: [
+            {
+              iterationCurrent: 1,
+              iterationTotal: 2,
+              iterationType: 'loop',
+              iterationContainerId: 'outer-loop',
+            },
+          ],
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const workflow = traceSpans[0]
+
+    const outerLoop = workflow.children!.find((s) => s.type === 'loop')!
+    expect(outerLoop).toBeDefined()
+    expect(outerLoop.children).toHaveLength(2) // 2 outer iterations
+
+    // Outer iteration 0 → inner-loop container with 2 iterations
+    const outerIter0 = outerLoop.children![0]
+    const innerLoop0 = outerIter0.children!.find((s) => s.type === 'loop')
+    expect(innerLoop0).toBeDefined()
+    expect(innerLoop0!.children).toHaveLength(2)
+
+    // Outer iteration 1 → inner-loop container with 1 iteration
+    const outerIter1 = outerLoop.children![1]
+    const innerLoop1 = outerIter1.children!.find((s) => s.type === 'loop')
+    expect(innerLoop1).toBeDefined()
+    expect(innerLoop1!.children).toHaveLength(1)
+  })
+
+  it.concurrent('3-level nesting (P1 → P2 → P3 → leaf) groups recursively', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        // Leaf: parallelId=p3, parentIterations=[p1:0, p2:0]
+        {
+          blockId: 'func-1__obranch-0__obranch-0__obranch-0',
+          blockName: 'Func (iteration 0)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p3',
+          iterationIndex: 0,
+          executionOrder: 1,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p2',
+            },
+          ],
+        },
+        {
+          blockId: 'func-1__obranch-1__obranch-0__obranch-0',
+          blockName: 'Func (iteration 1)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p3',
+          iterationIndex: 1,
+          executionOrder: 2,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p2',
+            },
+          ],
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const workflow = traceSpans[0]
+
+    // P1 container
+    const p1 = workflow.children!.find((s) => s.type === 'parallel')!
+    expect(p1).toBeDefined()
+    expect(p1.children).toHaveLength(1) // 1 iteration of P1
+
+    // P1 → Iteration 0 → P2
+    const p1Iter0 = p1.children![0]
+    const p2 = p1Iter0.children!.find((s) => s.type === 'parallel')
+    expect(p2).toBeDefined()
+    expect(p2!.children).toHaveLength(1) // 1 iteration of P2
+
+    // P2 → Iteration 0 → P3
+    const p2Iter0 = p2!.children![0]
+    const p3 = p2Iter0.children!.find((s) => s.type === 'parallel')
+    expect(p3).toBeDefined()
+    expect(p3!.children).toHaveLength(2) // 2 iterations of P3
+
+    // P3 leaf spans
+    expect(p3!.children![0].children![0].name).toBe('Func')
+    expect(p3!.children![1].children![0].name).toBe('Func')
+  })
+
+  it.concurrent('backward compatibility: spans without parentIterations group flat', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'api-1__obranch-0',
+          blockName: 'API (iteration 0)',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p1',
+          iterationIndex: 0,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'api-1__obranch-1',
+          blockName: 'API (iteration 1)',
+          blockType: 'api',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p1',
+          iterationIndex: 1,
+          executionOrder: 2,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const workflow = traceSpans[0]
+
+    // Should group into a flat parallel container with 2 iterations
+    const parallel = workflow.children!.find((s) => s.type === 'parallel')!
+    expect(parallel).toBeDefined()
+    expect(parallel.children).toHaveLength(2)
+    expect(parallel.children![0].name).toBe('Iteration 0')
+    expect(parallel.children![1].name).toBe('Iteration 1')
+    // No nested containers — leaf spans are directly inside iteration
+    expect(parallel.children![0].children![0].name).toBe('API')
+    expect(parallel.children![0].children![0].type).toBe('api')
+  })
+
+  it.concurrent('mixed: flat loop + nested parallel-in-parallel in same execution', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      metadata: { duration: 5000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        // Flat loop iterations (no parentIterations)
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent (iteration 0)',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:01.000Z',
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: 0,
+          executionOrder: 1,
+        },
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent (iteration 1)',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:01.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 1000,
+          success: true,
+          loopId: 'loop-1',
+          iterationIndex: 1,
+          executionOrder: 2,
+        },
+        // Nested P1 → P2 leaf (only leaf, no sentinel logs)
+        {
+          blockId: 'func-1__obranch-0__obranch-0',
+          blockName: 'Func (iteration 0)',
+          blockType: 'function',
+          startedAt: '2024-01-01T10:00:02.000Z',
+          endedAt: '2024-01-01T10:00:03.000Z',
+          durationMs: 1000,
+          success: true,
+          parallelId: 'p2',
+          iterationIndex: 0,
+          executionOrder: 3,
+          parentIterations: [
+            {
+              iterationCurrent: 0,
+              iterationTotal: 2,
+              iterationType: 'parallel',
+              iterationContainerId: 'p1',
+            },
+          ],
+        },
+        // Non-iteration span
+        {
+          blockId: 'starter',
+          blockName: 'Starter',
+          blockType: 'starter',
+          startedAt: '2024-01-01T10:00:04.000Z',
+          endedAt: '2024-01-01T10:00:05.000Z',
+          durationMs: 1000,
+          success: true,
+          executionOrder: 5,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const workflow = traceSpans[0]
+    const children = workflow.children!
+
+    const loop = children.find((s) => s.type === 'loop')
+    const parallel = children.find((s) => s.type === 'parallel')
+    const starter = children.find((s) => s.name === 'Starter')
+
+    expect(loop).toBeDefined()
+    expect(parallel).toBeDefined()
+    expect(starter).toBeDefined()
+
+    // Loop should have 2 flat iterations
+    expect(loop!.children).toHaveLength(2)
+
+    // P1 should have 1 iteration with nested P2
+    expect(parallel!.children).toHaveLength(1)
+    const p1Iter0 = parallel!.children![0]
+    const nestedP2 = p1Iter0.children!.find((s) => s.type === 'parallel')
+    expect(nestedP2).toBeDefined()
+    expect(nestedP2!.children).toHaveLength(1)
+  })
+})

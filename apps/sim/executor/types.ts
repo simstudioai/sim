@@ -4,6 +4,7 @@ import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
   IterationContext,
+  ParentIteration,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
@@ -122,6 +123,8 @@ export interface BlockLog {
   loopId?: string
   parallelId?: string
   iterationIndex?: number
+  /** Full ancestor iteration chain for nested subflows (outermost → innermost). */
+  parentIterations?: ParentIteration[]
   /**
    * Monotonically increasing integer (1, 2, 3, ...) for accurate block ordering.
    * Generated via getNextExecutionOrder() to ensure deterministic sorting.
@@ -199,7 +202,10 @@ export interface ExecutionContext {
    * subflow ID and type, enabling the iteration context builder to walk the full
    * ancestor chain regardless of subflow type.
    */
-  subflowParentMap?: Map<string, { parentId: string; parentType: SubflowType }>
+  subflowParentMap?: Map<
+    string,
+    { parentId: string; parentType: SubflowType; branchIndex?: number }
+  >
 
   loopExecutions?: Map<
     string,

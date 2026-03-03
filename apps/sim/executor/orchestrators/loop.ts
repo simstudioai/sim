@@ -350,12 +350,13 @@ export class LoopOrchestrator {
     for (const nodeId of loopConfig.nodes) {
       if (this.dag.loopConfigs.has(nodeId)) {
         ctx.loopExecutions?.delete(nodeId)
-        // Delete cloned loop variants (e.g., inner-loop__obranch-N) but not original
+        // Delete cloned loop variants (__obranch-N and __clone*) but not original
         // subflowParentMap entries which are needed for SSE iteration context.
         if (ctx.loopExecutions) {
-          const prefix = `${nodeId}__obranch-`
+          const obranchPrefix = `${nodeId}__obranch-`
+          const cloneSeqPrefix = `${nodeId}__clone`
           for (const key of ctx.loopExecutions.keys()) {
-            if (key.startsWith(prefix)) {
+            if (key.startsWith(obranchPrefix) || key.startsWith(cloneSeqPrefix)) {
               ctx.loopExecutions.delete(key)
               ctx.subflowParentMap?.delete(key)
             }
@@ -390,11 +391,12 @@ export class LoopOrchestrator {
    */
   private deleteParallelScopeAndClones(parallelId: string, ctx: ExecutionContext): void {
     ctx.parallelExecutions?.delete(parallelId)
-    // Delete cloned scopes (__obranch-N) but not original subflowParentMap entries
+    // Delete cloned scopes (__obranch-N and __clone*) but not original subflowParentMap entries
     if (ctx.parallelExecutions) {
-      const prefix = `${parallelId}__obranch-`
+      const obranchPrefix = `${parallelId}__obranch-`
+      const clonePrefix = `${parallelId}__clone`
       for (const key of ctx.parallelExecutions.keys()) {
-        if (key.startsWith(prefix)) {
+        if (key.startsWith(obranchPrefix) || key.startsWith(clonePrefix)) {
           ctx.parallelExecutions.delete(key)
           ctx.subflowParentMap?.delete(key)
         }
@@ -408,11 +410,12 @@ export class LoopOrchestrator {
           this.deleteParallelScopeAndClones(nodeId, ctx)
         } else if (this.dag.loopConfigs.has(nodeId)) {
           ctx.loopExecutions?.delete(nodeId)
-          // Also delete cloned loop scopes (__obranch-N) created by expandParallel
+          // Also delete cloned loop scopes (__obranch-N and __clone*) created by expandParallel
           if (ctx.loopExecutions) {
-            const clonePrefix = `${nodeId}__obranch-`
+            const obranchPrefix = `${nodeId}__obranch-`
+            const cloneSeqPrefix = `${nodeId}__clone`
             for (const key of ctx.loopExecutions.keys()) {
-              if (key.startsWith(clonePrefix)) {
+              if (key.startsWith(obranchPrefix) || key.startsWith(cloneSeqPrefix)) {
                 ctx.loopExecutions.delete(key)
                 ctx.subflowParentMap?.delete(key)
               }
@@ -515,16 +518,17 @@ export class LoopOrchestrator {
     result: Set<string>,
     visited: Set<string>
   ): void {
-    const prefix = `${originalId}__obranch-`
+    const obranchPrefix = `${originalId}__obranch-`
+    const clonePrefix = `${originalId}__clone`
     for (const loopId of this.dag.loopConfigs.keys()) {
-      if (loopId.startsWith(prefix)) {
+      if (loopId.startsWith(obranchPrefix) || loopId.startsWith(clonePrefix)) {
         for (const id of this.collectAllLoopNodeIds(loopId, visited)) {
           result.add(id)
         }
       }
     }
     for (const parallelId of this.dag.parallelConfigs.keys()) {
-      if (parallelId.startsWith(prefix)) {
+      if (parallelId.startsWith(obranchPrefix) || parallelId.startsWith(clonePrefix)) {
         for (const id of this.collectAllParallelNodeIds(parallelId, visited)) {
           result.add(id)
         }

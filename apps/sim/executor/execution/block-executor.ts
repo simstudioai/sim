@@ -36,7 +36,10 @@ import {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
-import { getIterationContext } from '@/executor/utils/iteration-context'
+import {
+  buildUnifiedParentIterations,
+  getIterationContext,
+} from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { VariableResolver } from '@/executor/variables/resolver'
@@ -360,6 +363,11 @@ export class BlockExecutor {
       }
     }
 
+    const containerId = parallelId ?? loopId
+    const parentIterations = containerId
+      ? buildUnifiedParentIterations(ctx, containerId)
+      : undefined
+
     return {
       blockId,
       blockName,
@@ -372,6 +380,7 @@ export class BlockExecutor {
       loopId,
       parallelId,
       iterationIndex,
+      ...(parentIterations?.length && { parentIterations }),
     }
   }
 

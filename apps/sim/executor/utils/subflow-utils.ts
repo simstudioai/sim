@@ -91,6 +91,7 @@ export function isBranchNodeId(nodeId: string): boolean {
 
 const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
 const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
+const CLONE_SEQ_STRIP_PATTERN = /__clone\d+/g
 
 /**
  * Extracts the outer branch index from a cloned subflow ID.
@@ -107,7 +108,9 @@ export function extractOuterBranchIndex(clonedId: string): number | undefined {
  * from a node ID, returning the original workflow-level block ID.
  */
 export function stripCloneSuffixes(nodeId: string): string {
-  return extractBaseBlockId(nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, ''))
+  return extractBaseBlockId(
+    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+  )
 }
 
 /**
@@ -122,7 +125,7 @@ export function buildClonedSubflowId(originalId: string, branchIndex: number): s
  * returning the original workflow-level subflow ID.
  */
 export function stripOuterBranchSuffix(id: string): string {
-  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '')
+  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
 }
 
 /**

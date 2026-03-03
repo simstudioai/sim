@@ -70,13 +70,20 @@ export function buildContainerIterationContext(
   if (!parentEntry) return undefined
 
   if (parentEntry.parentType === 'parallel') {
-    const effectiveParentId = ctx.parallelExecutions
-      ? findEffectiveContainerId(parentEntry.parentId, containerId, ctx.parallelExecutions)
-      : parentEntry.parentId
+    // Use stored parentId directly when branchIndex is available (set during expansion),
+    // otherwise fall back to findEffectiveContainerId for backward compatibility.
+    const hasBranchIndex = parentEntry.branchIndex !== undefined
+    const effectiveParentId = hasBranchIndex
+      ? parentEntry.parentId
+      : ctx.parallelExecutions
+        ? findEffectiveContainerId(parentEntry.parentId, containerId, ctx.parallelExecutions)
+        : parentEntry.parentId
     const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
     if (parentScope) {
       return {
-        iterationCurrent: extractOuterBranchIndex(containerId) ?? 0,
+        iterationCurrent: hasBranchIndex
+          ? parentEntry.branchIndex!
+          : (extractOuterBranchIndex(containerId) ?? 0),
         iterationTotal: parentScope.totalBranches,
         iterationType: 'parallel',
         iterationContainerId: effectiveParentId,
@@ -124,7 +131,8 @@ export function buildUnifiedParentIterations(
     visited.size < MAX_PARENT_DEPTH
   ) {
     visited.add(currentId)
-    const { parentId, parentType } = ctx.subflowParentMap.get(currentId)!
+    const entry = ctx.subflowParentMap.get(currentId)!
+    const { parentId, parentType } = entry
 
     if (parentType === 'loop') {
       // Resolve the effective (possibly cloned) loop ID — at runtime the scope
@@ -142,12 +150,19 @@ export function buildUnifiedParentIterations(
         })
       }
     } else {
-      const effectiveParentId = ctx.parallelExecutions
-        ? findEffectiveContainerId(parentId, currentId, ctx.parallelExecutions)
-        : parentId
+      // Use stored parentId directly when branchIndex is available (set during expansion),
+      // otherwise fall back to findEffectiveContainerId for backward compatibility.
+      const hasBranchIndex = entry.branchIndex !== undefined
+      const effectiveParentId = hasBranchIndex
+        ? parentId
+        : ctx.parallelExecutions
+          ? findEffectiveContainerId(parentId, currentId, ctx.parallelExecutions)
+          : parentId
       const parentScope = ctx.parallelExecutions?.get(effectiveParentId)
       if (parentScope) {
-        const outerBranchIndex = extractOuterBranchIndex(currentId) ?? 0
+        const outerBranchIndex = hasBranchIndex
+          ? entry.branchIndex!
+          : (extractOuterBranchIndex(currentId) ?? 0)
         parents.unshift({
           iterationCurrent: outerBranchIndex,
           iterationTotal: parentScope.totalBranches,

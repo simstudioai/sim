@@ -255,6 +255,102 @@ describe('buildUnifiedParentIterations', () => {
     ])
   })
 
+  it('resolves 3-level parallel nesting with branchIndex entries', () => {
+    // P1 → P2 → P3, with P2__obranch-1 and P3__clone0__obranch-1
+    const ctx = makeCtx({
+      subflowParentMap: new Map([
+        ['P2', { parentId: 'P1', parentType: 'parallel' }],
+        ['P3', { parentId: 'P2', parentType: 'parallel' }],
+        ['P2__obranch-1', { parentId: 'P1', parentType: 'parallel', branchIndex: 1 }],
+        [
+          'P3__clone0__obranch-1',
+          { parentId: 'P2__obranch-1', parentType: 'parallel', branchIndex: 0 },
+        ],
+        ['P3__obranch-1', { parentId: 'P2', parentType: 'parallel', branchIndex: 1 }],
+      ]),
+      parallelExecutions: new Map([
+        [
+          'P1',
+          {
+            parallelId: 'P1',
+            totalBranches: 2,
+            branchOutputs: new Map(),
+            completedCount: 0,
+            totalExpectedNodes: 2,
+          },
+        ],
+        [
+          'P2',
+          {
+            parallelId: 'P2',
+            totalBranches: 2,
+            branchOutputs: new Map(),
+            completedCount: 0,
+            totalExpectedNodes: 2,
+          },
+        ],
+        [
+          'P2__obranch-1',
+          {
+            parallelId: 'P2__obranch-1',
+            totalBranches: 2,
+            branchOutputs: new Map(),
+            completedCount: 0,
+            totalExpectedNodes: 2,
+          },
+        ],
+      ]),
+    })
+
+    // P3 (original): inside P2 branch 0, inside P1 branch 0
+    expect(buildUnifiedParentIterations(ctx, 'P3')).toEqual([
+      {
+        iterationCurrent: 0,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P1',
+      },
+      {
+        iterationCurrent: 0,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P2',
+      },
+    ])
+
+    // P3__obranch-1 (runtime clone): inside P2 branch 1, inside P1 branch 0
+    expect(buildUnifiedParentIterations(ctx, 'P3__obranch-1')).toEqual([
+      {
+        iterationCurrent: 0,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P1',
+      },
+      {
+        iterationCurrent: 1,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P2',
+      },
+    ])
+
+    // P3__clone0__obranch-1 (pre-expansion clone): inside P2__obranch-1 branch 0, inside P1 branch 1
+    expect(buildUnifiedParentIterations(ctx, 'P3__clone0__obranch-1')).toEqual([
+      {
+        iterationCurrent: 1,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P1',
+      },
+      {
+        iterationCurrent: 0,
+        iterationTotal: 2,
+        iterationType: 'parallel',
+        iterationContainerId: 'P2__obranch-1',
+      },
+    ])
+  })
+
   it('includes parent iterations in getIterationContext for loop-in-parallel', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
@@ -427,6 +523,37 @@ describe('buildContainerIterationContext', () => {
       parallelExecutions: new Map(),
     })
     expect(buildContainerIterationContext(ctx, 'loop-1')).toBeUndefined()
+  })
+
+  it('resolves pre-expansion clone with explicit branchIndex', () => {
+    // P1 → P2 → P3: P3__clone0__obranch-1 is pre-cloned inside P2__obranch-1
+    const ctx = makeCtx({
+      subflowParentMap: new Map([
+        [
+          'P3__clone0__obranch-1',
+          { parentId: 'P2__obranch-1', parentType: 'parallel', branchIndex: 0 },
+        ],
+      ]),
+      parallelExecutions: new Map([
+        [
+          'P2__obranch-1',
+          {
+            parallelId: 'P2__obranch-1',
+            totalBranches: 5,
+            branchOutputs: new Map(),
+            completedCount: 0,
+            totalExpectedNodes: 5,
+          },
+        ],
+      ]),
+    })
+    const result = buildContainerIterationContext(ctx, 'P3__clone0__obranch-1')
+    expect(result).toEqual({
+      iterationCurrent: 0,
+      iterationTotal: 5,
+      iterationType: 'parallel',
+      iterationContainerId: 'P2__obranch-1',
+    })
   })
 
   it('uses branch index 0 for non-cloned container in parallel parent', () => {
