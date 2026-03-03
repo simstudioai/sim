@@ -347,6 +347,22 @@ export function useWorkflowExecution() {
         return blockType === 'loop' || blockType === 'parallel'
       }
 
+      /** Extracts iteration and child-workflow fields shared across console entry call sites. */
+      const extractIterationFields = (
+        data: BlockStartedData | BlockCompletedData | BlockErrorData
+      ) => ({
+        iterationCurrent: data.iterationCurrent,
+        iterationTotal: data.iterationTotal,
+        iterationType: data.iterationType,
+        iterationContainerId: data.iterationContainerId,
+        parentIterations: data.parentIterations,
+        childWorkflowBlockId: data.childWorkflowBlockId,
+        childWorkflowName: data.childWorkflowName,
+        ...('childWorkflowInstanceId' in data && {
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
+        }),
+      })
+
       const createBlockLogEntry = (
         data: BlockCompletedData | BlockErrorData,
         options: { success: boolean; output?: unknown; error?: string }
@@ -379,14 +395,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          parentIterations: data.parentIterations,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -406,14 +415,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          parentIterations: data.parentIterations,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -429,14 +431,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            parentIterations: data.parentIterations,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -455,14 +450,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            parentIterations: data.parentIterations,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -490,13 +478,7 @@ export function useWorkflowExecution() {
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
           isRunning: true,
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          parentIterations: data.parentIterations,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
+          ...extractIterationFields(data),
         })
       }
 
@@ -512,7 +494,7 @@ export function useWorkflowExecution() {
           executionTime: data.durationMs,
         })
 
-        if (isContainerBlockType(data.blockType)) {
+        if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
           return
         }
 

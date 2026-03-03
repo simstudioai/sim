@@ -18,9 +18,8 @@ import type { ConsoleEntry } from '@/stores/terminal'
 const SUBFLOW_COLORS = {
   loop: '#2FB3FF',
   parallel: '#FEE12B',
+  workflow: '#8b5cf6',
 } as const
-
-const WORKFLOW_COLOR = '#8b5cf6'
 
 /**
  * Special block type colors for errors and system messages
@@ -86,7 +85,7 @@ export function getBlockColor(blockType: string): string {
     return SUBFLOW_COLORS.parallel
   }
   if (blockType === 'workflow') {
-    return WORKFLOW_COLOR
+    return SUBFLOW_COLORS.workflow
   }
   // Special block types for errors and system messages
   if (blockType === 'error') {
@@ -306,6 +305,63 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
     subflowGroup.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
   }
 
+  // Create synthetic parent subflow groups for orphaned nested iteration entries.
+  // Nested subflow containers (e.g., inner parallel inside outer parallel) may not
+  // have store entries if no block:started event was emitted for them. Without a
+  // parent subflow group, their child entries would be silently dropped from the tree.
+  const existingContainerIds = new Set(
+    Array.from(subflowGroups.values()).map((sg) => sg.iterationContainerId)
+  )
+
+  const syntheticIterations = new Map<string, IterationGroup>()
+  for (const entry of nestedIterationEntries) {
+    const parent = entry.parentIterations?.[0]
+    if (!parent?.iterationContainerId || existingContainerIds.has(parent.iterationContainerId)) {
+      continue
+    }
+
+    const iterKey = `${parent.iterationType}-${parent.iterationContainerId}-${parent.iterationCurrent}`
+    const entryMs = new Date(entry.startedAt || entry.timestamp).getTime()
+    if (!syntheticIterations.has(iterKey)) {
+      syntheticIterations.set(iterKey, {
+        iterationType: parent.iterationType!,
+        iterationContainerId: parent.iterationContainerId!,
+        iterationCurrent: parent.iterationCurrent!,
+        iterationTotal: parent.iterationTotal,
+        blocks: [],
+        startTimeMs: entryMs,
+      })
+    } else {
+      const existing = syntheticIterations.get(iterKey)!
+      if (entryMs < existing.startTimeMs) {
+        existing.startTimeMs = entryMs
+      }
+    }
+  }
+
+  const syntheticSubflows = new Map<
+    string,
+    { iterationType: string; iterationContainerId: string; groups: IterationGroup[] }
+  >()
+  for (const iterGroup of syntheticIterations.values()) {
+    const subflowKey = `${iterGroup.iterationType}-${iterGroup.iterationContainerId}`
+    let subflow = syntheticSubflows.get(subflowKey)
+    if (!subflow) {
+      subflow = {
+        iterationType: iterGroup.iterationType,
+        iterationContainerId: iterGroup.iterationContainerId,
+        groups: [],
+      }
+      syntheticSubflows.set(subflowKey, subflow)
+    }
+    subflow.groups.push(iterGroup)
+  }
+
+  for (const subflow of syntheticSubflows.values()) {
+    subflow.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
+    subflowGroups.set(`${subflow.iterationType}-${subflow.iterationContainerId}`, subflow)
+  }
+
   const subflowNodes: EntryNode[] = []
   for (const subflowGroup of subflowGroups.values()) {
     const { iterationType, iterationContainerId, groups: iterationGroups } = subflowGroup
@@ -347,13 +403,16 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
 
     const iterationNodes: EntryNode[] = iterationGroups.map((iterGroup) => {
       const matchingNestedEntries = nestedForThisSubflow.filter((e) => {
-        const parent = e.parentIterations![0]
-        return parent.iterationCurrent === iterGroup.iterationCurrent
+        const parent = e.parentIterations?.[0]
+        return parent?.iterationCurrent === iterGroup.iterationCurrent
       })
 
       const strippedNestedEntries: ConsoleEntry[] = matchingNestedEntries.map((e) => ({
         ...e,
-        parentIterations: e.parentIterations!.length > 1 ? e.parentIterations!.slice(1) : undefined,
+        parentIterations:
+          e.parentIterations && e.parentIterations.length > 1
+            ? e.parentIterations.slice(1)
+            : undefined,
       }))
 
       const iterBlocks = iterGroup.blocks

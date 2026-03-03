@@ -102,7 +102,12 @@ function convertArrayItem(item: unknown): unknown {
     return item
   }
 
-  const typed = item as { type: string; value: unknown }
+  const record = item as Record<string, unknown>
+  if (typeof record.type !== 'string') {
+    return item
+  }
+
+  const typed = record as { type: string; value: unknown }
 
   if (typed.type === 'object' && Array.isArray(typed.value)) {
     return convertBuilderDataToJson(typed.value as JSONProperty[])

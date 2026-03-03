@@ -1,19 +1,29 @@
 import { createLogger } from '@sim/logger'
+import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock } from '@/serializer/types'
 import {
   buildBranchNodeId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
+  buildSentinelEndId,
+  buildSentinelStartId,
   extractBaseBlockId,
 } from './subflow-utils'
 
 const logger = createLogger('ParallelExpansion')
 
+export interface ClonedSubflowInfo {
+  clonedId: string
+  originalId: string
+  outerBranchIndex: number
+}
+
 export interface ExpansionResult {
   entryNodes: string[]
   terminalNodes: string[]
   allBranchNodes: string[]
+  clonedSubflows: ClonedSubflowInfo[]
 }
 
 export class ParallelExpander {
@@ -30,13 +40,27 @@ export class ParallelExpander {
 
     const blocksInParallel = config.nodes || []
     if (blocksInParallel.length === 0) {
-      return { entryNodes: [], terminalNodes: [], allBranchNodes: [] }
+      return { entryNodes: [], terminalNodes: [], allBranchNodes: [], clonedSubflows: [] }
     }
 
-    const blocksSet = new Set(blocksInParallel)
-    const allBranchNodes: string[] = []
+    // Separate nested subflow containers from regular expandable blocks.
+    // Nested parallels/loops have sentinel nodes instead of branch template nodes,
+    // so they cannot be cloned per-branch like regular blocks.
+    const regularBlocks: string[] = []
+    const nestedSubflows: string[] = []
 
     for (const blockId of blocksInParallel) {
+      if (dag.parallelConfigs.has(blockId) || dag.loopConfigs.has(blockId)) {
+        nestedSubflows.push(blockId)
+      } else {
+        regularBlocks.push(blockId)
+      }
+    }
+
+    const regularSet = new Set(regularBlocks)
+    const allBranchNodes: string[] = []
+
+    for (const blockId of regularBlocks) {
       const templateId = buildBranchNodeId(blockId, 0)
       const templateNode = dag.nodes.get(templateId)
 
@@ -65,14 +89,47 @@ export class ParallelExpander {
       }
     }
 
-    this.wireInternalEdges(dag, blocksInParallel, blocksSet, branchCount)
+    this.wireInternalEdges(dag, regularBlocks, regularSet, branchCount)
 
-    const { entryNodes, terminalNodes } = this.identifyBoundaryNodes(
-      dag,
-      blocksInParallel,
-      blocksSet,
-      branchCount
-    )
+    const { entryNodes, terminalNodes } =
+      regularBlocks.length > 0
+        ? this.identifyBoundaryNodes(dag, regularBlocks, regularSet, branchCount)
+        : { entryNodes: [] as string[], terminalNodes: [] as string[] }
+
+    // Clone nested subflow graphs per outer branch so each branch runs independently.
+    // Branch 0 uses the original sentinel/template nodes; branches 1..N get full clones.
+    const clonedSubflows: Array<{
+      clonedId: string
+      originalId: string
+      outerBranchIndex: number
+    }> = []
+
+    for (const subflowId of nestedSubflows) {
+      const isParallel = dag.parallelConfigs.has(subflowId)
+      const startId = isParallel
+        ? buildParallelSentinelStartId(subflowId)
+        : buildSentinelStartId(subflowId)
+      const endId = isParallel
+        ? buildParallelSentinelEndId(subflowId)
+        : buildSentinelEndId(subflowId)
+
+      // Branch 0 uses original nodes
+      if (dag.nodes.has(startId)) entryNodes.push(startId)
+      if (dag.nodes.has(endId)) terminalNodes.push(endId)
+
+      // Branches 1..N clone the entire subflow graph (recursively for deep nesting)
+      for (let i = 1; i < branchCount; i++) {
+        const cloned = this.cloneNestedSubflow(dag, subflowId, i, clonedSubflows)
+
+        entryNodes.push(cloned.startId)
+        terminalNodes.push(cloned.endId)
+        clonedSubflows.push({
+          clonedId: cloned.clonedId,
+          originalId: subflowId,
+          outerBranchIndex: i,
+        })
+      }
+    }
 
     this.wireSentinelEdges(dag, parallelId, entryNodes, terminalNodes, branchCount)
 
@@ -80,10 +137,11 @@ export class ParallelExpander {
       parallelId,
       branchCount,
       blocksCount: blocksInParallel.length,
+      nestedSubflows: nestedSubflows.length,
       totalNodes: allBranchNodes.length,
     })
 
-    return { entryNodes, terminalNodes, allBranchNodes }
+    return { entryNodes, terminalNodes, allBranchNodes, clonedSubflows }
   }
 
   private updateBranchMetadata(
@@ -216,6 +274,143 @@ export class ParallelExpander {
     return false
   }
 
+  /**
+   * Clones an entire nested subflow graph for a specific outer branch.
+   * Recursively handles arbitrarily deep nesting (parallel-in-parallel-in-loop, etc.).
+   * Returns an ID mapping (original → cloned) so the caller can remap edges.
+   */
+  private cloneNestedSubflow(
+    dag: DAG,
+    subflowId: string,
+    outerBranchIndex: number,
+    clonedSubflows: ClonedSubflowInfo[]
+  ): { startId: string; endId: string; clonedId: string; idMap: Map<string, string> } {
+    const isParallel = dag.parallelConfigs.has(subflowId)
+    const config = isParallel
+      ? dag.parallelConfigs.get(subflowId)!
+      : dag.loopConfigs.get(subflowId)!
+    const blockIds = config.nodes || []
+
+    const clonedSubflowId = `${subflowId}__obranch-${outerBranchIndex}`
+    const origStartId = isParallel
+      ? buildParallelSentinelStartId(subflowId)
+      : buildSentinelStartId(subflowId)
+    const origEndId = isParallel
+      ? buildParallelSentinelEndId(subflowId)
+      : buildSentinelEndId(subflowId)
+    const clonedStartId = isParallel
+      ? buildParallelSentinelStartId(clonedSubflowId)
+      : buildSentinelStartId(clonedSubflowId)
+    const clonedEndId = isParallel
+      ? buildParallelSentinelEndId(clonedSubflowId)
+      : buildSentinelEndId(clonedSubflowId)
+
+    // Build ID mapping: original node IDs → cloned node IDs
+    const idMap = new Map<string, string>()
+    idMap.set(origStartId, clonedStartId)
+    idMap.set(origEndId, clonedEndId)
+
+    const clonedBlockIds: string[] = []
+    const allOrigIds: string[] = [origStartId, origEndId]
+
+    for (const blockId of blockIds) {
+      const clonedBlockId = `${blockId}__obranch-${outerBranchIndex}`
+      clonedBlockIds.push(clonedBlockId)
+
+      const isNestedParallel = dag.parallelConfigs.has(blockId)
+      const isNestedLoop = dag.loopConfigs.has(blockId)
+
+      if (isNestedParallel || isNestedLoop) {
+        // Recursively clone deeper nested subflows
+        const deeper = this.cloneNestedSubflow(dag, blockId, outerBranchIndex, clonedSubflows)
+        // Merge the deeper ID map into ours so edge remapping covers all levels
+        for (const [origId, clonedId] of deeper.idMap) {
+          idMap.set(origId, clonedId)
+        }
+        clonedSubflows.push({
+          clonedId: deeper.clonedId,
+          originalId: blockId,
+          outerBranchIndex,
+        })
+      } else if (isParallel) {
+        // Regular block inside a parallel → uses branch-0 template node
+        const origTemplateId = buildBranchNodeId(blockId, 0)
+        const clonedTemplateId = buildBranchNodeId(clonedBlockId, 0)
+        idMap.set(origTemplateId, clonedTemplateId)
+        allOrigIds.push(origTemplateId)
+      } else {
+        // Regular block inside a loop → uses the block ID directly
+        idMap.set(blockId, clonedBlockId)
+        allOrigIds.push(blockId)
+      }
+    }
+
+    // Clone all non-recursively-handled nodes (sentinels + regular blocks)
+    for (const origId of allOrigIds) {
+      const origNode = dag.nodes.get(origId)
+      if (!origNode) continue
+
+      const clonedId = idMap.get(origId)!
+      const clonedOutgoing = new Map<
+        string,
+        { target: string; sourceHandle?: string; targetHandle?: string }
+      >()
+      for (const [, edge] of origNode.outgoingEdges) {
+        const clonedTarget = idMap.get(edge.target) ?? edge.target
+        const edgeId = edge.sourceHandle
+          ? `${clonedId}→${clonedTarget}-${edge.sourceHandle}`
+          : `${clonedId}→${clonedTarget}`
+        clonedOutgoing.set(edgeId, {
+          target: clonedTarget,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+        })
+      }
+
+      const clonedIncoming = new Set<string>()
+      for (const incomingId of origNode.incomingEdges) {
+        clonedIncoming.add(idMap.get(incomingId) ?? incomingId)
+      }
+
+      const metadataOverride = isParallel
+        ? { parallelId: clonedSubflowId }
+        : { loopId: clonedSubflowId }
+
+      dag.nodes.set(clonedId, {
+        id: clonedId,
+        block: { ...origNode.block, id: clonedId },
+        incomingEdges: clonedIncoming,
+        outgoingEdges: clonedOutgoing,
+        metadata: {
+          ...origNode.metadata,
+          ...metadataOverride,
+          ...(origNode.metadata.originalBlockId && {
+            originalBlockId: origNode.metadata.originalBlockId,
+          }),
+        },
+      })
+    }
+
+    // Register cloned config with proper type narrowing
+    if (isParallel) {
+      const parallelConfig = dag.parallelConfigs.get(subflowId)!
+      dag.parallelConfigs.set(clonedSubflowId, {
+        ...parallelConfig,
+        id: clonedSubflowId,
+        nodes: clonedBlockIds,
+      })
+    } else {
+      const loopConfig = dag.loopConfigs.get(subflowId)!
+      dag.loopConfigs.set(clonedSubflowId, {
+        ...loopConfig,
+        id: clonedSubflowId,
+        nodes: clonedBlockIds,
+      })
+    }
+
+    return { startId: clonedStartId, endId: clonedEndId, clonedId: clonedSubflowId, idMap }
+  }
+
   private wireSentinelEdges(
     dag: DAG,
     parallelId: string,
@@ -247,8 +442,11 @@ export class ParallelExpander {
       const terminalNode = dag.nodes.get(terminalNodeId)
       if (!terminalNode) continue
 
-      const edgeId = `${terminalNodeId}→${sentinelEndId}`
-      terminalNode.outgoingEdges.set(edgeId, { target: sentinelEndId })
+      const edgeId = `${terminalNodeId}→${sentinelEndId}-${EDGE.PARALLEL_EXIT}`
+      terminalNode.outgoingEdges.set(edgeId, {
+        target: sentinelEndId,
+        sourceHandle: EDGE.PARALLEL_EXIT,
+      })
       sentinelEnd.incomingEdges.add(terminalNodeId)
     }
   }

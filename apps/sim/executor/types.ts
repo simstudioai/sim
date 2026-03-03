@@ -194,9 +194,13 @@ export interface ExecutionContext {
 
   /**
    * Maps child loop IDs to their parent loop IDs for nested loop iteration tracking.
-   * Only covers loop-in-loop nesting; parallel nesting is not yet supported.
    */
   loopParentMap?: Map<string, string>
+
+  /**
+   * Maps child parallel IDs to their parent parallel IDs for nested parallel iteration tracking.
+   */
+  parallelParentMap?: Map<string, string>
 
   loopExecutions?: Map<
     string,

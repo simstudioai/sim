@@ -123,8 +123,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
         onClick={() => setCurrentBlockId(id)}
         className={cn(
           'workflow-drag-handle relative cursor-grab select-none rounded-[8px] border border-[var(--border-1)] [&:active]:cursor-grabbing',
-          'transition-block-bg transition-ring',
-          'z-[20]'
+          'transition-block-bg transition-ring'
         )}
         style={{
           width: data.width || 500,

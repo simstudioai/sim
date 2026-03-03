@@ -329,16 +329,15 @@ export class LoopOrchestrator {
     return result
   }
 
-  clearLoopExecutionState(loopId: string, ctx?: ExecutionContext): void {
+  clearLoopExecutionState(loopId: string, ctx: ExecutionContext): void {
     const allNodeIds = this.collectAllLoopNodeIds(loopId)
 
     for (const nodeId of allNodeIds) {
       this.state.unmarkExecuted(nodeId)
     }
 
-    if (ctx) {
-      this.resetNestedLoopScopes(loopId, ctx)
-    }
+    this.resetNestedLoopScopes(loopId, ctx)
+    this.resetNestedParallelScopes(loopId, ctx)
   }
 
   /**
@@ -358,10 +357,64 @@ export class LoopOrchestrator {
   }
 
   /**
+   * Deletes parallel scopes for any nested parallels (including cloned
+   * subflows with `__obranch-N` suffixes) so they re-initialize on the
+   * next outer loop iteration.
+   */
+  private resetNestedParallelScopes(loopId: string, ctx: ExecutionContext): void {
+    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    if (!loopConfig) return
+
+    for (const nodeId of loopConfig.nodes) {
+      if (this.dag.parallelConfigs.has(nodeId)) {
+        this.deleteParallelScopeAndClones(nodeId, ctx)
+      } else if (this.dag.loopConfigs.has(nodeId)) {
+        this.resetNestedParallelScopes(nodeId, ctx)
+      }
+    }
+  }
+
+  /**
+   * Deletes a parallel scope and any cloned variants (`__obranch-N`),
+   * recursively handling nested subflows within the parallel.
+   */
+  private deleteParallelScopeAndClones(parallelId: string, ctx: ExecutionContext): void {
+    ctx.parallelExecutions?.delete(parallelId)
+    ctx.parallelParentMap?.delete(parallelId)
+
+    // Delete any cloned scopes (e.g., inner-parallel__obranch-1)
+    if (ctx.parallelExecutions) {
+      const prefix = `${parallelId}__obranch-`
+      for (const key of ctx.parallelExecutions.keys()) {
+        if (key.startsWith(prefix)) {
+          ctx.parallelExecutions.delete(key)
+          ctx.parallelParentMap?.delete(key)
+        }
+      }
+    }
+
+    // Recurse into nested subflows within this parallel
+    const parallelConfig = this.dag.parallelConfigs.get(parallelId)
+    if (parallelConfig?.nodes) {
+      for (const nodeId of parallelConfig.nodes) {
+        if (this.dag.parallelConfigs.has(nodeId)) {
+          this.deleteParallelScopeAndClones(nodeId, ctx)
+        } else if (this.dag.loopConfigs.has(nodeId)) {
+          ctx.loopExecutions?.delete(nodeId)
+          this.resetNestedParallelScopes(nodeId, ctx)
+        }
+      }
+    }
+  }
+
+  /**
    * Collects all effective DAG node IDs for a loop, recursively including
    * sentinel IDs for any nested subflow blocks (loops and parallels).
    */
-  private collectAllLoopNodeIds(loopId: string): Set<string> {
+  private collectAllLoopNodeIds(loopId: string, visited = new Set<string>()): Set<string> {
+    if (visited.has(loopId)) return new Set()
+    visited.add(loopId)
+
     const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
     if (!loopConfig) return new Set()
 
@@ -371,11 +424,11 @@ export class LoopOrchestrator {
 
     for (const nodeId of loopConfig.nodes) {
       if (this.dag.loopConfigs.has(nodeId)) {
-        for (const id of this.collectAllLoopNodeIds(nodeId)) {
+        for (const id of this.collectAllLoopNodeIds(nodeId, visited)) {
           result.add(id)
         }
       } else if (this.dag.parallelConfigs.has(nodeId)) {
-        for (const id of this.collectAllParallelNodeIds(nodeId)) {
+        for (const id of this.collectAllParallelNodeIds(nodeId, visited)) {
           result.add(id)
         }
       } else {
@@ -390,7 +443,10 @@ export class LoopOrchestrator {
    * Collects all effective DAG node IDs for a parallel, including
    * sentinel IDs and branch template nodes, recursively handling nested subflows.
    */
-  private collectAllParallelNodeIds(parallelId: string): Set<string> {
+  private collectAllParallelNodeIds(parallelId: string, visited = new Set<string>()): Set<string> {
+    if (visited.has(parallelId)) return new Set()
+    visited.add(parallelId)
+
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
     if (!parallelConfig) return new Set()
 
@@ -400,11 +456,11 @@ export class LoopOrchestrator {
 
     for (const nodeId of parallelConfig.nodes) {
       if (this.dag.loopConfigs.has(nodeId)) {
-        for (const id of this.collectAllLoopNodeIds(nodeId)) {
+        for (const id of this.collectAllLoopNodeIds(nodeId, visited)) {
           result.add(id)
         }
       } else if (this.dag.parallelConfigs.has(nodeId)) {
-        for (const id of this.collectAllParallelNodeIds(nodeId)) {
+        for (const id of this.collectAllParallelNodeIds(nodeId, visited)) {
           result.add(id)
         }
       } else {

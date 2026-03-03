@@ -63,7 +63,7 @@ export class EdgeConstructor {
       pauseTriggerMapping
     )
 
-    this.wireLoopSentinels(dag, reachableBlocks)
+    this.wireLoopSentinels(dag)
     this.wireParallelSentinels(dag)
   }
 
@@ -295,7 +295,7 @@ export class EdgeConstructor {
     }
   }
 
-  private wireLoopSentinels(dag: DAG, reachableBlocks: Set<string>): void {
+  private wireLoopSentinels(dag: DAG): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const nodes = loopConfig.nodes
 
@@ -353,7 +353,7 @@ export class EdgeConstructor {
       for (const terminalNodeId of terminalNodes) {
         const sourceId = this.resolveSubflowToSentinelEnd(terminalNodeId, dag)
         if (dag.nodes.has(sourceId)) {
-          this.addEdge(dag, sourceId, sentinelEndId)
+          this.addEdge(dag, sourceId, sentinelEndId, EDGE.PARALLEL_EXIT)
         }
       }
     }
@@ -389,6 +389,12 @@ export class EdgeConstructor {
     return buildBranchNodeId(nodeId, 0)
   }
 
+  /**
+   * Checks whether an edge crosses a loop boundary (source and target are in
+   * different loops, or one is inside a loop and the other is not). Uses the
+   * original block IDs (pre-sentinel-remapping) because `blocksInLoops` and
+   * `loopConfigs.nodes` reference original block IDs from the serialized workflow.
+   */
   private edgeCrossesLoopBoundary(
     source: string,
     target: string,

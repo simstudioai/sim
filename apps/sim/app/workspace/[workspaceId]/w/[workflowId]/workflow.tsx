@@ -1021,14 +1021,16 @@ const WorkflowContent = React.memo(() => {
           return
         }
 
-        // Prevent cycle: pasting a container that is the target container itself or one of its ancestors
+        // Prevent cycle: pasting a container that is the target container itself or one of its ancestors.
+        // Use original clipboard IDs since preparePasteData regenerates them via uuidv4().
         const ancestorIds = new Set<string>()
         let walkId: string | undefined = targetContainer.loopId
-        while (walkId) {
+        while (walkId && !ancestorIds.has(walkId)) {
           ancestorIds.add(walkId)
           walkId = blocks[walkId]?.data?.parentId as string | undefined
         }
-        const wouldCreateCycle = pastedBlocksArray.some(
+        const originalClipboardBlocks = clipboard ? Object.values(clipboard.blocks) : []
+        const wouldCreateCycle = originalClipboardBlocks.some(
           (b) => (b.type === 'loop' || b.type === 'parallel') && ancestorIds.has(b.id)
         )
         if (wouldCreateCycle) {

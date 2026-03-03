@@ -17,7 +17,11 @@ import {
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
-import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import type {
+  BlockStateWriter,
+  ContextExtensions,
+  WorkflowNodeMetadata,
+} from '@/executor/execution/types'
 import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
@@ -165,9 +169,10 @@ export class BlockExecutor {
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel && blockLog) {
-        const childWorkflowInstanceId = normalizedOutput._childWorkflowInstanceId as
-          | string
-          | undefined
+        const childWorkflowInstanceId =
+          typeof normalizedOutput._childWorkflowInstanceId === 'string'
+            ? normalizedOutput._childWorkflowInstanceId
+            : undefined
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
@@ -201,15 +206,7 @@ export class BlockExecutor {
     }
   }
 
-  private buildNodeMetadata(node: DAGNode): {
-    nodeId: string
-    loopId?: string
-    parallelId?: string
-    branchIndex?: number
-    branchTotal?: number
-    originalBlockId?: string
-    isLoopNode?: boolean
-  } {
+  private buildNodeMetadata(node: DAGNode): WorkflowNodeMetadata {
     const metadata = node?.metadata ?? {}
     return {
       nodeId: node.id,

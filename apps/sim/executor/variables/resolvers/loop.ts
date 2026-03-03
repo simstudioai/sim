@@ -23,15 +23,16 @@ export class LoopResolver implements Resolver {
     }
   }
 
-  private static OUTPUT_PROPERTIES = ['result', 'results']
-  private static KNOWN_PROPERTIES = [
+  private static OUTPUT_PROPERTIES = new Set(['result', 'results'])
+  private static KNOWN_PROPERTIES = new Set([
     'iteration',
     'index',
     'item',
     'currentItem',
     'items',
-    ...LoopResolver.OUTPUT_PROPERTIES,
-  ]
+    'result',
+    'results',
+  ])
 
   canResolve(reference: string): boolean {
     if (!isReference(reference)) {
@@ -72,11 +73,14 @@ export class LoopResolver implements Resolver {
     if (rest.length > 0) {
       const property = rest[0]
 
-      if (LoopResolver.OUTPUT_PROPERTIES.includes(property)) {
-        return this.resolveOutput(targetLoopId!, rest.slice(1), context)
+      if (LoopResolver.OUTPUT_PROPERTIES.has(property)) {
+        if (!targetLoopId) {
+          return undefined
+        }
+        return this.resolveOutput(targetLoopId, rest.slice(1), context)
       }
 
-      if (!LoopResolver.KNOWN_PROPERTIES.includes(property)) {
+      if (!LoopResolver.KNOWN_PROPERTIES.has(property)) {
         const isForEach = targetLoopId
           ? this.isForEachLoop(targetLoopId)
           : context.loopScope?.items !== undefined
@@ -145,12 +149,12 @@ export class LoopResolver implements Resolver {
     return value
   }
 
-  private resolveOutput(loopId: string, pathParts: string[], context: ResolutionContext): any {
+  private resolveOutput(loopId: string, pathParts: string[], context: ResolutionContext): unknown {
     const output = context.executionState.getBlockOutput(loopId)
-    if (!output) {
+    if (!output || typeof output !== 'object') {
       return undefined
     }
-    const value = (output as Record<string, any>).results
+    const value = (output as Record<string, unknown>).results
     if (pathParts.length > 0) {
       return navigatePath(value, pathParts)
     }

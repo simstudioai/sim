@@ -2,6 +2,11 @@ import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
+import {
+  buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@sim/logger', () => loggerMock)
@@ -86,6 +91,96 @@ describe('DAGBuilder disabled subflow validation', () => {
     const builder = new DAGBuilder()
     // Should not throw - loop is effectively disabled since all inner blocks are disabled
     expect(() => builder.build(workflow)).not.toThrow()
+  })
+})
+
+describe('DAGBuilder nested parallel support', () => {
+  it('builds DAG for parallel-in-parallel with correct sentinel wiring', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerParallelId = 'inner-parallel'
+    const functionId = 'func-1'
+
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(outerParallelId, BlockType.PARALLEL),
+        createBlock(innerParallelId, BlockType.PARALLEL),
+        createBlock(functionId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: outerParallelId },
+        {
+          source: outerParallelId,
+          target: innerParallelId,
+          sourceHandle: 'parallel-start-source',
+        },
+        {
+          source: innerParallelId,
+          target: functionId,
+          sourceHandle: 'parallel-start-source',
+        },
+      ],
+      loops: {},
+      parallels: {
+        [innerParallelId]: {
+          id: innerParallelId,
+          nodes: [functionId],
+          count: 5,
+          parallelType: 'count',
+        },
+        [outerParallelId]: {
+          id: outerParallelId,
+          nodes: [innerParallelId],
+          count: 5,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    const dag = builder.build(workflow)
+
+    // Outer parallel sentinel pair exists
+    const outerStartId = buildParallelSentinelStartId(outerParallelId)
+    const outerEndId = buildParallelSentinelEndId(outerParallelId)
+    expect(dag.nodes.has(outerStartId)).toBe(true)
+    expect(dag.nodes.has(outerEndId)).toBe(true)
+
+    // Inner parallel sentinel pair exists
+    const innerStartId = buildParallelSentinelStartId(innerParallelId)
+    const innerEndId = buildParallelSentinelEndId(innerParallelId)
+    expect(dag.nodes.has(innerStartId)).toBe(true)
+    expect(dag.nodes.has(innerEndId)).toBe(true)
+
+    // Function 1 branch template node exists
+    const funcTemplateId = buildBranchNodeId(functionId, 0)
+    expect(dag.nodes.has(funcTemplateId)).toBe(true)
+
+    // Start → outer-sentinel-start
+    const startNode = dag.nodes.get('start')!
+    const startTargets = Array.from(startNode.outgoingEdges.values()).map((e) => e.target)
+    expect(startTargets).toContain(outerStartId)
+
+    // Outer-sentinel-start → inner-sentinel-start
+    const outerStart = dag.nodes.get(outerStartId)!
+    const outerStartTargets = Array.from(outerStart.outgoingEdges.values()).map((e) => e.target)
+    expect(outerStartTargets).toContain(innerStartId)
+
+    // Inner-sentinel-start → function branch template
+    const innerStart = dag.nodes.get(innerStartId)!
+    const innerStartTargets = Array.from(innerStart.outgoingEdges.values()).map((e) => e.target)
+    expect(innerStartTargets).toContain(funcTemplateId)
+
+    // Function branch template → inner-sentinel-end
+    const funcTemplate = dag.nodes.get(funcTemplateId)!
+    const funcTargets = Array.from(funcTemplate.outgoingEdges.values()).map((e) => e.target)
+    expect(funcTargets).toContain(innerEndId)
+
+    // Inner-sentinel-end → outer-sentinel-end
+    const innerEnd = dag.nodes.get(innerEndId)!
+    const innerEndTargets = Array.from(innerEnd.outgoingEdges.values()).map((e) => e.target)
+    expect(innerEndTargets).toContain(outerEndId)
   })
 })
 

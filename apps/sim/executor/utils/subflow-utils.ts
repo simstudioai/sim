@@ -38,12 +38,17 @@ export function buildParallelSentinelEndId(parallelId: string): string {
 }
 
 export function isLoopSentinelNodeId(nodeId: string): boolean {
-  return nodeId.includes(LOOP.SENTINEL.START_SUFFIX) || nodeId.includes(LOOP.SENTINEL.END_SUFFIX)
+  return (
+    nodeId.startsWith(LOOP.SENTINEL.PREFIX) &&
+    (nodeId.endsWith(LOOP.SENTINEL.START_SUFFIX) || nodeId.endsWith(LOOP.SENTINEL.END_SUFFIX))
+  )
 }
 
 export function isParallelSentinelNodeId(nodeId: string): boolean {
   return (
-    nodeId.includes(PARALLEL.SENTINEL.START_SUFFIX) || nodeId.includes(PARALLEL.SENTINEL.END_SUFFIX)
+    nodeId.startsWith(PARALLEL.SENTINEL.PREFIX) &&
+    (nodeId.endsWith(PARALLEL.SENTINEL.START_SUFFIX) ||
+      nodeId.endsWith(PARALLEL.SENTINEL.END_SUFFIX))
   )
 }
 
@@ -93,6 +98,27 @@ export function isLoopNode(nodeId: string): boolean {
 
 export function isParallelNode(nodeId: string): boolean {
   return isBranchNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
+}
+
+const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
+const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
+
+/**
+ * Extracts the outer branch index from a cloned subflow ID.
+ * Cloned IDs follow the pattern `{originalId}__obranch-{index}`.
+ * Returns undefined if the ID is not a clone.
+ */
+export function extractOuterBranchIndex(clonedId: string): number | undefined {
+  const match = clonedId.match(OUTER_BRANCH_PATTERN)
+  return match ? Number.parseInt(match[1], PARSING.JSON_RADIX) : undefined
+}
+
+/**
+ * Strips all clone suffixes (`__obranch-N`) and branch subscripts (`₍N₎`)
+ * from a node ID, returning the original workflow-level block ID.
+ */
+export function stripCloneSuffixes(nodeId: string): string {
+  return extractBaseBlockId(nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, ''))
 }
 
 export function normalizeNodeId(nodeId: string): string {

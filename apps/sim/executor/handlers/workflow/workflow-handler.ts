@@ -7,6 +7,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import type { WorkflowNodeMetadata } from '@/executor/execution/types'
 import type {
   BlockHandler,
   ExecutionContext,
@@ -47,41 +48,23 @@ export class WorkflowBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
-    return this._executeCore(ctx, block, inputs)
+    return this.executeCore(ctx, block, inputs)
   }
 
   async executeWithNode(
     ctx: ExecutionContext,
     block: SerializedBlock,
     inputs: Record<string, any>,
-    nodeMetadata: {
-      nodeId: string
-      loopId?: string
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-      originalBlockId?: string
-      isLoopNode?: boolean
-      executionOrder?: number
-    }
+    nodeMetadata: WorkflowNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
-    return this._executeCore(ctx, block, inputs, nodeMetadata)
+    return this.executeCore(ctx, block, inputs, nodeMetadata)
   }
 
-  private async _executeCore(
+  private async executeCore(
     ctx: ExecutionContext,
     block: SerializedBlock,
     inputs: Record<string, any>,
-    nodeMetadata?: {
-      nodeId: string
-      loopId?: string
-      parallelId?: string
-      branchIndex?: number
-      branchTotal?: number
-      originalBlockId?: string
-      isLoopNode?: boolean
-      executionOrder?: number
-    }
+    nodeMetadata?: WorkflowNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
 
@@ -164,6 +147,14 @@ export class WorkflowBlockHandler implements BlockHandler {
       const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
       const shouldPropagateCallbacks = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
 
+      if (!shouldPropagateCallbacks) {
+        logger.info('Dropping SSE callbacks beyond max child depth', {
+          childDepth,
+          maxDepth: DEFAULTS.MAX_SSE_CHILD_DEPTH,
+          childWorkflowName,
+        })
+      }
+
       if (shouldPropagateCallbacks) {
         const effectiveBlockId = nodeMetadata
           ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
@@ -194,7 +185,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           ...(shouldPropagateCallbacks && {
             onBlockStart: ctx.onBlockStart,
             onBlockComplete: ctx.onBlockComplete,
-            onStream: ctx.onStream as ((streamingExecution: unknown) => Promise<void>) | undefined,
+            onStream: ctx.onStream,
             onChildWorkflowInstanceReady: ctx.onChildWorkflowInstanceReady,
             childWorkflowContext: {
               parentBlockId: instanceId,
@@ -590,6 +581,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       result,
       childTraceSpans: childTraceSpans || [],
       _childWorkflowInstanceId: instanceId,
-    } as Record<string, any>
+    } as unknown as BlockOutput
   }
 }

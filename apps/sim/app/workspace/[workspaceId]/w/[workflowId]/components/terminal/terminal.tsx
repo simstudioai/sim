@@ -69,19 +69,24 @@ const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
 const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
 const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
 
+const MAX_TREE_DEPTH = 50
+
 /** Returns true if any node in the subtree has an error */
-function hasErrorInTree(nodes: EntryNode[]): boolean {
-  return nodes.some((n) => Boolean(n.entry.error) || hasErrorInTree(n.children))
+function hasErrorInTree(nodes: EntryNode[], depth = 0): boolean {
+  if (depth >= MAX_TREE_DEPTH) return false
+  return nodes.some((n) => Boolean(n.entry.error) || hasErrorInTree(n.children, depth + 1))
 }
 
 /** Returns true if any node in the subtree is currently running */
-function hasRunningInTree(nodes: EntryNode[]): boolean {
-  return nodes.some((n) => Boolean(n.entry.isRunning) || hasRunningInTree(n.children))
+function hasRunningInTree(nodes: EntryNode[], depth = 0): boolean {
+  if (depth >= MAX_TREE_DEPTH) return false
+  return nodes.some((n) => Boolean(n.entry.isRunning) || hasRunningInTree(n.children, depth + 1))
 }
 
 /** Returns true if any node in the subtree was canceled */
-function hasCanceledInTree(nodes: EntryNode[]): boolean {
-  return nodes.some((n) => Boolean(n.entry.isCanceled) || hasCanceledInTree(n.children))
+function hasCanceledInTree(nodes: EntryNode[], depth = 0): boolean {
+  if (depth >= MAX_TREE_DEPTH) return false
+  return nodes.some((n) => Boolean(n.entry.isCanceled) || hasCanceledInTree(n.children, depth + 1))
 }
 
 /**

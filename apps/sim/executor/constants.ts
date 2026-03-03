@@ -158,6 +158,8 @@ export const DEFAULTS = {
   MAX_LOOP_ITERATIONS: 1000,
   MAX_FOREACH_ITEMS: 1000,
   MAX_PARALLEL_BRANCHES: 20,
+  MAX_NESTING_DEPTH: 10,
+  /** Maximum child workflow depth for propagating SSE callbacks (block:started, block:completed). */
   MAX_SSE_CHILD_DEPTH: 3,
   EXECUTION_TIME: 0,
   TOKENS: {
