@@ -726,7 +726,10 @@
         "hand": "Mano"
       },
       "controls": {
-        "fit_to_view": "Ajustar a la vista"
+        "fit_to_view": "Ajustar a la vista",
+        "undo": "Deshacer",
+        "redo": "Rehacer",
+        "hide": "Ocultar controles del lienzo"
       }
     },
     "context_menu": {
@@ -1859,6 +1862,313 @@
         "add_to_canvas": "Agregar al lienzo",
         "view_documentation": "Ver documentación"
       }
+    }
+  },
+  "logs": {
+    "page": {
+      "title": "Registros",
+      "loading": "Cargando registros...",
+      "error": "Error: {message}",
+      "failed_to_load": "No se pudieron cargar los registros",
+      "no_logs_found": "No se encontraron registros"
+    },
+    "toolbar": {
+      "title": "Registros",
+      "more_options": "Más opciones",
+      "export_csv": "Exportar como CSV",
+      "configure_notifications": "Configurar Notificaciones",
+      "refresh": "Actualizar",
+      "live": "En vivo",
+      "logs_view": "Registros",
+      "dashboard_view": "Panel",
+      "search_placeholder": "Buscar",
+      "clear_filters": "Limpiar",
+      "filters_button": "Filtros",
+      "filters": {
+        "status": "Estado",
+        "workflow": "Flujo de trabajo",
+        "folder": "Carpeta",
+        "trigger": "Disparador",
+        "time_range": "Rango de tiempo",
+        "all_statuses": "Todos los estados",
+        "all_workflows": "Todos los flujos de trabajo",
+        "all_folders": "Todas las carpetas",
+        "all_triggers": "Todos los disparadores",
+        "all_time": "Todo el tiempo",
+        "search_workflows": "Buscar flujos de trabajo...",
+        "search_folders": "Buscar carpetas...",
+        "search_triggers": "Buscar disparadores..."
+      },
+      "time_ranges": {
+        "all_time": "Todo el tiempo",
+        "past_30_minutes": "Últimos 30 minutos",
+        "past_hour": "Última hora",
+        "past_6_hours": "Últimas 6 horas",
+        "past_12_hours": "Últimas 12 horas",
+        "past_24_hours": "Últimas 24 horas",
+        "past_3_days": "Últimos 3 días",
+        "past_7_days": "Últimos 7 días",
+        "past_14_days": "Últimos 14 días",
+        "past_30_days": "Últimos 30 días",
+        "custom_range": "Rango personalizado"
+      }
+    },
+    "logs_list": {
+      "columns": {
+        "date": "Fecha",
+        "time": "Hora",
+        "status": "Estado",
+        "workflow": "Flujo de trabajo",
+        "cost": "Costo",
+        "trigger": "Disparador",
+        "duration": "Duración"
+      },
+      "aria_labels": {
+        "open_resume_console": "Abrir consola de reanudación"
+      }
+    },
+    "log_details": {
+      "title": "Detalles del registro",
+      "aria_labels": {
+        "previous_log": "Registro anterior",
+        "next_log": "Próximo registro",
+        "close": "Cerrar",
+        "resize_panel": "Redimensionar panel de detalles del registro"
+      },
+      "sections": {
+        "timestamp": "Marca de tiempo",
+        "workflow": "Flujo de trabajo",
+        "execution_id": "ID de ejecución",
+        "level": "Nivel",
+        "trigger": "Disparador",
+        "duration": "Duración",
+        "version": "Versión",
+        "workflow_state": "Estado del flujo de trabajo",
+        "workflow_output": "Salida del flujo de trabajo",
+        "trace_span": "Tramo de rastreo",
+        "cost_breakdown": "Desglose de costos"
+      },
+      "buttons": {
+        "view_snapshot": "Ver captura"
+      },
+      "cost_labels": {
+        "base_execution": "Ejecución base:",
+        "model_input": "Entrada del modelo:",
+        "model_output": "Salida del modelo:",
+        "total": "Total:",
+        "tokens": "Tokens:"
+      },
+      "cost_info": "El costo total incluye un cargo de ejecución base de {amount} más los costos de uso del modelo."
+    },
+    "workflow_output": {
+      "copy_tooltip": "Copiar",
+      "copied_tooltip": "Copiado",
+      "search_tooltip": "Buscar",
+      "close_search_aria": "Cerrar búsqueda"
+    },
+    "log_row_context_menu": {
+      "copy_execution_id": "Copiar ID de ejecución",
+      "open_workflow": "Abrir flujo de trabajo",
+      "open_snapshot": "Abrir captura",
+      "filter_by_workflow": "Filtrar por flujo de trabajo",
+      "clear_filters": "Limpiar filtros"
+    },
+    "notifications": {
+      "modal_title": "Configuración de notificaciones",
+      "tabs": {
+        "webhook": "Webhook",
+        "email": "Correo electrónico",
+        "slack": "Slack"
+      },
+      "buttons": {
+        "add": "Agregar",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "test": "Probar",
+        "sent": "Enviado",
+        "failed": "Falló",
+        "edit": "Editar",
+        "delete": "Eliminar"
+      },
+      "form_labels": {
+        "workflows": "Flujos de trabajo",
+        "all_workflows": "Todos los flujos de trabajo",
+        "webhook_url": "URL del Webhook",
+        "webhook_secret": "Secreto (opcional)",
+        "email_recipients": "Destinatarios de correo electrónico",
+        "slack_account": "Cuenta de Slack",
+        "slack_channel": "Canal",
+        "log_level_filters": "Filtros de nivel de registro",
+        "trigger_type_filters": "Filtros de tipo de disparador",
+        "include_in_payload": "Incluir en carga útil",
+        "rule": "Regla"
+      },
+      "form_placeholders": {
+        "webhook_url": "https://tu-app.com/webhook",
+        "webhook_secret": "Secreto de webhook para verificación de firma",
+        "select_workflows": "Selecciona flujos de trabajo...",
+        "email_recipients": "Ingresa correos electrónicos",
+        "add_email": "Agregar correo electrónico",
+        "select_account": "Selecciona cuenta...",
+        "select_log_levels": "Selecciona niveles de registro...",
+        "select_trigger_types": "Selecciona tipos de disparador...",
+        "select_data": "Selecciona datos a incluir...",
+        "select_rule": "Selecciona regla"
+      },
+      "alert_rules": {
+        "none": "Ninguno",
+        "none_description": "Notificar en cada ejecución coincidente",
+        "consecutive_failures": "Fallos consecutivos",
+        "consecutive_failures_description": "Después de X fallos seguidos",
+        "failure_rate": "Tasa de fallo",
+        "failure_rate_description": "Cuando el porcentaje de fallo excede el umbral",
+        "latency_threshold": "Umbral de latencia",
+        "latency_threshold_description": "Cuando la ejecución excede la duración",
+        "latency_spike": "Pico de latencia",
+        "latency_spike_description": "Cuando es más lento que el promedio por %",
+        "cost_threshold": "Umbral de costo",
+        "cost_threshold_description": "Cuando el costo de ejecución excede $",
+        "no_activity": "Sin actividad",
+        "no_activity_description": "Cuando no hay ejecuciones en la ventana de tiempo",
+        "error_count": "Conteo de errores",
+        "error_count_description": "Cuando los errores exceden el conteo en la ventana"
+      },
+      "alert_config_labels": {
+        "failure_count": "Conteo de fallos",
+        "failure_rate": "Tasa de fallo (%)",
+        "window": "Ventana (horas)",
+        "duration_threshold": "Umbral de duración (segundos)",
+        "latency_spike_percent": "Pico de latencia %",
+        "cost_threshold": "Umbral de costo ($)",
+        "inactivity_hours": "Inactividad (horas)",
+        "error_count": "Conteo de errores"
+      },
+      "connect_slack": "Conectar Slack",
+      "connecting_slack": "Conectando...",
+      "payload_options": {
+        "final_output": "Salida final",
+        "trace_spans": "Tramos de rastreo",
+        "rate_limits": "Límites de velocidad",
+        "usage_data": "Datos de uso"
+      },
+      "errors": {
+        "workflows_required": "Selecciona al menos un flujo de trabajo u habilita \"Todos los flujos de trabajo\"",
+        "level_filter_required": "Selecciona al menos un nivel de registro",
+        "trigger_filter_required": "Selecciona al menos un tipo de disparador",
+        "webhook_url_required": "Se requiere URL de Webhook",
+        "webhook_url_valid": "La URL debe comenzar con http:// o https://",
+        "webhook_url_format": "Formato de URL inválido",
+        "email_required": "Se requiere al menos una dirección de correo electrónico",
+        "email_max": "Máximo 10 destinatarios de correo electrónico permitidos",
+        "email_invalid": "Direcciones de correo electrónico inválidas: {emails}",
+        "slack_account_required": "Selecciona una cuenta de Slack",
+        "slack_channel_required": "Selecciona un canal de Slack",
+        "consecutive_failures_range": "Debe estar entre 1 y 100",
+        "failure_rate_range": "Debe estar entre 1 y 100",
+        "window_hours_range": "Debe estar entre 1 y 168 horas",
+        "duration_threshold_range": "Debe estar entre 1s y 1 hora",
+        "latency_spike_range": "Debe estar entre 10% y 1000%",
+        "cost_threshold_range": "Debe estar entre $0.01 y $1000",
+        "inactivity_hours_range": "Debe estar entre 1 y 168 horas",
+        "error_count_range": "Debe estar entre 1 y 1000",
+        "test_sent_successfully": "Prueba enviada con éxito",
+        "test_failed": "Prueba falló",
+        "failed_to_send_test": "Error al enviar prueba",
+        "failed_to_save": "Error al guardar notificación"
+      },
+      "badges": {
+        "all_workflows": "Todos los flujos de trabajo",
+        "workflow_count": "{count} flujo(s) de trabajo"
+      },
+      "subscription_items": {
+        "all_workflows": "Todos los flujos de trabajo",
+        "workflow_count": "{count} flujo(s) de trabajo"
+      }
+    },
+    "workflow_selector": {
+      "label": "Flujos de trabajo",
+      "placeholder": "Selecciona flujos de trabajo...",
+      "search_placeholder": "Buscar flujos de trabajo...",
+      "all_workflows": "Todos los flujos de trabajo"
+    },
+    "slack_channel_selector": {
+      "label": "Canal de Slack",
+      "placeholder": "Selecciona canal..."
+    },
+    "dashboard": {
+      "title": "Panel",
+      "line_chart_title": "Tasa de éxito en el tiempo",
+      "workflows_list_title": "Flujos de trabajo",
+      "column_headers": {
+        "workflow": "Flujo de trabajo",
+        "logs": "Registros",
+        "success_rate": "Tasa de éxito"
+      },
+      "no_workflows_found": "No se encontraron flujos de trabajo",
+      "no_workflows_found_with_search": "No se encontraron flujos de trabajo coincidentes"
+    }
+  },
+  "terminal": {
+    "headers": {
+      "logs": "Registros",
+      "output": "Salida",
+      "input": "Entrada"
+    },
+    "status": {
+      "running": "Ejecutándose",
+      "canceled": "cancelado"
+    },
+    "filter_popover": {
+      "aria_label": "Filtros",
+      "status_section": "Estado",
+      "error_status": "Error",
+      "info_status": "Información",
+      "blocks_section": "Bloques"
+    },
+    "buttons": {
+      "copy_run_id": "Copiar ID de ejecución",
+      "fix_in_copilot": "Corregir en Copilot",
+      "filter_by_block": "Filtrar por bloque",
+      "filter_by_status": "Filtrar por estado",
+      "download_csv": "Descargar CSV",
+      "clear_console": "Limpiar consola",
+      "copy_selection": "Copiar selección",
+      "copy_all": "Copiar todo",
+      "search": "Buscar",
+      "structured_view": "Vista estructurada",
+      "wrap_text": "Envolver texto",
+      "open_on_run": "Abrir al ejecutar",
+      "copy_output": "Copiar salida",
+      "close_search": "Cerrar búsqueda",
+      "previous_match": "Coincidencia anterior",
+      "next_match": "Siguiente coincidencia"
+    },
+    "tooltips": {
+      "sort_by_time": "Ordenar por hora",
+      "component_playground": "Área de juego de componentes",
+      "train_copilot": "Entrenar Copilot",
+      "stop_training": "Detener entrenamiento",
+      "search_in_output": "Buscar en la salida",
+      "copied": "Copiado"
+    },
+    "aria_labels": {
+      "resize_terminal": "Redimensionar terminal",
+      "toggle_terminal": "Alternar terminal",
+      "terminal": "Terminal",
+      "show_output": "Mostrar salida",
+      "show_input": "Mostrar entrada",
+      "terminal_options": "Opciones de terminal",
+      "resize_output_panel": "Redimensionar panel de salida",
+      "sort_by_timestamp": "Ordenar por marca de tiempo"
+    },
+    "placeholders": {
+      "search": "Buscar..."
+    },
+    "messages": {
+      "no_logs_yet": "Sin registros aún",
+      "no_results": "Sin resultados",
+      "iteration_header": "Iteración {{current}}/{{total}}",
+      "iteration_header_no_total": "Iteración {{current}}"
     }
   }
 }

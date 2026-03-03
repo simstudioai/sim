@@ -726,7 +726,10 @@
         "hand": "Hand"
       },
       "controls": {
-        "fit_to_view": "Fit to view"
+        "fit_to_view": "Fit to view",
+        "undo": "Undo",
+        "redo": "Redo",
+        "hide": "Hide canvas controls"
       }
     },
     "context_menu": {
@@ -2060,7 +2063,72 @@
         "workflow": "Workflow",
         "logs": "Logs",
         "success_rate": "Success Rate"
-      }
+      },
+      "no_workflows_found": "No workflows found",
+      "no_workflows_found_with_search": "No workflows found matching"
+    }
+  },
+  "terminal": {
+    "headers": {
+      "logs": "Logs",
+      "output": "Output",
+      "input": "Input"
+    },
+    "status": {
+      "running": "Running",
+      "canceled": "canceled"
+    },
+    "filter_popover": {
+      "aria_label": "Filters",
+      "status_section": "Status",
+      "error_status": "Error",
+      "info_status": "Info",
+      "blocks_section": "Blocks"
+    },
+    "buttons": {
+      "copy_run_id": "Copy Run ID",
+      "fix_in_copilot": "Fix in Copilot",
+      "filter_by_block": "Filter by Block",
+      "filter_by_status": "Filter by Status",
+      "download_csv": "Download CSV",
+      "clear_console": "Clear Console",
+      "copy_selection": "Copy Selection",
+      "copy_all": "Copy All",
+      "search": "Search",
+      "structured_view": "Structured View",
+      "wrap_text": "Wrap Text",
+      "open_on_run": "Open on run",
+      "copy_output": "Copy output",
+      "close_search": "Close search",
+      "previous_match": "Previous match",
+      "next_match": "Next match"
+    },
+    "tooltips": {
+      "sort_by_time": "Sort by time",
+      "component_playground": "Component Playground",
+      "train_copilot": "Train Copilot",
+      "stop_training": "Stop Training",
+      "search_in_output": "Search in output",
+      "copied": "Copied"
+    },
+    "aria_labels": {
+      "resize_terminal": "Resize terminal",
+      "toggle_terminal": "Toggle terminal",
+      "terminal": "Terminal",
+      "show_output": "Show output",
+      "show_input": "Show input",
+      "terminal_options": "Terminal options",
+      "resize_output_panel": "Resize output panel",
+      "sort_by_timestamp": "Sort by timestamp"
+    },
+    "placeholders": {
+      "search": "Search..."
+    },
+    "messages": {
+      "no_logs_yet": "No logs yet",
+      "no_results": "No results",
+      "iteration_header": "Iteration {{current}}/{{total}}",
+      "iteration_header_no_total": "Iteration {{current}}"
     }
   }
 }

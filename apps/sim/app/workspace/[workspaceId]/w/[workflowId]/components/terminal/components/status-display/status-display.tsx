@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
@@ -8,9 +9,11 @@ import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
  * Running badge component - displays a consistent "Running" indicator
  */
 export const RunningBadge = memo(function RunningBadge() {
+  const t = useTranslations()
+
   return (
     <Badge variant='green' className={BADGE_STYLE}>
-      Running
+      {t('terminal.status.running')}
     </Badge>
   )
 })
@@ -33,11 +36,13 @@ export const StatusDisplay = memo(function StatusDisplay({
   isCanceled,
   formattedDuration,
 }: StatusDisplayProps) {
+  const t = useTranslations()
+
   if (isRunning) {
     return <RunningBadge />
   }
   if (isCanceled) {
-    return <>canceled</>
+    return <>{t('terminal.status.canceled')}</>
   }
   return <>{formattedDuration}</>
 })

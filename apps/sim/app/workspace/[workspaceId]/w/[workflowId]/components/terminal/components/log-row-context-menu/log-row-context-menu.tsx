@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -45,6 +46,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearConsole,
   onFixInCopilot,
 }: LogRowContextMenuProps) {
+  const t = useTranslations()
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
@@ -78,7 +80,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Copy Run ID
+              {t('terminal.buttons.copy_run_id')}
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -93,7 +95,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Fix in Copilot
+              {t('terminal.buttons.fix_in_copilot')}
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -109,7 +111,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Filter by Block
+              {t('terminal.buttons.filter_by_block')}
             </PopoverItem>
             <PopoverItem
               showCheck={isStatusFiltered}
@@ -118,7 +120,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Filter by Status
+              {t('terminal.buttons.filter_by_status')}
             </PopoverItem>
           </>
         )}
@@ -131,7 +133,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          Clear Console
+          {t('terminal.buttons.clear_console')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

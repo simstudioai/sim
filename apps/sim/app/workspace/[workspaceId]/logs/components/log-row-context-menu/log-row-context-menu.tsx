@@ -2,6 +2,7 @@
 
 import type { RefObject } from 'react'
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -44,6 +45,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
+  const t = useTranslations('logs.log_row_context_menu')
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
 
@@ -72,7 +74,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          Copy Execution ID
+          {t('copy_execution_id')}
         </PopoverItem>
 
         {/* Navigation */}
@@ -84,7 +86,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          Open Workflow
+          {t('open_workflow')}
         </PopoverItem>
         <PopoverItem
           disabled={!hasExecutionId}
@@ -93,7 +95,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          Open Snapshot
+          {t('open_snapshot')}
         </PopoverItem>
 
         {/* Filter actions */}
@@ -106,7 +108,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
               onClose()
             }}
           >
-            Filter by Workflow
+            {t('filter_by_workflow')}
           </PopoverItem>
         )}
         {hasActiveFilters && (
@@ -116,7 +118,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
               onClose()
             }}
           >
-            Clear Filters
+            {t('clear_filters')}
           </PopoverItem>
         )}
       </PopoverContent>

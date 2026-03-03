@@ -50,7 +50,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -828,6 +828,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isPending } = data
   const t = useTranslations()
+  const locale = useLocale()
 
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -1026,6 +1027,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     canonicalIndex,
     blockSubBlockValues,
     activeWorkflowId,
+    locale,
   ])
 
   const subBlockRows = subBlockRowsData.rows

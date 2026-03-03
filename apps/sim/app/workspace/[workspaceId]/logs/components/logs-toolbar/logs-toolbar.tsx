@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -26,20 +27,6 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
-
-const TIME_RANGE_OPTIONS: ComboboxOption[] = [
-  { value: 'All time', label: 'All time' },
-  { value: 'Past 30 minutes', label: 'Past 30 minutes' },
-  { value: 'Past hour', label: 'Past hour' },
-  { value: 'Past 6 hours', label: 'Past 6 hours' },
-  { value: 'Past 12 hours', label: 'Past 12 hours' },
-  { value: 'Past 24 hours', label: 'Past 24 hours' },
-  { value: 'Past 3 days', label: 'Past 3 days' },
-  { value: 'Past 7 days', label: 'Past 7 days' },
-  { value: 'Past 14 days', label: 'Past 14 days' },
-  { value: 'Past 30 days', label: 'Past 30 days' },
-  { value: 'Custom range', label: 'Custom range' },
-] as const
 
 /**
  * Formats a date string (YYYY-MM-DD) for display.
@@ -165,8 +152,26 @@ export const LogsToolbar = memo(function LogsToolbar({
   onSearchQueryChange,
   onSearchOpenChange,
 }: LogsToolbarProps) {
+  const t = useTranslations('logs')
   const params = useParams()
   const workspaceId = params.workspaceId as string
+
+  const TIME_RANGE_OPTIONS: ComboboxOption[] = useMemo(
+    () => [
+      { value: 'All time', label: t('toolbar.time_ranges.all_time') },
+      { value: 'Past 30 minutes', label: t('toolbar.time_ranges.past_30_minutes') },
+      { value: 'Past hour', label: t('toolbar.time_ranges.past_hour') },
+      { value: 'Past 6 hours', label: t('toolbar.time_ranges.past_6_hours') },
+      { value: 'Past 12 hours', label: t('toolbar.time_ranges.past_12_hours') },
+      { value: 'Past 24 hours', label: t('toolbar.time_ranges.past_24_hours') },
+      { value: 'Past 3 days', label: t('toolbar.time_ranges.past_3_days') },
+      { value: 'Past 7 days', label: t('toolbar.time_ranges.past_7_days') },
+      { value: 'Past 14 days', label: t('toolbar.time_ranges.past_14_days') },
+      { value: 'Past 30 days', label: t('toolbar.time_ranges.past_30_days') },
+      { value: 'Custom range', label: t('toolbar.time_ranges.custom_range') },
+    ],
+    [t]
+  )
 
   const {
     level,
@@ -233,13 +238,13 @@ export const LogsToolbar = memo(function LogsToolbar({
   )
 
   const statusDisplayLabel = useMemo(() => {
-    if (selectedStatuses.length === 0) return 'Status'
+    if (selectedStatuses.length === 0) return t('toolbar.filters.status')
     if (selectedStatuses.length === 1) {
       const status = statusOptions.find((s) => s.value === selectedStatuses[0])
-      return status?.label || '1 selected'
+      return status?.label || t('toolbar.filters.status')
     }
     return `${selectedStatuses.length} selected`
-  }, [selectedStatuses, statusOptions])
+  }, [selectedStatuses, statusOptions, t])
 
   const selectedStatusColor = useMemo(() => {
     if (selectedStatuses.length !== 1) return null
@@ -253,13 +258,13 @@ export const LogsToolbar = memo(function LogsToolbar({
   )
 
   const workflowDisplayLabel = useMemo(() => {
-    if (workflowIds.length === 0) return 'Workflow'
+    if (workflowIds.length === 0) return t('toolbar.filters.workflow')
     if (workflowIds.length === 1) {
       const workflow = workflows.find((w) => w.id === workflowIds[0])
-      return workflow?.name || '1 selected'
+      return workflow?.name || t('toolbar.filters.workflow')
     }
     return `${workflowIds.length} workflows`
-  }, [workflowIds, workflows])
+  }, [workflowIds, workflows, t])
 
   const selectedWorkflow =
     workflowIds.length === 1 ? workflows.find((w) => w.id === workflowIds[0]) : null
@@ -270,13 +275,13 @@ export const LogsToolbar = memo(function LogsToolbar({
   )
 
   const folderDisplayLabel = useMemo(() => {
-    if (folderIds.length === 0) return 'Folder'
+    if (folderIds.length === 0) return t('toolbar.filters.folder')
     if (folderIds.length === 1) {
       const folder = folderList.find((f) => f.id === folderIds[0])
-      return folder?.name || '1 selected'
+      return folder?.name || t('toolbar.filters.folder')
     }
     return `${folderIds.length} folders`
-  }, [folderIds, folderList])
+  }, [folderIds, folderList, t])
 
   const triggerOptions: ComboboxOption[] = useMemo(
     () =>
@@ -289,22 +294,22 @@ export const LogsToolbar = memo(function LogsToolbar({
   )
 
   const triggerDisplayLabel = useMemo(() => {
-    if (triggers.length === 0) return 'Trigger'
+    if (triggers.length === 0) return t('toolbar.filters.trigger')
     if (triggers.length === 1) {
       const trigger = triggerOptions.find((t) => t.value === triggers[0])
-      return trigger?.label || '1 selected'
+      return trigger?.label || t('toolbar.filters.trigger')
     }
     return `${triggers.length} triggers`
-  }, [triggers, triggerOptions])
+  }, [triggers, triggerOptions, t])
 
   const timeDisplayLabel = useMemo(() => {
-    if (timeRange === 'All time') return 'Time'
+    if (timeRange === 'All time') return t('toolbar.filters.time_range')
     if (timeRange === 'Custom range' && startDate && endDate) {
       return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
     }
-    if (timeRange === 'Custom range') return 'Custom range'
+    if (timeRange === 'Custom range') return t('toolbar.time_ranges.custom_range')
     return timeRange
-  }, [timeRange, startDate, endDate])
+  }, [timeRange, startDate, endDate, t])
 
   /**
    * Handles time range selection from combobox.
@@ -370,7 +375,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
             <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
-          <h1 className='font-medium text-[18px]'>Logs</h1>
+          <h1 className='font-medium text-[18px]'>{t('toolbar.title')}</h1>
         </div>
         <div className='flex items-center gap-[8px]'>
           {/* More options popover */}
@@ -378,18 +383,18 @@ export const LogsToolbar = memo(function LogsToolbar({
             <PopoverTrigger asChild>
               <Button variant='default' className='h-[32px] w-[32px] rounded-[6px] p-0'>
                 <MoreHorizontal className='h-[14px] w-[14px]' />
-                <span className='sr-only'>More options</span>
+                <span className='sr-only'>{t('toolbar.more_options')}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent align='end' sideOffset={4}>
               <PopoverScrollArea>
                 <PopoverItem onClick={onExport} disabled={!canEdit || isExporting || !hasLogs}>
                   <ArrowUp className='h-3 w-3' />
-                  <span>Export as CSV</span>
+                  <span>{t('toolbar.export_csv')}</span>
                 </PopoverItem>
                 <PopoverItem onClick={onOpenNotificationSettings}>
                   <Bell className='h-3 w-3' />
-                  <span>Configure Notifications</span>
+                  <span>{t('toolbar.configure_notifications')}</span>
                 </PopoverItem>
               </PopoverScrollArea>
             </PopoverContent>
@@ -401,6 +406,7 @@ export const LogsToolbar = memo(function LogsToolbar({
             className='h-[32px] rounded-[6px] px-[10px]'
             onClick={isRefreshing ? undefined : onRefresh}
             disabled={isRefreshing}
+            title={t('toolbar.refresh')}
           >
             {isRefreshing ? (
               <Loader className='h-[14px] w-[14px]' animate />
@@ -418,7 +424,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               isLive && 'border border-[var(--brand-tertiary-2)]'
             )}
           >
-            Live
+            {t('toolbar.live')}
           </Button>
 
           {/* View mode toggle */}
@@ -433,7 +439,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 isDashboardView && 'border border-transparent'
               )}
             >
-              Logs
+              {t('toolbar.logs_view')}
             </Button>
             <Button
               variant={isDashboardView ? 'active' : 'ghost'}
@@ -442,7 +448,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 !isDashboardView && 'border border-transparent'
               )}
             >
-              Dashboard
+              {t('toolbar.dashboard_view')}
             </Button>
           </div>
         </div>
@@ -454,7 +460,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           <AutocompleteSearch
             value={searchQuery}
             onChange={onSearchQueryChange}
-            placeholder='Search'
+            placeholder={t('toolbar.search_placeholder')}
             onOpenChange={onSearchOpenChange}
           />
         </div>
@@ -466,7 +472,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               onClick={handleClearFilters}
               className='h-[32px] rounded-[6px] px-[10px]'
             >
-              <span>Clear</span>
+              <span>{t('toolbar.clear_filters')}</span>
             </Button>
           )}
 
@@ -477,7 +483,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 variant='active'
                 className='h-[32px] gap-[6px] rounded-[6px] px-[10px] xl:hidden'
               >
-                <span>Filters</span>
+                <span>{t('toolbar.filters_button')}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent align='end' sideOffset={4} className='w-[280px] p-[12px]'>
@@ -485,14 +491,14 @@ export const LogsToolbar = memo(function LogsToolbar({
                 {/* Status Filter */}
                 <div className='flex flex-col gap-[6px]'>
                   <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                    Status
+                    {t('toolbar.filters.status')}
                   </span>
                   <Combobox
                     options={statusOptions}
                     multiSelect
                     multiSelectValues={selectedStatuses}
                     onMultiSelectChange={handleStatusChange}
-                    placeholder='All statuses'
+                    placeholder={t('toolbar.filters.all_statuses')}
                     overlayContent={
                       <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                         {selectedStatusColor && (
@@ -505,7 +511,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                       </span>
                     }
                     showAllOption
-                    allOptionLabel='All statuses'
+                    allOptionLabel={t('toolbar.filters.all_statuses')}
                     size='sm'
                     className='h-[32px] w-full rounded-[6px]'
                   />
@@ -514,14 +520,14 @@ export const LogsToolbar = memo(function LogsToolbar({
                 {/* Workflow Filter */}
                 <div className='flex flex-col gap-[6px]'>
                   <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                    Workflow
+                    {t('toolbar.filters.workflow')}
                   </span>
                   <Combobox
                     options={workflowOptions}
                     multiSelect
                     multiSelectValues={workflowIds}
                     onMultiSelectChange={setWorkflowIds}
-                    placeholder='All workflows'
+                    placeholder={t('toolbar.filters.all_workflows')}
                     overlayContent={
                       <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
@@ -534,9 +540,9 @@ export const LogsToolbar = memo(function LogsToolbar({
                       </span>
                     }
                     searchable
-                    searchPlaceholder='Search workflows...'
+                    searchPlaceholder={t('toolbar.filters.search_workflows')}
                     showAllOption
-                    allOptionLabel='All workflows'
+                    allOptionLabel={t('toolbar.filters.all_workflows')}
                     size='sm'
                     className='h-[32px] w-full rounded-[6px]'
                   />
@@ -545,23 +551,23 @@ export const LogsToolbar = memo(function LogsToolbar({
                 {/* Folder Filter */}
                 <div className='flex flex-col gap-[6px]'>
                   <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                    Folder
+                    {t('toolbar.filters.folder')}
                   </span>
                   <Combobox
                     options={folderOptions}
                     multiSelect
                     multiSelectValues={folderIds}
                     onMultiSelectChange={setFolderIds}
-                    placeholder='All folders'
+                    placeholder={t('toolbar.filters.all_folders')}
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
                         {folderDisplayLabel}
                       </span>
                     }
                     searchable
-                    searchPlaceholder='Search folders...'
+                    searchPlaceholder={t('toolbar.filters.search_folders')}
                     showAllOption
-                    allOptionLabel='All folders'
+                    allOptionLabel={t('toolbar.filters.all_folders')}
                     size='sm'
                     className='h-[32px] w-full rounded-[6px]'
                   />
@@ -570,23 +576,23 @@ export const LogsToolbar = memo(function LogsToolbar({
                 {/* Trigger Filter */}
                 <div className='flex flex-col gap-[6px]'>
                   <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                    Trigger
+                    {t('toolbar.filters.trigger')}
                   </span>
                   <Combobox
                     options={triggerOptions}
                     multiSelect
                     multiSelectValues={triggers}
                     onMultiSelectChange={setTriggers}
-                    placeholder='All triggers'
+                    placeholder={t('toolbar.filters.all_triggers')}
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
                         {triggerDisplayLabel}
                       </span>
                     }
                     searchable
-                    searchPlaceholder='Search triggers...'
+                    searchPlaceholder={t('toolbar.filters.search_triggers')}
                     showAllOption
-                    allOptionLabel='All triggers'
+                    allOptionLabel={t('toolbar.filters.all_triggers')}
                     size='sm'
                     className='h-[32px] w-full rounded-[6px]'
                   />
@@ -595,13 +601,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                 {/* Time Filter */}
                 <div className='flex flex-col gap-[6px]'>
                   <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                    Time Range
+                    {t('toolbar.filters.time_range')}
                   </span>
                   <Combobox
                     options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
-                    placeholder='All time'
+                    placeholder={t('toolbar.time_ranges.all_time')}
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
                         {timeDisplayLabel}
@@ -623,7 +629,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               multiSelect
               multiSelectValues={selectedStatuses}
               onMultiSelectChange={handleStatusChange}
-              placeholder='Status'
+              placeholder={t('toolbar.filters.status')}
               overlayContent={
                 <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                   {selectedStatusColor && (
@@ -636,7 +642,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 </span>
               }
               showAllOption
-              allOptionLabel='All statuses'
+              allOptionLabel={t('toolbar.filters.all_statuses')}
               size='sm'
               align='end'
               className='h-[32px] w-[120px] rounded-[6px]'
@@ -648,7 +654,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               multiSelect
               multiSelectValues={workflowIds}
               onMultiSelectChange={setWorkflowIds}
-              placeholder='Workflow'
+              placeholder={t('toolbar.filters.workflow')}
               overlayContent={
                 <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
@@ -661,9 +667,9 @@ export const LogsToolbar = memo(function LogsToolbar({
                 </span>
               }
               searchable
-              searchPlaceholder='Search workflows...'
+              searchPlaceholder={t('toolbar.filters.search_workflows')}
               showAllOption
-              allOptionLabel='All workflows'
+              allOptionLabel={t('toolbar.filters.all_workflows')}
               size='sm'
               align='end'
               className='h-[32px] w-[120px] rounded-[6px]'
@@ -675,14 +681,14 @@ export const LogsToolbar = memo(function LogsToolbar({
               multiSelect
               multiSelectValues={folderIds}
               onMultiSelectChange={setFolderIds}
-              placeholder='Folder'
+              placeholder={t('toolbar.filters.folder')}
               overlayContent={
                 <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
               }
               searchable
-              searchPlaceholder='Search folders...'
+              searchPlaceholder={t('toolbar.filters.search_folders')}
               showAllOption
-              allOptionLabel='All folders'
+              allOptionLabel={t('toolbar.filters.all_folders')}
               size='sm'
               align='end'
               className='h-[32px] w-[120px] rounded-[6px]'
@@ -694,14 +700,14 @@ export const LogsToolbar = memo(function LogsToolbar({
               multiSelect
               multiSelectValues={triggers}
               onMultiSelectChange={setTriggers}
-              placeholder='Trigger'
+              placeholder={t('toolbar.filters.trigger')}
               overlayContent={
                 <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
               }
               searchable
-              searchPlaceholder='Search triggers...'
+              searchPlaceholder={t('toolbar.filters.search_triggers')}
               showAllOption
-              allOptionLabel='All triggers'
+              allOptionLabel={t('toolbar.filters.all_triggers')}
               size='sm'
               align='end'
               className='h-[32px] w-[120px] rounded-[6px]'
@@ -715,7 +721,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
-                    placeholder='Time'
+                    placeholder={t('toolbar.filters.time_range')}
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
                         {timeDisplayLabel}

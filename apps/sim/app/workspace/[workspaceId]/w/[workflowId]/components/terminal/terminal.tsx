@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -578,6 +579,8 @@ const ExecutionGroupRow = memo(function ExecutionGroupRow({
  * Terminal component with resizable height that persists across page refreshes.
  */
 export const Terminal = memo(function Terminal() {
+  const t = useTranslations()
+
   const terminalRef = useRef<HTMLElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
@@ -1276,7 +1279,7 @@ export const Terminal = memo(function Terminal() {
         className='fixed right-[var(--panel-width)] bottom-[calc(var(--terminal-height)-4px)] left-[var(--sidebar-width)] z-20 h-[8px] cursor-ns-resize'
         onMouseDown={handleMouseDown}
         role='separator'
-        aria-label='Resize terminal'
+        aria-label={t('terminal.aria_labels.resize_terminal')}
         aria-orientation='horizontal'
       />
 
@@ -1290,7 +1293,7 @@ export const Terminal = memo(function Terminal() {
         onFocus={handleTerminalFocus}
         onBlur={handleTerminalBlur}
         tabIndex={-1}
-        aria-label='Terminal'
+        aria-label={t('terminal.aria_labels.terminal')}
       >
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
@@ -1304,7 +1307,9 @@ export const Terminal = memo(function Terminal() {
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
-              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
+              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>
+                {t('terminal.headers.logs')}
+              </span>
 
               {/* Right side - Filters and icons */}
               {!selectedEntry && (
@@ -1332,7 +1337,7 @@ export const Terminal = memo(function Terminal() {
                             e.stopPropagation()
                             toggleSort()
                           }}
-                          aria-label='Sort by timestamp'
+                          aria-label={t('terminal.aria_labels.sort_by_timestamp')}
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
@@ -1343,7 +1348,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>Sort by time</span>
+                        <span>{t('terminal.tooltips.sort_by_time')}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1354,7 +1359,7 @@ export const Terminal = memo(function Terminal() {
                         <Link href='/playground'>
                           <Button
                             variant='ghost'
-                            aria-label='Component Playground'
+                            aria-label={t('terminal.aria_labels.terminal_options')}
                             className='!p-1.5 -m-1.5'
                           >
                             <Palette className='h-3 w-3' />
@@ -1362,7 +1367,7 @@ export const Terminal = memo(function Terminal() {
                         </Link>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>Component Playground</span>
+                        <span>{t('terminal.tooltips.component_playground')}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1373,7 +1378,11 @@ export const Terminal = memo(function Terminal() {
                         <Button
                           variant='ghost'
                           onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                          aria-label={
+                            isTraining
+                              ? t('terminal.aria_labels.terminal_options')
+                              : t('terminal.aria_labels.terminal_options')
+                          }
                           className={clsx(
                             '!p-1.5 -m-1.5',
                             isTraining && 'text-orange-600 dark:text-orange-400'
@@ -1387,7 +1396,11 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                        <span>
+                          {isTraining
+                            ? t('terminal.tooltips.stop_training')
+                            : t('terminal.tooltips.train_copilot')}
+                        </span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1399,14 +1412,14 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleExportConsole}
-                            aria-label='Download console CSV'
+                            aria-label={t('terminal.aria_labels.terminal_options')}
                             className='!p-1.5 -m-1.5'
                           >
                             <ArrowDownToLine className='h-3 w-3' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Download CSV</span>
+                          <span>{t('terminal.buttons.download_csv')}</span>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -1414,14 +1427,16 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleClearConsole}
-                            aria-label='Clear console'
+                            aria-label={t('terminal.aria_labels.terminal_options')}
                             className='!p-1.5 -m-1.5'
                           >
                             <Trash2 className='h-3 w-3' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                          <Tooltip.Shortcut keys='⌘D'>
+                            {t('terminal.buttons.clear_console')}
+                          </Tooltip.Shortcut>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>
@@ -1434,7 +1449,7 @@ export const Terminal = memo(function Terminal() {
                         onClick={(e) => {
                           e.stopPropagation()
                         }}
-                        aria-label='Terminal options'
+                        aria-label={t('terminal.aria_labels.terminal_options')}
                         className='!p-1.5 -m-1.5'
                       >
                         <MoreHorizontal className='h-3.5 w-3.5' />
@@ -1457,7 +1472,7 @@ export const Terminal = memo(function Terminal() {
                           setOpenOnRun(!openOnRun)
                         }}
                       >
-                        <span>Open on run</span>
+                        <span>{t('terminal.buttons.open_on_run')}</span>
                       </PopoverItem>
                     </PopoverContent>
                   </Popover>
@@ -1477,7 +1492,7 @@ export const Terminal = memo(function Terminal() {
             <div ref={logsContainerRef} className='flex-1 overflow-y-auto overflow-x-hidden'>
               {executionGroups.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
-                  No logs yet
+                  {t('terminal.messages.no_logs_yet')}
                 </div>
               ) : (
                 executionGroups.map((group, index) => (

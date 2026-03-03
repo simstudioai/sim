@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
@@ -45,6 +46,7 @@ import { useLogDetailsUIStore } from '@/stores/logs/store'
  */
 const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
+    const t = useTranslations('logs.workflow_output')
     const contentRef = useRef<HTMLDivElement>(null)
     const [copied, setCopied] = useState(false)
     const copyTimerRef = useRef<number | null>(null)
@@ -131,7 +133,9 @@ const WorkflowOutputSection = memo(
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                <Tooltip.Content side='top'>
+                  {copied ? t('copied_tooltip') : t('copy_tooltip')}
+                </Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -147,7 +151,7 @@ const WorkflowOutputSection = memo(
                     <Search className='h-[10px] w-[10px]' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Search</Tooltip.Content>
+                <Tooltip.Content side='top'>{t('search_tooltip')}</Tooltip.Content>
               </Tooltip.Root>
             </div>
           )}
@@ -197,7 +201,7 @@ const WorkflowOutputSection = memo(
               variant='ghost'
               className='!p-1'
               onClick={closeSearch}
-              aria-label='Close search'
+              aria-label={t('close_search_aria')}
             >
               <X className='h-[12px] w-[12px]' />
             </Button>

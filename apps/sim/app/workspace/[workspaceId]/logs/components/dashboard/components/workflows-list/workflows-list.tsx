@@ -1,4 +1,7 @@
+'use client'
+
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import {
   DELETED_WORKFLOW_COLOR,
@@ -36,6 +39,7 @@ function WorkflowsListInner({
   searchQuery: string
   segmentDurationMs: number
 }) {
+  const t = useTranslations('logs.dashboard')
   const { workflows } = useWorkflowRegistry()
 
   return (
@@ -44,11 +48,13 @@ function WorkflowsListInner({
       <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-[16px]'>
           <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
-            Workflow
+            {t('column_headers.workflow')}
           </span>
-          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>Logs</span>
+          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>
+            {t('column_headers.logs')}
+          </span>
           <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
-            Success Rate
+            {t('column_headers.success_rate')}
           </span>
         </div>
       </div>
@@ -58,7 +64,9 @@ function WorkflowsListInner({
         {filteredExecutions.length === 0 ? (
           <div className='flex items-center justify-center py-[32px]'>
             <span className='text-[13px] text-[var(--text-secondary)]'>
-              {searchQuery ? `No workflows found matching "${searchQuery}"` : 'No workflows found'}
+              {searchQuery
+                ? `${t('no_workflows_found_with_search')} "${searchQuery}"`
+                : t('no_workflows_found')}
             </span>
           </div>
         ) : (

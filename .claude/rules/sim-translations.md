@@ -18,6 +18,8 @@ Your job is to:
 Do not include explanations.
 
 ---
+## translation files cant have duplicate keys
+
 ## 0. Don't translate logger info or error messages that are not user-facing.
 
 ## 0.1 Do not translate error messages or similars as keys to be rendered as translations later. For example, if there is an error message like "Invalid email address", do not create a key like "errors.invalid_email" with the value "Invalid email address". If possible, just create a new hook that calls useTranslation inside it and returns the same object or function with translated texts and keep the code in the same file.

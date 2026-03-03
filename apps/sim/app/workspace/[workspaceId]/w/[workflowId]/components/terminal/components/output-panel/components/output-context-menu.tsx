@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -49,6 +50,8 @@ export const OutputContextMenu = memo(function OutputContextMenu({
   onClearConsole,
   hasSelection,
 }: OutputContextMenuProps) {
+  const t = useTranslations()
+
   return (
     <Popover
       open={isOpen}
@@ -75,7 +78,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Copy Selection
+          {t('terminal.buttons.copy_selection')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -83,7 +86,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Copy All
+          {t('terminal.buttons.copy_all')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -91,19 +94,19 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Search
+          {t('terminal.buttons.search')}
         </PopoverItem>
 
         {/* Display settings - toggles don't close menu */}
         <PopoverDivider />
         <PopoverItem showCheck={structuredView} onClick={onToggleStructuredView}>
-          Structured View
+          {t('terminal.buttons.structured_view')}
         </PopoverItem>
         <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-          Wrap Text
+          {t('terminal.buttons.wrap_text')}
         </PopoverItem>
         <PopoverItem showCheck={openOnRun} onClick={onToggleOpenOnRun}>
-          Open on Run
+          {t('terminal.buttons.open_on_run')}
         </PopoverItem>
 
         {/* Destructive action */}
@@ -114,7 +117,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Clear Console
+          {t('terminal.buttons.clear_console')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

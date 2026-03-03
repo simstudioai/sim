@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -74,6 +75,7 @@ function logSelectionReducer(
  * @returns The logs page view with table and sidebar details
  */
 export default function Logs() {
+  const t = useTranslations('logs.page')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -582,21 +584,21 @@ export default function Logs() {
                   <div className='flex h-full items-center justify-center'>
                     <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
                       <Loader2 className='h-[16px] w-[16px] animate-spin' />
-                      <span className='text-[13px]'>Loading logs...</span>
+                      <span className='text-[13px]'>{t('loading')}</span>
                     </div>
                   </div>
                 ) : logsQuery.isError ? (
                   <div className='flex h-full items-center justify-center'>
                     <div className='text-[var(--text-error)]'>
                       <span className='text-[13px]'>
-                        Error: {logsQuery.error?.message || 'Failed to load logs'}
+                        {t('error', { message: logsQuery.error?.message || t('failed_to_load') })}
                       </span>
                     </div>
                   </div>
                 ) : logs.length === 0 ? (
                   <div className='flex h-full items-center justify-center'>
                     <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
-                      <span className='text-[13px]'>No logs found</span>
+                      <span className='text-[13px]'>{t('no_logs_found')}</span>
                     </div>
                   </div>
                 ) : (

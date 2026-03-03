@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -144,6 +145,7 @@ export const OutputPanel = React.memo(function OutputPanel({
   toggleStatus,
   uniqueBlocks,
 }: OutputPanelProps) {
+  const t = useTranslations()
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
   const wrapText = useTerminalStore((state) => state.wrapText)
@@ -320,9 +322,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                 !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
               )}
               onClick={handleOutputButtonClick}
-              aria-label='Show output'
+              aria-label={t('terminal.aria_labels.show_output')}
             >
-              Output
+              {t('terminal.headers.output')}
             </Button>
             {hasInputData && (
               <Button
@@ -332,9 +334,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
                 )}
                 onClick={handleInputButtonClick}
-                aria-label='Show input'
+                aria-label={t('terminal.aria_labels.show_input')}
               >
-                Input
+                {t('terminal.headers.input')}
               </Button>
             )}
           </div>
@@ -358,14 +360,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleCloseSearchClick}
-                    aria-label='Close search'
+                    aria-label={t('terminal.aria_labels.terminal_options')}
                     className='!p-1.5 -m-1.5'
                   >
                     <X className='h-[12px] w-[12px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Close search</span>
+                  <span>{t('terminal.buttons.close_search')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             ) : (
@@ -374,14 +376,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleSearchClick}
-                    aria-label='Search in output'
+                    aria-label={t('terminal.aria_labels.terminal_options')}
                     className='!p-1.5 -m-1.5'
                   >
                     <Search className='h-[12px] w-[12px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Search</span>
+                  <span>{t('terminal.tooltips.search_in_output')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -392,7 +394,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Link href='/playground'>
                     <Button
                       variant='ghost'
-                      aria-label='Component Playground'
+                      aria-label={t('terminal.aria_labels.terminal_options')}
                       className='!p-1.5 -m-1.5'
                     >
                       <Palette className='h-[12px] w-[12px]' />
@@ -400,7 +402,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   </Link>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Component Playground</span>
+                  <span>{t('terminal.tooltips.component_playground')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -411,7 +413,11 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleTrainingClick}
-                    aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                    aria-label={
+                      isTraining
+                        ? t('terminal.aria_labels.terminal_options')
+                        : t('terminal.aria_labels.terminal_options')
+                    }
                     className={clsx(
                       '!p-1.5 -m-1.5',
                       isTraining && 'text-orange-600 dark:text-orange-400'
@@ -425,7 +431,11 @@ export const OutputPanel = React.memo(function OutputPanel({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                  <span>
+                    {isTraining
+                      ? t('terminal.tooltips.stop_training')
+                      : t('terminal.tooltips.train_copilot')}
+                  </span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -435,7 +445,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <Button
                   variant='ghost'
                   onClick={handleCopyClick}
-                  aria-label='Copy output'
+                  aria-label={t('terminal.aria_labels.terminal_options')}
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
@@ -446,7 +456,11 @@ export const OutputPanel = React.memo(function OutputPanel({
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
+                <span>
+                  {showCopySuccess
+                    ? t('terminal.tooltips.copied')
+                    : t('terminal.buttons.copy_output')}
+                </span>
               </Tooltip.Content>
             </Tooltip.Root>
             {filteredEntries.length > 0 && (
@@ -456,14 +470,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleExportConsole}
-                      aria-label='Download console CSV'
+                      aria-label={t('terminal.aria_labels.terminal_options')}
                       className='!p-1.5 -m-1.5'
                     >
                       <ArrowDownToLine className='h-3 w-3' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>Download CSV</span>
+                    <span>{t('terminal.buttons.download_csv')}</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
@@ -471,14 +485,16 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleClearConsole}
-                      aria-label='Clear console'
+                      aria-label={t('terminal.aria_labels.terminal_options')}
                       className='!p-1.5 -m-1.5'
                     >
                       <Trash2 className='h-3 w-3' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                    <Tooltip.Shortcut keys='⌘D'>
+                      {t('terminal.buttons.clear_console')}
+                    </Tooltip.Shortcut>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </>
@@ -508,17 +524,17 @@ export const OutputPanel = React.memo(function OutputPanel({
                   showCheck={structuredView}
                   onClick={handleToggleStructuredView}
                 >
-                  <span>Structured view</span>
+                  <span>{t('terminal.buttons.structured_view')}</span>
                 </PopoverItem>
                 <PopoverItem active={wrapText} showCheck={wrapText} onClick={handleToggleWrapText}>
-                  <span>Wrap text</span>
+                  <span>{t('terminal.buttons.wrap_text')}</span>
                 </PopoverItem>
                 <PopoverItem
                   active={openOnRun}
                   showCheck={openOnRun}
                   onClick={handleToggleOpenOnRun}
                 >
-                  <span>Open on run</span>
+                  <span>{t('terminal.buttons.open_on_run')}</span>
                 </PopoverItem>
               </PopoverContent>
             </Popover>
@@ -539,7 +555,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               type='text'
               value={outputSearchQuery}
               onChange={(e) => setOutputSearchQuery(e.target.value)}
-              placeholder='Search...'
+              placeholder={t('terminal.placeholders.search')}
               className='mr-[2px] h-[23px] w-[94px] text-[12px]'
             />
             <span
@@ -548,7 +564,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
             >
-              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
+              {matchCount > 0
+                ? `${currentMatchIndex + 1}/${matchCount}`
+                : t('terminal.messages.no_results')}
             </span>
             <Button
               variant='ghost'

@@ -170,7 +170,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
+            <Tooltip.Shortcut keys='⌘Z'>{t('workflows.canvas.controls.undo')}</Tooltip.Shortcut>
           </Tooltip.Content>
         </Tooltip.Root>
 
@@ -186,7 +186,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
+            <Tooltip.Shortcut keys='⌘⇧Z'>{t('workflows.canvas.controls.redo')}</Tooltip.Shortcut>
           </Tooltip.Content>
         </Tooltip.Root>
 
@@ -203,7 +203,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>
+            <Tooltip.Shortcut keys='⌘⇧F'>
+              {t('workflows.canvas.controls.fit_to_view')}
+            </Tooltip.Shortcut>
           </Tooltip.Content>
         </Tooltip.Root>
       </div>
@@ -225,7 +227,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           }}
         />
         <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-          <PopoverItem onClick={handleHide}>Hide canvas controls</PopoverItem>
+          <PopoverItem onClick={handleHide}>{t('workflows.canvas.controls.hide')}</PopoverItem>
         </PopoverContent>
       </Popover>
     </>
