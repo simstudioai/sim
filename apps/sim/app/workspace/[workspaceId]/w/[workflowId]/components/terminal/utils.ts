@@ -220,7 +220,7 @@ function collectWorkflowDescendants(
  * that executed within each iteration.
  * Sorts by start time to ensure chronological order.
  */
-function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
+export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
   const regularBlocks: ConsoleEntry[] = []
   const topLevelIterationEntries: ConsoleEntry[] = []
   const nestedIterationEntries: ConsoleEntry[] = []
@@ -309,18 +309,22 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
   // Nested subflow containers (e.g., inner parallel inside outer parallel) may not
   // have store entries if no block:started event was emitted for them. Without a
   // parent subflow group, their child entries would be silently dropped from the tree.
-  const existingContainerIds = new Set(
-    Array.from(subflowGroups.values()).map((sg) => sg.iterationContainerId)
-  )
-
+  // Check at the iteration level (not container level) so that existing iterations
+  // from topLevelIterationEntries don't block synthetic creation for other iterations
+  // of the same container (e.g., loop iterations 1-4 when iteration 0 already exists).
   const syntheticIterations = new Map<string, IterationGroup>()
   for (const entry of nestedIterationEntries) {
     const parent = entry.parentIterations?.[0]
-    if (!parent?.iterationContainerId || existingContainerIds.has(parent.iterationContainerId)) {
+    if (!parent?.iterationContainerId) {
       continue
     }
 
+    // Only skip if this specific iteration already has a group from topLevelIterationEntries
     const iterKey = `${parent.iterationType}-${parent.iterationContainerId}-${parent.iterationCurrent}`
+    if (iterationGroupsMap.has(iterKey)) {
+      continue
+    }
+
     const entryMs = new Date(entry.startedAt || entry.timestamp).getTime()
     if (!syntheticIterations.has(iterKey)) {
       syntheticIterations.set(iterKey, {
@@ -358,8 +362,16 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
   }
 
   for (const subflow of syntheticSubflows.values()) {
-    subflow.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
-    subflowGroups.set(`${subflow.iterationType}-${subflow.iterationContainerId}`, subflow)
+    const key = `${subflow.iterationType}-${subflow.iterationContainerId}`
+    const existing = subflowGroups.get(key)
+    if (existing) {
+      // Merge synthetic iteration groups into the existing subflow group
+      existing.groups.push(...subflow.groups)
+      existing.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
+    } else {
+      subflow.groups.sort((a, b) => a.iterationCurrent - b.iterationCurrent)
+      subflowGroups.set(key, subflow)
+    }
   }
 
   const subflowNodes: EntryNode[] = []
@@ -373,9 +385,10 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
 
     const allDirectBlocks = iterationGroups.flatMap((g) => g.blocks)
     const allRelevantBlocks = [...allDirectBlocks, ...nestedForThisSubflow]
-    const subflowStartMs = Math.min(
-      ...allRelevantBlocks.map((b) => new Date(b.startedAt || b.timestamp).getTime())
-    )
+    if (allRelevantBlocks.length === 0) continue
+
+    const timestamps = allRelevantBlocks.map((b) => new Date(b.startedAt || b.timestamp).getTime())
+    const subflowStartMs = Math.min(...timestamps)
     const subflowEndMs = Math.max(
       ...allRelevantBlocks.map((b) => new Date(b.endedAt || b.timestamp).getTime())
     )
@@ -401,87 +414,91 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
       iterationContainerId,
     }
 
-    const iterationNodes: EntryNode[] = iterationGroups.map((iterGroup) => {
-      const matchingNestedEntries = nestedForThisSubflow.filter((e) => {
-        const parent = e.parentIterations?.[0]
-        return parent?.iterationCurrent === iterGroup.iterationCurrent
-      })
+    const iterationNodes: EntryNode[] = iterationGroups
+      .map((iterGroup): EntryNode | null => {
+        const matchingNestedEntries = nestedForThisSubflow.filter((e) => {
+          const parent = e.parentIterations?.[0]
+          return parent?.iterationCurrent === iterGroup.iterationCurrent
+        })
 
-      const strippedNestedEntries: ConsoleEntry[] = matchingNestedEntries.map((e) => ({
-        ...e,
-        parentIterations:
-          e.parentIterations && e.parentIterations.length > 1
-            ? e.parentIterations.slice(1)
-            : undefined,
-      }))
+        const strippedNestedEntries: ConsoleEntry[] = matchingNestedEntries.map((e) => ({
+          ...e,
+          parentIterations:
+            e.parentIterations && e.parentIterations.length > 1
+              ? e.parentIterations.slice(1)
+              : undefined,
+        }))
 
-      const iterBlocks = iterGroup.blocks
-      const allIterEntries = [...iterBlocks, ...strippedNestedEntries]
-      const iterStartMs = Math.min(
-        ...allIterEntries.map((b) => new Date(b.startedAt || b.timestamp).getTime())
-      )
-      const iterEndMs = Math.max(
-        ...allIterEntries.map((b) => new Date(b.endedAt || b.timestamp).getTime())
-      )
-      const iterDuration = allIterEntries.reduce((sum, b) => sum + (b.durationMs || 0), 0)
-      const iterDisplayDuration =
-        iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
+        const iterBlocks = iterGroup.blocks
+        const allIterEntries = [...iterBlocks, ...strippedNestedEntries]
+        if (allIterEntries.length === 0) return null
 
-      const iterExecutionOrder = Math.min(...allIterEntries.map((b) => b.executionOrder))
-      const syntheticIteration: ConsoleEntry = {
-        id: `${idPrefix}iteration-${iterationType}-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
-        timestamp: new Date(iterStartMs).toISOString(),
-        workflowId: iterBlocks[0]?.workflowId || '',
-        blockId: `iteration-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}`,
-        blockName: `Iteration ${iterGroup.iterationCurrent}${iterGroup.iterationTotal !== undefined ? ` / ${iterGroup.iterationTotal}` : ''}`,
-        blockType: iterationType,
-        executionId: iterBlocks[0]?.executionId,
-        startedAt: new Date(iterStartMs).toISOString(),
-        executionOrder: iterExecutionOrder,
-        endedAt: new Date(iterEndMs).toISOString(),
-        durationMs: iterDisplayDuration,
-        success: !allIterEntries.some((b) => b.error),
-        iterationCurrent: iterGroup.iterationCurrent,
-        iterationTotal: iterGroup.iterationTotal,
-        iterationType: iterationType as 'loop' | 'parallel',
-        iterationContainerId: iterGroup.iterationContainerId,
-      }
+        const iterStartMs = Math.min(
+          ...allIterEntries.map((b) => new Date(b.startedAt || b.timestamp).getTime())
+        )
+        const iterEndMs = Math.max(
+          ...allIterEntries.map((b) => new Date(b.endedAt || b.timestamp).getTime())
+        )
+        const iterDuration = allIterEntries.reduce((sum, b) => sum + (b.durationMs || 0), 0)
+        const iterDisplayDuration =
+          iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
 
-      const blockNodes: EntryNode[] = iterBlocks.map((block) => {
-        if (isWorkflowBlockType(block.blockType)) {
-          const instanceKey = block.childWorkflowInstanceId ?? block.blockId
-          const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
-          const rawChildren = allDescendants.map((c) => ({
-            ...c,
-            childWorkflowBlockId:
-              c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
-          }))
-          return {
-            entry: block,
-            children: buildEntryTree(rawChildren),
-            nodeType: 'workflow' as const,
-          }
+        const iterExecutionOrder = Math.min(...allIterEntries.map((b) => b.executionOrder))
+        const syntheticIteration: ConsoleEntry = {
+          id: `${idPrefix}iteration-${iterationType}-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
+          timestamp: new Date(iterStartMs).toISOString(),
+          workflowId: iterBlocks[0]?.workflowId || '',
+          blockId: `iteration-${iterGroup.iterationContainerId}-${iterGroup.iterationCurrent}`,
+          blockName: `Iteration ${iterGroup.iterationCurrent}${iterGroup.iterationTotal !== undefined ? ` / ${iterGroup.iterationTotal}` : ''}`,
+          blockType: iterationType,
+          executionId: iterBlocks[0]?.executionId,
+          startedAt: new Date(iterStartMs).toISOString(),
+          executionOrder: iterExecutionOrder,
+          endedAt: new Date(iterEndMs).toISOString(),
+          durationMs: iterDisplayDuration,
+          success: !allIterEntries.some((b) => b.error),
+          iterationCurrent: iterGroup.iterationCurrent,
+          iterationTotal: iterGroup.iterationTotal,
+          iterationType: iterationType as 'loop' | 'parallel',
+          iterationContainerId: iterGroup.iterationContainerId,
         }
-        return { entry: block, children: [], nodeType: 'block' as const }
+
+        const blockNodes: EntryNode[] = iterBlocks.map((block) => {
+          if (isWorkflowBlockType(block.blockType)) {
+            const instanceKey = block.childWorkflowInstanceId ?? block.blockId
+            const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
+            const rawChildren = allDescendants.map((c) => ({
+              ...c,
+              childWorkflowBlockId:
+                c.childWorkflowBlockId === instanceKey ? undefined : c.childWorkflowBlockId,
+            }))
+            return {
+              entry: block,
+              children: buildEntryTree(rawChildren),
+              nodeType: 'workflow' as const,
+            }
+          }
+          return { entry: block, children: [], nodeType: 'block' as const }
+        })
+
+        const childPrefix = `${idPrefix}${iterationContainerId}-${iterGroup.iterationCurrent}-`
+        const nestedSubflowNodes =
+          strippedNestedEntries.length > 0 ? buildEntryTree(strippedNestedEntries, childPrefix) : []
+
+        const allChildren = [...blockNodes, ...nestedSubflowNodes]
+        allChildren.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
+
+        return {
+          entry: syntheticIteration,
+          children: allChildren,
+          nodeType: 'iteration' as const,
+          iterationInfo: {
+            current: iterGroup.iterationCurrent,
+            total: iterGroup.iterationTotal,
+          },
+        }
       })
-
-      const childPrefix = `${idPrefix}${iterationContainerId}-${iterGroup.iterationCurrent}-`
-      const nestedSubflowNodes =
-        strippedNestedEntries.length > 0 ? buildEntryTree(strippedNestedEntries, childPrefix) : []
-
-      const allChildren = [...blockNodes, ...nestedSubflowNodes]
-      allChildren.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
-
-      return {
-        entry: syntheticIteration,
-        children: allChildren,
-        nodeType: 'iteration' as const,
-        iterationInfo: {
-          current: iterGroup.iterationCurrent,
-          total: iterGroup.iterationTotal,
-        },
-      }
-    })
+      .filter((node): node is EntryNode => node !== null)
 
     subflowNodes.push({
       entry: syntheticSubflow,
@@ -517,6 +534,7 @@ function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNode[] {
 
   const allNodes = [...subflowNodes, ...workflowNodes, ...regularNodes]
   allNodes.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
+
   return allNodes
 }
 

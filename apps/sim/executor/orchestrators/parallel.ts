@@ -9,11 +9,11 @@ import {
   type NormalizedBlockOutput,
 } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
+import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
   extractBranchIndex,
-  extractOuterBranchIndex,
   resolveArrayInput,
   validateMaxCount,
 } from '@/executor/utils/subflow-utils'
@@ -134,11 +134,11 @@ export class ParallelOrchestrator {
     )
 
     // Register cloned subflows in the parent map so iteration context resolves correctly
-    if (clonedSubflows.length > 0 && ctx.parallelParentMap) {
+    if (clonedSubflows.length > 0 && ctx.subflowParentMap) {
       for (const clone of clonedSubflows) {
-        const originalParent = ctx.parallelParentMap.get(clone.originalId)
-        if (originalParent) {
-          ctx.parallelParentMap.set(clone.clonedId, originalParent)
+        const originalEntry = ctx.subflowParentMap.get(clone.originalId)
+        if (originalEntry) {
+          ctx.subflowParentMap.set(clone.clonedId, originalEntry)
         }
       }
     }
@@ -284,23 +284,12 @@ export class ParallelOrchestrator {
     this.state.setBlockOutput(parallelId, output)
 
     // Emit onBlockComplete for the parallel container so the UI can track it.
-    // When this parallel is nested inside a parent parallel, emit iteration context
-    // referencing the parent so the terminal can group this event under the parent container.
+    // When this parallel is nested inside a parent subflow (parallel or loop), emit
+    // iteration context so the terminal can group this event under the parent container.
     if (this.contextExtensions?.onBlockComplete) {
       const now = new Date().toISOString()
-      const parentParallelId = ctx.parallelParentMap?.get(parallelId)
-      const parentScope = parentParallelId
-        ? ctx.parallelExecutions?.get(parentParallelId)
-        : undefined
-      const outerBranchIndex = parentParallelId ? (extractOuterBranchIndex(parallelId) ?? 0) : 0
-      const iterationContext = parentScope
-        ? {
-            iterationCurrent: outerBranchIndex,
-            iterationTotal: parentScope.totalBranches,
-            iterationType: 'parallel' as const,
-            iterationContainerId: parentParallelId!,
-          }
-        : undefined
+      const iterationContext = buildContainerIterationContext(ctx, parallelId)
+
       this.contextExtensions.onBlockComplete(
         parallelId,
         'Parallel',

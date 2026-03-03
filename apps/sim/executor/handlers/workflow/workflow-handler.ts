@@ -160,12 +160,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
           : block.id
         const iterationContext = nodeMetadata ? getIterationContext(ctx, nodeMetadata) : undefined
-        ctx.onChildWorkflowInstanceReady?.(
-          effectiveBlockId,
-          instanceId,
-          iterationContext,
-          nodeMetadata?.executionOrder
-        )
+        ctx.onChildWorkflowInstanceReady?.(effectiveBlockId, instanceId, iterationContext)
       }
 
       const subExecutor = new Executor({

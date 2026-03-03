@@ -13,8 +13,12 @@ vi.mock('@/executor/constants', () => ({
   }),
 }))
 
+vi.mock('@/stores/constants', () => ({
+  TERMINAL_BLOCK_COLUMN_WIDTH: { MIN: 120, DEFAULT: 200, MAX: 400 },
+}))
+
 import type { ConsoleEntry } from '@/stores/terminal'
-import { groupEntriesByExecution } from './utils'
+import { buildEntryTree, type EntryNode, groupEntriesByExecution } from './utils'
 
 let entryCounter = 0
 
@@ -33,276 +37,408 @@ function makeEntry(overrides: Partial<ConsoleEntry>): ConsoleEntry {
   } as ConsoleEntry
 }
 
-describe('buildEntryTree via groupEntriesByExecution', () => {
-  it('creates synthetic parent groups for orphaned nested iteration entries', () => {
-    const outerParallelId = 'outer-parallel'
-    const innerParallelId = 'inner-parallel'
+/** Collect all nodes from a tree depth-first */
+function collectAllNodes(nodes: EntryNode[]): EntryNode[] {
+  const result: EntryNode[] = []
+  for (const node of nodes) {
+    result.push(node)
+    result.push(...collectAllNodes(node.children))
+  }
+  return result
+}
 
-    const entries: ConsoleEntry[] = [
-      makeEntry({
-        id: 'start-entry',
-        blockId: 'start',
-        blockName: 'Start',
-        blockType: 'start_trigger',
-        executionOrder: 0,
-      }),
-      makeEntry({
-        id: 'func-0',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 1,
-        iterationType: 'parallel',
-        iterationCurrent: 0,
-        iterationTotal: 3,
-        iterationContainerId: innerParallelId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 2,
+/**
+ * Creates entries for a parallel-in-loop scenario.
+ * All Function 1 entries are nestedIterationEntries (have parentIterations).
+ * No topLevelIterationEntries exist (sentinels don't emit SSE events).
+ */
+function makeParallelInLoopEntries(
+  loopIterations: number,
+  parallelBranches: number
+): ConsoleEntry[] {
+  const entries: ConsoleEntry[] = []
+  let order = 1
+  for (let loopIter = 0; loopIter < loopIterations; loopIter++) {
+    for (let branch = 0; branch < parallelBranches; branch++) {
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          blockName: 'Function 1',
+          executionOrder: order++,
+          startedAt: new Date(Date.UTC(2025, 0, 1, 0, 0, loopIter * 10 + branch)).toISOString(),
+          endedAt: new Date(Date.UTC(2025, 0, 1, 0, 0, loopIter * 10 + branch + 1)).toISOString(),
+          durationMs: 50,
+          iterationType: 'parallel',
+          iterationCurrent: branch,
+          iterationTotal: parallelBranches,
+          iterationContainerId: 'parallel-1',
+          parentIterations: [
+            {
+              iterationType: 'loop',
+              iterationCurrent: loopIter,
+              iterationTotal: loopIterations,
+              iterationContainerId: 'loop-1',
+            },
+          ],
+        })
+      )
+    }
+  }
+  return entries
+}
+
+describe('buildEntryTree', () => {
+  describe('simple loop (no nesting)', () => {
+    it('groups entries by loop iteration', () => {
+      const entries: ConsoleEntry[] = []
+      for (let iter = 0; iter < 3; iter++) {
+        entries.push(
+          makeEntry({
+            blockId: 'function-1',
+            blockName: 'Function 1',
+            executionOrder: iter + 1,
+            iterationType: 'loop',
+            iterationCurrent: iter,
+            iterationTotal: 3,
+            iterationContainerId: 'loop-1',
+          })
+        )
+      }
+
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('loop')
+      expect(subflows[0].children).toHaveLength(3)
+
+      for (let i = 0; i < 3; i++) {
+        expect(subflows[0].children[i].iterationInfo?.current).toBe(i)
+        expect(subflows[0].children[i].children).toHaveLength(1)
+        expect(subflows[0].children[i].children[0].entry.blockId).toBe('function-1')
+      }
+    })
+  })
+
+  describe('simple parallel (no nesting)', () => {
+    it('groups entries by parallel branch', () => {
+      const entries: ConsoleEntry[] = []
+      for (let branch = 0; branch < 4; branch++) {
+        entries.push(
+          makeEntry({
+            blockId: 'function-1',
+            blockName: 'Function 1',
+            executionOrder: branch + 1,
             iterationType: 'parallel',
-            iterationContainerId: outerParallelId,
-          },
-        ],
-      }),
-      makeEntry({
-        id: 'func-1',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 2,
-        iterationType: 'parallel',
-        iterationCurrent: 1,
-        iterationTotal: 3,
-        iterationContainerId: innerParallelId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 2,
-            iterationType: 'parallel',
-            iterationContainerId: outerParallelId,
-          },
-        ],
-      }),
-      makeEntry({
-        id: 'func-2',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 3,
-        iterationType: 'parallel',
-        iterationCurrent: 2,
-        iterationTotal: 3,
-        iterationContainerId: innerParallelId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 2,
-            iterationType: 'parallel',
-            iterationContainerId: outerParallelId,
-          },
-        ],
-      }),
-    ]
+            iterationCurrent: branch,
+            iterationTotal: 4,
+            iterationContainerId: 'parallel-1',
+          })
+        )
+      }
+
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('parallel')
+      expect(subflows[0].children).toHaveLength(4)
+    })
+  })
+
+  describe('parallel-in-loop', () => {
+    it('creates all loop iterations (5 loop × 5 parallel)', () => {
+      const entries = makeParallelInLoopEntries(5, 5)
+      expect(entries).toHaveLength(25)
+
+      const tree = buildEntryTree(entries)
+
+      // Top level: 1 subflow (Loop)
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('loop')
+
+      // Loop has 5 iteration children
+      const loopIterations = subflows[0].children
+      expect(loopIterations).toHaveLength(5)
+
+      for (let loopIter = 0; loopIter < 5; loopIter++) {
+        const iterNode = loopIterations[loopIter]
+        expect(iterNode.nodeType).toBe('iteration')
+        expect(iterNode.iterationInfo?.current).toBe(loopIter)
+        expect(iterNode.iterationInfo?.total).toBe(5)
+
+        // Each loop iteration has 1 nested subflow (Parallel)
+        const parallelSubflows = iterNode.children.filter((n) => n.nodeType === 'subflow')
+        expect(parallelSubflows).toHaveLength(1)
+        expect(parallelSubflows[0].entry.blockType).toBe('parallel')
+
+        // Each parallel has 5 branch iterations
+        const branches = parallelSubflows[0].children
+        expect(branches).toHaveLength(5)
+        for (let branch = 0; branch < 5; branch++) {
+          expect(branches[branch].iterationInfo?.current).toBe(branch)
+          expect(branches[branch].children).toHaveLength(1)
+          expect(branches[branch].children[0].entry.blockId).toBe('function-1')
+        }
+      }
+    })
+
+    it('preserves all block entries in the tree (no silently dropped entries)', () => {
+      const entries = makeParallelInLoopEntries(5, 5)
+      const tree = buildEntryTree(entries)
+
+      const allNodes = collectAllNodes(tree)
+      const blocks = allNodes.filter(
+        (n) => n.nodeType === 'block' && n.entry.blockId === 'function-1'
+      )
+      expect(blocks).toHaveLength(25)
+    })
+
+    it('works with a regular block alongside', () => {
+      const entries = [
+        makeEntry({
+          blockId: 'start-1',
+          blockName: 'Start',
+          blockType: 'starter',
+          executionOrder: 0,
+        }),
+        ...makeParallelInLoopEntries(3, 2),
+      ]
+
+      const tree = buildEntryTree(entries)
+
+      const regularBlocks = tree.filter((n) => n.nodeType === 'block')
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(regularBlocks).toHaveLength(1)
+      expect(regularBlocks[0].entry.blockId).toBe('start-1')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].children).toHaveLength(3)
+    })
+
+    it('works when some iterations also have topLevelIterationEntries', () => {
+      const entries: ConsoleEntry[] = [
+        // Real top-level entry for loop iteration 0 (from a container event)
+        makeEntry({
+          blockId: 'parallel-container',
+          blockName: 'Parallel',
+          blockType: 'parallel',
+          executionOrder: 100,
+          iterationType: 'loop',
+          iterationCurrent: 0,
+          iterationTotal: 3,
+          iterationContainerId: 'loop-1',
+        }),
+        ...makeParallelInLoopEntries(3, 2),
+      ]
+
+      const tree = buildEntryTree(entries)
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+
+      // All 3 loop iterations must exist
+      expect(subflows[0].children).toHaveLength(3)
+
+      // All 6 Function 1 blocks should appear somewhere in the tree
+      const allNodes = collectAllNodes(tree)
+      const fnBlocks = allNodes.filter(
+        (n) => n.nodeType === 'block' && n.entry.blockId === 'function-1'
+      )
+      expect(fnBlocks).toHaveLength(6)
+    })
+
+    it('handles 2 loop × 3 parallel', () => {
+      const entries = makeParallelInLoopEntries(2, 3)
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].children).toHaveLength(2)
+
+      const allNodes = collectAllNodes(tree)
+      const blocks = allNodes.filter(
+        (n) => n.nodeType === 'block' && n.entry.blockId === 'function-1'
+      )
+      expect(blocks).toHaveLength(6)
+    })
+  })
+
+  describe('loop-in-parallel', () => {
+    it('creates all parallel branches with nested loop iterations', () => {
+      const entries: ConsoleEntry[] = []
+      let order = 1
+      for (let branch = 0; branch < 3; branch++) {
+        for (let loopIter = 0; loopIter < 2; loopIter++) {
+          entries.push(
+            makeEntry({
+              blockId: 'function-1',
+              blockName: 'Function 1',
+              executionOrder: order++,
+              iterationType: 'loop',
+              iterationCurrent: loopIter,
+              iterationTotal: 2,
+              iterationContainerId: 'loop-1',
+              parentIterations: [
+                {
+                  iterationType: 'parallel',
+                  iterationCurrent: branch,
+                  iterationTotal: 3,
+                  iterationContainerId: 'parallel-1',
+                },
+              ],
+            })
+          )
+        }
+      }
+
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('parallel')
+
+      // 3 parallel branches
+      const branches = subflows[0].children
+      expect(branches).toHaveLength(3)
+
+      for (let branch = 0; branch < 3; branch++) {
+        const branchNode = branches[branch]
+        expect(branchNode.iterationInfo?.current).toBe(branch)
+
+        // Each branch has a nested loop subflow
+        const nestedSubflows = branchNode.children.filter((n) => n.nodeType === 'subflow')
+        expect(nestedSubflows).toHaveLength(1)
+        expect(nestedSubflows[0].entry.blockType).toBe('loop')
+
+        // Each loop has 2 iterations
+        expect(nestedSubflows[0].children).toHaveLength(2)
+      }
+    })
+  })
+
+  describe('loop-in-loop', () => {
+    it('creates outer and inner loop iterations', () => {
+      const entries: ConsoleEntry[] = []
+      let order = 1
+      for (let outer = 0; outer < 2; outer++) {
+        for (let inner = 0; inner < 3; inner++) {
+          entries.push(
+            makeEntry({
+              blockId: 'function-1',
+              blockName: 'Function 1',
+              executionOrder: order++,
+              iterationType: 'loop',
+              iterationCurrent: inner,
+              iterationTotal: 3,
+              iterationContainerId: 'inner-loop',
+              parentIterations: [
+                {
+                  iterationType: 'loop',
+                  iterationCurrent: outer,
+                  iterationTotal: 2,
+                  iterationContainerId: 'outer-loop',
+                },
+              ],
+            })
+          )
+        }
+      }
+
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('loop')
+
+      // Outer loop: 2 iterations
+      expect(subflows[0].children).toHaveLength(2)
+
+      for (let outer = 0; outer < 2; outer++) {
+        const outerIter = subflows[0].children[outer]
+        expect(outerIter.iterationInfo?.current).toBe(outer)
+
+        // Each outer iteration has an inner loop
+        const innerSubflows = outerIter.children.filter((n) => n.nodeType === 'subflow')
+        expect(innerSubflows).toHaveLength(1)
+        expect(innerSubflows[0].children).toHaveLength(3)
+      }
+
+      // All 6 blocks present
+      const allNodes = collectAllNodes(tree)
+      const blocks = allNodes.filter((n) => n.nodeType === 'block')
+      expect(blocks).toHaveLength(6)
+    })
+  })
+
+  describe('parallel-in-parallel', () => {
+    it('creates outer and inner parallel branches', () => {
+      const entries: ConsoleEntry[] = []
+      let order = 1
+      for (let outer = 0; outer < 2; outer++) {
+        for (let inner = 0; inner < 3; inner++) {
+          entries.push(
+            makeEntry({
+              blockId: 'function-1',
+              blockName: 'Function 1',
+              executionOrder: order++,
+              iterationType: 'parallel',
+              iterationCurrent: inner,
+              iterationTotal: 3,
+              iterationContainerId: 'inner-parallel',
+              parentIterations: [
+                {
+                  iterationType: 'parallel',
+                  iterationCurrent: outer,
+                  iterationTotal: 2,
+                  iterationContainerId: 'outer-parallel',
+                },
+              ],
+            })
+          )
+        }
+      }
+
+      const tree = buildEntryTree(entries)
+
+      const subflows = tree.filter((n) => n.nodeType === 'subflow')
+      expect(subflows).toHaveLength(1)
+      expect(subflows[0].entry.blockType).toBe('parallel')
+
+      // 2 outer branches
+      expect(subflows[0].children).toHaveLength(2)
+
+      for (let outer = 0; outer < 2; outer++) {
+        const outerBranch = subflows[0].children[outer]
+        const innerSubflows = outerBranch.children.filter((n) => n.nodeType === 'subflow')
+        expect(innerSubflows).toHaveLength(1)
+        expect(innerSubflows[0].children).toHaveLength(3)
+      }
+
+      const allNodes = collectAllNodes(tree)
+      const blocks = allNodes.filter((n) => n.nodeType === 'block')
+      expect(blocks).toHaveLength(6)
+    })
+  })
+})
+
+describe('groupEntriesByExecution', () => {
+  it('builds tree for parallel-in-loop via groupEntriesByExecution', () => {
+    const entries = makeParallelInLoopEntries(3, 2)
 
     const groups = groupEntriesByExecution(entries)
     expect(groups).toHaveLength(1)
 
-    const tree = groups[0].entryTree
-    // Should have: Start block + outer parallel subflow
-    expect(tree).toHaveLength(2)
-
-    const startNode = tree.find((n) => n.entry.blockType === 'start_trigger')
-    expect(startNode).toBeDefined()
-    expect(startNode!.nodeType).toBe('block')
-
-    // The outer parallel should be a synthetic subflow node
-    const outerSubflow = tree.find((n) => n.nodeType === 'subflow')
-    expect(outerSubflow).toBeDefined()
-    expect(outerSubflow!.entry.blockType).toBe('parallel')
-
-    // Outer subflow should have 1 iteration (iteration 0 of outer)
-    expect(outerSubflow!.children).toHaveLength(1)
-    const outerIteration = outerSubflow!.children[0]
-    expect(outerIteration.nodeType).toBe('iteration')
-    expect(outerIteration.iterationInfo?.current).toBe(0)
-
-    // Inside outer iteration: inner parallel subflow (created by recursive buildEntryTree)
-    const innerSubflow = outerIteration.children.find((n) => n.nodeType === 'subflow')
-    expect(innerSubflow).toBeDefined()
-    expect(innerSubflow!.entry.blockType).toBe('parallel')
-
-    // Inner subflow should have 3 iterations
-    expect(innerSubflow!.children).toHaveLength(3)
-    for (let i = 0; i < 3; i++) {
-      const innerIter = innerSubflow!.children[i]
-      expect(innerIter.nodeType).toBe('iteration')
-      expect(innerIter.iterationInfo?.current).toBe(i)
-      // Each iteration should have 1 function block
-      expect(innerIter.children).toHaveLength(1)
-      expect(innerIter.children[0].entry.blockType).toBe('function')
-    }
+    const entryTree = groups[0].entryTree
+    const subflows = entryTree.filter((n) => n.nodeType === 'subflow')
+    expect(subflows).toHaveLength(1)
+    expect(subflows[0].children).toHaveLength(3)
   })
 
-  it('handles entries with multiple nesting levels in parentIterations', () => {
-    const outerParallelId = 'outer'
-    const middleParallelId = 'middle'
-    const innerParallelId = 'inner'
-
+  it('handles workflow child entries alongside iteration entries', () => {
     const entries: ConsoleEntry[] = [
       makeEntry({
-        id: 'func-0',
-        blockId: 'func-1',
-        blockName: 'Function',
-        blockType: 'function',
-        executionOrder: 1,
-        iterationType: 'parallel',
-        iterationCurrent: 0,
-        iterationTotal: 2,
-        iterationContainerId: innerParallelId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 2,
-            iterationType: 'parallel',
-            iterationContainerId: outerParallelId,
-          },
-          {
-            iterationCurrent: 0,
-            iterationTotal: 3,
-            iterationType: 'parallel',
-            iterationContainerId: middleParallelId,
-          },
-        ],
-      }),
-    ]
-
-    const groups = groupEntriesByExecution(entries)
-    const tree = groups[0].entryTree
-
-    // Outer parallel subflow
-    expect(tree).toHaveLength(1)
-    const outerSubflow = tree[0]
-    expect(outerSubflow.nodeType).toBe('subflow')
-
-    // Outer iteration 0
-    expect(outerSubflow.children).toHaveLength(1)
-    const outerIter = outerSubflow.children[0]
-    expect(outerIter.nodeType).toBe('iteration')
-
-    // Middle parallel subflow (nested)
-    const middleSubflow = outerIter.children.find((n) => n.nodeType === 'subflow')
-    expect(middleSubflow).toBeDefined()
-
-    // Middle iteration 0
-    expect(middleSubflow!.children).toHaveLength(1)
-    const middleIter = middleSubflow!.children[0]
-    expect(middleIter.nodeType).toBe('iteration')
-
-    // Inner parallel subflow (doubly nested)
-    const innerSubflow = middleIter.children.find((n) => n.nodeType === 'subflow')
-    expect(innerSubflow).toBeDefined()
-
-    // Inner iteration 0 with the function block
-    expect(innerSubflow!.children).toHaveLength(1)
-    expect(innerSubflow!.children[0].children).toHaveLength(1)
-    expect(innerSubflow!.children[0].children[0].entry.blockType).toBe('function')
-  })
-
-  it('creates nested loop-in-loop tree structure', () => {
-    const outerLoopId = 'outer-loop'
-    const innerLoopId = 'inner-loop'
-
-    const entries: ConsoleEntry[] = [
-      makeEntry({
-        id: 'outer-0-inner-0',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 1,
-        iterationType: 'loop',
-        iterationCurrent: 0,
-        iterationTotal: 2,
-        iterationContainerId: innerLoopId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 3,
-            iterationType: 'loop',
-            iterationContainerId: outerLoopId,
-          },
-        ],
-      }),
-      makeEntry({
-        id: 'outer-0-inner-1',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 2,
-        iterationType: 'loop',
-        iterationCurrent: 1,
-        iterationTotal: 2,
-        iterationContainerId: innerLoopId,
-        parentIterations: [
-          {
-            iterationCurrent: 0,
-            iterationTotal: 3,
-            iterationType: 'loop',
-            iterationContainerId: outerLoopId,
-          },
-        ],
-      }),
-      makeEntry({
-        id: 'outer-1-inner-0',
-        blockId: 'func-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 3,
-        iterationType: 'loop',
-        iterationCurrent: 0,
-        iterationTotal: 2,
-        iterationContainerId: innerLoopId,
-        parentIterations: [
-          {
-            iterationCurrent: 1,
-            iterationTotal: 3,
-            iterationType: 'loop',
-            iterationContainerId: outerLoopId,
-          },
-        ],
-      }),
-    ]
-
-    const groups = groupEntriesByExecution(entries)
-    const tree = groups[0].entryTree
-
-    // Outer loop subflow
-    expect(tree).toHaveLength(1)
-    const outerSubflow = tree[0]
-    expect(outerSubflow.nodeType).toBe('subflow')
-    expect(outerSubflow.entry.blockType).toBe('loop')
-
-    // Outer loop should have 2 iterations (0 and 1)
-    expect(outerSubflow.children).toHaveLength(2)
-    expect(outerSubflow.children[0].iterationInfo?.current).toBe(0)
-    expect(outerSubflow.children[1].iterationInfo?.current).toBe(1)
-
-    // Outer iteration 0 should contain inner loop subflow
-    const innerSubflow0 = outerSubflow.children[0].children.find((n) => n.nodeType === 'subflow')
-    expect(innerSubflow0).toBeDefined()
-    expect(innerSubflow0!.children).toHaveLength(2) // 2 inner iterations
-
-    // Outer iteration 1 should contain inner loop subflow with 1 iteration
-    const innerSubflow1 = outerSubflow.children[1].children.find((n) => n.nodeType === 'subflow')
-    expect(innerSubflow1).toBeDefined()
-    expect(innerSubflow1!.children).toHaveLength(1) // 1 inner iteration
-  })
-
-  it('groups workflow block entries into child workflow subtrees', () => {
-    const entries: ConsoleEntry[] = [
-      makeEntry({
-        id: 'parent-start',
-        blockId: 'start-block',
+        id: 'start-entry',
+        blockId: 'start',
         blockName: 'Start',
         blockType: 'start_trigger',
         executionOrder: 0,
@@ -330,19 +466,12 @@ describe('buildEntryTree via groupEntriesByExecution', () => {
     expect(groups).toHaveLength(1)
 
     const tree = groups[0].entryTree
-    // Start block and workflow block at top level
     expect(tree.length).toBeGreaterThanOrEqual(2)
 
     const startNode = tree.find((n) => n.entry.blockType === 'start_trigger')
     expect(startNode).toBeDefined()
 
-    // The workflow block should exist in the tree
-    const wfNode = tree.find(
-      (n) => n.entry.blockType === 'workflow' || n.entry.blockId === 'wf-block-1'
-    )
-    expect(wfNode).toBeDefined()
-
-    // The child entry should be nested under the workflow block, not at top level
+    // Child entry should be nested under workflow block, not at top level
     const topLevelChild = tree.find((n) => n.entry.blockId === 'child-func')
     expect(topLevelChild).toBeUndefined()
   })

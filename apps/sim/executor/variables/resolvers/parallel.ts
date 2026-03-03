@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { isReference, parseReferencePath, REFERENCE } from '@/executor/constants'
+import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
-import { extractBaseBlockId, extractBranchIndex } from '@/executor/utils/subflow-utils'
+import {
+  extractBranchIndex,
+  findEffectiveContainerId,
+  stripCloneSuffixes,
+  stripOuterBranchSuffix,
+} from '@/executor/utils/subflow-utils'
 import {
   navigatePath,
   type ResolutionContext,
@@ -12,9 +17,18 @@ import type { SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('ParallelResolver')
 
 export class ParallelResolver implements Resolver {
-  constructor(private workflow: SerializedWorkflow) {}
+  private parallelNameToId: Map<string, string>
 
-  private static KNOWN_PROPERTIES = ['index', 'currentItem', 'items']
+  constructor(private workflow: SerializedWorkflow) {
+    this.parallelNameToId = new Map()
+    for (const block of workflow.blocks) {
+      if (workflow.parallels?.[block.id] && block.metadata?.name) {
+        this.parallelNameToId.set(normalizeName(block.metadata.name), block.id)
+      }
+    }
+  }
+
+  private static KNOWN_PROPERTIES = new Set(['index', 'currentItem', 'items'])
 
   canResolve(reference: string): boolean {
     if (!isReference(reference)) {
@@ -25,7 +39,7 @@ export class ParallelResolver implements Resolver {
       return false
     }
     const [type] = parts
-    return type === REFERENCE.PREFIX.PARALLEL
+    return type === REFERENCE.PREFIX.PARALLEL || this.parallelNameToId.has(type)
   }
 
   resolve(reference: string, context: ResolutionContext): any {
@@ -35,15 +49,48 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    const parallelId = this.findParallelForBlock(context.currentNodeId)
-    if (!parallelId) {
+    const [firstPart, ...rest] = parts
+    const isGenericRef = firstPart === REFERENCE.PREFIX.PARALLEL
+
+    // For named references, resolve to the specific parallel ID
+    let targetParallelId: string | undefined
+    if (isGenericRef) {
+      targetParallelId = this.findInnermostParallelForBlock(context.currentNodeId)
+    } else {
+      targetParallelId = this.parallelNameToId.get(firstPart)
+    }
+
+    if (!targetParallelId) {
       return undefined
     }
 
-    const parallelConfig = this.workflow.parallels?.[parallelId]
+    // Resolve the effective (possibly cloned) parallel ID for scope lookups
+    if (context.executionContext.parallelExecutions) {
+      targetParallelId = findEffectiveContainerId(
+        targetParallelId,
+        context.currentNodeId,
+        context.executionContext.parallelExecutions
+      )
+    }
+
+    // Look up config using the original (non-cloned) ID
+    const originalParallelId = stripOuterBranchSuffix(targetParallelId)
+    const parallelConfig = this.workflow.parallels?.[originalParallelId]
     if (!parallelConfig) {
-      logger.warn('Parallel config not found', { parallelId })
+      logger.warn('Parallel config not found', { parallelId: targetParallelId })
       return undefined
+    }
+
+    // For named references, verify the current node is inside the referenced parallel
+    if (!isGenericRef) {
+      if (!this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)) {
+        logger.warn('Block is not inside the referenced parallel', {
+          reference,
+          blockId: context.currentNodeId,
+          parallelId: targetParallelId,
+        })
+        return undefined
+      }
     }
 
     const branchIndex = extractBranchIndex(context.currentNodeId)
@@ -51,10 +98,10 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    const parallelScope = context.executionContext.parallelExecutions?.get(parallelId)
+    const parallelScope = context.executionContext.parallelExecutions?.get(targetParallelId)
     const distributionItems = parallelScope?.items ?? this.getDistributionItems(parallelConfig)
 
-    if (parts.length === 1) {
+    if (rest.length === 0) {
       const result: Record<string, any> = {
         index: branchIndex,
       }
@@ -71,11 +118,13 @@ export class ParallelResolver implements Resolver {
       return result
     }
 
-    const [_, property, ...pathParts] = parts
-    if (!ParallelResolver.KNOWN_PROPERTIES.includes(property)) {
+    const property = rest[0]
+    const pathParts = rest.slice(1)
+
+    if (!ParallelResolver.KNOWN_PROPERTIES.has(property)) {
       const isCollection = parallelConfig.parallelType === 'collection'
       const availableFields = isCollection ? ['index', 'currentItem', 'items'] : ['index']
-      throw new InvalidFieldError('parallel', property, availableFields)
+      throw new InvalidFieldError(firstPart, property, availableFields)
     }
 
     let value: any
@@ -106,19 +155,66 @@ export class ParallelResolver implements Resolver {
     return value
   }
 
-  private findParallelForBlock(blockId: string): string | undefined {
-    const baseId = extractBaseBlockId(blockId)
-    if (!this.workflow.parallels) {
-      return undefined
-    }
-    for (const parallelId of Object.keys(this.workflow.parallels)) {
-      const parallelConfig = this.workflow.parallels[parallelId]
-      if (parallelConfig?.nodes.includes(baseId)) {
-        return parallelId
+  private findInnermostParallelForBlock(blockId: string): string | undefined {
+    const baseId = stripCloneSuffixes(blockId)
+    const parallels = this.workflow.parallels
+    if (!parallels) return undefined
+
+    const candidateIds = Object.keys(parallels).filter((parallelId) =>
+      parallels[parallelId]?.nodes.includes(baseId)
+    )
+    if (candidateIds.length === 0) return undefined
+    if (candidateIds.length === 1) return candidateIds[0]
+
+    // Return the innermost: the parallel that is not an ancestor of any other candidate
+    return (
+      candidateIds.find((candidateId) =>
+        candidateIds.every(
+          (otherId) => otherId === candidateId || !parallels[candidateId]?.nodes.includes(otherId)
+        )
+      ) ?? candidateIds[0]
+    )
+  }
+
+  private isBlockInParallelOrDescendant(blockId: string, targetParallelId: string): boolean {
+    const baseId = stripCloneSuffixes(blockId)
+    const parallels = this.workflow.parallels
+    if (!parallels) return false
+
+    const targetConfig = parallels[targetParallelId]
+    if (!targetConfig) return false
+
+    if (targetConfig.nodes.includes(baseId)) return true
+
+    // Check nested parallels recursively
+    const directParallelId = this.findInnermostParallelForBlock(blockId)
+    if (!directParallelId) return false
+    if (directParallelId === targetParallelId) return true
+
+    return this.isParallelNestedInside(directParallelId, targetParallelId)
+  }
+
+  private isParallelNestedInside(
+    childParallelId: string,
+    ancestorParallelId: string,
+    visited = new Set<string>()
+  ): boolean {
+    if (visited.has(ancestorParallelId)) return false
+    visited.add(ancestorParallelId)
+
+    const ancestorConfig = this.workflow.parallels?.[ancestorParallelId]
+    if (!ancestorConfig) return false
+
+    if (ancestorConfig.nodes.includes(childParallelId)) return true
+
+    for (const nodeId of ancestorConfig.nodes) {
+      if (this.workflow.parallels?.[nodeId]) {
+        if (this.isParallelNestedInside(childParallelId, nodeId, visited)) {
+          return true
+        }
       }
     }
-
-    return undefined
+    return false
   }
 
   private getDistributionItems(parallelConfig: any): any[] {

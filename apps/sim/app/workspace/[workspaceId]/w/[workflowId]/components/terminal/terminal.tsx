@@ -71,23 +71,19 @@ const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
 
 const MAX_TREE_DEPTH = 50
 
-/** Returns true if any node in the subtree has an error */
-function hasErrorInTree(nodes: EntryNode[], depth = 0): boolean {
+function hasMatchInTree(
+  nodes: EntryNode[],
+  predicate: (e: ConsoleEntry) => boolean,
+  depth = 0
+): boolean {
   if (depth >= MAX_TREE_DEPTH) return false
-  return nodes.some((n) => Boolean(n.entry.error) || hasErrorInTree(n.children, depth + 1))
+  return nodes.some((n) => predicate(n.entry) || hasMatchInTree(n.children, predicate, depth + 1))
 }
 
-/** Returns true if any node in the subtree is currently running */
-function hasRunningInTree(nodes: EntryNode[], depth = 0): boolean {
-  if (depth >= MAX_TREE_DEPTH) return false
-  return nodes.some((n) => Boolean(n.entry.isRunning) || hasRunningInTree(n.children, depth + 1))
-}
-
-/** Returns true if any node in the subtree was canceled */
-function hasCanceledInTree(nodes: EntryNode[], depth = 0): boolean {
-  if (depth >= MAX_TREE_DEPTH) return false
-  return nodes.some((n) => Boolean(n.entry.isCanceled) || hasCanceledInTree(n.children, depth + 1))
-}
+const hasErrorInTree = (nodes: EntryNode[]) => hasMatchInTree(nodes, (e) => Boolean(e.error))
+const hasRunningInTree = (nodes: EntryNode[]) => hasMatchInTree(nodes, (e) => Boolean(e.isRunning))
+const hasCanceledInTree = (nodes: EntryNode[]) =>
+  hasMatchInTree(nodes, (e) => Boolean(e.isCanceled))
 
 /**
  * Block row component for displaying actual block entries

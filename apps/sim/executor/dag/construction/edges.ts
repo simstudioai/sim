@@ -12,7 +12,6 @@ import {
   buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
-  extractBaseBlockId,
   normalizeNodeId,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -318,7 +317,14 @@ export class EdgeConstructor {
       for (const terminalNodeId of terminalNodes) {
         const resolvedId = this.resolveLoopBlockToSentinelEnd(terminalNodeId, dag)
         if (resolvedId !== terminalNodeId) {
-          this.addEdge(dag, resolvedId, sentinelEndId, EDGE.LOOP_EXIT)
+          // Use the sourceHandle that matches the nested subflow's exit route.
+          // Parallel sentinel-end outputs selectedRoute "parallel_exit",
+          // loop sentinel-end outputs "loop_exit". The edge manager only activates
+          // edges whose sourceHandle matches the source node's selectedRoute.
+          const handle = dag.parallelConfigs.has(terminalNodeId)
+            ? EDGE.PARALLEL_EXIT
+            : EDGE.LOOP_EXIT
+          this.addEdge(dag, resolvedId, sentinelEndId, handle)
         } else {
           this.addEdge(dag, resolvedId, sentinelEndId)
         }
@@ -353,7 +359,10 @@ export class EdgeConstructor {
       for (const terminalNodeId of terminalNodes) {
         const sourceId = this.resolveSubflowToSentinelEnd(terminalNodeId, dag)
         if (dag.nodes.has(sourceId)) {
-          this.addEdge(dag, sourceId, sentinelEndId, EDGE.PARALLEL_EXIT)
+          // Use the sourceHandle that matches the nested subflow's exit route.
+          // A nested loop sentinel-end outputs "loop_exit", not "parallel_exit".
+          const handle = dag.loopConfigs.has(terminalNodeId) ? EDGE.LOOP_EXIT : EDGE.PARALLEL_EXIT
+          this.addEdge(dag, sourceId, sentinelEndId, handle)
         }
       }
     }
@@ -580,7 +589,7 @@ export class EdgeConstructor {
       if (startNode) {
         let hasIncomingFromParallel = false
         for (const incomingNodeId of startNode.incomingEdges) {
-          const originalNodeId = normalizeNodeId(extractBaseBlockId(incomingNodeId))
+          const originalNodeId = normalizeNodeId(incomingNodeId)
           if (nodesSet.has(originalNodeId)) {
             hasIncomingFromParallel = true
             break
@@ -595,7 +604,7 @@ export class EdgeConstructor {
       if (endNode) {
         let hasOutgoingToParallel = false
         for (const [, edge] of endNode.outgoingEdges) {
-          const originalTargetId = normalizeNodeId(extractBaseBlockId(edge.target))
+          const originalTargetId = normalizeNodeId(edge.target)
           if (nodesSet.has(originalTargetId)) {
             hasOutgoingToParallel = true
             break

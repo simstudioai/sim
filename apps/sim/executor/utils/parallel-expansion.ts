@@ -4,6 +4,7 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock } from '@/serializer/types'
 import {
   buildBranchNodeId,
+  buildClonedSubflowId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
   buildSentinelEndId,
@@ -291,7 +292,7 @@ export class ParallelExpander {
       : dag.loopConfigs.get(subflowId)!
     const blockIds = config.nodes || []
 
-    const clonedSubflowId = `${subflowId}__obranch-${outerBranchIndex}`
+    const clonedSubflowId = buildClonedSubflowId(subflowId, outerBranchIndex)
     const origStartId = isParallel
       ? buildParallelSentinelStartId(subflowId)
       : buildSentinelStartId(subflowId)
@@ -314,7 +315,7 @@ export class ParallelExpander {
     const allOrigIds: string[] = [origStartId, origEndId]
 
     for (const blockId of blockIds) {
-      const clonedBlockId = `${blockId}__obranch-${outerBranchIndex}`
+      const clonedBlockId = buildClonedSubflowId(blockId, outerBranchIndex)
       clonedBlockIds.push(clonedBlockId)
 
       const isNestedParallel = dag.parallelConfigs.has(blockId)

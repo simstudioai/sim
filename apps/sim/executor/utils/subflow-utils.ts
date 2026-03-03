@@ -121,6 +121,66 @@ export function stripCloneSuffixes(nodeId: string): string {
   return extractBaseBlockId(nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, ''))
 }
 
+/**
+ * Builds a cloned subflow ID from an original ID and outer branch index.
+ */
+export function buildClonedSubflowId(originalId: string, branchIndex: number): string {
+  return `${originalId}__obranch-${branchIndex}`
+}
+
+/**
+ * Strips outer-branch clone suffixes (`__obranch-N`) from an ID,
+ * returning the original workflow-level subflow ID.
+ */
+export function stripOuterBranchSuffix(id: string): string {
+  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '')
+}
+
+/**
+ * Finds the effective (possibly cloned) container ID for a subflow,
+ * given the current node's ID and an execution map (loopExecutions or parallelExecutions).
+ *
+ * When inside a cloned subflow (e.g., loop-1__obranch-2), the execution scope is
+ * stored under the cloned ID, not the original. This function extracts the `__obranch-N`
+ * suffix from the current node ID, constructs the candidate cloned container ID, and
+ * checks if it exists in the execution map.
+ *
+ * Returns the effective ID (cloned or original) that exists in the map.
+ */
+export function findEffectiveContainerId(
+  originalId: string,
+  currentNodeId: string,
+  executionMap: Map<string, unknown>
+): string {
+  // If the original ID already exists, use it directly
+  if (executionMap.has(originalId)) {
+    return originalId
+  }
+
+  // Extract __obranch-N suffix from the current node ID
+  const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
+  if (match) {
+    const candidateId = buildClonedSubflowId(
+      originalId,
+      Number.parseInt(match[1], PARSING.JSON_RADIX)
+    )
+    if (executionMap.has(candidateId)) {
+      return candidateId
+    }
+  }
+
+  // Fallback: scan execution map for a cloned variant
+  const prefix = `${originalId}__obranch-`
+  for (const key of executionMap.keys()) {
+    if (key.startsWith(prefix)) {
+      return key
+    }
+  }
+
+  // No clone found — return original (caller handles missing scope)
+  return originalId
+}
+
 export function normalizeNodeId(nodeId: string): string {
   if (isBranchNodeId(nodeId)) {
     return extractBaseBlockId(nodeId)

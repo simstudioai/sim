@@ -33,6 +33,7 @@ import {
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedWorkflow } from '@/serializer/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DAGExecutor')
 
@@ -68,8 +69,7 @@ export class DAGExecutor {
       savedIncomingEdges,
     })
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
-    context.loopParentMap = this.buildLoopParentMap(dag)
-    context.parallelParentMap = this.buildParallelParentMap(dag)
+    context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -211,8 +211,7 @@ export class DAGExecutor {
       snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
-    context.loopParentMap = this.buildLoopParentMap(dag)
-    context.parallelParentMap = this.buildParallelParentMap(dag)
+    context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
@@ -377,32 +376,33 @@ export class DAGExecutor {
   }
 
   /**
-   * Builds a child-loop -> parent-loop mapping for nested loop iteration tracking.
+   * Builds a unified child-subflow → parent-subflow mapping that covers all nesting
+   * combinations: loop-in-loop, parallel-in-parallel, loop-in-parallel, parallel-in-loop.
+   * Used by the iteration context builder to walk the full ancestor chain for SSE events.
    */
-  private buildLoopParentMap(dag: DAG): Map<string, string> {
-    const parentMap = new Map<string, string>()
+  private buildSubflowParentMap(
+    dag: DAG
+  ): Map<string, { parentId: string; parentType: SubflowType }> {
+    const parentMap = new Map<string, { parentId: string; parentType: SubflowType }>()
+
+    // Scan loop configs: children can be loops or parallels
     for (const [loopId, config] of dag.loopConfigs) {
       for (const nodeId of config.nodes) {
-        if (dag.loopConfigs.has(nodeId)) {
-          parentMap.set(nodeId, loopId)
+        if (dag.loopConfigs.has(nodeId) || dag.parallelConfigs.has(nodeId)) {
+          parentMap.set(nodeId, { parentId: loopId, parentType: 'loop' })
         }
       }
     }
-    return parentMap
-  }
 
-  /**
-   * Builds a child-parallel -> parent-parallel mapping for nested parallel iteration tracking.
-   */
-  private buildParallelParentMap(dag: DAG): Map<string, string> {
-    const parentMap = new Map<string, string>()
+    // Scan parallel configs: children can be parallels or loops
     for (const [parallelId, config] of dag.parallelConfigs) {
       for (const nodeId of config.nodes ?? []) {
-        if (dag.parallelConfigs.has(nodeId)) {
-          parentMap.set(nodeId, parallelId)
+        if (dag.parallelConfigs.has(nodeId) || dag.loopConfigs.has(nodeId)) {
+          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel' })
         }
       }
     }
+
     return parentMap
   }
 

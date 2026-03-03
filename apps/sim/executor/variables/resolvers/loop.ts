@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
-import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
+import {
+  findEffectiveContainerId,
+  stripCloneSuffixes,
+  stripOuterBranchSuffix,
+} from '@/executor/utils/subflow-utils'
 import {
   navigatePath,
   type ResolutionContext,
@@ -24,15 +28,7 @@ export class LoopResolver implements Resolver {
   }
 
   private static OUTPUT_PROPERTIES = new Set(['result', 'results'])
-  private static KNOWN_PROPERTIES = new Set([
-    'iteration',
-    'index',
-    'item',
-    'currentItem',
-    'items',
-    'result',
-    'results',
-  ])
+  private static KNOWN_PROPERTIES = new Set(['iteration', 'index', 'item', 'currentItem', 'items'])
 
   canResolve(reference: string): boolean {
     if (!isReference(reference)) {
@@ -68,6 +64,15 @@ export class LoopResolver implements Resolver {
       if (!targetLoopId) {
         return undefined
       }
+    }
+
+    // Resolve the effective (possibly cloned) loop ID for scope/output lookups
+    if (targetLoopId && context.executionContext.loopExecutions) {
+      targetLoopId = findEffectiveContainerId(
+        targetLoopId,
+        context.currentNodeId,
+        context.executionContext.loopExecutions
+      )
     }
 
     if (rest.length > 0) {
@@ -162,19 +167,28 @@ export class LoopResolver implements Resolver {
   }
 
   private findInnermostLoopForBlock(blockId: string): string | undefined {
-    const baseId = extractBaseBlockId(blockId)
-    for (const loopId of Object.keys(this.workflow.loops || {})) {
-      const loopConfig = this.workflow.loops[loopId]
-      if (loopConfig.nodes.includes(baseId)) {
-        return loopId
-      }
-    }
-    return undefined
+    const baseId = stripCloneSuffixes(blockId)
+    const loops = this.workflow.loops || {}
+    const candidateLoopIds = Object.keys(loops).filter((loopId) =>
+      loops[loopId].nodes.includes(baseId)
+    )
+    if (candidateLoopIds.length === 0) return undefined
+    if (candidateLoopIds.length === 1) return candidateLoopIds[0]
+
+    // Return the innermost: the loop that is not an ancestor of any other candidate
+    return (
+      candidateLoopIds.find((candidateId) =>
+        candidateLoopIds.every(
+          (otherId) => otherId === candidateId || !loops[candidateId].nodes.includes(otherId)
+        )
+      ) ?? candidateLoopIds[0]
+    )
   }
 
   private isBlockInLoopOrDescendant(blockId: string, targetLoopId: string): boolean {
-    const baseId = extractBaseBlockId(blockId)
-    const targetLoop = this.workflow.loops?.[targetLoopId]
+    const baseId = stripCloneSuffixes(blockId)
+    const originalLoopId = stripOuterBranchSuffix(targetLoopId)
+    const targetLoop = this.workflow.loops?.[originalLoopId]
     if (!targetLoop) {
       return false
     }
@@ -182,10 +196,13 @@ export class LoopResolver implements Resolver {
       return true
     }
     const directLoopId = this.findInnermostLoopForBlock(blockId)
-    if (!directLoopId || directLoopId === targetLoopId) {
+    if (!directLoopId) {
       return false
     }
-    return this.isLoopNestedInside(directLoopId, targetLoopId)
+    if (directLoopId === originalLoopId) {
+      return true
+    }
+    return this.isLoopNestedInside(directLoopId, originalLoopId)
   }
 
   private isLoopNestedInside(
@@ -214,7 +231,8 @@ export class LoopResolver implements Resolver {
   }
 
   private isForEachLoop(loopId: string): boolean {
-    const loopConfig = this.workflow.loops?.[loopId]
+    const originalId = stripOuterBranchSuffix(loopId)
+    const loopConfig = this.workflow.loops?.[originalId]
     return loopConfig?.loopType === 'forEach'
   }
 }

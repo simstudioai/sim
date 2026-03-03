@@ -77,8 +77,6 @@ const ToolbarItem = memo(function ToolbarItem({
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart, isTrigger]
   )
 
-  const handleDragEnd = useCallback(() => {}, [])
-
   const handleClick = useCallback(() => {
     onClick(item.type, isTriggerCapable)
   }, [item.type, isTriggerCapable, onClick])
@@ -107,7 +105,6 @@ const ToolbarItem = memo(function ToolbarItem({
       tabIndex={-1}
       draggable
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       className={clsx(

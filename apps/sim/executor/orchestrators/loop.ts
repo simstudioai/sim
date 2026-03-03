@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
-import { buildLoopIndexCondition, DEFAULTS, EDGE } from '@/executor/constants'
+import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
@@ -13,10 +13,10 @@ import {
   type NormalizedBlockOutput,
 } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
+import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   addSubflowErrorLog,
-  buildBranchNodeId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
   buildSentinelEndId,
@@ -288,13 +288,21 @@ export class LoopOrchestrator {
 
     if (this.contextExtensions?.onBlockComplete) {
       const now = new Date().toISOString()
-      this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
-        output,
-        executionTime: DEFAULTS.EXECUTION_TIME,
-        startedAt: now,
-        executionOrder: getNextExecutionOrder(ctx),
-        endedAt: now,
-      })
+      const iterationContext = buildContainerIterationContext(ctx, loopId)
+
+      this.contextExtensions.onBlockComplete(
+        loopId,
+        'Loop',
+        'loop',
+        {
+          output,
+          executionTime: DEFAULTS.EXECUTION_TIME,
+          startedAt: now,
+          executionOrder: getNextExecutionOrder(ctx),
+          endedAt: now,
+        },
+        iterationContext
+      )
     }
 
     return {
@@ -351,6 +359,18 @@ export class LoopOrchestrator {
     for (const nodeId of loopConfig.nodes) {
       if (this.dag.loopConfigs.has(nodeId)) {
         ctx.loopExecutions?.delete(nodeId)
+        // Delete cloned loop variants (e.g., inner-loop__obranch-N)
+        // Only delete clone entries from subflowParentMap, never the original
+        // structural entries which are needed for SSE iteration context.
+        if (ctx.loopExecutions) {
+          const prefix = `${nodeId}__obranch-`
+          for (const key of ctx.loopExecutions.keys()) {
+            if (key.startsWith(prefix)) {
+              ctx.loopExecutions.delete(key)
+              ctx.subflowParentMap?.delete(key)
+            }
+          }
+        }
         this.resetNestedLoopScopes(nodeId, ctx)
       }
     }
@@ -380,7 +400,9 @@ export class LoopOrchestrator {
    */
   private deleteParallelScopeAndClones(parallelId: string, ctx: ExecutionContext): void {
     ctx.parallelExecutions?.delete(parallelId)
-    ctx.parallelParentMap?.delete(parallelId)
+    // Do NOT delete the original entry from subflowParentMap — it is a static
+    // structural mapping needed for SSE iteration context on subsequent loop
+    // iterations. Only delete __obranch-N clone entries below.
 
     // Delete any cloned scopes (e.g., inner-parallel__obranch-1)
     if (ctx.parallelExecutions) {
@@ -388,7 +410,7 @@ export class LoopOrchestrator {
       for (const key of ctx.parallelExecutions.keys()) {
         if (key.startsWith(prefix)) {
           ctx.parallelExecutions.delete(key)
-          ctx.parallelParentMap?.delete(key)
+          ctx.subflowParentMap?.delete(key)
         }
       }
     }
@@ -427,10 +449,12 @@ export class LoopOrchestrator {
         for (const id of this.collectAllLoopNodeIds(nodeId, visited)) {
           result.add(id)
         }
+        this.collectClonedSubflowNodes(nodeId, result, visited)
       } else if (this.dag.parallelConfigs.has(nodeId)) {
         for (const id of this.collectAllParallelNodeIds(nodeId, visited)) {
           result.add(id)
         }
+        this.collectClonedSubflowNodes(nodeId, result, visited)
       } else {
         result.add(nodeId)
       }
@@ -459,17 +483,61 @@ export class LoopOrchestrator {
         for (const id of this.collectAllLoopNodeIds(nodeId, visited)) {
           result.add(id)
         }
+        // Also collect cloned loop variants (e.g., loop-1__obranch-N)
+        this.collectClonedSubflowNodes(nodeId, result, visited)
       } else if (this.dag.parallelConfigs.has(nodeId)) {
         for (const id of this.collectAllParallelNodeIds(nodeId, visited)) {
           result.add(id)
         }
+        // Also collect cloned parallel variants
+        this.collectClonedSubflowNodes(nodeId, result, visited)
       } else {
         result.add(nodeId)
-        result.add(buildBranchNodeId(nodeId, 0))
+        // Collect ALL dynamic branch nodes (not just branch 0)
+        this.collectAllBranchNodes(nodeId, result)
       }
     }
 
     return result
+  }
+
+  /**
+   * Collects all branch nodes for a given base block ID by scanning the DAG.
+   * This captures dynamically created branches (1, 2, ...) beyond the template (0).
+   */
+  private collectAllBranchNodes(baseNodeId: string, result: Set<string>): void {
+    const prefix = `${baseNodeId}${PARALLEL.BRANCH.PREFIX}`
+    for (const dagNodeId of this.dag.nodes.keys()) {
+      if (dagNodeId.startsWith(prefix)) {
+        result.add(dagNodeId)
+      }
+    }
+  }
+
+  /**
+   * Collects all cloned subflow variants (e.g., loop-1__obranch-N) and their
+   * descendant nodes by scanning the DAG configs.
+   */
+  private collectClonedSubflowNodes(
+    originalId: string,
+    result: Set<string>,
+    visited: Set<string>
+  ): void {
+    const prefix = `${originalId}__obranch-`
+    for (const loopId of this.dag.loopConfigs.keys()) {
+      if (loopId.startsWith(prefix)) {
+        for (const id of this.collectAllLoopNodeIds(loopId, visited)) {
+          result.add(id)
+        }
+      }
+    }
+    for (const parallelId of this.dag.parallelConfigs.keys()) {
+      if (parallelId.startsWith(prefix)) {
+        for (const id of this.collectAllParallelNodeIds(parallelId, visited)) {
+          result.add(id)
+        }
+      }
+    }
   }
 
   restoreLoopEdges(loopId: string): void {

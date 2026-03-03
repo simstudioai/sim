@@ -8,6 +8,7 @@ import type {
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface UserFile {
   id: string
@@ -193,14 +194,12 @@ export interface ExecutionContext {
   completedLoops: Set<string>
 
   /**
-   * Maps child loop IDs to their parent loop IDs for nested loop iteration tracking.
+   * Unified parent map for subflow nesting (loop-in-loop, parallel-in-parallel,
+   * loop-in-parallel, parallel-in-loop). Maps any child subflow ID to its parent
+   * subflow ID and type, enabling the iteration context builder to walk the full
+   * ancestor chain regardless of subflow type.
    */
-  loopParentMap?: Map<string, string>
-
-  /**
-   * Maps child parallel IDs to their parent parallel IDs for nested parallel iteration tracking.
-   */
-  parallelParentMap?: Map<string, string>
+  subflowParentMap?: Map<string, { parentId: string; parentType: SubflowType }>
 
   loopExecutions?: Map<
     string,

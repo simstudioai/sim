@@ -1,6 +1,6 @@
 import { DEFAULTS } from '@/executor/constants'
 import type { NodeMetadata } from '@/executor/dag/types'
-import type { IterationContext } from '@/executor/execution/types'
+import type { IterationContext, ParentIteration } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 
@@ -18,7 +18,8 @@ export type IterationNodeMetadata = Pick<
 
 /**
  * Resolves the iteration context for a node based on its metadata and execution state.
- * Handles both parallel (branch) and loop iteration contexts.
+ * Handles both parallel (branch) and loop iteration contexts, including cross-type
+ * nesting (loop-in-parallel, parallel-in-loop) via the unified subflow parent map.
  */
 export function getIterationContext(
   ctx: ExecutionContext,
@@ -28,7 +29,7 @@ export function getIterationContext(
 
   if (metadata.branchIndex !== undefined && metadata.branchTotal !== undefined) {
     const parentIterations = metadata.parallelId
-      ? buildParallelParentIterations(ctx, metadata.parallelId)
+      ? buildUnifiedParentIterations(ctx, metadata.parallelId)
       : []
     return {
       iterationCurrent: metadata.branchIndex,
@@ -42,7 +43,7 @@ export function getIterationContext(
   if (metadata.isLoopNode && metadata.loopId) {
     const loopScope = ctx.loopExecutions?.get(metadata.loopId)
     if (loopScope && loopScope.iteration !== undefined) {
-      const parentIterations = buildParentIterations(ctx, metadata.loopId)
+      const parentIterations = buildUnifiedParentIterations(ctx, metadata.loopId)
       return {
         iterationCurrent: loopScope.iteration,
         iterationTotal: loopScope.maxIterations,
@@ -57,69 +58,93 @@ export function getIterationContext(
 }
 
 /**
- * Walks the loop parent map to build the ancestor iteration chain.
- * Returns an array of parent iteration contexts, ordered from outermost to innermost.
+ * Builds a single-level iteration context for a container (loop/parallel) that is
+ * nested inside a parent subflow. Used by orchestrators when emitting onBlockComplete
+ * for container sentinel nodes.
  */
-export function buildParentIterations(
+export function buildContainerIterationContext(
   ctx: ExecutionContext,
-  loopId: string
-): NonNullable<IterationContext['parentIterations']> {
-  const parents: NonNullable<IterationContext['parentIterations']> = []
-  const visited = new Set<string>()
-  let currentLoopId = loopId
-  while (
-    ctx.loopParentMap?.has(currentLoopId) &&
-    !visited.has(currentLoopId) &&
-    visited.size < MAX_PARENT_DEPTH
-  ) {
-    visited.add(currentLoopId)
-    const parentLoopId = ctx.loopParentMap.get(currentLoopId)!
-    const parentScope = ctx.loopExecutions?.get(parentLoopId)
+  containerId: string
+): IterationContext | undefined {
+  const parentEntry = ctx.subflowParentMap?.get(containerId)
+  if (!parentEntry) return undefined
+
+  if (parentEntry.parentType === 'parallel') {
+    const parentScope = ctx.parallelExecutions?.get(parentEntry.parentId)
+    if (parentScope) {
+      return {
+        iterationCurrent: extractOuterBranchIndex(containerId) ?? 0,
+        iterationTotal: parentScope.totalBranches,
+        iterationType: 'parallel',
+        iterationContainerId: parentEntry.parentId,
+      }
+    }
+  } else if (parentEntry.parentType === 'loop') {
+    const parentScope = ctx.loopExecutions?.get(parentEntry.parentId)
     if (parentScope && parentScope.iteration !== undefined) {
-      parents.unshift({
+      return {
         iterationCurrent: parentScope.iteration,
         iterationTotal: parentScope.maxIterations,
         iterationType: 'loop',
-        iterationContainerId: parentLoopId,
-      })
+        iterationContainerId: parentEntry.parentId,
+      }
     }
-    currentLoopId = parentLoopId
   }
-  return parents
+  return undefined
 }
 
 /**
- * Walks the parallel parent map to build the ancestor parallel iteration chain.
- * For nested parallels (parallel-in-parallel), the outer parallel is a pass-through
- * container — its scope tracks the branch count but individual blocks only know about
- * the innermost parallel. This function resolves the outer parallel context so the
- * terminal can display the full nesting hierarchy.
+ * Walks the unified subflow parent map to build the full ancestor iteration chain,
+ * handling all nesting combinations (loop-in-loop, parallel-in-parallel,
+ * loop-in-parallel, parallel-in-loop).
+ *
+ * Returns an array of parent iteration contexts, ordered from outermost to innermost.
  */
-export function buildParallelParentIterations(
+export function buildUnifiedParentIterations(
   ctx: ExecutionContext,
-  parallelId: string
-): NonNullable<IterationContext['parentIterations']> {
-  const parents: NonNullable<IterationContext['parentIterations']> = []
+  subflowId: string
+): ParentIteration[] {
+  if (!ctx.subflowParentMap) {
+    return []
+  }
+
+  const parents: ParentIteration[] = []
   const visited = new Set<string>()
-  let currentId = parallelId
+  let currentId = subflowId
+
   while (
-    ctx.parallelParentMap?.has(currentId) &&
+    ctx.subflowParentMap.has(currentId) &&
     !visited.has(currentId) &&
     visited.size < MAX_PARENT_DEPTH
   ) {
     visited.add(currentId)
-    const parentParallelId = ctx.parallelParentMap.get(currentId)!
-    const parentScope = ctx.parallelExecutions?.get(parentParallelId)
-    if (parentScope) {
-      const outerBranchIndex = extractOuterBranchIndex(currentId) ?? 0
-      parents.unshift({
-        iterationCurrent: outerBranchIndex,
-        iterationTotal: parentScope.totalBranches,
-        iterationType: 'parallel',
-        iterationContainerId: parentParallelId,
-      })
+    const { parentId, parentType } = ctx.subflowParentMap.get(currentId)!
+
+    if (parentType === 'loop') {
+      const parentScope = ctx.loopExecutions?.get(parentId)
+      if (parentScope && parentScope.iteration !== undefined) {
+        parents.unshift({
+          iterationCurrent: parentScope.iteration,
+          iterationTotal: parentScope.maxIterations,
+          iterationType: 'loop',
+          iterationContainerId: parentId,
+        })
+      }
+    } else {
+      const parentScope = ctx.parallelExecutions?.get(parentId)
+      if (parentScope) {
+        const outerBranchIndex = extractOuterBranchIndex(currentId) ?? 0
+        parents.unshift({
+          iterationCurrent: outerBranchIndex,
+          iterationTotal: parentScope.totalBranches,
+          iterationType: 'parallel',
+          iterationContainerId: parentId,
+        })
+      }
     }
-    currentId = parentParallelId
+
+    currentId = parentId
   }
+
   return parents
 }
