@@ -1170,7 +1170,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const loopBlockGroups: BlockTagGroup[] = []
     const ancestorLoopIds = new Set<string>()
 
-    const findAncestorLoops = (targetId: string) => {
+    const findAncestorContainers = (targetId: string) => {
+      // Check if targetId is directly inside any loop
       for (const [loopId, loop] of Object.entries(loops)) {
         if (loop.nodes.includes(targetId) && !ancestorLoopIds.has(loopId)) {
           ancestorLoopIds.add(loopId)
@@ -1193,7 +1194,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               isContextual: true,
             })
           }
-          findAncestorLoops(loopId)
+          findAncestorContainers(loopId)
+        }
+      }
+      // Also walk through containing parallels so we find loops that contain
+      // the parallel (e.g. block inside parallel inside loop)
+      for (const [parallelId, parallel] of Object.entries(parallels || {})) {
+        if (parallel.nodes.includes(targetId)) {
+          findAncestorContainers(parallelId)
         }
       }
     }
@@ -1221,40 +1229,52 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           isContextual: true,
         })
       }
-      findAncestorLoops(blockId)
+      findAncestorContainers(blockId)
     } else {
-      findAncestorLoops(blockId)
+      findAncestorContainers(blockId)
     }
 
-    let parallelBlockGroup: BlockTagGroup | null = null
-    const containingParallel = Object.entries(parallels || {}).find(([_, parallel]) =>
-      parallel.nodes.includes(blockId)
-    )
-    let containingParallelBlockId: string | null = null
-    if (containingParallel) {
-      const [parallelId, parallel] = containingParallel
-      containingParallelBlockId = parallelId
-      const parallelType = parallel.parallelType || 'count'
+    const parallelBlockGroups: BlockTagGroup[] = []
+    const ancestorParallelIds = new Set<string>()
 
-      const containingParallelBlock = blocks[parallelId]
-      if (containingParallelBlock) {
-        const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
-        const normalizedParallelName = normalizeName(parallelBlockName)
-        const contextualTags: string[] = [`${normalizedParallelName}.index`]
-        if (parallelType === 'collection') {
-          contextualTags.push(`${normalizedParallelName}.currentItem`)
-          contextualTags.push(`${normalizedParallelName}.items`)
-        }
-
-        parallelBlockGroup = {
-          blockName: parallelBlockName,
-          blockId: parallelId,
-          blockType: 'parallel',
-          tags: contextualTags,
-          distance: 0,
-          isContextual: true,
+    const findAncestorParallels = (targetId: string) => {
+      for (const [parallelId, parallel] of Object.entries(parallels || {})) {
+        if (parallel.nodes.includes(targetId) && !ancestorParallelIds.has(parallelId)) {
+          ancestorParallelIds.add(parallelId)
+          const parallelBlock = blocks[parallelId]
+          if (parallelBlock) {
+            const parallelType = parallel.parallelType || 'count'
+            const parallelBlockName = parallelBlock.name || parallelBlock.type
+            const normalizedParallelName = normalizeName(parallelBlockName)
+            const contextualTags: string[] = [`${normalizedParallelName}.index`]
+            if (parallelType === 'collection') {
+              contextualTags.push(`${normalizedParallelName}.currentItem`)
+              contextualTags.push(`${normalizedParallelName}.items`)
+            }
+            parallelBlockGroups.push({
+              blockName: parallelBlockName,
+              blockId: parallelId,
+              blockType: 'parallel',
+              tags: contextualTags,
+              distance: 0,
+              isContextual: true,
+            })
+          }
+          // Walk up through containing loops and parallels
+          for (const [loopId, loop] of Object.entries(loops)) {
+            if (loop.nodes.includes(parallelId)) {
+              findAncestorParallels(loopId)
+            }
+          }
+          findAncestorParallels(parallelId)
         }
       }
+    }
+
+    findAncestorParallels(blockId)
+    // Also check through ancestor loops (a block in a loop that's in a parallel)
+    for (const loopId of ancestorLoopIds) {
+      findAncestorParallels(loopId)
     }
 
     const blockTagGroups: BlockTagGroup[] = []
@@ -1277,7 +1297,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         if (accessibleBlock.type === 'loop' || accessibleBlock.type === 'parallel') {
           if (
             ancestorLoopIds.has(accessibleBlockId) ||
-            accessibleBlockId === containingParallelBlockId
+            ancestorParallelIds.has(accessibleBlockId)
           ) {
             continue
           }
@@ -1368,9 +1388,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
     const finalBlockTagGroups: BlockTagGroup[] = []
     finalBlockTagGroups.push(...loopBlockGroups)
-    if (parallelBlockGroup) {
-      finalBlockTagGroups.push(parallelBlockGroup)
-    }
+    finalBlockTagGroups.push(...parallelBlockGroups)
 
     blockTagGroups.sort((a, b) => a.distance - b.distance)
     finalBlockTagGroups.push(...blockTagGroups)
