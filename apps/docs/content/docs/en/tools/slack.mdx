@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events
+description: Send, update, delete messages, send ephemeral messages, add or remove reactions in Slack or trigger workflows from Slack events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -788,6 +788,30 @@ Add an emoji reaction to a Slack message
 | `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
 | `timestamp` | string | Yes | Timestamp of the message to react to \(e.g., 1405894322.002768\) |
 | `name` | string | Yes | Name of the emoji reaction \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `reaction` | string | Emoji reaction name |
+
+### `slack_remove_reaction`
+
+Remove an emoji reaction from a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to remove reaction from \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction to remove \(without colons, e.g., thumbsup, heart, eyes\) |
 
 #### Output
 

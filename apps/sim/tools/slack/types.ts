@@ -561,6 +561,12 @@ export interface SlackAddReactionParams extends SlackBaseParams {
   name: string
 }
 
+export interface SlackRemoveReactionParams extends SlackBaseParams {
+  channel: string
+  timestamp: string
+  name: string
+}
+
 export interface SlackListChannelsParams extends SlackBaseParams {
   includePrivate?: boolean
   excludeArchived?: boolean
@@ -759,6 +765,17 @@ export interface SlackAddReactionResponse extends ToolResponse {
   }
 }
 
+export interface SlackRemoveReactionResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      channel: string
+      timestamp: string
+      reaction: string
+    }
+  }
+}
+
 export interface SlackChannel {
   id: string
   name: string
@@ -866,6 +883,7 @@ export type SlackResponse =
   | SlackUpdateMessageResponse
   | SlackDeleteMessageResponse
   | SlackAddReactionResponse
+  | SlackRemoveReactionResponse
   | SlackListChannelsResponse
   | SlackListMembersResponse
   | SlackListUsersResponse

@@ -1,4 +1,5 @@
 import { slackAddReactionTool } from '@/tools/slack/add_reaction'
+import { slackRemoveReactionTool } from '@/tools/slack/remove_reaction'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackDeleteMessageTool } from '@/tools/slack/delete_message'
 import { slackDownloadTool } from '@/tools/slack/download'
@@ -22,6 +23,7 @@ export {
   slackUpdateMessageTool,
   slackDeleteMessageTool,
   slackAddReactionTool,
+  slackRemoveReactionTool,
   slackListChannelsTool,
   slackListMembersTool,
   slackListUsersTool,

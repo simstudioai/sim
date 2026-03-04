@@ -1796,6 +1796,7 @@ import {
 } from '@/tools/similarweb'
 import {
   slackAddReactionTool,
+  slackRemoveReactionTool,
   slackCanvasTool,
   slackDeleteMessageTool,
   slackDownloadTool,
@@ -2611,6 +2612,7 @@ export const tools: Record<string, ToolConfig> = {
   slack_update_message: slackUpdateMessageTool,
   slack_delete_message: slackDeleteMessageTool,
   slack_add_reaction: slackAddReactionTool,
+  slack_remove_reaction: slackRemoveReactionTool,
   github_repo_info: githubRepoInfoTool,
   github_repo_info_v2: githubRepoInfoV2Tool,
   github_latest_commit: githubLatestCommitTool,
