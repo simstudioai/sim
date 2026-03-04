@@ -7,6 +7,7 @@ import {
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -60,7 +61,6 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
-
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -289,8 +289,9 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
    * Handle tag selection from dropdown
    */
   const handleSubflowTagSelect = useCallback(
-    (newValue: string) => {
+    (newValue: string, newCursorPosition: number) => {
       if (!currentBlockId || !isSubflow || !currentBlock) return
+
       collaborativeUpdateIterationCollection(
         currentBlockId,
         currentBlock.type as 'loop' | 'parallel',
@@ -298,12 +299,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       )
       setShowTagDropdown(false)
 
-      setTimeout(() => {
-        const textarea = textareaRef.current
-        if (textarea) {
-          textarea.focus()
-        }
-      }, 0)
+      restoreCursorAfterInsertion(textareaRef.current, newCursorPosition)
     },
     [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection]
   )

@@ -70,7 +70,7 @@ interface TagDropdownProps {
   /** Whether the dropdown is visible */
   visible: boolean
   /** Callback when a tag is selected */
-  onSelect: (newValue: string) => void
+  onSelect: (newValue: string, newCursorPosition: number) => void
   /** ID of the block that owns the input field */
   blockId: string
   /** ID of the specific source block being referenced, if any */
@@ -1598,10 +1598,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       let newValue: string
+      let insertStart: number
 
       if (lastOpenBracket === -1) {
         // No '<' found - insert the full tag at cursor position
         newValue = `${textBeforeCursor}<${processedTag}>${textAfterCursor}`
+        insertStart = liveCursor
       } else {
         // '<' found - replace from '<' to cursor (and consume trailing '>' if present)
         const nextCloseBracket = textAfterCursor.indexOf('>')
@@ -1615,9 +1617,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
 
         newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
+        insertStart = lastOpenBracket
       }
 
-      onSelect(newValue)
+      const newCursorPos = insertStart + 1 + processedTag.length + 1
+      onSelect(newValue, newCursorPos)
       onClose?.()
     },
     [workflowVariables, onSelect, onClose, getMergedSubBlocks]
