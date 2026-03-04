@@ -316,7 +316,13 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
         }
       }, 0)
     },
-    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection, cursorPosition]
+    [
+      currentBlockId,
+      isSubflow,
+      currentBlock,
+      collaborativeUpdateIterationCollection,
+      cursorPosition,
+    ]
   )
 
   // Compute derived values
