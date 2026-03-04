@@ -1240,8 +1240,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
     const parallelBlockGroups: BlockTagGroup[] = []
     const ancestorParallelIds = new Set<string>()
+    const visitedParallelTargets = new Set<string>()
 
     const findAncestorParallels = (targetId: string) => {
+      if (visitedParallelTargets.has(targetId)) return
+      visitedParallelTargets.add(targetId)
+
       for (const [parallelId, parallel] of Object.entries(parallels || {})) {
         if (parallel.nodes.includes(targetId) && !ancestorParallelIds.has(parallelId)) {
           ancestorParallelIds.add(parallelId)

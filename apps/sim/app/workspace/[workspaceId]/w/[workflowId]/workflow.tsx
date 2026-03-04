@@ -198,7 +198,7 @@ const defaultEdgeOptions = { type: 'custom' }
 const reactFlowStyles = [
   'bg-[var(--bg)]',
   '[&_.react-flow__edges]:!z-0',
-  '[&_.react-flow__node]:!z-[21]',
+  '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
   '[&_.react-flow__edge-labels]:!z-[60]',
   '[&_.react-flow__pane]:!bg-[var(--bg)]',

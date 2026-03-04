@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
 import { isWorkflowBlockType, stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('TraceSpans')
 
@@ -569,6 +570,7 @@ interface ContainerNameCounters {
 
 /**
  * Resolves a container name from normal (non-iteration) spans or assigns a sequential number.
+ * Strips clone suffixes so all clones of the same container share one name/number.
  */
 function resolveContainerName(
   containerId: string,
@@ -576,21 +578,23 @@ function resolveContainerName(
   normalSpans: TraceSpan[],
   counters: ContainerNameCounters
 ): string {
+  const originalId = stripCloneSuffixes(containerId)
+
   const matchingBlock = normalSpans.find(
-    (s) => s.blockId === containerId && s.type === containerType
+    (s) => s.blockId === originalId && s.type === containerType
   )
   if (matchingBlock?.name) return matchingBlock.name
 
   if (containerType === 'parallel') {
-    if (!counters.parallelNumbers.has(containerId)) {
-      counters.parallelNumbers.set(containerId, counters.parallelCounter++)
+    if (!counters.parallelNumbers.has(originalId)) {
+      counters.parallelNumbers.set(originalId, counters.parallelCounter++)
     }
-    return `Parallel ${counters.parallelNumbers.get(containerId)}`
+    return `Parallel ${counters.parallelNumbers.get(originalId)}`
   }
-  if (!counters.loopNumbers.has(containerId)) {
-    counters.loopNumbers.set(containerId, counters.loopCounter++)
+  if (!counters.loopNumbers.has(originalId)) {
+    counters.loopNumbers.set(originalId, counters.loopCounter++)
   }
-  return `Loop ${counters.loopNumbers.get(containerId)}`
+  return `Loop ${counters.loopNumbers.get(originalId)}`
 }
 
 /**

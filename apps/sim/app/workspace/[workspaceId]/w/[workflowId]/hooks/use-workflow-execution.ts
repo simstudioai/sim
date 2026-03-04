@@ -32,6 +32,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
@@ -486,13 +487,22 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
-
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
           output: data.output,
           executed: true,
           executionTime: data.durationMs,
         })
+
+        // For nested containers, the SSE blockId may be a cloned ID (e.g. P1__obranch-0).
+        // Also record the original workflow-level ID so the canvas can highlight it.
+        if (isContainerBlockType(data.blockType)) {
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'success')
+          }
+        }
 
         if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
           return
@@ -524,6 +534,15 @@ export function useWorkflowExecution() {
           executed: true,
           executionTime: data.durationMs || 0,
         })
+
+        // For nested containers, also record the original workflow-level ID
+        if (isContainerBlockType(data.blockType)) {
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'error')
+          }
+        }
 
         accumulatedBlockLogs.push(
           createBlockLogEntry(data, { success: false, output: {}, error: data.error })
