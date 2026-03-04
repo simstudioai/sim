@@ -548,11 +548,12 @@ export const Code = memo(function Code({
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
+      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
+    } else {
+      setTimeout(() => textarea?.focus(), 0)
     }
     setShowTags(false)
     setActiveSourceBlockId(null)
-
-    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
   }
 
   /**
@@ -568,10 +569,11 @@ export const Code = memo(function Code({
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
+      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'envVar')
+    } else {
+      setTimeout(() => textarea?.focus(), 0)
     }
     setShowEnvVars(false)
-
-    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'envVar')
   }
 
   /**

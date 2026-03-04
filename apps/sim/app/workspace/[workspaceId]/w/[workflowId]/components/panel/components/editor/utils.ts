@@ -25,6 +25,9 @@ export function restoreCursorAfterInsertion(
   const [openDelim, closeDelim, closeLen] =
     type === 'tag' ? (['<', '>', 1] as const) : (['{{', '}}', 2] as const)
 
+  // insertPos indexes into liveValue, but is reused to search newValue.
+  // This is valid because text before the trigger character is identical
+  // in both strings — the insertion only mutates text at/after the delimiter.
   const insertPos = liveValue.slice(0, liveCursor).lastIndexOf(openDelim)
   const searchFrom = insertPos !== -1 ? insertPos : liveCursor
   const closingPos = newValue.indexOf(closeDelim, searchFrom)
