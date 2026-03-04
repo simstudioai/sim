@@ -559,7 +559,7 @@ export function ConditionInput({
     if (isPreview || disabled) return
 
     const textarea = containerRef.current?.querySelector(
-      `[data-block-id="${blockId}"] textarea`
+      `[data-block-id="${CSS.escape(blockId)}"] textarea`
     ) as HTMLTextAreaElement | null
     const blockValue = conditionalBlocks.find((b) => b.id === blockId)?.value ?? ''
     const liveCursor = textarea?.selectionStart ?? 0
@@ -598,7 +598,7 @@ export function ConditionInput({
     if (isPreview || disabled) return
 
     const textarea = containerRef.current?.querySelector(
-      `[data-block-id="${blockId}"] textarea`
+      `[data-block-id="${CSS.escape(blockId)}"] textarea`
     ) as HTMLTextAreaElement | null
     const blockValue = conditionalBlocks.find((b) => b.id === blockId)?.value ?? ''
     const liveCursor = textarea?.selectionStart ?? 0
