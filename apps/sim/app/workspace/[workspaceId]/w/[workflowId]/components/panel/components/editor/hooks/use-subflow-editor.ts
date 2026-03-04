@@ -307,7 +307,13 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
     },
-    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection, cursorPosition]
+    [
+      currentBlockId,
+      isSubflow,
+      currentBlock,
+      collaborativeUpdateIterationCollection,
+      cursorPosition,
+    ]
   )
 
   // Compute derived values
