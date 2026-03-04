@@ -62,6 +62,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const editorValueRef = useRef('')
+  const cursorPositionRef = useRef(0)
 
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -279,6 +280,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
         textareaRef.current = textarea
         const cursorPos = textarea.selectionStart || 0
         setCursorPosition(cursorPos)
+        cursorPositionRef.current = cursorPos
 
         const triggerCheck = checkTagTrigger(value, cursorPos)
         setShowTagDropdown(triggerCheck.show)
@@ -295,7 +297,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       if (!currentBlockId || !isSubflow || !currentBlock) return
 
       const textarea = textareaRef.current
-      const liveCursor = textarea?.selectionStart ?? cursorPosition
+      const liveCursor = textarea?.selectionStart ?? cursorPositionRef.current
       const liveValue = textarea?.value ?? editorValueRef.current
 
       collaborativeUpdateIterationCollection(
@@ -307,13 +309,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
     },
-    [
-      currentBlockId,
-      isSubflow,
-      currentBlock,
-      collaborativeUpdateIterationCollection,
-      cursorPosition,
-    ]
+    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection]
   )
 
   // Compute derived values
