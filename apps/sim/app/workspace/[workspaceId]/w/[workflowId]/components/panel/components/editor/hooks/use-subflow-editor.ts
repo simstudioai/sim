@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { highlight, languages } from '@/components/emcn'
 import {
@@ -360,10 +360,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const inputValue = tempInputValue ?? iterations.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
-
-  useEffect(() => {
-    editorValueRef.current = editorValue
-  }, [editorValue])
+  editorValueRef.current = editorValue
 
   // Type options for combobox
   const typeOptions =
