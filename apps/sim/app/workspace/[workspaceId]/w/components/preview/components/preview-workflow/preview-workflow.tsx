@@ -291,7 +291,13 @@ export function PreviewWorkflow({
 
   /** Derives subflow status from children. Recursively checks nested subflows. Error takes precedence. */
   const getSubflowExecutionStatus = useMemo(() => {
-    const derive = (subflowId: string): ExecutionStatus | undefined => {
+    const derive = (
+      subflowId: string,
+      visited: Set<string> = new Set()
+    ): ExecutionStatus | undefined => {
+      if (visited.has(subflowId)) return undefined
+      visited.add(subflowId)
+
       const childIds = subflowChildrenMap.get(subflowId)
       if (!childIds?.length) return undefined
 
@@ -303,7 +309,7 @@ export function PreviewWorkflow({
         } else {
           const childBlock = workflowState.blocks?.[childId]
           if (childBlock?.type === 'loop' || childBlock?.type === 'parallel') {
-            const nested = derive(childId)
+            const nested = derive(childId, visited)
             if (nested) childStatuses.push(nested)
           }
         }
