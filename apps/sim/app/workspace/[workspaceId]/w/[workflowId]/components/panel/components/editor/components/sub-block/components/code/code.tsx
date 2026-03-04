@@ -40,6 +40,7 @@ import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/re
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCodeUndoRedo } from '@/hooks/use-code-undo-redo'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Code')
@@ -539,7 +540,7 @@ export const Code = memo(function Code({
    * @param newValue - The new code value with the selected tag inserted
    */
   const handleTagSelect = (newValue: string) => {
-    const textarea = editorRef.current?.querySelector('textarea')
+    const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
     const liveCursor = textarea?.selectionStart ?? cursorPosition
     const liveValue = textarea?.value ?? code
 
@@ -551,18 +552,7 @@ export const Code = memo(function Code({
     setShowTags(false)
     setActiveSourceBlockId(null)
 
-    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
-    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-    const closingBracket = newValue.indexOf('>', searchFrom)
-    const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
-
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus()
-        textarea.selectionStart = newCursorPos
-        textarea.selectionEnd = newCursorPos
-      }
-    }, 0)
+    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
   }
 
   /**
@@ -570,7 +560,7 @@ export const Code = memo(function Code({
    * @param newValue - The new code value with the selected env var inserted
    */
   const handleEnvVarSelect = (newValue: string) => {
-    const textarea = editorRef.current?.querySelector('textarea')
+    const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
     const liveCursor = textarea?.selectionStart ?? cursorPosition
     const liveValue = textarea?.value ?? code
 
@@ -581,18 +571,7 @@ export const Code = memo(function Code({
     }
     setShowEnvVars(false)
 
-    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('{{')
-    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-    const closingBraces = newValue.indexOf('}}', searchFrom)
-    const newCursorPos = closingBraces !== -1 ? closingBraces + 2 : newValue.length
-
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus()
-        textarea.selectionStart = newCursorPos
-        textarea.selectionEnd = newCursorPos
-      }
-    }, 0)
+    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'envVar')
   }
 
   /**

@@ -36,6 +36,7 @@ import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -560,8 +561,9 @@ export function ConditionInput({
     const textarea = containerRef.current?.querySelector(
       `[data-block-id="${blockId}"] textarea`
     ) as HTMLTextAreaElement | null
+    const blockValue = conditionalBlocks.find((b) => b.id === blockId)?.value ?? ''
     const liveCursor = textarea?.selectionStart ?? 0
-    const liveValue = textarea?.value ?? ''
+    const liveValue = textarea?.value ?? blockValue
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
@@ -589,18 +591,7 @@ export function ConditionInput({
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
 
-    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
-    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-    const closingBracket = newValue.indexOf('>', searchFrom)
-    const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
-
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus()
-        textarea.selectionStart = newCursorPos
-        textarea.selectionEnd = newCursorPos
-      }
-    }, 0)
+    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
   }
 
   const handleEnvVarSelectImmediate = (blockId: string, newValue: string) => {
@@ -609,8 +600,9 @@ export function ConditionInput({
     const textarea = containerRef.current?.querySelector(
       `[data-block-id="${blockId}"] textarea`
     ) as HTMLTextAreaElement | null
+    const blockValue = conditionalBlocks.find((b) => b.id === blockId)?.value ?? ''
     const liveCursor = textarea?.selectionStart ?? 0
-    const liveValue = textarea?.value ?? ''
+    const liveValue = textarea?.value ?? blockValue
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
@@ -638,18 +630,7 @@ export function ConditionInput({
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
 
-    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('{{')
-    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-    const closingBraces = newValue.indexOf('}}', searchFrom)
-    const newCursorPos = closingBraces !== -1 ? closingBraces + 2 : newValue.length
-
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus()
-        textarea.selectionStart = newCursorPos
-        textarea.selectionEnd = newCursorPos
-      }
-    }, 0)
+    restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'envVar')
   }
 
   /**

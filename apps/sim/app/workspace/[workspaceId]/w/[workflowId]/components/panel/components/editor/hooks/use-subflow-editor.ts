@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { highlight, languages } from '@/components/emcn'
 import {
@@ -7,6 +7,7 @@ import {
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
 import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -60,6 +61,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
+  const editorValueRef = useRef('')
 
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -294,7 +296,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       const textarea = textareaRef.current
       const liveCursor = textarea?.selectionStart ?? cursorPosition
-      const liveValue = textarea?.value ?? ''
+      const liveValue = textarea?.value ?? editorValueRef.current
 
       collaborativeUpdateIterationCollection(
         currentBlockId,
@@ -303,26 +305,9 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       )
       setShowTagDropdown(false)
 
-      const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
-      const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-      const closingBracket = newValue.indexOf('>', searchFrom)
-      const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
-
-      setTimeout(() => {
-        if (textarea) {
-          textarea.focus()
-          textarea.selectionStart = newCursorPos
-          textarea.selectionEnd = newCursorPos
-        }
-      }, 0)
+      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
     },
-    [
-      currentBlockId,
-      isSubflow,
-      currentBlock,
-      collaborativeUpdateIterationCollection,
-      cursorPosition,
-    ]
+    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection, cursorPosition]
   )
 
   // Compute derived values
@@ -369,6 +354,10 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const inputValue = tempInputValue ?? iterations.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
+
+  useEffect(() => {
+    editorValueRef.current = editorValue
+  }, [editorValue])
 
   // Type options for combobox
   const typeOptions =
