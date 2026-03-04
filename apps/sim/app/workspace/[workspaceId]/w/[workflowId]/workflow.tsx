@@ -226,7 +226,6 @@ interface BlockData {
  */
 const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
-  const canvasReadyRef = useRef(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
@@ -2240,7 +2239,6 @@ const WorkflowContent = React.memo(() => {
       clearDiff()
 
       // Reset canvas ready state when loading a new workflow
-      canvasReadyRef.current = false
       setIsCanvasReady(false)
 
       setActiveWorkflow(currentId)
@@ -2712,29 +2710,26 @@ const WorkflowContent = React.memo(() => {
 
       // Handle position changes (e.g., from keyboard arrow key movement)
       // Update container dimensions when child nodes are moved and persist to backend
-      // Skip during initial render — ReactFlow fires position changes from extent clamping
-      // before block heights are measured, which would incorrectly resize containers.
-      if (canvasReadyRef.current) {
-        const isInDragOperation =
-          getDragStartPosition() !== null || multiNodeDragStartRef.current.size > 0
-        const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> =
-          []
-        for (const change of changes) {
-          if (
-            change.type === 'position' &&
-            !change.dragging &&
-            'position' in change &&
-            change.position
-          ) {
-            updateContainerDimensionsDuringMove(change.id, change.position)
-            if (!isInDragOperation) {
-              keyboardPositionUpdates.push({ id: change.id, position: change.position })
-            }
+      // Only persist if not in a drag operation (drag-end is handled by onNodeDragStop)
+      const isInDragOperation =
+        getDragStartPosition() !== null || multiNodeDragStartRef.current.size > 0
+      const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> = []
+      for (const change of changes) {
+        if (
+          change.type === 'position' &&
+          !change.dragging &&
+          'position' in change &&
+          change.position
+        ) {
+          updateContainerDimensionsDuringMove(change.id, change.position)
+          if (!isInDragOperation) {
+            keyboardPositionUpdates.push({ id: change.id, position: change.position })
           }
         }
-        if (keyboardPositionUpdates.length > 0) {
-          collaborativeBatchUpdatePositions(keyboardPositionUpdates)
-        }
+      }
+      // Persist keyboard movements to backend for collaboration sync
+      if (keyboardPositionUpdates.length > 0) {
+        collaborativeBatchUpdatePositions(keyboardPositionUpdates)
       }
     },
     [
@@ -3811,7 +3806,6 @@ const WorkflowContent = React.memo(() => {
               onInit={(instance) => {
                 requestAnimationFrame(() => {
                   instance.fitView(reactFlowFitViewOptions)
-                  canvasReadyRef.current = true
                   setIsCanvasReady(true)
                 })
               }}
