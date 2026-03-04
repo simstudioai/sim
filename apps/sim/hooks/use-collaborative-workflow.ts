@@ -862,8 +862,8 @@ export function useCollaborativeWorkflow() {
         const block = currentBlocks[id]
         if (!block) continue
 
-        // Skip locked blocks
-        if (block.locked) continue
+        // Skip protected blocks (locked or inside a locked ancestor)
+        if (isBlockProtected(id, currentBlocks)) continue
         validIds.push(id)
         previousStates[id] = block.enabled
 

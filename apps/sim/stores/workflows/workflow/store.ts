@@ -381,8 +381,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const block = currentBlocks[id]
           if (!block) continue
 
-          // Skip locked blocks entirely (including their children)
-          if (block.locked) continue
+          // Skip protected blocks entirely (locked or inside a locked ancestor)
+          if (isBlockProtected(id, currentBlocks)) continue
 
           blocksToToggle.add(id)
 

@@ -934,7 +934,7 @@ async function handleBlocksOperationTx(
       // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
-        if (!block || block.locked) continue
+        if (!block || isDbBlockProtected(id, blocksById)) continue
 
         blocksToToggle.add(id)
 

@@ -199,6 +199,7 @@ const reactFlowStyles = [
   '[&_.react-flow__edges]:!z-0',
   '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
+  '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
   '[&_.react-flow__background]:hidden',
