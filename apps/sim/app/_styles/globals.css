@@ -843,8 +843,3 @@ input[type="search"]::-ms-clear {
 .react-flow__node[data-parent-node-id] .react-flow__handle {
   z-index: 30;
 }
-
-.workflow-container .react-flow__edge-interaction {
-  stroke: none !important;
-  pointer-events: all;
-}
