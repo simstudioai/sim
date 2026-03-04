@@ -152,6 +152,7 @@ import {
   attioUpdateTaskTool,
   attioUpdateWebhookTool,
 } from '@/tools/attio'
+import { brandfetchGetBrandTool, brandfetchSearchTool } from '@/tools/brandfetch'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
   calcomCancelBookingTool,
@@ -2323,6 +2324,8 @@ export const tools: Record<string, ToolConfig> = {
   ashby_list_offers: ashbyListOffersTool,
   ashby_search_candidates: ashbySearchCandidatesTool,
   ashby_update_candidate: ashbyUpdateCandidateTool,
+  brandfetch_get_brand: brandfetchGetBrandTool,
+  brandfetch_search: brandfetchSearchTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
