@@ -5,6 +5,39 @@ import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workf
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
+ * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.
+ * Used to treat a nested subflow as one unit when computing boundary edges (e.g. remove-from-subflow).
+ *
+ * @param blockIds - Root block IDs (e.g. the blocks being removed from subflow)
+ * @param blocks - All workflow blocks
+ * @returns IDs of blocks that are descendants of any container in blockIds (excluding the roots)
+ */
+export function getDescendantBlockIds(
+  blockIds: string[],
+  blocks: Record<string, BlockState>
+): string[] {
+  const current = new Set(blockIds)
+  const added: string[] = []
+  const toProcess = [...blockIds]
+
+  while (toProcess.length > 0) {
+    const id = toProcess.pop()!
+    const block = blocks[id]
+    if (block?.type !== 'loop' && block?.type !== 'parallel') continue
+
+    for (const [bid, b] of Object.entries(blocks)) {
+      if (b?.data?.parentId === id && !current.has(bid)) {
+        current.add(bid)
+        added.push(bid)
+        toProcess.push(bid)
+      }
+    }
+  }
+
+  return added
+}
+
+/**
  * Checks if the currently focused element is an editable input.
  * Returns true if the user is typing in an input, textarea, or contenteditable element.
  */

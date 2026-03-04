@@ -4,10 +4,12 @@ import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
   IterationContext,
+  ParentIteration,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface UserFile {
   id: string
@@ -121,6 +123,8 @@ export interface BlockLog {
   loopId?: string
   parallelId?: string
   iterationIndex?: number
+  /** Full ancestor iteration chain for nested subflows (outermost → innermost). */
+  parentIterations?: ParentIteration[]
   /**
    * Monotonically increasing integer (1, 2, 3, ...) for accurate block ordering.
    * Generated via getNextExecutionOrder() to ensure deterministic sorting.
@@ -191,6 +195,17 @@ export interface ExecutionContext {
   }
 
   completedLoops: Set<string>
+
+  /**
+   * Unified parent map for subflow nesting (loop-in-loop, parallel-in-parallel,
+   * loop-in-parallel, parallel-in-loop). Maps any child subflow ID to its parent
+   * subflow ID and type, enabling the iteration context builder to walk the full
+   * ancestor chain regardless of subflow type.
+   */
+  subflowParentMap?: Map<
+    string,
+    { parentId: string; parentType: SubflowType; branchIndex?: number }
+  >
 
   loopExecutions?: Map<
     string,

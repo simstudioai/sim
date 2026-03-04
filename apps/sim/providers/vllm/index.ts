@@ -57,6 +57,7 @@ export const vllmProvider: ProviderConfig = {
 
       const response = await fetch(`${baseUrl}/v1/models`, { headers })
       if (!response.ok) {
+        await response.text().catch(() => {})
         useProvidersStore.getState().setProviderModels('vllm', [])
         logger.warn('vLLM service is not available. The provider will be disabled.')
         return

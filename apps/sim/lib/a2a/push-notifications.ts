@@ -77,6 +77,7 @@ export async function deliverPushNotification(taskId: string, state: TaskState):
     })
 
     if (!response.ok) {
+      await response.text().catch(() => {})
       logger.error('Push notification delivery failed', {
         taskId,
         url: config.url,

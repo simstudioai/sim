@@ -31,6 +31,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
+import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -537,36 +538,40 @@ export const Code = memo(function Code({
   /**
    * Handles selection of a tag from the tag dropdown.
    * @param newValue - The new code value with the selected tag inserted
+   * @param newCursorPosition - The cursor position after the inserted tag
    */
-  const handleTagSelect = (newValue: string) => {
+  const handleTagSelect = (newValue: string, newCursorPosition: number) => {
+    const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
+
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
+      restoreCursorAfterInsertion(textarea, newCursorPosition)
+    } else {
+      setTimeout(() => textarea?.focus(), 0)
     }
     setShowTags(false)
     setActiveSourceBlockId(null)
-
-    setTimeout(() => {
-      editorRef.current?.querySelector('textarea')?.focus()
-    }, 0)
   }
 
   /**
    * Handles selection of an environment variable from the dropdown.
    * @param newValue - The new code value with the selected env var inserted
+   * @param newCursorPosition - The cursor position after the inserted env var
    */
-  const handleEnvVarSelect = (newValue: string) => {
+  const handleEnvVarSelect = (newValue: string, newCursorPosition: number) => {
+    const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
+
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
+      restoreCursorAfterInsertion(textarea, newCursorPosition)
+    } else {
+      setTimeout(() => textarea?.focus(), 0)
     }
     setShowEnvVars(false)
-
-    setTimeout(() => {
-      editorRef.current?.querySelector('textarea')?.focus()
-    }, 0)
   }
 
   /**

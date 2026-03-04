@@ -8,7 +8,6 @@ import {
   PlanWelcomeEmail,
   UsageThresholdEmail,
 } from '@/components/emails/billing'
-import { CareersConfirmationEmail, CareersSubmissionEmail } from '@/components/emails/careers'
 import {
   BatchInvitationEmail,
   InvitationEmail,
@@ -221,44 +220,6 @@ export async function renderPaymentFailedEmail(params: {
       lastFourDigits: params.lastFourDigits,
       billingPortalUrl: params.billingPortalUrl,
       failureReason: params.failureReason,
-    })
-  )
-}
-
-export async function renderCareersConfirmationEmail(
-  name: string,
-  position: string
-): Promise<string> {
-  return await render(
-    CareersConfirmationEmail({
-      name,
-      position,
-    })
-  )
-}
-
-export async function renderCareersSubmissionEmail(params: {
-  name: string
-  email: string
-  phone?: string
-  position: string
-  linkedin?: string
-  portfolio?: string
-  experience: string
-  location: string
-  message: string
-}): Promise<string> {
-  return await render(
-    CareersSubmissionEmail({
-      name: params.name,
-      email: params.email,
-      phone: params.phone,
-      position: params.position,
-      linkedin: params.linkedin,
-      portfolio: params.portfolio,
-      experience: params.experience,
-      location: params.location,
-      message: params.message,
     })
   )
 }

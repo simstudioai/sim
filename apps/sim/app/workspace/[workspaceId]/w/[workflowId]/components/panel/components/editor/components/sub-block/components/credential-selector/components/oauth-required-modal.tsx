@@ -55,6 +55,10 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/meetings.space.created':
+    'Create and manage Google Meet meeting spaces',
+  'https://www.googleapis.com/auth/meetings.space.readonly':
+    'View Google Meet meeting space details',
   'https://www.googleapis.com/auth/cloud-platform':
     'Full access to Google Cloud resources for Vertex AI',
   'read:confluence-content.all': 'Read all Confluence content',
@@ -119,6 +123,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'offline.access': 'Access account when not using the application',
   'data.records:read': 'Read records',
   'data.records:write': 'Write to records',
+  'schema.bases:read': 'View bases and tables',
   'webhook:manage': 'Manage webhooks',
   'page.read': 'Read Notion pages',
   'page.write': 'Write to Notion pages',

@@ -8,6 +8,7 @@ import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useLastRunPath } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -23,6 +24,8 @@ export interface SubflowNodeData {
   isPreviewSelected?: boolean
   kind: 'loop' | 'parallel'
   name?: string
+  /** Execution status passed by preview/snapshot views */
+  executionStatus?: 'success' | 'error' | 'not-executed'
 }
 
 /**
@@ -55,6 +58,15 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const isFocused = currentBlockId === id
 
   const isPreviewSelected = data?.isPreviewSelected || false
+
+  const lastRunPath = useLastRunPath()
+  const executionStatus = data.executionStatus
+  const runPathStatus: 'success' | 'error' | undefined =
+    executionStatus === 'success' || executionStatus === 'error'
+      ? executionStatus
+      : isPreview
+        ? undefined
+        : lastRunPath.get(id)
 
   /**
    * Calculate the nesting level of this subflow node based on its parent hierarchy.
@@ -105,33 +117,57 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
    * Determine the ring styling based on subflow state priority:
    * 1. Focused (selected in editor), selected (shift-click/box), or preview selected - blue ring
    * 2. Diff status (version comparison) - green/orange ring
+   * 3. Run path status (execution result) - green/red ring
    */
   const isSelected = !isPreview && selected
   const hasRing =
-    isFocused || isSelected || isPreviewSelected || diffStatus === 'new' || diffStatus === 'edited'
-  const ringStyles = cn(
-    hasRing && 'ring-[1.75px]',
-    (isFocused || isSelected || isPreviewSelected) && 'ring-[var(--brand-secondary)]',
-    diffStatus === 'new' && 'ring-[var(--brand-tertiary-2)]',
-    diffStatus === 'edited' && 'ring-[var(--warning)]'
-  )
+    isFocused ||
+    isSelected ||
+    isPreviewSelected ||
+    diffStatus === 'new' ||
+    diffStatus === 'edited' ||
+    !!runPathStatus
+  /**
+   * Compute the outline color for the subflow ring.
+   * Uses CSS outline instead of box-shadow ring because in ReactFlow v11,
+   * child nodes are DOM children of parent nodes and paint over the parent's
+   * internal ring overlay. Outline renders on the element's own compositing
+   * layer, so it stays visible above nested child nodes.
+   */
+  const outlineColor = hasRing
+    ? isFocused || isSelected || isPreviewSelected
+      ? 'var(--brand-secondary)'
+      : diffStatus === 'new'
+        ? 'var(--brand-tertiary-2)'
+        : diffStatus === 'edited'
+          ? 'var(--warning)'
+          : runPathStatus === 'success'
+            ? executionStatus
+              ? 'var(--brand-tertiary-2)'
+              : 'var(--border-success)'
+            : runPathStatus === 'error'
+              ? 'var(--text-error)'
+              : undefined
+    : undefined
 
   return (
-    <div className='group relative'>
+    <div className='group pointer-events-none relative'>
       <div
         ref={blockRef}
-        onClick={() => setCurrentBlockId(id)}
         className={cn(
-          'workflow-drag-handle relative cursor-grab select-none rounded-[8px] border border-[var(--border-1)] [&:active]:cursor-grabbing',
-          'transition-block-bg transition-ring',
-          'z-[20]'
+          'relative select-none rounded-[8px] border border-[var(--border-1)]',
+          'transition-block-bg'
         )}
         style={{
           width: data.width || 500,
           height: data.height || 300,
           position: 'relative',
           overflow: 'visible',
-          pointerEvents: isPreview ? 'none' : 'all',
+          pointerEvents: 'none',
+          ...(outlineColor && {
+            outline: `1.75px solid ${outlineColor}`,
+            outlineOffset: '-1px',
+          }),
         }}
         data-node-id={id}
         data-type='subflowNode'
@@ -142,11 +178,13 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
         )}
 
-        {/* Header Section */}
+        {/* Header Section — only interactive area for dragging */}
         <div
+          onClick={() => setCurrentBlockId(id)}
           className={cn(
-            'flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'
+            'workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
           )}
+          style={{ pointerEvents: 'auto' }}
         >
           <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
             <div
@@ -183,7 +221,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           data-dragarea='true'
           style={{
             position: 'relative',
-            pointerEvents: isPreview ? 'none' : 'auto',
+            pointerEvents: 'none',
           }}
         >
           {/* Subflow Start */}
@@ -233,12 +271,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           }}
           id={endHandleId}
         />
-
-        {hasRing && (
-          <div
-            className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
-          />
-        )}
       </div>
     </div>
   )

@@ -1,12 +1,10 @@
 import { PARALLEL } from '@/executor/constants'
+import type { NodeMetadata } from '@/executor/dag/types'
 import type { ExecutionContext, LoopPauseScope, ParallelPauseScope } from '@/executor/types'
 
-interface NodeMetadataLike {
+interface NodeMetadataLike
+  extends Pick<NodeMetadata, 'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal'> {
   nodeId: string
-  loopId?: string
-  parallelId?: string
-  branchIndex?: number
-  branchTotal?: number
 }
 
 export function generatePauseContextId(

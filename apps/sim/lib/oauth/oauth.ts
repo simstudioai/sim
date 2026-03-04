@@ -16,6 +16,7 @@ import {
   GoogleFormsIcon,
   GoogleGroupsIcon,
   GoogleIcon,
+  GoogleMeetIcon,
   GoogleSheetsIcon,
   GoogleTasksIcon,
   HubspotIcon,
@@ -166,6 +167,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         scopes: [
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
+        ],
+      },
+      'google-meet': {
+        name: 'Google Meet',
+        description: 'Create and manage Google Meet meeting spaces and conferences.',
+        providerId: 'google-meet',
+        icon: GoogleMeetIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: [
+          'https://www.googleapis.com/auth/meetings.space.created',
+          'https://www.googleapis.com/auth/meetings.space.readonly',
         ],
       },
       'vertex-ai': {
@@ -486,7 +498,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'airtable',
         icon: AirtableIcon,
         baseProviderIcon: AirtableIcon,
-        scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
+        scopes: [
+          'data.records:read',
+          'data.records:write',
+          'schema.bases:read',
+          'user.email:read',
+          'webhook:manage',
+        ],
       },
     },
     defaultService: 'airtable',

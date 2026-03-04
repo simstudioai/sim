@@ -1246,8 +1246,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (isBlockProtected(payload.source) || isBlockProtected(payload.target)) {
-        logger.info(`Skipping edge add - source or target block is protected`)
+      if (isBlockProtected(payload.target)) {
+        logger.info(`Skipping edge add - target block is protected`)
         break
       }
 
@@ -1269,7 +1269,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing edge ID for remove operation')
       }
 
-      // Get the edge to check if connected blocks are protected
+      // Get the edge to check if target block is protected
       const [edgeToRemove] = await tx
         .select({
           sourceBlockId: workflowEdges.sourceBlockId,
@@ -1283,7 +1283,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error(`Edge ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // Check if source or target blocks are protected
+      // Check if target block is protected
       const connectedBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1345,11 +1345,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (
-        isBlockProtected(edgeToRemove.sourceBlockId) ||
-        isBlockProtected(edgeToRemove.targetBlockId)
-      ) {
-        logger.info(`Skipping edge remove - source or target block is protected`)
+      if (isBlockProtected(edgeToRemove.targetBlockId)) {
+        logger.info(`Skipping edge remove - target block is protected`)
         break
       }
 
@@ -1470,14 +1467,11 @@ async function handleEdgesOperationTx(
       }
 
       const safeEdgeIds = edgesToRemove
-        .filter(
-          (e: EdgeToRemove) =>
-            !isBlockProtected(e.sourceBlockId) && !isBlockProtected(e.targetBlockId)
-        )
+        .filter((e: EdgeToRemove) => !isBlockProtected(e.targetBlockId))
         .map((e: EdgeToRemove) => e.id)
 
       if (safeEdgeIds.length === 0) {
-        logger.info('All edges are connected to protected blocks, skipping removal')
+        logger.info('All edges target protected blocks, skipping removal')
         return
       }
 
@@ -1569,13 +1563,13 @@ async function handleEdgesOperationTx(
         return false
       }
 
-      // Filter edges - only add edges where neither block is protected
+      // Filter edges - only add edges where target block is not protected
       const safeEdges = (edges as Array<Record<string, unknown>>).filter(
-        (e) => !isBlockProtected(e.source as string) && !isBlockProtected(e.target as string)
+        (e) => !isBlockProtected(e.target as string)
       )
 
       if (safeEdges.length === 0) {
-        logger.info('All edges connect to protected blocks, skipping add')
+        logger.info('All edges target protected blocks, skipping add')
         return
       }
 

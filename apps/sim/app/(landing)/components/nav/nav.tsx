@@ -91,12 +91,14 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         </button>
       </li>
       <li>
-        <Link
-          href='/careers'
+        <a
+          href='https://jobs.ashbyhq.com/sim'
+          target='_blank'
+          rel='noopener noreferrer'
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
         >
           Careers
-        </Link>
+        </a>
       </li>
       <li>
         <a

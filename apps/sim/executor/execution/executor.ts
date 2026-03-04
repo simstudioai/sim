@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -32,6 +33,7 @@ import {
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedWorkflow } from '@/serializer/types'
+import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DAGExecutor')
 
@@ -67,25 +69,9 @@ export class DAGExecutor {
       savedIncomingEdges,
     })
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
+    context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
-    loopOrchestrator.setContextExtensions(this.contextExtensions)
-    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-    parallelOrchestrator.setResolver(resolver)
-    parallelOrchestrator.setContextExtensions(this.contextExtensions)
-    const allHandlers = createBlockHandlers()
-    const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
-    const edgeManager = new EdgeManager(dag)
-    loopOrchestrator.setEdgeManager(edgeManager)
-    const nodeOrchestrator = new NodeExecutionOrchestrator(
-      dag,
-      state,
-      blockExecutor,
-      loopOrchestrator,
-      parallelOrchestrator
-    )
-    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+    const engine = this.buildExecutionPipeline(context, dag, state)
     return await engine.run(triggerBlockId)
   }
 
@@ -208,17 +194,30 @@ export class DAGExecutor {
       snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
+    context.subflowParentMap = this.buildSubflowParentMap(dag)
 
+    const engine = this.buildExecutionPipeline(context, dag, state)
+    return await engine.run()
+  }
+
+  private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
-    loopOrchestrator.setContextExtensions(this.contextExtensions)
-    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-    parallelOrchestrator.setResolver(resolver)
-    parallelOrchestrator.setContextExtensions(this.contextExtensions)
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)
-    loopOrchestrator.setEdgeManager(edgeManager)
+    const loopOrchestrator = new LoopOrchestrator(
+      dag,
+      state,
+      resolver,
+      this.contextExtensions,
+      edgeManager
+    )
+    const parallelOrchestrator = new ParallelOrchestrator(
+      dag,
+      state,
+      resolver,
+      this.contextExtensions
+    )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
@@ -226,9 +225,7 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
-
-    return await engine.run()
+    return new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
   }
 
   private createExecutionContext(
@@ -369,6 +366,37 @@ export class DAGExecutor {
     }
 
     return { context, state }
+  }
+
+  /**
+   * Builds a unified child-subflow → parent-subflow mapping that covers all nesting
+   * combinations: loop-in-loop, parallel-in-parallel, loop-in-parallel, parallel-in-loop.
+   * Used by the iteration context builder to walk the full ancestor chain for SSE events.
+   */
+  private buildSubflowParentMap(
+    dag: DAG
+  ): Map<string, { parentId: string; parentType: SubflowType }> {
+    const parentMap = new Map<string, { parentId: string; parentType: SubflowType }>()
+
+    // Scan loop configs: children can be loops or parallels
+    for (const [loopId, config] of dag.loopConfigs) {
+      for (const nodeId of config.nodes) {
+        if (dag.loopConfigs.has(nodeId) || dag.parallelConfigs.has(nodeId)) {
+          parentMap.set(nodeId, { parentId: loopId, parentType: 'loop' })
+        }
+      }
+    }
+
+    // Scan parallel configs: children can be parallels or loops
+    for (const [parallelId, config] of dag.parallelConfigs) {
+      for (const nodeId of config.nodes ?? []) {
+        if (dag.parallelConfigs.has(nodeId) || dag.loopConfigs.has(nodeId)) {
+          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel' })
+        }
+      }
+    }
+
+    return parentMap
   }
 
   private initializeStarterBlock(

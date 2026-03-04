@@ -1102,4 +1102,595 @@ describe('EdgeConstructor', () => {
       })
     })
   })
+
+  describe('Nested loop wiring', () => {
+    it('should wire inner loop sentinels into outer loop sentinel chain', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+      const innerFunctionId = 'func-2'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [functionId, innerLoopId],
+        iterations: 5,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        functionId,
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [
+          createMockBlock(functionId),
+          createMockBlock(innerFunctionId),
+          createMockBlock(innerLoopId, 'loop'),
+        ],
+        [{ source: functionId, target: innerLoopId }],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([functionId, innerLoopId, innerFunctionId]),
+        new Set([
+          functionId,
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const outerStartTargets = Array.from(outerStartNode.outgoingEdges.values()).map(
+        (e) => e.target
+      )
+      expect(outerStartTargets).toContain(functionId)
+
+      const funcNode = dag.nodes.get(functionId)!
+      const funcTargets = Array.from(funcNode.outgoingEdges.values()).map((e) => e.target)
+      expect(funcTargets).toContain(innerSentinelStart)
+
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const innerEndEdges = Array.from(innerEndNode.outgoingEdges.values())
+      const exitEdge = innerEndEdges.find((e) => e.target === outerSentinelEnd)
+      expect(exitEdge).toBeDefined()
+      expect(exitEdge!.sourceHandle).toBe('loop_exit')
+
+      const backEdge = innerEndEdges.find((e) => e.target === innerSentinelStart)
+      expect(backEdge).toBeDefined()
+      expect(backEdge!.sourceHandle).toBe('loop_continue')
+
+      const outerEndNode = dag.nodes.get(outerSentinelEnd)!
+      const outerBackEdge = Array.from(outerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelStart
+      )
+      expect(outerBackEdge).toBeDefined()
+      expect(outerBackEdge!.sourceHandle).toBe('loop_continue')
+    })
+
+    it('should correctly identify boundary nodes when inner loop is the only node', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const innerFunctionId = 'func-inner'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [innerLoopId],
+        iterations: 2,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(innerFunctionId), createMockBlock(innerLoopId, 'loop')],
+        [],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([innerLoopId, innerFunctionId]),
+        new Set([
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const outerStartTargets = Array.from(outerStartNode.outgoingEdges.values()).map(
+        (e) => e.target
+      )
+      expect(outerStartTargets).toContain(innerSentinelStart)
+
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const exitEdge = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelEnd
+      )
+      expect(exitEdge).toBeDefined()
+      expect(exitEdge!.sourceHandle).toBe('loop_exit')
+    })
+
+    it('should not drop intra-loop edges when target is a nested loop block', () => {
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+      const innerFunctionId = 'func-2'
+
+      const outerSentinelStart = `loop-${outerLoopId}-sentinel-start`
+      const outerSentinelEnd = `loop-${outerLoopId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const outerLoop: SerializedLoop = {
+        id: outerLoopId,
+        nodes: [functionId, innerLoopId],
+        iterations: 5,
+        loopType: 'for',
+      }
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [innerFunctionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      const dag = createMockDAG([
+        functionId,
+        innerFunctionId,
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+      ])
+      dag.loopConfigs.set(outerLoopId, outerLoop)
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+
+      const workflow = createMockWorkflow(
+        [
+          createMockBlock(functionId),
+          createMockBlock(innerFunctionId),
+          createMockBlock(innerLoopId, 'loop'),
+        ],
+        [{ source: functionId, target: innerLoopId }],
+        { [outerLoopId]: outerLoop, [innerLoopId]: innerLoop }
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([functionId, innerLoopId, innerFunctionId]),
+        new Set([
+          functionId,
+          innerFunctionId,
+          innerLoopId,
+          outerSentinelStart,
+          outerSentinelEnd,
+          innerSentinelStart,
+          innerSentinelEnd,
+        ]),
+        new Map()
+      )
+
+      const funcNode = dag.nodes.get(functionId)!
+      const edgeToInnerStart = Array.from(funcNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(edgeToInnerStart).toBeDefined()
+
+      const innerStartNode = dag.nodes.get(innerSentinelStart)!
+      expect(innerStartNode.incomingEdges.has(functionId)).toBe(true)
+    })
+  })
+
+  describe('Nested parallel wiring', () => {
+    it('should wire inner parallel sentinels into outer parallel sentinel chain', () => {
+      const outerParallelId = 'outer-parallel'
+      const innerParallelId = 'inner-parallel'
+      const functionId = 'func-1'
+
+      const outerSentinelStart = `parallel-${outerParallelId}-sentinel-start`
+      const outerSentinelEnd = `parallel-${outerParallelId}-sentinel-end`
+      const innerSentinelStart = `parallel-${innerParallelId}-sentinel-start`
+      const innerSentinelEnd = `parallel-${innerParallelId}-sentinel-end`
+      const funcTemplate = `${functionId}₍0₎`
+
+      const dag = createMockDAG([
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+        funcTemplate,
+      ])
+
+      // Set up sentinel metadata
+      dag.nodes.get(outerSentinelStart)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'start',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(outerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'end',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(innerSentinelStart)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'start',
+        parallelId: innerParallelId,
+      }
+      dag.nodes.get(innerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'end',
+        parallelId: innerParallelId,
+      }
+      dag.nodes.get(funcTemplate)!.metadata = {
+        isParallelBranch: true,
+        parallelId: innerParallelId,
+        branchIndex: 0,
+        branchTotal: 1,
+        originalBlockId: functionId,
+      }
+
+      dag.parallelConfigs.set(outerParallelId, {
+        id: outerParallelId,
+        nodes: [innerParallelId],
+        count: 3,
+        parallelType: 'count',
+      })
+      dag.parallelConfigs.set(innerParallelId, {
+        id: innerParallelId,
+        nodes: [functionId],
+        count: 2,
+        parallelType: 'count',
+      })
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(functionId)],
+        [
+          // Outer parallel start → inner parallel (intra-parallel, skipped by wireRegularEdges)
+          {
+            source: outerParallelId,
+            target: innerParallelId,
+            sourceHandle: 'parallel-start-source',
+          },
+          // Inner parallel start → function (intra-parallel, skipped by wireRegularEdges)
+          {
+            source: innerParallelId,
+            target: functionId,
+            sourceHandle: 'parallel-start-source',
+          },
+        ]
+      )
+
+      const edgeConstructor = new EdgeConstructor()
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set([innerParallelId, functionId]),
+        new Set(),
+        new Set([outerParallelId, innerParallelId, functionId]),
+        new Map()
+      )
+
+      // Outer sentinel-start → inner sentinel-start
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const edgeToInnerStart = Array.from(outerStartNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(edgeToInnerStart).toBeDefined()
+
+      // Inner sentinel-end → outer sentinel-end
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const edgeToOuterEnd = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelEnd
+      )
+      expect(edgeToOuterEnd).toBeDefined()
+
+      // Inner sentinel-start → func template
+      const innerStartNode = dag.nodes.get(innerSentinelStart)!
+      const edgeToFunc = Array.from(innerStartNode.outgoingEdges.values()).find(
+        (e) => e.target === funcTemplate
+      )
+      expect(edgeToFunc).toBeDefined()
+
+      // Func template → inner sentinel-end
+      const funcNode = dag.nodes.get(funcTemplate)!
+      const edgeToInnerEnd = Array.from(funcNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelEnd
+      )
+      expect(edgeToInnerEnd).toBeDefined()
+    })
+
+    it('should wire parallel-in-loop sentinels correctly', () => {
+      const loopId = 'outer-loop'
+      const innerParallelId = 'inner-parallel'
+      const functionId = 'func-1'
+
+      const loopSentinelStart = `loop-${loopId}-sentinel-start`
+      const loopSentinelEnd = `loop-${loopId}-sentinel-end`
+      const parallelSentinelStart = `parallel-${innerParallelId}-sentinel-start`
+      const parallelSentinelEnd = `parallel-${innerParallelId}-sentinel-end`
+      const funcTemplate = `${functionId}₍0₎`
+
+      const dag = createMockDAG([
+        loopSentinelStart,
+        loopSentinelEnd,
+        parallelSentinelStart,
+        parallelSentinelEnd,
+        funcTemplate,
+      ])
+
+      dag.nodes.get(loopSentinelStart)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        loopId,
+      }
+      dag.nodes.get(loopSentinelEnd)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        loopId,
+      }
+      dag.nodes.get(parallelSentinelStart)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'start',
+        parallelId: innerParallelId,
+      }
+      dag.nodes.get(parallelSentinelEnd)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'end',
+        parallelId: innerParallelId,
+      }
+      dag.nodes.get(funcTemplate)!.metadata = {
+        isParallelBranch: true,
+        parallelId: innerParallelId,
+        branchIndex: 0,
+        branchTotal: 1,
+        originalBlockId: functionId,
+      }
+
+      const outerLoop: SerializedLoop = {
+        id: loopId,
+        nodes: [innerParallelId],
+        iterations: 5,
+        loopType: 'for',
+      }
+
+      dag.loopConfigs.set(loopId, outerLoop)
+      dag.parallelConfigs.set(innerParallelId, {
+        id: innerParallelId,
+        nodes: [functionId],
+        count: 2,
+        parallelType: 'count',
+      })
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(functionId)],
+        [
+          {
+            source: loopId,
+            target: innerParallelId,
+            sourceHandle: 'loop-start-source',
+          },
+          {
+            source: innerParallelId,
+            target: functionId,
+            sourceHandle: 'parallel-start-source',
+          },
+        ]
+      )
+
+      const edgeConstructor = new EdgeConstructor()
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set([functionId]),
+        new Set([innerParallelId]),
+        new Set([loopId, innerParallelId, functionId]),
+        new Map()
+      )
+
+      // Loop sentinel-start → parallel sentinel-start
+      const loopStartNode = dag.nodes.get(loopSentinelStart)!
+      const edgeToParallelStart = Array.from(loopStartNode.outgoingEdges.values()).find(
+        (e) => e.target === parallelSentinelStart
+      )
+      expect(edgeToParallelStart).toBeDefined()
+
+      // Parallel sentinel-end → loop sentinel-end
+      const parallelEndNode = dag.nodes.get(parallelSentinelEnd)!
+      const edgeToLoopEnd = Array.from(parallelEndNode.outgoingEdges.values()).find(
+        (e) => e.target === loopSentinelEnd
+      )
+      expect(edgeToLoopEnd).toBeDefined()
+
+      // Inner parallel wiring: sentinel-start → func, func → sentinel-end
+      const parallelStartNode = dag.nodes.get(parallelSentinelStart)!
+      expect(
+        Array.from(parallelStartNode.outgoingEdges.values()).some((e) => e.target === funcTemplate)
+      ).toBe(true)
+
+      const funcNode = dag.nodes.get(funcTemplate)!
+      expect(
+        Array.from(funcNode.outgoingEdges.values()).some((e) => e.target === parallelSentinelEnd)
+      ).toBe(true)
+    })
+
+    it('should wire loop-in-parallel with correct exit handles', () => {
+      const outerParallelId = 'outer-parallel'
+      const innerLoopId = 'inner-loop'
+      const functionId = 'func-1'
+
+      const outerSentinelStart = `parallel-${outerParallelId}-sentinel-start`
+      const outerSentinelEnd = `parallel-${outerParallelId}-sentinel-end`
+      const innerSentinelStart = `loop-${innerLoopId}-sentinel-start`
+      const innerSentinelEnd = `loop-${innerLoopId}-sentinel-end`
+
+      const dag = createMockDAG([
+        outerSentinelStart,
+        outerSentinelEnd,
+        innerSentinelStart,
+        innerSentinelEnd,
+        functionId,
+      ])
+
+      dag.nodes.get(outerSentinelStart)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'start',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(outerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        isParallelSentinel: true,
+        sentinelType: 'end',
+        parallelId: outerParallelId,
+      }
+      dag.nodes.get(innerSentinelStart)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        loopId: innerLoopId,
+      }
+      dag.nodes.get(innerSentinelEnd)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        loopId: innerLoopId,
+      }
+
+      const innerLoop: SerializedLoop = {
+        id: innerLoopId,
+        nodes: [functionId],
+        iterations: 3,
+        loopType: 'for',
+      }
+
+      dag.loopConfigs.set(innerLoopId, innerLoop)
+      dag.parallelConfigs.set(outerParallelId, {
+        id: outerParallelId,
+        nodes: [innerLoopId],
+        count: 2,
+        parallelType: 'count',
+      })
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(functionId), createMockBlock(innerLoopId, 'loop')],
+        [
+          {
+            source: outerParallelId,
+            target: innerLoopId,
+            sourceHandle: 'parallel-start-source',
+          },
+          {
+            source: innerLoopId,
+            target: functionId,
+            sourceHandle: 'loop-start-source',
+          },
+        ],
+        { [innerLoopId]: innerLoop }
+      )
+
+      const edgeConstructor = new EdgeConstructor()
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set([innerLoopId]),
+        new Set([functionId]),
+        new Set([outerParallelId, innerLoopId, functionId]),
+        new Map()
+      )
+
+      // Outer sentinel-start → inner loop sentinel-start
+      const outerStartNode = dag.nodes.get(outerSentinelStart)!
+      const edgeToInnerStart = Array.from(outerStartNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(edgeToInnerStart).toBeDefined()
+
+      // Inner loop sentinel-end → outer parallel sentinel-end with loop_exit handle
+      const innerEndNode = dag.nodes.get(innerSentinelEnd)!
+      const edgeToOuterEnd = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === outerSentinelEnd
+      )
+      expect(edgeToOuterEnd).toBeDefined()
+      expect(edgeToOuterEnd!.sourceHandle).toBe('loop_exit')
+
+      // Inner loop back-edge: sentinel-end → sentinel-start with loop_continue handle
+      const backEdge = Array.from(innerEndNode.outgoingEdges.values()).find(
+        (e) => e.target === innerSentinelStart
+      )
+      expect(backEdge).toBeDefined()
+      expect(backEdge!.sourceHandle).toBe('loop_continue')
+
+      // Inner loop wiring: sentinel-start → function
+      const innerStartNode = dag.nodes.get(innerSentinelStart)!
+      expect(
+        Array.from(innerStartNode.outgoingEdges.values()).some((e) => e.target === functionId)
+      ).toBe(true)
+
+      // Function → inner loop sentinel-end
+      const funcNode = dag.nodes.get(functionId)!
+      expect(
+        Array.from(funcNode.outgoingEdges.values()).some((e) => e.target === innerSentinelEnd)
+      ).toBe(true)
+    })
+  })
 })

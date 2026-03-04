@@ -328,6 +328,11 @@ const nextConfig: NextConfig = {
         source: '/team',
         destination: 'https://cal.com/emirkarabeg/sim-team',
         permanent: false,
+      },
+      {
+        source: '/careers',
+        destination: 'https://jobs.ashbyhq.com/sim',
+        permanent: true,
       }
     )
 

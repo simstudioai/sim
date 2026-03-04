@@ -1,4 +1,8 @@
-import type { ChildWorkflowContext, IterationContext } from '@/executor/execution/types'
+import type {
+  ChildWorkflowContext,
+  IterationContext,
+  ParentIteration,
+} from '@/executor/execution/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -83,6 +87,7 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
     iterationTotal?: number
     iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
     childWorkflowBlockId?: string
     childWorkflowName?: string
   }
@@ -108,6 +113,7 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     iterationTotal?: number
     iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
     childWorkflowBlockId?: string
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
@@ -135,6 +141,7 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     iterationTotal?: number
     iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
     childWorkflowBlockId?: string
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
@@ -271,6 +278,9 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           iterationTotal: iterationContext.iterationTotal,
           iterationType: iterationContext.iterationType,
           iterationContainerId: iterationContext.iterationContainerId,
+          ...(iterationContext.parentIterations?.length && {
+            parentIterations: iterationContext.parentIterations,
+          }),
         }),
         ...(childWorkflowContext && {
           childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -303,6 +313,9 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           iterationTotal: iterationContext.iterationTotal,
           iterationType: iterationContext.iterationType,
           iterationContainerId: iterationContext.iterationContainerId,
+          ...(iterationContext.parentIterations?.length && {
+            parentIterations: iterationContext.parentIterations,
+          }),
         }
       : {}
     const childWorkflowData = childWorkflowContext

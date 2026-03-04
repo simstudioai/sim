@@ -13,6 +13,7 @@ import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
+import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -30,6 +31,7 @@ import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
+import { DubBlock } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
@@ -57,6 +59,7 @@ import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_forms'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
 import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
+import { GoogleMeetBlock } from '@/blocks/blocks/google_meet'
 import { GooglePagespeedBlock } from '@/blocks/blocks/google_pagespeed'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock, GoogleSlidesV2Block } from '@/blocks/blocks/google_slides'
@@ -205,6 +208,7 @@ export const registry: Record<string, BlockConfig> = {
   asana: AsanaBlock,
   ashby: AshbyBlock,
   attio: AttioBlock,
+  brandfetch: BrandfetchBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -224,6 +228,7 @@ export const registry: Record<string, BlockConfig> = {
   discord: DiscordBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
+  dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   elasticsearch: ElasticsearchBlock,
@@ -253,6 +258,7 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
+  google_meet: GoogleMeetBlock,
   google_maps: GoogleMapsBlock,
   google_pagespeed: GooglePagespeedBlock,
   google_tasks: GoogleTasksBlock,
