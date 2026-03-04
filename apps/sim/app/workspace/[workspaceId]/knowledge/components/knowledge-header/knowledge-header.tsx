@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
@@ -53,6 +54,7 @@ interface Workspace {
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
+  const t = useTranslations('knowledge')
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
   const [isWorkspacePopoverOpen, setIsWorkspacePopoverOpen] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -156,7 +158,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   <Tooltip.Trigger asChild>
                     <AlertTriangle className='h-4 w-4 text-amber-500' />
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>Not assigned to workspace</Tooltip.Content>
+                  <Tooltip.Content side='top'>{t('labels.no_workspace')}</Tooltip.Content>
                 </Tooltip.Root>
               )}
 
@@ -170,7 +172,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   >
                     <span className='truncate'>
                       {isLoadingWorkspaces
-                        ? 'Loading...'
+                        ? t('buttons.processing')
                         : updateKnowledgeBase.isPending
                           ? 'Updating...'
                           : currentWorkspace?.name || 'No workspace'}
@@ -203,7 +205,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   {workspaces.length === 0 && !isLoadingWorkspaces && (
                     <PopoverItem disabled>
                       <span className='text-muted-foreground text-xs'>
-                        No workspaces with write access
+                        No write permissions
                       </span>
                     </PopoverItem>
                   )}
@@ -233,7 +235,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   className='text-red-600 hover:text-red-600 focus:text-red-600'
                 >
                   <Trash className='h-4 w-4' />
-                  <span>Delete Knowledge Base</span>
+                  <span>{t('context_menu.delete')}</span>
                 </PopoverItem>
               </PopoverContent>
             </Popover>

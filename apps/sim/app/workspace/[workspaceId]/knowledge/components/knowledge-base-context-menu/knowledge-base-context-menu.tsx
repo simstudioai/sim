@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import {
   Popover,
   PopoverAnchor,
@@ -98,6 +100,8 @@ export function KnowledgeBaseContextMenu({
   disableEdit = false,
   disableDelete = false,
 }: KnowledgeBaseContextMenuProps) {
+  const t = useTranslations('knowledge')
+
   return (
     <Popover
       open={isOpen}
@@ -123,7 +127,7 @@ export function KnowledgeBaseContextMenu({
               onClose()
             }}
           >
-            Open in new tab
+            {t('context_menu.open_new_tab')}
           </PopoverItem>
         )}
         {showOpenInNewTab && onOpenInNewTab && <PopoverDivider />}
@@ -136,7 +140,7 @@ export function KnowledgeBaseContextMenu({
               onClose()
             }}
           >
-            View tags
+            {t('context_menu.view_tags')}
           </PopoverItem>
         )}
         {onCopyId && (
@@ -146,7 +150,7 @@ export function KnowledgeBaseContextMenu({
               onClose()
             }}
           >
-            Copy ID
+            {t('context_menu.copy_id')}
           </PopoverItem>
         )}
         {((showViewTags && onViewTags) || onCopyId) && <PopoverDivider />}
@@ -160,7 +164,7 @@ export function KnowledgeBaseContextMenu({
               onClose()
             }}
           >
-            Edit
+            {t('context_menu.edit')}
           </PopoverItem>
         )}
 
@@ -179,7 +183,7 @@ export function KnowledgeBaseContextMenu({
               onClose()
             }}
           >
-            Delete
+            {t('context_menu.delete')}
           </PopoverItem>
         )}
       </PopoverContent>

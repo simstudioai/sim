@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
@@ -79,6 +80,7 @@ interface SubmitStatus {
 }
 
 export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
+  const t = useTranslations('knowledge')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -304,14 +306,14 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   return (
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent size='lg'>
-        <ModalHeader>Create Knowledge Base</ModalHeader>
+        <ModalHeader>{t('modals.create_title')}</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='kb-name'>Name</Label>
+                  <Label htmlFor='kb-name'>{t('labels.name')}</Label>
                   {/* Hidden decoy fields to prevent browser autofill */}
                   <input
                     type='text'
@@ -328,7 +330,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   />
                   <Input
                     id='kb-name'
-                    placeholder='Enter knowledge base name'
+                    placeholder={t('placeholders.enter_kb_name')}
                     {...register('name')}
                     className={cn(errors.name && 'border-[var(--text-error)]')}
                     autoComplete='off'
@@ -340,10 +342,10 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='description'>Description</Label>
+                  <Label htmlFor='description'>{t('labels.description')}</Label>
                   <Textarea
                     id='description'
-                    placeholder='Describe this knowledge base (optional)'
+                    placeholder={t('placeholders.enter_description')}
                     rows={4}
                     {...register('description')}
                     className={cn(errors.description && 'border-[var(--text-error)]')}
@@ -352,7 +354,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
                 <div className='grid grid-cols-2 gap-[12px]'>
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
+                    <Label htmlFor='minChunkSize'>{t('labels.min_chunk_size')}</Label>
                     <Input
                       id='minChunkSize'
                       placeholder='100'
@@ -365,7 +367,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   </div>
 
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
+                    <Label htmlFor='maxChunkSize'>{t('labels.max_chunk_size')}</Label>
                     <Input
                       id='maxChunkSize'
                       placeholder='1024'
@@ -379,7 +381,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                  <Label htmlFor='overlapSize'>{t('labels.overlap')}</Label>
                   <Input
                     id='overlapSize'
                     placeholder='200'
@@ -390,12 +392,12 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                     name='overlap-size'
                   />
                   <p className='text-[11px] text-[var(--text-muted)]'>
-                    1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
+                    {t('helper_text.chunk_size_note')}
                   </p>
                 </div>
 
                 <div className='flex flex-col gap-[8px]'>
-                  <Label>Upload Documents</Label>
+                  <Label>{t('labels.upload_documents')}</Label>
                   <Button
                     type='button'
                     variant='default'
@@ -419,10 +421,10 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                     />
                     <div className='flex flex-col gap-[2px] text-center'>
                       <span className='text-[var(--text-primary)]'>
-                        {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
+                        {isDragging ? t('helper_text.upload_dragging') : t('helper_text.upload_hint')}
                       </span>
                       <span className='text-[11px] text-[var(--text-tertiary)]'>
-                        PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
+                        {t('helper_text.upload_formats')}
                       </span>
                     </div>
                   </Button>
@@ -430,7 +432,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
                 {files.length > 0 && (
                   <div className='space-y-2'>
-                    <Label>Selected Files</Label>
+                    <Label>{t('labels.selected_files')}</Label>
                     <div className='space-y-2'>
                       {files.map((file, index) => {
                         const fileStatus = uploadProgress.fileStatuses?.[index]
@@ -519,7 +521,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   type='button'
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  {t('buttons.cancel')}
                 </Button>
                 <Button
                   variant='tertiary'
@@ -529,12 +531,12 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   {isSubmitting
                     ? isUploading
                       ? uploadProgress.stage === 'uploading'
-                        ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                        ? t('buttons.uploading', { completed: uploadProgress.filesCompleted, total: uploadProgress.totalFiles })
                         : uploadProgress.stage === 'processing'
-                          ? 'Processing...'
-                          : 'Creating...'
-                      : 'Creating...'
-                    : 'Create'}
+                          ? t('buttons.processing')
+                          : t('buttons.creating')
+                      : t('buttons.creating')
+                    : t('buttons.create')}
                 </Button>
               </div>
             </div>

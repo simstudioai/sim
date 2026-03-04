@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
@@ -51,6 +52,7 @@ export function EditKnowledgeBaseModal({
   initialDescription,
   onSave,
 }: EditKnowledgeBaseModalProps) {
+  const t = useTranslations('knowledge')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -99,16 +101,16 @@ export function EditKnowledgeBaseModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
-        <ModalHeader>Edit Knowledge Base</ModalHeader>
+        <ModalHeader>{t('modals.edit_title')}</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
             <div className='space-y-[12px]'>
               <div className='flex flex-col gap-[8px]'>
-                <Label htmlFor='kb-name'>Name</Label>
+                <Label htmlFor='kb-name'>{t('labels.name')}</Label>
                 <Input
                   id='kb-name'
-                  placeholder='Enter knowledge base name'
+                  placeholder={t('placeholders.enter_kb_name')}
                   {...register('name')}
                   className={cn(errors.name && 'border-[var(--text-error)]')}
                   autoComplete='off'
@@ -123,10 +125,10 @@ export function EditKnowledgeBaseModal({
               </div>
 
               <div className='flex flex-col gap-[8px]'>
-                <Label htmlFor='description'>Description</Label>
+                <Label htmlFor='description'>{t('labels.description')}</Label>
                 <Textarea
                   id='description'
-                  placeholder='Describe this knowledge base (optional)'
+                  placeholder={t('placeholders.enter_description')}
                   rows={4}
                   {...register('description')}
                   className={cn(errors.description && 'border-[var(--text-error)]')}
@@ -156,14 +158,14 @@ export function EditKnowledgeBaseModal({
                   type='button'
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  {t('buttons.cancel')}
                 </Button>
                 <Button
                   variant='tertiary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim() || !isDirty}
                 >
-                  {isSubmitting ? 'Saving...' : 'Save'}
+                  {isSubmitting ? t('buttons.processing') : t('buttons.save')}
                 </Button>
               </div>
             </div>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
 
 interface KnowledgeListContextMenuProps {
@@ -42,6 +44,8 @@ export function KnowledgeListContextMenu({
   onAddKnowledgeBase,
   disableAdd = false,
 }: KnowledgeListContextMenuProps) {
+  const t = useTranslations('knowledge')
+
   return (
     <Popover
       open={isOpen}
@@ -67,7 +71,7 @@ export function KnowledgeListContextMenu({
               onClose()
             }}
           >
-            Add knowledge base
+            {t('context_menu.add_knowledge_base')}
           </PopoverItem>
         )}
       </PopoverContent>

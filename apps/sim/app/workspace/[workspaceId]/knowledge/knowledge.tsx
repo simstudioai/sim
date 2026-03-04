@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, Database, Search } from 'lucide-react'
@@ -49,6 +50,7 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
  * Supports filtering by search query and sorting options
  */
 export function Knowledge() {
+  const t = useTranslations('knowledge')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -97,8 +99,8 @@ export function Knowledge() {
   }, [])
 
   const currentSortValue = `${sortBy}-${sortOrder}`
-  const currentSortLabel =
-    SORT_OPTIONS.find((opt) => opt.value === currentSortValue)?.label || 'Last Updated'
+  const currentSortOption = SORT_OPTIONS.find((opt) => opt.value === currentSortValue)
+  const currentSortLabel = currentSortOption ? t(currentSortOption.label as any) : t('sort_options.last_updated')
 
   /**
    * Handles sort option change from dropdown
@@ -150,7 +152,7 @@ export function Knowledge() {
     id: kb.id,
     title: kb.name,
     docCount: kb.docCount || 0,
-    description: kb.description || 'No description provided',
+    description: kb.description || t('no_description'),
     createdAt: kb.createdAt,
     updatedAt: kb.updatedAt,
   })
@@ -161,19 +163,19 @@ export function Knowledge() {
   const emptyState = useMemo(() => {
     if (debouncedSearchQuery) {
       return {
-        title: 'No knowledge bases found',
-        description: 'Try a different search term',
+        title: t('empty_states.no_results_title'),
+        description: t('empty_states.no_results_description'),
       }
     }
 
     return {
-      title: 'No knowledge bases yet',
+      title: t('empty_states.no_bases_title'),
       description:
         userPermissions.canEdit === true
-          ? 'Create a knowledge base to get started'
-          : 'Knowledge bases will appear here once created',
+          ? t('empty_states.no_bases_can_create')
+          : t('empty_states.no_bases_cannot_create'),
     }
-  }, [debouncedSearchQuery, userPermissions.canEdit])
+  }, [debouncedSearchQuery, userPermissions.canEdit, t])
 
   return (
     <>
@@ -188,18 +190,16 @@ export function Knowledge() {
                 <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BB377] bg-[#E8F7EE] dark:border-[#1E5A3E] dark:bg-[#0F3D2C]'>
                   <Database className='h-[14px] w-[14px] text-[#5BB377] dark:text-[#34D399]' />
                 </div>
-                <h1 className='font-medium text-[18px]'>Knowledge Base</h1>
+                <h1 className='font-medium text-[18px]'>{t('title')}</h1>
               </div>
-              <p className='mt-[10px] text-[14px] text-[var(--text-tertiary)]'>
-                Create and manage knowledge bases with custom files.
-              </p>
+              <p className='mt-[10px] text-[14px] text-[var(--text-tertiary)]'>{t('subtitle')}</p>
             </div>
 
             <div className='mt-[14px] flex items-center justify-between'>
               <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
                 <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                 <Input
-                  placeholder='Search'
+                  placeholder={t('placeholders.search')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -222,7 +222,7 @@ export function Knowledge() {
                             active={currentSortValue === option.value}
                             onClick={() => handleSortChange(option.value)}
                           >
-                            {option.label}
+                            {t(option.label as any)}
                           </PopoverItem>
                         ))}
                       </div>
@@ -238,13 +238,11 @@ export function Knowledge() {
                       variant='tertiary'
                       className='h-[32px] rounded-[6px]'
                     >
-                      Create
+                      {t('buttons.create')}
                     </Button>
                   </Tooltip.Trigger>
                   {userPermissions.canEdit !== true && (
-                    <Tooltip.Content>
-                      Write permission required to create knowledge bases
-                    </Tooltip.Content>
+                    <Tooltip.Content>{t('helper_text.permission_required')}</Tooltip.Content>
                   )}
                 </Tooltip.Root>
               </div>
@@ -259,16 +257,14 @@ export function Knowledge() {
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
                       {emptyState.title}
                     </p>
-                    <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                      {emptyState.description}
-                    </p>
+                    <p className='mt-1 text-[var(--text-muted)] text-xs'>{emptyState.description}</p>
                   </div>
                 </div>
               ) : error ? (
                 <div className='col-span-full flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                   <div className='text-center'>
                     <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Error loading knowledge bases
+                      {t('empty_states.error_title')}
                     </p>
                     <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
                   </div>

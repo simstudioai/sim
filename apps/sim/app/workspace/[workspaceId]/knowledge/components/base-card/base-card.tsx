@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useCallback, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
@@ -78,6 +79,7 @@ export function BaseCard({
   onUpdate,
   onDelete,
 }: BaseCardProps) {
+  const t = useTranslations('knowledge')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
@@ -184,13 +186,13 @@ export function BaseCard({
             <div className='flex items-center justify-between'>
               <span className='flex items-center gap-[6px] text-[12px] text-[var(--text-tertiary)]'>
                 <DocumentAttachment className='h-[12px] w-[12px]' />
-                {docCount} {docCount === 1 ? 'doc' : 'docs'}
+                {docCount} {docCount === 1 ? t('document_count.singular') : t('document_count.plural')}
               </span>
               {updatedAt && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span className='text-[12px] text-[var(--text-tertiary)]'>
-                      last updated: {formatRelativeTime(updatedAt)}
+                      {t('labels.last_updated')} {formatRelativeTime(updatedAt)}
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{formatAbsoluteDate(updatedAt)}</Tooltip.Content>

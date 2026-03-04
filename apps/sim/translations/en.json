@@ -2729,5 +2729,81 @@
       "delete_confirmation": "Are you sure you want to delete",
       "delete_error": "This action cannot be undone."
     }
+  },
+  "knowledge": {
+    "title": "Knowledge Base",
+    "subtitle": "Create and manage knowledge bases with custom files.",
+    "labels": {
+      "name": "Name",
+      "description": "Description",
+      "min_chunk_size": "Min Chunk Size (characters)",
+      "max_chunk_size": "Max Chunk Size (tokens)",
+      "overlap": "Overlap (tokens)",
+      "upload_documents": "Upload Documents",
+      "selected_files": "Selected Files"
+    },
+    "placeholders": {
+      "search": "Search",
+      "enter_kb_name": "Enter knowledge base name",
+      "enter_description": "Describe this knowledge base (optional)"
+    },
+    "helper_text": {
+      "chunk_size_note": "1 token ≈ 4 characters. Max chunk size and overlap are in tokens.",
+      "upload_formats": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)",
+      "upload_hint": "Drop files here or click to browse",
+      "upload_dragging": "Drop files here",
+      "permission_required": "Write permission required to create knowledge bases"
+    },
+    "buttons": {
+      "create": "Create",
+      "cancel": "Cancel",
+      "save": "Save",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "uploading": "Uploading {completed}/{total}...",
+      "processing": "Processing...",
+      "creating": "Creating..."
+    },
+    "empty_states": {
+      "no_results_title": "No knowledge bases found",
+      "no_results_description": "Try a different search term",
+      "no_bases_title": "No knowledge bases yet",
+      "no_bases_can_create": "Create a knowledge base to get started",
+      "no_bases_cannot_create": "Knowledge bases will appear here once created",
+      "error_title": "Error loading knowledge bases"
+    },
+    "modals": {
+      "create_title": "Create Knowledge Base",
+      "edit_title": "Edit Knowledge Base",
+      "delete_title": "Delete Knowledge Base",
+      "delete_confirmation": "Are you sure you want to delete {name}? This will permanently remove all associated documents, chunks, and embeddings.",
+      "delete_confirmation_unnamed": "Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.",
+      "delete_warning": "This action cannot be undone."
+    },
+    "context_menu": {
+      "open_new_tab": "Open in new tab",
+      "view_tags": "View tags",
+      "copy_id": "Copy ID",
+      "edit": "Edit",
+      "delete": "Delete",
+      "add_knowledge_base": "Add knowledge base"
+    },
+    "document_count": {
+      "singular": "doc",
+      "plural": "docs"
+    },
+    "sort_options": {
+      "last_updated": "Last Updated",
+      "newest_first": "Newest First",
+      "oldest_first": "Oldest First",
+      "name_asc": "Name (A-Z)",
+      "name_desc": "Name (Z-A)",
+      "most_docs": "Most Documents",
+      "least_docs": "Least Documents"
+    },
+    "labels": {
+      "last_updated": "last updated:"
+    },
+    "no_description": "No description provided"
   }
 }

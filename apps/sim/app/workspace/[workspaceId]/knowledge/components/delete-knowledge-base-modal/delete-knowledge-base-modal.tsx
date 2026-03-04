@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
@@ -36,30 +37,29 @@ export function DeleteKnowledgeBaseModal({
   isDeleting,
   knowledgeBaseName,
 }: DeleteKnowledgeBaseModalProps) {
+  const t = useTranslations('knowledge')
   return (
     <Modal open={isOpen} onOpenChange={onClose}>
       <ModalContent size='sm'>
-        <ModalHeader>Delete Knowledge Base</ModalHeader>
+        <ModalHeader>{t('modals.delete_title')}</ModalHeader>
         <ModalBody>
           <p className='text-[12px] text-[var(--text-secondary)]'>
             {knowledgeBaseName ? (
               <>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-                This will permanently remove all associated documents, chunks, and embeddings.
+                {t('modals.delete_confirmation', { name: knowledgeBaseName })} {' '}
               </>
             ) : (
-              'Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.'
-            )}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              t('modals.delete_confirmation_unnamed')
+            )}
+            <span className='text-[var(--text-error)]'>{t('modals.delete_warning')}</span>
           </p>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onClose} disabled={isDeleting}>
-            Cancel
+            {t('buttons.cancel')}
           </Button>
           <Button variant='destructive' onClick={onConfirm} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? t('buttons.deleting') : t('buttons.delete')}
           </Button>
         </ModalFooter>
       </ModalContent>

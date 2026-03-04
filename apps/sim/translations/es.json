@@ -2770,5 +2770,81 @@
       "delete_confirmation": "¿Estás seguro de que deseas eliminar",
       "delete_error": "Esta acción no se puede deshacer."
     }
+  },
+  "knowledge": {
+    "title": "Base de Conocimiento",
+    "subtitle": "Crea y gestiona bases de conocimiento con archivos personalizados.",
+    "labels": {
+      "name": "Nombre",
+      "description": "Descripción",
+      "min_chunk_size": "Tamaño Mínimo de Fragmento (caracteres)",
+      "max_chunk_size": "Tamaño Máximo de Fragmento (tokens)",
+      "overlap": "Superposición (tokens)",
+      "upload_documents": "Subir Documentos",
+      "selected_files": "Archivos Seleccionados"
+    },
+    "placeholders": {
+      "search": "Buscar",
+      "enter_kb_name": "Ingresa el nombre de la base de conocimiento",
+      "enter_description": "Describe esta base de conocimiento (opcional)"
+    },
+    "helper_text": {
+      "chunk_size_note": "1 token ≈ 4 caracteres. El tamaño máximo de fragmento y la superposición están en tokens.",
+      "upload_formats": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (máx. 100MB cada uno)",
+      "upload_hint": "Arrastra archivos aquí o haz clic para examinar",
+      "upload_dragging": "Suelta los archivos aquí",
+      "permission_required": "Se requiere permiso de escritura para crear bases de conocimiento"
+    },
+    "buttons": {
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "delete": "Eliminar",
+      "deleting": "Eliminando...",
+      "uploading": "Subiendo {completed}/{total}...",
+      "processing": "Procesando...",
+      "creating": "Creando..."
+    },
+    "empty_states": {
+      "no_results_title": "No se encontraron bases de conocimiento",
+      "no_results_description": "Intenta con un término de búsqueda diferente",
+      "no_bases_title": "No hay bases de conocimiento aún",
+      "no_bases_can_create": "Crea una base de conocimiento para comenzar",
+      "no_bases_cannot_create": "Las bases de conocimiento aparecerán aquí una vez creadas",
+      "error_title": "Error al cargar bases de conocimiento"
+    },
+    "modals": {
+      "create_title": "Crear Base de Conocimiento",
+      "edit_title": "Editar Base de Conocimiento",
+      "delete_title": "Eliminar Base de Conocimiento",
+      "delete_confirmation": "¿Estás seguro de que deseas eliminar {name}? Esto eliminará permanentemente todos los documentos, fragmentos e incrustaciones asociados.",
+      "delete_confirmation_unnamed": "¿Estás seguro de que deseas eliminar esta base de conocimiento? Esto eliminará permanentemente todos los documentos, fragmentos e incrustaciones asociados.",
+      "delete_warning": "Esta acción no se puede deshacer."
+    },
+    "context_menu": {
+      "open_new_tab": "Abrir en nueva pestaña",
+      "view_tags": "Ver etiquetas",
+      "copy_id": "Copiar ID",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "add_knowledge_base": "Agregar base de conocimiento"
+    },
+    "document_count": {
+      "singular": "doc",
+      "plural": "docs"
+    },
+    "sort_options": {
+      "last_updated": "Actualizado Recientemente",
+      "newest_first": "Lo Más Nuevo Primero",
+      "oldest_first": "Lo Más Antiguo Primero",
+      "name_asc": "Nombre (A-Z)",
+      "name_desc": "Nombre (Z-A)",
+      "most_docs": "Más Documentos",
+      "least_docs": "Menos Documentos"
+    },
+    "labels": {
+      "last_updated": "último actualizado:"
+    },
+    "no_description": "Sin descripción"
   }
 }
