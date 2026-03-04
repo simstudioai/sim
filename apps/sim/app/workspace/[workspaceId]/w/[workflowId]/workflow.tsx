@@ -207,6 +207,7 @@ const reactFlowStyles = [
   '[&_.react-flow__renderer]:!bg-[var(--bg)]',
   '[&_.react-flow__viewport]:!bg-[var(--bg)]',
   '[&_.react-flow__background]:hidden',
+  '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
@@ -2412,6 +2413,12 @@ const WorkflowContent = React.memo(() => {
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
+      // Compute zIndex for blocks inside containers so they render above the
+      // parent subflow's interactive body area (which needs pointer-events for
+      // click-to-select). Container nodes use zIndex: depth (0, 1, 2...),
+      // so child blocks use a baseline that is always above any container.
+      const childZIndex = block.data?.parentId ? 1000 : undefined
+
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
         id: block.id,
@@ -2420,6 +2427,7 @@ const WorkflowContent = React.memo(() => {
         parentId: block.data?.parentId,
         dragHandle,
         draggable: !isBlockProtected(block.id, blocks),
+        ...(childZIndex !== undefined && { zIndex: childZIndex }),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -3847,7 +3855,7 @@ const WorkflowContent = React.memo(() => {
               elevateEdgesOnSelect={true}
               onlyRenderVisibleElements={false}
               deleteKeyCode={null}
-              elevateNodesOnSelect={true}
+              elevateNodesOnSelect={false}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
             />
