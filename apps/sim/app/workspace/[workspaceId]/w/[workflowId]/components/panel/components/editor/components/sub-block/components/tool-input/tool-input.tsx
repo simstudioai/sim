@@ -67,8 +67,8 @@ import {
 } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
@@ -514,7 +514,7 @@ export const ToolInput = memo(function ToolInput({
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools()
   useMcpToolsEvents(workspaceId)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
   const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
@@ -1387,7 +1387,7 @@ export const ToolInput = memo(function ToolInput({
         icon: McpIcon,
         onSelect: () => {
           setOpen(false)
-          window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
+          navigateToSettings({ section: 'mcp' })
         },
         disabled: isPreview,
       })
@@ -1745,7 +1745,7 @@ export const ToolInput = memo(function ToolInput({
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation()
                                 e.preventDefault()
-                                openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                                navigateToSettings({ section: 'mcp', mcpServerId: serverId })
                               }}
                             >
                               {getIssueBadgeLabel(issue)}

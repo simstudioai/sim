@@ -105,7 +105,7 @@ export function TableCard({ table, workspaceId }: TableCardProps) {
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <span className='text-[12px] text-[var(--text-tertiary)]'>
-                    {formatRelativeTime(table.updatedAt)}
+                    last updated: {formatRelativeTime(table.updatedAt)}
                   </span>
                 </Tooltip.Trigger>
                 <Tooltip.Content>{formatAbsoluteDate(table.updatedAt)}</Tooltip.Content>

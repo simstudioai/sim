@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { FilesView } from './files-view'
+import { Files } from './files'
 
 interface FilesPageProps {
   params: Promise<{
@@ -28,5 +28,5 @@ export default async function FilesPage({ params }: FilesPageProps) {
     redirect(`/workspace/${workspaceId}`)
   }
 
-  return <FilesView />
+  return <Files />
 }

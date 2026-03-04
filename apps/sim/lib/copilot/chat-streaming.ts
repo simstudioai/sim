@@ -9,7 +9,7 @@ import {
   createStreamEventWriter,
   resetStreamBuffer,
   setStreamMeta,
-} from '@/lib/copilot/orchestrator/stream-buffer'
+} from '@/lib/copilot/orchestrator/stream/buffer'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotChatStreaming')

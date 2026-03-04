@@ -237,7 +237,7 @@ export default function SSOForm() {
 
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
-        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <div className={`${inter.className} pt-6 text-center font-light text-[15px]`}>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
@@ -249,7 +249,7 @@ export default function SSOForm() {
       )}
 
       <div
-        className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
+        className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[14px] leading-relaxed sm:px-8 md:px-[44px]`}
       >
         By signing in, you agree to our{' '}
         <Link

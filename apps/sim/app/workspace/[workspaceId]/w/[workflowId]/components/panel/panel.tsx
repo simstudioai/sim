@@ -47,6 +47,7 @@ import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workf
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import type { PanelTab } from '@/stores/panel'
@@ -137,6 +138,7 @@ export const Panel = memo(function Panel() {
   const hasBlocks = useWorkflowStore((state) => Object.keys(state.blocks).length > 0)
 
   const { collaborativeBatchToggleLocked } = useCollaborativeWorkflow()
+  const { navigateToSettings } = useSettingsNavigation()
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -162,13 +164,7 @@ export const Panel = memo(function Panel() {
    * Opens subscription settings modal
    */
   const openSubscriptionSettings = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('open-settings', {
-          detail: { tab: 'subscription' },
-        })
-      )
-    }
+    navigateToSettings({ section: 'subscription' })
   }
 
   /**

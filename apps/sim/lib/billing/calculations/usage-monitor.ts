@@ -211,13 +211,6 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
             detail: { usageData },
           })
         )
-
-        // Optionally open the subscription tab in settings
-        window.dispatchEvent(
-          new CustomEvent('open-settings', {
-            detail: { tab: 'subscription' },
-          })
-        )
       }
     }
   } catch (error) {

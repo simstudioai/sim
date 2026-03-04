@@ -141,7 +141,7 @@ export async function GET(
           .where(eq(workspaceInvitation.id, invitation.id))
 
         return NextResponse.redirect(
-          new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl())
+          new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
         )
       }
 
@@ -193,7 +193,9 @@ export async function GET(
         request: req,
       })
 
-      return NextResponse.redirect(new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl()))
+      return NextResponse.redirect(
+        new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
+      )
     }
 
     return NextResponse.json({

@@ -56,7 +56,7 @@ export function useDuplicateWorkspace({ workspaceId, onSuccess }: UseDuplicateWo
           workflowsCount: duplicatedWorkspace.workflowsCount,
         })
 
-        router.push(`/workspace/${duplicatedWorkspace.id}/w`)
+        router.push(`/workspace/${duplicatedWorkspace.id}/home`)
 
         onSuccess?.()
 

@@ -238,7 +238,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
 
         logger.info(`Workspace import complete. Imported ${extractedWorkflows.length} workflows`)
 
-        router.push(`/workspace/${newWorkspace.id}/w`)
+        router.push(`/workspace/${newWorkspace.id}/home`)
 
         onSuccess?.()
       } catch (error) {

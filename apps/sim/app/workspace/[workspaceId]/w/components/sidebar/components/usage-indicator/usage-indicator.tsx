@@ -16,6 +16,7 @@ import {
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { UsageIndicatorContextMenu } from './usage-indicator-context-menu'
@@ -203,6 +204,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const { onOperationConfirmed } = useSocket()
   const queryClient = useQueryClient()
   const { handleUpgrade } = useSubscriptionUpgrade()
+  const { navigateToSettings } = useSettingsNavigation()
 
   const {
     isOpen: isContextMenuOpen,
@@ -304,12 +306,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }, [handleUpgrade])
 
   const handleSetLimit = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-  }, [])
+    navigateToSettings({ section: 'subscription' })
+  }, [navigateToSettings])
 
   const handleManageSeats = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'team' } }))
-  }, [])
+    navigateToSettings({ section: 'team' })
+  }, [navigateToSettings])
 
   const handleUpgradeToEnterprise = useCallback(() => {
     window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
@@ -455,10 +457,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         }
       }
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
-        logger.info('Opened settings to subscription tab')
-      }
+      navigateToSettings({ section: 'subscription' })
+      logger.info('Opened settings to subscription tab')
     } catch (error) {
       logger.error('Failed to handle usage indicator click', { error })
     }
