@@ -40,13 +40,13 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'params',
       title: 'Query Params',
       type: 'table',
-      columns: ['Key', 'Value'],
+      columns: ['key', 'value'],
     },
     {
       id: 'headers',
       title: 'Headers',
       type: 'table',
-      columns: ['Key', 'Value'],
+      columns: ['key', 'value'],
       description:
         'Custom headers (standard headers like User-Agent, Accept, etc. are added automatically)',
     },

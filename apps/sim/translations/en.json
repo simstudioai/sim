@@ -1271,7 +1271,21 @@
     },
     "skill_input": {
       "title": "Skill Selection",
-      "placeholder": "Select skill"
+      "placeholder": "Select skill",
+      "buttons": {
+        "create": "Create Skill"
+      },
+      "sections": {
+        "available": "Skills"
+      },
+      "placeholders": {
+        "add": "Add skill...",
+        "search": "Search skills..."
+      },
+      "empty_state": "No skills found",
+      "aria": {
+        "remove_skill": "Remove skill"
+      }
     },
     "checkbox_list": {
       "title": "Multiple Selection",
@@ -1452,7 +1466,6 @@
       "placeholder": "Select table"
     }
   },
-
   "panel": {
     "editor": {
       "messages": {
@@ -1870,6 +1883,10 @@
           }
         },
         "table": {
+          "columns": {
+            "key": "Key",
+            "value": "Value"
+          },
           "labels": {
             "rows": "Rows"
           },

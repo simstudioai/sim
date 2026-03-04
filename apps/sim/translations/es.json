@@ -7,7 +7,7 @@
   "helper_text": {
     "need_help": "¿Necesita ayuda?"
   },
-  "links": { 
+  "links": {
     "contact_support": "Contactar soporte"
   },
   "network_error": "Error de red. Verifique su conexión e intente nuevamente.",
@@ -1271,7 +1271,21 @@
     },
     "skill_input": {
       "title": "Selección de Habilidad",
-      "placeholder": "Seleccione habilidad"
+      "placeholder": "Seleccione habilidad",
+      "buttons": {
+        "create": "Crear Habilidad"
+      },
+      "sections": {
+        "available": "Habilidades"
+      },
+      "placeholders": {
+        "add": "Agregar habilidad...",
+        "search": "Buscar habilidades..."
+      },
+      "empty_state": "No se encontraron habilidades",
+      "aria": {
+        "remove_skill": "Eliminar habilidad"
+      }
     },
     "checkbox_list": {
       "title": "Selección Múltiple",
@@ -1910,6 +1924,10 @@
           }
         },
         "table": {
+          "columns": {
+            "key": "Clave",
+            "value": "Valor"
+          },
           "labels": {
             "rows": "Filas"
           },

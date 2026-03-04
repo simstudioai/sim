@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
@@ -31,6 +32,7 @@ export function SkillInput({
   previewValue,
   disabled,
 }: SkillInputProps) {
+  const t = useTranslations('sub_blocks.skill_input')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -59,7 +61,7 @@ export function SkillInput({
       groups.push({
         items: [
           {
-            label: 'Create Skill',
+            label: t('buttons.create'),
             value: 'action-create-skill',
             icon: Plus,
             onSelect: () => {
@@ -75,7 +77,7 @@ export function SkillInput({
     const availableSkills = workspaceSkills.filter((s) => !selectedIds.has(s.id))
     if (!skillsDisabled && availableSkills.length > 0) {
       groups.push({
-        section: 'Skills',
+        section: t('sections.available'),
         items: availableSkills.map((s) => {
           return {
             label: s.name,
@@ -92,7 +94,7 @@ export function SkillInput({
     }
 
     return groups
-  }, [workspaceSkills, selectedIds, selectedSkills, setValue, isPreview, skillsDisabled])
+  }, [workspaceSkills, selectedIds, selectedSkills, setValue, isPreview, skillsDisabled, t])
 
   const handleRemove = useCallback(
     (skillId: string) => {
@@ -121,12 +123,12 @@ export function SkillInput({
         <Combobox
           options={[]}
           groups={skillGroups}
-          placeholder='Add skill...'
+          placeholder={t('placeholders.add')}
           disabled={disabled}
           searchable
-          searchPlaceholder='Search skills...'
+          searchPlaceholder={t('placeholders.search')}
           maxHeight={240}
-          emptyMessage='No skills found'
+          emptyMessage={t('empty_state')}
           onOpenChange={setOpen}
         />
 
@@ -166,7 +168,7 @@ export function SkillInput({
                           handleRemove(stored.skillId)
                         }}
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
-                        aria-label='Remove skill'
+                        aria-label={t('aria.remove_skill')}
                       >
                         <XIcon className='h-[13px] w-[13px]' />
                       </button>

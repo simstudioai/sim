@@ -161,7 +161,7 @@ export function Table({
               index < columns.length - 1 && 'border-[var(--border-1)] border-r'
             )}
           >
-            {column}
+            {t.has(`columns.${column}` as any) ? t(`columns.${column}` as any) : column}
           </th>
         ))}
       </tr>
@@ -241,7 +241,7 @@ export function Table({
               if (el) inputRefs.current.set(cellKey, el)
             }}
             value={cellValue}
-            placeholder={column}
+            placeholder={t.has(`columns.${column}` as any) ? t(`columns.${column}` as any) : column}
             onChange={handlers.onChange}
             onKeyDown={handlers.onKeyDown}
             onScroll={handleScroll}

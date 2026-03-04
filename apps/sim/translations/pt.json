@@ -1271,7 +1271,21 @@
     },
     "skill_input": {
       "title": "Seleção de Habilidade",
-      "placeholder": "Selecione habilidade"
+      "placeholder": "Selecione habilidade",
+      "buttons": {
+        "create": "Criar Habilidade"
+      },
+      "sections": {
+        "available": "Habilidades"
+      },
+      "placeholders": {
+        "add": "Adicionar habilidade...",
+        "search": "Pesquisar habilidades..."
+      },
+      "empty_state": "Nenhuma habilidade encontrada",
+      "aria": {
+        "remove_skill": "Remover habilidade"
+      }
     },
     "checkbox_list": {
       "title": "Seleção Múltipla",
@@ -1916,6 +1930,10 @@
           }
         },
         "table": {
+          "columns": {
+            "key": "Chave",
+            "value": "Valor"
+          },
           "labels": {
             "rows": "Linhas"
           },
