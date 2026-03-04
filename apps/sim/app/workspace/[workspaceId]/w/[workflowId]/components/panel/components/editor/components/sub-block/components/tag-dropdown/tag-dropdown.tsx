@@ -1169,8 +1169,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
     const loopBlockGroups: BlockTagGroup[] = []
     const ancestorLoopIds = new Set<string>()
+    const visitedContainerIds = new Set<string>()
 
     const findAncestorContainers = (targetId: string) => {
+      if (visitedContainerIds.has(targetId)) return
+      visitedContainerIds.add(targetId)
+
       // Check if targetId is directly inside any loop
       for (const [loopId, loop] of Object.entries(loops)) {
         if (loop.nodes.includes(targetId) && !ancestorLoopIds.has(loopId)) {
