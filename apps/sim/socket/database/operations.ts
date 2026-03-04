@@ -54,8 +54,10 @@ function isDbBlockProtected(blockId: string, blocksById: Record<string, DbBlockR
   const block = blocksById[blockId]
   if (!block) return false
   if (block.locked) return true
+  const visited = new Set<string>()
   let parentId = (block.data as Record<string, unknown> | null)?.parentId as string | undefined
-  while (parentId) {
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
     if (blocksById[parentId]?.locked) return true
     parentId = (blocksById[parentId]?.data as Record<string, unknown> | null)?.parentId as
       | string
@@ -70,9 +72,12 @@ function isDbBlockProtected(blockId: string, blocksById: Record<string, DbBlockR
  */
 function findDbDescendants(containerId: string, allBlocks: DbBlockRef[]): string[] {
   const descendants: string[] = []
+  const visited = new Set<string>()
   const stack = [containerId]
   while (stack.length > 0) {
     const current = stack.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
     for (const b of allBlocks) {
       const pid = (b.data as Record<string, unknown> | null)?.parentId
       if (pid === current) {

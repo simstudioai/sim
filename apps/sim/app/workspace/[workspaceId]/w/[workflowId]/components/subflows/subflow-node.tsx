@@ -197,7 +197,11 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           </div>
         </div>
 
-        {/* Click-catching background — selects this subflow when the body area is clicked */}
+        {/*
+         * Click-catching background — selects this subflow when the body area is clicked.
+         * No event bubbling concern: ReactFlow renders child nodes as viewport-level siblings,
+         * not as DOM children of this component, so child clicks never reach this div.
+         */}
         <div
           className='absolute inset-0 top-[44px] rounded-b-[8px]'
           style={{ pointerEvents: isPreview ? 'none' : 'auto' }}

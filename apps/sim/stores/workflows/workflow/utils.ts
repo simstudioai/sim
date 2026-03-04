@@ -143,9 +143,12 @@ export function findAllDescendantNodes(
   blocks: Record<string, BlockState>
 ): string[] {
   const descendants: string[] = []
+  const visited = new Set<string>()
   const stack = [containerId]
   while (stack.length > 0) {
     const current = stack.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
     for (const block of Object.values(blocks)) {
       if (block.data?.parentId === current) {
         descendants.push(block.id)
@@ -154,6 +157,25 @@ export function findAllDescendantNodes(
     }
   }
   return descendants
+}
+
+/**
+ * Checks if any ancestor container of a block is locked.
+ * Unlike {@link isBlockProtected}, this ignores the block's own locked state.
+ *
+ * @param blockId - The ID of the block to check
+ * @param blocks - Record of all blocks in the workflow
+ * @returns True if any ancestor is locked
+ */
+export function isAncestorProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
+  const visited = new Set<string>()
+  let parentId = blocks[blockId]?.data?.parentId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    if (blocks[parentId]?.locked) return true
+    parentId = blocks[parentId]?.data?.parentId
+  }
+  return false
 }
 
 /**
@@ -168,13 +190,7 @@ export function isBlockProtected(blockId: string, blocks: Record<string, BlockSt
   const block = blocks[blockId]
   if (!block) return false
   if (block.locked) return true
-
-  let parentId = block.data?.parentId
-  while (parentId) {
-    if (blocks[parentId]?.locked) return true
-    parentId = blocks[parentId]?.data?.parentId
-  }
-  return false
+  return isAncestorProtected(blockId, blocks)
 }
 
 /**

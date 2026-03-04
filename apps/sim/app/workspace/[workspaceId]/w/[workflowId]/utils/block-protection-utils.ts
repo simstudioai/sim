@@ -1,7 +1,7 @@
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { isBlockProtected } from '@/stores/workflows/workflow/utils'
+import { isAncestorProtected, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
-export { isBlockProtected }
+export { isAncestorProtected, isBlockProtected }
 
 /**
  * Result of filtering protected blocks from a deletion operation

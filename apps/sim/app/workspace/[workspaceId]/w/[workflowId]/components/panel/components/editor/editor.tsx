@@ -40,7 +40,10 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { isBlockProtected } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
+import {
+  isAncestorProtected,
+  isBlockProtected,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
@@ -112,15 +115,7 @@ export function Editor() {
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
   const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = (() => {
-    if (!currentBlockId) return false
-    let parentId = currentBlock?.data?.parentId as string | undefined
-    while (parentId) {
-      if (blocks[parentId]?.locked) return true
-      parentId = blocks[parentId]?.data?.parentId as string | undefined
-    }
-    return false
-  })()
+  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
   const canEditBlock = userPermissions.canEdit && !isLocked
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
