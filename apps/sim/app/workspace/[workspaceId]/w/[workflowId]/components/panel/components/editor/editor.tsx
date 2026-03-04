@@ -112,7 +112,15 @@ export function Editor() {
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
   const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = isLocked && !(currentBlock?.locked ?? false)
+  const isAncestorLocked = (() => {
+    if (!currentBlockId) return false
+    let parentId = currentBlock?.data?.parentId as string | undefined
+    while (parentId) {
+      if (blocks[parentId]?.locked) return true
+      parentId = blocks[parentId]?.data?.parentId as string | undefined
+    }
+    return false
+  })()
   const canEditBlock = userPermissions.canEdit && !isLocked
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)

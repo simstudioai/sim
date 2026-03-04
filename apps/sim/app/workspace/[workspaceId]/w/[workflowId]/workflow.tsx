@@ -3837,7 +3837,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full bg-[var(--bg)] ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
