@@ -539,6 +539,10 @@ export const Code = memo(function Code({
    * @param newValue - The new code value with the selected tag inserted
    */
   const handleTagSelect = (newValue: string) => {
+    const textarea = editorRef.current?.querySelector('textarea')
+    const liveCursor = textarea?.selectionStart ?? cursorPosition
+    const liveValue = textarea?.value ?? code
+
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
@@ -547,8 +551,17 @@ export const Code = memo(function Code({
     setShowTags(false)
     setActiveSourceBlockId(null)
 
+    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
+    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
+    const closingBracket = newValue.indexOf('>', searchFrom)
+    const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
+
     setTimeout(() => {
-      editorRef.current?.querySelector('textarea')?.focus()
+      if (textarea) {
+        textarea.focus()
+        textarea.selectionStart = newCursorPos
+        textarea.selectionEnd = newCursorPos
+      }
     }, 0)
   }
 
@@ -557,6 +570,10 @@ export const Code = memo(function Code({
    * @param newValue - The new code value with the selected env var inserted
    */
   const handleEnvVarSelect = (newValue: string) => {
+    const textarea = editorRef.current?.querySelector('textarea')
+    const liveCursor = textarea?.selectionStart ?? cursorPosition
+    const liveValue = textarea?.value ?? code
+
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
@@ -564,8 +581,17 @@ export const Code = memo(function Code({
     }
     setShowEnvVars(false)
 
+    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('{{')
+    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
+    const closingBraces = newValue.indexOf('}}', searchFrom)
+    const newCursorPos = closingBraces !== -1 ? closingBraces + 2 : newValue.length
+
     setTimeout(() => {
-      editorRef.current?.querySelector('textarea')?.focus()
+      if (textarea) {
+        textarea.focus()
+        textarea.selectionStart = newCursorPos
+        textarea.selectionEnd = newCursorPos
+      }
     }, 0)
   }
 

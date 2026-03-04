@@ -291,6 +291,11 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   const handleSubflowTagSelect = useCallback(
     (newValue: string) => {
       if (!currentBlockId || !isSubflow || !currentBlock) return
+
+      const textarea = textareaRef.current
+      const liveCursor = textarea?.selectionStart ?? cursorPosition
+      const liveValue = textarea?.value ?? ''
+
       collaborativeUpdateIterationCollection(
         currentBlockId,
         currentBlock.type as 'loop' | 'parallel',
@@ -298,14 +303,20 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       )
       setShowTagDropdown(false)
 
+      const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
+      const searchFrom = insertPos !== -1 ? insertPos : liveCursor
+      const closingBracket = newValue.indexOf('>', searchFrom)
+      const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
+
       setTimeout(() => {
-        const textarea = textareaRef.current
         if (textarea) {
           textarea.focus()
+          textarea.selectionStart = newCursorPos
+          textarea.selectionEnd = newCursorPos
         }
       }, 0)
     },
-    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection]
+    [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection, cursorPosition]
   )
 
   // Compute derived values

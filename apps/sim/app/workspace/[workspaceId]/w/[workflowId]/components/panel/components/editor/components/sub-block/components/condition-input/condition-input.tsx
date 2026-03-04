@@ -557,6 +557,12 @@ export function ConditionInput({
   const handleTagSelectImmediate = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
 
+    const textarea = containerRef.current?.querySelector(
+      `[data-block-id="${blockId}"] textarea`
+    ) as HTMLTextAreaElement | null
+    const liveCursor = textarea?.selectionStart ?? 0
+    const liveValue = textarea?.value ?? ''
+
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
@@ -582,10 +588,29 @@ export function ConditionInput({
         : block
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
+
+    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('<')
+    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
+    const closingBracket = newValue.indexOf('>', searchFrom)
+    const newCursorPos = closingBracket !== -1 ? closingBracket + 1 : newValue.length
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus()
+        textarea.selectionStart = newCursorPos
+        textarea.selectionEnd = newCursorPos
+      }
+    }, 0)
   }
 
   const handleEnvVarSelectImmediate = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
+
+    const textarea = containerRef.current?.querySelector(
+      `[data-block-id="${blockId}"] textarea`
+    ) as HTMLTextAreaElement | null
+    const liveCursor = textarea?.selectionStart ?? 0
+    const liveValue = textarea?.value ?? ''
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
@@ -612,6 +637,19 @@ export function ConditionInput({
         : block
     )
     emitTagSelection(JSON.stringify(updatedBlocks))
+
+    const insertPos = liveValue.slice(0, liveCursor).lastIndexOf('{{')
+    const searchFrom = insertPos !== -1 ? insertPos : liveCursor
+    const closingBraces = newValue.indexOf('}}', searchFrom)
+    const newCursorPos = closingBraces !== -1 ? closingBraces + 2 : newValue.length
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus()
+        textarea.selectionStart = newCursorPos
+        textarea.selectionEnd = newCursorPos
+      }
+    }, 0)
   }
 
   /**
