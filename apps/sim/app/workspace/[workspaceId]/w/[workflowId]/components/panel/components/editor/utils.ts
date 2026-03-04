@@ -1,6 +1,6 @@
 /**
  * Restores the cursor position in a textarea after a dropdown insertion.
- * Schedules a microtask that runs after React's controlled-component commit
+ * Schedules a macrotask (via setTimeout) that runs after React's controlled-component commit
  * so that the cursor position sticks.
  *
  * @param textarea - The textarea element to restore cursor in (may be null)
