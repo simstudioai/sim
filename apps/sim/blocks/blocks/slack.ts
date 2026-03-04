@@ -9,10 +9,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
   description:
-    'Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events',
+    'Send, update, delete messages, send ephemeral messages, add or remove reactions in Slack or trigger workflows from Slack events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -38,6 +38,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Update Message', id: 'update' },
         { label: 'Delete Message', id: 'delete' },
         { label: 'Add Reaction', id: 'react' },
+        { label: 'Remove Reaction', id: 'unreact' },
       ],
       value: () => 'send',
     },
@@ -608,7 +609,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Message timestamp (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'react',
+        value: ['react', 'unreact'],
       },
       required: true,
     },
@@ -619,7 +620,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Emoji name without colons (e.g., thumbsup, heart, eyes)',
       condition: {
         field: 'operation',
-        value: 'react',
+        value: ['react', 'unreact'],
       },
       required: true,
     },
@@ -641,6 +642,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'slack_update_message',
       'slack_delete_message',
       'slack_add_reaction',
+      'slack_remove_reaction',
     ],
     config: {
       tool: (params) => {
@@ -673,6 +675,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'slack_delete_message'
           case 'react':
             return 'slack_add_reaction'
+          case 'unreact':
+            return 'slack_remove_reaction'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -841,6 +845,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             break
 
           case 'react':
+          case 'unreact':
             baseParams.timestamp = reactionTimestamp
             baseParams.name = emojiName
             break
