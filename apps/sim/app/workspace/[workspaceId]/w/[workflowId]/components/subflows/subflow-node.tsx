@@ -151,7 +151,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
     : undefined
 
   return (
-    <div className='group relative'>
+    <div className='group pointer-events-none relative'>
       <div
         ref={blockRef}
         className={cn(
