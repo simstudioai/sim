@@ -32,6 +32,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
@@ -347,6 +348,22 @@ export function useWorkflowExecution() {
         return blockType === 'loop' || blockType === 'parallel'
       }
 
+      /** Extracts iteration and child-workflow fields shared across console entry call sites. */
+      const extractIterationFields = (
+        data: BlockStartedData | BlockCompletedData | BlockErrorData
+      ) => ({
+        iterationCurrent: data.iterationCurrent,
+        iterationTotal: data.iterationTotal,
+        iterationType: data.iterationType,
+        iterationContainerId: data.iterationContainerId,
+        parentIterations: data.parentIterations,
+        childWorkflowBlockId: data.childWorkflowBlockId,
+        childWorkflowName: data.childWorkflowName,
+        ...('childWorkflowInstanceId' in data && {
+          childWorkflowInstanceId: data.childWorkflowInstanceId,
+        }),
+      })
+
       const createBlockLogEntry = (
         data: BlockCompletedData | BlockErrorData,
         options: { success: boolean; output?: unknown; error?: string }
@@ -379,13 +396,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -405,13 +416,7 @@ export function useWorkflowExecution() {
           executionId: executionIdRef.current,
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
+          ...extractIterationFields(data),
         })
       }
 
@@ -427,13 +432,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -452,13 +451,7 @@ export function useWorkflowExecution() {
             startedAt: data.startedAt,
             endedAt: data.endedAt,
             isRunning: false,
-            iterationCurrent: data.iterationCurrent,
-            iterationTotal: data.iterationTotal,
-            iterationType: data.iterationType,
-            iterationContainerId: data.iterationContainerId,
-            childWorkflowBlockId: data.childWorkflowBlockId,
-            childWorkflowName: data.childWorkflowName,
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
+            ...extractIterationFields(data),
           },
           executionIdRef.current
         )
@@ -486,12 +479,7 @@ export function useWorkflowExecution() {
           blockName: data.blockName || 'Unknown Block',
           blockType: data.blockType || 'unknown',
           isRunning: true,
-          iterationCurrent: data.iterationCurrent,
-          iterationTotal: data.iterationTotal,
-          iterationType: data.iterationType,
-          iterationContainerId: data.iterationContainerId,
-          childWorkflowBlockId: data.childWorkflowBlockId,
-          childWorkflowName: data.childWorkflowName,
+          ...extractIterationFields(data),
         })
       }
 
@@ -499,7 +487,6 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
-
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
           output: data.output,
@@ -507,7 +494,17 @@ export function useWorkflowExecution() {
           executionTime: data.durationMs,
         })
 
+        // For nested containers, the SSE blockId may be a cloned ID (e.g. P1__obranch-0).
+        // Also record the original workflow-level ID so the canvas can highlight it.
         if (isContainerBlockType(data.blockType)) {
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'success')
+          }
+        }
+
+        if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
           return
         }
 
@@ -537,6 +534,15 @@ export function useWorkflowExecution() {
           executed: true,
           executionTime: data.durationMs || 0,
         })
+
+        // For nested containers, also record the original workflow-level ID
+        if (isContainerBlockType(data.blockType)) {
+          const originalId = stripCloneSuffixes(data.blockId)
+          if (originalId !== data.blockId) {
+            executedBlockIds.add(originalId)
+            if (workflowId) setBlockRunStatus(workflowId, originalId, 'error')
+          }
+        }
 
         accumulatedBlockLogs.push(
           createBlockLogEntry(data, { success: false, output: {}, error: data.error })

@@ -833,15 +833,7 @@ input[type="search"]::-ms-clear {
   animation: growShrink 1.5s infinite ease-in-out;
 }
 
-/* Subflow node z-index and drag-over styles */
-.workflow-container .react-flow__node-subflowNode {
-  z-index: -1 !important;
-}
-
-.workflow-container .react-flow__node-subflowNode:has([data-subflow-selected="true"]) {
-  z-index: 10 !important;
-}
-
+/* Subflow node drag-over styles */
 .loop-node-drag-over,
 .parallel-node-drag-over {
   box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;

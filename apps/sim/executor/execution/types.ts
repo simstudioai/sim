@@ -1,5 +1,11 @@
 import type { Edge } from 'reactflow'
-import type { BlockLog, BlockState, NormalizedBlockOutput } from '@/executor/types'
+import type { NodeMetadata } from '@/executor/dag/types'
+import type {
+  BlockLog,
+  BlockState,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -49,11 +55,45 @@ export interface SerializableExecutionState {
   completedPauseContexts?: string[]
 }
 
+/**
+ * Represents the iteration state of an ancestor subflow in a nested chain.
+ * Used to propagate parent iteration context through SSE events for both
+ * loop-in-loop and parallel-in-parallel nesting hierarchies.
+ */
+export interface ParentIteration {
+  iterationCurrent: number
+  iterationTotal?: number
+  iterationType: SubflowType
+  iterationContainerId: string
+}
+
 export interface IterationContext {
   iterationCurrent: number
   iterationTotal?: number
   iterationType: SubflowType
+  /**
+   * Block ID of the loop or parallel container owning this iteration.
+   * Optional because generic `<loop.index>` references may resolve before
+   * the container ID is known (e.g., via `context.loopScope` fallback).
+   * Always present on {@link ParentIteration} entries since those are built
+   * from fully resolved ancestor loops.
+   */
   iterationContainerId?: string
+  parentIterations?: ParentIteration[]
+}
+
+/**
+ * Metadata passed to block handlers that execute within subflow contexts
+ * (loops, parallels, child workflows). Extends the DAG node metadata with
+ * runtime identifiers needed for execution tracking.
+ */
+export interface WorkflowNodeMetadata
+  extends Pick<
+    NodeMetadata,
+    'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
+  > {
+  nodeId: string
+  executionOrder?: number
 }
 
 export interface ChildWorkflowContext {
@@ -68,7 +108,7 @@ export interface ChildWorkflowContext {
 }
 
 export interface ExecutionCallbacks {
-  onStream?: (streamingExec: any) => Promise<void>
+  onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockStart?: (
     blockId: string,
     blockName: string,
@@ -122,7 +162,7 @@ export interface ContextExtensions {
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
-  onStream?: (streamingExecution: unknown) => Promise<void>
+  onStream?: (streamingExecution: StreamingExecution) => Promise<void>
   onBlockStart?: (
     blockId: string,
     blockName: string,

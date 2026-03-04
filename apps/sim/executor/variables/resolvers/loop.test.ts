@@ -7,33 +7,46 @@ import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-/**
- * Creates a minimal workflow for testing.
- */
-function createTestWorkflow(
-  loops: Record<string, { nodes: string[]; id?: string; iterations?: number }> = {}
-) {
-  // Ensure each loop has required fields
+interface LoopDef {
+  nodes: string[]
+  id?: string
+  iterations?: number
+  loopType?: 'for' | 'forEach'
+}
+
+interface BlockDef {
+  id: string
+  name: string
+}
+
+function createTestWorkflow(loops: Record<string, LoopDef> = {}, blockDefs: BlockDef[] = []) {
   const normalizedLoops: Record<string, { id: string; nodes: string[]; iterations: number }> = {}
   for (const [key, loop] of Object.entries(loops)) {
     normalizedLoops[key] = {
       id: loop.id ?? key,
       nodes: loop.nodes,
       iterations: loop.iterations ?? 1,
+      ...(loop.loopType && { loopType: loop.loopType }),
     }
   }
+  const blocks = blockDefs.map((b) => ({
+    id: b.id,
+    position: { x: 0, y: 0 },
+    config: { tool: 'test', params: {} },
+    inputs: {},
+    outputs: {},
+    metadata: { id: 'function', name: b.name },
+    enabled: true,
+  }))
   return {
     version: '1.0',
-    blocks: [],
+    blocks,
     connections: [],
     loops: normalizedLoops,
     parallels: {},
   }
 }
 
-/**
- * Creates a test loop scope.
- */
 function createLoopScope(overrides: Partial<LoopScope> = {}): LoopScope {
   return {
     iteration: 0,
@@ -43,19 +56,19 @@ function createLoopScope(overrides: Partial<LoopScope> = {}): LoopScope {
   }
 }
 
-/**
- * Creates a minimal ResolutionContext for testing.
- */
 function createTestContext(
   currentNodeId: string,
   loopScope?: LoopScope,
-  loopExecutions?: Map<string, LoopScope>
+  loopExecutions?: Map<string, LoopScope>,
+  blockOutputs?: Record<string, any>
 ): ResolutionContext {
   return {
     executionContext: {
       loopExecutions: loopExecutions ?? new Map(),
     },
-    executionState: {},
+    executionState: {
+      getBlockOutput: (id: string) => blockOutputs?.[id],
+    },
     currentNodeId,
     loopScope,
   } as ResolutionContext
@@ -302,6 +315,129 @@ describe('LoopResolver', () => {
       const ctx = createTestContext('block-1₍0₎', undefined, loopExecutions)
 
       expect(resolver.resolve('<loop.iteration>', ctx)).toBe(2)
+    })
+  })
+
+  describe('named loop references', () => {
+    it.concurrent('should resolve named loop by block name', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      expect(resolver.canResolve('<loop1.index>')).toBe(true)
+    })
+
+    it.concurrent('should resolve index via named reference for block inside the loop', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopScope = createLoopScope({ iteration: 3 })
+      const loopExecutions = new Map([['loop-1', loopScope]])
+      const ctx = createTestContext('block-1', undefined, loopExecutions)
+
+      expect(resolver.resolve('<loop1.index>', ctx)).toBe(3)
+    })
+
+    it.concurrent('should resolve index for block in a nested descendant loop', () => {
+      const workflow = createTestWorkflow(
+        {
+          'loop-outer': { nodes: ['loop-inner', 'block-a'] },
+          'loop-inner': { nodes: ['block-b'] },
+        },
+        [
+          { id: 'loop-outer', name: 'Loop 1' },
+          { id: 'loop-inner', name: 'Loop 2' },
+        ]
+      )
+      const resolver = new LoopResolver(workflow)
+      const outerScope = createLoopScope({ iteration: 2 })
+      const innerScope = createLoopScope({ iteration: 4 })
+      const loopExecutions = new Map<string, LoopScope>([
+        ['loop-outer', outerScope],
+        ['loop-inner', innerScope],
+      ])
+      const ctx = createTestContext('block-b', undefined, loopExecutions)
+
+      expect(resolver.resolve('<loop1.index>', ctx)).toBe(2)
+      expect(resolver.resolve('<loop2.index>', ctx)).toBe(4)
+      expect(resolver.resolve('<loop.index>', ctx)).toBe(4)
+    })
+
+    it.concurrent('should return undefined for index when block is outside the loop', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopScope = createLoopScope({ iteration: 3 })
+      const loopExecutions = new Map([['loop-1', loopScope]])
+      const ctx = createTestContext('block-outside', undefined, loopExecutions)
+
+      expect(resolver.resolve('<loop1.index>', ctx)).toBeUndefined()
+    })
+
+    it.concurrent('should resolve result from anywhere after loop completes', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const results = [[{ response: 'a' }], [{ response: 'b' }]]
+      const ctx = createTestContext('block-outside', undefined, new Map(), {
+        'loop-1': { results },
+      })
+
+      expect(resolver.resolve('<loop1.result>', ctx)).toEqual(results)
+      expect(resolver.resolve('<loop1.results>', ctx)).toEqual(results)
+    })
+
+    it.concurrent('should resolve result with nested path', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const results = [[{ response: 'a' }], [{ response: 'b' }]]
+      const ctx = createTestContext('block-outside', undefined, new Map(), {
+        'loop-1': { results },
+      })
+
+      expect(resolver.resolve('<loop1.result.0>', ctx)).toEqual([{ response: 'a' }])
+      expect(resolver.resolve('<loop1.result.1.0.response>', ctx)).toBe('b')
+    })
+
+    it.concurrent('should resolve forEach properties via named reference', () => {
+      const workflow = createTestWorkflow(
+        { 'loop-1': { nodes: ['block-1'], loopType: 'forEach' } },
+        [{ id: 'loop-1', name: 'Loop 1' }]
+      )
+      const resolver = new LoopResolver(workflow)
+      const items = ['x', 'y', 'z']
+      const loopScope = createLoopScope({ iteration: 1, item: 'y', items })
+      const loopExecutions = new Map([['loop-1', loopScope]])
+      const ctx = createTestContext('block-1', undefined, loopExecutions)
+
+      expect(resolver.resolve('<loop1.index>', ctx)).toBe(1)
+      expect(resolver.resolve('<loop1.currentItem>', ctx)).toBe('y')
+      expect(resolver.resolve('<loop1.items>', ctx)).toEqual(items)
+    })
+
+    it.concurrent('should throw InvalidFieldError for unknown property on named ref', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopScope = createLoopScope({ iteration: 0 })
+      const loopExecutions = new Map([['loop-1', loopScope]])
+      const ctx = createTestContext('block-1', undefined, loopExecutions)
+
+      expect(() => resolver.resolve('<loop1.unknownProp>', ctx)).toThrow(InvalidFieldError)
+    })
+
+    it.concurrent('should not resolve named ref when no matching block exists', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      expect(resolver.canResolve('<loop99.index>')).toBe(false)
     })
   })
 })

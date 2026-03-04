@@ -427,6 +427,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 updatedEntry.iterationContainerId = update.iterationContainerId
               }
 
+              if (update.parentIterations !== undefined) {
+                updatedEntry.parentIterations = update.parentIterations
+              }
+
               if (update.childWorkflowBlockId !== undefined) {
                 updatedEntry.childWorkflowBlockId = update.childWorkflowBlockId
               }

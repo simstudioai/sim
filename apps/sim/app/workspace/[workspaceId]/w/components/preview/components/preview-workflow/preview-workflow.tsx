@@ -289,21 +289,38 @@ export function PreviewWorkflow({
     return map
   }, [executedBlocks])
 
-  /** Derives subflow status from children. Error takes precedence. */
+  /** Derives subflow status from children. Recursively checks nested subflows. Error takes precedence. */
   const getSubflowExecutionStatus = useMemo(() => {
-    return (subflowId: string): ExecutionStatus | undefined => {
+    const derive = (
+      subflowId: string,
+      visited: Set<string> = new Set()
+    ): ExecutionStatus | undefined => {
+      if (visited.has(subflowId)) return undefined
+      visited.add(subflowId)
+
       const childIds = subflowChildrenMap.get(subflowId)
       if (!childIds?.length) return undefined
 
-      const executedChildren = childIds
-        .map((id) => blockExecutionMap.get(id))
-        .filter((status): status is { status: string } => Boolean(status))
+      const childStatuses: string[] = []
+      for (const childId of childIds) {
+        const direct = blockExecutionMap.get(childId)
+        if (direct) {
+          childStatuses.push(direct.status)
+        } else {
+          const childBlock = workflowState.blocks?.[childId]
+          if (childBlock?.type === 'loop' || childBlock?.type === 'parallel') {
+            const nested = derive(childId, visited)
+            if (nested) childStatuses.push(nested)
+          }
+        }
+      }
 
-      if (executedChildren.length === 0) return undefined
-      if (executedChildren.some((s) => s.status === 'error')) return 'error'
+      if (childStatuses.length === 0) return undefined
+      if (childStatuses.some((s) => s === 'error')) return 'error'
       return 'success'
     }
-  }, [subflowChildrenMap, blockExecutionMap])
+    return derive
+  }, [subflowChildrenMap, blockExecutionMap, workflowState.blocks])
 
   /** Gets block status. Subflows derive status from children. */
   const getBlockExecutionStatus = useMemo(() => {

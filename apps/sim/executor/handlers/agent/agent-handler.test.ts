@@ -186,7 +186,7 @@ describe('AgentBlockHandler', () => {
       })
     })
 
-    mockTransformBlockTool.mockImplementation((tool: any) => ({
+    mockTransformBlockTool.mockImplementation((tool: { id?: string; operation?: string }) => ({
       id: `transformed_${tool.id}`,
       name: `${tool.id}_${tool.operation}`,
       description: 'Transformed tool',
@@ -341,9 +341,15 @@ describe('AgentBlockHandler', () => {
 
       expect(tools.length).toBe(2)
 
-      const autoTool = tools.find((t: any) => t.name === 'auto_tool')
-      const forceTool = tools.find((t: any) => t.name === 'force_tool')
-      const noneTool = tools.find((t: any) => t.name === 'none_tool')
+      const autoTool = tools.find(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name === 'auto_tool'
+      )
+      const forceTool = tools.find(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name === 'force_tool'
+      )
+      const noneTool = tools.find(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name === 'none_tool'
+      )
 
       expect(autoTool).toBeDefined()
       expect(forceTool).toBeDefined()
@@ -392,7 +398,9 @@ describe('AgentBlockHandler', () => {
 
       expect(requestBody.tools.length).toBe(2)
 
-      const toolIds = requestBody.tools.map((t: any) => t.id)
+      const toolIds = requestBody.tools.map(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.id
+      )
       expect(toolIds).toContain('transformed_tool_1')
       expect(toolIds).toContain('transformed_tool_3')
       expect(toolIds).not.toContain('transformed_tool_2')
@@ -421,7 +429,7 @@ describe('AgentBlockHandler', () => {
         ],
       }
 
-      mockTransformBlockTool.mockImplementation((tool: any) => ({
+      mockTransformBlockTool.mockImplementation((tool: { id?: string; operation?: string }) => ({
         id: `transformed_${tool.id}`,
         name: `${tool.id}_${tool.operation}`,
         description: 'Transformed tool',
@@ -502,13 +510,19 @@ describe('AgentBlockHandler', () => {
 
       expect(requestBody.tools.length).toBe(2)
 
-      const toolNames = requestBody.tools.map((t: any) => t.name)
+      const toolNames = requestBody.tools.map(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name
+      )
       expect(toolNames).toContain('custom_tool_auto')
       expect(toolNames).toContain('custom_tool_force')
       expect(toolNames).not.toContain('custom_tool_none')
 
-      const autoTool = requestBody.tools.find((t: any) => t.name === 'custom_tool_auto')
-      const forceTool = requestBody.tools.find((t: any) => t.name === 'custom_tool_force')
+      const autoTool = requestBody.tools.find(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name === 'custom_tool_auto'
+      )
+      const forceTool = requestBody.tools.find(
+        (t: { name?: string; id?: string; usageControl?: string }) => t.name === 'custom_tool_force'
+      )
 
       expect(autoTool.usageControl).toBe('auto')
       expect(forceTool.usageControl).toBe('force')
@@ -1473,7 +1487,7 @@ describe('AgentBlockHandler', () => {
         timing: { total: 200 },
       })
 
-      mockTransformBlockTool.mockImplementation((tool: any) => ({
+      mockTransformBlockTool.mockImplementation((tool: { id?: string; operation?: string }) => ({
         id: tool.schema?.function?.name || `mcp-${tool.title.toLowerCase().replace(' ', '-')}`,
         name: tool.schema?.function?.name || tool.title,
         description: tool.schema?.function?.description || `MCP tool: ${tool.title}`,

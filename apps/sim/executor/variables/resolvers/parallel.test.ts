@@ -16,19 +16,16 @@ function createTestWorkflow(
       nodes: string[]
       id?: string
       distribution?: any
-      distributionItems?: any
       parallelType?: 'count' | 'collection'
     }
   > = {}
 ) {
-  // Ensure each parallel has required fields
   const normalizedParallels: Record<
     string,
     {
       id: string
       nodes: string[]
       distribution?: any
-      distributionItems?: any
       parallelType?: 'count' | 'collection'
     }
   > = {}
@@ -37,7 +34,6 @@ function createTestWorkflow(
       id: parallel.id ?? key,
       nodes: parallel.nodes,
       distribution: parallel.distribution,
-      distributionItems: parallel.distributionItems,
       parallelType: parallel.parallelType,
     }
   }
@@ -366,9 +362,9 @@ describe('ParallelResolver', () => {
       expect(resolver.resolve('<parallel.items>', ctx)).toEqual([])
     })
 
-    it.concurrent('should handle distributionItems property as fallback', () => {
+    it.concurrent('should resolve distribution items from distribution property', () => {
       const workflow = createTestWorkflow({
-        'parallel-1': { nodes: ['block-1'], distributionItems: ['fallback1', 'fallback2'] },
+        'parallel-1': { nodes: ['block-1'], distribution: ['fallback1', 'fallback2'] },
       })
       const resolver = new ParallelResolver(workflow)
       const ctx = createTestContext('block-1₍0₎')

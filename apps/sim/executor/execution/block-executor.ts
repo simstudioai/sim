@@ -20,7 +20,7 @@ import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type {
   BlockStateWriter,
   ContextExtensions,
-  IterationContext,
+  WorkflowNodeMetadata,
 } from '@/executor/execution/types'
 import {
   generatePauseContextId,
@@ -36,11 +36,14 @@ import {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import {
+  buildUnifiedParentIterations,
+  getIterationContext,
+} from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
@@ -169,9 +172,10 @@ export class BlockExecutor {
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel && blockLog) {
-        const childWorkflowInstanceId = normalizedOutput._childWorkflowInstanceId as
-          | string
-          | undefined
+        const childWorkflowInstanceId =
+          typeof normalizedOutput._childWorkflowInstanceId === 'string'
+            ? normalizedOutput._childWorkflowInstanceId
+            : undefined
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
@@ -205,15 +209,7 @@ export class BlockExecutor {
     }
   }
 
-  private buildNodeMetadata(node: DAGNode): {
-    nodeId: string
-    loopId?: string
-    parallelId?: string
-    branchIndex?: number
-    branchTotal?: number
-    originalBlockId?: string
-    isLoopNode?: boolean
-  } {
+  private buildNodeMetadata(node: DAGNode): WorkflowNodeMetadata {
     const metadata = node?.metadata ?? {}
     return {
       nodeId: node.id,
@@ -367,6 +363,11 @@ export class BlockExecutor {
       }
     }
 
+    const containerId = parallelId ?? loopId
+    const parentIterations = containerId
+      ? buildUnifiedParentIterations(ctx, containerId)
+      : undefined
+
     return {
       blockId,
       blockName,
@@ -379,6 +380,7 @@ export class BlockExecutor {
       loopId,
       parallelId,
       iterationIndex,
+      ...(parentIterations?.length && { parentIterations }),
     }
   }
 
@@ -447,7 +449,7 @@ export class BlockExecutor {
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(ctx, node)
+    const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockStart) {
       this.contextExtensions.onBlockStart(
@@ -477,7 +479,7 @@ export class BlockExecutor {
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
 
-    const iterationContext = this.getIterationContext(ctx, node)
+    const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(
@@ -497,47 +499,6 @@ export class BlockExecutor {
         ctx.childWorkflowContext
       )
     }
-  }
-
-  private createIterationContext(
-    iterationCurrent: number,
-    iterationType: SubflowType,
-    iterationContainerId?: string,
-    iterationTotal?: number
-  ): IterationContext {
-    return {
-      iterationCurrent,
-      iterationTotal,
-      iterationType,
-      iterationContainerId,
-    }
-  }
-
-  private getIterationContext(ctx: ExecutionContext, node: DAGNode): IterationContext | undefined {
-    if (!node?.metadata) return undefined
-
-    if (node.metadata.branchIndex !== undefined && node.metadata.branchTotal !== undefined) {
-      return this.createIterationContext(
-        node.metadata.branchIndex,
-        'parallel',
-        node.metadata.parallelId,
-        node.metadata.branchTotal
-      )
-    }
-
-    if (node.metadata.isLoopNode && node.metadata.loopId) {
-      const loopScope = ctx.loopExecutions?.get(node.metadata.loopId)
-      if (loopScope && loopScope.iteration !== undefined) {
-        return this.createIterationContext(
-          loopScope.iteration,
-          'loop',
-          node.metadata.loopId,
-          loopScope.maxIterations
-        )
-      }
-    }
-
-    return undefined
   }
 
   private preparePauseResumeSelfReference(
