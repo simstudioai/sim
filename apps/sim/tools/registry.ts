@@ -1796,7 +1796,6 @@ import {
 } from '@/tools/similarweb'
 import {
   slackAddReactionTool,
-  slackRemoveReactionTool,
   slackCanvasTool,
   slackDeleteMessageTool,
   slackDownloadTool,
@@ -1809,6 +1808,7 @@ import {
   slackListUsersTool,
   slackMessageReaderTool,
   slackMessageTool,
+  slackRemoveReactionTool,
   slackUpdateMessageTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'

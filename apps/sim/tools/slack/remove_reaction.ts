@@ -51,7 +51,8 @@ export const slackRemoveReactionTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the emoji reaction to remove (without colons, e.g., thumbsup, heart, eyes)',
+      description:
+        'Name of the emoji reaction to remove (without colons, e.g., thumbsup, heart, eyes)',
     },
   },
 
