@@ -196,16 +196,11 @@ const edgeTypes: EdgeTypes = {
 const defaultEdgeOptions = { type: 'custom' }
 
 const reactFlowStyles = [
-  'bg-[var(--bg)]',
   '[&_.react-flow__edges]:!z-0',
   '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[60]',
-  '[&_.react-flow__pane]:!bg-[var(--bg)]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
-  '[&_.react-flow__renderer]:!bg-[var(--bg)]',
-  '[&_.react-flow__viewport]:!bg-[var(--bg)]',
   '[&_.react-flow__background]:hidden',
   '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
@@ -231,6 +226,7 @@ interface BlockData {
  */
 const WorkflowContent = React.memo(() => {
   const [isCanvasReady, setIsCanvasReady] = useState(false)
+  const canvasReadyRef = useRef(false)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
   const [isErrorConnectionDrag, setIsErrorConnectionDrag] = useState(false)
@@ -2244,6 +2240,7 @@ const WorkflowContent = React.memo(() => {
       clearDiff()
 
       // Reset canvas ready state when loading a new workflow
+      canvasReadyRef.current = false
       setIsCanvasReady(false)
 
       setActiveWorkflow(currentId)
@@ -2715,26 +2712,29 @@ const WorkflowContent = React.memo(() => {
 
       // Handle position changes (e.g., from keyboard arrow key movement)
       // Update container dimensions when child nodes are moved and persist to backend
-      // Only persist if not in a drag operation (drag-end is handled by onNodeDragStop)
-      const isInDragOperation =
-        getDragStartPosition() !== null || multiNodeDragStartRef.current.size > 0
-      const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> = []
-      for (const change of changes) {
-        if (
-          change.type === 'position' &&
-          !change.dragging &&
-          'position' in change &&
-          change.position
-        ) {
-          updateContainerDimensionsDuringMove(change.id, change.position)
-          if (!isInDragOperation) {
-            keyboardPositionUpdates.push({ id: change.id, position: change.position })
+      // Skip during initial render — ReactFlow fires position changes from extent clamping
+      // before block heights are measured, which would incorrectly resize containers.
+      if (canvasReadyRef.current) {
+        const isInDragOperation =
+          getDragStartPosition() !== null || multiNodeDragStartRef.current.size > 0
+        const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> =
+          []
+        for (const change of changes) {
+          if (
+            change.type === 'position' &&
+            !change.dragging &&
+            'position' in change &&
+            change.position
+          ) {
+            updateContainerDimensionsDuringMove(change.id, change.position)
+            if (!isInDragOperation) {
+              keyboardPositionUpdates.push({ id: change.id, position: change.position })
+            }
           }
         }
-      }
-      // Persist keyboard movements to backend for collaboration sync
-      if (keyboardPositionUpdates.length > 0) {
-        collaborativeBatchUpdatePositions(keyboardPositionUpdates)
+        if (keyboardPositionUpdates.length > 0) {
+          collaborativeBatchUpdatePositions(keyboardPositionUpdates)
+        }
       }
     },
     [
@@ -3776,21 +3776,20 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1'>
-        {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
-        <div
-          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
-        >
-          <div
-            className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
-            style={{
-              background:
-                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-              WebkitMask:
-                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            }}
-          />
-        </div>
+        {!isWorkflowReady && (
+          <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+            <div
+              className='h-[18px] w-[18px] animate-spin rounded-full'
+              style={{
+                background:
+                  'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                WebkitMask:
+                  'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              }}
+            />
+          </div>
+        )}
 
         {isWorkflowReady && (
           <>
@@ -3812,6 +3811,7 @@ const WorkflowContent = React.memo(() => {
               onInit={(instance) => {
                 requestAnimationFrame(() => {
                   instance.fitView(reactFlowFitViewOptions)
+                  canvasReadyRef.current = true
                   setIsCanvasReady(true)
                 })
               }}
@@ -3843,7 +3843,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+              className={`workflow-container h-full bg-[var(--bg)] ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
