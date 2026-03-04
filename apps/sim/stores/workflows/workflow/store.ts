@@ -389,7 +389,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           // If it's a loop or parallel, also include non-locked descendants
           if (block.type === 'loop' || block.type === 'parallel') {
             findAllDescendantNodes(id, currentBlocks).forEach((descId) => {
-              if (!currentBlocks[descId]?.locked) {
+              if (!isBlockProtected(descId, currentBlocks)) {
                 blocksToToggle.add(descId)
               }
             })

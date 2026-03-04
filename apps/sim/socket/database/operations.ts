@@ -941,7 +941,7 @@ async function handleBlocksOperationTx(
         // If it's a loop or parallel, also include all non-locked descendants
         if (block.type === 'loop' || block.type === 'parallel') {
           for (const descId of findDbDescendants(id, allBlocks)) {
-            if (!blocksById[descId]?.locked) {
+            if (!isDbBlockProtected(descId, blocksById)) {
               blocksToToggle.add(descId)
             }
           }

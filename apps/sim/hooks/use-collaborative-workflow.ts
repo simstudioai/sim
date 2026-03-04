@@ -870,7 +870,7 @@ export function useCollaborativeWorkflow() {
         // If it's a loop or parallel, also capture descendants' previous states for undo/redo
         if (block.type === 'loop' || block.type === 'parallel') {
           findAllDescendantNodes(id, currentBlocks).forEach((descId) => {
-            if (!currentBlocks[descId]?.locked) {
+            if (!isBlockProtected(descId, currentBlocks)) {
               previousStates[descId] = currentBlocks[descId]?.enabled ?? true
             }
           })

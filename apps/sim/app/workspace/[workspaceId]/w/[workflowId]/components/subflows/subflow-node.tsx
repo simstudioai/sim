@@ -129,7 +129,9 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   /**
    * Compute the ring color for the subflow selection indicator.
-   * Uses boxShadow to match the ring styling of regular workflow blocks.
+   * Uses boxShadow (not CSS outline) to match the ring styling of regular workflow blocks.
+   * This works because ReactFlow renders child nodes as sibling divs at the viewport level
+   * (not as DOM children), so children at zIndex 1000 don't clip the parent's boxShadow.
    */
   const getRingColor = (): string | undefined => {
     if (!hasRing) return undefined
