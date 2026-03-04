@@ -61,9 +61,6 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
-  const editorValueRef = useRef('')
-  const cursorPositionRef = useRef(0)
-
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -280,7 +277,6 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
         textareaRef.current = textarea
         const cursorPos = textarea.selectionStart || 0
         setCursorPosition(cursorPos)
-        cursorPositionRef.current = cursorPos
 
         const triggerCheck = checkTagTrigger(value, cursorPos)
         setShowTagDropdown(triggerCheck.show)
@@ -293,12 +289,8 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
    * Handle tag selection from dropdown
    */
   const handleSubflowTagSelect = useCallback(
-    (newValue: string) => {
+    (newValue: string, newCursorPosition: number) => {
       if (!currentBlockId || !isSubflow || !currentBlock) return
-
-      const textarea = textareaRef.current
-      const liveCursor = textarea?.selectionStart ?? cursorPositionRef.current
-      const liveValue = textarea?.value ?? editorValueRef.current
 
       collaborativeUpdateIterationCollection(
         currentBlockId,
@@ -307,7 +299,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       )
       setShowTagDropdown(false)
 
-      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
+      restoreCursorAfterInsertion(textareaRef.current, newCursorPosition)
     },
     [currentBlockId, isSubflow, currentBlock, collaborativeUpdateIterationCollection]
   )
@@ -356,7 +348,6 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const inputValue = tempInputValue ?? iterations.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
-  editorValueRef.current = editorValue
 
   // Type options for combobox
   const typeOptions =

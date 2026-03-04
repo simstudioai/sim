@@ -23,7 +23,7 @@ interface EnvVarDropdownProps {
   /** Whether the dropdown is visible */
   visible: boolean
   /** Callback when an environment variable is selected */
-  onSelect: (newValue: string) => void
+  onSelect: (newValue: string, newCursorPosition: number) => void
   /** Search term to filter environment variables */
   searchTerm?: string
   /** Additional CSS class names */
@@ -189,6 +189,8 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
 
     const isStandardEnvVarContext = lastOpenBraces !== -1
 
+    const tagLength = 2 + envVar.length + 2
+
     if (isStandardEnvVarContext) {
       const startText = textBeforeCursor.slice(0, lastOpenBraces)
 
@@ -196,13 +198,10 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
       const endText = closeIndex !== -1 ? textAfterCursor.slice(closeIndex + 2) : textAfterCursor
 
       const newValue = `${startText}{{${envVar}}}${endText}`
-      onSelect(newValue)
+      onSelect(newValue, lastOpenBraces + tagLength)
     } else {
-      if (inputValue.trim() !== '') {
-        onSelect(`{{${envVar}}}`)
-      } else {
-        onSelect(`{{${envVar}}}`)
-      }
+      const newValue = `{{${envVar}}}`
+      onSelect(newValue, tagLength)
     }
 
     onClose?.()

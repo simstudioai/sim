@@ -1,43 +1,20 @@
 /**
- * Type of dropdown insertion that determines the delimiter pair used
- * for cursor position computation.
- */
-export type InsertionType = 'tag' | 'envVar'
-
-/**
- * Restores the cursor position in a textarea after a tag or env-var
- * dropdown insertion. Computes where the inserted token ends in the
- * new value and places the cursor right after it.
+ * Restores the cursor position in a textarea after a dropdown insertion.
+ * Schedules a microtask that runs after React's controlled-component commit
+ * so that the cursor position sticks.
  *
- * @param textarea - The textarea element to restore cursor in
- * @param liveValue - The textarea value before the insertion
- * @param liveCursor - The cursor position before the insertion
- * @param newValue - The full new value after the insertion
- * @param type - The type of insertion ('tag' for `<>`, 'envVar' for `{{}}`)
+ * @param textarea - The textarea element to restore cursor in (may be null)
+ * @param newCursorPosition - The exact position to place the cursor at
  */
 export function restoreCursorAfterInsertion(
   textarea: HTMLTextAreaElement | null,
-  liveValue: string,
-  liveCursor: number,
-  newValue: string,
-  type: InsertionType
+  newCursorPosition: number
 ): void {
-  const [openDelim, closeDelim, closeLen] =
-    type === 'tag' ? (['<', '>', 1] as const) : (['{{', '}}', 2] as const)
-
-  // insertPos indexes into liveValue, but is reused to search newValue.
-  // This is valid because text before the trigger character is identical
-  // in both strings — the insertion only mutates text at/after the delimiter.
-  const insertPos = liveValue.slice(0, liveCursor).lastIndexOf(openDelim)
-  const searchFrom = insertPos !== -1 ? insertPos : liveCursor
-  const closingPos = newValue.indexOf(closeDelim, searchFrom)
-  const newCursorPos = closingPos !== -1 ? closingPos + closeLen : newValue.length
-
   setTimeout(() => {
     if (textarea) {
       textarea.focus()
-      textarea.selectionStart = newCursorPos
-      textarea.selectionEnd = newCursorPos
+      textarea.selectionStart = newCursorPosition
+      textarea.selectionEnd = newCursorPosition
     }
   }, 0)
 }

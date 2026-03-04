@@ -538,17 +538,16 @@ export const Code = memo(function Code({
   /**
    * Handles selection of a tag from the tag dropdown.
    * @param newValue - The new code value with the selected tag inserted
+   * @param newCursorPosition - The cursor position after the inserted tag
    */
-  const handleTagSelect = (newValue: string) => {
+  const handleTagSelect = (newValue: string, newCursorPosition: number) => {
     const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
-    const liveCursor = textarea?.selectionStart ?? cursorPosition
-    const liveValue = textarea?.value ?? code
 
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
-      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'tag')
+      restoreCursorAfterInsertion(textarea, newCursorPosition)
     } else {
       setTimeout(() => textarea?.focus(), 0)
     }
@@ -559,17 +558,16 @@ export const Code = memo(function Code({
   /**
    * Handles selection of an environment variable from the dropdown.
    * @param newValue - The new code value with the selected env var inserted
+   * @param newCursorPosition - The cursor position after the inserted env var
    */
-  const handleEnvVarSelect = (newValue: string) => {
+  const handleEnvVarSelect = (newValue: string, newCursorPosition: number) => {
     const textarea = editorRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
-    const liveCursor = textarea?.selectionStart ?? cursorPosition
-    const liveValue = textarea?.value ?? code
 
     if (!isPreview && !readOnly) {
       setCode(newValue)
       emitTagSelection(newValue)
       recordChange(newValue)
-      restoreCursorAfterInsertion(textarea, liveValue, liveCursor, newValue, 'envVar')
+      restoreCursorAfterInsertion(textarea, newCursorPosition)
     } else {
       setTimeout(() => textarea?.focus(), 0)
     }
