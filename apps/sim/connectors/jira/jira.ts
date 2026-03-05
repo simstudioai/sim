@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
@@ -317,15 +317,13 @@ export const jiraConnector: ConnectorConfig = {
     if (typeof metadata.status === 'string') result.status = metadata.status
     if (typeof metadata.priority === 'string') result.priority = metadata.priority
 
-    const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-    if (labels.length > 0) result.labels = labels.join(', ')
+    const labels = joinTagArray(metadata.labels)
+    if (labels) result.labels = labels
 
     if (typeof metadata.assignee === 'string') result.assignee = metadata.assignee
 
-    if (typeof metadata.updated === 'string') {
-      const date = new Date(metadata.updated)
-      if (!Number.isNaN(date.getTime())) result.updated = date
-    }
+    const updated = parseTagDate(metadata.updated)
+    if (updated) result.updated = updated
 
     return result
   },

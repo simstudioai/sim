@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { LinearIcon } from '@/components/icons'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('LinearConnector')
 
@@ -394,17 +394,15 @@ export const linearConnector: ConnectorConfig = {
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 
-    const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-    if (labels.length > 0) result.labels = labels.join(', ')
+    const labels = joinTagArray(metadata.labels)
+    if (labels) result.labels = labels
 
     if (typeof metadata.state === 'string') result.state = metadata.state
     if (typeof metadata.priority === 'string') result.priority = metadata.priority
     if (typeof metadata.assignee === 'string') result.assignee = metadata.assignee
 
-    if (typeof metadata.lastModified === 'string') {
-      const date = new Date(metadata.lastModified)
-      if (!Number.isNaN(date.getTime())) result.lastModified = date
-    }
+    const lastModified = parseTagDate(metadata.lastModified)
+    if (lastModified) result.lastModified = lastModified
 
     return result
   },

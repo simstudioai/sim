@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ConfluenceIcon } from '@/components/icons'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
@@ -306,18 +306,16 @@ export const confluenceConnector: ConnectorConfig = {
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 
-    const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-    if (labels.length > 0) result.labels = labels.join(', ')
+    const joined = joinTagArray(metadata.labels)
+    if (joined) result.labels = joined
 
     if (metadata.version != null) {
       const num = Number(metadata.version)
       if (!Number.isNaN(num)) result.version = num
     }
 
-    if (typeof metadata.lastModified === 'string') {
-      const date = new Date(metadata.lastModified)
-      if (!Number.isNaN(date.getTime())) result.lastModified = date
-    }
+    const lastModified = parseTagDate(metadata.lastModified)
+    if (lastModified) result.lastModified = lastModified
 
     return result
   },

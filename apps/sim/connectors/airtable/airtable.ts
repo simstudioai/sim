@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { AirtableIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('AirtableConnector')
 
@@ -292,10 +292,8 @@ export const airtableConnector: ConnectorConfig = {
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 
-    if (typeof metadata.createdTime === 'string') {
-      const date = new Date(metadata.createdTime)
-      if (!Number.isNaN(date.getTime())) result.createdTime = date
-    }
+    const createdTime = parseTagDate(metadata.createdTime)
+    if (createdTime) result.createdTime = createdTime
 
     return result
   },

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NotionIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('NotionConnector')
 
@@ -363,18 +363,14 @@ export const notionConnector: ConnectorConfig = {
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 
-    const tags = Array.isArray(metadata.tags) ? (metadata.tags as string[]) : []
-    if (tags.length > 0) result.tags = tags.join(', ')
+    const tags = joinTagArray(metadata.tags)
+    if (tags) result.tags = tags
 
-    if (typeof metadata.lastModified === 'string') {
-      const date = new Date(metadata.lastModified)
-      if (!Number.isNaN(date.getTime())) result.lastModified = date
-    }
+    const lastModified = parseTagDate(metadata.lastModified)
+    if (lastModified) result.lastModified = lastModified
 
-    if (typeof metadata.createdTime === 'string') {
-      const date = new Date(metadata.createdTime)
-      if (!Number.isNaN(date.getTime())) result.created = date
-    }
+    const created = parseTagDate(metadata.createdTime)
+    if (created) result.created = created
 
     return result
   },
@@ -547,7 +543,8 @@ async function listFromParentPage(
 
   const documents: ExternalDocument[] = []
   for (let i = 0; i < pageIdsToFetch.length; i += CHILD_PAGE_CONCURRENCY) {
-    if (maxPages > 0 && documents.length >= maxPages) break
+    const cumulativeSoFar = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    if (maxPages > 0 && cumulativeSoFar >= maxPages) break
     const batch = pageIdsToFetch.slice(i, i + CHILD_PAGE_CONCURRENCY)
     const results = await Promise.all(
       batch.map(async (pageId) => {

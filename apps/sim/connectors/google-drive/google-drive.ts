@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
 
@@ -393,8 +393,8 @@ export const googleDriveConnector: ConnectorConfig = {
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 
-    const owners = Array.isArray(metadata.owners) ? (metadata.owners as string[]) : []
-    if (owners.length > 0) result.owners = owners.join(', ')
+    const owners = joinTagArray(metadata.owners)
+    if (owners) result.owners = owners
 
     if (typeof metadata.originalMimeType === 'string') {
       const mimeType = metadata.originalMimeType
@@ -405,10 +405,8 @@ export const googleDriveConnector: ConnectorConfig = {
       else result.fileType = mimeType
     }
 
-    if (typeof metadata.modifiedTime === 'string') {
-      const date = new Date(metadata.modifiedTime)
-      if (!Number.isNaN(date.getTime())) result.lastModified = date
-    }
+    const lastModified = parseTagDate(metadata.modifiedTime)
+    if (lastModified) result.lastModified = lastModified
 
     if (typeof metadata.starred === 'boolean') {
       result.starred = metadata.starred

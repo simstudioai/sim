@@ -1,9 +1,30 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, mockConsoleLogger, mockDrizzleOrm } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockCheckSession, mockCheckWriteAccess, mockDispatchSync, mockDbChain } = vi.hoisted(
+  () => {
+    const chain = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockResolvedValue([]),
+      limit: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+    }
+    return {
+      mockCheckSession: vi.fn(),
+      mockCheckWriteAccess: vi.fn(),
+      mockDispatchSync: vi.fn().mockResolvedValue(undefined),
+      mockDbChain: chain,
+    }
+  }
+)
+
+vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@sim/db/schema', () => ({
   knowledgeConnector: {
     id: 'id',
@@ -12,34 +33,22 @@ vi.mock('@sim/db/schema', () => ({
     status: 'status',
   },
 }))
-
 vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseWriteAccess: vi.fn(),
+  checkKnowledgeBaseWriteAccess: mockCheckWriteAccess,
 }))
 vi.mock('@/lib/auth/hybrid', () => ({
-  checkSessionOrInternalAuth: vi.fn(),
+  checkSessionOrInternalAuth: mockCheckSession,
 }))
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('test-req-id'),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
-  dispatchSync: vi.fn().mockResolvedValue(undefined),
+  dispatchSync: mockDispatchSync,
 }))
 
-mockDrizzleOrm()
-mockConsoleLogger()
+import { POST } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 
 describe('Connector Manual Sync API Route', () => {
-  const mockDbChain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockResolvedValue([]),
-    limit: vi.fn().mockResolvedValue([]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-  }
-
   const mockParams = Promise.resolve({ id: 'kb-123', connectorId: 'conn-456' })
 
   beforeEach(() => {
@@ -51,83 +60,50 @@ describe('Connector Manual Sync API Route', () => {
     mockDbChain.limit.mockResolvedValue([])
     mockDbChain.update.mockReturnThis()
     mockDbChain.set.mockReturnThis()
-
-    vi.doMock('@sim/db', () => ({ db: mockDbChain }))
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('returns 401 when unauthenticated', async () => {
-    const { checkSessionOrInternalAuth } = await import('@/lib/auth/hybrid')
-    vi.mocked(checkSessionOrInternalAuth).mockResolvedValue({
-      success: false,
-      userId: null,
-    } as never)
+    mockCheckSession.mockResolvedValue({ success: false, userId: null })
 
     const req = createMockRequest('POST')
-    const { POST } = await import('@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route')
     const response = await POST(req as never, { params: mockParams })
 
     expect(response.status).toBe(401)
   })
 
   it('returns 404 when connector not found', async () => {
-    const { checkSessionOrInternalAuth } = await import('@/lib/auth/hybrid')
-    const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
-
-    vi.mocked(checkSessionOrInternalAuth).mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-    } as never)
-    vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true } as never)
+    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
     mockDbChain.limit.mockResolvedValueOnce([])
 
     const req = createMockRequest('POST')
-    const { POST } = await import('@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route')
     const response = await POST(req as never, { params: mockParams })
 
     expect(response.status).toBe(404)
   })
 
   it('returns 409 when connector is syncing', async () => {
-    const { checkSessionOrInternalAuth } = await import('@/lib/auth/hybrid')
-    const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
-
-    vi.mocked(checkSessionOrInternalAuth).mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-    } as never)
-    vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true } as never)
+    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
     mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'syncing' }])
 
     const req = createMockRequest('POST')
-    const { POST } = await import('@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route')
     const response = await POST(req as never, { params: mockParams })
 
     expect(response.status).toBe(409)
   })
 
   it('dispatches sync on valid request', async () => {
-    const { checkSessionOrInternalAuth } = await import('@/lib/auth/hybrid')
-    const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
-    const { dispatchSync } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    vi.mocked(checkSessionOrInternalAuth).mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-    } as never)
-    vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true } as never)
+    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
     mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
 
     const req = createMockRequest('POST')
-    const { POST } = await import('@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route')
     const response = await POST(req as never, { params: mockParams })
     const data = await response.json()
 
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(vi.mocked(dispatchSync)).toHaveBeenCalledWith('conn-456', { requestId: 'test-req-id' })
+    expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', { requestId: 'test-req-id' })
   })
 })

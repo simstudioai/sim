@@ -24,3 +24,22 @@ export async function computeContentHash(content: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer))
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
+
+/**
+ * Parses a string metadata value as a Date for tag mapping.
+ * Returns the Date if valid, undefined otherwise.
+ */
+export function parseTagDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string') return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+/**
+ * Joins an array metadata value into a comma-separated string for tag mapping.
+ * Returns the joined string if non-empty, undefined otherwise.
+ */
+export function joinTagArray(value: unknown): string | undefined {
+  const arr = Array.isArray(value) ? (value as string[]) : []
+  return arr.length > 0 ? arr.join(', ') : undefined
+}
