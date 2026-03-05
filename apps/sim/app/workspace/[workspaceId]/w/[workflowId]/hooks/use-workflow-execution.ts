@@ -1496,7 +1496,7 @@ export function useWorkflowExecution() {
                 // For chat executions, don't set isExecuting=false here — the chat's
                 // client-side stream wrapper still has buffered data to deliver.
                 // The chat's finally block handles cleanup after the stream is fully consumed.
-                if (overrideTriggerType !== 'chat') {
+                if (!isExecutingFromChat) {
                   setIsExecuting(activeWorkflowId, false)
                   setActiveBlocks(activeWorkflowId, new Set())
                 }
@@ -1539,7 +1539,7 @@ export function useWorkflowExecution() {
                 isPreExecutionError,
               })
 
-              if (activeWorkflowId && overrideTriggerType !== 'chat') {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
@@ -1565,7 +1565,7 @@ export function useWorkflowExecution() {
                 durationMs: data?.duration,
               })
 
-              if (activeWorkflowId && overrideTriggerType !== 'chat') {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
