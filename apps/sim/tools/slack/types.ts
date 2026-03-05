@@ -802,14 +802,20 @@ export interface SlackRemoveReactionResponse extends ToolResponse {
 export interface SlackChannel {
   id: string
   name: string
+  is_channel?: boolean
   is_private: boolean
   is_archived: boolean
+  is_general?: boolean
   is_member: boolean
+  is_shared?: boolean
+  is_ext_shared?: boolean
+  is_org_shared?: boolean
   num_members?: number
   topic?: string
   purpose?: string
   created?: number
   creator?: string
+  updated?: number
 }
 
 export interface SlackListChannelsResponse extends ToolResponse {
