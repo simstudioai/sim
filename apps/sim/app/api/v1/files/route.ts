@@ -96,7 +96,8 @@ export async function POST(request: NextRequest) {
     const userId = rateLimit.userId!
 
     const formData = await request.formData()
-    const file = formData.get('file') as File | null
+    const rawFile = formData.get('file')
+    const file = rawFile instanceof File ? rawFile : null
     const rawWorkspaceId = formData.get('workspaceId')
     const workspaceId = typeof rawWorkspaceId === 'string' ? rawWorkspaceId : null
 

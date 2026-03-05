@@ -440,6 +440,11 @@ export async function upsertRow(
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
 
+  // Validate column name before raw interpolation (defense-in-depth)
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(targetColumnName)) {
+    throw new Error(`Invalid column name: ${targetColumnName}`)
+  }
+
   // Build the single-column match filter
   const matchFilter =
     typeof targetValue === 'string'
