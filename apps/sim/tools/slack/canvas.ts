@@ -87,13 +87,16 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response): Promise<SlackCanvasResponse> => {
     const data = await response.json()
 
     if (!data.ok) {
       return {
         success: false,
         output: {
+          canvas_id: '',
+          channel: '',
+          title: '',
           error: data.error || 'Unknown error',
         },
       }
