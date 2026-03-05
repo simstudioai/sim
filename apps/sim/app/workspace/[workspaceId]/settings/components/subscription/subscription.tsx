@@ -3,13 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Combobox, Label, Switch, Tooltip } from '@/components/emcn'
+import { Button, Combobox, Label, Switch, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
-import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
-import { formatCredits } from '@/lib/billing/credits/conversion'
+import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS, WEEKLY_REFRESH_RATE } from '@/lib/billing/constants'
 import { isEnterprise, isFree, isOrgPlan, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
@@ -23,7 +22,6 @@ import {
   ReferralCode,
 } from '@/app/workspace/[workspaceId]/settings/components/subscription/components'
 import {
-  ANNUAL_PLAN_FEATURE,
   ENTERPRISE_PLAN_FEATURES,
   PRO_PLAN_FEATURES,
   TEAM_PLAN_FEATURES,
@@ -53,7 +51,7 @@ const CONSTANTS = {
 } as const
 
 const TIER_OPTIONS = CREDIT_TIERS.map((t) => ({
-  label: `${formatCredits(t.dollars)} credits`,
+  label: `${t.credits.toLocaleString()} credits`,
   value: String(t.credits),
 }))
 
@@ -402,91 +400,118 @@ export function Subscription() {
     logger,
   ])
 
-  const priceDisplay = useMemo(() => {
-    if (isAnnual) {
-      return (
-        <span className='flex items-baseline gap-[4px]'>
-          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-            ${tierPricing.annualTotal}/yr
-          </span>
-          <span className='text-[12px] text-[var(--text-secondary)]'>
-            (${tierPricing.discountedMonthly}/mo)
-          </span>
-        </span>
-      )
-    }
-    return `$${tierPricing.monthly}`
-  }, [isAnnual, tierPricing])
-
-  const priceSubtext = isAnnual ? undefined : '/mo'
-
-  const planFeatures = useMemo(() => {
-    const proFeatures = isAnnual ? [...PRO_PLAN_FEATURES, ANNUAL_PLAN_FEATURE] : PRO_PLAN_FEATURES
-    const teamFeatures = isAnnual
-      ? [...TEAM_PLAN_FEATURES, ANNUAL_PLAN_FEATURE]
-      : TEAM_PLAN_FEATURES
-    return { pro: proFeatures, team: teamFeatures }
-  }, [isAnnual])
+  const weeklyRefreshCredits = useMemo(() => {
+    const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? CREDIT_TIERS[0]
+    return Math.round(tier.dollars * WEEKLY_REFRESH_RATE * 100)
+  }, [selectedTier])
 
   const renderPlanCard = useCallback(
     (planType: 'pro' | 'team' | 'enterprise', options?: { horizontal?: boolean }) => {
       const handleContactEnterprise = () => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
 
-      switch (planType) {
-        case 'pro':
-          return (
-            <div key='pro' className='flex flex-col'>
-              <PlanCard
-                name='Pro'
-                price={priceDisplay}
-                priceSubtext={priceSubtext}
-                features={planFeatures.pro}
-                buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
-                onButtonClick={() => handleUpgradeWithErrorHandling('pro')}
-                isError={upgradeError === 'pro'}
-              />
-            </div>
-          )
-
-        case 'team':
-          return (
-            <div key='team' className='flex flex-col'>
-              <PlanCard
-                name='Team'
-                price={priceDisplay}
-                priceSubtext={priceSubtext}
-                features={planFeatures.team}
-                buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
-                onButtonClick={() => handleUpgradeWithErrorHandling('team')}
-                isError={upgradeError === 'team'}
-              />
-            </div>
-          )
-
-        case 'enterprise':
-          return (
-            <PlanCard
-              key='enterprise'
-              name='Enterprise'
-              price=''
-              features={ENTERPRISE_PLAN_FEATURES}
-              buttonText='Contact'
-              onButtonClick={handleContactEnterprise}
-              inlineButton={options?.horizontal}
-            />
-          )
-
-        default:
-          return null
+      if (planType === 'enterprise') {
+        return (
+          <PlanCard
+            key='enterprise'
+            name='Enterprise'
+            price=''
+            features={ENTERPRISE_PLAN_FEATURES}
+            buttonText='Contact'
+            onButtonClick={handleContactEnterprise}
+            inlineButton={options?.horizontal}
+          />
+        )
       }
+
+      const isPlanPro = planType === 'pro'
+      const features = isPlanPro ? PRO_PLAN_FEATURES : TEAM_PLAN_FEATURES
+
+      return (
+        <article
+          key={planType}
+          className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'
+        >
+          {/* Header: plan name + price */}
+          <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+            <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+              {isPlanPro ? 'Pro' : 'Team'}
+            </span>
+            <div className='flex items-baseline gap-[4px]'>
+              {isAnnual ? (
+                <>
+                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                    ${tierPricing.discountedMonthly}
+                  </span>
+                  <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+                  <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
+                    ${tierPricing.monthly}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                    ${tierPricing.monthly}
+                  </span>
+                  <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Credits + weekly refresh highlight */}
+          <div className='flex items-center gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+            <div className='flex flex-col'>
+              <span className='font-semibold text-[18px] text-[var(--text-primary)]'>
+                {selectedTier.toLocaleString()}
+              </span>
+              <span className='text-[11px] text-[var(--text-secondary)]'>credits/mo</span>
+            </div>
+            <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
+            <div className='flex flex-col'>
+              <span className='font-semibold text-[14px] text-[var(--text-primary)]'>
+                +{weeklyRefreshCredits.toLocaleString()}
+              </span>
+              <span className='text-[11px] text-[var(--text-secondary)]'>weekly refresh</span>
+            </div>
+          </div>
+
+          {/* Features + CTA */}
+          <div className='flex flex-1 flex-col gap-[14px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
+            <ul className='flex flex-1 flex-col gap-[10px]'>
+              {features.map((feature, index) => {
+                const Icon = feature.icon
+                return (
+                  <li key={`${feature.text}-${index}`} className='flex items-center gap-[8px]'>
+                    <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-secondary)]' />
+                    <span className='text-[12px] text-[var(--text-primary)]'>{feature.text}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            <Button
+              onClick={() => handleUpgradeWithErrorHandling(planType)}
+              className='w-full'
+              variant={upgradeError === planType ? 'outline' : 'tertiary'}
+              aria-label={`Upgrade to ${isPlanPro ? 'Pro' : 'Team'} plan`}
+            >
+              {upgradeError === planType
+                ? 'Error'
+                : subscription.isFree
+                  ? 'Get started'
+                  : `Upgrade to ${isPlanPro ? 'Pro' : 'Team'}`}
+            </Button>
+          </div>
+        </article>
+      )
     },
     [
       subscription.isFree,
       upgradeError,
       handleUpgradeWithErrorHandling,
-      priceDisplay,
-      priceSubtext,
-      planFeatures,
+      tierPricing,
+      isAnnual,
+      selectedTier,
+      weeklyRefreshCredits,
     ]
   )
 
@@ -568,20 +593,28 @@ export function Subscription() {
 
       {/* Upgrade Plans */}
       {permissions.showUpgradePlans && (
-        <div className='flex flex-col gap-[10px]'>
-          {/* Billing interval toggle */}
-          <div className='flex items-center justify-between'>
-            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-              Billing interval
-            </span>
-            <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+        <div className='flex flex-col gap-[12px]'>
+          {/* Controls row: tier selector + billing toggle */}
+          <div className='flex items-center justify-between gap-[8px]'>
+            <div className='w-[160px]'>
+              <Combobox
+                size='sm'
+                align='start'
+                dropdownWidth={170}
+                value={String(selectedTier)}
+                onChange={(value: string) => setSelectedTier(Number(value))}
+                placeholder='Credits'
+                options={TIER_OPTIONS}
+              />
+            </div>
+            <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[2px]'>
               <button
                 type='button'
                 className={cn(
-                  'rounded-[5px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  'rounded-[4px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
                   !isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 )}
                 onClick={() => setIsAnnual(false)}
               >
@@ -590,33 +623,18 @@ export function Subscription() {
               <button
                 type='button'
                 className={cn(
-                  'rounded-[5px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  'flex items-center gap-[4px] rounded-[4px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
                   isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 )}
                 onClick={() => setIsAnnual(true)}
               >
-                Annual (Save 15%)
+                Annual
+                <span className='rounded-[3px] bg-[#10b981] px-[4px] py-[1px] text-[10px] font-semibold text-white'>
+                  -15%
+                </span>
               </button>
-            </div>
-          </div>
-
-          {/* Credit tier selector */}
-          <div className='flex items-center justify-between'>
-            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-              Credit tier
-            </span>
-            <div className='w-[180px]'>
-              <Combobox
-                size='sm'
-                align='end'
-                dropdownWidth={180}
-                value={String(selectedTier)}
-                onChange={(value: string) => setSelectedTier(Number(value))}
-                placeholder='Select credit tier'
-                options={TIER_OPTIONS}
-              />
             </div>
           </div>
 
