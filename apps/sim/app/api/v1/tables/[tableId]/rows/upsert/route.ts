@@ -96,6 +96,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     if (
       errorMessage.includes('unique column') ||
+      errorMessage.includes('Unique constraint violation') ||
       errorMessage.includes('conflictTarget') ||
       errorMessage.includes('row limit') ||
       errorMessage.includes('Schema validation') ||

@@ -409,7 +409,17 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
 
     const userId = rateLimit.userId!
     const { tableId } = await params
-    const body: unknown = await request.json()
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
+
     const validated = UpdateRowsByFilterSchema.parse(body)
 
     const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
@@ -500,7 +510,17 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
 
     const userId = rateLimit.userId!
     const { tableId } = await params
-    const body: unknown = await request.json()
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
+
     const validated = DeleteRowsRequestSchema.parse(body)
 
     const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)

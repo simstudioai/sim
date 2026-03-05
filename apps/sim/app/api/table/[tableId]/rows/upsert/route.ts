@@ -90,6 +90,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     // Service layer throws descriptive errors for validation/capacity issues
     if (
       errorMessage.includes('unique column') ||
+      errorMessage.includes('Unique constraint violation') ||
       errorMessage.includes('conflictTarget') ||
       errorMessage.includes('row limit') ||
       errorMessage.includes('Schema validation') ||
