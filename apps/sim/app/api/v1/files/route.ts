@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const workspaceId = formData.get('workspaceId') as string | null
+    const rawWorkspaceId = formData.get('workspaceId')
+    const workspaceId = typeof rawWorkspaceId === 'string' ? rawWorkspaceId : null
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'workspaceId form field is required' }, { status: 400 })
