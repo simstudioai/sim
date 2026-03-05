@@ -1025,10 +1025,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
           case 'download': {
             const fileId = (rest as any).fileId
-            const downloadFileName = (rest as any).downloadFileName
+            const fileName = (rest as any).fileName
             baseParams.fileId = fileId
-            if (downloadFileName) {
-              baseParams.fileName = downloadFileName
+            if (fileName) {
+              baseParams.fileName = fileName
             }
             break
           }

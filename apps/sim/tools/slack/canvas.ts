@@ -90,6 +90,15 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.ok) {
+      return {
+        success: false,
+        output: {
+          error: data.error || 'Unknown error',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
