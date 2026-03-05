@@ -155,9 +155,7 @@ export async function createTable(
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
   await db.transaction(async (trx) => {
-    await trx.execute(
-      sql`SELECT 1 FROM workspaces WHERE id = ${data.workspaceId} FOR UPDATE`
-    )
+    await trx.execute(sql`SELECT 1 FROM workspaces WHERE id = ${data.workspaceId} FOR UPDATE`)
 
     const [{ count: existingCount }] = await trx
       .select({ count: count() })
@@ -165,9 +163,7 @@ export async function createTable(
       .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
 
     if (Number(existingCount) >= maxTables) {
-      throw new Error(
-        `Workspace has reached maximum table limit (${maxTables})`
-      )
+      throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
     }
 
     const duplicateName = await trx

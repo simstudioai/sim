@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { RowData, TableSchema } from '@/lib/table'
+import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
