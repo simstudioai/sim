@@ -1124,9 +1124,7 @@ export function useWorkflowExecution() {
       {} as typeof workflowBlocks
     )
 
-    const isExecutingFromChat =
-      overrideTriggerType === 'chat' ||
-      (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
+    const isExecutingFromChat = overrideTriggerType === 'chat'
 
     logger.info('Executing workflow', {
       isDiffMode: currentWorkflow.isDiffMode,
