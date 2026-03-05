@@ -75,27 +75,28 @@ const nonEmptyFilter = z
   .record(z.unknown(), { required_error: 'Filter criteria is required' })
   .refine((f) => Object.keys(f).length > 0, { message: 'Filter must not be empty' })
 
+const optionalPositiveLimit = (max: number, label: string) =>
+  z.preprocess(
+    (val) => (val === null || val === undefined || val === '' ? undefined : Number(val)),
+    z
+      .number()
+      .int(`${label} must be an integer`)
+      .min(1, `${label} must be at least 1`)
+      .max(max, `Cannot ${label.toLowerCase()} more than ${max} rows per operation`)
+      .optional()
+  )
+
 const UpdateRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: nonEmptyFilter,
   data: z.record(z.unknown(), { required_error: 'Update data is required' }),
-  limit: z.coerce
-    .number({ required_error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(1, 'Limit must be at least 1')
-    .max(1000, 'Cannot update more than 1000 rows per operation')
-    .optional(),
+  limit: optionalPositiveLimit(1000, 'Limit'),
 })
 
 const DeleteRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: nonEmptyFilter,
-  limit: z.coerce
-    .number({ required_error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(1, 'Limit must be at least 1')
-    .max(1000, 'Cannot delete more than 1000 rows per operation')
-    .optional(),
+  limit: optionalPositiveLimit(1000, 'Limit'),
 })
 
 const DeleteRowsByIdsSchema = z.object({
@@ -173,7 +174,7 @@ async function handleBatchInsert(
       return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
-    logger.error('Error batch inserting rows:', error)
+    logger.error(`[${requestId}] Error batch inserting rows:`, error)
     return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
   }
 }
@@ -294,7 +295,7 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    logger.error('Error querying rows:', error)
+    logger.error(`[${requestId}] Error querying rows:`, error)
     return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
   }
 }
@@ -391,7 +392,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
-    logger.error('Error inserting row:', error)
+    logger.error(`[${requestId}] Error inserting row:`, error)
     return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
   }
 }
@@ -482,7 +483,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
-    logger.error('Error updating rows by filter:', error)
+    logger.error(`[${requestId}] Error updating rows by filter:`, error)
     return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 }
@@ -570,7 +571,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
-    logger.error('Error deleting rows:', error)
+    logger.error(`[${requestId}] Error deleting rows:`, error)
     return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
   }
 }

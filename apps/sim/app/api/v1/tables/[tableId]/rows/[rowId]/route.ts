@@ -93,7 +93,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       },
     })
   } catch (error) {
-    logger.error('Error getting row:', error)
+    logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
 }
@@ -195,7 +195,19 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    logger.error('Error updating row:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
 }
@@ -255,7 +267,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       },
     })
   } catch (error) {
-    logger.error('Error deleting row:', error)
+    logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
 }

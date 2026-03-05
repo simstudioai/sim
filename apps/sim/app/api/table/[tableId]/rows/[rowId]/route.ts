@@ -206,6 +206,18 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }

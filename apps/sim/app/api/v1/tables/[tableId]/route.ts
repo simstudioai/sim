@@ -78,7 +78,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
       },
     })
   } catch (error) {
-    logger.error('Error getting table:', error)
+    logger.error(`[${requestId}] Error getting table:`, error)
     return NextResponse.json({ error: 'Failed to get table' }, { status: 500 })
   }
 }
@@ -124,7 +124,7 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       },
     })
   } catch (error) {
-    logger.error('Error deleting table:', error)
+    logger.error(`[${requestId}] Error deleting table:`, error)
     return NextResponse.json({ error: 'Failed to delete table' }, { status: 500 })
   }
 }

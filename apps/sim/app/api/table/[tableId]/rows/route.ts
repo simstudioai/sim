@@ -60,27 +60,28 @@ const nonEmptyFilter = z
   .record(z.unknown(), { required_error: 'Filter criteria is required' })
   .refine((f) => Object.keys(f).length > 0, { message: 'Filter must not be empty' })
 
+const optionalPositiveLimit = (max: number, label: string) =>
+  z.preprocess(
+    (val) => (val === null || val === undefined || val === '' ? undefined : Number(val)),
+    z
+      .number()
+      .int(`${label} must be an integer`)
+      .min(1, `${label} must be at least 1`)
+      .max(max, `Cannot ${label.toLowerCase()} more than ${max} rows per operation`)
+      .optional()
+  )
+
 const UpdateRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: nonEmptyFilter,
   data: z.record(z.unknown(), { required_error: 'Update data is required' }),
-  limit: z.coerce
-    .number({ required_error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(1, 'Limit must be at least 1')
-    .max(1000, 'Cannot update more than 1000 rows per operation')
-    .optional(),
+  limit: optionalPositiveLimit(1000, 'Limit'),
 })
 
 const DeleteRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: nonEmptyFilter,
-  limit: z.coerce
-    .number({ required_error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(1, 'Limit must be at least 1')
-    .max(1000, 'Cannot delete more than 1000 rows per operation')
-    .optional(),
+  limit: optionalPositiveLimit(1000, 'Limit'),
 })
 
 const DeleteRowsByIdsSchema = z.object({
