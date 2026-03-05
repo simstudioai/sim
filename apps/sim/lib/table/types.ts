@@ -159,12 +159,28 @@ export interface InsertRowData {
   tableId: string
   data: RowData
   workspaceId: string
+  userId?: string
 }
 
 export interface BatchInsertData {
   tableId: string
   rows: RowData[]
   workspaceId: string
+  userId?: string
+}
+
+export interface UpsertRowData {
+  tableId: string
+  workspaceId: string
+  data: RowData
+  userId?: string
+  /** Which unique column to match on. Required when multiple unique columns exist. */
+  conflictTarget?: string
+}
+
+export interface UpsertResult {
+  row: TableRow
+  operation: 'insert' | 'update'
 }
 
 export interface UpdateRowData {

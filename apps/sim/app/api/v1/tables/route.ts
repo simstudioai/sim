@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  canCreateTable,
+  countTables,
   createTable,
   getWorkspaceTableLimits,
   listTables,
@@ -12,7 +12,11 @@ import {
 } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TablesAPI')
 
@@ -100,6 +104,9 @@ export async function GET(request: NextRequest) {
 
     const { workspaceId } = validation.data
 
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
+
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission === null) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
@@ -153,24 +160,28 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json()
     const params = CreateTableSchema.parse(body)
 
+    const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)
+    if (scopeError) return scopeError
+
     const permission = await getUserEntityPermissions(userId, 'workspace', params.workspaceId)
     if (permission === null || permission === 'read') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const existingTables = await listTables(params.workspaceId)
-    const { canCreate, maxTables } = await canCreateTable(params.workspaceId, existingTables.length)
+    const [tableCount, planLimits] = await Promise.all([
+      countTables(params.workspaceId),
+      getWorkspaceTableLimits(params.workspaceId),
+    ])
 
-    if (!canCreate) {
+    if (tableCount >= planLimits.maxTables) {
       return NextResponse.json(
         {
-          error: `Workspace has reached the maximum table limit (${maxTables}) for your plan. Please upgrade to create more tables.`,
+          error: `Workspace has reached the maximum table limit (${planLimits.maxTables}) for your plan. Please upgrade to create more tables.`,
         },
         { status: 403 }
       )
     }
 
-    const planLimits = await getWorkspaceTableLimits(params.workspaceId)
     const maxRowsPerTable = planLimits.maxRowsPerTable
 
     const normalizedSchema: TableSchema = {

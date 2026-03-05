@@ -170,14 +170,8 @@ export function serializeTableMeta(table: {
       schema: table.schema,
       rowCount: table.rowCount,
       maxRows: table.maxRows,
-      createdAt:
-        table.createdAt instanceof Date
-          ? table.createdAt.toISOString()
-          : table.createdAt,
-      updatedAt:
-        table.updatedAt instanceof Date
-          ? table.updatedAt.toISOString()
-          : table.updatedAt,
+      createdAt: table.createdAt instanceof Date ? table.createdAt.toISOString() : table.createdAt,
+      updatedAt: table.updatedAt instanceof Date ? table.updatedAt.toISOString() : table.updatedAt,
     },
     null,
     2

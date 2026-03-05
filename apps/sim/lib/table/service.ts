@@ -27,6 +27,8 @@ import type {
   TableRow,
   TableSchema,
   UpdateRowData,
+  UpsertResult,
+  UpsertRowData,
 } from './types'
 import {
   checkBatchUniqueConstraintsDb,
@@ -76,6 +78,14 @@ export async function getTableById(tableId: string): Promise<TableDefinition | n
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
+export async function countTables(workspaceId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(userTableDefinitions)
+    .where(eq(userTableDefinitions.workspaceId, workspaceId))
+  return result.count
+}
+
 export async function listTables(workspaceId: string): Promise<TableDefinition[]> {
   const tables = await db
     .select()
@@ -214,11 +224,6 @@ export async function insertRow(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow> {
-  // Check capacity using stored rowCount (maintained by database triggers)
-  if (table.rowCount >= table.maxRows) {
-    throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
-  }
-
   // Validate row size
   const sizeValidation = validateRowSize(data.data)
   if (!sizeValidation.valid) {
@@ -243,24 +248,44 @@ export async function insertRow(
   const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
   const now = new Date()
 
-  const newRow = {
-    id: rowId,
-    tableId: data.tableId,
-    workspaceId: data.workspaceId,
-    data: data.data,
-    createdAt: now,
-    updatedAt: now,
-  }
+  // Atomic capacity check + insert inside a transaction.
+  // FOR UPDATE on the table definition row serializes concurrent inserts,
+  // preventing the TOCTOU race where multiple requests pass the count check.
+  const [row] = await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
+    )
 
-  await db.insert(userTableRows).values(newRow)
+    const [{ count: currentCount }] = await trx
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
+    if (Number(currentCount) >= table.maxRows) {
+      throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
+    }
+
+    return trx
+      .insert(userTableRows)
+      .values({
+        id: rowId,
+        tableId: data.tableId,
+        workspaceId: data.workspaceId,
+        data: data.data,
+        createdAt: now,
+        updatedAt: now,
+        ...(data.userId ? { createdBy: data.userId } : {}),
+      })
+      .returning()
+  })
 
   logger.info(`[${requestId}] Inserted row ${rowId} into table ${data.tableId}`)
 
   return {
-    id: newRow.id,
-    data: newRow.data as RowData,
-    createdAt: newRow.createdAt,
-    updatedAt: newRow.updatedAt,
+    id: row.id,
+    data: row.data as RowData,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }
 }
 
@@ -278,14 +303,6 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
-  // Check capacity using stored rowCount (maintained by database triggers)
-  const remainingCapacity = table.maxRows - table.rowCount
-  if (remainingCapacity < data.rows.length) {
-    throw new Error(
-      `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${table.rowCount}/${table.maxRows} rows)`
-    )
-  }
-
   // Validate all rows
   for (let i = 0; i < data.rows.length; i++) {
     const row = data.rows[i]
@@ -306,7 +323,6 @@ export async function batchInsertRows(
   if (uniqueColumns.length > 0) {
     const uniqueResult = await checkBatchUniqueConstraintsDb(data.tableId, data.rows, table.schema)
     if (!uniqueResult.valid) {
-      // Format errors for batch insert
       const errorMessages = uniqueResult.errors
         .map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`)
         .join('; ')
@@ -322,18 +338,191 @@ export async function batchInsertRows(
     data: rowData,
     createdAt: now,
     updatedAt: now,
+    ...(data.userId ? { createdBy: data.userId } : {}),
   }))
 
-  await db.insert(userTableRows).values(rowsToInsert)
+  // Atomic capacity check + insert inside a transaction.
+  // FOR UPDATE on the table definition row serializes concurrent inserts.
+  const insertedRows = await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
+    )
+
+    const [{ count: currentCount }] = await trx
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
+    const remainingCapacity = table.maxRows - Number(currentCount)
+    if (remainingCapacity < data.rows.length) {
+      throw new Error(
+        `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${Number(currentCount)}/${table.maxRows} rows)`
+      )
+    }
+
+    return trx.insert(userTableRows).values(rowsToInsert).returning()
+  })
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
 
-  return rowsToInsert.map((r) => ({
+  return insertedRows.map((r) => ({
     id: r.id,
     data: r.data as RowData,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
+}
+
+/**
+ * Upserts a row: updates an existing row if a match is found on the conflict target
+ * column, otherwise inserts a new row.
+ *
+ * Uses a single unique column for matching (not OR across all unique columns) to avoid
+ * ambiguous matches when multiple unique columns exist. Capacity checks run inside the
+ * transaction with a FOR UPDATE lock to prevent TOCTOU races.
+ *
+ * @param data - Upsert data including optional conflictTarget
+ * @param table - Table definition
+ * @param requestId - Request ID for logging
+ * @returns The upserted row and whether it was an insert or update
+ * @throws Error if no unique columns, ambiguous conflict target, or capacity exceeded
+ */
+export async function upsertRow(
+  data: UpsertRowData,
+  table: TableDefinition,
+  requestId: string
+): Promise<UpsertResult> {
+  const schema = table.schema
+  const uniqueColumns = getUniqueColumns(schema)
+
+  if (uniqueColumns.length === 0) {
+    throw new Error(
+      'Upsert requires at least one unique column in the schema. Please add a unique constraint to a column or use insert instead.'
+    )
+  }
+
+  // Determine the single conflict target column
+  let targetColumnName: string
+  if (data.conflictTarget) {
+    const col = uniqueColumns.find((c) => c.name === data.conflictTarget)
+    if (!col) {
+      throw new Error(
+        `Column "${data.conflictTarget}" is not a unique column. Available unique columns: ${uniqueColumns.map((c) => c.name).join(', ')}`
+      )
+    }
+    targetColumnName = data.conflictTarget
+  } else if (uniqueColumns.length === 1) {
+    targetColumnName = uniqueColumns[0].name
+  } else {
+    throw new Error(
+      `Table has multiple unique columns (${uniqueColumns.map((c) => c.name).join(', ')}). Specify conflictTarget to indicate which column to match on.`
+    )
+  }
+
+  const targetValue = data.data[targetColumnName]
+  if (targetValue === undefined || targetValue === null) {
+    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
+  }
+
+  // Validate row data
+  const sizeValidation = validateRowSize(data.data)
+  if (!sizeValidation.valid) {
+    throw new Error(sizeValidation.errors.join(', '))
+  }
+
+  const schemaValidation = validateRowAgainstSchema(data.data, schema)
+  if (!schemaValidation.valid) {
+    throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
+  }
+
+  // Build the single-column match filter
+  const matchFilter =
+    typeof targetValue === 'string'
+      ? sql`${userTableRows.data}->>${sql.raw(`'${targetColumnName}'`)} = ${String(targetValue)}`
+      : sql`(${userTableRows.data}->${sql.raw(`'${targetColumnName}'`)})::jsonb = ${JSON.stringify(targetValue)}::jsonb`
+
+  // Entire upsert runs in a transaction with FOR UPDATE lock on the table definition.
+  // This serializes concurrent upserts and prevents the TOCTOU race on row count.
+  const result = await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
+    )
+
+    // Find existing row by single conflict target column
+    const [existingRow] = await trx
+      .select()
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, data.tableId),
+          eq(userTableRows.workspaceId, data.workspaceId),
+          matchFilter
+        )
+      )
+      .limit(1)
+
+    const now = new Date()
+
+    if (existingRow) {
+      const [updatedRow] = await trx
+        .update(userTableRows)
+        .set({
+          data: data.data,
+          updatedAt: now,
+        })
+        .where(eq(userTableRows.id, existingRow.id))
+        .returning()
+
+      return {
+        row: {
+          id: updatedRow.id,
+          data: updatedRow.data as RowData,
+          createdAt: updatedRow.createdAt,
+          updatedAt: updatedRow.updatedAt,
+        },
+        operation: 'update' as const,
+      }
+    }
+
+    // Check capacity atomically (inside the lock)
+    const [{ count: currentCount }] = await trx
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+
+    if (Number(currentCount) >= table.maxRows) {
+      throw new Error(`Table row limit reached (${table.maxRows} rows max)`)
+    }
+
+    const [insertedRow] = await trx
+      .insert(userTableRows)
+      .values({
+        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+        tableId: data.tableId,
+        workspaceId: data.workspaceId,
+        data: data.data,
+        createdAt: now,
+        updatedAt: now,
+        ...(data.userId ? { createdBy: data.userId } : {}),
+      })
+      .returning()
+
+    return {
+      row: {
+        id: insertedRow.id,
+        data: insertedRow.data as RowData,
+        createdAt: insertedRow.createdAt,
+        updatedAt: insertedRow.updatedAt,
+      },
+      operation: 'insert' as const,
+    }
+  })
+
+  logger.info(
+    `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${data.tableId}`
+  )
+
+  return result
 }
 
 /**

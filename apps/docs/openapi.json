@@ -2111,7 +2111,7 @@
       "post": {
         "operationId": "upsertRow",
         "summary": "Upsert Row",
-        "description": "Insert a new row or update an existing one based on unique column values. The table must have at least one column with a unique constraint. If a row with matching unique values exists, it is updated; otherwise, a new row is inserted.",
+        "description": "Insert a new row or update an existing one based on a unique column value. The table must have at least one column with a unique constraint. If a row with a matching unique value exists, it is updated; otherwise, a new row is inserted. When multiple unique columns exist, specify `conflictTarget` to indicate which column to match on.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2147,7 +2147,11 @@
                   "data": {
                     "type": "object",
                     "additionalProperties": true,
-                    "description": "Row data. Must include values for at least one unique column."
+                    "description": "Row data. Must include a value for the conflict target column."
+                  },
+                  "conflictTarget": {
+                    "type": "string",
+                    "description": "Name of the unique column to match on. Required when the table has multiple unique columns. If the table has exactly one unique column, this can be omitted."
                   }
                 }
               }

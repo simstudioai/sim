@@ -22,7 +22,10 @@ export async function listSkills(params: { workspaceId: string }) {
  * Delete a skill by ID within a workspace.
  * Returns true if the skill was found and deleted, false otherwise.
  */
-export async function deleteSkill(params: { skillId: string; workspaceId: string }): Promise<boolean> {
+export async function deleteSkill(params: {
+  skillId: string
+  workspaceId: string
+}): Promise<boolean> {
   const existing = await db
     .select({ id: skill.id })
     .from(skill)

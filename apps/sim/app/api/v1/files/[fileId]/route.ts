@@ -9,7 +9,11 @@ import {
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1FileDetailAPI')
 
@@ -50,6 +54,9 @@ export async function GET(request: NextRequest, { params }: FileRouteParams) {
 
     const { workspaceId } = validation.data
 
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
+
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission === null) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
@@ -69,7 +76,7 @@ export async function GET(request: NextRequest, { params }: FileRouteParams) {
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileRecord.name)}"`,
         'Content-Length': String(buffer.length),
         'X-File-Id': fileRecord.id,
-        'X-File-Name': fileRecord.name,
+        'X-File-Name': encodeURIComponent(fileRecord.name),
         'X-Uploaded-At':
           fileRecord.uploadedAt instanceof Date
             ? fileRecord.uploadedAt.toISOString()
@@ -107,6 +114,9 @@ export async function DELETE(request: NextRequest, { params }: FileRouteParams) 
     }
 
     const { workspaceId } = validation.data
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission === null || permission === 'read') {

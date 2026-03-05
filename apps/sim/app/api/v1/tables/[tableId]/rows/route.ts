@@ -7,8 +7,10 @@ import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
+  batchInsertRows,
   checkUniqueConstraintsDb,
   getUniqueColumns,
+  insertRow,
   TABLE_LIMITS,
   USER_TABLE_ROWS_SQL_NAME,
   validateBatchRows,
@@ -18,7 +20,11 @@ import {
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import { accessError, checkAccess } from '@/app/api/table/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowsAPI')
 
@@ -42,18 +48,26 @@ const QueryRowsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: z.record(z.unknown()).optional(),
   sort: z.record(z.enum(['asc', 'desc'])).optional(),
-  limit: z.coerce
-    .number({ required_error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(1, 'Limit must be at least 1')
-    .max(TABLE_LIMITS.MAX_QUERY_LIMIT, `Limit cannot exceed ${TABLE_LIMITS.MAX_QUERY_LIMIT}`)
-    .optional()
+  limit: z
+    .preprocess(
+      (val) => (val === null || val === undefined || val === '' ? undefined : Number(val)),
+      z
+        .number({ required_error: 'Limit must be a number' })
+        .int('Limit must be an integer')
+        .min(1, 'Limit must be at least 1')
+        .max(TABLE_LIMITS.MAX_QUERY_LIMIT, `Limit cannot exceed ${TABLE_LIMITS.MAX_QUERY_LIMIT}`)
+        .optional()
+    )
     .default(100),
-  offset: z.coerce
-    .number({ required_error: 'Offset must be a number' })
-    .int('Offset must be an integer')
-    .min(0, 'Offset must be 0 or greater')
-    .optional()
+  offset: z
+    .preprocess(
+      (val) => (val === null || val === undefined || val === '' ? undefined : Number(val)),
+      z
+        .number({ required_error: 'Offset must be a number' })
+        .int('Offset must be an integer')
+        .min(0, 'Offset must be 0 or greater')
+        .optional()
+    )
     .default(0),
 })
 
@@ -97,11 +111,9 @@ interface TableRowsRouteParams {
 async function handleBatchInsert(
   requestId: string,
   tableId: string,
-  body: z.infer<typeof BatchInsertRowsSchema>,
+  validated: z.infer<typeof BatchInsertRowsSchema>,
   userId: string
 ): Promise<NextResponse> {
-  const validated = BatchInsertRowsSchema.parse(body)
-
   const accessResult = await checkAccess(tableId, userId, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
@@ -111,18 +123,6 @@ async function handleBatchInsert(
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
-  const workspaceId = validated.workspaceId
-
-  const remainingCapacity = table.maxRows - table.rowCount
-  if (remainingCapacity < validated.rows.length) {
-    return NextResponse.json(
-      {
-        error: `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${table.rowCount}/${table.maxRows} rows)`,
-      },
-      { status: 400 }
-    )
-  }
-
   const validation = await validateBatchRows({
     rows: validated.rows as RowData[],
     schema: table.schema as TableSchema,
@@ -130,32 +130,48 @@ async function handleBatchInsert(
   })
   if (!validation.valid) return validation.response
 
-  const now = new Date()
-  const rowsToInsert = validated.rows.map((data) => ({
-    id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-    tableId,
-    workspaceId,
-    data,
-    createdAt: now,
-    updatedAt: now,
-    createdBy: userId,
-  }))
+  try {
+    const insertedRows = await batchInsertRows(
+      {
+        tableId,
+        rows: validated.rows as RowData[],
+        workspaceId: validated.workspaceId,
+        userId,
+      },
+      table,
+      requestId
+    )
 
-  const insertedRows = await db.insert(userTableRows).values(rowsToInsert).returning()
+    return NextResponse.json({
+      success: true,
+      data: {
+        rows: insertedRows.map((r) => ({
+          id: r.id,
+          data: r.data,
+          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
+        })),
+        insertedCount: insertedRows.length,
+        message: `Successfully inserted ${insertedRows.length} rows`,
+      },
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      rows: insertedRows.map((r) => ({
-        id: r.id,
-        data: r.data,
-        createdAt: r.createdAt.toISOString(),
-        updatedAt: r.updatedAt.toISOString(),
-      })),
-      insertedCount: insertedRows.length,
-      message: `Successfully inserted ${insertedRows.length} rows`,
-    },
-  })
+    if (
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Insufficient capacity') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.match(/^Row \d+:/)
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error('Error batch inserting rows:', error)
+    return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
+  }
 }
 
 /** GET /api/v1/tables/[tableId]/rows — Query rows with filtering, sorting, pagination. */
@@ -195,6 +211,9 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       limit: searchParams.get('limit'),
       offset: searchParams.get('offset'),
     })
+
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'read')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -242,9 +261,11 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
       .from(userTableRows)
       .where(and(...baseConditions))
 
-    const [{ count: totalCount }] = await countQuery
-
-    const rows = await query.limit(validated.limit).offset(validated.offset)
+    const [countResult, rows] = await Promise.all([
+      countQuery,
+      query.limit(validated.limit).offset(validated.offset),
+    ])
+    const totalCount = countResult[0].count
 
     return NextResponse.json({
       success: true,
@@ -294,15 +315,16 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       'rows' in body &&
       Array.isArray((body as Record<string, unknown>).rows)
     ) {
-      return handleBatchInsert(
-        requestId,
-        tableId,
-        body as z.infer<typeof BatchInsertRowsSchema>,
-        userId
-      )
+      const batchValidated = BatchInsertRowsSchema.parse(body)
+      const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+      if (scopeError) return scopeError
+      return handleBatchInsert(requestId, tableId, batchValidated, userId)
     }
 
     const validated = InsertRowSchema.parse(body)
+
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -322,28 +344,16 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     })
     if (!validation.valid) return validation.response
 
-    if (table.rowCount >= table.maxRows) {
-      return NextResponse.json(
-        { error: `Table row limit reached (${table.maxRows} rows max)` },
-        { status: 400 }
-      )
-    }
-
-    const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
-    const now = new Date()
-
-    const [row] = await db
-      .insert(userTableRows)
-      .values({
-        id: rowId,
+    const row = await insertRow(
+      {
         tableId,
+        data: rowData,
         workspaceId: validated.workspaceId,
-        data: validated.data,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: userId,
-      })
-      .returning()
+        userId,
+      },
+      table,
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -351,8 +361,8 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         row: {
           id: row.id,
           data: row.data,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+          updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
         },
         message: 'Row inserted successfully',
       },
@@ -363,6 +373,18 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Insufficient capacity') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Row size exceeds')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     logger.error('Error inserting row:', error)
@@ -384,6 +406,9 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     const { tableId } = await params
     const body: unknown = await request.json()
     const validated = UpdateRowsByFilterSchema.parse(body)
+
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -549,6 +574,9 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     const { tableId } = await params
     const body: unknown = await request.json()
     const validated = DeleteRowsRequestSchema.parse(body)
+
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)

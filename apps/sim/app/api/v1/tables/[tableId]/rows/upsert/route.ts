@@ -1,14 +1,15 @@
-import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { RowData, TableSchema } from '@/lib/table'
-import { getUniqueColumns, validateRowData } from '@/lib/table'
+import type { RowData } from '@/lib/table'
+import { upsertRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableUpsertAPI')
 
@@ -18,6 +19,7 @@ export const revalidate = 0
 const UpsertRowSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: z.record(z.unknown(), { required_error: 'Row data is required' }),
+  conflictTarget: z.string().optional(),
 })
 
 interface UpsertRouteParams {
@@ -39,6 +41,9 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     const body: unknown = await request.json()
     const validated = UpsertRowSchema.parse(body)
 
+    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    if (scopeError) return scopeError
+
     const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
@@ -48,107 +53,16 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const schema = table.schema as TableSchema
-    const rowData = validated.data as RowData
-
-    const validation = await validateRowData({
-      rowData,
-      schema,
-      tableId,
-      checkUnique: false,
-    })
-    if (!validation.valid) return validation.response
-
-    const uniqueColumns = getUniqueColumns(schema)
-
-    if (uniqueColumns.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            'Upsert requires at least one unique column in the schema. Please add a unique constraint to a column or use insert instead.',
-        },
-        { status: 400 }
-      )
-    }
-
-    const uniqueFilters = uniqueColumns.map((col) => {
-      const value = rowData[col.name]
-      if (value === undefined || value === null) {
-        return null
-      }
-      return sql`${userTableRows.data}->>${col.name} = ${String(value)}`
-    })
-
-    const validUniqueFilters = uniqueFilters.filter((f): f is Exclude<typeof f, null> => f !== null)
-
-    if (validUniqueFilters.length === 0) {
-      return NextResponse.json(
-        {
-          error: `Upsert requires values for at least one unique field: ${uniqueColumns.map((c) => c.name).join(', ')}`,
-        },
-        { status: 400 }
-      )
-    }
-
-    const [existingRow] = await db
-      .select()
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId),
-          or(...validUniqueFilters)
-        )
-      )
-      .limit(1)
-
-    const now = new Date()
-
-    if (!existingRow && table.rowCount >= table.maxRows) {
-      return NextResponse.json(
-        { error: `Table row limit reached (${table.maxRows} rows max)` },
-        { status: 400 }
-      )
-    }
-
-    const upsertResult = await db.transaction(async (trx) => {
-      if (existingRow) {
-        const [updatedRow] = await trx
-          .update(userTableRows)
-          .set({
-            data: validated.data,
-            updatedAt: now,
-          })
-          .where(eq(userTableRows.id, existingRow.id))
-          .returning()
-
-        return {
-          row: updatedRow,
-          operation: 'update' as const,
-        }
-      }
-
-      const [insertedRow] = await trx
-        .insert(userTableRows)
-        .values({
-          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-          tableId,
-          workspaceId: validated.workspaceId,
-          data: validated.data,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: userId,
-        })
-        .returning()
-
-      return {
-        row: insertedRow,
-        operation: 'insert' as const,
-      }
-    })
-
-    logger.info(
-      `[${requestId}] Upserted (${upsertResult.operation}) row ${upsertResult.row.id} in table ${tableId}`
+    const upsertResult = await upsertRow(
+      {
+        tableId,
+        workspaceId: validated.workspaceId,
+        data: validated.data as RowData,
+        userId,
+        conflictTarget: validated.conflictTarget,
+      },
+      table,
+      requestId
     )
 
     return NextResponse.json({
@@ -157,8 +71,14 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
         row: {
           id: upsertResult.row.id,
           data: upsertResult.row.data,
-          createdAt: upsertResult.row.createdAt.toISOString(),
-          updatedAt: upsertResult.row.updatedAt.toISOString(),
+          createdAt:
+            upsertResult.row.createdAt instanceof Date
+              ? upsertResult.row.createdAt.toISOString()
+              : upsertResult.row.createdAt,
+          updatedAt:
+            upsertResult.row.updatedAt instanceof Date
+              ? upsertResult.row.updatedAt.toISOString()
+              : upsertResult.row.updatedAt,
         },
         operation: upsertResult.operation,
         message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
@@ -172,11 +92,20 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       )
     }
 
-    logger.error(`[${requestId}] Error upserting row:`, error)
-
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const detailedError = `Failed to upsert row: ${errorMessage}`
 
-    return NextResponse.json({ error: detailedError }, { status: 500 })
+    if (
+      errorMessage.includes('unique column') ||
+      errorMessage.includes('conflictTarget') ||
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('Upsert requires') ||
+      errorMessage.includes('Row size exceeds')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error upserting row:`, error)
+    return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
   }
 }

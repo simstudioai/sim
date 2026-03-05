@@ -8,8 +8,10 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
+  batchInsertRows,
   checkUniqueConstraintsDb,
   getUniqueColumns,
+  insertRow,
   TABLE_LIMITS,
   USER_TABLE_ROWS_SQL_NAME,
   validateBatchRows,
@@ -111,18 +113,8 @@ async function handleBatchInsert(
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
-  const workspaceId = validated.workspaceId
-
-  const remainingCapacity = table.maxRows - table.rowCount
-  if (remainingCapacity < validated.rows.length) {
-    return NextResponse.json(
-      {
-        error: `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${table.rowCount}/${table.maxRows} rows)`,
-      },
-      { status: 400 }
-    )
-  }
-
+  // Validate rows before calling service (service also validates, but route-level
+  // validation returns structured HTTP responses)
   const validation = await validateBatchRows({
     rows: validated.rows as RowData[],
     schema: table.schema as TableSchema,
@@ -130,34 +122,48 @@ async function handleBatchInsert(
   })
   if (!validation.valid) return validation.response
 
-  const now = new Date()
-  const rowsToInsert = validated.rows.map((data) => ({
-    id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-    tableId,
-    workspaceId,
-    data,
-    createdAt: now,
-    updatedAt: now,
-    createdBy: userId,
-  }))
+  try {
+    const insertedRows = await batchInsertRows(
+      {
+        tableId,
+        rows: validated.rows as RowData[],
+        workspaceId: validated.workspaceId,
+        userId,
+      },
+      table,
+      requestId
+    )
 
-  const insertedRows = await db.insert(userTableRows).values(rowsToInsert).returning()
+    return NextResponse.json({
+      success: true,
+      data: {
+        rows: insertedRows.map((r) => ({
+          id: r.id,
+          data: r.data,
+          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
+        })),
+        insertedCount: insertedRows.length,
+        message: `Successfully inserted ${insertedRows.length} rows`,
+      },
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
 
-  logger.info(`[${requestId}] Batch inserted ${insertedRows.length} rows into table ${tableId}`)
+    if (
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Insufficient capacity') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.match(/^Row \d+:/)
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      rows: insertedRows.map((r) => ({
-        id: r.id,
-        data: r.data,
-        createdAt: r.createdAt.toISOString(),
-        updatedAt: r.updatedAt.toISOString(),
-      })),
-      insertedCount: insertedRows.length,
-      message: `Successfully inserted ${insertedRows.length} rows`,
-    },
-  })
+    logger.error(`[${requestId}] Error batch inserting rows:`, error)
+    return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
+  }
 }
 
 /** POST /api/table/[tableId]/rows - Inserts row(s). Supports single or batch insert. */
@@ -201,9 +207,9 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const workspaceId = validated.workspaceId
     const rowData = validated.data as RowData
 
+    // Validate at route level for structured HTTP error responses
     const validation = await validateRowData({
       rowData,
       schema: table.schema as TableSchema,
@@ -211,30 +217,17 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     })
     if (!validation.valid) return validation.response
 
-    if (table.rowCount >= table.maxRows) {
-      return NextResponse.json(
-        { error: `Table row limit reached (${table.maxRows} rows max)` },
-        { status: 400 }
-      )
-    }
-
-    const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
-    const now = new Date()
-
-    const [row] = await db
-      .insert(userTableRows)
-      .values({
-        id: rowId,
+    // Service handles atomic capacity check + insert in a transaction
+    const row = await insertRow(
+      {
         tableId,
-        workspaceId,
-        data: validated.data,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: authResult.userId,
-      })
-      .returning()
-
-    logger.info(`[${requestId}] Inserted row ${rowId} into table ${tableId}`)
+        data: rowData,
+        workspaceId: validated.workspaceId,
+        userId: authResult.userId,
+      },
+      table,
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -242,8 +235,8 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         row: {
           id: row.id,
           data: row.data,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+          updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
         },
         message: 'Row inserted successfully',
       },
@@ -254,6 +247,18 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Insufficient capacity') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Row size exceeds')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     logger.error(`[${requestId}] Error inserting row:`, error)

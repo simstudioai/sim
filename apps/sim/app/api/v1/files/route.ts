@@ -5,7 +5,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1FilesAPI')
 
@@ -42,6 +46,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { workspaceId } = validation.data
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission === null) {
@@ -91,6 +98,9 @@ export async function POST(request: NextRequest) {
     if (!workspaceId) {
       return NextResponse.json({ error: 'workspaceId form field is required' }, { status: 400 })
     }
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
 
     if (!file) {
       return NextResponse.json({ error: 'file form field is required' }, { status: 400 })

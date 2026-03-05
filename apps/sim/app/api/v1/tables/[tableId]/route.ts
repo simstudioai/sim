@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteTable, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableDetailAPI')
 
@@ -35,6 +39,9 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
         { status: 400 }
       )
     }
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -97,6 +104,9 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
         { status: 400 }
       )
     }
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)

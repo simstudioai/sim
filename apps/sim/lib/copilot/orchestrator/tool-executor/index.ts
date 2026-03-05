@@ -12,21 +12,17 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { getAllOAuthServices } from '@/lib/oauth/utils'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { getAllOAuthServices } from '@/lib/oauth/utils'
 import {
   deleteCustomTool,
   getCustomToolById,
   listCustomTools,
   upsertCustomTools,
 } from '@/lib/workflows/custom-tools/operations'
-import {
-  deleteSkill,
-  listSkills,
-  upsertSkills,
-} from '@/lib/workflows/skills/operations'
+import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { isMcpTool } from '@/executor/constants'
 import { executeTool } from '@/tools'
@@ -134,7 +130,12 @@ async function executeManageCustomTool(
   }
 
   const writeOps: string[] = ['add', 'edit', 'delete']
-  if (writeOps.includes(operation) && context.userPermission && context.userPermission !== 'write' && context.userPermission !== 'admin') {
+  if (
+    writeOps.includes(operation) &&
+    context.userPermission &&
+    context.userPermission !== 'write' &&
+    context.userPermission !== 'admin'
+  ) {
     return {
       success: false,
       error: `Permission denied: '${operation}' on manage_custom_tool requires write access. You have '${context.userPermission}' permission.`,
@@ -322,7 +323,12 @@ async function executeManageMcpTool(
   }
 
   const writeOps: string[] = ['add', 'edit', 'delete']
-  if (writeOps.includes(operation) && context.userPermission && context.userPermission !== 'write' && context.userPermission !== 'admin') {
+  if (
+    writeOps.includes(operation) &&
+    context.userPermission &&
+    context.userPermission !== 'write' &&
+    context.userPermission !== 'admin'
+  ) {
     return {
       success: false,
       error: `Permission denied: '${operation}' on manage_mcp_tool requires write access. You have '${context.userPermission}' permission.`,
@@ -480,12 +486,7 @@ async function executeManageMcpTool(
 
       const [deleted] = await db
         .delete(mcpServers)
-        .where(
-          and(
-            eq(mcpServers.id, params.serverId),
-            eq(mcpServers.workspaceId, workspaceId)
-          )
-        )
+        .where(and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, workspaceId)))
         .returning()
 
       if (!deleted) {
@@ -546,7 +547,12 @@ async function executeManageSkill(
   }
 
   const writeOps: string[] = ['add', 'edit', 'delete']
-  if (writeOps.includes(operation) && context.userPermission && context.userPermission !== 'write' && context.userPermission !== 'admin') {
+  if (
+    writeOps.includes(operation) &&
+    context.userPermission &&
+    context.userPermission !== 'write' &&
+    context.userPermission !== 'admin'
+  ) {
     return {
       success: false,
       error: `Permission denied: '${operation}' on manage_skill requires write access. You have '${context.userPermission}' permission.`,
@@ -618,12 +624,14 @@ async function executeManageSkill(
       }
 
       await upsertSkills({
-        skills: [{
-          id: params.skillId,
-          name: params.name || found.name,
-          description: params.description || found.description,
-          content: params.content || found.content,
-        }],
+        skills: [
+          {
+            id: params.skillId,
+            name: params.name || found.name,
+            description: params.description || found.description,
+            content: params.content || found.content,
+          },
+        ],
         workspaceId,
         userId: context.userId,
       })
@@ -724,15 +732,12 @@ async function generateOAuthLink(
         normalizedInput.includes(s.name.toLowerCase())
     ) ||
     allServices.find(
-      (s) =>
-        s.providerId.includes(normalizedInput) || normalizedInput.includes(s.providerId)
+      (s) => s.providerId.includes(normalizedInput) || normalizedInput.includes(s.providerId)
     )
 
   if (!matched) {
     const available = allServices.map((s) => s.name).join(', ')
-    throw new Error(
-      `Provider "${providerName}" not found. Available providers: ${available}`
-    )
+    throw new Error(`Provider "${providerName}" not found. Available providers: ${available}`)
   }
 
   const { providerId, name: serviceName } = matched
@@ -758,7 +763,9 @@ async function generateOAuthLink(
   const now = new Date()
   await db
     .delete(pendingCredentialDraft)
-    .where(and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now)))
+    .where(
+      and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now))
+    )
   await db
     .insert(pendingCredentialDraft)
     .values({
@@ -853,7 +860,13 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     const baseUrl = getBaseUrl()
 
     try {
-      const result = await generateOAuthLink(c.userId, c.workspaceId, c.workflowId, providerName, baseUrl)
+      const result = await generateOAuthLink(
+        c.userId,
+        c.workspaceId,
+        c.workflowId,
+        providerName,
+        baseUrl
+      )
       return {
         success: true,
         output: {
