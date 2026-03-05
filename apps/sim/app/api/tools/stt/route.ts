@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
         method: 'GET',
       })
       if (!response.ok) {
+        await response.text().catch(() => {})
         throw new Error(`Failed to download audio from URL: ${response.statusText}`)
       }
 

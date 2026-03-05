@@ -196,17 +196,14 @@ const edgeTypes: EdgeTypes = {
 const defaultEdgeOptions = { type: 'custom' }
 
 const reactFlowStyles = [
-  'bg-[var(--bg)]',
   '[&_.react-flow__edges]:!z-0',
   '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[60]',
-  '[&_.react-flow__pane]:!bg-[var(--bg)]',
+  '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
-  '[&_.react-flow__renderer]:!bg-[var(--bg)]',
-  '[&_.react-flow__viewport]:!bg-[var(--bg)]',
   '[&_.react-flow__background]:hidden',
+  '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
 const reactFlowProOptions = { hideAttribution: true } as const
@@ -2412,6 +2409,12 @@ const WorkflowContent = React.memo(() => {
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
 
+      // Compute zIndex for blocks inside containers so they render above the
+      // parent subflow's interactive body area (which needs pointer-events for
+      // click-to-select). Container nodes use zIndex: depth (0, 1, 2...),
+      // so child blocks use a baseline that is always above any container.
+      const childZIndex = block.data?.parentId ? 1000 : undefined
+
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
         id: block.id,
@@ -2420,6 +2423,7 @@ const WorkflowContent = React.memo(() => {
         parentId: block.data?.parentId,
         dragHandle,
         draggable: !isBlockProtected(block.id, blocks),
+        ...(childZIndex !== undefined && { zIndex: childZIndex }),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -3768,21 +3772,20 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1'>
-        {/* Loading spinner - always mounted, animation paused when hidden to avoid overhead */}
-        <div
-          className={`absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)] transition-opacity duration-150 ${isWorkflowReady ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
-        >
-          <div
-            className={`h-[18px] w-[18px] rounded-full ${isWorkflowReady ? '' : 'animate-spin'}`}
-            style={{
-              background:
-                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-              WebkitMask:
-                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            }}
-          />
-        </div>
+        {!isWorkflowReady && (
+          <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+            <div
+              className='h-[18px] w-[18px] animate-spin rounded-full'
+              style={{
+                background:
+                  'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                WebkitMask:
+                  'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              }}
+            />
+          </div>
+        )}
 
         {isWorkflowReady && (
           <>
@@ -3835,7 +3838,7 @@ const WorkflowContent = React.memo(() => {
               noWheelClassName='allow-scroll'
               edgesFocusable={true}
               edgesUpdatable={effectivePermissions.canEdit}
-              className={`workflow-container h-full transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+              className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${isCanvasReady ? 'opacity-100' : 'opacity-0'} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
               onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
               onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
               onSelectionDragStart={effectivePermissions.canEdit ? onSelectionDragStart : undefined}
@@ -3847,7 +3850,7 @@ const WorkflowContent = React.memo(() => {
               elevateEdgesOnSelect={true}
               onlyRenderVisibleElements={false}
               deleteKeyCode={null}
-              elevateNodesOnSelect={true}
+              elevateNodesOnSelect={false}
               autoPanOnConnect={effectivePermissions.canEdit}
               autoPanOnNodeDrag={effectivePermissions.canEdit}
             />

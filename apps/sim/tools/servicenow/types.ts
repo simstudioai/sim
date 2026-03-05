@@ -31,7 +31,9 @@ export interface ServiceNowReadParams extends ServiceNowBaseParams {
   number?: string
   query?: string
   limit?: number
+  offset?: number
   fields?: string
+  displayValue?: string
 }
 
 export interface ServiceNowReadResponse extends ToolResponse {

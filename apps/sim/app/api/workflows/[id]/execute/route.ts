@@ -964,7 +964,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Error streaming block content:`, error)
             } finally {
               try {
-                reader.releaseLock()
+                await reader.cancel().catch(() => {})
               } catch {}
             }
           }

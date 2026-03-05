@@ -9,10 +9,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
   description:
-    'Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events',
+    'Send, update, delete messages, add or remove reactions, manage canvases, get channel info and user presence in Slack',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -38,6 +38,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Update Message', id: 'update' },
         { label: 'Delete Message', id: 'delete' },
         { label: 'Add Reaction', id: 'react' },
+        { label: 'Remove Reaction', id: 'unreact' },
+        { label: 'Get Channel Info', id: 'get_channel_info' },
+        { label: 'Get User Presence', id: 'get_user_presence' },
+        { label: 'Edit Canvas', id: 'edit_canvas' },
+        { label: 'Create Channel Canvas', id: 'create_channel_canvas' },
       ],
       value: () => 'send',
     },
@@ -141,7 +146,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
         return {
           field: 'operation',
-          value: ['list_channels', 'list_users', 'get_user'],
+          value: ['list_channels', 'list_users', 'get_user', 'get_user_presence', 'edit_canvas'],
           not: true,
           and: {
             field: 'destinationType',
@@ -166,7 +171,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
         return {
           field: 'operation',
-          value: ['list_channels', 'list_users', 'get_user'],
+          value: ['list_channels', 'list_users', 'get_user', 'get_user_presence', 'edit_canvas'],
           not: true,
           and: {
             field: 'destinationType',
@@ -209,8 +214,26 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     {
       id: 'ephemeralUser',
       title: 'Target User',
+      type: 'user-selector',
+      canonicalParamId: 'ephemeralUser',
+      serviceId: 'slack',
+      selectorKey: 'slack.users',
+      placeholder: 'Select Slack user',
+      mode: 'basic',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      condition: {
+        field: 'operation',
+        value: 'ephemeral',
+      },
+      required: true,
+    },
+    {
+      id: 'manualEphemeralUser',
+      title: 'Target User ID',
       type: 'short-input',
-      placeholder: 'User ID who will see the message (e.g., U1234567890)',
+      canonicalParamId: 'ephemeralUser',
+      placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'ephemeral',
@@ -440,9 +463,27 @@ Do not include any explanations, markdown formatting, or other text outside the 
     // Get User specific fields
     {
       id: 'userId',
+      title: 'User',
+      type: 'user-selector',
+      canonicalParamId: 'userId',
+      serviceId: 'slack',
+      selectorKey: 'slack.users',
+      placeholder: 'Select Slack user',
+      mode: 'basic',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      condition: {
+        field: 'operation',
+        value: 'get_user',
+      },
+      required: true,
+    },
+    {
+      id: 'manualUserId',
       title: 'User ID',
       type: 'short-input',
+      canonicalParamId: 'userId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'get_user',
@@ -608,7 +649,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Message timestamp (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'react',
+        value: ['react', 'unreact'],
       },
       required: true,
     },
@@ -619,9 +660,149 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Emoji name without colons (e.g., thumbsup, heart, eyes)',
       condition: {
         field: 'operation',
-        value: 'react',
+        value: ['react', 'unreact'],
       },
       required: true,
+    },
+    // Get Channel Info specific fields
+    {
+      id: 'includeNumMembers',
+      title: 'Include Member Count',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: {
+        field: 'operation',
+        value: 'get_channel_info',
+      },
+    },
+    // Get User Presence specific fields
+    {
+      id: 'presenceUserId',
+      title: 'User',
+      type: 'user-selector',
+      canonicalParamId: 'presenceUserId',
+      serviceId: 'slack',
+      selectorKey: 'slack.users',
+      placeholder: 'Select Slack user',
+      mode: 'basic',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      condition: {
+        field: 'operation',
+        value: 'get_user_presence',
+      },
+      required: true,
+    },
+    {
+      id: 'manualPresenceUserId',
+      title: 'User ID',
+      type: 'short-input',
+      canonicalParamId: 'presenceUserId',
+      placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'get_user_presence',
+      },
+      required: true,
+    },
+    // Edit Canvas specific fields
+    {
+      id: 'editCanvasId',
+      title: 'Canvas ID',
+      type: 'short-input',
+      placeholder: 'Enter canvas ID (e.g., F1234ABCD)',
+      condition: {
+        field: 'operation',
+        value: 'edit_canvas',
+      },
+      required: true,
+    },
+    {
+      id: 'canvasOperation',
+      title: 'Edit Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Insert at Start', id: 'insert_at_start' },
+        { label: 'Insert at End', id: 'insert_at_end' },
+        { label: 'Insert After Section', id: 'insert_after' },
+        { label: 'Insert Before Section', id: 'insert_before' },
+        { label: 'Replace Section', id: 'replace' },
+        { label: 'Delete Section', id: 'delete' },
+        { label: 'Rename Canvas', id: 'rename' },
+      ],
+      value: () => 'insert_at_end',
+      condition: {
+        field: 'operation',
+        value: 'edit_canvas',
+      },
+      required: true,
+    },
+    {
+      id: 'canvasContent',
+      title: 'Content',
+      type: 'long-input',
+      placeholder: 'Enter content in markdown format',
+      condition: {
+        field: 'operation',
+        value: 'edit_canvas',
+        and: {
+          field: 'canvasOperation',
+          value: ['delete', 'rename'],
+          not: true,
+        },
+      },
+    },
+    {
+      id: 'sectionId',
+      title: 'Section ID',
+      type: 'short-input',
+      placeholder: 'Section ID to target',
+      condition: {
+        field: 'operation',
+        value: 'edit_canvas',
+        and: {
+          field: 'canvasOperation',
+          value: ['insert_after', 'insert_before', 'replace', 'delete'],
+        },
+      },
+      required: true,
+    },
+    {
+      id: 'canvasTitle',
+      title: 'New Title',
+      type: 'short-input',
+      placeholder: 'Enter new canvas title',
+      condition: {
+        field: 'operation',
+        value: 'edit_canvas',
+        and: { field: 'canvasOperation', value: 'rename' },
+      },
+      required: true,
+    },
+    // Create Channel Canvas specific fields
+    {
+      id: 'channelCanvasTitle',
+      title: 'Canvas Title',
+      type: 'short-input',
+      placeholder: 'Enter canvas title (optional)',
+      condition: {
+        field: 'operation',
+        value: 'create_channel_canvas',
+      },
+    },
+    {
+      id: 'channelCanvasContent',
+      title: 'Canvas Content',
+      type: 'long-input',
+      placeholder: 'Enter canvas content (markdown supported)',
+      condition: {
+        field: 'operation',
+        value: 'create_channel_canvas',
+      },
     },
     ...getTrigger('slack_webhook').subBlocks,
   ],
@@ -641,6 +822,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'slack_update_message',
       'slack_delete_message',
       'slack_add_reaction',
+      'slack_remove_reaction',
+      'slack_get_channel_info',
+      'slack_get_user_presence',
+      'slack_edit_canvas',
+      'slack_create_channel_canvas',
     ],
     config: {
       tool: (params) => {
@@ -673,6 +859,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'slack_delete_message'
           case 'react':
             return 'slack_add_reaction'
+          case 'unreact':
+            return 'slack_remove_reaction'
+          case 'get_channel_info':
+            return 'slack_get_channel_info'
+          case 'get_user_presence':
+            return 'slack_get_user_presence'
+          case 'edit_canvas':
+            return 'slack_edit_canvas'
+          case 'create_channel_canvas':
+            return 'slack_create_channel_canvas'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -710,6 +906,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           getMessageTimestamp,
           getThreadTimestamp,
           threadLimit,
+          includeNumMembers,
+          presenceUserId,
+          editCanvasId,
+          canvasOperation,
+          canvasContent,
+          sectionId,
+          canvasTitle,
+          channelCanvasTitle,
+          channelCanvasContent,
           ...rest
         } = params
 
@@ -820,10 +1025,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
           case 'download': {
             const fileId = (rest as any).fileId
-            const downloadFileName = (rest as any).downloadFileName
+            const fileName = (rest as any).fileName
             baseParams.fileId = fileId
-            if (downloadFileName) {
-              baseParams.fileName = downloadFileName
+            if (fileName) {
+              baseParams.fileName = fileName
             }
             break
           }
@@ -841,8 +1046,40 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             break
 
           case 'react':
+          case 'unreact':
             baseParams.timestamp = reactionTimestamp
             baseParams.name = emojiName
+            break
+
+          case 'get_channel_info':
+            baseParams.includeNumMembers = includeNumMembers !== 'false'
+            break
+
+          case 'get_user_presence':
+            baseParams.userId = presenceUserId
+            break
+
+          case 'edit_canvas':
+            baseParams.canvasId = editCanvasId
+            baseParams.operation = canvasOperation
+            if (canvasContent) {
+              baseParams.content = canvasContent
+            }
+            if (sectionId) {
+              baseParams.sectionId = sectionId
+            }
+            if (canvasTitle) {
+              baseParams.title = canvasTitle
+            }
+            break
+
+          case 'create_channel_canvas':
+            if (channelCanvasTitle) {
+              baseParams.title = channelCanvasTitle
+            }
+            if (channelCanvasContent) {
+              baseParams.content = channelCanvasContent
+            }
             break
         }
 
@@ -898,6 +1135,19 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'string',
       description: 'Maximum number of messages to return from thread',
     },
+    // Get Channel Info inputs
+    includeNumMembers: { type: 'string', description: 'Include member count (true/false)' },
+    // Get User Presence inputs
+    presenceUserId: { type: 'string', description: 'User ID to check presence for' },
+    // Edit Canvas inputs
+    editCanvasId: { type: 'string', description: 'Canvas ID to edit' },
+    canvasOperation: { type: 'string', description: 'Canvas edit operation' },
+    canvasContent: { type: 'string', description: 'Markdown content for canvas edit' },
+    sectionId: { type: 'string', description: 'Canvas section ID to target' },
+    canvasTitle: { type: 'string', description: 'New canvas title for rename' },
+    // Create Channel Canvas inputs
+    channelCanvasTitle: { type: 'string', description: 'Title for channel canvas' },
+    channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
   },
   outputs: {
     // slack_message outputs (send operation)
@@ -992,6 +1242,43 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     metadata: {
       type: 'json',
       description: 'Updated message metadata (legacy, use message object instead)',
+    },
+
+    // slack_get_channel_info outputs (get_channel_info operation)
+    channelInfo: {
+      type: 'json',
+      description:
+        'Detailed channel object with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
+    },
+
+    // slack_get_user_presence outputs (get_user_presence operation)
+    presence: {
+      type: 'string',
+      description: 'User presence status: "active" or "away"',
+    },
+    online: {
+      type: 'boolean',
+      description:
+        'Whether user has an active client connection (only available when checking own presence)',
+    },
+    autoAway: {
+      type: 'boolean',
+      description:
+        'Whether user was automatically set to away (only available when checking own presence)',
+    },
+    manualAway: {
+      type: 'boolean',
+      description:
+        'Whether user manually set themselves as away (only available when checking own presence)',
+    },
+    connectionCount: {
+      type: 'number',
+      description: 'Total number of active connections (only available when checking own presence)',
+    },
+    lastActivity: {
+      type: 'number',
+      description:
+        'Unix timestamp of last detected activity (only available when checking own presence)',
     },
 
     // Trigger outputs (when used as webhook trigger)

@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, send ephemeral messages, add reactions in Slack or trigger workflows from Slack events
+description: Send, update, delete messages, add or remove reactions, manage canvases, get channel info and user presence in Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -798,5 +798,129 @@ Add an emoji reaction to a Slack message
 |   ↳ `channel` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
+
+### `slack_remove_reaction`
+
+Remove an emoji reaction from a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to remove reaction from \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction to remove \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `reaction` | string | Emoji reaction name |
+
+### `slack_get_channel_info`
+
+Get detailed information about a Slack channel by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to get information about \(e.g., C1234567890\) |
+| `includeNumMembers` | boolean | No | Whether to include the member count in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | Detailed channel information |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### `slack_get_user_presence`
+
+Check whether a Slack user is currently active or away
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | User ID to check presence for \(e.g., U1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `presence` | string | User presence status: "active" or "away" |
+| `online` | boolean | Whether user has an active client connection \(only available when checking own presence\) |
+| `autoAway` | boolean | Whether user was automatically set to away due to inactivity \(only available when checking own presence\) |
+| `manualAway` | boolean | Whether user manually set themselves as away \(only available when checking own presence\) |
+| `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
+| `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
+
+### `slack_edit_canvas`
+
+Edit an existing Slack canvas by inserting, replacing, or deleting content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to edit \(e.g., F1234ABCD\) |
+| `operation` | string | Yes | Edit operation: insert_at_start, insert_at_end, insert_after, insert_before, replace, delete, or rename |
+| `content` | string | No | Markdown content for the operation \(required for insert/replace operations\) |
+| `sectionId` | string | No | Section ID to target \(required for insert_after, insert_before, replace, and delete\) |
+| `title` | string | No | New title for the canvas \(only used with rename operation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+
+### `slack_create_channel_canvas`
+
+Create a canvas pinned to a Slack channel as its resource hub
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to create the canvas in \(e.g., C1234567890\) |
+| `title` | string | No | Title for the channel canvas |
+| `content` | string | No | Canvas content in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas_id` | string | ID of the created channel canvas |
 
 
