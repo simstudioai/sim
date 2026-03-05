@@ -501,17 +501,6 @@ export function Chat() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!isExecuting && isStreaming) {
-      const lastMessage = workflowMessages[workflowMessages.length - 1]
-      if (lastMessage?.isStreaming) {
-        streamReaderRef.current?.cancel()
-        streamReaderRef.current = null
-        finalizeMessageStream(lastMessage.id)
-      }
-    }
-  }, [isExecuting, isStreaming, workflowMessages, finalizeMessageStream])
-
   const handleStopStreaming = useCallback(() => {
     streamReaderRef.current?.cancel()
     streamReaderRef.current = null

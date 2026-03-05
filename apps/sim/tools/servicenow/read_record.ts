@@ -109,7 +109,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
         queryParams.append('sysparm_limit', params.limit.toString())
       }
 
-      if (params.offset !== undefined && params.offset !== null && params.offset !== '') {
+      if (params.offset !== undefined && params.offset !== null) {
         queryParams.append('sysparm_offset', params.offset.toString())
       }
 

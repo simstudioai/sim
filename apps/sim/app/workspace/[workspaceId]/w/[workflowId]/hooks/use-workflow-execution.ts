@@ -1495,8 +1495,13 @@ export function useWorkflowExecution() {
                 : null
               if (activeWorkflowId && !workflowExecState?.isDebugging) {
                 setExecutionResult(executionResult)
-                setIsExecuting(activeWorkflowId, false)
-                setActiveBlocks(activeWorkflowId, new Set())
+                // For chat executions, don't set isExecuting=false here — the chat's
+                // client-side stream wrapper still has buffered data to deliver.
+                // The chat's finally block handles cleanup after the stream is fully consumed.
+                if (!isExecutingFromChat) {
+                  setIsExecuting(activeWorkflowId, false)
+                  setActiveBlocks(activeWorkflowId, new Set())
+                }
                 setTimeout(() => {
                   queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
                 }, 1000)
@@ -1536,7 +1541,7 @@ export function useWorkflowExecution() {
                 isPreExecutionError,
               })
 
-              if (activeWorkflowId) {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
@@ -1562,7 +1567,7 @@ export function useWorkflowExecution() {
                 durationMs: data?.duration,
               })
 
-              if (activeWorkflowId) {
+              if (activeWorkflowId && !isExecutingFromChat) {
                 setIsExecuting(activeWorkflowId, false)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
