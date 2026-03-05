@@ -207,6 +207,8 @@ export async function POST(request: NextRequest) {
           id: table.id,
           name: table.name,
           description: table.description,
+          workspaceId: table.workspaceId,
+          createdBy: table.createdBy,
           schema: table.schema,
           rowCount: table.rowCount,
           maxRows: table.maxRows,

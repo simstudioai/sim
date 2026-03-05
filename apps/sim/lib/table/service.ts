@@ -463,6 +463,17 @@ export async function upsertRow(
       )
       .limit(1)
 
+    // Check uniqueness on ALL unique columns (not just the conflict target)
+    const uniqueValidation = await checkUniqueConstraintsDb(
+      data.tableId,
+      data.data,
+      schema,
+      existingRow?.id // exclude the matched row on updates
+    )
+    if (!uniqueValidation.valid) {
+      throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
+    }
+
     const now = new Date()
 
     if (existingRow) {
