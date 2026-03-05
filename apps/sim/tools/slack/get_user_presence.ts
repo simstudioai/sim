@@ -90,27 +90,32 @@ export const slackGetUserPresenceTool: ToolConfig<
     },
     online: {
       type: 'boolean',
-      description: 'Whether user has an active client connection',
+      description:
+        'Whether user has an active client connection (only available when checking own presence)',
       optional: true,
     },
     autoAway: {
       type: 'boolean',
-      description: 'Whether user was automatically set to away due to inactivity',
+      description:
+        'Whether user was automatically set to away due to inactivity (only available when checking own presence)',
       optional: true,
     },
     manualAway: {
       type: 'boolean',
-      description: 'Whether user manually set themselves as away',
+      description:
+        'Whether user manually set themselves as away (only available when checking own presence)',
       optional: true,
     },
     connectionCount: {
       type: 'number',
-      description: 'Total number of active connections for the user',
+      description:
+        'Total number of active connections for the user (only available when checking own presence)',
       optional: true,
     },
     lastActivity: {
       type: 'number',
-      description: 'Unix timestamp of last detected activity',
+      description:
+        'Unix timestamp of last detected activity (only available when checking own presence)',
       optional: true,
     },
   },

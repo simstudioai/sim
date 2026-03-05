@@ -83,7 +83,7 @@ export const slackGetChannelInfoTool: ToolConfig<
     return {
       success: true,
       output: {
-        channel: {
+        channelInfo: {
           id: channel.id,
           name: channel.name ?? '',
           is_channel: channel.is_channel ?? false,
@@ -106,7 +106,7 @@ export const slackGetChannelInfoTool: ToolConfig<
   },
 
   outputs: {
-    channel: {
+    channelInfo: {
       type: 'object',
       description: 'Detailed channel information',
       properties: CHANNEL_OUTPUT_PROPERTIES,

@@ -840,7 +840,7 @@ Get detailed information about a Slack channel by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `channel` | object | Detailed channel information |
+| `channelInfo` | object | Detailed channel information |
 |   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
 |   ↳ `name` | string | Channel name without # prefix |
 |   ↳ `is_channel` | boolean | Whether this is a channel |
@@ -875,11 +875,11 @@ Check whether a Slack user is currently active or away
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `presence` | string | User presence status: "active" or "away" |
-| `online` | boolean | Whether user has an active client connection |
-| `autoAway` | boolean | Whether user was automatically set to away due to inactivity |
-| `manualAway` | boolean | Whether user manually set themselves as away |
-| `connectionCount` | number | Total number of active connections for the user |
-| `lastActivity` | number | Unix timestamp of last detected activity |
+| `online` | boolean | Whether user has an active client connection \(only available when checking own presence\) |
+| `autoAway` | boolean | Whether user was automatically set to away due to inactivity \(only available when checking own presence\) |
+| `manualAway` | boolean | Whether user manually set themselves as away \(only available when checking own presence\) |
+| `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
+| `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
 
 ### `slack_edit_canvas`
 

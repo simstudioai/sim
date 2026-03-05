@@ -1244,6 +1244,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       description: 'Updated message metadata (legacy, use message object instead)',
     },
 
+    // slack_get_channel_info outputs (get_channel_info operation)
+    channelInfo: {
+      type: 'json',
+      description:
+        'Detailed channel object with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
+    },
+
     // slack_get_user_presence outputs (get_user_presence operation)
     presence: {
       type: 'string',
@@ -1251,23 +1258,28 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
     online: {
       type: 'boolean',
-      description: 'Whether user has an active client connection',
+      description:
+        'Whether user has an active client connection (only available when checking own presence)',
     },
     autoAway: {
       type: 'boolean',
-      description: 'Whether user was automatically set to away',
+      description:
+        'Whether user was automatically set to away (only available when checking own presence)',
     },
     manualAway: {
       type: 'boolean',
-      description: 'Whether user manually set themselves as away',
+      description:
+        'Whether user manually set themselves as away (only available when checking own presence)',
     },
     connectionCount: {
       type: 'number',
-      description: 'Total number of active connections',
+      description:
+        'Total number of active connections (only available when checking own presence)',
     },
     lastActivity: {
       type: 'number',
-      description: 'Unix timestamp of last detected activity',
+      description:
+        'Unix timestamp of last detected activity (only available when checking own presence)',
     },
 
     // Trigger outputs (when used as webhook trigger)

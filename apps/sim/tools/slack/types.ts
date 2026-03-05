@@ -900,7 +900,7 @@ export interface SlackGetThreadResponse extends ToolResponse {
 
 export interface SlackGetChannelInfoResponse extends ToolResponse {
   output: {
-    channel: SlackChannel
+    channelInfo: SlackChannel
   }
 }
 
