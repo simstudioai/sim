@@ -114,7 +114,7 @@ function getPreviousIds(): IdMap {
         continue
       }
 
-      const typeMatch = content.match(/type:\s*['"]([^'"]+)['"]/)
+      const typeMatch = content.match(/BlockConfig\s*=\s*\{[\s\S]*?type:\s*['"]([^'"]+)['"]/)
       if (!typeMatch) continue
       const blockType = typeMatch[1]
 
