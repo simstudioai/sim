@@ -932,56 +932,39 @@ export async function deleteRowsByIds(
 ): Promise<BulkDeleteByIdsResult> {
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
-  const matchingRows = await db
-    .select({ id: userTableRows.id })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, data.tableId),
-        eq(userTableRows.workspaceId, data.workspaceId),
-        sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
-          uniqueRequestedRowIds.map((id) => sql`${id}`),
-          sql`, `
-        )}])`
-      )
-    )
-
-  const matchedRowIds = matchingRows.map((r) => r.id)
-  const matchedIdSet = new Set(matchedRowIds)
-  const missingRowIds = uniqueRequestedRowIds.filter((id) => !matchedIdSet.has(id))
-
-  if (matchedRowIds.length === 0) {
-    return {
-      deletedCount: 0,
-      deletedRowIds: [],
-      requestedCount: uniqueRequestedRowIds.length,
-      missingRowIds,
-    }
-  }
-
-  await db.transaction(async (trx) => {
-    for (let i = 0; i < matchedRowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-      const batch = matchedRowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
-      await trx.delete(userTableRows).where(
-        and(
-          eq(userTableRows.tableId, data.tableId),
-          eq(userTableRows.workspaceId, data.workspaceId),
-          sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
-            batch.map((id) => sql`${id}`),
-            sql`, `
-          )}])`
+  const deletedRows = await db.transaction(async (trx) => {
+    const deleted: { id: string }[] = []
+    for (let i = 0; i < uniqueRequestedRowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+      const batch = uniqueRequestedRowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
+      const rows = await trx
+        .delete(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, data.tableId),
+            eq(userTableRows.workspaceId, data.workspaceId),
+            sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
+              batch.map((id) => sql`${id}`),
+              sql`, `
+            )}])`
+          )
         )
-      )
+        .returning({ id: userTableRows.id })
+      deleted.push(...rows)
     }
+    return deleted
   })
 
+  const deletedIds = deletedRows.map((r) => r.id)
+  const deletedIdSet = new Set(deletedIds)
+  const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
+
   logger.info(
-    `[${requestId}] Deleted ${matchedRowIds.length} rows by ID from table ${data.tableId}`
+    `[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`
   )
 
   return {
-    deletedCount: matchedRowIds.length,
-    deletedRowIds: matchedRowIds,
+    deletedCount: deletedIds.length,
+    deletedRowIds: deletedIds,
     requestedCount: uniqueRequestedRowIds.length,
     missingRowIds,
   }

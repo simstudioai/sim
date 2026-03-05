@@ -116,7 +116,16 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body: unknown = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
+
     const validated = UpdateRowSchema.parse(body)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')

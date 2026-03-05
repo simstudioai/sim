@@ -110,7 +110,17 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
 
     const userId = rateLimit.userId!
     const { tableId, rowId } = await params
-    const body: unknown = await request.json()
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
+
     const validated = UpdateRowSchema.parse(body)
 
     const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
