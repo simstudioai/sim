@@ -14,6 +14,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import type { DbOrTx } from '@/lib/db/types'
+import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
@@ -114,12 +115,14 @@ export async function loadDeployedWorkflowState(
     }
 
     const resolvedBlocks = state.blocks || {}
-    const { blocks: migratedBlocks } = resolvedWorkspaceId
+    const { blocks: credMigratedBlocks } = resolvedWorkspaceId
       ? await migrateCredentialIds(resolvedBlocks, resolvedWorkspaceId)
       : { blocks: resolvedBlocks }
 
+    migrateSubblockIds(credMigratedBlocks)
+
     return {
-      blocks: migratedBlocks,
+      blocks: credMigratedBlocks,
       edges: state.edges || [],
       loops: state.loops || {},
       parallels: state.parallels || {},
@@ -382,6 +385,22 @@ export async function loadWorkflowFromNormalizedTables(
           }
         } catch (err) {
           logger.warn('Failed to persist credential ID migration', { workflowId, error: err })
+        }
+      })
+    }
+
+    const subblockMigrated = migrateSubblockIds(credMigratedBlocks)
+    if (subblockMigrated) {
+      Promise.resolve().then(async () => {
+        try {
+          for (const [blockId, block] of Object.entries(credMigratedBlocks)) {
+            await db
+              .update(workflowBlocks)
+              .set({ subBlocks: block.subBlocks, updatedAt: new Date() })
+              .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          }
+        } catch (err) {
+          logger.warn('Failed to persist subblock ID migration', { workflowId, error: err })
         }
       })
     }
