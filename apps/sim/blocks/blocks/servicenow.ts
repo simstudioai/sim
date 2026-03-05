@@ -143,10 +143,12 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Display Value',
       type: 'dropdown',
       options: [
+        { label: 'Default (not set)', id: '' },
         { label: 'False (sys_id only)', id: 'false' },
         { label: 'True (display value only)', id: 'true' },
         { label: 'All (both)', id: 'all' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'servicenow_read_record' },
       description: 'Return display values for reference fields instead of sys_ids',
       mode: 'advanced',
