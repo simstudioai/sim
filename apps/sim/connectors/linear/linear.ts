@@ -230,7 +230,8 @@ export const linearConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
     const pageSize = maxIssues > 0 ? Math.min(maxIssues, 50) : 50
@@ -284,10 +285,14 @@ export const linearConnector: ConnectorConfig = {
     const hasNextPage = Boolean(pageInfo.hasNextPage)
     const endCursor = (pageInfo.endCursor as string) || undefined
 
+    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
+    const hitLimit = maxIssues > 0 && totalFetched >= maxIssues
+
     return {
       documents,
-      nextCursor: hasNextPage ? endCursor : undefined,
-      hasMore: hasNextPage,
+      nextCursor: hasNextPage && !hitLimit ? endCursor : undefined,
+      hasMore: hasNextPage && !hitLimit,
     }
   },
 

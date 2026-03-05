@@ -121,14 +121,19 @@ export const jiraConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const domain = sourceConfig.domain as string
     const projectKey = sourceConfig.projectKey as string
     const jqlFilter = (sourceConfig.jql as string) || ''
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
 
-    const cloudId = await getJiraCloudId(domain, accessToken)
+    let cloudId = syncContext?.cloudId as string | undefined
+    if (!cloudId) {
+      cloudId = await getJiraCloudId(domain, accessToken)
+      if (syncContext) syncContext.cloudId = cloudId
+    }
 
     const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
     let jql = `project = "${safeKey}" ORDER BY updated DESC`

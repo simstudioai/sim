@@ -228,7 +228,8 @@ export const notionConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const scope = (sourceConfig.scope as string) || 'workspace'
     const databaseId = (sourceConfig.databaseId as string)?.trim()
@@ -236,16 +237,16 @@ export const notionConnector: ConnectorConfig = {
     const maxPages = sourceConfig.maxPages ? Number(sourceConfig.maxPages) : 0
 
     if (scope === 'database' && databaseId) {
-      return listFromDatabase(accessToken, databaseId, maxPages, cursor)
+      return listFromDatabase(accessToken, databaseId, maxPages, cursor, syncContext)
     }
 
     if (scope === 'page' && rootPageId) {
-      return listFromParentPage(accessToken, rootPageId, maxPages, cursor)
+      return listFromParentPage(accessToken, rootPageId, maxPages, cursor, syncContext)
     }
 
     // Default: workspace-wide search
     const searchQuery = (sourceConfig.searchQuery as string) || ''
-    return listFromWorkspace(accessToken, searchQuery, maxPages, cursor)
+    return listFromWorkspace(accessToken, searchQuery, maxPages, cursor, syncContext)
   },
 
   getDocument: async (
@@ -386,10 +387,11 @@ async function listFromWorkspace(
   accessToken: string,
   searchQuery: string,
   maxPages: number,
-  cursor?: string
+  cursor?: string,
+  syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const body: Record<string, unknown> = {
-    page_size: 20,
+    page_size: 100,
     filter: { value: 'page', property: 'object' },
     sort: { direction: 'descending', timestamp: 'last_edited_time' },
   }
@@ -425,12 +427,17 @@ async function listFromWorkspace(
   const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
 
   const documents = await processPages(accessToken, pages)
-  const nextCursor = (data.next_cursor as string) ?? undefined
+
+  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  if (syncContext) syncContext.totalDocsFetched = totalFetched
+  const hitLimit = maxPages > 0 && totalFetched >= maxPages
+
+  const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
   return {
     documents,
     nextCursor,
-    hasMore: data.has_more === true && (maxPages <= 0 || documents.length < maxPages),
+    hasMore: hitLimit ? false : data.has_more === true,
   }
 }
 
@@ -441,10 +448,11 @@ async function listFromDatabase(
   accessToken: string,
   databaseId: string,
   maxPages: number,
-  cursor?: string
+  cursor?: string,
+  syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const body: Record<string, unknown> = {
-    page_size: 20,
+    page_size: 100,
   }
 
   if (cursor) {
@@ -474,12 +482,17 @@ async function listFromDatabase(
   const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
 
   const documents = await processPages(accessToken, pages)
-  const nextCursor = (data.next_cursor as string) ?? undefined
+
+  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  if (syncContext) syncContext.totalDocsFetched = totalFetched
+  const hitLimit = maxPages > 0 && totalFetched >= maxPages
+
+  const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
   return {
     documents,
     nextCursor,
-    hasMore: data.has_more === true && (maxPages <= 0 || documents.length < maxPages),
+    hasMore: hitLimit ? false : data.has_more === true,
   }
 }
 
@@ -493,7 +506,8 @@ async function listFromParentPage(
   accessToken: string,
   rootPageId: string,
   maxPages: number,
-  cursor?: string
+  cursor?: string,
+  syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const params = new URLSearchParams({ page_size: '100' })
   if (cursor) params.append('start_cursor', cursor)
@@ -528,43 +542,51 @@ async function listFromParentPage(
   // Also include the root page itself on the first call (no cursor)
   const pageIdsToFetch = !cursor ? [rootPageId, ...childPageIds] : childPageIds
 
-  // Fetch each child page
+  // Fetch child pages in concurrent batches
+  const CHILD_PAGE_CONCURRENCY = 5
+
   const documents: ExternalDocument[] = []
-  for (const pageId of pageIdsToFetch) {
+  for (let i = 0; i < pageIdsToFetch.length; i += CHILD_PAGE_CONCURRENCY) {
     if (maxPages > 0 && documents.length >= maxPages) break
-
-    try {
-      const pageResponse = await fetchWithRetry(`${NOTION_BASE_URL}/pages/${pageId}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Notion-Version': NOTION_API_VERSION,
-        },
+    const batch = pageIdsToFetch.slice(i, i + CHILD_PAGE_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (pageId) => {
+        try {
+          const pageResponse = await fetchWithRetry(`${NOTION_BASE_URL}/pages/${pageId}`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Notion-Version': NOTION_API_VERSION,
+            },
+          })
+          if (!pageResponse.ok) {
+            logger.warn(`Failed to fetch child page ${pageId}`, { status: pageResponse.status })
+            return null
+          }
+          const page = await pageResponse.json()
+          if (page.archived) return null
+          return pageToExternalDocument(accessToken, page)
+        } catch (error) {
+          logger.warn(`Failed to process child page ${pageId}`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return null
+        }
       })
-
-      if (!pageResponse.ok) {
-        logger.warn(`Failed to fetch child page ${pageId}`, { status: pageResponse.status })
-        continue
-      }
-
-      const page = await pageResponse.json()
-      if (page.archived) continue
-
-      const doc = await pageToExternalDocument(accessToken, page)
-      documents.push(doc)
-    } catch (error) {
-      logger.warn(`Failed to process child page ${pageId}`, {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
+    )
+    documents.push(...(results.filter(Boolean) as ExternalDocument[]))
   }
 
-  const nextCursor = (data.next_cursor as string) ?? undefined
+  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  if (syncContext) syncContext.totalDocsFetched = totalFetched
+  const hitLimit = maxPages > 0 && totalFetched >= maxPages
+
+  const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
   return {
     documents,
     nextCursor,
-    hasMore: data.has_more === true && (maxPages <= 0 || documents.length < maxPages),
+    hasMore: hitLimit ? false : data.has_more === true,
   }
 }
 

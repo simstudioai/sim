@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
 
@@ -29,18 +29,6 @@ function isGoogleWorkspaceFile(mimeType: string): boolean {
 
 function isSupportedTextFile(mimeType: string): boolean {
   return SUPPORTED_TEXT_MIME_TYPES.some((t) => mimeType.startsWith(t))
-}
-
-function htmlToPlainText(html: string): string {
-  let text = html.replace(/<[^>]*>/g, ' ')
-  text = text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-  return text.replace(/\s+/g, ' ').trim()
 }
 
 async function exportGoogleWorkspaceFile(
@@ -238,7 +226,8 @@ export const googleDriveConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const query = buildQuery(sourceConfig)
     const pageSize = 100
@@ -285,13 +274,17 @@ export const googleDriveConnector: ConnectorConfig = {
     )
     const documents = documentResults.filter(Boolean) as ExternalDocument[]
 
+    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
+    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+
     const nextPageToken = data.nextPageToken as string | undefined
-    const hasMore = Boolean(nextPageToken)
 
     return {
       documents,
-      nextCursor: nextPageToken,
-      hasMore,
+      nextCursor: hitLimit ? undefined : nextPageToken,
+      hasMore: hitLimit ? false : Boolean(nextPageToken),
     }
   },
 

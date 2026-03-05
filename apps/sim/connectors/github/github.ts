@@ -82,7 +82,7 @@ async function fetchTree(
   const data = await response.json()
 
   if (data.truncated) {
-    logger.warn('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
+    logger.error('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
   }
 
   return (data.tree || []).filter((item: TreeItem) => item.type === 'blob')

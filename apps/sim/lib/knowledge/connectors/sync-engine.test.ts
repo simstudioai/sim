@@ -15,6 +15,7 @@ vi.mock('@sim/logger', () => loggerMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
+  inArray: vi.fn(),
   isNull: vi.fn(),
   ne: vi.fn(),
 }))

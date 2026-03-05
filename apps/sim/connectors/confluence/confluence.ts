@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ConfluenceIcon } from '@/components/icons'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash } from '@/connectors/utils'
+import { computeContentHash, htmlToPlainText } from '@/connectors/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
@@ -12,21 +12,6 @@ const logger = createLogger('ConfluenceConnector')
  */
 export function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-}
-
-/**
- * Strips HTML tags from content and decodes HTML entities.
- */
-function htmlToPlainText(html: string): string {
-  let text = html.replace(/<[^>]*>/g, ' ')
-  text = text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-  return text.replace(/\s+/g, ' ').trim()
 }
 
 /**
@@ -200,7 +185,8 @@ export const confluenceConnector: ConnectorConfig = {
         contentType,
         labelFilter,
         maxPages,
-        cursor
+        cursor,
+        syncContext
       )
     }
 
@@ -352,7 +338,7 @@ async function listDocumentsV2(
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const queryParams = new URLSearchParams()
-  queryParams.append('limit', '50')
+  queryParams.append('limit', '250')
   queryParams.append('body-format', 'storage')
   if (cursor) {
     queryParams.append('cursor', cursor)
@@ -526,7 +512,8 @@ async function listDocumentsViaCql(
   contentType: string,
   labelFilter: string,
   maxPages: number,
-  cursor?: string
+  cursor?: string,
+  syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const labels = labelFilter
     .split(',')
@@ -587,9 +574,13 @@ async function listDocumentsViaCql(
     results.map((item: Record<string, unknown>) => cqlResultToDocument(item, domain))
   )
 
+  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  if (syncContext) syncContext.totalDocsFetched = totalFetched
+  const hitLimit = maxPages > 0 && totalFetched >= maxPages
+
   const totalSize = (data.totalSize as number) ?? 0
   const nextStart = start + results.length
-  const hasMore = nextStart < totalSize && (maxPages <= 0 || nextStart < maxPages)
+  const hasMore = !hitLimit && nextStart < totalSize
 
   return {
     documents,
