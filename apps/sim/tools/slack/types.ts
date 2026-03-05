@@ -606,6 +606,29 @@ export interface SlackGetThreadParams extends SlackBaseParams {
   limit?: number
 }
 
+export interface SlackGetChannelInfoParams extends SlackBaseParams {
+  channel: string
+  includeNumMembers?: boolean
+}
+
+export interface SlackGetUserPresenceParams extends SlackBaseParams {
+  userId: string
+}
+
+export interface SlackEditCanvasParams extends SlackBaseParams {
+  canvasId: string
+  operation: string
+  content?: string
+  sectionId?: string
+  title?: string
+}
+
+export interface SlackCreateChannelCanvasParams extends SlackBaseParams {
+  channel: string
+  title?: string
+  content?: string
+}
+
 export interface SlackMessageResponse extends ToolResponse {
   output: {
     // Legacy properties for backward compatibility
@@ -875,6 +898,35 @@ export interface SlackGetThreadResponse extends ToolResponse {
   }
 }
 
+export interface SlackGetChannelInfoResponse extends ToolResponse {
+  output: {
+    channel: SlackChannel
+  }
+}
+
+export interface SlackGetUserPresenceResponse extends ToolResponse {
+  output: {
+    presence: string
+    online?: boolean | null
+    autoAway?: boolean | null
+    manualAway?: boolean | null
+    connectionCount?: number | null
+    lastActivity?: number | null
+  }
+}
+
+export interface SlackEditCanvasResponse extends ToolResponse {
+  output: {
+    content: string
+  }
+}
+
+export interface SlackCreateChannelCanvasResponse extends ToolResponse {
+  output: {
+    canvas_id: string
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -891,3 +943,7 @@ export type SlackResponse =
   | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse
+  | SlackGetChannelInfoResponse
+  | SlackGetUserPresenceResponse
+  | SlackEditCanvasResponse
+  | SlackCreateChannelCanvasResponse
