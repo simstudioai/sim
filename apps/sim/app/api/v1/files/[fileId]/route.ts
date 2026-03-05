@@ -73,7 +73,7 @@ export async function GET(request: NextRequest, { params }: FileRouteParams) {
       status: 200,
       headers: {
         'Content-Type': fileRecord.type || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(fileRecord.name)}"`,
+        'Content-Disposition': `attachment; filename="${fileRecord.name.replace(/[^\w.\-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(fileRecord.name)}`,
         'Content-Length': String(buffer.length),
         'X-File-Id': fileRecord.id,
         'X-File-Name': encodeURIComponent(fileRecord.name),

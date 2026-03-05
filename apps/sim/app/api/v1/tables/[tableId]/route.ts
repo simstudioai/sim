@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteTable, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
@@ -116,6 +117,17 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
     }
 
     await deleteTable(tableId, requestId)
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_DELETED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: result.table.name,
+      description: `Deleted table "${result.table.name}"`,
+      request,
+    })
 
     return NextResponse.json({
       success: true,

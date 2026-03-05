@@ -6,8 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { RowData, TableSchema } from '@/lib/table'
-import { validateRowData } from '@/lib/table'
+import type { RowData } from '@/lib/table'
+import { updateRow } from '@/lib/table'
 import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
 
 const logger = createLogger('TableRowAPI')
@@ -149,42 +149,21 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    // Merge existing data with incoming partial data (incoming takes precedence)
     const mergedData = {
       ...(existingRow.data as RowData),
       ...(validated.data as RowData),
     }
 
-    const validation = await validateRowData({
-      rowData: mergedData,
-      schema: table.schema as TableSchema,
-      tableId,
-      excludeRowId: rowId,
-    })
-    if (!validation.valid) return validation.response
-
-    const now = new Date()
-
-    const [updatedRow] = await db
-      .update(userTableRows)
-      .set({
+    const updatedRow = await updateRow(
+      {
+        tableId,
+        rowId,
         data: mergedData,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .returning()
-
-    if (!updatedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    logger.info(`[${requestId}] Updated row ${rowId} in table ${tableId}`)
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -192,8 +171,14 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: updatedRow.id,
           data: updatedRow.data,
-          createdAt: updatedRow.createdAt.toISOString(),
-          updatedAt: updatedRow.updatedAt.toISOString(),
+          createdAt:
+            updatedRow.createdAt instanceof Date
+              ? updatedRow.createdAt.toISOString()
+              : updatedRow.createdAt,
+          updatedAt:
+            updatedRow.updatedAt instanceof Date
+              ? updatedRow.updatedAt.toISOString()
+              : updatedRow.updatedAt,
         },
         message: 'Row updated successfully',
       },

@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData, TableSchema } from '@/lib/table'
-import { validateRowData } from '@/lib/table'
+import { updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -125,6 +125,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    // Fetch existing row to merge partial update
     const [existingRow] = await db
       .select({ data: userTableRows.data })
       .from(userTableRows)
@@ -146,34 +147,16 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       ...(validated.data as RowData),
     }
 
-    const validation = await validateRowData({
-      rowData: mergedData,
-      schema: table.schema as TableSchema,
-      tableId,
-      excludeRowId: rowId,
-    })
-    if (!validation.valid) return validation.response
-
-    const now = new Date()
-
-    const [updatedRow] = await db
-      .update(userTableRows)
-      .set({
+    const updatedRow = await updateRow(
+      {
+        tableId,
+        rowId,
         data: mergedData,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .returning()
-
-    if (!updatedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -181,8 +164,14 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: updatedRow.id,
           data: updatedRow.data,
-          createdAt: updatedRow.createdAt.toISOString(),
-          updatedAt: updatedRow.updatedAt.toISOString(),
+          createdAt:
+            updatedRow.createdAt instanceof Date
+              ? updatedRow.createdAt.toISOString()
+              : updatedRow.createdAt,
+          updatedAt:
+            updatedRow.updatedAt instanceof Date
+              ? updatedRow.updatedAt.toISOString()
+              : updatedRow.updatedAt,
         },
         message: 'Row updated successfully',
       },

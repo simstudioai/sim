@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   createTable,
@@ -190,6 +191,17 @@ export async function POST(request: NextRequest) {
       requestId
     )
 
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_CREATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: table.name,
+      description: `Created table "${table.name}" via API`,
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -197,7 +209,9 @@ export async function POST(request: NextRequest) {
           id: table.id,
           name: table.name,
           description: table.description,
-          schema: table.schema,
+          schema: {
+            columns: (table.schema as TableSchema).columns.map(normalizeColumn),
+          },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
           createdAt:
