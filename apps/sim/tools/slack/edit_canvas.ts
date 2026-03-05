@@ -83,8 +83,8 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
 
       if (params.operation === 'rename' && params.title) {
         change.title_content = {
-          type: 'plain_text',
-          text: params.title,
+          type: 'markdown',
+          markdown: params.title,
         }
       } else if (params.content && params.operation !== 'delete') {
         change.document_content = {
