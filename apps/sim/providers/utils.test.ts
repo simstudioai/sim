@@ -523,12 +523,15 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
       const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
-        (m) => m.includes('gpt-5') && !m.includes('chat-latest')
+        (m) => m.includes('gpt-5') && !m.includes('chat-latest') && !m.includes('gpt-5.4-pro')
       )
       const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
       )
       expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
