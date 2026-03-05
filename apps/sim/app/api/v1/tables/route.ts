@@ -120,10 +120,14 @@ export async function GET(request: NextRequest) {
         tables: tables.map((t) => {
           const schemaData = t.schema as TableSchema
           return {
-            ...t,
+            id: t.id,
+            name: t.name,
+            description: t.description,
             schema: {
               columns: schemaData.columns.map(normalizeColumn),
             },
+            rowCount: t.rowCount,
+            maxRows: t.maxRows,
             createdAt:
               t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
             updatedAt:
@@ -207,8 +211,6 @@ export async function POST(request: NextRequest) {
           id: table.id,
           name: table.name,
           description: table.description,
-          workspaceId: table.workspaceId,
-          createdBy: table.createdBy,
           schema: table.schema,
           rowCount: table.rowCount,
           maxRows: table.maxRows,

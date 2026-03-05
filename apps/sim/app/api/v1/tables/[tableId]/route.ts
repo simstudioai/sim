@@ -115,7 +115,7 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteTable(tableId, crypto.randomUUID().slice(0, 8))
+    await deleteTable(tableId, requestId)
 
     return NextResponse.json({
       success: true,
