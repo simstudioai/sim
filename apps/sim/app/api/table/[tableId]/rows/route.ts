@@ -186,10 +186,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: 'Request body must be valid JSON' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
     if (
@@ -382,10 +379,8 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
         rows: rows.map((r) => ({
           id: r.id,
           data: r.data,
-          createdAt:
-            r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-          updatedAt:
-            r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
         })),
         rowCount: rows.length,
         totalCount: Number(totalCount),
@@ -421,10 +416,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: 'Request body must be valid JSON' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
     const validated = UpdateRowsByFilterSchema.parse(body)
@@ -523,10 +515,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: 'Request body must be valid JSON' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
     const validated = DeleteRowsRequestSchema.parse(body)

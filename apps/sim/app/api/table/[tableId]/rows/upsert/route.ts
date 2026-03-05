@@ -34,10 +34,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: 'Request body must be valid JSON' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
     const validated = UpsertRowSchema.parse(body)

@@ -963,9 +963,7 @@ export async function deleteRowsByIds(
   const deletedIdSet = new Set(deletedIds)
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
-  logger.info(
-    `[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`
-  )
+  logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
 
   return {
     deletedCount: deletedIds.length,
