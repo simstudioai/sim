@@ -20,7 +20,7 @@ function makeBlock(overrides: Partial<BlockState> & { type: string }): BlockStat
 describe('migrateSubblockIds', () => {
   describe('knowledge block', () => {
     it('should rename knowledgeBaseId to knowledgeBaseSelector', () => {
-      const blocks: Record<string, BlockState> = {
+      const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'knowledge',
           subBlocks: {
@@ -34,7 +34,7 @@ describe('migrateSubblockIds', () => {
         }),
       }
 
-      const migrated = migrateSubblockIds(blocks)
+      const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
       expect(blocks['b1'].subBlocks['knowledgeBaseSelector']).toEqual({
@@ -47,7 +47,7 @@ describe('migrateSubblockIds', () => {
     })
 
     it('should prefer new key when both old and new exist', () => {
-      const blocks: Record<string, BlockState> = {
+      const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'knowledge',
           subBlocks: {
@@ -65,7 +65,7 @@ describe('migrateSubblockIds', () => {
         }),
       }
 
-      const migrated = migrateSubblockIds(blocks)
+      const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
       expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('fresh-kb')
@@ -73,7 +73,7 @@ describe('migrateSubblockIds', () => {
     })
 
     it('should not touch blocks that already use the new key', () => {
-      const blocks: Record<string, BlockState> = {
+      const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'knowledge',
           subBlocks: {
@@ -86,15 +86,36 @@ describe('migrateSubblockIds', () => {
         }),
       }
 
-      const migrated = migrateSubblockIds(blocks)
+      const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(false)
       expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('kb-uuid')
     })
   })
 
+  it('should not mutate the input blocks', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'knowledge',
+        subBlocks: {
+          knowledgeBaseId: {
+            id: 'knowledgeBaseId',
+            type: 'knowledge-base-selector',
+            value: 'kb-uuid',
+          },
+        },
+      }),
+    }
+
+    const { blocks } = migrateSubblockIds(input)
+
+    expect(input['b1'].subBlocks['knowledgeBaseId']).toBeDefined()
+    expect(blocks['b1'].subBlocks['knowledgeBaseSelector']).toBeDefined()
+    expect(blocks).not.toBe(input)
+  })
+
   it('should skip blocks with no registered migrations', () => {
-    const blocks: Record<string, BlockState> = {
+    const input: Record<string, BlockState> = {
       b1: makeBlock({
         type: 'function',
         subBlocks: {
@@ -103,14 +124,14 @@ describe('migrateSubblockIds', () => {
       }),
     }
 
-    const migrated = migrateSubblockIds(blocks)
+    const { blocks, migrated } = migrateSubblockIds(input)
 
     expect(migrated).toBe(false)
     expect(blocks['b1'].subBlocks['code'].value).toBe('console.log("hi")')
   })
 
   it('should migrate multiple blocks in one pass', () => {
-    const blocks: Record<string, BlockState> = {
+    const input: Record<string, BlockState> = {
       b1: makeBlock({
         id: 'b1',
         type: 'knowledge',
@@ -142,7 +163,7 @@ describe('migrateSubblockIds', () => {
       }),
     }
 
-    const migrated = migrateSubblockIds(blocks)
+    const { blocks, migrated } = migrateSubblockIds(input)
 
     expect(migrated).toBe(true)
     expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('kb-1')
@@ -151,11 +172,11 @@ describe('migrateSubblockIds', () => {
   })
 
   it('should handle blocks with empty subBlocks', () => {
-    const blocks: Record<string, BlockState> = {
+    const input: Record<string, BlockState> = {
       b1: makeBlock({ type: 'knowledge', subBlocks: {} }),
     }
 
-    const migrated = migrateSubblockIds(blocks)
+    const { migrated } = migrateSubblockIds(input)
 
     expect(migrated).toBe(false)
   })

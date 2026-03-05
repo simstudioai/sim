@@ -20,58 +20,71 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
 
 /**
  * Migrates legacy subblock IDs inside a single block's subBlocks map.
- * If an old key is found and the new key does not already exist, the entry
- * is moved to the new key. When both exist the new key wins (user already
- * re-saved) and the old entry is removed to avoid orphans.
- *
- * Returns true if any migration was applied.
+ * Returns a new subBlocks record if anything changed, or the original if not.
  */
-function migrateBlockSubblockIds(block: BlockState, renames: Record<string, string>): boolean {
-  const subBlocks = block.subBlocks
-  if (!subBlocks) return false
-
+function migrateBlockSubblockIds(
+  subBlocks: Record<string, BlockState['subBlocks'][string]>,
+  renames: Record<string, string>
+): { subBlocks: Record<string, BlockState['subBlocks'][string]>; migrated: boolean } {
   let migrated = false
 
-  for (const [oldId, newId] of Object.entries(renames)) {
-    if (!(oldId in subBlocks)) continue
-
-    if (newId in subBlocks) {
-      delete subBlocks[oldId]
+  for (const oldId of Object.keys(renames)) {
+    if (oldId in subBlocks) {
       migrated = true
+      break
+    }
+  }
+
+  if (!migrated) return { subBlocks, migrated: false }
+
+  const result = { ...subBlocks }
+
+  for (const [oldId, newId] of Object.entries(renames)) {
+    if (!(oldId in result)) continue
+
+    if (newId in result) {
+      delete result[oldId]
       continue
     }
 
-    const oldEntry = subBlocks[oldId]
-    subBlocks[newId] = { ...oldEntry, id: newId }
-    delete subBlocks[oldId]
-    migrated = true
+    const oldEntry = result[oldId]
+    result[newId] = { ...oldEntry, id: newId }
+    delete result[oldId]
   }
 
-  return migrated
+  return { subBlocks: result, migrated: true }
 }
 
 /**
  * Applies subblock-ID migrations to every block in a workflow.
- * Safe to call on any state – blocks whose type has no registered
- * migrations are left untouched.
- *
- * Mutates `blocks` in place and returns whether anything changed.
+ * Returns a new blocks record with migrated subBlocks where needed.
  */
-export function migrateSubblockIds(blocks: Record<string, BlockState>): boolean {
+export function migrateSubblockIds(blocks: Record<string, BlockState>): {
+  blocks: Record<string, BlockState>
+  migrated: boolean
+} {
   let anyMigrated = false
+  const result: Record<string, BlockState> = {}
 
-  for (const block of Object.values(blocks)) {
+  for (const [blockId, block] of Object.entries(blocks)) {
     const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
-    if (!renames) continue
+    if (!renames || !block.subBlocks) {
+      result[blockId] = block
+      continue
+    }
 
-    if (migrateBlockSubblockIds(block, renames)) {
+    const { subBlocks, migrated } = migrateBlockSubblockIds(block.subBlocks, renames)
+    if (migrated) {
       logger.info('Migrated legacy subblock IDs', {
         blockId: block.id,
         blockType: block.type,
       })
       anyMigrated = true
+      result[blockId] = { ...block, subBlocks }
+    } else {
+      result[blockId] = block
     }
   }
 
-  return anyMigrated
+  return { blocks: result, migrated: anyMigrated }
 }
