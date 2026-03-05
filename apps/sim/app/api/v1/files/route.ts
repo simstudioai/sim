@@ -95,7 +95,15 @@ export async function POST(request: NextRequest) {
 
     const userId = rateLimit.userId!
 
-    const formData = await request.formData()
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid multipart form data' },
+        { status: 400 }
+      )
+    }
     const rawFile = formData.get('file')
     const file = rawFile instanceof File ? rawFile : null
     const rawWorkspaceId = formData.get('workspaceId')

@@ -5,7 +5,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
-import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
+import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -47,11 +47,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 

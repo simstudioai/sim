@@ -20,7 +20,7 @@ import {
   validateRowSize,
 } from '@/lib/table'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
-import { accessError, checkAccess } from '../../utils'
+import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -382,8 +382,10 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
         rows: rows.map((r) => ({
           id: r.id,
           data: r.data,
-          createdAt: r.createdAt.toISOString(),
-          updatedAt: r.updatedAt.toISOString(),
+          createdAt:
+            r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+          updatedAt:
+            r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
         })),
         rowCount: rows.length,
         totalCount: Number(totalCount),

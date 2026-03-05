@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteTable, type TableSchema } from '@/lib/table'
-import { accessError, checkAccess, normalizeColumn, verifyTableWorkspace } from '../utils'
+import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
 
@@ -38,11 +38,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
@@ -108,11 +104,7 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 

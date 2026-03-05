@@ -87,8 +87,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: row.id,
           data: row.data,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt:
+            row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+          updatedAt:
+            row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
         },
       },
     })
@@ -195,6 +197,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (errorMessage === 'Row not found') {
+      return NextResponse.json({ error: errorMessage }, { status: 404 })
+    }
 
     if (
       errorMessage.includes('Row size exceeds') ||

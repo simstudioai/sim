@@ -278,8 +278,10 @@ export async function GET(request: NextRequest, { params }: TableRowsRouteParams
         rows: rows.map((r) => ({
           id: r.id,
           data: r.data,
-          createdAt: r.createdAt.toISOString(),
-          updatedAt: r.updatedAt.toISOString(),
+          createdAt:
+            r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+          updatedAt:
+            r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
         })),
         rowCount: rows.length,
         totalCount: Number(totalCount),

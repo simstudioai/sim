@@ -8,7 +8,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
-import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
+import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -50,11 +50,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
@@ -87,8 +83,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: row.id,
           data: row.data,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt:
+            row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+          updatedAt:
+            row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
         },
       },
     })
@@ -133,15 +131,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Fetch existing row to support partial updates
     const [existingRow] = await db
       .select({ data: userTableRows.data })
       .from(userTableRows)
@@ -202,6 +195,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
 
     const errorMessage = error instanceof Error ? error.message : String(error)
 
+    if (errorMessage === 'Row not found') {
+      return NextResponse.json({ error: errorMessage }, { status: 404 })
+    }
+
     if (
       errorMessage.includes('Row size exceeds') ||
       errorMessage.includes('Schema validation') ||
@@ -245,11 +242,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
