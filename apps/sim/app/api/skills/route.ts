@@ -1,12 +1,9 @@
-import { db } from '@sim/db'
-import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { upsertSkills } from '@/lib/workflows/skills/operations'
+import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SkillsAPI')
@@ -53,11 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const result = await db
-      .select()
-      .from(skill)
-      .where(eq(skill.workspaceId, workspaceId))
-      .orderBy(desc(skill.createdAt))
+    const result = await listSkills({ workspaceId })
 
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
@@ -159,19 +152,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
     }
 
-    const existingSkill = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
-
-    if (existingSkill.length === 0) {
+    const deleted = await deleteSkill({ skillId, workspaceId })
+    if (!deleted) {
       logger.warn(`[${requestId}] Skill not found: ${skillId}`)
       return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
     }
-
-    if (existingSkill[0].workspaceId !== workspaceId) {
-      logger.warn(`[${requestId}] Skill ${skillId} does not belong to workspace ${workspaceId}`)
-      return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
-    }
-
-    await db.delete(skill).where(and(eq(skill.id, skillId), eq(skill.workspaceId, workspaceId)))
 
     logger.info(`[${requestId}] Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })

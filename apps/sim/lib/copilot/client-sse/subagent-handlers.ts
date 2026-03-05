@@ -4,7 +4,7 @@ import {
   normalizeSseEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
-} from '@/lib/copilot/orchestrator/sse-utils'
+} from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'

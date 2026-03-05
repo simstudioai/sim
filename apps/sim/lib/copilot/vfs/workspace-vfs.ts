@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
 import {
   a2aAgent,
+  account,
   chat as chatTable,
   copilotChats,
   document,
   form,
+  mcpServers as mcpServersTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowMcpServer,
@@ -13,12 +15,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
-import type {
-  DirEntry,
-  GrepMatch,
-  GrepOptions,
-  ReadResult,
-} from '@/lib/copilot/vfs/operations'
+import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
@@ -32,13 +29,15 @@ import {
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeMcpServer,
   serializeRecentExecutions,
+  serializeSkill,
   serializeTableMeta,
   serializeTaskChat,
   serializeTaskSession,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { type WorkspaceMdData, buildWorkspaceMd } from '@/lib/copilot/workspace-context'
+import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/workspace-context'
 import { getAccessibleEnvCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
@@ -52,11 +51,9 @@ import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { listSkills } from '@/lib/workflows/skills/operations'
 import { listWorkflows } from '@/lib/workflows/utils'
-import {
-  getWorkspaceWithOwner,
-  getUsersWithPermissions,
-} from '@/lib/workspaces/permissions/utils'
+import { getUsersWithPermissions, getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
@@ -215,7 +212,7 @@ function getStaticComponentFiles(): Map<string, string> {
  */
 export class WorkspaceVFS {
   private files: Map<string, string> = new Map()
-  private _workspaceId: string = ''
+  private _workspaceId = ''
 
   get workspaceId(): string {
     return this._workspaceId
@@ -237,7 +234,9 @@ export class WorkspaceVFS {
       tblSummary,
       fileSummary,
       envSummary,
-      _tools,
+      toolsSummary,
+      mcpServersSummary,
+      skillsSummary,
       taskSummary,
       wsRow,
       members,
@@ -248,6 +247,8 @@ export class WorkspaceVFS {
       this.materializeFiles(workspaceId),
       this.materializeEnvironment(workspaceId, userId),
       this.materializeCustomTools(workspaceId, userId),
+      this.materializeMcpServers(workspaceId),
+      this.materializeSkills(workspaceId),
       this.materializeTasks(workspaceId, userId),
       getWorkspaceWithOwner(workspaceId),
       getUsersWithPermissions(workspaceId),
@@ -264,6 +265,9 @@ export class WorkspaceVFS {
         files: fileSummary,
         credentials: envSummary,
         tasks: taskSummary,
+        customTools: toolsSummary,
+        mcpServers: mcpServersSummary,
+        skills: skillsSummary,
       })
     )
 
@@ -551,9 +555,7 @@ export class WorkspaceVFS {
    * Materialize tables using the shared listTables function.
    * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeTables(
-    workspaceId: string
-  ): Promise<WorkspaceMdData['tables']> {
+  private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
       const tables = await listTables(workspaceId)
 
@@ -593,9 +595,7 @@ export class WorkspaceVFS {
    * Materialize workspace files (already uses listWorkspaceFiles).
    * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeFiles(
-    workspaceId: string
-  ): Promise<WorkspaceMdData['files']> {
+  private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
       const files = await listWorkspaceFiles(workspaceId)
 
@@ -745,27 +745,102 @@ export class WorkspaceVFS {
   /**
    * Materialize custom tools using the shared listCustomTools function.
    */
-  private async materializeCustomTools(workspaceId: string, userId: string): Promise<void> {
+  private async materializeCustomTools(
+    workspaceId: string,
+    userId: string
+  ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
       const toolRows = await listCustomTools({ userId, workspaceId })
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
-        this.files.set(
-          `custom-tools/${safeName}.json`,
-          serializeCustomTool({
-            id: tool.id,
-            title: tool.title,
-            schema: tool.schema,
-            code: tool.code,
-          })
-        )
+        const serialized = serializeCustomTool({
+          id: tool.id,
+          title: tool.title,
+          schema: tool.schema,
+          code: tool.code,
+        })
+        this.files.set(`custom-tools/${safeName}.json`, serialized)
+        this.files.set(`agent/custom-tools/${safeName}.json`, serialized)
       }
+
+      return toolRows.map((t) => ({ id: t.id, name: t.title }))
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
+      return []
+    }
+  }
+
+  /**
+   * Materialize external MCP server connections using the mcpServers table.
+   */
+  private async materializeMcpServers(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['mcpServers']>> {
+    try {
+      const servers = await db
+        .select()
+        .from(mcpServersTable)
+        .where(and(eq(mcpServersTable.workspaceId, workspaceId), isNull(mcpServersTable.deletedAt)))
+
+      for (const server of servers) {
+        const safeName = sanitizeName(server.name)
+        this.files.set(
+          `agent/mcp-servers/${safeName}.json`,
+          serializeMcpServer({
+            id: server.id,
+            name: server.name,
+            url: server.url,
+            transport: server.transport,
+            enabled: server.enabled,
+            connectionStatus: server.connectionStatus,
+          })
+        )
+      }
+
+      return servers.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled }))
+    } catch (err) {
+      logger.warn('Failed to materialize MCP servers', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return []
+    }
+  }
+
+  /**
+   * Materialize workspace skills using the shared listSkills function.
+   */
+  private async materializeSkills(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['skills']>> {
+    try {
+      const skillRows = await listSkills({ workspaceId })
+
+      for (const s of skillRows) {
+        const safeName = sanitizeName(s.name)
+        this.files.set(
+          `agent/skills/${safeName}.json`,
+          serializeSkill({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            content: s.content,
+            createdAt: s.createdAt,
+          })
+        )
+      }
+
+      return skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description }))
+    } catch (err) {
+      logger.warn('Failed to materialize skills', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return []
     }
   }
 
@@ -794,6 +869,8 @@ export class WorkspaceVFS {
             eq(copilotChats.type, 'mothership')
           )
         )
+        .orderBy(desc(copilotChats.updatedAt))
+        .limit(5)
 
       for (const task of taskRows) {
         const title = task.title || 'Untitled task'
@@ -844,10 +921,14 @@ export class WorkspaceVFS {
     userId: string
   ): Promise<WorkspaceMdData['credentials']> {
     try {
-      const [envCredentials, apiKeyRows, envData] = await Promise.all([
+      const [envCredentials, apiKeyRows, envData, oauthAccounts] = await Promise.all([
         getAccessibleEnvCredentials(workspaceId, userId),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
+        db
+          .select({ providerId: account.providerId })
+          .from(account)
+          .where(eq(account.userId, userId)),
       ])
 
       this.files.set(
@@ -870,8 +951,10 @@ export class WorkspaceVFS {
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const uniqueKeys = [...new Set(envCredentials.map((c) => c.envKey))]
-      return uniqueKeys.map((key) => ({ providerId: key }))
+      const envKeys = envCredentials.map((c) => c.envKey)
+      const oauthProviders = oauthAccounts.map((a) => a.providerId)
+      const allProviders = [...new Set([...oauthProviders, ...envKeys])]
+      return allProviders.map((key) => ({ providerId: key }))
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,

@@ -640,10 +640,10 @@ Supports full and partial execution:
     annotations: { destructiveHint: false },
   },
   {
-    name: 'sim_custom_tool',
-    agentId: 'custom_tool',
+    name: 'sim_agent',
+    agentId: 'agent',
     description:
-      'Manage custom tools (reusable API integrations). Supports listing, creating, updating, and deleting custom tools. Custom tools can be added to agent blocks as callable functions.',
+      'Manage custom tools, MCP server connections, and skills for agent blocks. Supports creating, editing, deleting, and listing custom JavaScript tools, external MCP server connections, and workspace skills. Can also research external MCP tools and add deployed workflows as MCP tools.',
     inputSchema: {
       type: 'object',
       properties: {

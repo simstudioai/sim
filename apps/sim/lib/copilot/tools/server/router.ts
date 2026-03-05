@@ -20,6 +20,20 @@ export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_typ
 
 const logger = createLogger('ServerToolRouter')
 
+const WRITE_ACTIONS: Record<string, string[]> = {
+  knowledge_base: ['create', 'add_document', 'delete'],
+  user_table: ['create', 'insert', 'update', 'delete', 'delete_table'],
+  manage_custom_tool: ['add', 'edit', 'delete'],
+  manage_mcp_tool: ['add', 'edit', 'delete'],
+  manage_skill: ['add', 'edit', 'delete'],
+}
+
+function isActionAllowed(toolName: string, action: string, userPermission: string): boolean {
+  const writeActions = WRITE_ACTIONS[toolName]
+  if (!writeActions || !writeActions.includes(action)) return true
+  return userPermission === 'write' || userPermission === 'admin'
+}
+
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const serverToolRegistry: Record<string, BaseServerTool> = {
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
@@ -52,6 +66,16 @@ export async function routeExecution(
   }
 
   logger.debug('Routing to tool', { toolName })
+
+  // Action-level permission enforcement for mixed read/write tools
+  if (context?.userPermission && WRITE_ACTIONS[toolName]) {
+    const action = (payload as Record<string, unknown>)?.action as string
+    if (action && !isActionAllowed(toolName, action, context.userPermission)) {
+      throw new Error(
+        `Permission denied: '${action}' on ${toolName} requires write access. You have '${context.userPermission}' permission.`
+      )
+    }
+  }
 
   // Validate input if tool declares a schema
   const args = tool.inputSchema ? tool.inputSchema.parse(payload ?? {}) : (payload ?? {})

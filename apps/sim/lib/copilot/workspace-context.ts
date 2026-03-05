@@ -1,8 +1,19 @@
 import { db } from '@sim/db'
-import { account, copilotChats, knowledgeBase, userTableDefinitions, userTableRows, workflow, workspace } from '@sim/db/schema'
+import {
+  account,
+  copilotChats,
+  knowledgeBase,
+  mcpServers,
+  userTableDefinitions,
+  userTableRows,
+  workflow,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { listSkills } from '@/lib/workflows/skills/operations'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
@@ -22,6 +33,9 @@ export interface WorkspaceMdData {
   files: Array<{ name: string; type: string; size: number }>
   credentials: Array<{ providerId: string }>
   tasks: Array<{ id: string; title: string; updatedAt: Date }>
+  customTools?: Array<{ id: string; name: string }>
+  mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
+  skills?: Array<{ id: string; name: string; description: string }>
 }
 
 /**
@@ -96,6 +110,24 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     sections.push('## Credentials\n(none)')
   }
 
+  if (data.customTools && data.customTools.length > 0) {
+    const lines = data.customTools.map((t) => `- **${t.name}** (${t.id})`)
+    sections.push(`## Custom Tools (${data.customTools.length})\n${lines.join('\n')}`)
+  }
+
+  if (data.mcpServers && data.mcpServers.length > 0) {
+    const lines = data.mcpServers.map((s) => {
+      const status = s.enabled ? 'enabled' : 'disabled'
+      return `- **${s.name}** (${s.id}) — ${status}${s.url ? `, ${s.url}` : ''}`
+    })
+    sections.push(`## MCP Servers (${data.mcpServers.length})\n${lines.join('\n')}`)
+  }
+
+  if (data.skills && data.skills.length > 0) {
+    const lines = data.skills.map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
+    sections.push(`## Skills (${data.skills.length})\n${lines.join('\n')}`)
+  }
+
   if (data.tasks.length > 0) {
     const lines = data.tasks.map((t) => {
       const date = t.updatedAt.toISOString().split('T')[0]
@@ -117,73 +149,98 @@ export async function generateWorkspaceContext(
   userId: string
 ): Promise<string> {
   try {
-    const [wsRow, members, workflows, kbs, tables, files, credentials, recentTasks] =
-      await Promise.all([
-        db
-          .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
-          .from(workspace)
-          .where(eq(workspace.id, workspaceId))
-          .limit(1)
-          .then((rows) => rows[0] ?? null),
+    const [
+      wsRow,
+      members,
+      workflows,
+      kbs,
+      tables,
+      files,
+      credentials,
+      recentTasks,
+      customTools,
+      mcpServerRows,
+      skillRows,
+    ] = await Promise.all([
+      db
+        .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
 
-        getUsersWithPermissions(workspaceId),
+      getUsersWithPermissions(workspaceId),
 
-        db
-          .select({
-            id: workflow.id,
-            name: workflow.name,
-            description: workflow.description,
-            isDeployed: workflow.isDeployed,
-            lastRunAt: workflow.lastRunAt,
-          })
-          .from(workflow)
-          .where(eq(workflow.workspaceId, workspaceId)),
+      db
+        .select({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          isDeployed: workflow.isDeployed,
+          lastRunAt: workflow.lastRunAt,
+        })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, workspaceId)),
 
-        db
-          .select({
-            id: knowledgeBase.id,
-            name: knowledgeBase.name,
-            description: knowledgeBase.description,
-          })
-          .from(knowledgeBase)
-          .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
+      db
+        .select({
+          id: knowledgeBase.id,
+          name: knowledgeBase.name,
+          description: knowledgeBase.description,
+        })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
 
-        db
-          .select({
-            id: userTableDefinitions.id,
-            name: userTableDefinitions.name,
-            description: userTableDefinitions.description,
-          })
-          .from(userTableDefinitions)
-          .where(eq(userTableDefinitions.workspaceId, workspaceId)),
+      db
+        .select({
+          id: userTableDefinitions.id,
+          name: userTableDefinitions.name,
+          description: userTableDefinitions.description,
+        })
+        .from(userTableDefinitions)
+        .where(eq(userTableDefinitions.workspaceId, workspaceId)),
 
-        listWorkspaceFiles(workspaceId),
+      listWorkspaceFiles(workspaceId),
 
-        db
-          .select({
-            providerId: account.providerId,
-            scope: account.scope,
-          })
-          .from(account)
-          .where(eq(account.userId, userId)),
+      db
+        .select({
+          providerId: account.providerId,
+          scope: account.scope,
+        })
+        .from(account)
+        .where(eq(account.userId, userId)),
 
-        db
-          .select({
-            id: copilotChats.id,
-            title: copilotChats.title,
-            updatedAt: copilotChats.updatedAt,
-          })
-          .from(copilotChats)
-          .where(
-            and(
-              eq(copilotChats.workspaceId, workspaceId),
-              eq(copilotChats.userId, userId),
-              eq(copilotChats.type, 'mothership')
-            )
+      db
+        .select({
+          id: copilotChats.id,
+          title: copilotChats.title,
+          updatedAt: copilotChats.updatedAt,
+        })
+        .from(copilotChats)
+        .where(
+          and(
+            eq(copilotChats.workspaceId, workspaceId),
+            eq(copilotChats.userId, userId),
+            eq(copilotChats.type, 'mothership')
           )
-          .orderBy(desc(copilotChats.updatedAt))
-          .limit(5),
-      ])
+        )
+        .orderBy(desc(copilotChats.updatedAt))
+        .limit(5),
+
+      listCustomTools({ userId, workspaceId }),
+
+      db
+        .select({
+          id: mcpServers.id,
+          name: mcpServers.name,
+          url: mcpServers.url,
+          enabled: mcpServers.enabled,
+        })
+        .from(mcpServers)
+        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
+
+      listSkills({ workspaceId }),
+    ])
 
     const rowCounts =
       tables.length > 0
@@ -211,6 +268,9 @@ export async function generateWorkspaceContext(
         title: t.title || 'Untitled',
         updatedAt: t.updatedAt,
       })),
+      customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
+      mcpServers: mcpServerRows,
+      skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
     })
   } catch (err) {
     logger.error('Failed to generate workspace context', {

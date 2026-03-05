@@ -313,6 +313,51 @@ const META_custom_tool: ToolMetadata = {
   },
 }
 
+const META_agent: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Managed tools & skills', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed managing tools', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped managing tools', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted managing tools', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Managing tools & skills',
+      completedLabel: 'Tools & skills managed',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_manage_skill: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: {
+      text: 'Managing skill',
+      icon: Loader2,
+    },
+    [ClientToolCallState.pending]: { text: 'Manage skill?', icon: BookOpen },
+    [ClientToolCallState.executing]: { text: 'Managing skill', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Managed skill', icon: Check },
+    [ClientToolCallState.error]: { text: 'Failed to manage skill', icon: X },
+    [ClientToolCallState.aborted]: {
+      text: 'Aborted managing skill',
+      icon: XCircle,
+    },
+    [ClientToolCallState.rejected]: {
+      text: 'Skipped managing skill',
+      icon: XCircle,
+    },
+  },
+  interrupt: {
+    accept: { text: 'Allow', icon: Check },
+    reject: { text: 'Deny', icon: X },
+  },
+}
+
 const META_build: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
@@ -2333,6 +2378,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   build: META_build,
   create_folder: META_create_folder,
   create_workflow: META_create_workflow,
+  agent: META_agent,
   custom_tool: META_custom_tool,
   debug: META_debug,
   deploy: META_deploy,
@@ -2362,6 +2408,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   make_api_request: META_make_api_request,
   manage_custom_tool: META_manage_custom_tool,
   manage_mcp_tool: META_manage_mcp_tool,
+  manage_skill: META_manage_skill,
   mark_todo_in_progress: META_mark_todo_in_progress,
   move_folder: META_move_folder,
   move_workflow: META_move_workflow,

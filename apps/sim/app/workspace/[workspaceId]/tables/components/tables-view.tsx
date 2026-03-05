@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Database, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Input, Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
+import { Table } from '@/components/emcn/icons'
+import { Input } from '@/components/ui/input'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -68,7 +70,7 @@ export function TablesView() {
             <div>
               <div className='flex items-start gap-[12px]'>
                 <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#3B82F6] bg-[#EFF6FF] dark:border-[#1E40AF] dark:bg-[#1E3A5F]'>
-                  <Database className='h-[14px] w-[14px] text-[#3B82F6] dark:text-[#60A5FA]' />
+                  <Table className='h-[14px] w-[14px] text-[#3B82F6] dark:text-[#60A5FA]' />
                 </div>
                 <h1 className='font-medium text-[18px]'>Tables</h1>
               </div>

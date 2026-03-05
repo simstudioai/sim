@@ -8,7 +8,7 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream-core'
+import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream/core'
 
 const logger = createLogger('CopilotOrchestrator')
 

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
+import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
   isBackgroundState,

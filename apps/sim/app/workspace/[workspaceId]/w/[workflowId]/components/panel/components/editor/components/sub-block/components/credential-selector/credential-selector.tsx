@@ -26,6 +26,7 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -156,6 +157,7 @@ export function CredentialSelector({
   const displayValue = isEditing ? editingValue : resolvedLabel
 
   useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
+  const { navigateToSettings } = useSettingsNavigation()
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -207,7 +209,7 @@ export function CredentialSelector({
       requestedAt: Date.now(),
     })
 
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
+    navigateToSettings({ section: 'credentials' })
   }, [workspaceId, effectiveProviderId, serviceId])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {

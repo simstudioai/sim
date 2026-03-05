@@ -42,7 +42,7 @@ import {
   saveMessageCheckpoint,
 } from '@/lib/copilot/messages'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
-import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
+import { parseSSEStream } from '@/lib/copilot/orchestrator/sse/parser'
 import {
   abortAllInProgressTools,
   cleanupActiveState,

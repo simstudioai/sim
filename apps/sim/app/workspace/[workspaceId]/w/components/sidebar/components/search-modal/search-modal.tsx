@@ -11,13 +11,13 @@ import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 function customFilter(value: string, search: string): number {
   const searchLower = search.toLowerCase()
@@ -39,6 +39,7 @@ function customFilter(value: string, search: string): number {
 interface TaskItem {
   id: string
   name: string
+  href: string
 }
 
 interface SearchModalProps {
@@ -88,7 +89,7 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
@@ -151,13 +152,13 @@ export function SearchModal({
           id: 'settings',
           name: 'Settings',
           icon: Settings,
-          onClick: openSettingsModal,
+          onClick: navigateToSettings,
         },
       ].filter((page) => !page.hidden),
     [
       workspaceId,
       openHelpModal,
-      openSettingsModal,
+      navigateToSettings,
       permissionConfig.hideTemplates,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideFilesTab,
@@ -301,9 +302,10 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
+        style={{ left: 'calc(50% + var(--sidebar-width, 0px) / 2)' }}
       >
         <Command label='Search' filter={customFilter}>
           <Command.Input
@@ -401,7 +403,10 @@ export function SearchModal({
                   <Command.Item
                     key={task.id}
                     value={`${task.name} task-${task.id}`}
-                    onSelect={() => onOpenChange(false)}
+                    onSelect={() => {
+                      router.push(task.href)
+                      onOpenChange(false)
+                    }}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
                     <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>

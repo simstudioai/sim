@@ -170,14 +170,8 @@ export function serializeTableMeta(table: {
       schema: table.schema,
       rowCount: table.rowCount,
       maxRows: table.maxRows,
-      createdAt:
-        table.createdAt instanceof Date
-          ? table.createdAt.toISOString()
-          : table.createdAt,
-      updatedAt:
-        table.updatedAt instanceof Date
-          ? table.updatedAt.toISOString()
-          : table.updatedAt,
+      createdAt: table.createdAt instanceof Date ? table.createdAt.toISOString() : table.createdAt,
+      updatedAt: table.updatedAt instanceof Date ? table.updatedAt.toISOString() : table.updatedAt,
     },
     null,
     2
@@ -481,6 +475,54 @@ export function serializeCustomTool(tool: {
       title: tool.title,
       schema: tool.schema,
       codePreview: tool.code.length > 500 ? `${tool.code.slice(0, 500)}...` : tool.code,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize an MCP server for VFS agent/mcp-servers/{name}.json
+ */
+export function serializeMcpServer(server: {
+  id: string
+  name: string
+  url: string | null
+  transport: string | null
+  enabled: boolean
+  connectionStatus: string | null
+}): string {
+  return JSON.stringify(
+    {
+      id: server.id,
+      name: server.name,
+      url: server.url,
+      transport: server.transport,
+      enabled: server.enabled,
+      connectionStatus: server.connectionStatus,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize a skill for VFS agent/skills/{name}.json
+ */
+export function serializeSkill(s: {
+  id: string
+  name: string
+  description: string
+  content: string
+  createdAt: Date
+}): string {
+  return JSON.stringify(
+    {
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      contentPreview: s.content.length > 500 ? `${s.content.slice(0, 500)}...` : s.content,
+      createdAt: s.createdAt.toISOString(),
     },
     null,
     2

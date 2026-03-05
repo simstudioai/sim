@@ -5,6 +5,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipExecuteAPI')
 
@@ -40,9 +41,10 @@ export async function POST(req: NextRequest) {
       ExecuteRequestSchema.parse(body)
 
     const effectiveChatId = chatId || crypto.randomUUID()
-    const [workspaceContext, integrationTools] = await Promise.all([
+    const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
       buildIntegrationToolSchemas(),
+      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
     ])
 
     const requestPayload: Record<string, unknown> = {
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
       isHosted: true,
       workspaceContext,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
+      ...(userPermission ? { userPermission } : {}),
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {

@@ -16,6 +16,7 @@ import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
@@ -74,6 +75,7 @@ export function ToolCredentialSelector({
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
+  const { navigateToSettings } = useSettingsNavigation()
 
   const selectedId = value || ''
   const effectiveLabel = label || `Select ${getProviderName(provider)} account`
@@ -172,7 +174,7 @@ export function ToolCredentialSelector({
       requestedAt: Date.now(),
     })
 
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
+    navigateToSettings({ section: 'credentials' })
   }, [workspaceId, effectiveProviderId, serviceId])
 
   const comboboxOptions = useMemo(() => {
