@@ -204,3 +204,16 @@ export interface BulkDeleteData {
   limit?: number
   workspaceId: string
 }
+
+export interface BulkDeleteByIdsData {
+  tableId: string
+  rowIds: string[]
+  workspaceId: string
+}
+
+export interface BulkDeleteByIdsResult {
+  deletedCount: number
+  deletedRowIds: string[]
+  requestedCount: number
+  missingRowIds: string[]
+}

@@ -15,6 +15,8 @@ import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
+  BulkDeleteByIdsData,
+  BulkDeleteByIdsResult,
   BulkDeleteData,
   BulkOperationResult,
   BulkUpdateData,
@@ -741,13 +743,11 @@ export async function updateRowsByFilter(
 ): Promise<BulkOperationResult> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
-  // Build filter clause
   const filterClause = buildFilterClause(data.filter, tableName)
   if (!filterClause) {
     throw new Error('Filter is required for bulk update')
   }
 
-  // Find matching rows
   const baseConditions = and(
     eq(userTableRows.tableId, data.tableId),
     eq(userTableRows.workspaceId, data.workspaceId)
@@ -768,7 +768,6 @@ export async function updateRowsByFilter(
     return { affectedCount: 0, affectedRowIds: [] }
   }
 
-  // Validate merged data for each row
   for (const row of matchingRows) {
     const existingData = row.data as RowData
     const mergedData = { ...existingData, ...data.data }
@@ -784,7 +783,34 @@ export async function updateRowsByFilter(
     }
   }
 
-  // Update in batches
+  const uniqueColumns = getUniqueColumns(table.schema)
+  if (uniqueColumns.length > 0) {
+    if (matchingRows.length > 1) {
+      const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in data.data)
+      if (uniqueColumnsInUpdate.length > 0) {
+        throw new Error(
+          `Cannot set unique column values when updating multiple rows. ` +
+            `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
+            `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`
+        )
+      }
+    }
+
+    for (const row of matchingRows) {
+      const existingData = row.data as RowData
+      const mergedData = { ...existingData, ...data.data }
+      const uniqueValidation = await checkUniqueConstraintsDb(
+        data.tableId,
+        mergedData,
+        table.schema,
+        row.id
+      )
+      if (!uniqueValidation.valid) {
+        throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
+      }
+    }
+  }
+
   const now = new Date()
 
   await db.transaction(async (trx) => {
@@ -876,5 +902,73 @@ export async function deleteRowsByFilter(
   return {
     affectedCount: matchingRows.length,
     affectedRowIds: rowIds,
+  }
+}
+
+/**
+ * Deletes rows by their IDs.
+ *
+ * @param data - Row IDs and table context
+ * @param requestId - Request ID for logging
+ * @returns Deletion result with deleted/missing row IDs
+ */
+export async function deleteRowsByIds(
+  data: BulkDeleteByIdsData,
+  requestId: string
+): Promise<BulkDeleteByIdsResult> {
+  const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
+
+  const matchingRows = await db
+    .select({ id: userTableRows.id })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, data.tableId),
+        eq(userTableRows.workspaceId, data.workspaceId),
+        sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
+          uniqueRequestedRowIds.map((id) => sql`${id}`),
+          sql`, `
+        )}])`
+      )
+    )
+
+  const matchedRowIds = matchingRows.map((r) => r.id)
+  const matchedIdSet = new Set(matchedRowIds)
+  const missingRowIds = uniqueRequestedRowIds.filter((id) => !matchedIdSet.has(id))
+
+  if (matchedRowIds.length === 0) {
+    return {
+      deletedCount: 0,
+      deletedRowIds: [],
+      requestedCount: uniqueRequestedRowIds.length,
+      missingRowIds,
+    }
+  }
+
+  await db.transaction(async (trx) => {
+    for (let i = 0; i < matchedRowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+      const batch = matchedRowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
+      await trx.delete(userTableRows).where(
+        and(
+          eq(userTableRows.tableId, data.tableId),
+          eq(userTableRows.workspaceId, data.workspaceId),
+          sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
+            batch.map((id) => sql`${id}`),
+            sql`, `
+          )}])`
+        )
+      )
+    }
+  })
+
+  logger.info(
+    `[${requestId}] Deleted ${matchedRowIds.length} rows by ID from table ${data.tableId}`
+  )
+
+  return {
+    deletedCount: matchedRowIds.length,
+    deletedRowIds: matchedRowIds,
+    requestedCount: uniqueRequestedRowIds.length,
+    missingRowIds,
   }
 }

@@ -9,13 +9,13 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
-  checkUniqueConstraintsDb,
-  getUniqueColumns,
+  deleteRowsByFilter,
+  deleteRowsByIds,
   insertRow,
   TABLE_LIMITS,
   USER_TABLE_ROWS_SQL_NAME,
+  updateRowsByFilter,
   validateBatchRows,
-  validateRowAgainstSchema,
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
@@ -56,9 +56,13 @@ const QueryRowsSchema = z.object({
     .default(0),
 })
 
+const nonEmptyFilter = z
+  .record(z.unknown(), { required_error: 'Filter criteria is required' })
+  .refine((f) => Object.keys(f).length > 0, { message: 'Filter must not be empty' })
+
 const UpdateRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
+  filter: nonEmptyFilter,
   data: z.record(z.unknown(), { required_error: 'Update data is required' }),
   limit: z.coerce
     .number({ required_error: 'Limit must be a number' })
@@ -70,7 +74,7 @@ const UpdateRowsByFilterSchema = z.object({
 
 const DeleteRowsByFilterSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  filter: z.record(z.unknown(), { required_error: 'Filter criteria is required' }),
+  filter: nonEmptyFilter,
   limit: z.coerce
     .number({ required_error: 'Limit must be a number' })
     .int('Limit must be an integer')
@@ -417,9 +421,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const updateData = validated.data as RowData
-
-    const sizeValidation = validateRowSize(updateData)
+    const sizeValidation = validateRowSize(validated.data as RowData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
         { error: 'Invalid row data', details: sizeValidation.errors },
@@ -427,31 +429,19 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    const baseConditions = [
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
-    ]
+    const result = await updateRowsByFilter(
+      {
+        tableId,
+        filter: validated.filter as Filter,
+        data: validated.data as RowData,
+        limit: validated.limit,
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
 
-    const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
-    if (filterClause) {
-      baseConditions.push(filterClause)
-    }
-
-    let matchingRowsQuery = db
-      .select({
-        id: userTableRows.id,
-        data: userTableRows.data,
-      })
-      .from(userTableRows)
-      .where(and(...baseConditions))
-
-    if (validated.limit) {
-      matchingRowsQuery = matchingRowsQuery.limit(validated.limit) as typeof matchingRowsQuery
-    }
-
-    const matchingRows = await matchingRowsQuery
-
-    if (matchingRows.length === 0) {
+    if (result.affectedCount === 0) {
       return NextResponse.json(
         {
           success: true,
@@ -464,103 +454,12 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    if (matchingRows.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-      logger.warn(`[${requestId}] Updating ${matchingRows.length} rows. This may take some time.`)
-    }
-
-    for (const row of matchingRows) {
-      const existingData = row.data as RowData
-      const mergedData = { ...existingData, ...updateData }
-      const rowValidation = validateRowAgainstSchema(mergedData, table.schema as TableSchema)
-      if (!rowValidation.valid) {
-        return NextResponse.json(
-          {
-            error: 'Updated data does not match schema',
-            details: rowValidation.errors,
-            affectedRowId: row.id,
-          },
-          { status: 400 }
-        )
-      }
-    }
-
-    const uniqueColumns = getUniqueColumns(table.schema as TableSchema)
-    if (uniqueColumns.length > 0) {
-      // If updating multiple rows, check that updateData doesn't set any unique column
-      // (would cause all rows to have the same value, violating uniqueness)
-      if (matchingRows.length > 1) {
-        const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in updateData)
-        if (uniqueColumnsInUpdate.length > 0) {
-          return NextResponse.json(
-            {
-              error: 'Cannot set unique column values when updating multiple rows',
-              details: [
-                `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
-                  `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`,
-              ],
-            },
-            { status: 400 }
-          )
-        }
-      }
-
-      // Check unique constraints against database for each row
-      for (const row of matchingRows) {
-        const existingData = row.data as RowData
-        const mergedData = { ...existingData, ...updateData }
-        const uniqueValidation = await checkUniqueConstraintsDb(
-          tableId,
-          mergedData,
-          table.schema as TableSchema,
-          row.id
-        )
-
-        if (!uniqueValidation.valid) {
-          return NextResponse.json(
-            {
-              error: 'Unique constraint violation',
-              details: uniqueValidation.errors,
-              affectedRowId: row.id,
-            },
-            { status: 400 }
-          )
-        }
-      }
-    }
-
-    const now = new Date()
-
-    await db.transaction(async (trx) => {
-      let totalUpdated = 0
-
-      for (let i = 0; i < matchingRows.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
-        const batch = matchingRows.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-        const updatePromises = batch.map((row) => {
-          const existingData = row.data as RowData
-          return trx
-            .update(userTableRows)
-            .set({
-              data: { ...existingData, ...updateData },
-              updatedAt: now,
-            })
-            .where(eq(userTableRows.id, row.id))
-        })
-        await Promise.all(updatePromises)
-        totalUpdated += batch.length
-        logger.info(
-          `[${requestId}] Updated batch ${Math.floor(i / TABLE_LIMITS.UPDATE_BATCH_SIZE) + 1} (${totalUpdated}/${matchingRows.length} rows)`
-        )
-      }
-    })
-
-    logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${tableId}`)
-
     return NextResponse.json({
       success: true,
       data: {
         message: 'Rows updated successfully',
-        updatedCount: matchingRows.length,
-        updatedRowIds: matchingRows.map((r) => r.id),
+        updatedCount: result.affectedCount,
+        updatedRowIds: result.affectedRowIds,
       },
     })
   } catch (error) {
@@ -571,16 +470,25 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    logger.error(`[${requestId}] Error updating rows by filter:`, error)
-
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const detailedError = `Failed to update rows: ${errorMessage}`
 
-    return NextResponse.json({ error: detailedError }, { status: 500 })
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column') ||
+      errorMessage.includes('Filter is required')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error updating rows by filter:`, error)
+    return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 }
 
-/** DELETE /api/table/[tableId]/rows - Deletes rows matching filter criteria. */
+/** DELETE /api/table/[tableId]/rows - Deletes rows matching filter criteria or by IDs. */
 export async function DELETE(request: NextRequest, { params }: TableRowsRouteParams) {
   const requestId = generateRequestId()
   const { tableId } = await params
@@ -606,110 +514,46 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const baseConditions = [
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
-    ]
-
-    let rowIds: string[] = []
-    let missingRowIds: string[] | undefined
-    let requestedCount: number | undefined
-
     if ('rowIds' in validated) {
-      const uniqueRequestedRowIds = Array.from(new Set(validated.rowIds))
-      requestedCount = uniqueRequestedRowIds.length
-
-      const matchingRows = await db
-        .select({ id: userTableRows.id })
-        .from(userTableRows)
-        .where(
-          and(
-            ...baseConditions,
-            sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
-              uniqueRequestedRowIds.map((id) => sql`${id}`),
-              sql`, `
-            )}])`
-          )
-        )
-
-      const matchedRowIds = matchingRows.map((r) => r.id)
-      const matchedIdSet = new Set(matchedRowIds)
-      missingRowIds = uniqueRequestedRowIds.filter((id) => !matchedIdSet.has(id))
-      rowIds = matchedRowIds
-    } else {
-      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
-      if (filterClause) {
-        baseConditions.push(filterClause)
-      }
-
-      let matchingRowsQuery = db
-        .select({ id: userTableRows.id })
-        .from(userTableRows)
-        .where(and(...baseConditions))
-
-      if (validated.limit) {
-        matchingRowsQuery = matchingRowsQuery.limit(validated.limit) as typeof matchingRowsQuery
-      }
-
-      const matchingRows = await matchingRowsQuery
-      rowIds = matchingRows.map((r) => r.id)
-    }
-
-    if (rowIds.length === 0) {
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            message:
-              'rowIds' in validated
-                ? 'No matching rows found for the provided IDs'
-                : 'No rows matched the filter criteria',
-            deletedCount: 0,
-            deletedRowIds: [],
-            ...(requestedCount !== undefined ? { requestedCount } : {}),
-            ...(missingRowIds ? { missingRowIds } : {}),
-          },
-        },
-        { status: 200 }
+      const result = await deleteRowsByIds(
+        { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
+        requestId
       )
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          message:
+            result.deletedCount === 0
+              ? 'No matching rows found for the provided IDs'
+              : 'Rows deleted successfully',
+          deletedCount: result.deletedCount,
+          deletedRowIds: result.deletedRowIds,
+          requestedCount: result.requestedCount,
+          ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
+        },
+      })
     }
 
-    if (rowIds.length > TABLE_LIMITS.DELETE_BATCH_SIZE) {
-      logger.warn(`[${requestId}] Deleting ${rowIds.length} rows. This may take some time.`)
-    }
-
-    await db.transaction(async (trx) => {
-      let totalDeleted = 0
-
-      for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-        const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
-        await trx.delete(userTableRows).where(
-          and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, validated.workspaceId),
-            sql`${userTableRows.id} = ANY(ARRAY[${sql.join(
-              batch.map((id) => sql`${id}`),
-              sql`, `
-            )}])`
-          )
-        )
-        totalDeleted += batch.length
-        logger.info(
-          `[${requestId}] Deleted batch ${Math.floor(i / TABLE_LIMITS.DELETE_BATCH_SIZE) + 1} (${totalDeleted}/${rowIds.length} rows)`
-        )
-      }
-    })
-
-    logger.info(`[${requestId}] Deleted ${rowIds.length} rows from table ${tableId}`)
+    const result = await deleteRowsByFilter(
+      {
+        tableId,
+        filter: validated.filter as Filter,
+        limit: validated.limit,
+        workspaceId: validated.workspaceId,
+      },
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
       data: {
-        message: 'Rows deleted successfully',
-        deletedCount: rowIds.length,
-        deletedRowIds: rowIds,
-        ...(requestedCount !== undefined ? { requestedCount } : {}),
-        ...(missingRowIds ? { missingRowIds } : {}),
+        message:
+          result.affectedCount === 0
+            ? 'No rows matched the filter criteria'
+            : 'Rows deleted successfully',
+        deletedCount: result.affectedCount,
+        deletedRowIds: result.affectedRowIds,
       },
     })
   } catch (error) {
@@ -720,11 +564,13 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       )
     }
 
-    logger.error(`[${requestId}] Error deleting rows by filter:`, error)
-
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const detailedError = `Failed to delete rows: ${errorMessage}`
 
-    return NextResponse.json({ error: detailedError }, { status: 500 })
+    if (errorMessage.includes('Filter is required')) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error deleting rows:`, error)
+    return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
   }
 }
