@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  countTables,
   createTable,
   getWorkspaceTableLimits,
   listTables,
@@ -172,21 +171,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const [tableCount, planLimits] = await Promise.all([
-      countTables(params.workspaceId),
-      getWorkspaceTableLimits(params.workspaceId),
-    ])
-
-    if (tableCount >= planLimits.maxTables) {
-      return NextResponse.json(
-        {
-          error: `Workspace has reached the maximum table limit (${planLimits.maxTables}) for your plan. Please upgrade to create more tables.`,
-        },
-        { status: 403 }
-      )
-    }
-
-    const maxRowsPerTable = planLimits.maxRowsPerTable
+    const planLimits = await getWorkspaceTableLimits(params.workspaceId)
 
     const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
@@ -199,9 +184,10 @@ export async function POST(request: NextRequest) {
         schema: normalizedSchema,
         workspaceId: params.workspaceId,
         userId,
-        maxRows: maxRowsPerTable,
+        maxRows: planLimits.maxRowsPerTable,
+        maxTables: planLimits.maxTables,
       },
-      crypto.randomUUID().slice(0, 8)
+      requestId
     )
 
     return NextResponse.json({
@@ -235,11 +221,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof Error) {
+      if (error.message.includes('maximum table limit')) {
+        return NextResponse.json({ error: error.message }, { status: 403 })
+      }
       if (
         error.message.includes('Invalid table name') ||
         error.message.includes('Invalid schema') ||
-        error.message.includes('already exists') ||
-        error.message.includes('maximum table limit')
+        error.message.includes('already exists')
       ) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }

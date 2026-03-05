@@ -126,9 +126,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get plan-based row limits
+    // Get plan-based limits
     const planLimits = await getWorkspaceTableLimits(params.workspaceId)
-    const maxRowsPerTable = planLimits.maxRowsPerTable
 
     const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
@@ -141,7 +140,8 @@ export async function POST(request: NextRequest) {
         schema: normalizedSchema,
         workspaceId: params.workspaceId,
         userId: authResult.userId,
-        maxRows: maxRowsPerTable,
+        maxRows: planLimits.maxRowsPerTable,
+        maxTables: planLimits.maxTables,
       },
       requestId
     )

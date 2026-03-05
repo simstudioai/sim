@@ -133,39 +133,12 @@ export async function createTable(
     throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
   }
 
-  // Check workspace table limit
-  const existingCount = await db
-    .select({ count: count() })
-    .from(userTableDefinitions)
-    .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
-
-  if (existingCount[0].count >= TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE) {
-    throw new Error(
-      `Workspace has reached maximum table limit (${TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE})`
-    )
-  }
-
-  // Check for duplicate name
-  const duplicateName = await db
-    .select({ id: userTableDefinitions.id })
-    .from(userTableDefinitions)
-    .where(
-      and(
-        eq(userTableDefinitions.workspaceId, data.workspaceId),
-        eq(userTableDefinitions.name, data.name)
-      )
-    )
-    .limit(1)
-
-  if (duplicateName.length > 0) {
-    throw new Error(`Table with name "${data.name}" already exists in this workspace`)
-  }
-
   const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
   const now = new Date()
 
   // Use provided maxRows (from billing plan) or fall back to default
   const maxRows = data.maxRows ?? TABLE_LIMITS.MAX_ROWS_PER_TABLE
+  const maxTables = data.maxTables ?? TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE
 
   const newTable = {
     id: tableId,
@@ -179,7 +152,41 @@ export async function createTable(
     updatedAt: now,
   }
 
-  await db.insert(userTableDefinitions).values(newTable)
+  // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
+  // to prevent TOCTOU race on the table count limit
+  await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM workspaces WHERE id = ${data.workspaceId} FOR UPDATE`
+    )
+
+    const [{ count: existingCount }] = await trx
+      .select({ count: count() })
+      .from(userTableDefinitions)
+      .where(eq(userTableDefinitions.workspaceId, data.workspaceId))
+
+    if (Number(existingCount) >= maxTables) {
+      throw new Error(
+        `Workspace has reached maximum table limit (${maxTables})`
+      )
+    }
+
+    const duplicateName = await trx
+      .select({ id: userTableDefinitions.id })
+      .from(userTableDefinitions)
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, data.workspaceId),
+          eq(userTableDefinitions.name, data.name)
+        )
+      )
+      .limit(1)
+
+    if (duplicateName.length > 0) {
+      throw new Error(`Table with name "${data.name}" already exists in this workspace`)
+    }
+
+    await trx.insert(userTableDefinitions).values(newTable)
+  })
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
 
