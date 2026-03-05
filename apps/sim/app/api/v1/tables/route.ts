@@ -161,7 +161,17 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = rateLimit.userId!
-    const body: unknown = await request.json()
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
+
     const params = CreateTableSchema.parse(body)
 
     const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)

@@ -312,7 +312,16 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
 
     const userId = rateLimit.userId!
     const { tableId } = await params
-    const body: unknown = await request.json()
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON' },
+        { status: 400 }
+      )
+    }
 
     if (
       typeof body === 'object' &&
