@@ -1273,8 +1273,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
     connectionCount: {
       type: 'number',
-      description:
-        'Total number of active connections (only available when checking own presence)',
+      description: 'Total number of active connections (only available when checking own presence)',
     },
     lastActivity: {
       type: 'number',
