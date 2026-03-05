@@ -227,8 +227,8 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
-        if (rest.limit) rest.limit = Number(rest.limit)
-        if (rest.offset) rest.offset = Number(rest.offset)
+        if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
+        if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
 
         if (fields && isCreateOrUpdate) {
           const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
