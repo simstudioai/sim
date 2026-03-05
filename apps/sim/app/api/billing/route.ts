@@ -6,6 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { getPlanTierCredits } from '@/lib/billing/plan-helpers'
 
 /**
  * Gets the effective billing blocked status for a user.
@@ -188,10 +190,17 @@ export async function GET(request: NextRequest) {
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
-        members: rawBillingData.members.map((member) => ({
-          ...member,
-          joinedAt: member.joinedAt.toISOString(),
-          lastActive: member.lastActive?.toISOString() || null,
+        tierCredits: getPlanTierCredits(rawBillingData.subscriptionPlan),
+        totalCurrentUsageCredits: dollarsToCredits(rawBillingData.totalCurrentUsage),
+        totalUsageLimitCredits: dollarsToCredits(rawBillingData.totalUsageLimit),
+        minimumBillingAmountCredits: dollarsToCredits(rawBillingData.minimumBillingAmount),
+        averageUsagePerMemberCredits: dollarsToCredits(rawBillingData.averageUsagePerMember),
+        members: rawBillingData.members.map((m) => ({
+          ...m,
+          joinedAt: m.joinedAt.toISOString(),
+          lastActive: m.lastActive?.toISOString() || null,
+          currentUsageCredits: dollarsToCredits(m.currentUsage),
+          usageLimitCredits: dollarsToCredits(m.usageLimit),
         })),
       }
 

@@ -20,7 +20,7 @@ const PRICING_TIERS: PricingTier[] = [
     price: 'Free',
     color: '#2ABBF8',
     features: [
-      '$20 usage limit',
+      '2,000 credits/mo',
       '5GB file storage',
       '5 min execution limit',
       'Limited log retention',
@@ -32,7 +32,7 @@ const PRICING_TIERS: PricingTier[] = [
     id: 'professional',
     name: 'Professional',
     description: 'For professionals building production workflows',
-    price: '$20',
+    price: '2,000 credits',
     billingPeriod: 'per month',
     color: '#00F701',
     features: [
@@ -49,7 +49,7 @@ const PRICING_TIERS: PricingTier[] = [
     id: 'team',
     name: 'Team',
     description: 'For teams collaborating on complex agents',
-    price: '$40',
+    price: '4,000 credits',
     billingPeriod: 'per month',
     color: '#FA4EDF',
     features: [

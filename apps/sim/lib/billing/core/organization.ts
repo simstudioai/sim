@@ -3,6 +3,7 @@ import { member, organization, subscription, user, userStats } from '@sim/db/sch
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats, getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('OrganizationBilling')
@@ -144,7 +145,7 @@ export async function getOrganizationBillingData(
     let minimumBillingAmount: number
     let totalUsageLimit: number
 
-    if (subscription.plan === 'enterprise') {
+    if (isEnterprise(subscription.plan)) {
       // Enterprise has fixed pricing set through custom Stripe product
       // Their usage limit is configured to match their monthly cost
       const configuredLimit = organizationData.orgUsageLimit
@@ -220,7 +221,7 @@ export async function updateOrganizationUsageLimit(
     }
 
     // Enterprise plans have fixed usage limits that cannot be changed
-    if (subscription.plan === 'enterprise') {
+    if (isEnterprise(subscription.plan)) {
       return {
         success: false,
         error: 'Enterprise plans have fixed usage limits that cannot be changed',
@@ -228,7 +229,7 @@ export async function updateOrganizationUsageLimit(
     }
 
     // Only team plans can update their usage limits
-    if (subscription.plan !== 'team') {
+    if (!isTeam(subscription.plan)) {
       return {
         success: false,
         error: 'Only team organizations can update usage limits',

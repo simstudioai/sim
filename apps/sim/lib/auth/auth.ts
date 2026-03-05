@@ -38,6 +38,7 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
+import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -3067,7 +3068,7 @@ export const auth = betterAuth({
                 return await authorizeSubscriptionReference(user.id, referenceId)
               },
               getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (plan.name === 'team') {
+                if (isTeam(plan.name)) {
                   return {
                     params: {
                       allow_promotion_codes: true,
@@ -3100,7 +3101,7 @@ export const auth = betterAuth({
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 logger.info('[onSubscriptionComplete] Subscription created', {
@@ -3109,6 +3110,7 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   priceId,
+                  isAnnual,
                   status: subscription.status,
                 })
 
@@ -3150,7 +3152,7 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 const stripeSubscription = event.data.object as Stripe.Subscription
-                const { priceId, planFromStripe, isTeamPlan } =
+                const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
                 if (priceId && !planFromStripe) {
@@ -3166,7 +3168,7 @@ export const auth = betterAuth({
 
                 const isUpgradeToTeam =
                   isTeamPlan &&
-                  subscription.plan !== 'team' &&
+                  !isTeam(subscription.plan) &&
                   !subscription.referenceId.startsWith('org_')
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
@@ -3177,6 +3179,7 @@ export const auth = betterAuth({
                   dbPlan: subscription.plan,
                   planFromStripe,
                   isUpgradeToTeam,
+                  isAnnual,
                   referenceId: subscription.referenceId,
                 })
 
@@ -3346,8 +3349,7 @@ export const auth = betterAuth({
                 .where(eq(schema.subscription.referenceId, user.id))
 
               const hasTeamPlan = dbSubscriptions.some(
-                (sub) =>
-                  sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'enterprise')
+                (sub) => sub.status === 'active' && isOrgPlan(sub.plan)
               )
 
               return hasTeamPlan

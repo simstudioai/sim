@@ -6,6 +6,7 @@ import type Stripe from 'stripe'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { isEnterprise, isFree, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { env } from '@/lib/core/config/env'
 
@@ -107,15 +108,11 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       return
     }
 
-    if (
-      !userSubscription.plan ||
-      userSubscription.plan === 'free' ||
-      userSubscription.plan === 'enterprise'
-    ) {
+    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
       return
     }
 
-    if (userSubscription.plan === 'team') {
+    if (isTeam(userSubscription.plan)) {
       logger.debug('Team plan detected - triggering org-level threshold billing', {
         userId,
         organizationId: userSubscription.referenceId,
@@ -303,7 +300,7 @@ export async function checkAndBillOrganizationOverageThreshold(
       stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
     })
 
-    if (orgSubscription.plan !== 'team') {
+    if (!isTeam(orgSubscription.plan)) {
       logger.debug('Organization plan is not team, skipping', {
         organizationId,
         plan: orgSubscription.plan,

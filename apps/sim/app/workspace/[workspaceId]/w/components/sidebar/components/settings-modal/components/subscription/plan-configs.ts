@@ -1,8 +1,11 @@
 import {
+  Calendar,
   Clock,
+  Coins,
   Database,
   HardDrive,
   HeadphonesIcon,
+  RefreshCw,
   Server,
   ShieldCheck,
   Timer,
@@ -13,6 +16,8 @@ import { SlackMonoIcon } from '@/components/icons'
 import type { PlanFeature } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/plan-card'
 
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
+  { icon: Coins, text: 'Credits included monthly' },
+  { icon: RefreshCw, text: 'Weekly refresh credits included' },
   { icon: Zap, text: '150 runs per minute (sync)' },
   { icon: Clock, text: '1,000 runs per minute (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
@@ -22,6 +27,8 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
 ]
 
 export const TEAM_PLAN_FEATURES: PlanFeature[] = [
+  { icon: Coins, text: 'Credits included monthly' },
+  { icon: RefreshCw, text: 'Weekly refresh credits included' },
   { icon: Zap, text: '300 runs per minute (sync)' },
   { icon: Clock, text: '2,500 runs per minute (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
@@ -30,6 +37,11 @@ export const TEAM_PLAN_FEATURES: PlanFeature[] = [
   { icon: Database, text: 'Unlimited log retention' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
 ]
+
+export const ANNUAL_PLAN_FEATURE: PlanFeature = {
+  icon: Calendar,
+  text: '15% savings with annual billing',
+}
 
 export const ENTERPRISE_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: 'Custom rate limits' },

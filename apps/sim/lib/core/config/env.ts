@@ -58,6 +58,30 @@ export const env = createEnv({
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+
+    // Credit-tier Stripe prices (monthly)
+    STRIPE_PRICE_TIER_20_MO:               z.string().min(1).optional(),           // $20/mo credit tier price ID
+    STRIPE_PRICE_TIER_40_MO:               z.string().min(1).optional(),           // $40/mo credit tier price ID
+    STRIPE_PRICE_TIER_60_MO:               z.string().min(1).optional(),           // $60/mo credit tier price ID
+    STRIPE_PRICE_TIER_80_MO:               z.string().min(1).optional(),           // $80/mo credit tier price ID
+    STRIPE_PRICE_TIER_100_MO:              z.string().min(1).optional(),           // $100/mo credit tier price ID
+    STRIPE_PRICE_TIER_120_MO:              z.string().min(1).optional(),           // $120/mo credit tier price ID
+    STRIPE_PRICE_TIER_140_MO:              z.string().min(1).optional(),           // $140/mo credit tier price ID
+    STRIPE_PRICE_TIER_160_MO:              z.string().min(1).optional(),           // $160/mo credit tier price ID
+    STRIPE_PRICE_TIER_180_MO:              z.string().min(1).optional(),           // $180/mo credit tier price ID
+    STRIPE_PRICE_TIER_200_MO:              z.string().min(1).optional(),           // $200/mo credit tier price ID
+
+    // Credit-tier Stripe prices (annual, 15% discount)
+    STRIPE_PRICE_TIER_20_YR:               z.string().min(1).optional(),           // $204/yr credit tier price ID (15% off $240)
+    STRIPE_PRICE_TIER_40_YR:               z.string().min(1).optional(),           // $408/yr credit tier price ID (15% off $480)
+    STRIPE_PRICE_TIER_60_YR:               z.string().min(1).optional(),           // $612/yr credit tier price ID (15% off $720)
+    STRIPE_PRICE_TIER_80_YR:               z.string().min(1).optional(),           // $816/yr credit tier price ID (15% off $960)
+    STRIPE_PRICE_TIER_100_YR:              z.string().min(1).optional(),           // $1,020/yr credit tier price ID (15% off $1,200)
+    STRIPE_PRICE_TIER_120_YR:              z.string().min(1).optional(),           // $1,224/yr credit tier price ID (15% off $1,440)
+    STRIPE_PRICE_TIER_140_YR:              z.string().min(1).optional(),           // $1,428/yr credit tier price ID (15% off $1,680)
+    STRIPE_PRICE_TIER_160_YR:              z.string().min(1).optional(),           // $1,632/yr credit tier price ID (15% off $1,920)
+    STRIPE_PRICE_TIER_180_YR:              z.string().min(1).optional(),           // $1,836/yr credit tier price ID (15% off $2,160)
+    STRIPE_PRICE_TIER_200_YR:              z.string().min(1).optional(),           // $2,040/yr credit tier price ID (15% off $2,400)
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
 
     // Email & Communication

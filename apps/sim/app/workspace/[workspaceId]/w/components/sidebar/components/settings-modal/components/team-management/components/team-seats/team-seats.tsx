@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 
 interface TeamSeatsProps {
   open: boolean
@@ -87,7 +88,8 @@ export function TeamSeats({
 
           <p className='mt-[12px] text-[12px] text-[var(--text-muted)]'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
-            total of ${totalMonthlyCost} inference credits per month.
+            total of {dollarsToCredits(totalMonthlyCost).toLocaleString()} inference credits per
+            month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
@@ -101,9 +103,12 @@ export function TeamSeats({
                 <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
               <div className='mt-[12px] flex justify-between border-[var(--border-1)] border-t pt-[12px] text-[12px]'>
-                <span className='font-medium text-[var(--text-primary)]'>Monthly cost change:</span>
                 <span className='font-medium text-[var(--text-primary)]'>
-                  {costChange > 0 ? '+' : ''}${costChange}
+                  Monthly credit change:
+                </span>
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {costChange > 0 ? '+' : ''}
+                  {dollarsToCredits(costChange).toLocaleString()} credits
                 </span>
               </div>
             </div>

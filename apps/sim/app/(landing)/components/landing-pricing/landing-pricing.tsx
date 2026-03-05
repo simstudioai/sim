@@ -42,7 +42,7 @@ interface PricingTier {
  * Free plan features with consistent icons
  */
 const FREE_PLAN_FEATURES: PricingFeature[] = [
-  { icon: DollarSign, text: '$20 usage limit' },
+  { icon: DollarSign, text: '2,000 credits/mo' },
   { icon: HardDrive, text: '5GB file storage' },
   { icon: Timer, text: '5 min execution limit' },
   { icon: Database, text: 'Limited log retention' },
@@ -63,7 +63,7 @@ const pricingTiers: PricingTier[] = [
   {
     name: 'PRO',
     tier: 'Pro',
-    price: '$20/mo',
+    price: '2,000 credits/mo',
     features: PRO_PLAN_FEATURES,
     ctaText: 'Get Started',
     featured: true,
@@ -71,7 +71,7 @@ const pricingTiers: PricingTier[] = [
   {
     name: 'TEAM',
     tier: 'Team',
-    price: '$40/mo',
+    price: '4,000 credits/mo',
     features: TEAM_PLAN_FEATURES,
     ctaText: 'Get Started',
   },

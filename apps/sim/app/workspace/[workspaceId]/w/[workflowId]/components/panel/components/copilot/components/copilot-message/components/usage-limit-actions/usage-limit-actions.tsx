@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -92,7 +93,8 @@ export function UsageLimitActions() {
             disabled={isDisabled}
             variant='default'
           >
-            {isLoading ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}${limit}
+            {isLoading ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+            {formatCredits(limit)}
           </Button>
         )
       })}

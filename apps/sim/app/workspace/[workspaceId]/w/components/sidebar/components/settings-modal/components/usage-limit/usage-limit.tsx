@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { createLogger } from '@sim/logger'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
+import { creditsToDollars, dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -37,7 +38,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     },
     ref
   ) => {
-    const [inputValue, setInputValue] = useState(() => currentLimit.toString())
+    const [inputValue, setInputValue] = useState(() => dollarsToCredits(currentLimit).toString())
     const [hasError, setHasError] = useState(false)
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)
@@ -56,7 +57,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       if (!canEdit) return
       setIsEditing(true)
       const displayLimit = pendingLimit !== null ? pendingLimit : currentLimit
-      setInputValue(displayLimit.toString())
+      setInputValue(dollarsToCredits(displayLimit).toString())
     }
 
     useImperativeHandle(
@@ -71,10 +72,10 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       if (pendingLimit !== null) {
         if (currentLimit === pendingLimit) {
           setPendingLimit(null)
-          setInputValue(currentLimit.toString())
+          setInputValue(dollarsToCredits(currentLimit).toString())
         }
       } else {
-        setInputValue(currentLimit.toString())
+        setInputValue(dollarsToCredits(currentLimit).toString())
       }
     }, [currentLimit, pendingLimit])
 
@@ -96,10 +97,11 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     }, [hasError])
 
     const handleSubmit = async () => {
-      const newLimit = Number.parseInt(inputValue, 10)
+      const creditInput = Number.parseInt(inputValue, 10)
+      const newLimit = creditsToDollars(creditInput)
 
-      if (Number.isNaN(newLimit) || newLimit < minimumLimit) {
-        setInputValue(currentLimit.toString())
+      if (Number.isNaN(creditInput) || newLimit < minimumLimit) {
+        setInputValue(dollarsToCredits(currentLimit).toString())
         setIsEditing(false)
         return
       }
@@ -130,7 +132,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         }
 
         setPendingLimit(newLimit)
-        setInputValue(newLimit.toString())
+        setInputValue(dollarsToCredits(newLimit).toString())
         onLimitUpdated?.(newLimit)
         setIsEditing(false)
         setErrorType(null)
@@ -146,7 +148,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         }
 
         setPendingLimit(null)
-        setInputValue(currentLimit.toString())
+        setInputValue(dollarsToCredits(currentLimit).toString())
         setHasError(true)
       }
     }
@@ -154,7 +156,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const handleCancelEdit = () => {
       setIsEditing(false)
       const displayLimit = pendingLimit !== null ? pendingLimit : currentLimit
-      setInputValue(displayLimit.toString())
+      setInputValue(dollarsToCredits(displayLimit).toString())
       setHasError(false)
       setErrorType(null)
     }
@@ -175,9 +177,6 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       <div className='flex items-center gap-[6px]'>
         {isEditing ? (
           <>
-            <span className='font-medium text-[14px] text-[var(--text-primary)] tabular-nums'>
-              $
-            </span>
             <input
               ref={inputRef}
               type='number'
@@ -197,7 +196,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 hasError && 'text-[var(--text-error)]'
               )}
-              min={minimumLimit}
+              min={dollarsToCredits(minimumLimit)}
               step='1'
               disabled={isUpdating}
               autoComplete='off'
@@ -223,7 +222,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
         ) : (
           <>
             <span className='font-medium text-[14px] text-[var(--text-primary)] tabular-nums'>
-              ${pendingLimit !== null ? pendingLimit : currentLimit}
+              {formatCredits(pendingLimit !== null ? pendingLimit : currentLimit)} credits
             </span>
             {canEdit && (
               <Badge

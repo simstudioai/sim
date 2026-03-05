@@ -17,6 +17,7 @@ import {
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
 import { logWorkflowUsageBatch } from '@/lib/billing/core/usage-log'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -319,7 +320,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
           const planName = sub?.plan || 'Free'
           const scope: 'user' | 'organization' =
-            sub && (sub.plan === 'team' || sub.plan === 'enterprise') ? 'organization' : 'user'
+            sub && isOrgPlan(sub.plan) ? 'organization' : 'user'
 
           if (scope === 'user') {
             const before = await checkUsageStatus(usr.id)

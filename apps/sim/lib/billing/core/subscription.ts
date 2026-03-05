@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
+import { isOrgPlan, isPro as isPlanPro, isTeam as isPlanTeam } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
   checkProPlan,
@@ -374,7 +375,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     if (subscription) {
       // Team/Enterprise: Use organization limit
-      if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+      if (isOrgPlan(subscription.plan)) {
         limit = await getUserUsageLimit(userId)
         logger.info('Using organization limit', {
           userId,
@@ -459,7 +460,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
       let limit = getFreeTierLimit() // Default free tier limit
       if (subscription) {
         // Team/Enterprise: Use organization limit
-        if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+        if (isOrgPlan(subscription.plan)) {
           limit = await getUserUsageLimit(userId)
         } else {
           // Pro/Free: Use individual limit
@@ -504,7 +505,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
 export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
   try {
     const subPlan = subscription.plan
-    if (subPlan === 'pro' || subPlan === 'team') {
+    if (isPlanPro(subPlan) || isPlanTeam(subPlan)) {
       const userId = subscription.referenceId
       const users = await db
         .select({ email: user.email, name: user.name })
@@ -518,14 +519,14 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
 
         const baseUrl = getBaseUrl()
         const html = await renderPlanWelcomeEmail({
-          planName: subPlan === 'pro' ? 'Pro' : 'Team',
+          planName: isPlanPro(subPlan) ? 'Pro' : 'Team',
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
         })
 
         await sendEmail({
           to: users[0].email,
-          subject: getEmailSubject(subPlan === 'pro' ? 'plan-welcome-pro' : 'plan-welcome-team'),
+          subject: getEmailSubject(isPlanPro(subPlan) ? 'plan-welcome-pro' : 'plan-welcome-team'),
           html,
           emailType: 'updates',
         })

@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
+import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
+import { formatCredits } from '@/lib/billing/credits/conversion'
+import { isEnterprise, isFree, isOrgPlan, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -20,6 +23,7 @@ import {
   ReferralCode,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import {
+  ANNUAL_PLAN_FEATURE,
   ENTERPRISE_PLAN_FEATURES,
   PRO_PLAN_FEATURES,
   TEAM_PLAN_FEATURES,
@@ -42,12 +46,16 @@ import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscrip
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
 
 const CONSTANTS = {
-  UPGRADE_ERROR_TIMEOUT: 3000, // 3 seconds
+  UPGRADE_ERROR_TIMEOUT: 3000,
   TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
-  PRO_PRICE: '$20',
-  TEAM_PRICE: '$40',
   INITIAL_TEAM_SEATS: 1,
+  DEFAULT_CREDIT_TIER: 2000,
 } as const
+
+const TIER_OPTIONS = CREDIT_TIERS.map((t) => ({
+  label: `${formatCredits(t.dollars)} credits`,
+  value: String(t.credits),
+}))
 
 type TargetPlan = 'pro' | 'team'
 
@@ -193,25 +201,31 @@ export function Subscription() {
   )
 
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
+  const [selectedTier, setSelectedTier] = useState(CONSTANTS.DEFAULT_CREDIT_TIER)
+  const [isAnnual, setIsAnnual] = useState(false)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
-  const isOrgPlan =
-    subscriptionData?.data?.plan === 'team' || subscriptionData?.data?.plan === 'enterprise'
+  const tierPricing = useMemo(() => {
+    const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? CREDIT_TIERS[0]
+    const monthly = tier.dollars
+    const discountedMonthly = Math.round(monthly * (1 - ANNUAL_DISCOUNT_RATE))
+    const annualTotal = Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+    return { monthly, discountedMonthly, annualTotal }
+  }, [selectedTier])
+
+  const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
   const isLoading =
     isSubscriptionLoading ||
     isUsageLimitLoading ||
     isWorkspaceLoading ||
-    (isOrgPlan && isOrgBillingLoading)
+    (hasOrgPlan && isOrgBillingLoading)
 
   const subscription = {
-    isFree: subscriptionData?.data?.plan === 'free' || !subscriptionData?.data?.plan,
-    isPro: subscriptionData?.data?.plan === 'pro',
-    isTeam: subscriptionData?.data?.plan === 'team',
-    isEnterprise: subscriptionData?.data?.plan === 'enterprise',
-    isPaid:
-      subscriptionData?.data?.plan &&
-      ['pro', 'team', 'enterprise'].includes(subscriptionData.data.plan) &&
-      subscriptionData?.data?.status === 'active',
+    isFree: isFree(subscriptionData?.data?.plan),
+    isPro: isPro(subscriptionData?.data?.plan),
+    isTeam: isTeam(subscriptionData?.data?.plan),
+    isEnterprise: isEnterprise(subscriptionData?.data?.plan),
+    isPaid: isPaid(subscriptionData?.data?.plan) && subscriptionData?.data?.status === 'active',
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -326,12 +340,12 @@ export function Subscription() {
   const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: TargetPlan) => {
       try {
-        await handleUpgrade(targetPlan)
+        await handleUpgrade(targetPlan, { creditTier: selectedTier, annual: isAnnual })
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Unknown error occurred')
       }
     },
-    [handleUpgrade]
+    [handleUpgrade, selectedTier, isAnnual]
   )
 
   const handleBadgeClick = useCallback(async () => {
@@ -388,6 +402,32 @@ export function Subscription() {
     logger,
   ])
 
+  const priceDisplay = useMemo(() => {
+    if (isAnnual) {
+      return (
+        <span className='flex items-baseline gap-[4px]'>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+            ${tierPricing.annualTotal}/yr
+          </span>
+          <span className='text-[12px] text-[var(--text-secondary)]'>
+            (${tierPricing.discountedMonthly}/mo)
+          </span>
+        </span>
+      )
+    }
+    return `$${tierPricing.monthly}`
+  }, [isAnnual, tierPricing])
+
+  const priceSubtext = isAnnual ? undefined : '/mo'
+
+  const planFeatures = useMemo(() => {
+    const proFeatures = isAnnual ? [...PRO_PLAN_FEATURES, ANNUAL_PLAN_FEATURE] : PRO_PLAN_FEATURES
+    const teamFeatures = isAnnual
+      ? [...TEAM_PLAN_FEATURES, ANNUAL_PLAN_FEATURE]
+      : TEAM_PLAN_FEATURES
+    return { pro: proFeatures, team: teamFeatures }
+  }, [isAnnual])
+
   const renderPlanCard = useCallback(
     (planType: 'pro' | 'team' | 'enterprise', options?: { horizontal?: boolean }) => {
       const handleContactEnterprise = () => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
@@ -395,30 +435,32 @@ export function Subscription() {
       switch (planType) {
         case 'pro':
           return (
-            <PlanCard
-              key='pro'
-              name='Pro'
-              price={CONSTANTS.PRO_PRICE}
-              priceSubtext='/month'
-              features={PRO_PLAN_FEATURES}
-              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
-              onButtonClick={() => handleUpgradeWithErrorHandling('pro')}
-              isError={upgradeError === 'pro'}
-            />
+            <div key='pro' className='flex flex-col'>
+              <PlanCard
+                name='Pro'
+                price={priceDisplay}
+                priceSubtext={priceSubtext}
+                features={planFeatures.pro}
+                buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
+                onButtonClick={() => handleUpgradeWithErrorHandling('pro')}
+                isError={upgradeError === 'pro'}
+              />
+            </div>
           )
 
         case 'team':
           return (
-            <PlanCard
-              key='team'
-              name='Team'
-              price={CONSTANTS.TEAM_PRICE}
-              priceSubtext='/month'
-              features={TEAM_PLAN_FEATURES}
-              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
-              onButtonClick={() => handleUpgradeWithErrorHandling('team')}
-              isError={upgradeError === 'team'}
-            />
+            <div key='team' className='flex flex-col'>
+              <PlanCard
+                name='Team'
+                price={priceDisplay}
+                priceSubtext={priceSubtext}
+                features={planFeatures.team}
+                buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
+                onButtonClick={() => handleUpgradeWithErrorHandling('team')}
+                isError={upgradeError === 'team'}
+              />
+            </div>
           )
 
         case 'enterprise':
@@ -438,7 +480,14 @@ export function Subscription() {
           return null
       }
     },
-    [subscription.isFree, upgradeError, handleUpgradeWithErrorHandling]
+    [
+      subscription.isFree,
+      upgradeError,
+      handleUpgradeWithErrorHandling,
+      priceDisplay,
+      priceSubtext,
+      planFeatures,
+    ]
   )
 
   if (isLoading) {
@@ -520,14 +569,62 @@ export function Subscription() {
       {/* Upgrade Plans */}
       {permissions.showUpgradePlans && (
         <div className='flex flex-col gap-[10px]'>
+          {/* Billing interval toggle */}
+          <div className='flex items-center justify-between'>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+              Billing interval
+            </span>
+            <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+              <button
+                type='button'
+                className={cn(
+                  'rounded-[5px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  !isAnnual
+                    ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                )}
+                onClick={() => setIsAnnual(false)}
+              >
+                Monthly
+              </button>
+              <button
+                type='button'
+                className={cn(
+                  'rounded-[5px] px-[10px] py-[4px] text-[12px] font-medium transition-colors',
+                  isAnnual
+                    ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                )}
+                onClick={() => setIsAnnual(true)}
+              >
+                Annual (Save 15%)
+              </button>
+            </div>
+          </div>
+
+          {/* Credit tier selector */}
+          <div className='flex items-center justify-between'>
+            <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+              Credit tier
+            </span>
+            <div className='w-[180px]'>
+              <Combobox
+                size='sm'
+                align='end'
+                dropdownWidth={180}
+                value={String(selectedTier)}
+                onChange={(value: string) => setSelectedTier(Number(value))}
+                placeholder='Select credit tier'
+                options={TIER_OPTIONS}
+              />
+            </div>
+          </div>
+
           {/* Render plans based on what should be visible */}
           {(() => {
             const hasEnterprise = visiblePlans.includes('enterprise')
             const nonEnterprisePlans = visiblePlans.filter((plan) => plan !== 'enterprise')
 
-            // Free users: Pro + Team in 2-col grid, Enterprise horizontal
-            // Pro users: Team + Enterprise both vertical (single column)
-            // Team admins: Enterprise only (horizontal)
             const showEnterpriseHorizontal =
               subscription.isFree || (subscription.isTeam && isTeamAdmin)
 

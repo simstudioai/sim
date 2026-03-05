@@ -14,6 +14,7 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
+import { creditsToDollars, formatCredits } from '@/lib/billing/credits/conversion'
 
 const logger = createLogger('CreditBalance')
 
@@ -51,15 +52,16 @@ export function CreditBalance({
   const handlePurchase = async () => {
     if (!requestId || isPurchasing) return
 
-    const numAmount = Number.parseInt(amount, 10)
+    const creditAmount = Number.parseInt(amount, 10)
+    const numAmount = creditsToDollars(creditAmount)
 
-    if (Number.isNaN(numAmount) || numAmount < 10) {
-      setError('Minimum purchase is $10')
+    if (Number.isNaN(creditAmount) || numAmount < 10) {
+      setError('Minimum purchase is 1,000 credits')
       return
     }
 
     if (numAmount > 1000) {
-      setError('Maximum purchase is $1,000')
+      setError('Maximum purchase is 100,000 credits')
       return
     }
 
@@ -109,7 +111,7 @@ export function CreditBalance({
       <div className='flex items-center gap-[8px]'>
         <Label>Credit Balance:</Label>
         <span className='text-[12px] text-[var(--text-secondary)]'>
-          {isLoading ? '...' : `$${balance.toFixed(2)}`}
+          {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
       </div>
 
@@ -130,28 +132,23 @@ export function CreditBalance({
               ) : (
                 <div className='space-y-[12px]'>
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='credit-amount'>Amount (USD)</Label>
-                    <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[12px] text-[var(--text-muted)]'>
-                        $
-                      </span>
-                      <Input
-                        id='credit-amount'
-                        type='text'
-                        inputMode='numeric'
-                        value={amount}
-                        onChange={(e) => handleAmountChange(e.target.value)}
-                        placeholder='50'
-                        className='pl-[28px]'
-                        disabled={isPurchasing}
-                      />
-                    </div>
+                    <Label htmlFor='credit-amount'>Amount (credits)</Label>
+                    <Input
+                      id='credit-amount'
+                      type='text'
+                      inputMode='numeric'
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder='5,000'
+                      disabled={isPurchasing}
+                    />
                     {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                     <p className='text-[12px] text-[var(--text-secondary)]'>
-                      Credits are used before overage charges. Min: $10, Max: $1,000.
+                      Credits are used before overage charges. Min: 1,000 credits, Max: 100,000
+                      credits.
                     </p>
                   </div>
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
