@@ -97,8 +97,8 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
           canvas_id: '',
           channel: '',
           title: '',
-          error: data.error || 'Unknown error',
         },
+        error: data.error || 'Unknown error',
       }
     }
 
