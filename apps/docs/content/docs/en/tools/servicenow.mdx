@@ -69,7 +69,9 @@ Read records from a ServiceNow table
 | `number` | string | No | Record number \(e.g., INC0010001\) |
 | `query` | string | No | Encoded query string \(e.g., "active=true^priority=1"\) |
 | `limit` | number | No | Maximum number of records to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of records to skip for pagination \(e.g., 0, 10, 20\) |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., sys_id,number,short_description,state\) |
+| `displayValue` | string | No | Return display values for reference fields: "true" \(display only\), "false" \(sys_id only\), or "all" \(both\) |
 
 #### Output
 
