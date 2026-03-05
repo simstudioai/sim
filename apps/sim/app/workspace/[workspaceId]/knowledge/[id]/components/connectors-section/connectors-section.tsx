@@ -26,6 +26,7 @@ import {
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getCanonicalScopesForProvider,
@@ -73,8 +74,8 @@ export function ConnectorsSection({
   onAddConnector,
 }: ConnectorsSectionProps) {
   const { mutate: triggerSync, isPending: isSyncing } = useTriggerSync()
-  const { mutate: updateConnector } = useUpdateConnector()
-  const { mutate: deleteConnector } = useDeleteConnector()
+  const { mutate: updateConnector, isPending: isUpdating } = useUpdateConnector()
+  const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -126,8 +127,7 @@ export function ConnectorsSection({
     [knowledgeBaseId, triggerSync, isSyncOnCooldown]
   )
 
-  if (isLoading) return null
-  if (connectors.length === 0 && !canEdit) return null
+  if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
     <div className='mt-[16px]'>
@@ -149,7 +149,27 @@ export function ConnectorsSection({
         <p className='mt-[8px] text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
       )}
 
-      {connectors.length === 0 ? (
+      {isLoading ? (
+        <div className='mt-[8px] flex flex-col gap-[8px]'>
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className='rounded-[8px] border border-[var(--border-1)] px-[12px] py-[10px]'
+            >
+              <div className='flex items-center gap-[10px]'>
+                <Skeleton className='h-5 w-5 flex-shrink-0 rounded-[4px]' />
+                <div className='flex flex-col gap-[4px]'>
+                  <div className='flex items-center gap-[8px]'>
+                    <Skeleton className='h-[14px] w-[100px]' />
+                    <Skeleton className='h-[18px] w-[52px] rounded-full' />
+                  </div>
+                  <Skeleton className='h-[12px] w-[180px]' />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : connectors.length === 0 ? (
         <p className='mt-[8px] text-[13px] text-[var(--text-muted)]'>
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
@@ -162,6 +182,7 @@ export function ConnectorsSection({
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
               isSyncing={isSyncing}
+              isUpdating={isUpdating}
               syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={() => handleSync(connector.id)}
               onTogglePause={() =>
@@ -208,28 +229,32 @@ export function ConnectorsSection({
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={() => setDeleteTarget(null)}>
+            <Button variant='default' onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
               Cancel
             </Button>
             <Button
               variant='destructive'
+              disabled={isDeleting}
               onClick={() => {
                 if (deleteTarget) {
                   deleteConnector(
                     { knowledgeBaseId, connectorId: deleteTarget },
                     {
-                      onSuccess: () => setError(null),
+                      onSuccess: () => {
+                        setError(null)
+                        setDeleteTarget(null)
+                      },
                       onError: (err) => {
                         logger.error('Delete connector failed', { error: err.message })
                         setError(err.message)
+                        setDeleteTarget(null)
                       },
                     }
                   )
-                  setDeleteTarget(null)
                 }
               }}
             >
-              Delete
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -243,6 +268,7 @@ interface ConnectorCardProps {
   knowledgeBaseId: string
   canEdit: boolean
   isSyncing: boolean
+  isUpdating: boolean
   syncCooldown: boolean
   onSync: () => void
   onEdit: () => void
@@ -255,6 +281,7 @@ function ConnectorCard({
   knowledgeBaseId,
   canEdit,
   isSyncing,
+  isUpdating,
   syncCooldown,
   onSync,
   onEdit,
@@ -370,8 +397,15 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button variant='ghost' className='h-7 w-7 p-0' onClick={onTogglePause}>
-                    {connector.status === 'paused' ? (
+                  <Button
+                    variant='ghost'
+                    className='h-7 w-7 p-0'
+                    onClick={onTogglePause}
+                    disabled={isUpdating}
+                  >
+                    {isUpdating ? (
+                      <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                    ) : connector.status === 'paused' ? (
                       <Play className='h-3.5 w-3.5' />
                     ) : (
                       <Pause className='h-3.5 w-3.5' />

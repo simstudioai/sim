@@ -54,10 +54,7 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('test-req-id'),
 }))
 
-import {
-  GET,
-  PATCH,
-} from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
+import { GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
 
 describe('Connector Documents API Route', () => {
   const mockParams = Promise.resolve({ id: 'kb-123', connectorId: 'conn-456' })

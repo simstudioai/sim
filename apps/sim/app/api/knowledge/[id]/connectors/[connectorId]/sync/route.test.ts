@@ -4,25 +4,23 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckSession, mockCheckWriteAccess, mockDispatchSync, mockDbChain } = vi.hoisted(
-  () => {
-    const chain = {
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockResolvedValue([]),
-      limit: vi.fn().mockResolvedValue([]),
-      update: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-    }
-    return {
-      mockCheckSession: vi.fn(),
-      mockCheckWriteAccess: vi.fn(),
-      mockDispatchSync: vi.fn().mockResolvedValue(undefined),
-      mockDbChain: chain,
-    }
+const { mockCheckSession, mockCheckWriteAccess, mockDispatchSync, mockDbChain } = vi.hoisted(() => {
+  const chain = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockResolvedValue([]),
+    limit: vi.fn().mockResolvedValue([]),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
   }
-)
+  return {
+    mockCheckSession: vi.fn(),
+    mockCheckWriteAccess: vi.fn(),
+    mockDispatchSync: vi.fn().mockResolvedValue(undefined),
+    mockDbChain: chain,
+  }
+})
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@sim/db/schema', () => ({
