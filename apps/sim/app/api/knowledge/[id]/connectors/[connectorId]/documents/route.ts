@@ -171,7 +171,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           and(
             eq(document.connectorId, connectorId),
             inArray(document.id, documentIds),
-            eq(document.userExcluded, true)
+            eq(document.userExcluded, true),
+            isNull(document.deletedAt)
           )
         )
         .returning({ id: document.id })

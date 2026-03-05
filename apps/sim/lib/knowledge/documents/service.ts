@@ -824,6 +824,10 @@ const ALLOWED_TAG_SLOTS = new Set([
   'boolean3',
 ])
 
+function escapeLikePattern(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   if (!ALLOWED_TAG_SLOTS.has(filter.tagSlot)) return undefined
 
@@ -836,14 +840,22 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
         return eq(col as typeof document.tag1, v)
       case 'neq':
         return ne(col as typeof document.tag1, v)
-      case 'contains':
-        return sql`LOWER(${col}) LIKE LOWER(${`%${v}%`})`
-      case 'not_contains':
-        return sql`LOWER(${col}) NOT LIKE LOWER(${`%${v}%`})`
-      case 'starts_with':
-        return sql`LOWER(${col}) LIKE LOWER(${`${v}%`})`
-      case 'ends_with':
-        return sql`LOWER(${col}) LIKE LOWER(${`%${v}`})`
+      case 'contains': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'not_contains': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) NOT LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'starts_with': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'ends_with': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}`}) ESCAPE '\\'`
+      }
       default:
         return undefined
     }

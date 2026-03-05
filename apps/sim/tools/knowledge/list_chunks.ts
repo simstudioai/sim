@@ -54,7 +54,7 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
       if (params.enabled) queryParams.set('enabled', params.enabled)
       if (params.limit)
         queryParams.set('limit', String(Math.max(1, Math.min(100, Number(params.limit)))))
-      if (params.offset) queryParams.set('offset', String(params.offset))
+      if (params.offset != null) queryParams.set('offset', String(params.offset))
       const qs = queryParams.toString()
       return `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks${qs ? `?${qs}` : ''}`
     },
