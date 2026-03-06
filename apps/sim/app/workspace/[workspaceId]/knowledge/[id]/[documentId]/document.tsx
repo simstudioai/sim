@@ -384,6 +384,7 @@ export function Document({
 
   const combinedError = documentError || searchError || initialError
 
+  const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
@@ -781,7 +782,9 @@ export function Document({
                   <Button
                     onClick={() => setIsCreateChunkModalOpen(true)}
                     disabled={
-                      documentData?.processingStatus === 'failed' || !userPermissions.canEdit
+                      documentData?.processingStatus === 'failed' ||
+                      !userPermissions.canEdit ||
+                      isConnectorDocument
                     }
                     variant='tertiary'
                     className='h-[32px] rounded-[6px]'
@@ -791,6 +794,11 @@ export function Document({
                 </Tooltip.Trigger>
                 {!userPermissions.canEdit && (
                   <Tooltip.Content>Write permission required to create chunks</Tooltip.Content>
+                )}
+                {userPermissions.canEdit && isConnectorDocument && (
+                  <Tooltip.Content>
+                    Chunks from connector-synced documents are read-only
+                  </Tooltip.Content>
                 )}
               </Tooltip.Root>
             </div>
@@ -1217,13 +1225,20 @@ export function Document({
             : undefined
         }
         onAddChunk={
-          userPermissions.canEdit && documentData?.processingStatus !== 'failed'
+          userPermissions.canEdit &&
+          documentData?.processingStatus !== 'failed' &&
+          !isConnectorDocument
             ? () => setIsCreateChunkModalOpen(true)
             : undefined
         }
         disableToggleEnabled={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
-        disableAddChunk={!userPermissions.canEdit || documentData?.processingStatus === 'failed'}
+        disableAddChunk={
+          !userPermissions.canEdit ||
+          documentData?.processingStatus === 'failed' ||
+          isConnectorDocument
+        }
+        isConnectorDocument={isConnectorDocument}
       />
     </div>
   )

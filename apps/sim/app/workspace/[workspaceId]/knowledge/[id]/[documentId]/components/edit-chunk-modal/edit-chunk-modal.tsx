@@ -50,6 +50,8 @@ export function EditChunkModal({
   maxChunkSize,
 }: EditChunkModalProps) {
   const userPermissions = useUserPermissionsContext()
+  const isConnectorDocument = Boolean(document?.connectorId)
+  const canEditChunk = userPermissions.canEdit && !isConnectorDocument
   const {
     mutate: updateChunk,
     isPending: isSaving,
@@ -186,7 +188,9 @@ export function EditChunkModal({
         <ModalContent size='lg'>
           <ModalHeader>
             <div className='flex items-center gap-[8px]'>
-              <span>Edit Chunk #{chunk.chunkIndex}</span>
+              <span>
+                {canEditChunk ? 'Edit' : 'View'} Chunk #{chunk.chunkIndex}
+              </span>
               {/* Navigation Controls */}
               <div className='flex items-center gap-[6px]'>
                 <Tooltip.Root>
@@ -270,11 +274,15 @@ export function EditChunkModal({
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
                     placeholder={
-                      userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
+                      canEditChunk
+                        ? 'Enter chunk content...'
+                        : isConnectorDocument
+                          ? 'This chunk is synced from a connector and cannot be edited'
+                          : 'Read-only view'
                     }
                     rows={20}
-                    disabled={isSaving || isNavigating || !userPermissions.canEdit}
-                    readOnly={!userPermissions.canEdit}
+                    disabled={isSaving || isNavigating || !canEditChunk}
+                    readOnly={!canEditChunk}
                   />
                 )}
               </div>
@@ -306,7 +314,7 @@ export function EditChunkModal({
               >
                 Cancel
               </Button>
-              {userPermissions.canEdit && (
+              {canEditChunk && (
                 <Button
                   variant='tertiary'
                   onClick={handleSaveContent}
