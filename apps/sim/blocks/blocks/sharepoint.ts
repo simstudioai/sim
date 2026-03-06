@@ -113,11 +113,25 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     },
 
     {
+      id: 'listSelector',
+      title: 'List',
+      type: 'file-selector',
+      canonicalParamId: 'listId',
+      serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.lists',
+      selectorAllowSearch: false,
+      placeholder: 'Select a list',
+      dependsOn: ['credential', 'siteSelector'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
+    },
+    {
       id: 'listId',
       title: 'List ID',
       type: 'short-input',
-      placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
       canonicalParamId: 'listId',
+      placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
     },
 

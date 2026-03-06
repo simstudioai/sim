@@ -53,48 +53,104 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // Read/Write operation - Page ID
+    // Page selector for Read Page and Append Content
+    {
+      id: 'pageSelector',
+      title: 'Page',
+      type: 'file-selector',
+      canonicalParamId: 'pageId',
+      serviceId: 'notion',
+      selectorKey: 'notion.pages',
+      selectorAllowSearch: true,
+      placeholder: 'Select Notion page',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ['notion_read', 'notion_write'] },
+      required: { field: 'operation', value: ['notion_read', 'notion_write'] },
+    },
     {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Notion page ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['notion_read', 'notion_write'] },
+      required: { field: 'operation', value: ['notion_read', 'notion_write'] },
+    },
+    // Database selector (consolidated across read_database, query_database, add_database_row)
+    {
+      id: 'databaseSelector',
+      title: 'Database',
+      type: 'project-selector',
+      canonicalParamId: 'databaseId',
+      serviceId: 'notion',
+      selectorKey: 'notion.databases',
+      selectorAllowSearch: true,
+      placeholder: 'Select Notion database',
+      dependsOn: ['credential'],
+      mode: 'basic',
       condition: {
         field: 'operation',
-        value: 'notion_read',
+        value: ['notion_read_database', 'notion_query_database', 'notion_add_database_row'],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['notion_read_database', 'notion_query_database', 'notion_add_database_row'],
+      },
     },
     {
       id: 'databaseId',
       title: 'Database ID',
       type: 'short-input',
+      canonicalParamId: 'databaseId',
       placeholder: 'Enter Notion database ID',
+      mode: 'advanced',
       condition: {
         field: 'operation',
-        value: 'notion_read_database',
+        value: ['notion_read_database', 'notion_query_database', 'notion_add_database_row'],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['notion_read_database', 'notion_query_database', 'notion_add_database_row'],
+      },
     },
+    // Parent page selector (consolidated across create_page, create_database)
     {
-      id: 'pageId',
-      title: 'Page ID',
-      type: 'short-input',
-      placeholder: 'Enter Notion page ID',
+      id: 'parentSelector',
+      title: 'Parent Page',
+      type: 'file-selector',
+      canonicalParamId: 'parentId',
+      serviceId: 'notion',
+      selectorKey: 'notion.pages',
+      selectorAllowSearch: true,
+      placeholder: 'Select parent page',
+      dependsOn: ['credential'],
+      mode: 'basic',
       condition: {
         field: 'operation',
-        value: 'notion_write',
+        value: ['notion_create_page', 'notion_create_database'],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['notion_create_page', 'notion_create_database'],
+      },
     },
-    // Create operation fields
     {
       id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
+      canonicalParamId: 'parentId',
       placeholder: 'ID of parent page',
-      condition: { field: 'operation', value: 'notion_create_page' },
-      required: true,
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['notion_create_page', 'notion_create_database'],
+      },
+      required: {
+        field: 'operation',
+        value: ['notion_create_page', 'notion_create_database'],
+      },
     },
     {
       id: 'title',
@@ -148,14 +204,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     // Query Database Fields
-    {
-      id: 'databaseId',
-      title: 'Database ID',
-      type: 'short-input',
-      placeholder: 'Enter Notion database ID',
-      condition: { field: 'operation', value: 'notion_query_database' },
-      required: true,
-    },
     {
       id: 'filter',
       title: 'Filter',
@@ -219,14 +267,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
     // Create Database Fields
     {
-      id: 'parentId',
-      title: 'Parent Page ID',
-      type: 'short-input',
-      placeholder: 'ID of parent page where database will be created',
-      condition: { field: 'operation', value: 'notion_create_database' },
-      required: true,
-    },
-    {
       id: 'title',
       title: 'Database Title',
       type: 'short-input',
@@ -256,14 +296,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     // Add Database Row Fields
-    {
-      id: 'databaseId',
-      title: 'Database ID',
-      type: 'short-input',
-      placeholder: 'Enter Notion database ID',
-      condition: { field: 'operation', value: 'notion_add_database_row' },
-      required: true,
-    },
     {
       id: 'properties',
       title: 'Row Properties',

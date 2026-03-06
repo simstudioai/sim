@@ -51,12 +51,27 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       required: true,
     },
 
-    // Task List ID - shown for all task operations (not list_task_lists)
+    // Task List - shown for all task operations (not list_task_lists)
+    {
+      id: 'taskListSelector',
+      title: 'Task List',
+      type: 'project-selector',
+      canonicalParamId: 'taskListId',
+      serviceId: 'google-tasks',
+      selectorKey: 'google.tasks.lists',
+      selectorAllowSearch: false,
+      placeholder: 'Select task list',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'list_task_lists', not: true },
+    },
     {
       id: 'taskListId',
       title: 'Task List ID',
       type: 'short-input',
+      canonicalParamId: 'taskListId',
       placeholder: 'Task list ID (leave empty for default list)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'list_task_lists', not: true },
     },
 

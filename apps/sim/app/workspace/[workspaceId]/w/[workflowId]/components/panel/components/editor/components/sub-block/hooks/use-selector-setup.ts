@@ -78,4 +78,7 @@ const CONTEXT_FIELD_SET: Record<string, true> = {
   collectionId: true,
   spreadsheetId: true,
   fileId: true,
+  baseId: true,
+  datasetId: true,
+  serviceDeskId: true,
 }
