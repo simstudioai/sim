@@ -1969,9 +1969,8 @@ export const ToolInput = memo(function ToolInput({
                     }
 
                     if (useSubBlocks && displaySubBlocks.length > 0) {
-                      const allBlockSubBlocks = toolBlock?.subBlocks || []
                       const coveredParamIds = new Set(
-                        allBlockSubBlocks.flatMap((sb) => {
+                        displaySubBlocks.flatMap((sb) => {
                           const ids = [sb.id]
                           if (sb.canonicalParamId) ids.push(sb.canonicalParamId)
                           const cId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
