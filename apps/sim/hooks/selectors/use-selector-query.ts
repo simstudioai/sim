@@ -59,7 +59,7 @@ export function useSelectorOptionDetail(
   const enabled = args.enabled ?? baseEnabled
 
   const query = useQuery<SelectorOption | null>({
-    queryKey: [...definition.getQueryKey(queryArgs), 'detail', args.detailId ?? 'none'],
+    queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
     queryFn: () => definition.fetchById!(queryArgs),
     enabled,
     staleTime: definition.staleTime ?? 300_000,

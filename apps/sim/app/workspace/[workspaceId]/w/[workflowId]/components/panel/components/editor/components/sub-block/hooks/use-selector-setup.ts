@@ -49,7 +49,7 @@ export function useSelectorSetup(
       const str = String(value)
       if (isEnvVarReference(str)) {
         const varName = extractEnvVarName(str)
-        resolved[key] = envVariables[varName]?.value ?? value
+        resolved[key] = envVariables[varName]?.value ?? undefined
       } else {
         resolved[key] = value
       }
