@@ -348,7 +348,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       title: 'Document Library ID',
       type: 'short-input',
       placeholder: 'Enter document library (drive) ID',
-      canonicalParamId: 'driveId',
+      canonicalParamId: 'selected_driveId',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
     },
@@ -374,7 +374,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'uploadFiles',
       title: 'Files',
       type: 'file-upload',
-      canonicalParamId: 'files',
+      canonicalParamId: 'selected_files',
       placeholder: 'Upload files to SharePoint',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'basic',
@@ -386,7 +386,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'files',
       title: 'Files',
       type: 'short-input',
-      canonicalParamId: 'files',
+      canonicalParamId: 'selected_files',
       placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
@@ -438,7 +438,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           listItemFields, // canonical param
           includeColumns,
           includeItems,
-          files, // canonical param from uploadFiles (basic) or files (advanced)
+          selected_files, // canonical param from uploadFiles (basic) or files (advanced)
+          selected_driveId, // canonical param from driveId
           columnDefinitions,
           selected_listId,
           ...others
@@ -485,7 +486,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         // Handle file upload files parameter using canonical param
-        const normalizedFiles = normalizeFileInput(files)
+        const normalizedFiles = normalizeFileInput(selected_files)
         const baseParams: Record<string, any> = {
           oauthCredential,
           siteId: effectiveSiteId || undefined,
@@ -493,6 +494,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           mimeType: mimeType,
           ...others,
           ...(selected_listId ? { listId: selected_listId } : {}),
+          ...(selected_driveId ? { driveId: selected_driveId } : {}),
           itemId: sanitizedItemId,
           listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
@@ -533,10 +535,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     includeItems: { type: 'boolean', description: 'Include items in response' },
     itemId: { type: 'string', description: 'List item ID (canonical param)' },
     listItemFields: { type: 'string', description: 'List item fields (canonical param)' },
-    driveId: { type: 'string', description: 'Document library (drive) ID (canonical param)' },
+    selected_driveId: { type: 'string', description: 'Document library (drive) ID (canonical param)' },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
-    files: { type: 'array', description: 'Files to upload (canonical param)' },
+    selected_files: { type: 'array', description: 'Files to upload (canonical param)' },
   },
   outputs: {
     sites: {
