@@ -976,6 +976,12 @@ async function generateWithModelsLab(
   logger.info(`[${requestId}] Starting ModelsLab video generation, mode: ${mode}`)
 
   const isImg2Video = mode === 'img2video'
+
+  // Validate img2video requires imageUrl
+  if (isImg2Video && !imageUrl) {
+    throw new Error('imageUrl is required for img2video mode')
+  }
+
   const endpoint = isImg2Video
     ? 'https://modelslab.com/api/v6/video/img2video'
     : 'https://modelslab.com/api/v6/video/text2video'
