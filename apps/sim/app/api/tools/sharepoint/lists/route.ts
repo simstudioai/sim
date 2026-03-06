@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    const url = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=100`
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=100`
 
     const response = await fetch(url, {
       headers: {
