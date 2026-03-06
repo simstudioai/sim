@@ -721,10 +721,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     ],
     enabled: ({ context }) => Boolean(context.credentialId && context.siteId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'sharepoint.lists')
       if (!context.siteId) throw new Error('Missing site ID for sharepoint.lists selector')
       const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
         searchParams: {
-          credentialId: context.credentialId,
+          credentialId,
           siteId: context.siteId,
         },
       })
@@ -732,9 +733,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId || !context.siteId) return null
+      const credentialId = ensureCredential(context, 'sharepoint.lists')
       const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
         searchParams: {
-          credentialId: context.credentialId,
+          credentialId,
           siteId: context.siteId,
         },
       })

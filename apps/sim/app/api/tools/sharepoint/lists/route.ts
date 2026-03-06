@@ -46,6 +46,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
     }
 
+    const SITE_ID_RE = /^[\w.\-,]+$/
+    if (siteId.length > 512 || !SITE_ID_RE.test(siteId)) {
+      return NextResponse.json({ error: 'Invalid site ID format' }, { status: 400 })
+    }
+
     const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId', 255)
     if (!credentialIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid credential ID`, { error: credentialIdValidation.error })

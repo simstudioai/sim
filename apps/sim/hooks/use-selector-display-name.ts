@@ -18,6 +18,9 @@ interface SelectorDisplayNameArgs {
   planId?: string
   teamId?: string
   knowledgeBaseId?: string
+  baseId?: string
+  datasetId?: string
+  serviceDeskId?: string
 }
 
 export function useSelectorDisplayName({
@@ -30,6 +33,9 @@ export function useSelectorDisplayName({
   planId,
   teamId,
   knowledgeBaseId,
+  baseId,
+  datasetId,
+  serviceDeskId,
 }: SelectorDisplayNameArgs) {
   const detailId = typeof value === 'string' && value.length > 0 ? value : undefined
 
@@ -43,6 +49,9 @@ export function useSelectorDisplayName({
       planId,
       teamId,
       knowledgeBaseId,
+      baseId,
+      datasetId,
+      serviceDeskId,
     })
   }, [
     subBlock,
@@ -54,6 +63,9 @@ export function useSelectorDisplayName({
     planId,
     teamId,
     knowledgeBaseId,
+    baseId,
+    datasetId,
+    serviceDeskId,
   ])
 
   const key = resolution?.key

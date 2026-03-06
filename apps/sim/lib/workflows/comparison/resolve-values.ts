@@ -52,6 +52,9 @@ interface ExtendedSelectorContext {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  baseId?: string
+  datasetId?: string
+  serviceDeskId?: string
 }
 
 function getSemanticFallback(subBlockId: string, subBlockConfig?: SubBlockConfig): string {
@@ -163,6 +166,9 @@ async function resolveSelectorValue(
       siteId: extendedContext.siteId,
       collectionId: extendedContext.collectionId,
       spreadsheetId: extendedContext.spreadsheetId,
+      baseId: extendedContext.baseId,
+      datasetId: extendedContext.datasetId,
+      serviceDeskId: extendedContext.serviceDeskId,
     }
 
     if (definition.fetchById) {
@@ -240,6 +246,9 @@ function extractExtendedContext(
     siteId: getStringValue('siteId'),
     collectionId: getStringValue('collectionId'),
     spreadsheetId: getStringValue('spreadsheetId') || getStringValue('fileId'),
+    baseId: getStringValue('baseId') || getStringValue('baseSelector'),
+    datasetId: getStringValue('datasetId') || getStringValue('datasetSelector'),
+    serviceDeskId: getStringValue('serviceDeskId') || getStringValue('serviceDeskSelector'),
   }
 }
 
@@ -313,6 +322,9 @@ export async function resolveValueForDisplay(
       siteId: extendedContext.siteId,
       collectionId: extendedContext.collectionId,
       spreadsheetId: extendedContext.spreadsheetId,
+      baseId: extendedContext.baseId,
+      datasetId: extendedContext.datasetId,
+      serviceDeskId: extendedContext.serviceDeskId,
     })
 
     if (resolution?.key) {
