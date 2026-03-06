@@ -256,6 +256,60 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'BROWSER_USE_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'browser_use',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        const INIT_COST = 0.01
+        const STEP_COSTS: Record<string, number> = {
+          'browser-use-llm': 0.002,
+          'browser-use-2.0': 0.006,
+          'o3': 0.03,
+          'o4-mini': 0.03,
+          'gemini-3-pro-preview': 0.03,
+          'gemini-3-flash-preview': 0.015,
+          'gemini-flash-latest': 0.0075,
+          'gemini-flash-lite-latest': 0.005,
+          'gemini-2.5-flash': 0.0075,
+          'gemini-2.5-pro': 0.03,
+          'claude-sonnet-4-5-20250929': 0.05,
+          'claude-opus-4-5-20251101': 0.05,
+          'claude-3-7-sonnet-20250219': 0.05,
+          'gpt-4o': 0.006,
+          'gpt-4o-mini': 0.006,
+          'gpt-4.1': 0.006,
+          'gpt-4.1-mini': 0.006,
+          'llama-4-maverick-17b-128e-instruct': 0.006,
+        }
+        const DEFAULT_STEP_COST = 0.006
+        const model = (params.model as string) || 'browser-use-2.0'
+        const knownCost = STEP_COSTS[model]
+        if (!knownCost) {
+          logger.warn(`Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`)
+        }
+        const stepCost = knownCost ?? DEFAULT_STEP_COST
+        const steps = output.steps as unknown[] | undefined
+        const stepCount = steps?.length || 0
+        const total = INIT_COST + stepCount * stepCost
+        logger.info('Browser Use hosted key cost calculated', {
+          model,
+          stepCount,
+          stepCost,
+          initCost: INIT_COST,
+          total,
+        })
+        return { cost: total, metadata: { model, stepCount, stepCost, initCost: INIT_COST } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
+
   request: {
     url: 'https://api.browser-use.com/api/v2/tasks',
     method: 'POST',

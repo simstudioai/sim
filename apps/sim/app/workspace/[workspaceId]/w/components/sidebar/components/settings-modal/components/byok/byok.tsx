@@ -13,7 +13,14 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { AnthropicIcon, ExaAIIcon, GeminiIcon, MistralIcon, OpenAIIcon } from '@/components/icons'
+import {
+  AnthropicIcon,
+  BrowserUseIcon,
+  ExaAIIcon,
+  GeminiIcon,
+  MistralIcon,
+  OpenAIIcon,
+} from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
   type BYOKKey,
@@ -66,6 +73,13 @@ const PROVIDERS: {
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+  },
+  {
+    id: 'browser_use',
+    name: 'Browser Use',
+    icon: BrowserUseIcon,
+    description: 'Browser automation tasks',
+    placeholder: 'Enter your Browser Use API key',
   },
 ]
 
