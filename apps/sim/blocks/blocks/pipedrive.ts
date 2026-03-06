@@ -775,7 +775,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           oauthCredential,
         }
 
-        if (selected_pipeline_id !== undefined && selected_pipeline_id !== null && selected_pipeline_id !== '') {
+        if (
+          selected_pipeline_id !== undefined &&
+          selected_pipeline_id !== null &&
+          selected_pipeline_id !== ''
+        ) {
           cleanParams.pipeline_id = selected_pipeline_id
         }
 
