@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -30,14 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    if (!siteId) {
-      logger.error(`[${requestId}] Missing siteId in request`)
-      return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
-    }
-
-    const SITE_ID_RE = /^[\w.\-,]+$/
-    if (siteId.length > 512 || !SITE_ID_RE.test(siteId)) {
-      return NextResponse.json({ error: 'Invalid site ID format' }, { status: 400 })
+    const siteIdValidation = validateSharePointSiteId(siteId)
+    if (!siteIdValidation.isValid) {
+      logger.error(`[${requestId}] Invalid siteId: ${siteIdValidation.error}`)
+      return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request as any, {
@@ -61,7 +58,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=100`
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteIdValidation.sanitized}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=100`
 
     const response = await fetch(url, {
       headers: {
