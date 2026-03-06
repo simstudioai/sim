@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const data = await response.json()
     const eventTypes = (data.data || []).map(
       (eventType: { id: number; title: string; slug: string }) => ({
-        id: eventType.id,
+        id: String(eventType.id),
         title: eventType.title,
         slug: eventType.slug,
       })

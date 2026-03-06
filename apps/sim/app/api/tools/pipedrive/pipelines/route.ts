@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
     const data = await response.json()
     const pipelines = (data.data || []).map((pipeline: { id: number; name: string }) => ({
-      id: pipeline.id,
+      id: String(pipeline.id),
       name: pipeline.name,
     }))
 

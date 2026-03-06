@@ -70,12 +70,11 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    const boards = (data || [])
-      .filter((board: { id: string; name: string; closed: boolean }) => !board.closed)
-      .map((board: { id: string; name: string }) => ({
-        id: board.id,
-        name: board.name,
-      }))
+    const boards = (data || []).map((board: { id: string; name: string; closed: boolean }) => ({
+      id: board.id,
+      name: board.name,
+      closed: board.closed,
+    }))
 
     return NextResponse.json({ boards })
   } catch (error) {

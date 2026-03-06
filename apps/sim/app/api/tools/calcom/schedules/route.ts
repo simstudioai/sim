@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     const data = await response.json()
     const schedules = (data.data || []).map((schedule: { id: number; name: string }) => ({
-      id: schedule.id,
+      id: String(schedule.id),
       name: schedule.name,
     }))
 

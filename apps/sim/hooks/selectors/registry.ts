@@ -32,7 +32,7 @@ type CalcomSchedule = { id: number; name: string }
 type GoogleTaskList = { id: string; title: string }
 type PlannerPlan = { id: string; title: string }
 type SharepointList = { id: string; displayName: string }
-type TrelloBoard = { id: string; name: string }
+type TrelloBoard = { id: string; name: string; closed?: boolean }
 type SlackChannel = { id: string; name: string }
 type SlackUser = { id: string; name: string; real_name: string }
 type FolderResponse = { id: string; name: string }
@@ -771,7 +771,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         method: 'POST',
         body,
       })
-      return (data.boards || []).map((board) => ({ id: board.id, label: board.name }))
+      return (data.boards || [])
+        .filter((board) => !board.closed)
+        .map((board) => ({ id: board.id, label: board.name }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
