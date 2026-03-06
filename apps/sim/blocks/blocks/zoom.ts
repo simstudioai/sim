@@ -104,7 +104,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       },
     },
     {
-      id: 'meetingId',
+      id: 'manualMeetingId',
       title: 'Meeting ID',
       type: 'short-input',
       canonicalParamId: 'meetingId',

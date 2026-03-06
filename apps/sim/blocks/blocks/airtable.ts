@@ -72,7 +72,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       required: { field: 'operation', value: 'listBases', not: true },
     },
     {
-      id: 'baseId',
+      id: 'manualBaseId',
       title: 'Base ID',
       type: 'short-input',
       canonicalParamId: 'baseId',
@@ -96,7 +96,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       required: { field: 'operation', value: ['listBases', 'listTables'], not: true },
     },
     {
-      id: 'tableId',
+      id: 'manualTableId',
       title: 'Table ID',
       type: 'short-input',
       canonicalParamId: 'tableId',

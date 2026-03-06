@@ -121,7 +121,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
       },
     },
     {
-      id: 'objectType',
+      id: 'manualObjectType',
       title: 'Object Type',
       type: 'short-input',
       canonicalParamId: 'objectType',
@@ -597,7 +597,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       },
     },
     {
-      id: 'listIdOrSlug',
+      id: 'manualListIdOrSlug',
       title: 'List ID or Slug',
       type: 'short-input',
       canonicalParamId: 'listIdOrSlug',

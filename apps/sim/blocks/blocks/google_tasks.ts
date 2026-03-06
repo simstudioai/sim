@@ -66,7 +66,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       condition: { field: 'operation', value: 'list_task_lists', not: true },
     },
     {
-      id: 'taskListId',
+      id: 'manualTaskListId',
       title: 'Task List ID',
       type: 'short-input',
       canonicalParamId: 'taskListId',

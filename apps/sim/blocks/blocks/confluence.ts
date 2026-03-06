@@ -157,7 +157,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       required: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
-      id: 'spaceId',
+      id: 'manualSpaceId',
       title: 'Space ID',
       type: 'short-input',
       canonicalParamId: 'spaceId',

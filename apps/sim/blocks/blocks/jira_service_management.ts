@@ -146,7 +146,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       },
     },
     {
-      id: 'serviceDeskId',
+      id: 'manualServiceDeskId',
       title: 'Service Desk ID',
       type: 'short-input',
       canonicalParamId: 'serviceDeskId',
@@ -195,7 +195,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       condition: { field: 'operation', value: ['create_request', 'get_request_type_fields'] },
     },
     {
-      id: 'requestTypeId',
+      id: 'manualRequestTypeId',
       title: 'Request Type ID',
       type: 'short-input',
       canonicalParamId: 'requestTypeId',

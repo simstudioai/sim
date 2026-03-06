@@ -246,9 +246,9 @@ function extractExtendedContext(
     siteId: getStringValue('siteId'),
     collectionId: getStringValue('collectionId'),
     spreadsheetId: getStringValue('spreadsheetId') || getStringValue('fileId'),
-    baseId: getStringValue('baseId') || getStringValue('baseSelector'),
-    datasetId: getStringValue('datasetId') || getStringValue('datasetSelector'),
-    serviceDeskId: getStringValue('serviceDeskId') || getStringValue('serviceDeskSelector'),
+    baseId: getStringValue('manualBaseId') || getStringValue('baseSelector'),
+    datasetId: getStringValue('manualDatasetId') || getStringValue('datasetSelector'),
+    serviceDeskId: getStringValue('manualServiceDeskId') || getStringValue('serviceDeskSelector'),
   }
 }
 
