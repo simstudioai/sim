@@ -549,18 +549,30 @@ const SubBlockRow = memo(function SubBlockRow({
     return typeof option === 'string' ? option : option.label
   }, [subBlock, rawValue])
 
-  const domainValue = getStringValue('domain')
-  const teamIdValue = getStringValue('teamId')
-  const projectIdValue = getStringValue('projectId')
-  const planIdValue = getStringValue('planId') || getStringValue('planSelector')
-  const baseIdValue = getStringValue('baseId') || getStringValue('baseSelector')
-  const datasetIdValue = getStringValue('datasetId') || getStringValue('datasetSelector')
-  const serviceDeskIdValue =
-    getStringValue('serviceDeskId') || getStringValue('serviceDeskSelector')
-  const siteIdValue = getStringValue('siteId') || getStringValue('siteSelector')
-  const collectionIdValue = getStringValue('collectionId') || getStringValue('collectionSelector')
-  const spreadsheetIdValue = getStringValue('spreadsheetId')
-  const fileIdValue = getStringValue('fileId')
+  const resolveContextValue = useCallback(
+    (key: string): string | undefined => {
+      const resolved = resolveDependencyValue(
+        key,
+        rawValues,
+        canonicalIndex || buildCanonicalIndex([]),
+        canonicalModeOverrides
+      )
+      return typeof resolved === 'string' && resolved.length > 0 ? resolved : undefined
+    },
+    [rawValues, canonicalIndex, canonicalModeOverrides]
+  )
+
+  const domainValue = resolveContextValue('domain')
+  const teamIdValue = resolveContextValue('teamId')
+  const projectIdValue = resolveContextValue('projectId')
+  const planIdValue = resolveContextValue('planId')
+  const baseIdValue = resolveContextValue('baseId')
+  const datasetIdValue = resolveContextValue('datasetId')
+  const serviceDeskIdValue = resolveContextValue('serviceDeskId')
+  const siteIdValue = resolveContextValue('siteId')
+  const collectionIdValue = resolveContextValue('collectionId')
+  const spreadsheetIdValue = resolveContextValue('spreadsheetId')
+  const fileIdValue = resolveContextValue('fileId')
 
   const { displayName: selectorDisplayName } = useSelectorDisplayName({
     subBlock,
