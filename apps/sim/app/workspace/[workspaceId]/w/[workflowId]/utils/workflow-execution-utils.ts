@@ -32,6 +32,7 @@ export function updateActiveBlockRefCount(
 /**
  * Determines if a workflow edge should be marked as active based on its handle and the block output.
  * Mirrors the executor's EdgeManager.shouldActivateEdge logic on the client side.
+ * Exclude sentinel handles here
  */
 function shouldActivateEdgeClient(
   handle: string | null | undefined,
@@ -56,10 +57,6 @@ function shouldActivateEdgeClient(
     case 'loop-end-source':
     case 'parallel-start-source':
     case 'parallel-end-source':
-    case 'loop_exit':
-    case 'loop_continue':
-    case 'loop_continue_alt':
-    case 'parallel_exit':
       return true
     default:
       return true
@@ -81,12 +78,8 @@ export function markOutgoingEdgesFromOutput(
   const outgoing = workflowEdges.filter((edge) => edge.source === blockId)
   for (const edge of outgoing) {
     const handle = edge.sourceHandle
-    if (!handle) {
-      setEdgeRunStatus(workflowId, edge.id, 'success')
-      continue
-    }
     if (shouldActivateEdgeClient(handle, output)) {
-      const status = handle === 'error' ? 'error' : 'success'
+      const status = handle === 'error' ? 'error' : output?.error ? 'error' : 'success'
       setEdgeRunStatus(workflowId, edge.id, status)
     }
   }
