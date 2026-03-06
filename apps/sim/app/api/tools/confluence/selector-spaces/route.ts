@@ -79,13 +79,11 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    const spaces = (data.results || []).map(
-      (space: { id: string; name: string; key: string }) => ({
-        id: space.id,
-        name: space.name,
-        key: space.key,
-      })
-    )
+    const spaces = (data.results || []).map((space: { id: string; name: string; key: string }) => ({
+      id: space.id,
+      name: space.name,
+      key: space.key,
+    }))
 
     return NextResponse.json({ spaces })
   } catch (error) {
