@@ -51,11 +51,9 @@ export function useSelectorSetup(
       if (canonicalParamId === 'oauthCredential') {
         context.credentialId = strValue
       } else {
-        const contextField = canonicalParamId.startsWith('selected_')
-          ? canonicalParamId.slice('selected_'.length)
-          : canonicalParamId
-        if (contextField in CONTEXT_FIELD_SET) {
-          ;(context as Record<string, unknown>)[contextField] = strValue
+        const contextField = CANONICAL_TO_CONTEXT[canonicalParamId]
+        if (contextField) {
+          context[contextField] = strValue
         }
       }
     }
@@ -72,18 +70,29 @@ export function useSelectorSetup(
   }
 }
 
-const CONTEXT_FIELD_SET: Record<string, true> = {
-  credentialId: true,
-  domain: true,
-  teamId: true,
-  projectId: true,
-  knowledgeBaseId: true,
-  planId: true,
-  siteId: true,
-  collectionId: true,
-  spreadsheetId: true,
-  fileId: true,
-  baseId: true,
-  datasetId: true,
-  serviceDeskId: true,
+/**
+ * Maps canonical param IDs to SelectorContext field names.
+ *
+ * Most canonical param IDs match their SelectorContext field directly (e.g. `siteId` → `siteId`).
+ * Aliased entries handle cases where `canonicalParamId` was prefixed with `selected_` to avoid
+ * clashing with a subBlock `id` of the same name.
+ */
+const CANONICAL_TO_CONTEXT: Record<string, keyof SelectorContext> = {
+  credentialId: 'credentialId',
+  domain: 'domain',
+  teamId: 'teamId',
+  projectId: 'projectId',
+  knowledgeBaseId: 'knowledgeBaseId',
+  planId: 'planId',
+  siteId: 'siteId',
+  collectionId: 'collectionId',
+  spreadsheetId: 'spreadsheetId',
+  fileId: 'fileId',
+  baseId: 'baseId',
+  datasetId: 'datasetId',
+  serviceDeskId: 'serviceDeskId',
+  selected_baseId: 'baseId',
+  selected_datasetId: 'datasetId',
+  selected_serviceDeskId: 'serviceDeskId',
+  selected_planId: 'planId',
 }
