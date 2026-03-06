@@ -242,7 +242,8 @@ async function resolveFolderPath(
     throw new Error('Folder path is empty after normalisation')
   }
 
-  const url = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encodeURI(cleaned)}`
+  const encoded = cleaned.split('/').map(encodeURIComponent).join('/')
+  const url = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encoded}`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -512,7 +513,8 @@ export const sharepointConnector: ConnectorConfig = {
       // If a folder path is configured, verify it exists
       const folderPath = (sourceConfig.folderPath as string)?.trim()
       if (folderPath) {
-        const folderUrl = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encodeURI(folderPath)}`
+        const encodedPath = folderPath.replace(/^\/+|\/+$/g, '').split('/').map(encodeURIComponent).join('/')
+        const folderUrl = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encodedPath}`
         const response = await fetchWithRetry(
           folderUrl,
           {
