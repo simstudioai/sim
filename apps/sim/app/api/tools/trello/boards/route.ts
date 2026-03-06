@@ -9,14 +9,13 @@ const logger = createLogger('TrelloBoardsAPI')
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId()
   try {
     const apiKey = process.env.TRELLO_API_KEY
     if (!apiKey) {
       logger.error('Trello API key not configured')
       return NextResponse.json({ error: 'Trello API key not configured' }, { status: 500 })
     }
-
-    const requestId = generateRequestId()
     const body = await request.json()
     const { credential, workflowId } = body
 
