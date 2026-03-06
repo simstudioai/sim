@@ -99,6 +99,13 @@ export const getMessagesTool: ToolConfig<RedditGetMessagesParams, RedditMessages
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok) {
+      return {
+        success: false,
+        output: { messages: [], after: null, before: null },
+      }
+    }
+
     const messages =
       data.data?.children?.map((child: any) => {
         const msg = child.data || {}

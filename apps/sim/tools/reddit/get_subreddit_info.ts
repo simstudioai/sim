@@ -55,6 +55,30 @@ export const getSubredditInfoTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      return {
+        success: false,
+        output: {
+          id: '',
+          name: '',
+          display_name: '',
+          title: '',
+          description: '',
+          public_description: '',
+          subscribers: 0,
+          accounts_active: 0,
+          created_utc: 0,
+          over18: false,
+          lang: '',
+          subreddit_type: '',
+          url: '',
+          icon_img: null,
+          banner_img: null,
+        },
+      }
+    }
+
     const sub = data.data || data
 
     return {

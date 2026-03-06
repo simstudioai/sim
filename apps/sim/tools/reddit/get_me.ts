@@ -40,6 +40,24 @@ export const getMeTool: ToolConfig<RedditGetMeParams, RedditUserResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok) {
+      return {
+        success: false,
+        output: {
+          id: '',
+          name: '',
+          created_utc: 0,
+          link_karma: 0,
+          comment_karma: 0,
+          total_karma: 0,
+          is_gold: false,
+          is_mod: false,
+          has_verified_email: false,
+          icon_img: '',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
