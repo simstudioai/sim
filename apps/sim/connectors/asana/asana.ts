@@ -53,15 +53,22 @@ interface AsanaProject {
 /**
  * Makes a GET request to the Asana REST API.
  */
-async function asanaGet<T>(accessToken: string, path: string, retryOptions?: object): Promise<T> {
-  const response = await fetchWithRetry(`${ASANA_API}${path}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
+async function asanaGet<T>(
+  accessToken: string,
+  path: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<T> {
+  const response = await fetchWithRetry(
+    `${ASANA_API}${path}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
     },
-    ...(retryOptions ? retryOptions : {}),
-  })
+    retryOptions
+  )
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -132,6 +139,7 @@ export const asanaConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'asana',
+    requiredScopes: ['default'],
   },
 
   configFields: [

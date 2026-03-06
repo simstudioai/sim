@@ -250,6 +250,7 @@ export const slackConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['channels:read', 'channels:history', 'users:read'],
   },
 
   configFields: [

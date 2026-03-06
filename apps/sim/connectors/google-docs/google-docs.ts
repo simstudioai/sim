@@ -367,7 +367,6 @@ export const googleDocsConnector: ConnectorConfig = {
   tagDefinitions: [
     { id: 'owners', displayName: 'Owner', fieldType: 'text' },
     { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'title', displayName: 'Title', fieldType: 'text' },
   ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
@@ -378,10 +377,6 @@ export const googleDocsConnector: ConnectorConfig = {
 
     const lastModified = parseTagDate(metadata.modifiedTime)
     if (lastModified) result.lastModified = lastModified
-
-    if (typeof metadata.title === 'string') {
-      result.title = metadata.title
-    }
 
     return result
   },

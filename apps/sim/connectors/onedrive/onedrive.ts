@@ -142,7 +142,8 @@ function buildListUrl(folderPath?: string): string {
   if (trimmed) {
     // Normalize path: strip leading/trailing slashes
     const normalized = trimmed.replace(/^\/+|\/+$/g, '')
-    return `${GRAPH_BASE_URL}/me/drive/root:/${encodeURIComponent(normalized)}:/children`
+    const encoded = normalized.split('/').map(encodeURIComponent).join('/')
+    return `${GRAPH_BASE_URL}/me/drive/root:/${encoded}:/children`
   }
   return `${GRAPH_BASE_URL}/me/drive/root/children`
 }
@@ -184,12 +185,28 @@ export const onedriveConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const folderPath = sourceConfig.folderPath as string | undefined
 
-    // Microsoft Graph pagination: cursor is the full @odata.nextLink URL
-    const url = cursor || buildListUrl(folderPath)
+    /**
+     * Cursor state encodes the current page URL and a queue of pending folder IDs
+     * for recursive traversal. On initial call, we start from the configured path.
+     */
+    let pageUrl: string
+    let folderQueue: string[] = []
 
-    logger.info('Listing OneDrive files', { url, cursor: cursor ? 'continuation' : 'initial' })
+    if (cursor) {
+      try {
+        const parsed = JSON.parse(cursor) as { pageUrl?: string; folderQueue?: string[] }
+        pageUrl = parsed.pageUrl || buildListUrl(folderPath)
+        folderQueue = parsed.folderQueue || []
+      } catch {
+        pageUrl = cursor
+      }
+    } else {
+      pageUrl = buildListUrl(folderPath)
+    }
 
-    const response = await fetchWithRetry(url, {
+    logger.info('Listing OneDrive files', { url: pageUrl, cursor: cursor ? 'continuation' : 'initial' })
+
+    const response = await fetchWithRetry(pageUrl, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -209,7 +226,13 @@ export const onedriveConnector: ConnectorConfig = {
     const data = (await response.json()) as OneDriveListResponse
     const items = data.value || []
 
-    // Filter to supported text files only (exclude folders and unsupported types)
+    // Collect subfolder IDs for recursive traversal
+    for (const item of items) {
+      if (item.folder) {
+        folderQueue.push(item.id)
+      }
+    }
+
     const textFiles = items.filter((item) => item.file && isSupportedTextFile(item.name))
 
     const documentResults = await Promise.all(
@@ -224,10 +247,26 @@ export const onedriveConnector: ConnectorConfig = {
 
     const nextLink = data['@odata.nextLink']
 
+    // Determine next cursor: continue current page, or move to next queued folder
+    let nextCursor: string | undefined
+    let hasMore = false
+
+    if (!hitLimit) {
+      if (nextLink) {
+        nextCursor = JSON.stringify({ pageUrl: nextLink, folderQueue })
+        hasMore = true
+      } else if (folderQueue.length > 0) {
+        const nextFolderId = folderQueue.shift()!
+        const nextUrl = `${GRAPH_BASE_URL}/me/drive/items/${nextFolderId}/children`
+        nextCursor = JSON.stringify({ pageUrl: nextUrl, folderQueue })
+        hasMore = true
+      }
+    }
+
     return {
       documents,
-      nextCursor: hitLimit ? undefined : nextLink,
-      hasMore: hitLimit ? false : Boolean(nextLink),
+      nextCursor,
+      hasMore,
     }
   },
 
@@ -274,7 +313,8 @@ export const onedriveConnector: ConnectorConfig = {
       if (folderPath?.trim()) {
         // Verify the folder path exists and is accessible
         const normalized = folderPath.trim().replace(/^\/+|\/+$/g, '')
-        const url = `${GRAPH_BASE_URL}/me/drive/root:/${encodeURIComponent(normalized)}`
+        const encoded = normalized.split('/').map(encodeURIComponent).join('/')
+        const url = `${GRAPH_BASE_URL}/me/drive/root:/${encoded}`
 
         const response = await fetchWithRetry(
           url,

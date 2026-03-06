@@ -184,6 +184,11 @@ export const hubspotConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'hubspot',
+    requiredScopes: [
+      'crm.objects.contacts.read',
+      'crm.objects.companies.read',
+      'crm.objects.deals.read',
+    ],
   },
 
   configFields: [
@@ -222,7 +227,12 @@ export const hubspotConnector: ConnectorConfig = {
 
     const body: Record<string, unknown> = {
       filterGroups: [],
-      sorts: [{ propertyName: 'lastmodifieddate', direction: 'DESCENDING' }],
+      sorts: [
+        {
+          propertyName: objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate',
+          direction: 'DESCENDING',
+        },
+      ],
       properties: [...properties],
       limit: PAGE_SIZE,
     }
