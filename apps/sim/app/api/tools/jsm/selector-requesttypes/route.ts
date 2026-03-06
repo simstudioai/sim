@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
-    const url = `${baseUrl}/servicedesk/${serviceDeskId}/requesttype?limit=100`
+    const url = `${baseUrl}/servicedesk/${serviceDeskIdValidation.sanitized}/requesttype?limit=100`
 
     const response = await fetch(url, {
       method: 'GET',
