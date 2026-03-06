@@ -359,7 +359,8 @@ export const slackConnector: ConnectorConfig = {
         maxMessages
       )
 
-      const content = await formatMessages(accessToken, messages)
+      const localCtx: Record<string, unknown> = {}
+      const content = await formatMessages(accessToken, messages, localCtx)
       if (!content.trim()) return null
 
       const contentHash = await computeContentHash(content)

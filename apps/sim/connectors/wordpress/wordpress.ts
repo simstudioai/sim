@@ -99,7 +99,7 @@ export const wordpressConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'wordpress',
-    requiredScopes: ['global'],
+    requiredScopes: ['posts', 'sites'],
   },
 
   configFields: [
