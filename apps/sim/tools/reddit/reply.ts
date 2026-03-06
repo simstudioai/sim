@@ -32,6 +32,12 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       visibility: 'user-or-llm',
       description: 'Comment text in markdown format (e.g., "Great post! Here is my **reply**")',
     },
+    return_rtjson: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return response in Rich Text JSON format',
+    },
   },
 
   request: {
@@ -54,6 +60,9 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
         text: params.text,
         api_type: 'json',
       })
+
+      if (params.return_rtjson !== undefined)
+        formData.append('return_rtjson', params.return_rtjson.toString())
 
       return formData.toString() as unknown as Record<string, any>
     },

@@ -43,7 +43,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   request: {
     url: (params) => {
       const subreddit = normalizeSubreddit(params.subreddit)
-      const limit = Math.min(Math.max(1, params.limit || 10), 100)
+      const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
 
       return `https://oauth.reddit.com/r/${subreddit}/hot?limit=${limit}&raw_json=1`
     },
@@ -65,25 +65,26 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
     const data = await response.json()
 
     // Process the posts data with proper error handling
-    const posts: RedditPost[] = data.data.children.map((child: any) => {
-      const post = child.data || {}
-      return {
-        id: post.id || '',
-        title: post.title || '',
-        author: post.author || '[deleted]',
-        url: post.url || '',
-        permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-        created_utc: post.created_utc || 0,
-        score: post.score || 0,
-        num_comments: post.num_comments || 0,
-        selftext: post.selftext || '',
-        thumbnail:
-          post.thumbnail !== 'self' && post.thumbnail !== 'default' ? post.thumbnail : undefined,
-        is_self: !!post.is_self,
-        subreddit: post.subreddit || requestParams?.subreddit || '',
-        subreddit_name_prefixed: post.subreddit_name_prefixed || '',
-      }
-    })
+    const posts: RedditPost[] =
+      data.data?.children?.map((child: any) => {
+        const post = child.data || {}
+        return {
+          id: post.id ?? '',
+          name: post.name ?? '',
+          title: post.title ?? '',
+          author: post.author || '[deleted]',
+          url: post.url ?? '',
+          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+          created_utc: post.created_utc ?? 0,
+          score: post.score ?? 0,
+          num_comments: post.num_comments ?? 0,
+          selftext: post.selftext ?? '',
+          thumbnail:
+            post.thumbnail !== 'self' && post.thumbnail !== 'default' ? post.thumbnail : undefined,
+          is_self: !!post.is_self,
+          subreddit: post.subreddit ?? requestParams?.subreddit ?? '',
+        }
+      }) || []
 
     // Extract the subreddit name from the response data with fallback
     const subreddit =
@@ -95,6 +96,8 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       output: {
         subreddit,
         posts,
+        after: data.data?.after ?? null,
+        before: data.data?.before ?? null,
       },
     }
   },
@@ -112,6 +115,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Post ID' },
+          name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
           title: { type: 'string', description: 'Post title' },
           author: { type: 'string', description: 'Author username' },
           url: { type: 'string', description: 'Post URL' },
@@ -123,9 +127,18 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
           selftext: { type: 'string', description: 'Text content for self posts' },
           thumbnail: { type: 'string', description: 'Thumbnail URL' },
           subreddit: { type: 'string', description: 'Subreddit name' },
-          subreddit_name_prefixed: { type: 'string', description: 'Subreddit name with r/ prefix' },
         },
       },
+    },
+    after: {
+      type: 'string',
+      description: 'Fullname of the last item for forward pagination',
+      optional: true,
+    },
+    before: {
+      type: 'string',
+      description: 'Fullname of the first item for backward pagination',
+      optional: true,
     },
   },
 }
