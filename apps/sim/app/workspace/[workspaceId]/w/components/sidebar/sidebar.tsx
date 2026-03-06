@@ -55,7 +55,7 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useDeleteTask, useTasks } from '@/hooks/queries/tasks'
+import { useDeleteTask, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
@@ -214,6 +214,7 @@ export const Sidebar = memo(function Sidebar() {
   } = useContextMenu()
 
   const deleteTaskMutation = useDeleteTask(workspaceId)
+  const renameTaskMutation = useRenameTask(workspaceId)
 
   const handleNavItemContextMenu = useCallback(
     (e: React.MouseEvent, href: string) => {
@@ -387,6 +388,62 @@ export const Sidebar = memo(function Sidebar() {
           }))
         : [{ id: 'new', name: 'New task', href: `/workspace/${workspaceId}/home` }],
     [fetchedTasks, workspaceId]
+  )
+
+  const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const renameCanceledRef = useRef(false)
+
+  useEffect(() => {
+    if (renamingTaskId && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renamingTaskId])
+
+  const handleStartTaskRename = useCallback(() => {
+    if (!activeTaskId || activeTaskId === 'new') return
+    const task = tasks.find((t) => t.id === activeTaskId)
+    if (!task) return
+    renameCanceledRef.current = false
+    setRenamingTaskId(activeTaskId)
+    setRenameValue(task.name)
+  }, [activeTaskId, tasks])
+
+  const handleSaveTaskRename = useCallback(() => {
+    if (renameCanceledRef.current) {
+      renameCanceledRef.current = false
+      return
+    }
+    const trimmed = renameValue.trim()
+    if (!renamingTaskId || !trimmed) {
+      setRenamingTaskId(null)
+      return
+    }
+    const task = tasks.find((t) => t.id === renamingTaskId)
+    if (task && trimmed !== task.name) {
+      renameTaskMutation.mutate({ chatId: renamingTaskId, title: trimmed })
+    }
+    setRenamingTaskId(null)
+  }, [renamingTaskId, renameValue, tasks, renameTaskMutation])
+
+  const handleCancelTaskRename = useCallback(() => {
+    renameCanceledRef.current = true
+    setRenamingTaskId(null)
+  }, [])
+
+  const handleRenameKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSaveTaskRename()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCancelTaskRename()
+      }
+    },
+    [handleSaveTaskRename, handleCancelTaskRename]
   )
 
   const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
@@ -748,6 +805,26 @@ export const Sidebar = memo(function Sidebar() {
                         const iconColor = active
                           ? 'text-[var(--text-primary)]'
                           : 'text-[var(--text-muted)]'
+                        const isRenaming = renamingTaskId === task.id
+
+                        if (isRenaming) {
+                          return (
+                            <div
+                              key={task.id}
+                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
+                            >
+                              <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-primary)]' />
+                              <input
+                                ref={renameInputRef}
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={handleRenameKeyDown}
+                                onBlur={handleSaveTaskRename}
+                                className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-primary)] outline-none'
+                              />
+                            </div>
+                          )
+                        }
 
                         return (
                           <Link
@@ -905,6 +982,7 @@ export const Sidebar = memo(function Sidebar() {
                 onClose={handleNavContextMenuClose}
                 onOpenInNewTab={handleNavOpenInNewTab}
                 onCopyLink={handleNavCopyLink}
+                onRename={activeTaskId && activeTaskId !== 'new' ? handleStartTaskRename : undefined}
                 onDelete={activeTaskId ? handleDeleteTask : undefined}
               />
             </>

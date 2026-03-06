@@ -129,3 +129,43 @@ export function useDeleteTask(workspaceId?: string) {
     },
   })
 }
+
+async function renameTask({ chatId, title }: { chatId: string; title: string }): Promise<void> {
+  const response = await fetch('/api/copilot/chat/rename', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId, title }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to rename task')
+  }
+}
+
+/**
+ * Renames a mothership chat task with optimistic update.
+ */
+export function useRenameTask(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: renameTask,
+    onMutate: async ({ chatId, title }) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, name: title } : task))
+      )
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}

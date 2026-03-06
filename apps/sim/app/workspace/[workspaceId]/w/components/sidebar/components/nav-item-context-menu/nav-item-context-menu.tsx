@@ -9,6 +9,7 @@ interface NavItemContextMenuProps {
   onClose: () => void
   onOpenInNewTab: () => void
   onCopyLink: () => void
+  onRename?: () => void
   onDelete?: () => void
 }
 
@@ -19,6 +20,7 @@ export function NavItemContextMenu({
   onClose,
   onOpenInNewTab,
   onCopyLink,
+  onRename,
   onDelete,
 }: NavItemContextMenuProps) {
   return (
@@ -55,6 +57,16 @@ export function NavItemContextMenu({
         >
           Copy link
         </PopoverItem>
+        {onRename && (
+          <PopoverItem
+            onClick={() => {
+              onRename()
+              onClose()
+            }}
+          >
+            Rename
+          </PopoverItem>
+        )}
         {onDelete && (
           <PopoverItem
             onClick={() => {
