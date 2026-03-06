@@ -37,13 +37,13 @@ describe('migrateSubblockIds', () => {
       const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
-      expect(blocks['b1'].subBlocks['knowledgeBaseSelector']).toEqual({
+      expect(blocks.b1.subBlocks.knowledgeBaseSelector).toEqual({
         id: 'knowledgeBaseSelector',
         type: 'knowledge-base-selector',
         value: 'kb-uuid-123',
       })
-      expect(blocks['b1'].subBlocks['knowledgeBaseId']).toBeUndefined()
-      expect(blocks['b1'].subBlocks['operation'].value).toBe('search')
+      expect(blocks.b1.subBlocks.knowledgeBaseId).toBeUndefined()
+      expect(blocks.b1.subBlocks.operation.value).toBe('search')
     })
 
     it('should prefer new key when both old and new exist', () => {
@@ -68,8 +68,8 @@ describe('migrateSubblockIds', () => {
       const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
-      expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('fresh-kb')
-      expect(blocks['b1'].subBlocks['knowledgeBaseId']).toBeUndefined()
+      expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('fresh-kb')
+      expect(blocks.b1.subBlocks.knowledgeBaseId).toBeUndefined()
     })
 
     it('should not touch blocks that already use the new key', () => {
@@ -89,7 +89,7 @@ describe('migrateSubblockIds', () => {
       const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(false)
-      expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('kb-uuid')
+      expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('kb-uuid')
     })
   })
 
@@ -109,8 +109,8 @@ describe('migrateSubblockIds', () => {
 
     const { blocks } = migrateSubblockIds(input)
 
-    expect(input['b1'].subBlocks['knowledgeBaseId']).toBeDefined()
-    expect(blocks['b1'].subBlocks['knowledgeBaseSelector']).toBeDefined()
+    expect(input.b1.subBlocks.knowledgeBaseId).toBeDefined()
+    expect(blocks.b1.subBlocks.knowledgeBaseSelector).toBeDefined()
     expect(blocks).not.toBe(input)
   })
 
@@ -127,7 +127,7 @@ describe('migrateSubblockIds', () => {
     const { blocks, migrated } = migrateSubblockIds(input)
 
     expect(migrated).toBe(false)
-    expect(blocks['b1'].subBlocks['code'].value).toBe('console.log("hi")')
+    expect(blocks.b1.subBlocks.code.value).toBe('console.log("hi")')
   })
 
   it('should migrate multiple blocks in one pass', () => {
@@ -166,9 +166,9 @@ describe('migrateSubblockIds', () => {
     const { blocks, migrated } = migrateSubblockIds(input)
 
     expect(migrated).toBe(true)
-    expect(blocks['b1'].subBlocks['knowledgeBaseSelector'].value).toBe('kb-1')
-    expect(blocks['b2'].subBlocks['knowledgeBaseSelector'].value).toBe('kb-2')
-    expect(blocks['b3'].subBlocks['code']).toBeDefined()
+    expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('kb-1')
+    expect(blocks.b2.subBlocks.knowledgeBaseSelector.value).toBe('kb-2')
+    expect(blocks.b3.subBlocks.code).toBeDefined()
   })
 
   it('should handle blocks with empty subBlocks', () => {

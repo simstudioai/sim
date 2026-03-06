@@ -1812,8 +1812,12 @@ import {
   slackListUsersTool,
   slackMessageReaderTool,
   slackMessageTool,
+  slackOpenViewTool,
+  slackPublishViewTool,
+  slackPushViewTool,
   slackRemoveReactionTool,
   slackUpdateMessageTool,
+  slackUpdateViewTool,
 } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
 import { smtpSendMailTool } from '@/tools/smtp'
@@ -2619,6 +2623,10 @@ export const tools: Record<string, ToolConfig> = {
   slack_remove_reaction: slackRemoveReactionTool,
   slack_get_channel_info: slackGetChannelInfoTool,
   slack_get_user_presence: slackGetUserPresenceTool,
+  slack_open_view: slackOpenViewTool,
+  slack_update_view: slackUpdateViewTool,
+  slack_push_view: slackPushViewTool,
+  slack_publish_view: slackPublishViewTool,
   slack_edit_canvas: slackEditCanvasTool,
   slack_create_channel_canvas: slackCreateChannelCanvasTool,
   github_repo_info: githubRepoInfoTool,
