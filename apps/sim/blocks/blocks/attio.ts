@@ -90,7 +90,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
       id: 'objectTypeSelector',
       title: 'Object Type',
       type: 'project-selector',
-      canonicalParamId: 'objectType',
+      canonicalParamId: 'selected_objectType',
       serviceId: 'attio',
       selectorKey: 'attio.objects',
       selectorAllowSearch: false,
@@ -124,7 +124,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
       id: 'objectType',
       title: 'Object Type',
       type: 'short-input',
-      canonicalParamId: 'objectType',
+      canonicalParamId: 'selected_objectType',
       placeholder: 'e.g. people, companies',
       mode: 'advanced',
       condition: {
@@ -564,7 +564,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'listSelector',
       title: 'List',
       type: 'project-selector',
-      canonicalParamId: 'listIdOrSlug',
+      canonicalParamId: 'selected_listIdOrSlug',
       serviceId: 'attio',
       selectorKey: 'attio.lists',
       selectorAllowSearch: false,
@@ -600,7 +600,7 @@ Return ONLY the JSON array. No explanations, no markdown, no extra text.
       id: 'listIdOrSlug',
       title: 'List ID or Slug',
       type: 'short-input',
-      canonicalParamId: 'listIdOrSlug',
+      canonicalParamId: 'selected_listIdOrSlug',
       placeholder: 'Enter the list ID or slug',
       mode: 'advanced',
       condition: {
@@ -1116,7 +1116,7 @@ workspace-member.created
         }
 
         // Record params
-        if (params.objectType) cleanParams.objectType = params.objectType
+        if (params.selected_objectType) cleanParams.objectType = params.selected_objectType
         if (params.recordId) cleanParams.recordId = params.recordId
         if (params.matchingAttribute) cleanParams.matchingAttribute = params.matchingAttribute
         if (params.values) cleanParams.values = params.values
@@ -1157,7 +1157,7 @@ workspace-member.created
         if (params.objectPluralNoun) cleanParams.pluralNoun = params.objectPluralNoun
 
         // List params
-        if (params.listIdOrSlug) cleanParams.list = params.listIdOrSlug
+        if (params.selected_listIdOrSlug) cleanParams.list = params.selected_listIdOrSlug
         if (params.listName) cleanParams.name = params.listName
         if (params.listParentObject) cleanParams.parentObject = params.listParentObject
         if (params.listApiSlug) cleanParams.apiSlug = params.listApiSlug
@@ -1209,7 +1209,7 @@ workspace-member.created
   inputs: {
     operation: { type: 'string', description: 'The operation to perform' },
     oauthCredential: { type: 'string', description: 'Attio OAuth credential' },
-    objectType: { type: 'string', description: 'Object type slug' },
+    selected_objectType: { type: 'string', description: 'Object type slug' },
     recordId: { type: 'string', description: 'Record ID' },
     matchingAttribute: { type: 'string', description: 'Matching attribute for upsert' },
     values: { type: 'json', description: 'Record attribute values' },
@@ -1235,7 +1235,7 @@ workspace-member.created
     objectApiSlug: { type: 'string', description: 'Object API slug' },
     objectSingularNoun: { type: 'string', description: 'Object singular name' },
     objectPluralNoun: { type: 'string', description: 'Object plural name' },
-    listIdOrSlug: { type: 'string', description: 'List ID or slug' },
+    selected_listIdOrSlug: { type: 'string', description: 'List ID or slug' },
     listName: { type: 'string', description: 'List name' },
     listParentObject: { type: 'string', description: 'List parent object' },
     listApiSlug: { type: 'string', description: 'List API slug' },

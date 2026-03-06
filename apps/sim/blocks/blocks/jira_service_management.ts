@@ -110,7 +110,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'serviceDeskSelector',
       title: 'Service Desk',
       type: 'project-selector',
-      canonicalParamId: 'serviceDeskId',
+      canonicalParamId: 'selected_serviceDeskId',
       serviceId: 'jira',
       selectorKey: 'jsm.serviceDesks',
       selectorAllowSearch: false,
@@ -149,7 +149,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'serviceDeskId',
       title: 'Service Desk ID',
       type: 'short-input',
-      canonicalParamId: 'serviceDeskId',
+      canonicalParamId: 'selected_serviceDeskId',
       placeholder: 'Enter service desk ID',
       mode: 'advanced',
       required: {
@@ -184,7 +184,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'requestTypeSelector',
       title: 'Request Type',
       type: 'file-selector',
-      canonicalParamId: 'requestTypeId',
+      canonicalParamId: 'selected_requestTypeId',
       serviceId: 'jira',
       selectorKey: 'jsm.requestTypes',
       selectorAllowSearch: false,
@@ -198,7 +198,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'requestTypeId',
       title: 'Request Type ID',
       type: 'short-input',
-      canonicalParamId: 'requestTypeId',
+      canonicalParamId: 'selected_requestTypeId',
       required: true,
       placeholder: 'Enter request type ID',
       mode: 'advanced',
@@ -586,21 +586,21 @@ Return ONLY the comment text - no explanations.`,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'get_request_types':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               searchQuery: params.searchQuery,
               groupId: params.groupId,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'create_request':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
-            if (!params.requestTypeId) {
+            if (!params.selected_requestTypeId) {
               throw new Error('Request Type ID is required')
             }
             if (!params.summary) {
@@ -608,8 +608,8 @@ Return ONLY the comment text - no explanations.`,
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
-              requestTypeId: params.requestTypeId,
+              serviceDeskId: params.selected_serviceDeskId,
+              requestTypeId: params.selected_requestTypeId,
               summary: params.summary,
               description: params.description,
               raiseOnBehalfOf: params.raiseOnBehalfOf,
@@ -631,7 +631,7 @@ Return ONLY the comment text - no explanations.`,
           case 'get_requests':
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               requestOwnership: params.requestOwnership,
               requestStatus: params.requestStatus,
               searchTerm: params.searchTerm,
@@ -662,17 +662,17 @@ Return ONLY the comment text - no explanations.`,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'get_customers':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               query: params.customerQuery,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'add_customer': {
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             if (!params.accountIds && !params.emails) {
@@ -680,27 +680,27 @@ Return ONLY the comment text - no explanations.`,
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               accountIds: params.accountIds,
               emails: params.emails,
             }
           }
           case 'get_organizations':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'get_queues':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               includeCount: params.includeCount === 'true',
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
@@ -744,7 +744,7 @@ Return ONLY the comment text - no explanations.`,
               name: params.organizationName,
             }
           case 'add_organization':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
             if (!params.organizationId) {
@@ -752,7 +752,7 @@ Return ONLY the comment text - no explanations.`,
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
+              serviceDeskId: params.selected_serviceDeskId,
               organizationId: params.organizationId,
             }
           case 'get_participants':
@@ -802,16 +802,16 @@ Return ONLY the comment text - no explanations.`,
               decision: params.approvalDecision,
             }
           case 'get_request_type_fields':
-            if (!params.serviceDeskId) {
+            if (!params.selected_serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
-            if (!params.requestTypeId) {
+            if (!params.selected_requestTypeId) {
               throw new Error('Request Type ID is required')
             }
             return {
               ...baseParams,
-              serviceDeskId: params.serviceDeskId,
-              requestTypeId: params.requestTypeId,
+              serviceDeskId: params.selected_serviceDeskId,
+              requestTypeId: params.selected_requestTypeId,
             }
           default:
             return baseParams
@@ -823,8 +823,8 @@ Return ONLY the comment text - no explanations.`,
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
     oauthCredential: { type: 'string', description: 'Jira Service Management access token' },
-    serviceDeskId: { type: 'string', description: 'Service desk ID' },
-    requestTypeId: { type: 'string', description: 'Request type ID' },
+    selected_serviceDeskId: { type: 'string', description: 'Service desk ID' },
+    selected_requestTypeId: { type: 'string', description: 'Request type ID' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
     summary: { type: 'string', description: 'Request summary' },
     description: { type: 'string', description: 'Request description' },

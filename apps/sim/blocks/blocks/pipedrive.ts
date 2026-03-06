@@ -100,7 +100,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       id: 'pipelineSelector',
       title: 'Pipeline',
       type: 'project-selector',
-      canonicalParamId: 'pipeline_id',
+      canonicalParamId: 'selected_pipeline_id',
       serviceId: 'pipedrive',
       selectorKey: 'pipedrive.pipelines',
       selectorAllowSearch: false,
@@ -117,7 +117,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       id: 'pipeline_id',
       title: 'Pipeline ID',
       type: 'short-input',
-      canonicalParamId: 'pipeline_id',
+      canonicalParamId: 'selected_pipeline_id',
       placeholder: 'Enter pipeline ID',
       mode: 'advanced',
       condition: {
@@ -769,10 +769,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         }
       },
       params: (params) => {
-        const { oauthCredential, operation, ...rest } = params
+        const { oauthCredential, operation, selected_pipeline_id, ...rest } = params
 
         const cleanParams: Record<string, any> = {
           oauthCredential,
+        }
+
+        if (selected_pipeline_id !== undefined && selected_pipeline_id !== null && selected_pipeline_id !== '') {
+          cleanParams.pipeline_id = selected_pipeline_id
         }
 
         Object.entries(rest).forEach(([key, value]) => {
@@ -794,7 +798,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     currency: { type: 'string', description: 'Currency code' },
     person_id: { type: 'string', description: 'Person ID' },
     org_id: { type: 'string', description: 'Organization ID' },
-    pipeline_id: { type: 'string', description: 'Pipeline ID' },
+    selected_pipeline_id: { type: 'string', description: 'Pipeline ID' },
     stage_id: { type: 'string', description: 'Stage ID' },
     status: { type: 'string', description: 'Status' },
     expected_close_date: { type: 'string', description: 'Expected close date' },

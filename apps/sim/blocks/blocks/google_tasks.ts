@@ -56,7 +56,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       id: 'taskListSelector',
       title: 'Task List',
       type: 'project-selector',
-      canonicalParamId: 'taskListId',
+      canonicalParamId: 'selected_taskListId',
       serviceId: 'google-tasks',
       selectorKey: 'google.tasks.lists',
       selectorAllowSearch: false,
@@ -69,7 +69,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       id: 'taskListId',
       title: 'Task List ID',
       type: 'short-input',
-      canonicalParamId: 'taskListId',
+      canonicalParamId: 'selected_taskListId',
       placeholder: 'Task list ID (leave empty for default list)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_task_lists', not: true },
@@ -223,9 +223,19 @@ Return ONLY the timestamp - no explanations, no extra text.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, operation, showCompleted, maxResults, ...rest } = params
+        const {
+          oauthCredential,
+          operation,
+          showCompleted,
+          maxResults,
+          selected_taskListId,
+          ...rest
+        } = params
 
-        const processedParams: Record<string, unknown> = { ...rest }
+        const processedParams: Record<string, unknown> = {
+          ...rest,
+          taskListId: selected_taskListId,
+        }
 
         if (maxResults && typeof maxResults === 'string') {
           processedParams.maxResults = Number.parseInt(maxResults, 10)
@@ -246,7 +256,7 @@ Return ONLY the timestamp - no explanations, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Google Tasks access token' },
-    taskListId: { type: 'string', description: 'Task list identifier' },
+    selected_taskListId: { type: 'string', description: 'Task list identifier' },
     title: { type: 'string', description: 'Task title' },
     notes: { type: 'string', description: 'Task notes' },
     due: { type: 'string', description: 'Task due date' },

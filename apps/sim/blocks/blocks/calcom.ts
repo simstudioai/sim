@@ -69,7 +69,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       id: 'eventTypeSelector',
       title: 'Event Type',
       type: 'project-selector',
-      canonicalParamId: 'eventTypeId',
+      canonicalParamId: 'selected_eventTypeId',
       serviceId: 'calcom',
       selectorKey: 'calcom.eventTypes',
       selectorAllowSearch: false,
@@ -86,7 +86,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       id: 'eventTypeId',
       title: 'Event Type ID',
       type: 'short-input',
-      canonicalParamId: 'eventTypeId',
+      canonicalParamId: 'selected_eventTypeId',
       placeholder: 'Enter event type ID (number)',
       mode: 'advanced',
       condition: {
@@ -284,7 +284,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'eventTypeParamSelector',
       title: 'Event Type',
       type: 'project-selector',
-      canonicalParamId: 'eventTypeIdParam',
+      canonicalParamId: 'selected_eventTypeIdParam',
       serviceId: 'calcom',
       selectorKey: 'calcom.eventTypes',
       selectorAllowSearch: false,
@@ -304,7 +304,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'eventTypeIdParam',
       title: 'Event Type ID',
       type: 'short-input',
-      canonicalParamId: 'eventTypeIdParam',
+      canonicalParamId: 'selected_eventTypeIdParam',
       placeholder: 'Enter event type ID',
       mode: 'advanced',
       condition: {
@@ -409,7 +409,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'eventTypeScheduleSelector',
       title: 'Schedule',
       type: 'project-selector',
-      canonicalParamId: 'eventTypeScheduleId',
+      canonicalParamId: 'selected_eventTypeScheduleId',
       serviceId: 'calcom',
       selectorKey: 'calcom.schedules',
       selectorAllowSearch: false,
@@ -425,7 +425,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'eventTypeScheduleId',
       title: 'Schedule ID',
       type: 'short-input',
-      canonicalParamId: 'eventTypeScheduleId',
+      canonicalParamId: 'selected_eventTypeScheduleId',
       placeholder: 'Assign to a specific schedule',
       condition: {
         field: 'operation',
@@ -450,7 +450,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'scheduleSelector',
       title: 'Schedule',
       type: 'project-selector',
-      canonicalParamId: 'scheduleId',
+      canonicalParamId: 'selected_scheduleId',
       serviceId: 'calcom',
       selectorKey: 'calcom.schedules',
       selectorAllowSearch: false,
@@ -470,7 +470,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       id: 'scheduleId',
       title: 'Schedule ID',
       type: 'short-input',
-      canonicalParamId: 'scheduleId',
+      canonicalParamId: 'selected_scheduleId',
       placeholder: 'Enter schedule ID',
       mode: 'advanced',
       condition: {
@@ -659,17 +659,17 @@ Return ONLY valid JSON - no explanations.`,
           reschedulingReason,
           bookingStatus,
           lengthInMinutes,
-          eventTypeIdParam,
-          eventTypeId,
+          selected_eventTypeIdParam,
+          selected_eventTypeId,
           eventLength,
-          eventTypeScheduleId,
+          selected_eventTypeScheduleId,
           slotInterval,
           minimumBookingNotice,
           beforeEventBuffer,
           afterEventBuffer,
           disableGuests,
           name,
-          scheduleId,
+          selected_scheduleId,
           isDefault,
           eventTypeSlug,
           username,
@@ -698,7 +698,7 @@ Return ONLY valid JSON - no explanations.`,
               ...(attendeePhone && { phoneNumber: attendeePhone }),
             }
             {
-              const eventTypeIdNum = toNumber(eventTypeId)
+              const eventTypeIdNum = toNumber(selected_eventTypeId)
               if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
             }
             if (start) result.start = start
@@ -736,12 +736,12 @@ Return ONLY valid JSON - no explanations.`,
           case 'calcom_update_event_type':
             {
               if (operation === 'calcom_update_event_type') {
-                const eventTypeIdNum = toNumber(eventTypeIdParam)
+                const eventTypeIdNum = toNumber(selected_eventTypeIdParam)
                 if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
               }
               const lengthNum = toNumber(eventLength)
               if (lengthNum !== undefined) result.lengthInMinutes = lengthNum
-              const scheduleIdNum = toNumber(eventTypeScheduleId)
+              const scheduleIdNum = toNumber(selected_eventTypeScheduleId)
               if (scheduleIdNum !== undefined) result.scheduleId = scheduleIdNum
               const slotIntervalNum = toNumber(slotInterval)
               if (slotIntervalNum !== undefined) result.slotInterval = slotIntervalNum
@@ -760,7 +760,7 @@ Return ONLY valid JSON - no explanations.`,
           case 'calcom_get_event_type':
           case 'calcom_delete_event_type':
             {
-              const eventTypeIdNum = toNumber(eventTypeIdParam)
+              const eventTypeIdNum = toNumber(selected_eventTypeIdParam)
               if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
             }
             break
@@ -782,7 +782,7 @@ Return ONLY valid JSON - no explanations.`,
           case 'calcom_update_schedule':
           case 'calcom_delete_schedule':
             {
-              const scheduleIdNum = toNumber(scheduleId)
+              const scheduleIdNum = toNumber(selected_scheduleId)
               if (scheduleIdNum !== undefined) result.scheduleId = scheduleIdNum
             }
             if (operation === 'calcom_update_schedule') {
@@ -801,7 +801,7 @@ Return ONLY valid JSON - no explanations.`,
 
           case 'calcom_get_slots':
             {
-              const eventTypeIdNum = toNumber(eventTypeId)
+              const eventTypeIdNum = toNumber(selected_eventTypeId)
               const hasEventTypeId = eventTypeIdNum !== undefined
               const hasSlugAndUsername = Boolean(eventTypeSlug) && Boolean(username)
 
@@ -837,7 +837,7 @@ Return ONLY valid JSON - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Cal.com OAuth credential' },
-    eventTypeId: { type: 'number', description: 'Event type ID' },
+    selected_eventTypeId: { type: 'number', description: 'Event type ID' },
     start: { type: 'string', description: 'Start time (ISO 8601)' },
     end: { type: 'string', description: 'End time (ISO 8601)' },
     attendeeName: { type: 'string', description: 'Attendee name' },
@@ -851,7 +851,7 @@ Return ONLY valid JSON - no explanations.`,
     cancellationReason: { type: 'string', description: 'Reason for cancellation' },
     reschedulingReason: { type: 'string', description: 'Reason for rescheduling' },
     bookingStatus: { type: 'string', description: 'Filter by booking status' },
-    eventTypeIdParam: { type: 'number', description: 'Event type ID for get/update/delete' },
+    selected_eventTypeIdParam: { type: 'number', description: 'Event type ID for get/update/delete' },
     title: { type: 'string', description: 'Event type title' },
     slug: { type: 'string', description: 'URL-friendly slug' },
     eventLength: { type: 'number', description: 'Event duration in minutes' },
@@ -860,10 +860,10 @@ Return ONLY valid JSON - no explanations.`,
     minimumBookingNotice: { type: 'number', description: 'Minimum advance notice' },
     beforeEventBuffer: { type: 'number', description: 'Buffer before event' },
     afterEventBuffer: { type: 'number', description: 'Buffer after event' },
-    eventTypeScheduleId: { type: 'number', description: 'Schedule ID for event type' },
+    selected_eventTypeScheduleId: { type: 'number', description: 'Schedule ID for event type' },
     disableGuests: { type: 'boolean', description: 'Disable guest additions' },
     sortCreatedAt: { type: 'string', description: 'Sort order for event types' },
-    scheduleId: { type: 'number', description: 'Schedule ID' },
+    selected_scheduleId: { type: 'number', description: 'Schedule ID' },
     name: { type: 'string', description: 'Schedule name' },
     timeZone: { type: 'string', description: 'Time zone' },
     isDefault: { type: 'boolean', description: 'Set as default schedule' },
