@@ -77,12 +77,39 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         value: ['zoom_create_meeting', 'zoom_list_meetings', 'zoom_list_recordings'],
       },
     },
-    // Meeting ID for get/update/delete/invitation/recordings/participants operations
+    // Meeting selector for get/update/delete/invitation/recordings/participants operations
+    {
+      id: 'meetingSelector',
+      title: 'Meeting',
+      type: 'project-selector',
+      canonicalParamId: 'meetingId',
+      serviceId: 'zoom',
+      selectorKey: 'zoom.meetings',
+      selectorAllowSearch: true,
+      placeholder: 'Select Zoom meeting',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'zoom_get_meeting',
+          'zoom_update_meeting',
+          'zoom_delete_meeting',
+          'zoom_get_meeting_invitation',
+          'zoom_get_meeting_recordings',
+          'zoom_delete_recording',
+          'zoom_list_past_participants',
+        ],
+      },
+    },
     {
       id: 'meetingId',
       title: 'Meeting ID',
       type: 'short-input',
+      canonicalParamId: 'meetingId',
       placeholder: 'Enter meeting ID',
+      mode: 'advanced',
       required: true,
       condition: {
         field: 'operation',
@@ -114,7 +141,6 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       title: 'Topic',
       type: 'short-input',
       placeholder: 'Meeting topic (optional)',
-      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['zoom_update_meeting'],

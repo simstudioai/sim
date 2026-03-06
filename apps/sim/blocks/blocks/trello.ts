@@ -59,26 +59,50 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
     },
 
     {
-      id: 'boardId',
+      id: 'boardSelector',
       title: 'Board',
-      type: 'short-input',
-      placeholder: 'Enter board ID',
+      type: 'project-selector',
+      canonicalParamId: 'boardId',
+      serviceId: 'trello',
+      selectorKey: 'trello.boards',
+      selectorAllowSearch: false,
+      placeholder: 'Select Trello board',
+      dependsOn: ['credential'],
+      mode: 'basic',
       condition: {
         field: 'operation',
-        value: 'trello_list_lists',
+        value: [
+          'trello_list_lists',
+          'trello_list_cards',
+          'trello_create_card',
+          'trello_get_actions',
+        ],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['trello_list_lists', 'trello_list_cards', 'trello_create_card'],
+      },
     },
     {
       id: 'boardId',
-      title: 'Board',
+      title: 'Board ID',
       type: 'short-input',
-      placeholder: 'Enter board ID or search for a board',
+      canonicalParamId: 'boardId',
+      placeholder: 'Enter board ID',
+      mode: 'advanced',
       condition: {
         field: 'operation',
-        value: 'trello_list_cards',
+        value: [
+          'trello_list_lists',
+          'trello_list_cards',
+          'trello_create_card',
+          'trello_get_actions',
+        ],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['trello_list_lists', 'trello_list_cards', 'trello_create_card'],
+      },
     },
     {
       id: 'listId',
@@ -89,17 +113,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
         field: 'operation',
         value: 'trello_list_cards',
       },
-    },
-    {
-      id: 'boardId',
-      title: 'Board',
-      type: 'short-input',
-      placeholder: 'Enter board ID or search for a board',
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-      required: true,
     },
     {
       id: 'listId',
@@ -278,16 +291,6 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
       },
     },
 
-    {
-      id: 'boardId',
-      title: 'Board ID',
-      type: 'short-input',
-      placeholder: 'Enter board ID to get board actions',
-      condition: {
-        field: 'operation',
-        value: 'trello_get_actions',
-      },
-    },
     {
       id: 'cardId',
       title: 'Card ID',

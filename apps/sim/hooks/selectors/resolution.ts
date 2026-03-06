@@ -18,6 +18,10 @@ export interface SelectorResolutionArgs {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  fileId?: string
+  baseId?: string
+  datasetId?: string
+  serviceDeskId?: string
 }
 
 export function resolveSelectorForSubBlock(
@@ -38,6 +42,10 @@ export function resolveSelectorForSubBlock(
       siteId: args.siteId,
       collectionId: args.collectionId,
       spreadsheetId: args.spreadsheetId,
+      fileId: args.fileId,
+      baseId: args.baseId,
+      datasetId: args.datasetId,
+      serviceDeskId: args.serviceDeskId,
       mimeType: subBlock.mimeType,
     },
     allowSearch: subBlock.selectorAllowSearch ?? true,

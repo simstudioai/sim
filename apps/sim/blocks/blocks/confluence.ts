@@ -84,7 +84,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'write:content.property:confluence',
         'read:hierarchical-content:confluence',
         'read:content.metadata:confluence',
-        'read:user:confluence',
       ],
       placeholder: 'Select Confluence account',
       required: true,
@@ -646,10 +645,43 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       },
     },
     {
+      id: 'spaceSelector',
+      title: 'Space',
+      type: 'project-selector',
+      canonicalParamId: 'spaceId',
+      serviceId: 'confluence',
+      selectorKey: 'confluence.spaces',
+      selectorAllowSearch: false,
+      placeholder: 'Select Confluence space',
+      dependsOn: ['credential', 'domain'],
+      mode: 'basic',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'create',
+          'get_space',
+          'update_space',
+          'delete_space',
+          'list_pages_in_space',
+          'search_in_space',
+          'create_blogpost',
+          'list_blogposts_in_space',
+          'list_space_labels',
+          'list_space_permissions',
+          'list_space_properties',
+          'create_space_property',
+          'delete_space_property',
+        ],
+      },
+    },
+    {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
+      canonicalParamId: 'spaceId',
       placeholder: 'Enter Confluence space ID',
+      mode: 'advanced',
       required: true,
       condition: {
         field: 'operation',
@@ -1250,7 +1282,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        // Use canonical param (serializer already handles basic/advanced mode)
         const effectivePageId = pageId ? String(pageId).trim() : ''
 
         if (operation === 'add_label') {
@@ -1511,7 +1542,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     oauthCredential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
+    pageId: { type: 'string', description: 'Page identifier' },
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
     versionNumber: { type: 'number', description: 'Page version number' },

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import type { SubBlockConfig } from '@/blocks/types'
+import { isEnvVarReference, isReference } from '@/executor/constants'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useDependsOnGate } from './use-depends-on-gate'
@@ -45,6 +46,7 @@ export function useSelectorSetup(
       if (value === null || value === undefined) continue
       const strValue = String(value)
       if (!strValue) continue
+      if (isReference(strValue) || isEnvVarReference(strValue)) continue
 
       const canonicalParamId = canonicalIndex.canonicalIdBySubBlockId[depKey] ?? depKey
 
@@ -78,4 +80,7 @@ const CONTEXT_FIELD_SET: Record<string, true> = {
   collectionId: true,
   spreadsheetId: true,
   fileId: true,
+  baseId: true,
+  datasetId: true,
+  serviceDeskId: true,
 }

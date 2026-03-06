@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { isEnvVarReference, isReference } from '@/executor/constants'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -35,8 +36,10 @@ export function useSelectorOptionDetail(
     context: args.context,
     detailId: args.detailId,
   }
+  const hasRealDetailId =
+    Boolean(args.detailId) && !isReference(args.detailId!) && !isEnvVarReference(args.detailId!)
   const baseEnabled =
-    Boolean(args.detailId) && definition.fetchById !== undefined
+    hasRealDetailId && definition.fetchById !== undefined
       ? definition.enabled
         ? definition.enabled(queryArgs)
         : true
