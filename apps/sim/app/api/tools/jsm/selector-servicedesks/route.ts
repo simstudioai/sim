@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const baseUrl = getJsmApiBaseUrl(cloudId)
+    const baseUrl = getJsmApiBaseUrl(cloudIdValidation.sanitized!)
     const url = `${baseUrl}/servicedesk?limit=100`
 
     const response = await fetch(url, {

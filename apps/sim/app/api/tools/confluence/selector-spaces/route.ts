@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?limit=250`
+    const url = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces?limit=250`
 
     const response = await fetch(url, {
       method: 'GET',
