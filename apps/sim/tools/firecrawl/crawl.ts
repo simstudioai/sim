@@ -68,6 +68,26 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       description: 'Firecrawl API Key',
     },
   },
+
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const creditsUsed = (output.creditsUsed as number) || 0
+        const cost = creditsUsed * 0.001
+        logger.info('Firecrawl crawl hosted key cost calculated', { creditsUsed, cost })
+        return { cost, metadata: { creditsUsed } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
+
   request: {
     url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',

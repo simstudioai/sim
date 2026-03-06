@@ -79,6 +79,20 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'per_request',
+      cost: 0.005,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
+
   request: {
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/extract',

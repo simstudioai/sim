@@ -1,6 +1,9 @@
+import { createLogger } from '@sim/logger'
 import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('FirecrawlSearchTool')
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'firecrawl_search',
@@ -20,6 +23,20 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'Firecrawl API key',
+    },
+  },
+
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'per_request',
+      cost: 0.002,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
     },
   },
 

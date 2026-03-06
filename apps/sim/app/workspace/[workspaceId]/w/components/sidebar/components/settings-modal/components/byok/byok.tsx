@@ -17,9 +17,11 @@ import {
   AnthropicIcon,
   BrowserUseIcon,
   ExaAIIcon,
+  FirecrawlIcon,
   GeminiIcon,
   MistralIcon,
   OpenAIIcon,
+  SerperIcon,
 } from '@/components/icons'
 import { Skeleton } from '@/components/ui'
 import {
@@ -80,6 +82,20 @@ const PROVIDERS: {
     icon: BrowserUseIcon,
     description: 'Browser automation tasks',
     placeholder: 'Enter your Browser Use API key',
+  },
+  {
+    id: 'serper',
+    name: 'Serper',
+    icon: SerperIcon,
+    description: 'Google search API',
+    placeholder: 'Enter your Serper API key',
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl',
+    icon: FirecrawlIcon,
+    description: 'Web scraping, crawling, and data extraction',
+    placeholder: 'Enter your Firecrawl API key',
   },
 ]
 

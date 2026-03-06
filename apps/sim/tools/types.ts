@@ -1,7 +1,15 @@
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { OAuthService } from '@/lib/oauth'
 
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral' | 'exa' | 'browser_use'
+export type BYOKProviderId =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'mistral'
+  | 'exa'
+  | 'browser_use'
+  | 'serper'
+  | 'firecrawl'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

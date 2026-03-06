@@ -1,7 +1,10 @@
+import { createLogger } from '@sim/logger'
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
 import { PAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import { safeAssign } from '@/tools/safe-assign'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('FirecrawlScrapeTool')
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',
@@ -28,6 +31,20 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'Firecrawl API key',
+    },
+  },
+
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'per_request',
+      cost: 0.001,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
     },
   },
 

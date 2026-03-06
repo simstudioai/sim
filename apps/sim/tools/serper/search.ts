@@ -1,6 +1,9 @@
+import { createLogger } from '@sim/logger'
 import type { SearchParams, SearchResponse, SearchResult } from '@/tools/serper/types'
 import { SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/serper/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SerperTool')
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',
@@ -46,6 +49,26 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'Serper API Key',
+    },
+  },
+
+  hosting: {
+    envKeyPrefix: 'SERPER_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'serper',
+    pricing: {
+      type: 'custom',
+      getCost: (params, _output) => {
+        const num = Number(params.num) || 10
+        const credits = num > 10 ? 2 : 1
+        const cost = credits * 0.001
+        logger.info('Serper hosted key cost calculated', { num, credits, cost })
+        return { cost, metadata: { num, credits } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
     },
   },
 

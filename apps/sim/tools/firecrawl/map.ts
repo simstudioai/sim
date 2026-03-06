@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('FirecrawlMapTool')
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
   id: 'firecrawl_map',
@@ -63,6 +66,20 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'Firecrawl API key',
+    },
+  },
+
+  hosting: {
+    envKeyPrefix: 'FIRECRAWL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'per_request',
+      cost: 0.001,
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
     },
   },
 
