@@ -761,9 +761,17 @@ function groupIterationBlocksRecursive(
     }
   }
 
-  // Non-iteration spans that aren't consumed container sentinels go straight to result
+  const containerIdsWithIterations = new Set<string>()
+  for (const span of iterationSpans) {
+    const outermost = getOutermostContainer(span)
+    if (outermost) containerIdsWithIterations.add(outermost.containerId)
+  }
+
   const nonContainerSpans = nonIterationSpans.filter(
-    (span) => (span.type !== 'parallel' && span.type !== 'loop') || span.status === 'error'
+    (span) =>
+      (span.type !== 'parallel' && span.type !== 'loop') ||
+      span.status === 'error' ||
+      (span.blockId && !containerIdsWithIterations.has(span.blockId))
   )
 
   if (iterationSpans.length === 0) {
