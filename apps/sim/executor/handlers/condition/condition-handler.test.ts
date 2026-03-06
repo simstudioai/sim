@@ -555,7 +555,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   describe('Condition with no outgoing edge', () => {
-    it('should return null path when condition matches but has no edge', async () => {
+    it('should set selectedOption when condition matches but has no edge', async () => {
       const conditions = [
         { id: 'cond1', title: 'if', value: 'true' },
         { id: 'else1', title: 'else', value: '' },
@@ -570,9 +570,52 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      // Condition matches but no edge for it
-      expect((result as any).conditionResult).toBe(false)
+      expect((result as any).conditionResult).toBe(true)
       expect((result as any).selectedPath).toBeNull()
+      expect((result as any).selectedOption).toBe('cond1')
+      expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
+    })
+
+    it('should set selectedOption when else is selected but has no edge', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'false' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      // Only the if branch has an edge; else has no outgoing connection
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedPath).toBeNull()
+      expect((result as any).selectedOption).toBe('else1')
+      expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+    })
+
+    it('should deactivate if-path when else is selected with no edge', async () => {
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 100' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      // Only the if branch has an edge to a loop; else has nothing
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+      ]
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      // Else was selected (value 10 is not > 100), so selectedOption should be 'else1'
+      // This allows the edge manager to deactivate the cond1 edge
+      expect((result as any).selectedOption).toBe('else1')
+      expect((result as any).conditionResult).toBe(true)
     })
   })
 
@@ -599,6 +642,67 @@ describe('ConditionBlockHandler', () => {
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect((result as any).selectedOption).toBe('cond1')
+    })
+  })
+
+  describe('Source output filtering', () => {
+    it('should not propagate error field from source block output', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { value: 10, text: 'hello', error: 'upstream block failed' },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 5' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).not.toHaveProperty('error')
+    })
+
+    it('should not propagate _pauseMetadata from source block output', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { value: 10, _pauseMetadata: { contextId: 'abc' } },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 5' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).conditionResult).toBe(true)
+      expect(result).not.toHaveProperty('_pauseMetadata')
+    })
+
+    it('should still pass through non-control fields from source output', async () => {
+      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+        output: { value: 10, text: 'hello', customData: { nested: true } },
+        executed: true,
+        executionTime: 100,
+      })
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 5' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      expect((result as any).value).toBe(10)
+      expect((result as any).text).toBe('hello')
+      expect((result as any).customData).toEqual({ nested: true })
     })
   })
 

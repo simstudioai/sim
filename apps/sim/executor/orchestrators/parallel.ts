@@ -13,6 +13,7 @@ import { buildContainerIterationContext } from '@/executor/utils/iteration-conte
 import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
+  emitEmptySubflowEvents,
   extractBranchIndex,
   resolveArrayInput,
   validateMaxCount,
@@ -107,6 +108,8 @@ export class ParallelOrchestrator {
       ctx.parallelExecutions.set(parallelId, scope)
 
       this.state.setBlockOutput(parallelId, { results: [] })
+
+      emitEmptySubflowEvents(ctx, parallelId, 'parallel', this.contextExtensions)
 
       logger.info('Parallel scope initialized with empty distribution, skipping body', {
         parallelId,

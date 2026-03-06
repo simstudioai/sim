@@ -20,7 +20,10 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { updateActiveBlockRefCount } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import {
+  markOutgoingEdgesFromOutput,
+  updateActiveBlockRefCount,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -63,7 +66,7 @@ interface DebugValidationResult {
 interface BlockEventHandlerConfig {
   workflowId?: string
   executionIdRef: { current: string }
-  workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
+  workflowEdges: Array<{ id: string; source: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
   activeBlockRefCounts: Map<string, number>
   accumulatedBlockLogs: BlockLog[]
@@ -335,13 +338,9 @@ export function useWorkflowExecution() {
         setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
 
-      const markIncomingEdges = (blockId: string) => {
+      const markOutgoingEdges = (blockId: string, output: Record<string, any> | undefined) => {
         if (!workflowId) return
-        const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
-        incomingEdges.forEach((edge) => {
-          const status = edge.sourceHandle === 'error' ? 'error' : 'success'
-          setEdgeRunStatus(workflowId, edge.id, status)
-        })
+        markOutgoingEdgesFromOutput(blockId, output, workflowEdges, workflowId, setEdgeRunStatus)
       }
 
       const isContainerBlockType = (blockType?: string) => {
@@ -460,7 +459,6 @@ export function useWorkflowExecution() {
       const onBlockStarted = (data: BlockStartedData) => {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, true)
-        markIncomingEdges(data.blockId)
 
         if (!includeStartConsoleEntry || !workflowId) return
 
@@ -487,6 +485,7 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
+        markOutgoingEdges(data.blockId, data.output as Record<string, any> | undefined)
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
           output: data.output,
@@ -505,7 +504,9 @@ export function useWorkflowExecution() {
         }
 
         if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
-          return
+          const output = data.output as Record<string, any> | undefined
+          const isEmptySubflow = Array.isArray(output?.results) && output.results.length === 0
+          if (!isEmptySubflow) return
         }
 
         accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
@@ -527,6 +528,7 @@ export function useWorkflowExecution() {
         if (isStaleExecution()) return
         updateActiveBlocks(data.blockId, false)
         if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'error')
+        markOutgoingEdges(data.blockId, { error: data.error })
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
