@@ -267,9 +267,15 @@ export const salesforceConnector: ConnectorConfig = {
       records.map((record) => recordToDocument(record, objectType, instanceUrl))
     )
 
-    const totalFetched = syncContext?.totalDocsFetched
-      ? (syncContext.totalDocsFetched as number) + records.length
-      : records.length
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    if (maxRecords > 0) {
+      const remaining = maxRecords - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+      }
+    }
+
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) {
       syncContext.totalDocsFetched = totalFetched
     }

@@ -268,7 +268,15 @@ export const asanaConnector: ConnectorConfig = {
       }
     }
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    if (maxTasks > 0) {
+      const remaining = maxTasks - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+      }
+    }
+
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxTasks > 0 && totalFetched >= maxTasks
 

@@ -269,9 +269,15 @@ export const hubspotConnector: ConnectorConfig = {
       results.map((record) => recordToDocument(record, objectType, portalId))
     )
 
-    const totalFetched = syncContext?.totalFetched
-      ? (syncContext.totalFetched as number) + results.length
-      : results.length
+    const previouslyFetched = (syncContext?.totalFetched as number) ?? 0
+    if (maxRecords > 0) {
+      const remaining = maxRecords - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+      }
+    }
+
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) {
       syncContext.totalFetched = totalFetched
     }

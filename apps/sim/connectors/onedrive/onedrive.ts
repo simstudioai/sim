@@ -244,9 +244,17 @@ export const onedriveConnector: ConnectorConfig = {
     )
     const documents = documentResults.filter(Boolean) as ExternalDocument[]
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    if (maxFiles > 0) {
+      const remaining = maxFiles - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+      }
+    }
+
+    const totalFetched = previouslyFetched + documents.length
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
 
     const nextLink = data['@odata.nextLink']

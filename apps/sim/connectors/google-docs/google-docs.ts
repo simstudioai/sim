@@ -251,9 +251,17 @@ export const googleDocsConnector: ConnectorConfig = {
     )
     const documents = documentResults.filter(Boolean) as ExternalDocument[]
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    if (maxDocs > 0) {
+      const remaining = maxDocs - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+      }
+    }
+
+    const totalFetched = previouslyFetched + documents.length
+    if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxDocs > 0 && totalFetched >= maxDocs
 
     const nextPageToken = data.nextPageToken as string | undefined
