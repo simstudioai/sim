@@ -82,7 +82,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       id: 'meetingSelector',
       title: 'Meeting',
       type: 'project-selector',
-      canonicalParamId: 'selected_meetingId',
+      canonicalParamId: 'meetingId',
       serviceId: 'zoom',
       selectorKey: 'zoom.meetings',
       selectorAllowSearch: true,
@@ -107,7 +107,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       id: 'meetingId',
       title: 'Meeting ID',
       type: 'short-input',
-      canonicalParamId: 'selected_meetingId',
+      canonicalParamId: 'meetingId',
       placeholder: 'Enter meeting ID',
       mode: 'advanced',
       required: true,
@@ -512,22 +512,22 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
             }
 
           case 'zoom_get_meeting':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
               occurrenceId: params.occurrenceId,
             }
 
           case 'zoom_update_meeting':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
               topic: params.topicUpdate,
               type: params.type ? Number(params.type) : undefined,
               startTime: params.startTime,
@@ -544,23 +544,23 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
             }
 
           case 'zoom_delete_meeting':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
               occurrenceId: params.occurrenceId,
               cancelMeetingReminder: params.cancelMeetingReminder,
             }
 
           case 'zoom_get_meeting_invitation':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
             }
 
           case 'zoom_list_recordings':
@@ -577,32 +577,32 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
             }
 
           case 'zoom_get_meeting_recordings':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
             }
 
           case 'zoom_delete_recording':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
               recordingId: params.recordingId,
               action: params.deleteAction,
             }
 
           case 'zoom_list_past_participants':
-            if (!params.selected_meetingId?.trim()) {
+            if (!params.meetingId?.trim()) {
               throw new Error('Meeting ID is required.')
             }
             return {
               ...baseParams,
-              meetingId: params.selected_meetingId.trim(),
+              meetingId: params.meetingId.trim(),
               pageSize: params.pageSize ? Number(params.pageSize) : undefined,
               nextPageToken: params.nextPageToken,
             }
@@ -617,7 +617,7 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Zoom access token' },
     userId: { type: 'string', description: 'User ID or email (use "me" for authenticated user)' },
-    selected_meetingId: { type: 'string', description: 'Meeting ID' },
+    meetingId: { type: 'string', description: 'Meeting ID' },
     topic: { type: 'string', description: 'Meeting topic' },
     topicUpdate: { type: 'string', description: 'Meeting topic for update' },
     type: { type: 'string', description: 'Meeting type' },

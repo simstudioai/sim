@@ -52,7 +52,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'workspaceSelector',
       title: 'Workspace',
       type: 'project-selector',
-      canonicalParamId: 'selected_workspace',
+      canonicalParamId: 'workspace',
       serviceId: 'asana',
       selectorKey: 'asana.workspaces',
       selectorAllowSearch: false,
@@ -69,7 +69,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'workspace',
       title: 'Workspace GID',
       type: 'short-input',
-      canonicalParamId: 'selected_workspace',
+      canonicalParamId: 'workspace',
       required: true,
       placeholder: 'Enter Asana workspace GID',
       mode: 'advanced',
@@ -104,7 +104,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'getTasksWorkspaceSelector',
       title: 'Workspace',
       type: 'project-selector',
-      canonicalParamId: 'selected_getTasks_workspace',
+      canonicalParamId: 'getTasks_workspace',
       serviceId: 'asana',
       selectorKey: 'asana.workspaces',
       selectorAllowSearch: false,
@@ -120,7 +120,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       id: 'getTasks_workspace',
       title: 'Workspace GID',
       type: 'short-input',
-      canonicalParamId: 'selected_getTasks_workspace',
+      canonicalParamId: 'getTasks_workspace',
       placeholder: 'Enter workspace GID',
       mode: 'advanced',
       condition: {
@@ -280,14 +280,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               taskGid: params.taskGid,
-              workspace: params.selected_getTasks_workspace,
+              workspace: params.getTasks_workspace,
               project: params.getTasks_project,
               limit: params.getTasks_limit ? Number(params.getTasks_limit) : undefined,
             }
           case 'create_task':
             return {
               ...baseParams,
-              workspace: params.selected_workspace,
+              workspace: params.workspace,
               name: params.name,
               notes: params.notes,
               assignee: params.assignee,
@@ -306,12 +306,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           case 'get_projects':
             return {
               ...baseParams,
-              workspace: params.selected_workspace,
+              workspace: params.workspace,
             }
           case 'search_tasks':
             return {
               ...baseParams,
-              workspace: params.selected_workspace,
+              workspace: params.workspace,
               text: params.searchText,
               assignee: params.assignee,
               projects: projectsArray,
@@ -332,9 +332,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Asana OAuth credential' },
-    selected_workspace: { type: 'string', description: 'Workspace GID' },
+    workspace: { type: 'string', description: 'Workspace GID' },
     taskGid: { type: 'string', description: 'Task GID' },
-    selected_getTasks_workspace: { type: 'string', description: 'Workspace GID for getting tasks' },
+    getTasks_workspace: { type: 'string', description: 'Workspace GID for getting tasks' },
     getTasks_project: { type: 'string', description: 'Project GID filter for getting tasks' },
     getTasks_limit: { type: 'string', description: 'Limit for getting tasks' },
     name: { type: 'string', description: 'Task name' },

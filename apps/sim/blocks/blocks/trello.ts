@@ -62,7 +62,7 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardSelector',
       title: 'Board',
       type: 'project-selector',
-      canonicalParamId: 'selected_boardId',
+      canonicalParamId: 'boardId',
       serviceId: 'trello',
       selectorKey: 'trello.boards',
       selectorAllowSearch: false,
@@ -87,7 +87,7 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       id: 'boardId',
       title: 'Board ID',
       type: 'short-input',
-      canonicalParamId: 'selected_boardId',
+      canonicalParamId: 'boardId',
       placeholder: 'Enter board ID',
       mode: 'advanced',
       condition: {
@@ -374,9 +374,9 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
         }
       },
       params: (params) => {
-        const { operation, limit, closed, dueComplete, selected_boardId, ...rest } = params
+        const { operation, limit, closed, dueComplete, ...rest } = params
 
-        const result: Record<string, any> = { ...rest, boardId: selected_boardId }
+        const result: Record<string, any> = { ...rest }
 
         if (limit && operation === 'trello_get_actions') {
           result.limit = Number.parseInt(limit, 10)
@@ -409,7 +409,7 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
   inputs: {
     operation: { type: 'string', description: 'Trello operation to perform' },
     oauthCredential: { type: 'string', description: 'Trello OAuth credential' },
-    selected_boardId: { type: 'string', description: 'Board ID' },
+    boardId: { type: 'string', description: 'Board ID' },
     listId: { type: 'string', description: 'List ID' },
     cardId: { type: 'string', description: 'Card ID' },
     name: { type: 'string', description: 'Card name/title' },

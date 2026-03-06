@@ -102,7 +102,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'pageId',
       title: 'Select Page',
       type: 'file-selector',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       serviceId: 'confluence',
       selectorKey: 'confluence.pages',
       placeholder: 'Select Confluence page',
@@ -126,7 +126,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'manualPageId',
       title: 'Page ID',
       type: 'short-input',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
       required: {
@@ -147,7 +147,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'spaceSelector',
       title: 'Space',
       type: 'project-selector',
-      canonicalParamId: 'selected_spaceId',
+      canonicalParamId: 'spaceId',
       serviceId: 'confluence',
       selectorKey: 'confluence.spaces',
       selectorAllowSearch: false,
@@ -160,7 +160,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
-      canonicalParamId: 'selected_spaceId',
+      canonicalParamId: 'spaceId',
       placeholder: 'Enter Confluence space ID',
       mode: 'advanced',
       required: { field: 'operation', value: ['create', 'get_space'] },
@@ -317,8 +317,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       params: (params) => {
         const {
           oauthCredential,
-          selected_pageId,
-          selected_spaceId,
+          pageId,
+          spaceId,
           operation,
           attachmentFile,
           attachmentFileName,
@@ -326,7 +326,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        const effectivePageId = selected_pageId ? String(selected_pageId).trim() : ''
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         if (operation === 'upload_attachment') {
           return {
@@ -336,7 +336,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
             file: attachmentFile,
             fileName: attachmentFileName,
             comment: attachmentComment,
-            ...(selected_spaceId ? { spaceId: selected_spaceId } : {}),
+            ...(spaceId ? { spaceId } : {}),
             ...rest,
           }
         }
@@ -345,7 +345,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           credential: oauthCredential,
           pageId: effectivePageId || undefined,
           operation,
-          ...(selected_spaceId ? { spaceId: selected_spaceId } : {}),
+          ...(spaceId ? { spaceId } : {}),
           ...rest,
         }
       },
@@ -355,8 +355,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     oauthCredential: { type: 'string', description: 'Confluence access token' },
-    selected_pageId: { type: 'string', description: 'Page identifier (canonical param)' },
-    selected_spaceId: { type: 'string', description: 'Space identifier' },
+    pageId: { type: 'string', description: 'Page identifier' },
+    spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
     content: { type: 'string', description: 'Page content' },
     parentId: { type: 'string', description: 'Parent page identifier' },
@@ -544,7 +544,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       id: 'pageId',
       title: 'Select Page',
       type: 'file-selector',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       serviceId: 'confluence',
       selectorKey: 'confluence.pages',
       placeholder: 'Select Confluence page',
@@ -607,7 +607,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       id: 'manualPageId',
       title: 'Page ID',
       type: 'short-input',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
       condition: {
@@ -1239,7 +1239,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       params: (params) => {
         const {
           oauthCredential,
-          selected_pageId,
+          pageId,
           operation,
           attachmentFile,
           attachmentFileName,
@@ -1268,8 +1268,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        // Use canonical param (serializer already handles basic/advanced mode)
-        const effectivePageId = selected_pageId ? String(selected_pageId).trim() : ''
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         if (operation === 'add_label') {
           return {
@@ -1529,7 +1528,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     oauthCredential: { type: 'string', description: 'Confluence access token' },
-    selected_pageId: { type: 'string', description: 'Page identifier (canonical param)' },
+    pageId: { type: 'string', description: 'Page identifier' },
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
     versionNumber: { type: 'number', description: 'Page version number' },

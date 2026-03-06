@@ -58,7 +58,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'pageSelector',
       title: 'Page',
       type: 'file-selector',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       serviceId: 'notion',
       selectorKey: 'notion.pages',
       selectorAllowSearch: true,
@@ -72,7 +72,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
-      canonicalParamId: 'selected_pageId',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Notion page ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['notion_read', 'notion_write'] },
@@ -83,7 +83,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'databaseSelector',
       title: 'Database',
       type: 'project-selector',
-      canonicalParamId: 'selected_databaseId',
+      canonicalParamId: 'databaseId',
       serviceId: 'notion',
       selectorKey: 'notion.databases',
       selectorAllowSearch: true,
@@ -103,7 +103,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'databaseId',
       title: 'Database ID',
       type: 'short-input',
-      canonicalParamId: 'selected_databaseId',
+      canonicalParamId: 'databaseId',
       placeholder: 'Enter Notion database ID',
       mode: 'advanced',
       condition: {
@@ -120,7 +120,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'parentSelector',
       title: 'Parent Page',
       type: 'file-selector',
-      canonicalParamId: 'selected_parentId',
+      canonicalParamId: 'parentId',
       serviceId: 'notion',
       selectorKey: 'notion.pages',
       selectorAllowSearch: true,
@@ -140,7 +140,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
-      canonicalParamId: 'selected_parentId',
+      canonicalParamId: 'parentId',
       placeholder: 'ID of parent page',
       mode: 'advanced',
       condition: {
@@ -345,17 +345,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         }
       },
       params: (params) => {
-        const {
-          oauthCredential,
-          operation,
-          properties,
-          filter,
-          sorts,
-          selected_pageId,
-          selected_databaseId,
-          selected_parentId,
-          ...rest
-        } = params
+        const { oauthCredential, operation, properties, filter, sorts, ...rest } = params
 
         // Parse properties from JSON string for create/add operations
         let parsedProperties
@@ -405,9 +395,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         return {
           ...rest,
           oauthCredential,
-          ...(selected_pageId ? { pageId: selected_pageId } : {}),
-          ...(selected_databaseId ? { databaseId: selected_databaseId } : {}),
-          ...(selected_parentId ? { parentId: selected_parentId } : {}),
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),
@@ -418,13 +405,13 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Notion access token' },
-    selected_pageId: { type: 'string', description: 'Page identifier' },
+    pageId: { type: 'string', description: 'Page identifier' },
     content: { type: 'string', description: 'Page content' },
     // Create page inputs
-    selected_parentId: { type: 'string', description: 'Parent page identifier' },
+    parentId: { type: 'string', description: 'Parent page identifier' },
     title: { type: 'string', description: 'Page title' },
     // Query database inputs
-    selected_databaseId: { type: 'string', description: 'Database identifier' },
+    databaseId: { type: 'string', description: 'Database identifier' },
     filter: { type: 'string', description: 'Filter criteria' },
     sorts: { type: 'string', description: 'Sort criteria' },
     pageSize: { type: 'number', description: 'Page size limit' },

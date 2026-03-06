@@ -61,7 +61,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'baseSelector',
       title: 'Base',
       type: 'project-selector',
-      canonicalParamId: 'selected_baseId',
+      canonicalParamId: 'baseId',
       serviceId: 'airtable',
       selectorKey: 'airtable.bases',
       selectorAllowSearch: false,
@@ -75,7 +75,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'baseId',
       title: 'Base ID',
       type: 'short-input',
-      canonicalParamId: 'selected_baseId',
+      canonicalParamId: 'baseId',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'listBases', not: true },
@@ -85,7 +85,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'tableSelector',
       title: 'Table',
       type: 'file-selector',
-      canonicalParamId: 'selected_tableId',
+      canonicalParamId: 'tableId',
       serviceId: 'airtable',
       selectorKey: 'airtable.tables',
       selectorAllowSearch: false,
@@ -99,7 +99,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       id: 'tableId',
       title: 'Table ID',
       type: 'short-input',
-      canonicalParamId: 'selected_tableId',
+      canonicalParamId: 'tableId',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
       mode: 'advanced',
       condition: { field: 'operation', value: ['listBases', 'listTables'], not: true },
@@ -274,8 +274,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, records, fields, selected_baseId, selected_tableId, ...rest } =
-          params
+        const { oauthCredential, records, fields, ...rest } = params
         let parsedRecords: any | undefined
         let parsedFields: any | undefined
 
@@ -294,8 +293,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         // Construct parameters based on operation
         const baseParams = {
           credential: oauthCredential,
-          baseId: selected_baseId,
-          tableId: selected_tableId,
           ...rest,
         }
 
@@ -314,8 +311,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Airtable access token' },
-    selected_baseId: { type: 'string', description: 'Airtable base identifier' },
-    selected_tableId: { type: 'string', description: 'Airtable table identifier' },
+    baseId: { type: 'string', description: 'Airtable base identifier' },
+    tableId: { type: 'string', description: 'Airtable table identifier' },
     // Conditional inputs
     recordId: { type: 'string', description: 'Record identifier' }, // Required for get/update
     maxRecords: { type: 'number', description: 'Maximum records to return' }, // Optional for list

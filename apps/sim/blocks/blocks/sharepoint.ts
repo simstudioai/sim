@@ -116,7 +116,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       id: 'listSelector',
       title: 'List',
       type: 'file-selector',
-      canonicalParamId: 'selected_listId',
+      canonicalParamId: 'listId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.lists',
       selectorAllowSearch: false,
@@ -129,7 +129,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       id: 'listId',
       title: 'List ID',
       type: 'short-input',
-      canonicalParamId: 'selected_listId',
+      canonicalParamId: 'listId',
       placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
@@ -348,7 +348,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       title: 'Document Library ID',
       type: 'short-input',
       placeholder: 'Enter document library (drive) ID',
-      canonicalParamId: 'selected_driveId',
+      canonicalParamId: 'driveId',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
     },
@@ -374,7 +374,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'uploadFiles',
       title: 'Files',
       type: 'file-upload',
-      canonicalParamId: 'selected_files',
+      canonicalParamId: 'files',
       placeholder: 'Upload files to SharePoint',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'basic',
@@ -386,7 +386,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       id: 'files',
       title: 'Files',
       type: 'short-input',
-      canonicalParamId: 'selected_files',
+      canonicalParamId: 'files',
       placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
@@ -438,10 +438,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           listItemFields, // canonical param
           includeColumns,
           includeItems,
-          selected_files, // canonical param from uploadFiles (basic) or files (advanced)
-          selected_driveId, // canonical param from driveId
+          files, // canonical param from uploadFiles (basic) or files (advanced)
+          driveId, // canonical param from driveId
           columnDefinitions,
-          selected_listId,
+          listId,
           ...others
         } = rest as any
 
@@ -473,7 +473,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           try {
             logger.info('SharepointBlock list item param check', {
               siteId: effectiveSiteId || undefined,
-              listId: selected_listId,
+              listId: listId,
               listTitle: (others as any)?.listTitle,
               itemId: sanitizedItemId,
               hasItemFields: !!parsedItemFields && typeof parsedItemFields === 'object',
@@ -486,15 +486,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         // Handle file upload files parameter using canonical param
-        const normalizedFiles = normalizeFileInput(selected_files)
+        const normalizedFiles = normalizeFileInput(files)
         const baseParams: Record<string, any> = {
           oauthCredential,
           siteId: effectiveSiteId || undefined,
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...others,
-          ...(selected_listId ? { listId: selected_listId } : {}),
-          ...(selected_driveId ? { driveId: selected_driveId } : {}),
+          ...(listId ? { listId } : {}),
+          ...(driveId ? { driveId } : {}),
           itemId: sanitizedItemId,
           listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
@@ -529,19 +529,19 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     listDisplayName: { type: 'string', description: 'List display name' },
     listDescription: { type: 'string', description: 'List description' },
     listTemplate: { type: 'string', description: 'List template' },
-    selected_listId: { type: 'string', description: 'List ID' },
+    listId: { type: 'string', description: 'List ID' },
     listTitle: { type: 'string', description: 'List title' },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
     itemId: { type: 'string', description: 'List item ID (canonical param)' },
     listItemFields: { type: 'string', description: 'List item fields (canonical param)' },
-    selected_driveId: {
+    driveId: {
       type: 'string',
-      description: 'Document library (drive) ID (canonical param)',
+      description: 'Document library (drive) ID',
     },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
-    selected_files: { type: 'array', description: 'Files to upload (canonical param)' },
+    files: { type: 'array', description: 'Files to upload' },
   },
   outputs: {
     sites: {

@@ -89,7 +89,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'planSelector',
       title: 'Plan',
       type: 'project-selector',
-      canonicalParamId: 'selected_planId',
+      canonicalParamId: 'planId',
       serviceId: 'microsoft-planner',
       selectorKey: 'microsoft.planner.plans',
       selectorAllowSearch: false,
@@ -111,7 +111,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       id: 'planId',
       title: 'Plan ID',
       type: 'short-input',
-      canonicalParamId: 'selected_planId',
+      canonicalParamId: 'planId',
       placeholder: 'Enter the plan ID',
       mode: 'advanced',
       condition: {
@@ -388,7 +388,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           oauthCredential,
           operation,
           groupId,
-          selected_planId,
+          planId,
           readTaskId, // Canonical param from taskSelector (basic) or manualReadTaskId (advanced) for read_task
           updateTaskId, // Task ID for update/delete operations
           bucketId,
@@ -427,7 +427,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (operation === 'read_plan') {
           return {
             ...baseParams,
-            planId: selected_planId?.trim(),
+            planId: planId?.trim(),
           }
         }
 
@@ -435,7 +435,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (operation === 'list_buckets') {
           return {
             ...baseParams,
-            planId: selected_planId?.trim(),
+            planId: planId?.trim(),
           }
         }
 
@@ -451,7 +451,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (operation === 'create_bucket') {
           return {
             ...baseParams,
-            planId: selected_planId?.trim(),
+            planId: planId?.trim(),
             name: name?.trim(),
           }
         }
@@ -484,8 +484,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
           if (effectiveReadTaskId) {
             readParams.taskId = effectiveReadTaskId
-          } else if (selected_planId?.trim()) {
-            readParams.planId = selected_planId.trim()
+          } else if (planId?.trim()) {
+            readParams.planId = planId.trim()
           }
 
           return readParams
@@ -495,7 +495,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (operation === 'create_task') {
           const createParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
-            planId: selected_planId?.trim(),
+            planId: planId?.trim(),
             title: title?.trim(),
           }
 
@@ -597,7 +597,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Microsoft account credential' },
     groupId: { type: 'string', description: 'Microsoft 365 group ID' },
-    selected_planId: { type: 'string', description: 'Plan ID' },
+    planId: { type: 'string', description: 'Plan ID' },
     readTaskId: { type: 'string', description: 'Task ID for read operation' },
     updateTaskId: { type: 'string', description: 'Task ID for update/delete operations' },
     bucketId: { type: 'string', description: 'Bucket ID' },
