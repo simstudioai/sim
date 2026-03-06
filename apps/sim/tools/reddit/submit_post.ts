@@ -64,6 +64,24 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       visibility: 'user-or-llm',
       description: 'Send reply notifications to inbox (default: true)',
     },
+    flair_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Flair template UUID for the post (max 36 characters)',
+    },
+    flair_text: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Flair text to display on the post (max 64 characters)',
+    },
+    collection_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Collection UUID to add the post to',
+    },
   },
 
   request: {
@@ -105,6 +123,9 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       // Add optional parameters
       if (params.nsfw !== undefined) formData.append('nsfw', params.nsfw.toString())
       if (params.spoiler !== undefined) formData.append('spoiler', params.spoiler.toString())
+      if (params.flair_id) formData.append('flair_id', params.flair_id)
+      if (params.flair_text) formData.append('flair_text', params.flair_text)
+      if (params.collection_id) formData.append('collection_id', params.collection_id)
       if (params.send_replies !== undefined)
         formData.append('sendreplies', params.send_replies.toString())
 
@@ -138,7 +159,9 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
           id: postData?.id,
           name: postData?.name,
           url: postData?.url,
-          permalink: `https://www.reddit.com${postData?.url}`,
+          permalink: postData?.permalink
+            ? `https://www.reddit.com${postData.permalink}`
+            : (postData?.url ?? ''),
         },
       },
     }

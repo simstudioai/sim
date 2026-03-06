@@ -1,6 +1,9 @@
+import { validateEnum } from '@/lib/core/security/input-validation'
 import type { RedditPostsParams, RedditPostsResponse } from '@/tools/reddit/types'
 import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const ALLOWED_SORT_OPTIONS = ['hot', 'new', 'top', 'controversial', 'rising'] as const
 
 export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = {
   id: 'reddit_get_posts',
@@ -30,7 +33,8 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort method for posts (e.g., "hot", "new", "top", "rising"). Default: "hot"',
+      description:
+        'Sort method for posts (e.g., "hot", "new", "top", "rising", "controversial"). Default: "hot"',
     },
     limit: {
       type: 'number',
@@ -43,7 +47,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" (default: "day")',
+        'Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" (default: "all")',
     },
     after: {
       type: 'string',
@@ -75,13 +79,23 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       visibility: 'user-or-llm',
       description: 'Expand subreddit details in the response',
     },
+    g: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Geo filter for posts (e.g., "GLOBAL", "US", "AR", etc.)',
+    },
   },
 
   request: {
     url: (params: RedditPostsParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'hot'
-      const limit = Math.min(Math.max(1, params.limit || 10), 100)
+      const sortValidation = validateEnum(sort, ALLOWED_SORT_OPTIONS, 'sort')
+      if (!sortValidation.isValid) {
+        throw new Error(sortValidation.error)
+      }
+      const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
 
       // Build URL with appropriate parameters using OAuth endpoint
       const urlParams = new URLSearchParams({
@@ -89,8 +103,12 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
         raw_json: '1',
       })
 
-      // Add time parameter only for 'top' sorting
-      if (sort === 'top' && params.time !== undefined && params.time !== null) {
+      // Add time parameter for 'top' and 'controversial' sorting
+      if (
+        (sort === 'top' || sort === 'controversial') &&
+        params.time !== undefined &&
+        params.time !== null
+      ) {
         urlParams.append('t', params.time)
       }
 
@@ -105,6 +123,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
         urlParams.append('show', params.show)
       if (params.sr_detail !== undefined && params.sr_detail !== null)
         urlParams.append('sr_detail', params.sr_detail.toString())
+      if (params.g) urlParams.append('g', params.g)
 
       return `https://oauth.reddit.com/r/${subreddit}/${sort}?${urlParams.toString()}`
     },
@@ -127,25 +146,26 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
 
     // Extract subreddit name from response (with fallback)
     const subredditName =
-      data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+      data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
     // Transform posts data
     const posts =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}
         return {
-          id: post.id || '',
-          title: post.title || '',
+          id: post.id ?? '',
+          name: post.name ?? '',
+          title: post.title ?? '',
           author: post.author || '[deleted]',
-          url: post.url || '',
+          url: post.url ?? '',
           permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-          created_utc: post.created_utc || 0,
-          score: post.score || 0,
-          num_comments: post.num_comments || 0,
+          created_utc: post.created_utc ?? 0,
+          score: post.score ?? 0,
+          num_comments: post.num_comments ?? 0,
           is_self: !!post.is_self,
-          selftext: post.selftext || '',
-          thumbnail: post.thumbnail || '',
-          subreddit: post.subreddit || subredditName,
+          selftext: post.selftext ?? '',
+          thumbnail: post.thumbnail ?? '',
+          subreddit: post.subreddit ?? subredditName,
         }
       }) || []
 
@@ -154,6 +174,8 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       output: {
         subreddit: subredditName,
         posts,
+        after: data.data?.after ?? null,
+        before: data.data?.before ?? null,
       },
     }
   },
@@ -170,6 +192,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Post ID' },
+          name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
           title: { type: 'string', description: 'Post title' },
           author: { type: 'string', description: 'Author username' },
           url: { type: 'string', description: 'Post URL' },
@@ -183,6 +206,16 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
           subreddit: { type: 'string', description: 'Subreddit name' },
         },
       },
+    },
+    after: {
+      type: 'string',
+      description: 'Fullname of the last item for forward pagination',
+      optional: true,
+    },
+    before: {
+      type: 'string',
+      description: 'Fullname of the first item for backward pagination',
+      optional: true,
     },
   },
 }
