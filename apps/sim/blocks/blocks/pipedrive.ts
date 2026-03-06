@@ -114,7 +114,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       required: { field: 'operation', value: 'get_pipeline_deals' },
     },
     {
-      id: 'manualPipelineId',
+      id: 'pipeline_id',
       title: 'Pipeline ID',
       type: 'short-input',
       canonicalParamId: 'pipeline_id',

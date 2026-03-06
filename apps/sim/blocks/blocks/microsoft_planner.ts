@@ -108,7 +108,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
     // Plan ID - advanced mode
     {
-      id: 'manualPlanId',
+      id: 'planId',
       title: 'Plan ID',
       type: 'short-input',
       canonicalParamId: 'planId',
@@ -146,7 +146,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter the task ID',
       condition: { field: 'operation', value: ['read_task'] },
-      dependsOn: ['credential', 'manualPlanId'],
+      dependsOn: ['credential', 'planId'],
       mode: 'advanced',
       canonicalParamId: 'readTaskId',
     },

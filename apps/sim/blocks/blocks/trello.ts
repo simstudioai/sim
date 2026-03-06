@@ -84,7 +84,7 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       },
     },
     {
-      id: 'manualBoardId',
+      id: 'boardId',
       title: 'Board ID',
       type: 'short-input',
       canonicalParamId: 'boardId',

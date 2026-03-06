@@ -126,7 +126,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
     },
     {
-      id: 'manualListId',
+      id: 'listId',
       title: 'List ID',
       type: 'short-input',
       canonicalParamId: 'listId',

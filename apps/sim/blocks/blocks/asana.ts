@@ -66,7 +66,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       required: true,
     },
     {
-      id: 'manualWorkspace',
+      id: 'workspace',
       title: 'Workspace GID',
       type: 'short-input',
       canonicalParamId: 'workspace',
@@ -117,7 +117,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       },
     },
     {
-      id: 'manualGetTasksWorkspace',
+      id: 'getTasks_workspace',
       title: 'Workspace GID',
       type: 'short-input',
       canonicalParamId: 'getTasks_workspace',

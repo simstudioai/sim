@@ -69,7 +69,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       required: { field: 'operation', value: ['notion_read', 'notion_write'] },
     },
     {
-      id: 'manualPageId',
+      id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
       canonicalParamId: 'pageId',
@@ -100,7 +100,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     {
-      id: 'manualDatabaseId',
+      id: 'databaseId',
       title: 'Database ID',
       type: 'short-input',
       canonicalParamId: 'databaseId',
@@ -137,7 +137,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     {
-      id: 'manualParentId',
+      id: 'parentId',
       title: 'Parent Page ID',
       type: 'short-input',
       canonicalParamId: 'parentId',
