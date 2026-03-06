@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, add or remove reactions, manage canvases, get channel info and user presence in Slack
+description: Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
 
 
 
@@ -922,5 +922,190 @@ Create a canvas pinned to a Slack channel as its resource hub
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `canvas_id` | string | ID of the created channel canvas |
+
+### `slack_open_view`
+
+Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., slash command, button click\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The opened modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_update_view`
+
+Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `viewId` | string | No | Unique identifier of the view to update. Either viewId or externalId is required |
+| `externalId` | string | No | Developer-set unique identifier of the view to update \(max 255 chars\). Either viewId or externalId is required |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the updated modal. Must include type \("modal"\), title, and blocks array. Use identical block_id and action_id values to preserve input data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The updated modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_push_view`
+
+Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., button click within an existing modal\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal to push. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The pushed modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### `slack_publish_view`
+
+Publish a static view to a user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | The user ID to publish the Home tab view to \(e.g., U0BPQUNTA\) |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the Home tab. Must include type \("home"\) and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The published Home tab view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
 
 
