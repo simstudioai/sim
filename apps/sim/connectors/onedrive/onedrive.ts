@@ -205,7 +205,10 @@ export const onedriveConnector: ConnectorConfig = {
       pageUrl = buildListUrl(folderPath)
     }
 
-    logger.info('Listing OneDrive files', { url: pageUrl, cursor: cursor ? 'continuation' : 'initial' })
+    logger.info('Listing OneDrive files', {
+      url: pageUrl,
+      cursor: cursor ? 'continuation' : 'initial',
+    })
 
     const response = await fetchWithRetry(pageUrl, {
       method: 'GET',

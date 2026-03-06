@@ -141,17 +141,13 @@ export const webflowConnector: ConnectorConfig = {
       syncContext.collectionNames = {}
     }
 
-    const totalDocsFetched = ((syncContext?.totalDocsFetched as number) ?? 0)
+    const totalDocsFetched = (syncContext?.totalDocsFetched as number) ?? 0
     if (maxItems > 0 && totalDocsFetched >= maxItems) {
       return { documents: [], hasMore: false }
     }
 
     const currentCollectionId = cursorState.collections[cursorState.collectionIndex]
-    const collectionName = await fetchCollectionName(
-      accessToken,
-      currentCollectionId,
-      syncContext
-    )
+    const collectionName = await fetchCollectionName(accessToken, currentCollectionId, syncContext)
 
     const params = new URLSearchParams()
     params.append('limit', String(PAGE_SIZE))
@@ -206,7 +202,7 @@ export const webflowConnector: ConnectorConfig = {
     const { pagination } = data
     const hasMoreInCollection = cursorState.offset + pagination.limit < pagination.total
     const hasMoreCollections = cursorState.collectionIndex < cursorState.collections.length - 1
-    const hitMaxItems = maxItems > 0 && (totalDocsFetched + documents.length) >= maxItems
+    const hitMaxItems = maxItems > 0 && totalDocsFetched + documents.length >= maxItems
 
     let nextCursor: string | undefined
     if (hitMaxItems) {
@@ -326,7 +322,10 @@ export const webflowConnector: ConnectorConfig = {
           if (collectionResponse.status === 404) {
             return { valid: false, error: `Collection "${collectionId}" not found` }
           }
-          return { valid: false, error: `Failed to verify collection: ${collectionResponse.status}` }
+          return {
+            valid: false,
+            error: `Failed to verify collection: ${collectionResponse.status}`,
+          }
         }
       }
 

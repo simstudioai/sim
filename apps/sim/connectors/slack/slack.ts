@@ -97,8 +97,7 @@ async function resolveUserName(
   try {
     const data = await slackApiGet('users.info', accessToken, { user: userId })
     const user = data.user as SlackUser | undefined
-    const displayName =
-      user?.profile?.display_name || user?.real_name || user?.name || userId
+    const displayName = user?.profile?.display_name || user?.real_name || user?.name || userId
 
     if (syncContext) {
       const cache = syncContext[cacheKey] as Record<string, string>

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
+import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('SharePointConnector')
 
@@ -62,7 +62,7 @@ async function resolveSiteId(
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<string> {
   // Normalise: strip protocol, trailing slashes
-  let cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  const cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
 
   // Split into hostname and server-relative path
   const firstSlash = cleaned.indexOf('/')
@@ -96,11 +96,17 @@ async function resolveSiteId(
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`Failed to resolve SharePoint site "${siteUrl}": ${response.status} – ${errorText}`)
+    throw new Error(
+      `Failed to resolve SharePoint site "${siteUrl}": ${response.status} – ${errorText}`
+    )
   }
 
   const site = (await response.json()) as { id: string; displayName?: string }
-  logger.info('Resolved SharePoint site', { siteUrl, siteId: site.id, displayName: site.displayName })
+  logger.info('Resolved SharePoint site', {
+    siteUrl,
+    siteId: site.id,
+    displayName: site.displayName,
+  })
   return site.id
 }
 

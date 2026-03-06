@@ -121,10 +121,7 @@ function buildRecordTitle(objectType: string, properties: Record<string, string 
 /**
  * Builds a plain-text representation of a CRM record's properties for indexing.
  */
-function buildRecordContent(
-  objectType: string,
-  properties: Record<string, string | null>
-): string {
+function buildRecordContent(objectType: string, properties: Record<string, string | null>): string {
   const parts: string[] = []
 
   const title = buildRecordTitle(objectType, properties)

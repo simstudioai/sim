@@ -274,8 +274,7 @@ export const salesforceConnector: ConnectorConfig = {
       syncContext.totalDocsFetched = totalFetched
     }
 
-    const hasMore =
-      Boolean(nextRecordsUrl) && (maxRecords <= 0 || totalFetched < maxRecords)
+    const hasMore = Boolean(nextRecordsUrl) && (maxRecords <= 0 || totalFetched < maxRecords)
 
     return {
       documents,
@@ -392,8 +391,7 @@ export const salesforceConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
       return { valid: false, error: message }
     }
   },

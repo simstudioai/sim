@@ -13,9 +13,9 @@ import { onedriveConnector } from '@/connectors/onedrive'
 import { salesforceConnector } from '@/connectors/salesforce'
 import { sharepointConnector } from '@/connectors/sharepoint'
 import { slackConnector } from '@/connectors/slack'
+import type { ConnectorRegistry } from '@/connectors/types'
 import { webflowConnector } from '@/connectors/webflow'
 import { wordpressConnector } from '@/connectors/wordpress'
-import type { ConnectorRegistry } from '@/connectors/types'
 
 export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   airtable: airtableConnector,

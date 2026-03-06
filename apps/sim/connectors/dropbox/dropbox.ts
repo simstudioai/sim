@@ -54,10 +54,7 @@ function isSupportedFile(entry: DropboxFileEntry): boolean {
   return SUPPORTED_EXTENSIONS.has(name.slice(dotIndex))
 }
 
-async function downloadFileContent(
-  accessToken: string,
-  filePath: string
-): Promise<string> {
+async function downloadFileContent(accessToken: string, filePath: string): Promise<string> {
   const response = await fetchWithRetry('https://content.dropboxapi.com/2/files/download', {
     method: 'POST',
     headers: {
@@ -153,14 +150,17 @@ export const dropboxConnector: ConnectorConfig = {
     let data: DropboxListFolderResponse
 
     if (cursor) {
-      const response = await fetchWithRetry('https://api.dropboxapi.com/2/files/list_folder/continue', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ cursor }),
-      })
+      const response = await fetchWithRetry(
+        'https://api.dropboxapi.com/2/files/list_folder/continue',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ cursor }),
+        }
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

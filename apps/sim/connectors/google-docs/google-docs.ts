@@ -83,9 +83,7 @@ function extractTextFromDocsBody(doc: DocsDocument): string {
     if (!paragraph?.elements) continue
 
     const prefix = headingPrefix(paragraph.paragraphStyle?.namedStyleType)
-    const text = paragraph.elements
-      .map((el) => el.textRun?.content ?? '')
-      .join('')
+    const text = paragraph.elements.map((el) => el.textRun?.content ?? '').join('')
 
     if (text.trim()) {
       parts.push(`${prefix}${text}`)
@@ -160,10 +158,7 @@ async function fileToDocument(
  * Builds the Drive API query string for listing Google Docs.
  */
 function buildQuery(sourceConfig: Record<string, unknown>): string {
-  const parts: string[] = [
-    'trashed = false',
-    "mimeType = 'application/vnd.google-apps.document'",
-  ]
+  const parts: string[] = ['trashed = false', "mimeType = 'application/vnd.google-apps.document'"]
 
   const folderId = sourceConfig.folderId as string | undefined
   if (folderId?.trim()) {
@@ -275,8 +270,7 @@ export const googleDocsConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const fields =
-      'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,trashed'
+    const fields = 'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,trashed'
     const url = `https://www.googleapis.com/drive/v3/files/${externalId}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
 
     const response = await fetchWithRetry(url, {
