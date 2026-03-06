@@ -1,6 +1,9 @@
+import { validateEnum } from '@/lib/core/security/input-validation'
 import type { RedditPostsParams, RedditPostsResponse } from '@/tools/reddit/types'
 import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const ALLOWED_SORT_OPTIONS = ['hot', 'new', 'top', 'controversial', 'rising'] as const
 
 export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = {
   id: 'reddit_get_posts',
@@ -88,6 +91,10 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
     url: (params: RedditPostsParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'hot'
+      const sortValidation = validateEnum(sort, ALLOWED_SORT_OPTIONS, 'sort')
+      if (!sortValidation.isValid) {
+        throw new Error(sortValidation.error)
+      }
       const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
 
       // Build URL with appropriate parameters using OAuth endpoint

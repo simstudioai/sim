@@ -1,5 +1,16 @@
+import { validateEnum } from '@/lib/core/security/input-validation'
 import type { RedditGetMessagesParams, RedditMessagesResponse } from '@/tools/reddit/types'
 import type { ToolConfig } from '@/tools/types'
+
+const ALLOWED_MESSAGE_FOLDERS = [
+  'inbox',
+  'unread',
+  'sent',
+  'messages',
+  'comments',
+  'selfreply',
+  'mentions',
+] as const
 
 export const getMessagesTool: ToolConfig<RedditGetMessagesParams, RedditMessagesResponse> = {
   id: 'reddit_get_messages',
@@ -67,6 +78,10 @@ export const getMessagesTool: ToolConfig<RedditGetMessagesParams, RedditMessages
   request: {
     url: (params: RedditGetMessagesParams) => {
       const where = params.where || 'inbox'
+      const validation = validateEnum(where, ALLOWED_MESSAGE_FOLDERS, 'where')
+      if (!validation.isValid) {
+        throw new Error(validation.error)
+      }
       const limit = Math.min(Math.max(1, params.limit ?? 25), 100)
 
       const urlParams = new URLSearchParams({

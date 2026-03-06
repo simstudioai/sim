@@ -1,3 +1,4 @@
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import type { RedditGetUserParams, RedditUserResponse } from '@/tools/reddit/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,6 +31,10 @@ export const getUserTool: ToolConfig<RedditGetUserParams, RedditUserResponse> = 
   request: {
     url: (params: RedditGetUserParams) => {
       const username = params.username.trim().replace(/^u\//, '')
+      const validation = validatePathSegment(username, { paramName: 'username' })
+      if (!validation.isValid) {
+        throw new Error(validation.error)
+      }
       return `https://oauth.reddit.com/user/${username}/about?raw_json=1`
     },
     method: 'GET',

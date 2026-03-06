@@ -71,6 +71,17 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok) {
+      const errorMsg = data?.message || `HTTP error ${response.status}`
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to post reply: ${errorMsg}`,
+        },
+      }
+    }
+
     // Reddit API returns errors in json.errors array
     if (data.json?.errors && data.json.errors.length > 0) {
       const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')

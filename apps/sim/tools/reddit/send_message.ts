@@ -78,6 +78,17 @@ export const sendMessageTool: ToolConfig<RedditSendMessageParams, RedditWriteRes
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok) {
+      const errorMsg = data?.message || `HTTP error ${response.status}`
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to send message: ${errorMsg}`,
+        },
+      }
+    }
+
     if (data.json?.errors && data.json.errors.length > 0) {
       const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')
       return {
