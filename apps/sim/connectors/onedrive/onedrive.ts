@@ -158,6 +158,7 @@ export const onedriveConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'onedrive',
+    requiredScopes: ['Files.Read'],
   },
 
   configFields: [
