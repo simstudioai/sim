@@ -24,7 +24,7 @@ These operations let your agents access and analyze Reddit content as part of yo
 
 ## Usage Instructions
 
-Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, and manage your Reddit account.
+Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.
 
 
 
@@ -39,14 +39,15 @@ Fetch posts from a subreddit with different sorting options
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `subreddit` | string | Yes | The subreddit to fetch posts from \(e.g., "technology", "news"\) |
-| `sort` | string | No | Sort method for posts \(e.g., "hot", "new", "top", "rising"\). Default: "hot" |
+| `sort` | string | No | Sort method for posts \(e.g., "hot", "new", "top", "rising", "controversial"\). Default: "hot" |
 | `limit` | number | No | Maximum number of posts to return \(e.g., 25\). Default: 10, max: 100 |
-| `time` | string | No | Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" \(default: "day"\) |
+| `time` | string | No | Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" \(default: "all"\) |
 | `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
 | `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
 | `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
 | `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
 | `sr_detail` | boolean | No | Expand subreddit details in the response |
+| `g` | string | No | Geo filter for posts \(e.g., "GLOBAL", "US", "AR", etc.\) |
 
 #### Output
 
@@ -55,6 +56,7 @@ Fetch posts from a subreddit with different sorting options
 | `subreddit` | string | Name of the subreddit where posts were fetched from |
 | `posts` | array | Array of posts with title, author, URL, score, comments count, and metadata |
 |   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
 |   ↳ `title` | string | Post title |
 |   ↳ `author` | string | Author username |
 |   ↳ `url` | string | Post URL |
@@ -66,6 +68,8 @@ Fetch posts from a subreddit with different sorting options
 |   ↳ `selftext` | string | Text content for self posts |
 |   ↳ `thumbnail` | string | Thumbnail URL |
 |   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
 
 ### `reddit_get_comments`
 
@@ -83,12 +87,9 @@ Fetch comments from a specific Reddit post
 | `context` | number | No | Number of parent comments to include |
 | `showedits` | boolean | No | Show edit information for comments |
 | `showmore` | boolean | No | Include "load more comments" elements in the response |
-| `showtitle` | boolean | No | Include submission title in the response |
 | `threaded` | boolean | No | Return comments in threaded/nested format |
 | `truncate` | number | No | Integer to truncate comment depth |
-| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
-| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
-| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `comment` | string | No | ID36 of a comment to focus on \(returns that comment thread\) |
 
 #### Output
 
@@ -96,6 +97,7 @@ Fetch comments from a specific Reddit post
 | --------- | ---- | ----------- |
 | `post` | object | Post information including ID, title, author, content, and metadata |
 |   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
 |   ↳ `title` | string | Post title |
 |   ↳ `author` | string | Post author |
 |   ↳ `selftext` | string | Post text content |
@@ -104,6 +106,7 @@ Fetch comments from a specific Reddit post
 |   ↳ `permalink` | string | Reddit permalink |
 | `comments` | array | Nested comments with author, body, score, timestamps, and replies |
 |   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
 |   ↳ `author` | string | Comment author |
 |   ↳ `body` | string | Comment text |
 |   ↳ `score` | number | Comment score |
@@ -135,6 +138,7 @@ Fetch controversial posts from a subreddit
 | `subreddit` | string | Name of the subreddit where posts were fetched from |
 | `posts` | array | Array of controversial posts with title, author, URL, score, comments count, and metadata |
 |   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
 |   ↳ `title` | string | Post title |
 |   ↳ `author` | string | Author username |
 |   ↳ `url` | string | Post URL |
@@ -146,6 +150,8 @@ Fetch controversial posts from a subreddit
 |   ↳ `selftext` | string | Text content for self posts |
 |   ↳ `thumbnail` | string | Thumbnail URL |
 |   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
 
 ### `reddit_search`
 
@@ -165,6 +171,8 @@ Search for posts within a subreddit
 | `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
 | `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
 | `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `type` | string | No | Type of search results: "link" \(posts\), "sr" \(subreddits\), or "user" \(users\). Default: "link" |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
 
 #### Output
 
@@ -173,6 +181,7 @@ Search for posts within a subreddit
 | `subreddit` | string | Name of the subreddit where search was performed |
 | `posts` | array | Array of search result posts with title, author, URL, score, comments count, and metadata |
 |   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
 |   ↳ `title` | string | Post title |
 |   ↳ `author` | string | Author username |
 |   ↳ `url` | string | Post URL |
@@ -184,6 +193,8 @@ Search for posts within a subreddit
 |   ↳ `selftext` | string | Text content for self posts |
 |   ↳ `thumbnail` | string | Thumbnail URL |
 |   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
 
 ### `reddit_submit_post`
 
@@ -200,6 +211,9 @@ Submit a new post to a subreddit (text or link)
 | `nsfw` | boolean | No | Mark post as NSFW |
 | `spoiler` | boolean | No | Mark post as spoiler |
 | `send_replies` | boolean | No | Send reply notifications to inbox \(default: true\) |
+| `flair_id` | string | No | Flair template UUID for the post \(max 36 characters\) |
+| `flair_text` | string | No | Flair text to display on the post \(max 64 characters\) |
+| `collection_id` | string | No | Collection UUID to add the post to |
 
 #### Output
 
@@ -264,6 +278,21 @@ Save a Reddit post or comment to your saved items
 | `posts` | json | Posts data |
 | `post` | json | Single post data |
 | `comments` | json | Comments data |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Response data |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | Messages data |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
 
 ### `reddit_reply`
 
@@ -275,6 +304,7 @@ Add a comment reply to a Reddit post or comment
 | --------- | ---- | -------- | ----------- |
 | `parent_id` | string | Yes | Thing fullname to reply to \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 | `text` | string | Yes | Comment text in markdown format \(e.g., "Great post! Here is my **reply**"\) |
+| `return_rtjson` | boolean | No | Return response in Rich Text JSON format |
 
 #### Output
 
@@ -344,5 +374,139 @@ Subscribe or unsubscribe from a subreddit
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the subscription action was successful |
 | `message` | string | Success or error message |
+
+### `reddit_get_me`
+
+Get information about the authenticated Reddit user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `name` | string | Username |
+| `created_utc` | number | Account creation time in UTC epoch seconds |
+| `link_karma` | number | Total link karma |
+| `comment_karma` | number | Total comment karma |
+| `total_karma` | number | Combined total karma |
+| `is_gold` | boolean | Whether user has Reddit Premium |
+| `is_mod` | boolean | Whether user is a moderator |
+| `has_verified_email` | boolean | Whether email is verified |
+| `icon_img` | string | User avatar/icon URL |
+
+### `reddit_get_user`
+
+Get public profile information about any Reddit user by username
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Yes | Reddit username to look up \(e.g., "spez", "example_user"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `name` | string | Username |
+| `created_utc` | number | Account creation time in UTC epoch seconds |
+| `link_karma` | number | Total link karma |
+| `comment_karma` | number | Total comment karma |
+| `total_karma` | number | Combined total karma |
+| `is_gold` | boolean | Whether user has Reddit Premium |
+| `is_mod` | boolean | Whether user is a moderator |
+| `has_verified_email` | boolean | Whether email is verified |
+| `icon_img` | string | User avatar/icon URL |
+
+### `reddit_send_message`
+
+Send a private message to a Reddit user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Yes | Recipient username \(e.g., "example_user"\) or subreddit \(e.g., "/r/subreddit"\) |
+| `subject` | string | Yes | Message subject \(max 100 characters\) |
+| `text` | string | Yes | Message body in markdown format |
+| `from_sr` | string | No | Subreddit name to send the message from \(requires moderator mail permission\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the message was sent successfully |
+| `message` | string | Success or error message |
+
+### `reddit_get_messages`
+
+Retrieve private messages from your Reddit inbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `where` | string | No | Message folder to retrieve: "inbox" \(all\), "unread", "sent", "messages" \(direct messages only\), "comments" \(comment replies\), "selfreply" \(self-post replies\), or "mentions" \(username mentions\). Default: "inbox" |
+| `limit` | number | No | Maximum number of messages to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `mark` | boolean | No | Whether to mark fetched messages as read |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of messages with sender, recipient, subject, body, and metadata |
+|   ↳ `id` | string | Message ID |
+|   ↳ `name` | string | Thing fullname \(t4_xxxxx\) |
+|   ↳ `author` | string | Sender username |
+|   ↳ `dest` | string | Recipient username |
+|   ↳ `subject` | string | Message subject |
+|   ↳ `body` | string | Message body text |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `new` | boolean | Whether the message is unread |
+|   ↳ `was_comment` | boolean | Whether the message is a comment reply |
+|   ↳ `context` | string | Context URL for comment replies |
+|   ↳ `distinguished` | string | Distinction: null/"moderator"/"admin" |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_subreddit_info`
+
+Get metadata and information about a subreddit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The subreddit to get info about \(e.g., "technology", "programming", "news"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Subreddit ID |
+| `name` | string | Subreddit fullname \(t5_xxxxx\) |
+| `display_name` | string | Subreddit name without prefix |
+| `title` | string | Subreddit title |
+| `description` | string | Full subreddit description \(markdown\) |
+| `public_description` | string | Short public description |
+| `subscribers` | number | Number of subscribers |
+| `accounts_active` | number | Number of currently active users |
+| `created_utc` | number | Creation time in UTC epoch seconds |
+| `over18` | boolean | Whether the subreddit is NSFW |
+| `lang` | string | Primary language of the subreddit |
+| `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+| `url` | string | Subreddit URL path \(e.g., /r/technology/\) |
+| `icon_img` | string | Subreddit icon URL |
+| `banner_img` | string | Subreddit banner URL |
 
 

@@ -139,7 +139,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
 
     // Extract subreddit name from response (with fallback)
     const subredditName =
-      data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+      data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
     // Transform posts data
     const posts =

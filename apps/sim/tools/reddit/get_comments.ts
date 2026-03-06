@@ -93,7 +93,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     url: (params: RedditCommentsParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'confidence'
-      const limit = Math.min(Math.max(1, params.limit || 50), 100)
+      const limit = Math.min(Math.max(1, params.limit ?? 50), 100)
 
       // Build URL with query parameters
       const urlParams = new URLSearchParams({
@@ -115,7 +115,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       if (params.comment) urlParams.append('comment', params.comment)
 
       // Build URL using OAuth endpoint
-      return `https://oauth.reddit.com/r/${subreddit}/comments/${params.postId}?${urlParams.toString()}`
+      return `https://oauth.reddit.com/r/${subreddit}/comments/${params.postId.trim()}?${urlParams.toString()}`
     },
     method: 'GET',
     headers: (params: RedditCommentsParams) => {
@@ -135,7 +135,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     const data = await response.json()
 
     // Extract post data (first element in the array)
-    const postData = data[0]?.data?.children[0]?.data || {}
+    const postData = data[0]?.data?.children?.[0]?.data || {}
 
     // Extract and transform comments (second element in the array)
     const commentsData = data[1]?.data?.children || []

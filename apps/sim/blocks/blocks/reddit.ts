@@ -138,7 +138,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Fullname for forward pagination (e.g., t3_xxxxx)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_controversial', 'search'],
+        value: ['get_posts', 'get_controversial', 'search', 'get_messages'],
       },
       mode: 'advanced',
     },
@@ -149,7 +149,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Fullname for backward pagination (e.g., t3_xxxxx)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_controversial', 'search'],
+        value: ['get_posts', 'get_controversial', 'search', 'get_messages'],
       },
       mode: 'advanced',
     },
@@ -818,6 +818,8 @@ Return ONLY the message content - no meta-commentary.`,
             where: inputs.messageWhere,
             limit: inputs.messageLimit ? Number.parseInt(inputs.messageLimit) : undefined,
             mark: inputs.messageMark !== undefined ? inputs.messageMark === 'true' : undefined,
+            after: inputs.after || undefined,
+            before: inputs.before || undefined,
             oauthCredential,
           }
         }
