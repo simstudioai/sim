@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { isEnvVarReference, isReference } from '@/executor/constants'
+import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string
@@ -30,14 +31,25 @@ export function useSelectorOptionDetail(
   key: SelectorKey,
   args: SelectorHookArgs & { detailId?: string }
 ) {
+  const envVariables = useEnvironmentStore((s) => s.variables)
   const definition = getSelectorDefinition(key)
+
+  const resolvedDetailId = useMemo(() => {
+    if (!args.detailId) return undefined
+    if (isReference(args.detailId)) return undefined
+    if (isEnvVarReference(args.detailId)) {
+      const varName = extractEnvVarName(args.detailId)
+      return envVariables[varName]?.value || undefined
+    }
+    return args.detailId
+  }, [args.detailId, envVariables])
+
   const queryArgs: SelectorQueryArgs = {
     key,
     context: args.context,
-    detailId: args.detailId,
+    detailId: resolvedDetailId,
   }
-  const hasRealDetailId =
-    Boolean(args.detailId) && !isReference(args.detailId!) && !isEnvVarReference(args.detailId!)
+  const hasRealDetailId = Boolean(resolvedDetailId)
   const baseEnabled =
     hasRealDetailId && definition.fetchById !== undefined
       ? definition.enabled
