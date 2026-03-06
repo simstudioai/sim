@@ -125,11 +125,17 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
       useFolderStore.setState((state) => {
         const { [tempId]: _, ...remainingFolders } = state.folders
 
-        const expandedFolders = new Set(state.expandedFolders)
-        const selectedFolders = new Set(state.selectedFolders)
-        let { lastSelectedFolderId } = state
+        const update: Record<string, unknown> = {
+          folders: {
+            ...remainingFolders,
+            [data.id]: data,
+          },
+        }
 
         if (tempId !== data.id) {
+          const expandedFolders = new Set(state.expandedFolders)
+          const selectedFolders = new Set(state.selectedFolders)
+
           if (expandedFolders.has(tempId)) {
             expandedFolders.delete(tempId)
             expandedFolders.add(data.id)
@@ -138,20 +144,16 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
             selectedFolders.delete(tempId)
             selectedFolders.add(data.id)
           }
-          if (lastSelectedFolderId === tempId) {
-            lastSelectedFolderId = data.id
+
+          update.expandedFolders = expandedFolders
+          update.selectedFolders = selectedFolders
+
+          if (state.lastSelectedFolderId === tempId) {
+            update.lastSelectedFolderId = data.id
           }
         }
 
-        return {
-          folders: {
-            ...remainingFolders,
-            [data.id]: data,
-          },
-          expandedFolders,
-          selectedFolders,
-          lastSelectedFolderId,
-        }
+        return update
       })
     },
     rollback: (snapshot) => {
