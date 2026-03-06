@@ -381,7 +381,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   },
 }
 
-
 export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   ...ConfluenceBlock,
   type: 'confluence_v2',
