@@ -128,8 +128,7 @@ function formatSlackTimestamp(ts: string): string {
 async function fetchChannelMessages(
   accessToken: string,
   channelId: string,
-  maxMessages: number,
-  syncContext?: Record<string, unknown>
+  maxMessages: number
 ): Promise<{ messages: SlackMessage[]; lastActivityTs?: string }> {
   const allMessages: SlackMessage[] = []
   let cursor: string | undefined
@@ -295,8 +294,7 @@ export const slackConnector: ConnectorConfig = {
     const { messages, lastActivityTs } = await fetchChannelMessages(
       accessToken,
       channel.id,
-      maxMessages,
-      syncContext
+      maxMessages
     )
 
     const content = await formatMessages(accessToken, messages, syncContext)

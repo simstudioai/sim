@@ -238,7 +238,10 @@ export const onedriveConnector: ConnectorConfig = {
       }
     }
 
-    const textFiles = items.filter((item) => item.file && isSupportedTextFile(item.name))
+    const textFiles = items.filter(
+      (item) =>
+        item.file && isSupportedTextFile(item.name) && (!item.size || item.size <= MAX_FILE_SIZE)
+    )
 
     const documentResults = await Promise.all(
       textFiles.map((item) => itemToDocument(accessToken, item))

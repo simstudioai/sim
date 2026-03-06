@@ -397,7 +397,11 @@ export const sharepointConnector: ConnectorConfig = {
     for (const item of data.value) {
       if (item.folder) {
         subfolders.push(item.id)
-      } else if (item.file && isSupportedTextFile(item.name)) {
+      } else if (
+        item.file &&
+        isSupportedTextFile(item.name) &&
+        (!item.size || item.size <= MAX_DOWNLOAD_SIZE)
+      ) {
         files.push(item)
       }
     }
