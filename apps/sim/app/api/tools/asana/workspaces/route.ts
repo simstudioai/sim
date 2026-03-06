@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
     const data = await response.json()
     const workspaces = (data.data || []).map((workspace: { gid: string; name: string }) => ({
-      gid: workspace.gid,
+      id: workspace.gid,
       name: workspace.name,
     }))
 

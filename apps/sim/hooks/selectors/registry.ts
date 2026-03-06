@@ -12,7 +12,7 @@ const SELECTOR_STALE = 60 * 1000
 
 type AirtableBase = { id: string; name: string }
 type AirtableTable = { id: string; name: string }
-type AsanaWorkspace = { gid: string; name: string }
+type AsanaWorkspace = { id: string; name: string }
 type AttioObject = { id: string; name: string }
 type AttioList = { id: string; name: string }
 type BigQueryDataset = {
@@ -161,7 +161,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         '/api/tools/asana/workspaces',
         { method: 'POST', body }
       )
-      return (data.workspaces || []).map((ws) => ({ id: ws.gid, label: ws.name }))
+      return (data.workspaces || []).map((ws) => ({ id: ws.id, label: ws.name }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
@@ -171,9 +171,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         '/api/tools/asana/workspaces',
         { method: 'POST', body }
       )
-      const ws = (data.workspaces || []).find((w) => w.gid === detailId) ?? null
+      const ws = (data.workspaces || []).find((w) => w.id === detailId) ?? null
       if (!ws) return null
-      return { id: ws.gid, label: ws.name }
+      return { id: ws.id, label: ws.name }
     },
   },
   'attio.objects': {

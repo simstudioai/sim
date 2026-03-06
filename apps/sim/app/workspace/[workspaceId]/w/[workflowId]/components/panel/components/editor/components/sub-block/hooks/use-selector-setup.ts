@@ -50,8 +50,13 @@ export function useSelectorSetup(
 
       if (canonicalParamId === 'oauthCredential') {
         context.credentialId = strValue
-      } else if (canonicalParamId in CONTEXT_FIELD_SET) {
-        ;(context as Record<string, unknown>)[canonicalParamId] = strValue
+      } else {
+        const contextField = canonicalParamId.startsWith('selected_')
+          ? canonicalParamId.slice('selected_'.length)
+          : canonicalParamId
+        if (contextField in CONTEXT_FIELD_SET) {
+          ;(context as Record<string, unknown>)[contextField] = strValue
+        }
       }
     }
 
