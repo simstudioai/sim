@@ -20,15 +20,15 @@ type BigQueryDataset = {
   friendlyName?: string
 }
 type BigQueryTable = { tableReference: { tableId: string }; friendlyName?: string }
-type CalcomEventType = { id: number; title: string; slug: string }
+type CalcomEventType = { id: string; title: string; slug: string }
 type ConfluenceSpace = { id: string; name: string; key: string }
 type JsmServiceDesk = { id: string; name: string }
 type JsmRequestType = { id: string; name: string }
 type NotionDatabase = { id: string; name: string }
 type NotionPage = { id: string; name: string }
-type PipedrivePipeline = { id: number; name: string }
-type ZoomMeeting = { id: number; name: string }
-type CalcomSchedule = { id: number; name: string }
+type PipedrivePipeline = { id: string; name: string }
+type ZoomMeeting = { id: string; name: string }
+type CalcomSchedule = { id: string; name: string }
 type GoogleTaskList = { id: string; title: string }
 type PlannerPlan = { id: string; title: string }
 type SharepointList = { id: string; displayName: string }
@@ -358,7 +358,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         { method: 'POST', body }
       )
       return (data.eventTypes || []).map((et) => ({
-        id: String(et.id),
+        id: et.id,
         label: et.title || et.slug,
       }))
     },
@@ -370,9 +370,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         '/api/tools/calcom/event-types',
         { method: 'POST', body }
       )
-      const et = (data.eventTypes || []).find((e) => String(e.id) === detailId) ?? null
+      const et = (data.eventTypes || []).find((e) => e.id === detailId) ?? null
       if (!et) return null
-      return { id: String(et.id), label: et.title || et.slug }
+      return { id: et.id, label: et.title || et.slug }
     },
   },
   'calcom.schedules': {
@@ -392,7 +392,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         body,
       })
       return (data.schedules || []).map((s) => ({
-        id: String(s.id),
+        id: s.id,
         label: s.name,
       }))
     },
@@ -404,9 +404,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         method: 'POST',
         body,
       })
-      const s = (data.schedules || []).find((sc) => String(sc.id) === detailId) ?? null
+      const s = (data.schedules || []).find((sc) => sc.id === detailId) ?? null
       if (!s) return null
-      return { id: String(s.id), label: s.name }
+      return { id: s.id, label: s.name }
     },
   },
   'confluence.spaces': {
@@ -697,7 +697,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         { method: 'POST', body }
       )
       return (data.pipelines || []).map((p) => ({
-        id: String(p.id),
+        id: p.id,
         label: p.name,
       }))
     },
@@ -709,9 +709,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         '/api/tools/pipedrive/pipelines',
         { method: 'POST', body }
       )
-      const p = (data.pipelines || []).find((pl) => String(pl.id) === detailId) ?? null
+      const p = (data.pipelines || []).find((pl) => pl.id === detailId) ?? null
       if (!p) return null
-      return { id: String(p.id), label: p.name }
+      return { id: p.id, label: p.name }
     },
   },
   'sharepoint.lists': {
@@ -805,7 +805,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         body,
       })
       return (data.meetings || []).map((m) => ({
-        id: String(m.id),
+        id: m.id,
         label: m.name || `Meeting ${m.id}`,
       }))
     },
@@ -817,9 +817,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         method: 'POST',
         body,
       })
-      const meeting = (data.meetings || []).find((m) => String(m.id) === detailId) ?? null
+      const meeting = (data.meetings || []).find((m) => m.id === detailId) ?? null
       if (!meeting) return null
-      return { id: String(meeting.id), label: meeting.name || `Meeting ${meeting.id}` }
+      return { id: meeting.id, label: meeting.name || `Meeting ${meeting.id}` }
     },
   },
   'slack.channels': {
