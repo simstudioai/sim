@@ -84,7 +84,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'write:content.property:confluence',
         'read:hierarchical-content:confluence',
         'read:content.metadata:confluence',
-        'read:user:confluence',
       ],
       placeholder: 'Select Confluence account',
       required: true,
@@ -104,7 +103,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       type: 'file-selector',
       canonicalParamId: 'pageId',
       serviceId: 'confluence',
-      selectorKey: 'confluence.pages',
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
@@ -144,25 +142,10 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       },
     },
     {
-      id: 'spaceSelector',
-      title: 'Space',
-      type: 'project-selector',
-      canonicalParamId: 'spaceId',
-      serviceId: 'confluence',
-      selectorKey: 'confluence.spaces',
-      selectorAllowSearch: false,
-      placeholder: 'Select Confluence space',
-      dependsOn: ['credential', 'domain'],
-      mode: 'basic',
-      required: { field: 'operation', value: ['create', 'get_space'] },
-    },
-    {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
-      canonicalParamId: 'spaceId',
       placeholder: 'Enter Confluence space ID',
-      mode: 'advanced',
       required: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
@@ -318,7 +301,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         const {
           oauthCredential,
           pageId,
-          spaceId,
           operation,
           attachmentFile,
           attachmentFileName,
@@ -336,7 +318,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
             file: attachmentFile,
             fileName: attachmentFileName,
             comment: attachmentComment,
-            ...(spaceId ? { spaceId } : {}),
             ...rest,
           }
         }
@@ -345,7 +326,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           credential: oauthCredential,
           pageId: effectivePageId || undefined,
           operation,
-          ...(spaceId ? { spaceId } : {}),
           ...rest,
         }
       },
@@ -355,7 +335,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     oauthCredential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier' },
+    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
     content: { type: 'string', description: 'Page content' },
@@ -400,6 +380,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     status: { type: 'string', description: 'Space status' },
   },
 }
+
 
 export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   ...ConfluenceBlock,
