@@ -17,8 +17,8 @@ export const dynamic = 'force-dynamic'
  * @returns JSON response with a `datasets` array, each entry containing `datasetReference` and optional `friendlyName`
  */
 export async function POST(request: Request) {
+  const requestId = generateRequestId()
   try {
-    const requestId = generateRequestId()
     const body = await request.json()
     const { credential, workflowId, projectId } = body
 

@@ -11,8 +11,8 @@ const logger = createLogger('JsmSelectorRequestTypesAPI')
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId()
   try {
-    const requestId = generateRequestId()
     const body = await request.json()
     const { credential, workflowId, domain, serviceDeskId } = body
 
