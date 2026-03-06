@@ -15,8 +15,12 @@ import { slackListMembersTool } from '@/tools/slack/list_members'
 import { slackListUsersTool } from '@/tools/slack/list_users'
 import { slackMessageTool } from '@/tools/slack/message'
 import { slackMessageReaderTool } from '@/tools/slack/message_reader'
+import { slackOpenViewTool } from '@/tools/slack/open_view'
+import { slackPublishViewTool } from '@/tools/slack/publish_view'
+import { slackPushViewTool } from '@/tools/slack/push_view'
 import { slackRemoveReactionTool } from '@/tools/slack/remove_reaction'
 import { slackUpdateMessageTool } from '@/tools/slack/update_message'
+import { slackUpdateViewTool } from '@/tools/slack/update_view'
 
 export {
   slackMessageTool,
@@ -36,6 +40,10 @@ export {
   slackListUsersTool,
   slackGetUserTool,
   slackGetUserPresenceTool,
+  slackOpenViewTool,
+  slackUpdateViewTool,
+  slackPushViewTool,
+  slackPublishViewTool,
   slackGetMessageTool,
   slackGetThreadTool,
 }
