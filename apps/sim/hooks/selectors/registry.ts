@@ -592,16 +592,20 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     enabled: ({ context }) => Boolean(context.credentialId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.planner.plans')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
       const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
-        searchParams: { credentialId },
+        method: 'POST',
+        body,
       })
       return (data.plans || []).map((plan) => ({ id: plan.id, label: plan.title }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'microsoft.planner.plans')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
       const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
-        searchParams: { credentialId },
+        method: 'POST',
+        body,
       })
       const plan = (data.plans || []).find((p) => p.id === detailId) ?? null
       if (!plan) return null
@@ -1015,16 +1019,30 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     ],
     enabled: ({ context }) => Boolean(context.credentialId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'sharepoint.sites')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
         '/api/tools/sharepoint/sites',
         {
-          searchParams: { credentialId: context.credentialId },
+          searchParams: { credentialId },
         }
       )
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
       }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'sharepoint.sites')
+      const data = await fetchJson<{ files: { id: string; name: string }[] }>(
+        '/api/tools/sharepoint/sites',
+        {
+          searchParams: { credentialId },
+        }
+      )
+      const site = (data.files || []).find((f) => f.id === detailId) ?? null
+      if (!site) return null
+      return { id: site.id, label: site.name }
     },
   },
   'microsoft.planner': {
@@ -1038,16 +1056,36 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     ],
     enabled: ({ context }) => Boolean(context.credentialId && context.planId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.planner')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        planId: context.planId,
+      })
       const data = await fetchJson<{ tasks: PlannerTask[] }>('/api/tools/microsoft_planner/tasks', {
-        searchParams: {
-          credentialId: context.credentialId,
-          planId: context.planId,
-        },
+        method: 'POST',
+        body,
       })
       return (data.tasks || []).map((task) => ({
         id: task.id,
         label: task.title,
       }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'microsoft.planner')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        planId: context.planId,
+      })
+      const data = await fetchJson<{ tasks: PlannerTask[] }>('/api/tools/microsoft_planner/tasks', {
+        method: 'POST',
+        body,
+      })
+      const task = (data.tasks || []).find((t) => t.id === detailId) ?? null
+      if (!task) return null
+      return { id: task.id, label: task.title }
     },
   },
   'jira.projects': {

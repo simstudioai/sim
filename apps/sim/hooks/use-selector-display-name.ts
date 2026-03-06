@@ -21,6 +21,10 @@ interface SelectorDisplayNameArgs {
   baseId?: string
   datasetId?: string
   serviceDeskId?: string
+  siteId?: string
+  collectionId?: string
+  spreadsheetId?: string
+  fileId?: string
 }
 
 export function useSelectorDisplayName({
@@ -36,6 +40,10 @@ export function useSelectorDisplayName({
   baseId,
   datasetId,
   serviceDeskId,
+  siteId,
+  collectionId,
+  spreadsheetId,
+  fileId,
 }: SelectorDisplayNameArgs) {
   const detailId = typeof value === 'string' && value.length > 0 ? value : undefined
 
@@ -52,6 +60,10 @@ export function useSelectorDisplayName({
       baseId,
       datasetId,
       serviceDeskId,
+      siteId,
+      collectionId,
+      spreadsheetId,
+      fileId,
     })
   }, [
     subBlock,
@@ -66,6 +78,10 @@ export function useSelectorDisplayName({
     baseId,
     datasetId,
     serviceDeskId,
+    siteId,
+    collectionId,
+    spreadsheetId,
+    fileId,
   ])
 
   const key = resolution?.key

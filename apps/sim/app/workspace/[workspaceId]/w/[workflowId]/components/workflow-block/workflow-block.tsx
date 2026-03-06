@@ -553,6 +553,13 @@ const SubBlockRow = memo(function SubBlockRow({
   const teamIdValue = getStringValue('teamId')
   const projectIdValue = getStringValue('projectId')
   const planIdValue = getStringValue('planId')
+  const baseIdValue = getStringValue('baseId')
+  const datasetIdValue = getStringValue('datasetId')
+  const serviceDeskIdValue = getStringValue('serviceDeskId')
+  const siteIdValue = getStringValue('siteId')
+  const collectionIdValue = getStringValue('collectionId')
+  const spreadsheetIdValue = getStringValue('spreadsheetId')
+  const fileIdValue = getStringValue('fileId')
 
   const { displayName: selectorDisplayName } = useSelectorDisplayName({
     subBlock,
@@ -564,6 +571,13 @@ const SubBlockRow = memo(function SubBlockRow({
     teamId: teamIdValue,
     projectId: projectIdValue,
     planId: planIdValue,
+    baseId: baseIdValue,
+    datasetId: datasetIdValue,
+    serviceDeskId: serviceDeskIdValue,
+    siteId: siteIdValue,
+    collectionId: collectionIdValue,
+    spreadsheetId: spreadsheetIdValue,
+    fileId: fileIdValue,
   })
 
   const { knowledgeBase: kbForDisplayName } = useKnowledgeBase(

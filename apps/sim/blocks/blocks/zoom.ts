@@ -141,7 +141,6 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       title: 'Topic',
       type: 'short-input',
       placeholder: 'Meeting topic (optional)',
-      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['zoom_update_meeting'],
