@@ -584,7 +584,7 @@ export function validateSharePointSiteId(
     }
   }
 
-  if (!/^[\w.\-,]+$/.test(value)) {
+  if (!/^[a-zA-Z0-9.\-,]+$/.test(value)) {
     logger.warn('Invalid characters in SharePoint site ID', {
       paramName,
       value: value.substring(0, 100),
