@@ -190,7 +190,7 @@ export const googleDriveConnector: ConnectorConfig = {
   oauth: {
     required: true,
     provider: 'google-drive',
-    requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },
 
   configFields: [
