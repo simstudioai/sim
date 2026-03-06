@@ -103,6 +103,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       type: 'file-selector',
       canonicalParamId: 'pageId',
       serviceId: 'confluence',
+      selectorKey: 'confluence.pages',
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
