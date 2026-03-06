@@ -10,6 +10,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.txt',
   '.md',
   '.html',
+  '.htm',
   '.csv',
   '.json',
   '.xml',
@@ -87,7 +88,7 @@ async function fetchFileContent(
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const raw = await downloadFileContent(accessToken, fileId)
 
-  if (ext === '.html') {
+  if (ext === '.html' || ext === '.htm') {
     return htmlToPlainText(raw)
   }
 

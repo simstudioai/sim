@@ -12,6 +12,7 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.txt',
   '.md',
   '.html',
+  '.htm',
   '.csv',
   '.json',
   '.xml',
@@ -148,7 +149,7 @@ async function fetchFileContent(
   fileName: string
 ): Promise<string> {
   const raw = await downloadFileContent(accessToken, siteId, itemId, fileName)
-  if (fileName.toLowerCase().endsWith('.html')) {
+  if (fileName.toLowerCase().endsWith('.html') || fileName.toLowerCase().endsWith('.htm')) {
     return htmlToPlainText(raw)
   }
   return raw
@@ -513,7 +514,11 @@ export const sharepointConnector: ConnectorConfig = {
       // If a folder path is configured, verify it exists
       const folderPath = (sourceConfig.folderPath as string)?.trim()
       if (folderPath) {
-        const encodedPath = folderPath.replace(/^\/+|\/+$/g, '').split('/').map(encodeURIComponent).join('/')
+        const encodedPath = folderPath
+          .replace(/^\/+|\/+$/g, '')
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')
         const folderUrl = `${GRAPH_BASE}/sites/${siteId}/drive/root:/${encodedPath}`
         const response = await fetchWithRetry(
           folderUrl,

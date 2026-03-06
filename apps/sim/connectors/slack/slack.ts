@@ -218,7 +218,7 @@ async function resolveChannel(
   let cursor: string | undefined
   do {
     const params: Record<string, string> = {
-      types: 'public_channel,private_channel',
+      types: 'public_channel',
       limit: '200',
       exclude_archived: 'true',
     }
@@ -434,7 +434,7 @@ export const slackConnector: ConnectorConfig = {
       let cursor: string | undefined
       do {
         const params: Record<string, string> = {
-          types: 'public_channel,private_channel',
+          types: 'public_channel',
           limit: '200',
           exclude_archived: 'true',
         }

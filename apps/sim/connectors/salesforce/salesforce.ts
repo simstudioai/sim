@@ -319,6 +319,14 @@ export const salesforceConnector: ConnectorConfig = {
     }
 
     const record = await response.json()
+
+    if (
+      objectType === 'KnowledgeArticleVersion' &&
+      (record as Record<string, unknown>).PublishStatus !== 'Online'
+    ) {
+      return null
+    }
+
     return recordToDocument(record, objectType, instanceUrl)
   },
 
