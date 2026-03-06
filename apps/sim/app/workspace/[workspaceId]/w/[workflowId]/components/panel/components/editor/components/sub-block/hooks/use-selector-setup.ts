@@ -3,8 +3,9 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import type { SubBlockConfig } from '@/blocks/types'
-import { isEnvVarReference, isReference } from '@/executor/constants'
+import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useDependsOnGate } from './use-depends-on-gate'
 
@@ -30,11 +31,31 @@ export function useSelectorSetup(
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const workflowId = (params?.workflowId as string) || activeWorkflowId || ''
 
+  const envVariables = useEnvironmentStore((s) => s.variables)
+
   const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(
     blockId,
     subBlock,
     opts
   )
+
+  const resolvedDependencyValues = useMemo(() => {
+    const resolved: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(dependencyValues)) {
+      if (value === null || value === undefined) {
+        resolved[key] = value
+        continue
+      }
+      const str = String(value)
+      if (isEnvVarReference(str)) {
+        const varName = extractEnvVarName(str)
+        resolved[key] = envVariables[varName]?.value || undefined
+      } else {
+        resolved[key] = value
+      }
+    }
+    return resolved
+  }, [dependencyValues, envVariables])
 
   const selectorContext = useMemo<SelectorContext>(() => {
     const context: SelectorContext = {
@@ -42,11 +63,11 @@ export function useSelectorSetup(
       mimeType: subBlock.mimeType,
     }
 
-    for (const [depKey, value] of Object.entries(dependencyValues)) {
+    for (const [depKey, value] of Object.entries(resolvedDependencyValues)) {
       if (value === null || value === undefined) continue
       const strValue = String(value)
       if (!strValue) continue
-      if (isReference(strValue) || isEnvVarReference(strValue)) continue
+      if (isReference(strValue)) continue
 
       const canonicalParamId = canonicalIndex.canonicalIdBySubBlockId[depKey] ?? depKey
 
@@ -58,14 +79,14 @@ export function useSelectorSetup(
     }
 
     return context
-  }, [dependencyValues, canonicalIndex, workflowId, subBlock.mimeType])
+  }, [resolvedDependencyValues, canonicalIndex, workflowId, subBlock.mimeType])
 
   return {
     selectorKey: (subBlock.selectorKey ?? null) as SelectorKey | null,
     selectorContext,
     allowSearch: subBlock.selectorAllowSearch ?? true,
     disabled: finalDisabled || !subBlock.selectorKey,
-    dependencyValues,
+    dependencyValues: resolvedDependencyValues,
   }
 }
 
