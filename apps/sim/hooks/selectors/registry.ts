@@ -422,11 +422,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing Confluence access token')
-      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>('/api/tools/confluence/spaces', {
-        searchParams: { domain, accessToken, limit: '250' },
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
       })
+      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>(
+        '/api/tools/confluence/selector-spaces',
+        { method: 'POST', body }
+      )
       return (data.spaces || []).map((space) => ({
         id: space.id,
         label: `${space.name} (${space.key})`,
@@ -436,11 +440,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing Confluence access token')
-      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>('/api/tools/confluence/spaces', {
-        searchParams: { domain, accessToken, limit: '250' },
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
       })
+      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>(
+        '/api/tools/confluence/selector-spaces',
+        { method: 'POST', body }
+      )
       const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
       if (!space) return null
       return { id: space.id, label: `${space.name} (${space.key})` }
@@ -459,13 +467,14 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jsm.serviceDesks')
       const domain = ensureDomain(context, 'jsm.serviceDesks')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing JSM access token')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
       const data = await fetchJson<{ serviceDesks: JsmServiceDesk[] }>(
         '/api/tools/jsm/selector-servicedesks',
-        {
-          searchParams: { domain, accessToken },
-        }
+        { method: 'POST', body }
       )
       return (data.serviceDesks || []).map((sd) => ({
         id: sd.id,
@@ -476,13 +485,14 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'jsm.serviceDesks')
       const domain = ensureDomain(context, 'jsm.serviceDesks')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing JSM access token')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
       const data = await fetchJson<{ serviceDesks: JsmServiceDesk[] }>(
         '/api/tools/jsm/selector-servicedesks',
-        {
-          searchParams: { domain, accessToken },
-        }
+        { method: 'POST', body }
       )
       const sd = (data.serviceDesks || []).find((s) => s.id === detailId) ?? null
       if (!sd) return null
@@ -505,17 +515,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       const credentialId = ensureCredential(context, 'jsm.requestTypes')
       const domain = ensureDomain(context, 'jsm.requestTypes')
       if (!context.serviceDeskId) throw new Error('Missing serviceDeskId for jsm.requestTypes')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing JSM access token')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+        serviceDeskId: context.serviceDeskId,
+      })
       const data = await fetchJson<{ requestTypes: JsmRequestType[] }>(
         '/api/tools/jsm/selector-requesttypes',
-        {
-          searchParams: {
-            domain,
-            accessToken,
-            serviceDeskId: context.serviceDeskId,
-          },
-        }
+        { method: 'POST', body }
       )
       return (data.requestTypes || []).map((rt) => ({
         id: rt.id,
@@ -527,17 +535,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       const credentialId = ensureCredential(context, 'jsm.requestTypes')
       const domain = ensureDomain(context, 'jsm.requestTypes')
       if (!context.serviceDeskId) return null
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) throw new Error('Missing JSM access token')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+        serviceDeskId: context.serviceDeskId,
+      })
       const data = await fetchJson<{ requestTypes: JsmRequestType[] }>(
         '/api/tools/jsm/selector-requesttypes',
-        {
-          searchParams: {
-            domain,
-            accessToken,
-            serviceDeskId: context.serviceDeskId,
-          },
-        }
+        { method: 'POST', body }
       )
       const rt = (data.requestTypes || []).find((r) => r.id === detailId) ?? null
       if (!rt) return null
@@ -585,15 +591,17 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     ],
     enabled: ({ context }) => Boolean(context.credentialId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.planner.plans')
       const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId },
       })
       return (data.plans || []).map((plan) => ({ id: plan.id, label: plan.title }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
+      const credentialId = ensureCredential(context, 'microsoft.planner.plans')
       const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId },
       })
       const plan = (data.plans || []).find((p) => p.id === detailId) ?? null
       if (!plan) return null

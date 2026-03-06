@@ -1,31 +1,28 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { NextResponse } from 'next/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 const logger = createLogger('JsmSelectorRequestTypesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const auth = await checkSessionOrInternalAuth(request)
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
-    }
+    const requestId = generateRequestId()
+    const body = await request.json()
+    const { credential, workflowId, domain, serviceDeskId } = body
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const serviceDeskId = searchParams.get('serviceDeskId')
+    if (!credential) {
+      logger.error('Missing credential in request')
+      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+    }
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
     if (!serviceDeskId) {
@@ -35,6 +32,30 @@ export async function GET(request: NextRequest) {
     const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
     if (!serviceDeskIdValidation.isValid) {
       return NextResponse.json({ error: serviceDeskIdValidation.error }, { status: 400 })
+    }
+
+    const authz = await authorizeCredentialUse(request as any, {
+      credentialId: credential,
+      workflowId,
+    })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    }
+
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credential,
+      authz.credentialOwnerUserId,
+      requestId
+    )
+    if (!accessToken) {
+      logger.error('Failed to get access token', {
+        credentialId: credential,
+        userId: authz.credentialOwnerUserId,
+      })
+      return NextResponse.json(
+        { error: 'Could not retrieve access token', authRequired: true },
+        { status: 401 }
+      )
     }
 
     const cloudId = await getJiraCloudId(domain, accessToken)
