@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, workspaceId, parentId, color, sortOrder: providedSortOrder } = body
+    const { name, workspaceId, parentId, color, sortOrder: providedSortOrder, id: clientId } = body
 
     if (!name || !workspaceId) {
       return NextResponse.json({ error: 'Name and workspace ID are required' }, { status: 400 })
@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate a new ID
-    const id = crypto.randomUUID()
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const id = clientId && uuidRegex.test(clientId) ? clientId : crypto.randomUUID()
 
     const newFolder = await db.transaction(async (tx) => {
       let sortOrder: number

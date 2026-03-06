@@ -7,7 +7,7 @@ export interface OptimisticMutationConfig<TData, TVariables, TItem, TContext> {
   name: string
   getQueryKey: (variables: TVariables) => readonly unknown[]
   getSnapshot: () => Record<string, TItem>
-  generateTempId: () => string
+  generateTempId: (variables: TVariables) => string
   createOptimisticItem: (variables: TVariables, tempId: string) => TItem
   applyOptimisticUpdate: (tempId: string, item: TItem) => void
   replaceOptimisticEntry: (tempId: string, data: TData) => void
@@ -41,7 +41,7 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
       const queryKey = getQueryKey(variables)
       await queryClient.cancelQueries({ queryKey })
       const previousState = getSnapshot()
-      const tempId = generateTempId()
+      const tempId = generateTempId(variables)
       const optimisticItem = createOptimisticItem(variables, tempId)
       applyOptimisticUpdate(tempId, optimisticItem)
       logger.info(`[${name}] Added optimistic entry: ${tempId}`)

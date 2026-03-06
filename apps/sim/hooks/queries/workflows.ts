@@ -128,6 +128,7 @@ interface CreateWorkflowVariables {
   color?: string
   folderId?: string | null
   sortOrder?: number
+  id?: string
 }
 
 interface CreateWorkflowResult {
@@ -147,6 +148,7 @@ interface DuplicateWorkflowVariables {
   description?: string
   color: string
   folderId?: string | null
+  newId?: string
 }
 
 interface DuplicateWorkflowResult {
@@ -168,7 +170,8 @@ interface DuplicateWorkflowResult {
 function createWorkflowMutationHandlers<TVariables extends { workspaceId: string }>(
   queryClient: ReturnType<typeof useQueryClient>,
   name: string,
-  createOptimisticWorkflow: (variables: TVariables, tempId: string) => WorkflowMetadata
+  createOptimisticWorkflow: (variables: TVariables, tempId: string) => WorkflowMetadata,
+  customGenerateTempId?: (variables: TVariables) => string
 ) {
   return createOptimisticMutationHandlers<
     CreateWorkflowResult | DuplicateWorkflowResult,
@@ -178,7 +181,7 @@ function createWorkflowMutationHandlers<TVariables extends { workspaceId: string
     name,
     getQueryKey: (variables) => workflowKeys.list(variables.workspaceId),
     getSnapshot: () => ({ ...useWorkflowRegistry.getState().workflows }),
-    generateTempId: () => generateTempId('temp-workflow'),
+    generateTempId: customGenerateTempId ?? (() => generateTempId('temp-workflow')),
     createOptimisticItem: createOptimisticWorkflow,
     applyOptimisticUpdate: (tempId, item) => {
       useWorkflowRegistry.setState((state) => ({
@@ -206,6 +209,17 @@ function createWorkflowMutationHandlers<TVariables extends { workspaceId: string
           error: null,
         }
       })
+
+      if (tempId !== data.id) {
+        useFolderStore.setState((state) => {
+          const selectedWorkflows = new Set(state.selectedWorkflows)
+          if (selectedWorkflows.has(tempId)) {
+            selectedWorkflows.delete(tempId)
+            selectedWorkflows.add(data.id)
+          }
+          return { selectedWorkflows }
+        })
+      }
     },
     rollback: (snapshot) => {
       useWorkflowRegistry.setState({ workflows: snapshot })
@@ -245,12 +259,13 @@ export function useCreateWorkflow() {
         folderId: variables.folderId || null,
         sortOrder,
       }
-    }
+    },
+    (variables) => variables.id ?? crypto.randomUUID()
   )
 
   return useMutation({
     mutationFn: async (variables: CreateWorkflowVariables): Promise<CreateWorkflowResult> => {
-      const { workspaceId, name, description, color, folderId, sortOrder } = variables
+      const { workspaceId, name, description, color, folderId, sortOrder, id } = variables
 
       logger.info(`Creating new workflow in workspace: ${workspaceId}`)
 
@@ -258,6 +273,7 @@ export function useCreateWorkflow() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id,
           name: name || generateCreativeWorkflowName(),
           description: description || 'New workflow',
           color: color || getNextWorkflowColor(),
@@ -346,12 +362,13 @@ export function useDuplicateWorkflowMutation() {
           targetFolderId
         ),
       }
-    }
+    },
+    (variables) => variables.newId ?? crypto.randomUUID()
   )
 
   return useMutation({
     mutationFn: async (variables: DuplicateWorkflowVariables): Promise<DuplicateWorkflowResult> => {
-      const { workspaceId, sourceId, name, description, color, folderId } = variables
+      const { workspaceId, sourceId, name, description, color, folderId, newId } = variables
 
       logger.info(`Duplicating workflow ${sourceId} in workspace: ${workspaceId}`)
 
@@ -364,6 +381,7 @@ export function useDuplicateWorkflowMutation() {
           color,
           workspaceId,
           folderId: folderId ?? null,
+          newId,
         }),
       })
 

@@ -71,6 +71,7 @@ interface CreateFolderVariables {
   parentId?: string
   color?: string
   sortOrder?: number
+  id?: string
 }
 
 interface UpdateFolderVariables {
@@ -90,6 +91,7 @@ interface DuplicateFolderVariables {
   name: string
   parentId?: string | null
   color?: string
+  newId?: string
 }
 
 /**
@@ -102,13 +104,14 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
     variables: TVariables,
     tempId: string,
     previousFolders: Record<string, WorkflowFolder>
-  ) => WorkflowFolder
+  ) => WorkflowFolder,
+  customGenerateTempId?: (variables: TVariables) => string
 ) {
   return createOptimisticMutationHandlers<WorkflowFolder, TVariables, WorkflowFolder>(queryClient, {
     name,
     getQueryKey: (variables) => folderKeys.list(variables.workspaceId),
     getSnapshot: () => ({ ...useFolderStore.getState().folders }),
-    generateTempId: () => generateTempId('temp-folder'),
+    generateTempId: customGenerateTempId ?? (() => generateTempId('temp-folder')),
     createOptimisticItem: (variables, tempId) => {
       const previousFolders = useFolderStore.getState().folders
       return createOptimisticFolder(variables, tempId, previousFolders)
@@ -121,11 +124,33 @@ function createFolderMutationHandlers<TVariables extends { workspaceId: string }
     replaceOptimisticEntry: (tempId, data) => {
       useFolderStore.setState((state) => {
         const { [tempId]: _, ...remainingFolders } = state.folders
+
+        const expandedFolders = new Set(state.expandedFolders)
+        const selectedFolders = new Set(state.selectedFolders)
+        let { lastSelectedFolderId } = state
+
+        if (tempId !== data.id) {
+          if (expandedFolders.has(tempId)) {
+            expandedFolders.delete(tempId)
+            expandedFolders.add(data.id)
+          }
+          if (selectedFolders.has(tempId)) {
+            selectedFolders.delete(tempId)
+            selectedFolders.add(data.id)
+          }
+          if (lastSelectedFolderId === tempId) {
+            lastSelectedFolderId = data.id
+          }
+        }
+
         return {
           folders: {
             ...remainingFolders,
             [data.id]: data,
           },
+          expandedFolders,
+          selectedFolders,
+          lastSelectedFolderId,
         }
       })
     },
@@ -163,7 +188,8 @@ export function useCreateFolder() {
         createdAt: new Date(),
         updatedAt: new Date(),
       }
-    }
+    },
+    (variables) => variables.id ?? crypto.randomUUID()
   )
 
   return useMutation({
@@ -241,7 +267,6 @@ export function useDuplicateFolderMutation() {
     (variables, tempId, previousFolders) => {
       const currentWorkflows = useWorkflowRegistry.getState().workflows
 
-      // Get source folder info if available
       const sourceFolder = previousFolders[variables.id]
       const targetParentId = variables.parentId ?? sourceFolder?.parentId ?? null
       return {
@@ -261,7 +286,8 @@ export function useDuplicateFolderMutation() {
         createdAt: new Date(),
         updatedAt: new Date(),
       }
-    }
+    },
+    (variables) => variables.newId ?? crypto.randomUUID()
   )
 
   return useMutation({
@@ -271,6 +297,7 @@ export function useDuplicateFolderMutation() {
       name,
       parentId,
       color,
+      newId,
     }: DuplicateFolderVariables): Promise<WorkflowFolder> => {
       const response = await fetch(`/api/folders/${id}/duplicate`, {
         method: 'POST',
@@ -280,6 +307,7 @@ export function useDuplicateFolderMutation() {
           name,
           parentId: parentId ?? null,
           color,
+          newId,
         }),
       })
 

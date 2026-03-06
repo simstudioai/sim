@@ -27,7 +27,11 @@ export function useFolderOperations({ workspaceId }: UseFolderOperationsProps) {
 
     try {
       const folderName = await generateFolderName(workspaceId)
-      const folder = await createFolderMutation.mutateAsync({ name: folderName, workspaceId })
+      const folder = await createFolderMutation.mutateAsync({
+        name: folderName,
+        workspaceId,
+        id: crypto.randomUUID(),
+      })
       logger.info(`Created folder: ${folderName}`)
       return folder.id
     } catch (error) {

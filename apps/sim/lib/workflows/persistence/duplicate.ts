@@ -24,6 +24,7 @@ interface DuplicateWorkflowOptions {
   workspaceId?: string
   folderId?: string | null
   requestId?: string
+  newWorkflowId?: string
 }
 
 interface DuplicateWorkflowResult {
@@ -93,10 +94,10 @@ export async function duplicateWorkflow(
     workspaceId,
     folderId,
     requestId = 'unknown',
+    newWorkflowId: clientNewWorkflowId,
   } = options
 
-  // Generate new workflow ID
-  const newWorkflowId = crypto.randomUUID()
+  const newWorkflowId = clientNewWorkflowId || crypto.randomUUID()
   const now = new Date()
 
   // Duplicate workflow and all related data in a transaction

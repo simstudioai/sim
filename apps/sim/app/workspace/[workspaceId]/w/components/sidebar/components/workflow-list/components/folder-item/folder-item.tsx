@@ -144,6 +144,7 @@ export function FolderItem({
         folderId: folder.id,
         name,
         color,
+        id: crypto.randomUUID(),
       })
 
       if (result.id) {
@@ -164,6 +165,7 @@ export function FolderItem({
         workspaceId,
         name: 'New Folder',
         parentId: folder.id,
+        id: crypto.randomUUID(),
       })
       if (result.id) {
         expandFolder()
