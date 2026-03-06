@@ -54,11 +54,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/tasks`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/planner/plans/${planIdValidation.sanitized}/tasks`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
 
     if (!response.ok) {
       const errorText = await response.text()

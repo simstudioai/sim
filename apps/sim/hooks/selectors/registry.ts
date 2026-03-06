@@ -727,22 +727,28 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.lists')
       if (!context.siteId) throw new Error('Missing site ID for sharepoint.lists selector')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
       const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
-        searchParams: {
-          credentialId,
-          siteId: context.siteId,
-        },
+        method: 'POST',
+        body,
       })
       return (data.lists || []).map((list) => ({ id: list.id, label: list.displayName }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId || !context.siteId) return null
       const credentialId = ensureCredential(context, 'sharepoint.lists')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
       const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
-        searchParams: {
-          credentialId,
-          siteId: context.siteId,
-        },
+        method: 'POST',
+        body,
       })
       const list = (data.lists || []).find((l) => l.id === detailId) ?? null
       if (!list) return null
@@ -1020,10 +1026,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     enabled: ({ context }) => Boolean(context.credentialId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.sites')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+      })
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
         '/api/tools/sharepoint/sites',
         {
-          searchParams: { credentialId },
+          method: 'POST',
+          body,
         }
       )
       return (data.files || []).map((file) => ({
@@ -1034,10 +1045,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'sharepoint.sites')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+      })
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
         '/api/tools/sharepoint/sites',
         {
-          searchParams: { credentialId },
+          method: 'POST',
+          body,
         }
       )
       const site = (data.files || []).find((f) => f.id === detailId) ?? null
