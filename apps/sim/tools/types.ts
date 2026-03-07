@@ -10,6 +10,7 @@ export type BYOKProviderId =
   | 'browser_use'
   | 'serper'
   | 'firecrawl'
+  | 'jina'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

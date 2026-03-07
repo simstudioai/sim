@@ -736,6 +736,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     return userProvidedKey || 'empty'
   }
 
+  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
     return 'bedrock-uses-own-credentials'

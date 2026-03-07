@@ -171,7 +171,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       getCost: (_params, output) => {
         // Jina bills per output token — $0.20 per 1M tokens
         // Source: https://cloud.jina.ai/pricing (token-based billing)
-        // x-tokens header is unreliable; falls back to content-length estimate (~4 chars/token)
         const tokens = output.tokensUsed as number
         const cost = tokens * 0.0000002
         return { cost, metadata: { tokensUsed: tokens } }
