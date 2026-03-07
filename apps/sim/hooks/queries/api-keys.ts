@@ -6,9 +6,11 @@ import { workspaceKeys } from '@/hooks/queries/workspace'
  */
 export const apiKeysKeys = {
   all: ['apiKeys'] as const,
-  workspace: (workspaceId: string) => [...apiKeysKeys.all, 'workspace', workspaceId] as const,
+  workspaces: () => [...apiKeysKeys.all, 'workspace'] as const,
+  workspace: (workspaceId: string) => [...apiKeysKeys.workspaces(), workspaceId] as const,
   personal: () => [...apiKeysKeys.all, 'personal'] as const,
-  combined: (workspaceId: string) => [...apiKeysKeys.all, 'combined', workspaceId] as const,
+  combineds: () => [...apiKeysKeys.all, 'combined'] as const,
+  combined: (workspaceId: string) => [...apiKeysKeys.combineds(), workspaceId] as const,
 }
 
 /**

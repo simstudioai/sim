@@ -22,8 +22,9 @@ export const organizationKeys = {
 /**
  * Fetch all organizations for the current user
  * Note: Billing data is fetched separately via useSubscriptionData() to avoid duplicate calls
+ * Note: better-auth client does not support AbortSignal, so signal is accepted but not forwarded
  */
-async function fetchOrganizations() {
+async function fetchOrganizations(_signal?: AbortSignal) {
   const [orgsResponse, activeOrgResponse] = await Promise.all([
     client.organization.list(),
     client.organization.getFullOrganization(),
@@ -41,16 +42,15 @@ async function fetchOrganizations() {
 export function useOrganizations() {
   return useQuery({
     queryKey: organizationKeys.lists(),
-    queryFn: fetchOrganizations,
+    queryFn: ({ signal }) => fetchOrganizations(signal),
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 
 /**
  * Fetch a specific organization by ID
  */
-async function fetchOrganization() {
+async function fetchOrganization(_signal?: AbortSignal) {
   const response = await client.organization.getFullOrganization()
   return response.data
 }
@@ -61,7 +61,7 @@ async function fetchOrganization() {
 export function useOrganization(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.detail(orgId),
-    queryFn: fetchOrganization,
+    queryFn: ({ signal }) => fetchOrganization(signal),
     enabled: !!orgId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -71,7 +71,7 @@ export function useOrganization(orgId: string) {
 /**
  * Fetch organization subscription data
  */
-async function fetchOrganizationSubscription(orgId: string) {
+async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSignal) {
   if (!orgId) {
     return null
   }
@@ -102,7 +102,7 @@ async function fetchOrganizationSubscription(orgId: string) {
 export function useOrganizationSubscription(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.subscription(orgId),
-    queryFn: () => fetchOrganizationSubscription(orgId),
+    queryFn: ({ signal }) => fetchOrganizationSubscription(orgId, signal),
     enabled: !!orgId,
     retry: false,
     staleTime: 30 * 1000,

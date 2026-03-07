@@ -91,9 +91,8 @@ export function useGenerateCopilotKey() {
       return response.json()
     },
     onSuccess: () => {
-      queryClient.refetchQueries({
+      queryClient.invalidateQueries({
         queryKey: copilotKeysKeys.keys(),
-        type: 'active',
       })
     },
     onError: (error) => {

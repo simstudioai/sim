@@ -12,17 +12,23 @@ const logger = createLogger('DeploymentQueries')
  */
 export const deploymentKeys = {
   all: ['deployments'] as const,
-  info: (workflowId: string | null) => [...deploymentKeys.all, 'info', workflowId ?? ''] as const,
+  infos: () => [...deploymentKeys.all, 'info'] as const,
+  info: (workflowId: string | null) => [...deploymentKeys.infos(), workflowId ?? ''] as const,
+  allVersions: () => [...deploymentKeys.all, 'versions'] as const,
   versions: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'versions', workflowId ?? ''] as const,
+    [...deploymentKeys.allVersions(), workflowId ?? ''] as const,
+  chatStatuses: () => [...deploymentKeys.all, 'chatStatus'] as const,
   chatStatus: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'chatStatus', workflowId ?? ''] as const,
+    [...deploymentKeys.chatStatuses(), workflowId ?? ''] as const,
+  chatDetails: () => [...deploymentKeys.all, 'chatDetail'] as const,
   chatDetail: (chatId: string | null) =>
-    [...deploymentKeys.all, 'chatDetail', chatId ?? ''] as const,
+    [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
+  formStatuses: () => [...deploymentKeys.all, 'formStatus'] as const,
   formStatus: (workflowId: string | null) =>
-    [...deploymentKeys.all, 'formStatus', workflowId ?? ''] as const,
+    [...deploymentKeys.formStatuses(), workflowId ?? ''] as const,
+  formDetails: () => [...deploymentKeys.all, 'formDetail'] as const,
   formDetail: (formId: string | null) =>
-    [...deploymentKeys.all, 'formDetail', formId ?? ''] as const,
+    [...deploymentKeys.formDetails(), formId ?? ''] as const,
 }
 
 /**

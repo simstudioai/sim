@@ -195,6 +195,8 @@ export function useCreateMcpServer() {
       }
 
       queryClient.setQueryData(mcpKeys.tools(variables.workspaceId), freshTools)
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(variables.workspaceId) })
     },
   })

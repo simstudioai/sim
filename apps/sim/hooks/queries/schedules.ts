@@ -7,9 +7,11 @@ const logger = createLogger('ScheduleQueries')
 
 export const scheduleKeys = {
   all: ['schedules'] as const,
-  list: (workspaceId: string) => [...scheduleKeys.all, 'list', workspaceId] as const,
+  lists: () => [...scheduleKeys.all, 'list'] as const,
+  list: (workspaceId: string) => [...scheduleKeys.lists(), workspaceId] as const,
+  details: () => [...scheduleKeys.all, 'detail'] as const,
   schedule: (workflowId: string, blockId: string) =>
-    [...scheduleKeys.all, workflowId, blockId] as const,
+    [...scheduleKeys.details(), workflowId, blockId] as const,
 }
 
 export interface ScheduleData {
