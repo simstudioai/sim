@@ -1,47 +1,31 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Columns, Plus, Rows3 } from 'lucide-react'
+import { Columns, Rows3 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Badge,
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Tooltip,
-} from '@/components/emcn'
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Table as TableIcon } from '@/components/emcn/icons'
-import { Skeleton } from '@/components/ui'
 import type { TableDefinition } from '@/lib/table'
-import {
-  ResourceContent,
-  ResourceEmptyState,
-  ResourceHeader,
-  ResourceIconBadge,
-  ResourceLayout,
-  ResourceSearch,
-  ResourceToolbar,
-} from '@/app/workspace/[workspaceId]/components/resource-layout'
+import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SchemaModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { CreateModal, TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
-import { formatAbsoluteDate, formatRelativeTime } from '@/app/workspace/[workspaceId]/tables/utils'
+import { formatRelativeTime } from '@/app/workspace/[workspaceId]/tables/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDeleteTable, useTablesList } from '@/hooks/queries/tables'
-import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Tables')
+
+const COLUMNS: ResourceColumn[] = [
+  { id: 'name', header: 'Name', width: 'w-[40%]' },
+  { id: 'columns', header: 'Columns', width: 'w-[15%]' },
+  { id: 'rows', header: 'Rows', width: 'w-[15%]' },
+  { id: 'updated', header: 'Updated', width: 'w-[18%]' },
+  { id: 'id', header: 'ID', width: 'w-[12%]' },
+]
 
 export function Tables() {
   const params = useParams()
@@ -52,12 +36,15 @@ export function Tables() {
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
   const deleteTable = useDeleteTable(workspaceId)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [filterField, setFilterField] = useState<string | null>(null)
+  const [filterValue, setFilterValue] = useState<string | null>(null)
 
   const {
     isOpen: isListContextMenuOpen,
@@ -71,29 +58,84 @@ export function Tables() {
     isOpen: isRowContextMenuOpen,
     position: rowContextMenuPosition,
     menuRef: rowMenuRef,
-    handleContextMenu: handleRowContextMenu,
+    handleContextMenu: handleRowCtxMenu,
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
+
+  const filteredTables = useMemo(() => {
+    if (!searchTerm) return tables
+    const term = searchTerm.toLowerCase()
+    return tables.filter((table) => table.name.toLowerCase().includes(term))
+  }, [tables, searchTerm])
+
+  const rows: ResourceRow[] = useMemo(
+    () =>
+      filteredTables.map((table) => ({
+        id: table.id,
+        cells: {
+          name: {
+            icon: <TableIcon className='h-[14px] w-[14px]' />,
+            label: table.name,
+          },
+          columns: {
+            icon: <Columns className='h-[14px] w-[14px]' />,
+            label: String(table.schema.columns.length),
+          },
+          rows: {
+            icon: <Rows3 className='h-[14px] w-[14px]' />,
+            label: String(table.rowCount),
+          },
+          updated: {
+            label: formatRelativeTime(table.updatedAt),
+          },
+          id: {
+            label: `tb-${table.id.slice(0, 8)}`,
+          },
+        },
+      })),
+    [filteredTables]
+  )
+
+  const handleSort = useCallback(() => {
+    setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    setSortField((prev) => prev ?? 'name')
+  }, [])
+
+  const handleFilter = useCallback(() => {
+    setFilterField((prev) => (prev ? null : 'name'))
+    setFilterValue(null)
+  }, [])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
-      const isOnRow = target.closest('[data-table-row]')
-      const isOnInteractive = target.closest('button, input, a, [role="button"]')
-
-      if (!isOnRow && !isOnInteractive) {
-        handleListContextMenu(e)
+      if (
+        target.closest('[data-resource-row]') ||
+        target.closest('button, input, a, [role="button"]')
+      ) {
+        return
       }
+      handleListContextMenu(e)
     },
     [handleListContextMenu]
   )
 
-  const handleTableRowContextMenu = useCallback(
-    (e: React.MouseEvent, table: TableDefinition) => {
-      setActiveTable(table)
-      handleRowContextMenu(e)
+  const handleRowClick = useCallback(
+    (rowId: string) => {
+      if (!isRowContextMenuOpen) {
+        router.push(`/workspace/${workspaceId}/tables/${rowId}`)
+      }
     },
-    [handleRowContextMenu]
+    [isRowContextMenuOpen, router, workspaceId]
+  )
+
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, rowId: string) => {
+      const table = tables.find((t) => t.id === rowId) ?? null
+      setActiveTable(table)
+      handleRowCtxMenu(e)
+    },
+    [tables, handleRowCtxMenu]
   )
 
   const handleDelete = async () => {
@@ -107,150 +149,42 @@ export function Tables() {
     }
   }
 
-  const navigateToTable = useCallback(
-    (tableId: string) => {
-      router.push(`/workspace/${workspaceId}/tables/${tableId}`)
-    },
-    [router, workspaceId]
-  )
-
-  const filteredTables = tables.filter((table) => {
-    if (!debouncedSearchQuery) return true
-    const query = debouncedSearchQuery.toLowerCase()
-    return (
-      table.name.toLowerCase().includes(query) || table.description?.toLowerCase().includes(query)
-    )
-  })
-
   return (
     <>
-      <ResourceLayout onContextMenu={handleContentContextMenu}>
-        <ResourceHeader
-          icon={
-            <ResourceIconBadge
-              icon={TableIcon}
-              borderClassName='border-[#3B82F6] dark:border-[#1E40AF]'
-              bgClassName='bg-[#EFF6FF] dark:bg-[#1E3A5F]'
-              iconClassName='text-[#3B82F6] dark:text-[#60A5FA]'
-            />
-          }
-          title='Tables'
-          action={
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  disabled={userPermissions.canEdit !== true}
-                  variant='tertiary'
-                  className='h-8 rounded-md'
-                >
-                  <Plus className='mr-1.5 h-3.5 w-3.5' />
-                  Create Table
-                </Button>
-              </Tooltip.Trigger>
-              {userPermissions.canEdit !== true && (
-                <Tooltip.Content>Write permission required to create tables</Tooltip.Content>
-              )}
-            </Tooltip.Root>
-          }
-        />
-
-        <ResourceToolbar>
-          <ResourceSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder='Search tables...'
-          />
-        </ResourceToolbar>
-
-        <ResourceContent>
-          {isLoading ? (
-            <TablesListSkeleton />
-          ) : error ? (
-            <ResourceEmptyState
-              title='Error loading tables'
-              description={error instanceof Error ? error.message : 'An error occurred'}
-            />
-          ) : filteredTables.length === 0 ? (
-            <ResourceEmptyState
-              title={searchQuery ? 'No tables found' : 'No tables yet'}
-              description={
-                searchQuery
-                  ? 'Try a different search term'
-                  : 'Create your first table to store structured data for your workflows'
+      <Resource
+        icon={TableIcon}
+        title='Tables'
+        create={{
+          label: 'Create Table',
+          onClick: () => setIsCreateModalOpen(true),
+          disabled: userPermissions.canEdit !== true,
+        }}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search tables...',
+        }}
+        onSort={handleSort}
+        onFilter={handleFilter}
+        columns={COLUMNS}
+        rows={rows}
+        onRowClick={handleRowClick}
+        onRowContextMenu={handleRowContextMenu}
+        isLoading={isLoading}
+        error={
+          error
+            ? {
+                title: 'Error loading tables',
+                description: error instanceof Error ? error.message : 'An error occurred',
               }
-            />
-          ) : (
-            <Table className='table-fixed text-[13px]'>
-              <TableHeader>
-                <TableRow className='hover:bg-transparent'>
-                  <TableHead className='w-[40%] text-[var(--text-tertiary)]'>Name</TableHead>
-                  <TableHead className='w-[15%] text-[var(--text-tertiary)]'>Columns</TableHead>
-                  <TableHead className='w-[15%] text-[var(--text-tertiary)]'>Rows</TableHead>
-                  <TableHead className='w-[18%] text-[var(--text-tertiary)]'>Updated</TableHead>
-                  <TableHead className='w-[12%] text-[var(--text-tertiary)]'>ID</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTables.map((table) => (
-                  <TableRow
-                    key={table.id}
-                    data-table-row
-                    className='cursor-pointer hover:bg-[var(--surface-2)]'
-                    onClick={() => {
-                      if (!isRowContextMenuOpen) navigateToTable(table.id)
-                    }}
-                    onContextMenu={(e) => handleTableRowContextMenu(e, table)}
-                  >
-                    <TableCell>
-                      <div className='flex min-w-0 items-center gap-2.5'>
-                        <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[#3B82F6] dark:text-[#60A5FA]'>
-                          <TableIcon className='h-3.5 w-3.5' />
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                          <span className='block truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                            {table.name}
-                          </span>
-                          {table.description && (
-                            <span className='block truncate text-[12px] text-[var(--text-muted)]'>
-                              {table.description}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className='flex items-center gap-1.5 text-[var(--text-muted)]'>
-                        <Columns className='h-3 w-3' />
-                        {table.schema.columns.length}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className='flex items-center gap-1.5 text-[var(--text-muted)]'>
-                        <Rows3 className='h-3 w-3' />
-                        {table.rowCount}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <span className='text-[var(--text-muted)]'>
-                            {formatRelativeTime(table.updatedAt)}
-                          </span>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>{formatAbsoluteDate(table.updatedAt)}</Tooltip.Content>
-                      </Tooltip.Root>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className='rounded text-[11px]'>tb-{table.id.slice(0, 8)}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </ResourceContent>
-      </ResourceLayout>
+            : undefined
+        }
+        emptyState={{
+          title: 'No tables yet',
+          description: 'Create your first table to store structured data for your workflows',
+        }}
+        onContextMenu={handleContentContextMenu}
+      />
 
       <TablesListContextMenu
         isOpen={isListContextMenuOpen}
@@ -266,15 +200,11 @@ export function Tables() {
         position={rowContextMenuPosition}
         menuRef={rowMenuRef}
         onClose={closeRowContextMenu}
-        onViewSchema={() => {
-          setIsSchemaModalOpen(true)
-        }}
+        onViewSchema={() => setIsSchemaModalOpen(true)}
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
-        onDelete={() => {
-          setIsDeleteDialogOpen(true)
-        }}
+        onDelete={() => setIsDeleteDialogOpen(true)}
         disableDelete={userPermissions.canEdit !== true}
       />
 
@@ -321,58 +251,5 @@ export function Tables() {
 
       <CreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </>
-  )
-}
-
-function TablesListSkeleton() {
-  return (
-    <Table className='table-fixed text-[13px]'>
-      <TableHeader>
-        <TableRow className='hover:bg-transparent'>
-          <TableHead className='w-[40%]'>
-            <Skeleton className='h-3 w-10' />
-          </TableHead>
-          <TableHead className='w-[15%]'>
-            <Skeleton className='h-3 w-14' />
-          </TableHead>
-          <TableHead className='w-[15%]'>
-            <Skeleton className='h-3 w-8' />
-          </TableHead>
-          <TableHead className='w-[18%]'>
-            <Skeleton className='h-3 w-14' />
-          </TableHead>
-          <TableHead className='w-[12%]'>
-            <Skeleton className='h-3 w-6' />
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: 5 }, (_, i) => (
-          <TableRow key={i} className='hover:bg-transparent'>
-            <TableCell>
-              <div className='flex min-w-0 items-center gap-2.5'>
-                <Skeleton className='h-5 w-5 rounded' />
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3.5 w-32' />
-                  <Skeleton className='h-3 w-48' />
-                </div>
-              </div>
-            </TableCell>
-            <TableCell>
-              <Skeleton className='h-3 w-8' />
-            </TableCell>
-            <TableCell>
-              <Skeleton className='h-3 w-8' />
-            </TableCell>
-            <TableCell>
-              <Skeleton className='h-3 w-14' />
-            </TableCell>
-            <TableCell>
-              <Skeleton className='h-5 w-16 rounded' />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   )
 }

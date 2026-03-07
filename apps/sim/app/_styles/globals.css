@@ -90,12 +90,12 @@
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
-    --border: #e0e0e0; /* primary border */
+    --border: #dedede; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
     --border-1: #e0e0e0; /* stronger border */
     --surface-6: #e5e5e5; /* popovers, elevated surfaces */
     --surface-7: #d9d9d9;
-    --surface-active: #eeeeee; /* hover/active state */
+    --surface-active: #e8e8e8; /* hover/active state */
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
@@ -212,7 +212,7 @@
     --surface-2: #232323;
     --surface-3: #242424;
     --surface-4: #292929;
-    --border: #2c2c2c;
+    --border: #333333;
     --surface-5: #363636;
     --border-1: #3d3d3d;
     --surface-6: #454545;

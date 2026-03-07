@@ -12,7 +12,7 @@ export function Blimp(props: SVGProps<SVGSVGElement>) {
       viewBox='1.25 1.25 18 18'
       fill='currentColor'
       stroke='currentColor'
-      strokeWidth='1'
+      strokeWidth='0.75'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
       {...props}

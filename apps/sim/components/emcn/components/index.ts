@@ -100,6 +100,7 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
+export { Skeleton } from './skeleton/skeleton'
 export { Slider, type SliderProps } from './slider/slider'
 export { Switch } from './switch/switch'
 export {

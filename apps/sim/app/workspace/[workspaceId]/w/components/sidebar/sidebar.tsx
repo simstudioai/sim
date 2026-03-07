@@ -17,6 +17,7 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
 import { Calendar, Table } from '@/components/emcn/icons'
@@ -58,17 +59,7 @@ const logger = createLogger('Sidebar')
 function SidebarItemSkeleton() {
   return (
     <div className='mx-[2px] flex h-[30px] items-center px-[8px]'>
-      <div className='relative h-[24px] w-full overflow-hidden rounded-[4px] bg-[var(--surface-active)]'>
-        <div
-          className='absolute inset-0'
-          style={{
-            background:
-              'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 40%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 60%, transparent 100%)',
-            animation: 'sidebar-shimmer 1.8s linear infinite',
-          }}
-        />
-        <style>{`@keyframes sidebar-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
-      </div>
+      <Skeleton className='h-[24px] w-full rounded-[4px]' />
     </div>
   )
 }
