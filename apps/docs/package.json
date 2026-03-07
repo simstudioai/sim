@@ -10,6 +10,7 @@
     "postinstall": "fumadocs-mdx",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format ."
   },

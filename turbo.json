@@ -32,6 +32,10 @@
     "format:check": {
       "outputs": []
     },
+    "lint:check": {
+      "dependsOn": ["transit"],
+      "outputs": []
+    },
     "type-check": {
       "dependsOn": ["transit"],
       "outputs": []
