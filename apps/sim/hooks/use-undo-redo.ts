@@ -578,9 +578,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchAddInverse.data
 
           const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
-          const edgesToAdd = edgeSnapshots.filter(
-            (e) => !existingEdgeIds.has(e.id)
-          )
+          const edgesToAdd = edgeSnapshots.filter((e) => !existingEdgeIds.has(e.id))
 
           if (edgesToAdd.length > 0) {
             addToQueue({
@@ -633,10 +631,10 @@ export function useUndoRedo() {
 
           if (useWorkflowStore.getState().blocks[blockId]) {
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
-              const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
-              const edgesToAdd = affectedEdges.filter(
-                (e) => !existingEdgeIds.has(e.id)
+              const existingEdgeIds = new Set(
+                useWorkflowStore.getState().edges.map((edge) => edge.id)
               )
+              const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               if (edgesToAdd.length > 0) {
                 addToQueue({
                   id: crypto.randomUUID(),
@@ -698,7 +696,9 @@ export function useUndoRedo() {
 
             // If we're removing FROM a subflow (undo of add to subflow), remove edges after
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
-              const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
+              const existingEdgeIds = new Set(
+                useWorkflowStore.getState().edges.map((edge) => edge.id)
+              )
               const edgeIdsToRemove = affectedEdges
                 .filter((edge) => existingEdgeIds.has(edge.id))
                 .map((edge) => edge.id)
@@ -743,9 +743,7 @@ export function useUndoRedo() {
 
             // Moving OUT of subflow (undoing insert) → restore edges first
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
-              const edgesToAdd = affectedEdges.filter(
-                (e) => !existingEdgeIds.has(e.id)
-              )
+              const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               allEdgesToAdd.push(...edgesToAdd)
             }
 
@@ -1198,9 +1196,7 @@ export function useUndoRedo() {
           const { edgeSnapshots } = batchAddOp.data
 
           const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
-          const edgesToAdd = edgeSnapshots.filter(
-            (e) => !existingEdgeIds.has(e.id)
-          )
+          const edgesToAdd = edgeSnapshots.filter((e) => !existingEdgeIds.has(e.id))
 
           if (edgesToAdd.length > 0) {
             addToQueue({
@@ -1256,7 +1252,9 @@ export function useUndoRedo() {
           if (useWorkflowStore.getState().blocks[blockId]) {
             // If we're removing FROM a subflow, remove edges first
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
-              const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
+              const existingEdgeIds = new Set(
+                useWorkflowStore.getState().edges.map((edge) => edge.id)
+              )
               const edgeIdsToRemove = affectedEdges
                 .filter((edge) => existingEdgeIds.has(edge.id))
                 .map((edge) => edge.id)
@@ -1324,10 +1322,10 @@ export function useUndoRedo() {
 
             // If we're adding TO a subflow, restore edges after
             if (newParentId && affectedEdges && affectedEdges.length > 0) {
-              const existingEdgeIds = new Set(useWorkflowStore.getState().edges.map((edge) => edge.id))
-              const edgesToAdd = affectedEdges.filter(
-                (e) => !existingEdgeIds.has(e.id)
+              const existingEdgeIds = new Set(
+                useWorkflowStore.getState().edges.map((edge) => edge.id)
               )
+              const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               if (edgesToAdd.length > 0) {
                 addToQueue({
                   id: crypto.randomUUID(),
@@ -1375,9 +1373,7 @@ export function useUndoRedo() {
 
             // Moving OUT of subflow (redoing removal) → restore edges after
             if (!newParentId && affectedEdges && affectedEdges.length > 0) {
-              const edgesToAdd = affectedEdges.filter(
-                (e) => !existingEdgeIds.has(e.id)
-              )
+              const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               allEdgesToAdd.push(...edgesToAdd)
             }
           }

@@ -41,10 +41,6 @@ export function Tables() {
   const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortField, setSortField] = useState<string | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [filterField, setFilterField] = useState<string | null>(null)
-  const [filterValue, setFilterValue] = useState<string | null>(null)
 
   const {
     isOpen: isListContextMenuOpen,
@@ -96,15 +92,9 @@ export function Tables() {
     [filteredTables]
   )
 
-  const handleSort = useCallback(() => {
-    setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    setSortField((prev) => prev ?? 'name')
-  }, [])
+  const handleSort = useCallback(() => {}, [])
 
-  const handleFilter = useCallback(() => {
-    setFilterField((prev) => (prev ? null : 'name'))
-    setFilterValue(null)
-  }, [])
+  const handleFilter = useCallback(() => {}, [])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {

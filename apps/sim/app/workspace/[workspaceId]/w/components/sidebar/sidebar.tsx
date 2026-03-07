@@ -322,7 +322,7 @@ export const Sidebar = memo(function Sidebar() {
         },
         {
           id: 'schedules',
-          label: 'Scheduled Tasks',
+          label: 'Schedules',
           icon: Calendar,
           href: `/workspace/${workspaceId}/schedules`,
         },
@@ -764,8 +764,26 @@ export const Sidebar = memo(function Sidebar() {
               >
                 {/* Tasks */}
                 <div className='flex flex-shrink-0 flex-col'>
-                  <div className='px-[16px]'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
+                  <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
+                    <div className='flex items-center justify-between'>
+                      <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
+                      <div className='flex items-center justify-center gap-[8px]'>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                            >
+                              <Plus className='h-[16px] w-[16px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>New task</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      </div>
+                    </div>
                   </div>
                   <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
                     {tasksLoading ? (
@@ -870,7 +888,7 @@ export const Sidebar = memo(function Sidebar() {
                             </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content>
-                            <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
+                            <p>{isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'}</p>
                           </Tooltip.Content>
                         </Tooltip.Root>
                       </div>

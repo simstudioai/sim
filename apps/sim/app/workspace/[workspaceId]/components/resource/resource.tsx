@@ -111,14 +111,14 @@ export function Resource({
             <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
               <div className='flex items-center justify-between'>
                 {search && (
-                  <div className='relative'>
+                  <div className='relative flex-1'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 h-[14px] w-[14px] text-[var(--text-muted)]' />
                     <input
                       type='text'
                       value={search.value}
                       onChange={(e) => search.onChange(e.target.value)}
                       placeholder={search.placeholder ?? 'Search...'}
-                      className='bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
+                      className='w-full bg-transparent py-[4px] pl-[24px] font-base text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
                     />
                   </div>
                 )}
@@ -223,9 +223,9 @@ function EmptyMessage({ title, description }: { title: string; description?: str
 
 function CellContent({ cell }: { cell: ResourceCell }) {
   return (
-    <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
-      {cell.icon && <span className='text-[var(--text-subtle)]'>{cell.icon}</span>}
-      <span>{cell.label}</span>
+    <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+      {cell.icon && <span className='flex-shrink-0 text-[var(--text-subtle)]'>{cell.icon}</span>}
+      <span className='truncate'>{cell.label}</span>
     </span>
   )
 }

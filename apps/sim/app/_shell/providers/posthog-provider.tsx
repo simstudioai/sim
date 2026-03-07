@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { PostHog } from 'posthog-js'
 import { createLogger } from '@sim/logger'
+import type { PostHog } from 'posthog-js'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 
 const logger = createLogger('PostHogProvider')

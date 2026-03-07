@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Clock, Database, Files, HelpCircle, Layout, Settings } from 'lucide-react'
+import { Database, Files, HelpCircle, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, Library } from '@/components/emcn'
-import { Table } from '@/components/emcn/icons'
+import { Calendar, Table } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -108,27 +108,6 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
-          id: 'logs',
-          name: 'Logs',
-          icon: Library,
-          href: `/workspace/${workspaceId}/logs`,
-          shortcut: '⌘⇧L',
-        },
-        {
-          id: 'templates',
-          name: 'Templates',
-          icon: Layout,
-          href: `/workspace/${workspaceId}/templates`,
-          hidden: permissionConfig.hideTemplates,
-        },
-        {
-          id: 'knowledge-base',
-          name: 'Knowledge Base',
-          icon: Database,
-          href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
-        },
-        {
           id: 'tables',
           name: 'Tables',
           icon: Table,
@@ -143,10 +122,24 @@ export function SearchModal({
           hidden: permissionConfig.hideFilesTab,
         },
         {
+          id: 'knowledge-base',
+          name: 'Knowledge Base',
+          icon: Database,
+          href: `/workspace/${workspaceId}/knowledge`,
+          hidden: permissionConfig.hideKnowledgeBaseTab,
+        },
+        {
           id: 'schedules',
           name: 'Schedules',
-          icon: Clock,
+          icon: Calendar,
           href: `/workspace/${workspaceId}/schedules`,
+        },
+        {
+          id: 'logs',
+          name: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+          shortcut: '⌘⇧L',
         },
         {
           id: 'help',
@@ -165,8 +158,8 @@ export function SearchModal({
       workspaceId,
       openHelpModal,
       navigateToSettings,
-      permissionConfig.hideTemplates,
       permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
     ]
   )
