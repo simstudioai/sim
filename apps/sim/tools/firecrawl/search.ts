@@ -79,7 +79,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       success: true,
       output: {
         data: data.data,
-        creditsUsed: data.creditsUsed ?? 2,
+        creditsUsed: data.creditsUsed,
       },
     }
   },

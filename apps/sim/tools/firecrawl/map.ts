@@ -121,7 +121,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       output: {
         success: data.success,
         links: data.links || [],
-        creditsUsed: data.creditsUsed ?? 1,
+        creditsUsed: data.creditsUsed,
       },
     }
   },
