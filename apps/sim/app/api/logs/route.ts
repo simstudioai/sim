@@ -350,8 +350,7 @@ export async function GET(request: NextRequest) {
                 params.details === 'full' ? jobExecutionLogs.executionData : sql<null>`NULL`,
               cost: jobExecutionLogs.cost,
               createdAt: jobExecutionLogs.createdAt,
-              jobTitle:
-                sql<string | null>`${jobExecutionLogs.executionData}->'trigger'->>'source'`,
+              jobTitle: sql<string | null>`${jobExecutionLogs.executionData}->'trigger'->>'source'`,
             })
             .from(jobExecutionLogs)
             .where(jobWhere)

@@ -633,13 +633,19 @@ function buildJobPrompt(jobRecord: {
       parts.push(`- [${entry.timestamp}] ${entry.summary}`)
     }
     parts.push('')
-    parts.push('Use this history to avoid duplicate work. After completing meaningful work this run, call update_job_history to record what you did.')
+    parts.push(
+      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_job_history to record what you did.'
+    )
   } else if (jobRecord.runCount > 0) {
     parts.push('')
-    parts.push('No previous run history recorded. After completing meaningful work, call update_job_history to record what you did for future runs.')
+    parts.push(
+      'No previous run history recorded. After completing meaningful work, call update_job_history to record what you did for future runs.'
+    )
   } else {
     parts.push('')
-    parts.push('This is the first run. After completing meaningful work, call update_job_history to record what you did so future runs have context.')
+    parts.push(
+      'This is the first run. After completing meaningful work, call update_job_history to record what you did so future runs have context.'
+    )
   }
 
   if (jobRecord.lifecycle === 'until_complete') {

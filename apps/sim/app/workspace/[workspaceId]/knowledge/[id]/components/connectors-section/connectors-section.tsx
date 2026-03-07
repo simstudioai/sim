@@ -33,6 +33,7 @@ import {
   getProviderIdFromServiceId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -44,7 +45,6 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('ConnectorsSection')
 
