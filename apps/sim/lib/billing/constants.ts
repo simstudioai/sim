@@ -33,19 +33,19 @@ export const DEFAULT_OVERAGE_THRESHOLD = 50
 
 /**
  * Available credit tiers. Each tier maps a credit amount to the underlying dollar cost.
- * 1 credit = $0.01, so credits = dollars * 100.
+ * 1 credit = $0.005, so credits = dollars * 200.
  */
 export const CREDIT_TIERS = [
-  { credits: 2000, dollars: 20 },
-  { credits: 4000, dollars: 40 },
-  { credits: 6000, dollars: 60 },
-  { credits: 8000, dollars: 80 },
-  { credits: 10000, dollars: 100 },
-  { credits: 12000, dollars: 120 },
-  { credits: 14000, dollars: 140 },
-  { credits: 16000, dollars: 160 },
-  { credits: 18000, dollars: 180 },
-  { credits: 20000, dollars: 200 },
+  { credits: 4000, dollars: 20 },
+  { credits: 8000, dollars: 40 },
+  { credits: 12000, dollars: 60 },
+  { credits: 16000, dollars: 80 },
+  { credits: 20000, dollars: 100 },
+  { credits: 24000, dollars: 120 },
+  { credits: 28000, dollars: 140 },
+  { credits: 32000, dollars: 160 },
+  { credits: 36000, dollars: 180 },
+  { credits: 40000, dollars: 200 },
 ] as const
 
 export type CreditTier = (typeof CREDIT_TIERS)[number]

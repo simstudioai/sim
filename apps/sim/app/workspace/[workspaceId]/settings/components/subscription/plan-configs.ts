@@ -1,14 +1,4 @@
-import {
-  Clock,
-  Database,
-  HardDrive,
-  HeadphonesIcon,
-  Server,
-  ShieldCheck,
-  Timer,
-  Users,
-  Zap,
-} from 'lucide-react'
+import { Clock, HardDrive, HeadphonesIcon, Server, ShieldCheck, Timer, Zap } from 'lucide-react'
 import { SlackMonoIcon } from '@/components/icons'
 import type { PlanFeature } from '@/app/workspace/[workspaceId]/settings/components/subscription/components/plan-card'
 
@@ -17,8 +7,6 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Clock, text: '1,000 runs/min (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
   { icon: HardDrive, text: '50GB file storage' },
-  { icon: Users, text: 'Unlimited invites' },
-  { icon: Database, text: 'Unlimited log retention' },
 ]
 
 export const TEAM_PLAN_FEATURES: PlanFeature[] = [
@@ -26,8 +14,7 @@ export const TEAM_PLAN_FEATURES: PlanFeature[] = [
   { icon: Clock, text: '2,500 runs/min (async)' },
   { icon: Timer, text: '50 min sync execution limit' },
   { icon: HardDrive, text: '500GB file storage (pooled)' },
-  { icon: Users, text: 'Unlimited invites' },
-  { icon: Database, text: 'Unlimited log retention' },
+  { icon: ShieldCheck, text: 'Access control features' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
 ]
 

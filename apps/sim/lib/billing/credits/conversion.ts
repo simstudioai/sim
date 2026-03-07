@@ -1,10 +1,10 @@
 /**
  * Credit conversion utilities.
  * All DB values remain in dollars; these helpers convert at API/UI boundaries only.
- * 1 credit = $0.01
+ * 1 credit = $0.005 (i.e. $1 = 200 credits)
  */
 
-export const CREDIT_MULTIPLIER = 100
+export const CREDIT_MULTIPLIER = 200
 
 export function dollarsToCredits(dollars: number): number {
   return Math.round(dollars * CREDIT_MULTIPLIER)

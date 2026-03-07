@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -47,8 +47,15 @@ const CONSTANTS = {
   UPGRADE_ERROR_TIMEOUT: 3000,
   TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
   INITIAL_TEAM_SEATS: 1,
-  DEFAULT_CREDIT_TIER: 2000,
+  DEFAULT_CREDIT_TIER: 4000,
+  DEFAULT_TEAM_CREDIT_TIER: 8000,
 } as const
+
+const TEAM_MIN_TIER = 8000
+const TEAM_TIER_OPTIONS = CREDIT_TIERS.filter((t) => t.credits >= TEAM_MIN_TIER).map((t) => ({
+  label: `${t.credits.toLocaleString()} credits`,
+  value: String(t.credits),
+}))
 
 const TIER_OPTIONS = CREDIT_TIERS.map((t) => ({
   label: `${t.credits.toLocaleString()} credits`,
@@ -199,17 +206,12 @@ export function Subscription() {
   )
 
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
-  const [selectedTier, setSelectedTier] = useState(CONSTANTS.DEFAULT_CREDIT_TIER)
+  const [selectedProTier, setSelectedProTier] = useState<number>(CONSTANTS.DEFAULT_CREDIT_TIER)
+  const [selectedTeamTier, setSelectedTeamTier] = useState<number>(
+    CONSTANTS.DEFAULT_TEAM_CREDIT_TIER
+  )
   const [isAnnual, setIsAnnual] = useState(false)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
-
-  const tierPricing = useMemo(() => {
-    const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? CREDIT_TIERS[0]
-    const monthly = tier.dollars
-    const discountedMonthly = Math.round(monthly * (1 - ANNUAL_DISCOUNT_RATE))
-    const annualTotal = Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT_RATE))
-    return { monthly, discountedMonthly, annualTotal }
-  }, [selectedTier])
 
   const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
   const isLoading =
@@ -337,13 +339,14 @@ export function Subscription() {
 
   const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: TargetPlan) => {
+      const tier = targetPlan === 'team' ? selectedTeamTier : selectedProTier
       try {
-        await handleUpgrade(targetPlan, { creditTier: selectedTier, annual: isAnnual })
+        await handleUpgrade(targetPlan, { creditTier: tier, annual: isAnnual })
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Unknown error occurred')
       }
     },
-    [handleUpgrade, selectedTier, isAnnual]
+    [handleUpgrade, selectedProTier, selectedTeamTier, isAnnual]
   )
 
   const handleBadgeClick = useCallback(async () => {
@@ -400,11 +403,6 @@ export function Subscription() {
     logger,
   ])
 
-  const weeklyRefreshCredits = useMemo(() => {
-    const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? CREDIT_TIERS[0]
-    return Math.round(tier.dollars * WEEKLY_REFRESH_RATE * 100)
-  }, [selectedTier])
-
   const renderPlanCard = useCallback(
     (planType: 'pro' | 'team' | 'enterprise', options?: { horizontal?: boolean }) => {
       const handleContactEnterprise = () => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
@@ -424,7 +422,15 @@ export function Subscription() {
       }
 
       const isPlanPro = planType === 'pro'
+      const cardTier = isPlanPro ? selectedProTier : selectedTeamTier
+      const setCardTier = isPlanPro ? setSelectedProTier : setSelectedTeamTier
+      const tierOpts = isPlanPro ? TIER_OPTIONS : TEAM_TIER_OPTIONS
       const features = isPlanPro ? PRO_PLAN_FEATURES : TEAM_PLAN_FEATURES
+
+      const tier = CREDIT_TIERS.find((t) => t.credits === cardTier) ?? CREDIT_TIERS[0]
+      const monthly = tier.dollars
+      const discountedMonthly = Math.round(monthly * (1 - ANNUAL_DISCOUNT_RATE))
+      const weeklyRefresh = Math.round(tier.dollars * WEEKLY_REFRESH_RATE * 100)
 
       return (
         <article
@@ -440,36 +446,45 @@ export function Subscription() {
               {isAnnual ? (
                 <>
                   <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                    ${tierPricing.discountedMonthly}
+                    ${discountedMonthly}
                   </span>
-                  <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+                  <span className='text-[12px] text-[var(--text-secondary)]'>
+                    {isPlanPro ? '/mo' : '/seat/mo'}
+                  </span>
                   <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
-                    ${tierPricing.monthly}
+                    ${monthly}
                   </span>
                 </>
               ) : (
                 <>
                   <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                    ${tierPricing.monthly}
+                    ${monthly}
                   </span>
-                  <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+                  <span className='text-[12px] text-[var(--text-secondary)]'>
+                    {isPlanPro ? '/mo' : '/seat/mo'}
+                  </span>
                 </>
               )}
             </div>
           </div>
 
-          {/* Credits + weekly refresh highlight */}
-          <div className='flex items-center gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
-            <div className='flex flex-col'>
-              <span className='font-semibold text-[18px] text-[var(--text-primary)]'>
-                {selectedTier.toLocaleString()}
-              </span>
-              <span className='text-[11px] text-[var(--text-secondary)]'>credits/mo</span>
+          {/* Credit tier selector + weekly refresh */}
+          <div className='flex items-center gap-[10px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+            <div className='w-[130px]'>
+              <Combobox
+                size='sm'
+                align='start'
+                dropdownWidth={150}
+                value={String(cardTier)}
+                onChange={(value: string) => setCardTier(Number(value))}
+                placeholder='Credits'
+                options={tierOpts}
+              />
             </div>
             <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
             <div className='flex flex-col'>
               <span className='font-semibold text-[14px] text-[var(--text-primary)]'>
-                +{weeklyRefreshCredits.toLocaleString()}
+                +{weeklyRefresh.toLocaleString()}
               </span>
               <span className='text-[11px] text-[var(--text-secondary)]'>weekly refresh</span>
             </div>
@@ -508,10 +523,9 @@ export function Subscription() {
       subscription.isFree,
       upgradeError,
       handleUpgradeWithErrorHandling,
-      tierPricing,
       isAnnual,
-      selectedTier,
-      weeklyRefreshCredits,
+      selectedProTier,
+      selectedTeamTier,
     ]
   )
 
@@ -594,19 +608,8 @@ export function Subscription() {
       {/* Upgrade Plans */}
       {permissions.showUpgradePlans && (
         <div className='flex flex-col gap-[12px]'>
-          {/* Controls row: tier selector + billing toggle */}
-          <div className='flex items-center justify-between gap-[8px]'>
-            <div className='w-[160px]'>
-              <Combobox
-                size='sm'
-                align='start'
-                dropdownWidth={170}
-                value={String(selectedTier)}
-                onChange={(value: string) => setSelectedTier(Number(value))}
-                placeholder='Credits'
-                options={TIER_OPTIONS}
-              />
-            </div>
+          {/* Billing interval toggle */}
+          <div className='flex items-center justify-end'>
             <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[2px]'>
               <button
                 type='button'
@@ -706,7 +709,9 @@ export function Subscription() {
             isPaid: subscription.isPaid,
           }}
           subscriptionData={{
-            periodEnd: subscriptionData?.data?.periodEnd || null,
+            periodEnd: subscriptionData?.data?.periodEnd
+              ? new Date(subscriptionData.data.periodEnd)
+              : null,
             cancelAtPeriodEnd: subscriptionData?.data?.cancelAtPeriodEnd,
           }}
         />

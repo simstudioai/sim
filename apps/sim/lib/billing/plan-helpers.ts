@@ -48,8 +48,8 @@ export function getPlanTierCredits(plan: string | null | undefined): number {
   if (!plan) return 0
   const match = plan.match(/_(\d+)$/)
   if (match) return Number.parseInt(match[1], 10)
-  if (plan === 'pro') return 2000
-  if (plan === 'team') return 4000
+  if (plan === 'pro') return 4000
+  if (plan === 'team') return 8000
   return 0
 }
 

@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import {
@@ -660,28 +661,26 @@ export function getModelPricing(modelId: string): any {
 }
 
 /**
- * Format cost as a currency string
+ * Format cost as a credit string for display.
+ * Internally cost is in USD; this converts to credits (1 USD = 200 credits).
  *
  * @param cost Cost in USD
- * @returns Formatted cost string
+ * @returns Formatted credit string (e.g. "4.2 credits", "<1 credit")
  */
 export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
 
-  if (cost >= 1) {
-    return `$${cost.toFixed(2)}`
-  }
-  if (cost >= 0.01) {
-    return `$${cost.toFixed(3)}`
-  }
-  if (cost >= 0.001) {
-    return `$${cost.toFixed(4)}`
-  }
-  if (cost > 0) {
-    const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
-    return `$${cost.toFixed(places)}`
-  }
-  return '$0'
+  const credits = dollarsToCredits(cost)
+
+  if (credits <= 0) return '0 credits'
+
+  const rounded = Math.round(credits * 100) / 100
+  const display =
+    rounded % 1 === 0
+      ? rounded.toLocaleString()
+      : rounded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  return `${display} credits`
 }
 
 /**

@@ -60,7 +60,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
       <div className='flex items-center justify-between'>
         <Label>Referral Code</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
-          +${success.bonusAmount} credits applied
+          +{success.bonusAmount.toLocaleString()} credits applied
         </span>
       </div>
     )

@@ -17,6 +17,7 @@ import {
 } from '@/components/emails'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { formatDuration } from '@/lib/core/utils/formatting'
@@ -238,7 +239,7 @@ async function deliverWebhook(
 function formatCost(cost?: Record<string, unknown>): string {
   if (!cost?.total) return 'N/A'
   const total = cost.total as number
-  return `$${total.toFixed(4)}`
+  return `${dollarsToCredits(total).toLocaleString()} credits`
 }
 
 function buildLogUrl(workspaceId: string, executionId: string): string {
@@ -256,7 +257,7 @@ function formatAlertReason(alertConfig: AlertConfig): string {
     case 'latency_spike':
       return `Execution was ${alertConfig.latencySpikePercent}% slower than average`
     case 'cost_threshold':
-      return `Execution cost exceeded $${alertConfig.costThresholdDollars} threshold`
+      return `Execution cost exceeded ${dollarsToCredits(alertConfig.costThresholdDollars || 0).toLocaleString()} credits threshold`
     case 'no_activity':
       return `No workflow activity detected in ${alertConfig.inactivityHours}h`
     case 'error_count':

@@ -13,6 +13,7 @@ import {
   getSubscriptionStatus,
   getUsage,
 } from '@/lib/billing/client/utils'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
@@ -153,7 +154,7 @@ function getStatusTextConfig(
     }
   }
   return {
-    text: `$${usage.current.toFixed(2)} / $${usage.limit.toFixed(2)}`,
+    text: `${dollarsToCredits(usage.current).toLocaleString()} / ${dollarsToCredits(usage.limit).toLocaleString()} credits`,
     isError: false,
   }
 }
@@ -504,11 +505,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
               ) : (
                 <>
                   <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                    ${usage.current.toFixed(2)}
+                    {dollarsToCredits(usage.current).toLocaleString()}
                   </span>
                   <span className='font-base text-[12px] text-[var(--text-secondary)]'>/</span>
                   <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                    ${usage.limit.toFixed(2)}
+                    {dollarsToCredits(usage.limit).toLocaleString()} credits
                   </span>
                 </>
               )}
