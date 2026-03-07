@@ -22,7 +22,11 @@
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
     "db:migrate": "bunx drizzle-kit migrate --config=./drizzle.config.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
   },
   "dependencies": {
     "drizzle-orm": "^0.44.5",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
+    "drizzle-kit": "^0.31.4",
     "@types/node": "^22.10.5",
     "typescript": "^5.7.3"
   }

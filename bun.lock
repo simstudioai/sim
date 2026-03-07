@@ -1,18 +1,16 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
       "devDependencies": {
         "@biomejs/biome": "2.0.0-beta.5",
-        "@next/env": "16.1.6",
         "@octokit/rest": "^21.0.0",
-        "@tailwindcss/typography": "0.5.19",
-        "drizzle-kit": "^0.31.4",
         "glob": "13.0.0",
         "husky": "9.1.7",
         "lint-staged": "16.0.0",
-        "turbo": "2.8.13",
+        "turbo": "2.8.14",
       },
     },
     "apps/docs": {
@@ -204,6 +202,7 @@
       "devDependencies": {
         "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
+        "@tailwindcss/typography": "0.5.19",
         "@testing-library/jest-dom": "^6.6.3",
         "@trigger.dev/build": "4.1.2",
         "@types/fluent-ffmpeg": "2.1.28",
@@ -265,6 +264,7 @@
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@types/node": "^22.10.5",
+        "drizzle-kit": "^0.31.4",
         "typescript": "^5.7.3",
       },
     },
@@ -3492,19 +3492,19 @@
 
     "tunnel-agent": ["tunnel-agent@0.6.0", "", { "dependencies": { "safe-buffer": "^5.0.1" } }, "sha512-McnNiV1l8RYeY8tBgEpuodCC1mLUdbSN+CYBL7kJsJNInOP8UjDDEwdk6Mw60vdLLrr5NHKZhMAOSrR2NZuQ+w=="],
 
-    "turbo": ["turbo@2.8.13", "", { "optionalDependencies": { "turbo-darwin-64": "2.8.13", "turbo-darwin-arm64": "2.8.13", "turbo-linux-64": "2.8.13", "turbo-linux-arm64": "2.8.13", "turbo-windows-64": "2.8.13", "turbo-windows-arm64": "2.8.13" }, "bin": { "turbo": "bin/turbo" } }, "sha512-nyM99hwFB9/DHaFyKEqatdayGjsMNYsQ/XBNO6MITc7roncZetKb97MpHxWf3uiU+LB9c9HUlU3Jp2Ixei2k1A=="],
+    "turbo": ["turbo@2.8.14", "", { "optionalDependencies": { "turbo-darwin-64": "2.8.14", "turbo-darwin-arm64": "2.8.14", "turbo-linux-64": "2.8.14", "turbo-linux-arm64": "2.8.14", "turbo-windows-64": "2.8.14", "turbo-windows-arm64": "2.8.14" }, "bin": { "turbo": "bin/turbo" } }, "sha512-UCTxeMNYT1cKaHiIFdLCQ7ulI+jw5i5uOnJOrRXsgUD7G3+OjlUjwVd7JfeVt2McWSVGjYA3EVW/v1FSsJ5DtA=="],
 
-    "turbo-darwin-64": ["turbo-darwin-64@2.8.13", "", { "os": "darwin", "cpu": "x64" }, "sha512-PmOvodQNiOj77+Zwoqku70vwVjKzL34RTNxxoARjp5RU5FOj/CGiC6vcDQhNtFPUOWSAaogHF5qIka9TBhX4XA=="],
+    "turbo-darwin-64": ["turbo-darwin-64@2.8.14", "", { "os": "darwin", "cpu": "x64" }, "sha512-9sFi7n2lLfEsGWi5OEoA/eTtQU2BPKtzSYKqufMtDeRmqMT9vKjbv9gJCRkllSVE9BOXA0qXC3diyX8V8rKIKw=="],
 
-    "turbo-darwin-arm64": ["turbo-darwin-arm64@2.8.13", "", { "os": "darwin", "cpu": "arm64" }, "sha512-kI+anKcLIM4L8h+NsM7mtAUpElkCOxv5LgiQVQR8BASyDFfc8Efj5kCk3cqxuxOvIqx0sLfCX7atrHQ2kwuNJQ=="],
+    "turbo-darwin-arm64": ["turbo-darwin-arm64@2.8.14", "", { "os": "darwin", "cpu": "arm64" }, "sha512-aS4yJuy6A1PCLws+PJpZP0qCURG8Y5iVx13z/WAbKyeDTY6W6PiGgcEllSaeLGxyn++382ztN/EZH85n2zZ6VQ=="],
 
-    "turbo-linux-64": ["turbo-linux-64@2.8.13", "", { "os": "linux", "cpu": "x64" }, "sha512-j29KnQhHyzdzgCykBFeBqUPS4Wj7lWMnZ8CHqytlYDap4Jy70l4RNG46pOL9+lGu6DepK2s1rE86zQfo0IOdPw=="],
+    "turbo-linux-64": ["turbo-linux-64@2.8.14", "", { "os": "linux", "cpu": "x64" }, "sha512-XC6wPUDJkakjhNLaS0NrHDMiujRVjH+naEAwvKLArgqRaFkNxjmyNDRM4eu3soMMFmjym6NTxYaF74rvET+Orw=="],
 
-    "turbo-linux-arm64": ["turbo-linux-arm64@2.8.13", "", { "os": "linux", "cpu": "arm64" }, "sha512-OEl1YocXGZDRDh28doOUn49QwNe82kXljO1HXApjU0LapkDiGpfl3jkAlPKxEkGDSYWc8MH5Ll8S16Rf5tEBYg=="],
+    "turbo-linux-arm64": ["turbo-linux-arm64@2.8.14", "", { "os": "linux", "cpu": "arm64" }, "sha512-ChfE7isyVNjZrVSPDwcfqcHLG/FuIBbOFxnt1FM8vSuBGzHAs8AlTdwFNIxlEMJfZ8Ad9mdMxdmsCUPIWiQ6cg=="],
 
-    "turbo-windows-64": ["turbo-windows-64@2.8.13", "", { "os": "win32", "cpu": "x64" }, "sha512-717bVk1+Pn2Jody7OmWludhEirEe0okoj1NpRbSm5kVZz/yNN/jfjbxWC6ilimXMz7xoMT3IDfQFJsFR3PMANA=="],
+    "turbo-windows-64": ["turbo-windows-64@2.8.14", "", { "os": "win32", "cpu": "x64" }, "sha512-FTbIeQL1ycLFW2t9uQNMy+bRSzi3Xhwun/e7ZhFBdM+U0VZxxrtfYEBM9CHOejlfqomk6Jh7aRz0sJoqYn39Hg=="],
 
-    "turbo-windows-arm64": ["turbo-windows-arm64@2.8.13", "", { "os": "win32", "cpu": "arm64" }, "sha512-R819HShLIT0Wj6zWVnIsYvSNtRNj1q9VIyaUz0P24SMcLCbQZIm1sV09F4SDbg+KCCumqD2lcaR2UViQ8SnUJA=="],
+    "turbo-windows-arm64": ["turbo-windows-arm64@2.8.14", "", { "os": "win32", "cpu": "arm64" }, "sha512-KgZX12cTyhY030qS7ieT8zRkhZZE2VWJasDFVUSVVn17nR7IShpv68/7j5UqJNeRLIGF1XPK0phsP5V5yw3how=="],
 
     "tweetnacl": ["tweetnacl@0.14.5", "", {}, "sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA=="],
 

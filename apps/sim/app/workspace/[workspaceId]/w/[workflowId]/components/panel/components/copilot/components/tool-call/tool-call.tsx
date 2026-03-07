@@ -1419,9 +1419,6 @@ export function ToolCall({
   )
   const toolCall = liveToolCall || toolCallProp
 
-  // Guard: nothing to render without a toolCall
-  if (!toolCall) return null
-
   const isExpandablePending =
     toolCall?.state === 'pending' &&
     (toolCall.name === 'make_api_request' || toolCall.name === 'set_global_workflow_variables')
@@ -1430,13 +1427,15 @@ export function ToolCall({
   const [showRemoveAutoAllow, setShowRemoveAutoAllow] = useState(false)
 
   // State for editable parameters
-  const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
+  const params = (toolCall as any)?.parameters || (toolCall as any)?.input || toolCall?.params || {}
   const [editedParams, setEditedParams] = useState(params)
   const paramsRef = useRef(params)
 
   // Check if this integration tool is auto-allowed
   const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
-  const isAutoAllowed = useCopilotStore((s) => s.isToolAutoAllowed(toolCall.name))
+  const isAutoAllowed = useCopilotStore((s) =>
+    toolCall ? s.isToolAutoAllowed(toolCall.name) : false
+  )
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -1445,6 +1444,18 @@ export function ToolCall({
       paramsRef.current = params
     }
   }, [params])
+
+  // Sync expanded state when toolCall arrives from store after initial render
+  const prevToolCallRef = useRef(toolCall)
+  useEffect(() => {
+    if (!prevToolCallRef.current && toolCall && isExpandablePending) {
+      setExpanded(true)
+    }
+    prevToolCallRef.current = toolCall
+  }, [toolCall, isExpandablePending])
+
+  // Guard: nothing to render without a toolCall
+  if (!toolCall) return null
 
   // Skip rendering some internal tools
   if (
