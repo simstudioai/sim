@@ -19,7 +19,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.9
+          bun-version: 1.3.10
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -89,6 +89,16 @@ jobs:
           fi
 
           echo "✅ All feature flags are properly configured"
+
+      - name: Check subblock ID stability
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          else
+            BASE_REF="HEAD~1"
+          fi
+          bun run apps/sim/scripts/check-subblock-id-stability.ts "$BASE_REF"
 
       - name: Lint code
         run: bun run lint:check

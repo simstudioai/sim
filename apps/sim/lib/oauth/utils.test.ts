@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { OAuthProvider, OAuthServiceMetadata } from './types'
 import {
-  evaluateScopeCoverage,
   getAllOAuthServices,
   getCanonicalScopesForProvider,
+  getMissingRequiredScopes,
   getProviderIdFromServiceId,
+  getScopesForService,
   getServiceByProviderAndId,
   getServiceConfigByProviderId,
-  normalizeScopes,
   parseProvider,
 } from './utils'
 
@@ -361,209 +361,6 @@ describe('getCanonicalScopesForProvider', () => {
   })
 })
 
-describe('normalizeScopes', () => {
-  it.concurrent('should remove duplicates from scope array', () => {
-    const scopes = ['scope1', 'scope2', 'scope1', 'scope3', 'scope2']
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized.length).toBe(3)
-    expect(normalized).toContain('scope1')
-    expect(normalized).toContain('scope2')
-    expect(normalized).toContain('scope3')
-  })
-
-  it.concurrent('should trim whitespace from scopes', () => {
-    const scopes = ['  scope1  ', 'scope2', ' scope3 ']
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized).toEqual(['scope1', 'scope2', 'scope3'])
-  })
-
-  it.concurrent('should remove empty strings', () => {
-    const scopes = ['scope1', '', 'scope2', '   ', 'scope3']
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized.length).toBe(3)
-    expect(normalized).toEqual(['scope1', 'scope2', 'scope3'])
-  })
-
-  it.concurrent('should handle empty array', () => {
-    const normalized = normalizeScopes([])
-
-    expect(Array.isArray(normalized)).toBe(true)
-    expect(normalized.length).toBe(0)
-  })
-
-  it.concurrent('should handle array with only empty strings', () => {
-    const normalized = normalizeScopes(['', '  ', '   '])
-
-    expect(Array.isArray(normalized)).toBe(true)
-    expect(normalized.length).toBe(0)
-  })
-
-  it.concurrent('should preserve order of first occurrence', () => {
-    const scopes = ['scope3', 'scope1', 'scope2', 'scope1', 'scope3']
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized).toEqual(['scope3', 'scope1', 'scope2'])
-  })
-
-  it.concurrent('should handle scopes with special characters', () => {
-    const scopes = [
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.send',
-    ]
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized.length).toBe(2)
-    expect(normalized).toContain('https://www.googleapis.com/auth/gmail.send')
-    expect(normalized).toContain('https://www.googleapis.com/auth/gmail.modify')
-  })
-
-  it.concurrent('should handle single scope', () => {
-    const normalized = normalizeScopes(['scope1'])
-
-    expect(normalized).toEqual(['scope1'])
-  })
-
-  it.concurrent('should handle scopes with mixed whitespace', () => {
-    const scopes = ['scope1', '\tscope2\t', '\nscope3\n', ' scope1 ']
-    const normalized = normalizeScopes(scopes)
-
-    expect(normalized.length).toBe(3)
-    expect(normalized).toContain('scope1')
-    expect(normalized).toContain('scope2')
-    expect(normalized).toContain('scope3')
-  })
-})
-
-describe('evaluateScopeCoverage', () => {
-  it.concurrent('should identify missing scopes', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [
-      'https://www.googleapis.com/auth/gmail.send',
-    ])
-
-    expect(evaluation.missingScopes.length).toBeGreaterThan(0)
-    expect(evaluation.missingScopes).toContain('https://www.googleapis.com/auth/gmail.modify')
-    expect(evaluation.requiresReauthorization).toBe(true)
-  })
-
-  it.concurrent('should identify extra scopes', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.labels',
-      'https://www.googleapis.com/auth/calendar',
-    ])
-
-    expect(evaluation.extraScopes.length).toBe(1)
-    expect(evaluation.extraScopes).toContain('https://www.googleapis.com/auth/calendar')
-  })
-
-  it.concurrent('should return no missing scopes when all are present', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.labels',
-    ])
-
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-
-  it.concurrent('should normalize granted scopes before evaluation', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [
-      '  https://www.googleapis.com/auth/gmail.send  ',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.labels',
-      'https://www.googleapis.com/auth/gmail.send',
-    ])
-
-    expect(evaluation.grantedScopes.length).toBe(3)
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-
-  it.concurrent('should handle empty granted scopes', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [])
-
-    expect(evaluation.grantedScopes.length).toBe(0)
-    expect(evaluation.missingScopes.length).toBeGreaterThan(0)
-    expect(evaluation.requiresReauthorization).toBe(true)
-  })
-
-  it.concurrent('should return correct structure', () => {
-    const evaluation = evaluateScopeCoverage('google-email', [
-      'https://www.googleapis.com/auth/gmail.send',
-    ])
-
-    expect(evaluation).toHaveProperty('canonicalScopes')
-    expect(evaluation).toHaveProperty('grantedScopes')
-    expect(evaluation).toHaveProperty('missingScopes')
-    expect(evaluation).toHaveProperty('extraScopes')
-    expect(evaluation).toHaveProperty('requiresReauthorization')
-
-    expect(Array.isArray(evaluation.canonicalScopes)).toBe(true)
-    expect(Array.isArray(evaluation.grantedScopes)).toBe(true)
-    expect(Array.isArray(evaluation.missingScopes)).toBe(true)
-    expect(Array.isArray(evaluation.extraScopes)).toBe(true)
-    expect(typeof evaluation.requiresReauthorization).toBe('boolean')
-  })
-
-  it.concurrent('should handle provider with no scopes', () => {
-    const evaluation = evaluateScopeCoverage('notion', [])
-
-    expect(evaluation.canonicalScopes.length).toBe(0)
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-
-  it.concurrent('should handle provider with no scopes but granted scopes present', () => {
-    const evaluation = evaluateScopeCoverage('notion', ['some.scope', 'another.scope'])
-
-    expect(evaluation.canonicalScopes.length).toBe(0)
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.extraScopes.length).toBe(2)
-    expect(evaluation.extraScopes).toContain('some.scope')
-    expect(evaluation.extraScopes).toContain('another.scope')
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-
-  it.concurrent('should handle invalid provider', () => {
-    const evaluation = evaluateScopeCoverage('invalid-provider', ['scope1', 'scope2'])
-
-    expect(evaluation.canonicalScopes.length).toBe(0)
-    expect(evaluation.grantedScopes.length).toBe(2)
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.extraScopes.length).toBe(2)
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-
-  it.concurrent('should work with Microsoft services', () => {
-    const evaluation = evaluateScopeCoverage('outlook', [
-      'openid',
-      'profile',
-      'email',
-      'Mail.ReadWrite',
-      'Mail.Send',
-    ])
-
-    expect(evaluation.canonicalScopes.length).toBeGreaterThan(0)
-    expect(evaluation.missingScopes.length).toBeGreaterThan(0)
-    expect(evaluation.requiresReauthorization).toBe(true)
-  })
-
-  it.concurrent('should handle exact match with no extra or missing scopes', () => {
-    const canonicalScopes = getCanonicalScopesForProvider('linear')
-    const evaluation = evaluateScopeCoverage('linear', [...canonicalScopes])
-
-    expect(evaluation.missingScopes.length).toBe(0)
-    expect(evaluation.extraScopes.length).toBe(0)
-    expect(evaluation.requiresReauthorization).toBe(false)
-  })
-})
-
 describe('parseProvider', () => {
   it.concurrent('should parse simple provider without hyphen', () => {
     const config = parseProvider('slack' as OAuthProvider)
@@ -800,5 +597,113 @@ describe('parseProvider', () => {
 
     expect(config.baseProvider).toBe('microsoft')
     expect(config.featureType).toBe('sharepoint')
+  })
+})
+
+describe('getScopesForService', () => {
+  it.concurrent('should return scopes for a valid serviceId', () => {
+    const scopes = getScopesForService('gmail')
+
+    expect(Array.isArray(scopes)).toBe(true)
+    expect(scopes.length).toBeGreaterThan(0)
+    expect(scopes).toContain('https://www.googleapis.com/auth/gmail.send')
+  })
+
+  it.concurrent('should return empty array for unknown serviceId', () => {
+    const scopes = getScopesForService('nonexistent-service')
+
+    expect(Array.isArray(scopes)).toBe(true)
+    expect(scopes.length).toBe(0)
+  })
+
+  it.concurrent('should return new array instance (not reference)', () => {
+    const scopes1 = getScopesForService('gmail')
+    const scopes2 = getScopesForService('gmail')
+
+    expect(scopes1).not.toBe(scopes2)
+    expect(scopes1).toEqual(scopes2)
+  })
+
+  it.concurrent('should work for Microsoft services', () => {
+    const scopes = getScopesForService('outlook')
+
+    expect(scopes.length).toBeGreaterThan(0)
+    expect(scopes).toContain('Mail.ReadWrite')
+  })
+
+  it.concurrent('should return empty array for empty string', () => {
+    const scopes = getScopesForService('')
+
+    expect(Array.isArray(scopes)).toBe(true)
+    expect(scopes.length).toBe(0)
+  })
+})
+
+describe('getMissingRequiredScopes', () => {
+  it.concurrent('should return empty array when all scopes are granted', () => {
+    const credential = { scopes: ['read', 'write'] }
+    const missing = getMissingRequiredScopes(credential, ['read', 'write'])
+
+    expect(missing).toEqual([])
+  })
+
+  it.concurrent('should return missing scopes', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential, ['read', 'write'])
+
+    expect(missing).toEqual(['write'])
+  })
+
+  it.concurrent('should return all required scopes when credential is undefined', () => {
+    const missing = getMissingRequiredScopes(undefined, ['read', 'write'])
+
+    expect(missing).toEqual(['read', 'write'])
+  })
+
+  it.concurrent('should return all required scopes when credential has undefined scopes', () => {
+    const missing = getMissingRequiredScopes({ scopes: undefined }, ['read', 'write'])
+
+    expect(missing).toEqual(['read', 'write'])
+  })
+
+  it.concurrent('should ignore offline_access in required scopes', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential, ['read', 'offline_access'])
+
+    expect(missing).toEqual([])
+  })
+
+  it.concurrent('should ignore refresh_token in required scopes', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential, ['read', 'refresh_token'])
+
+    expect(missing).toEqual([])
+  })
+
+  it.concurrent('should ignore offline.access in required scopes', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential, ['read', 'offline.access'])
+
+    expect(missing).toEqual([])
+  })
+
+  it.concurrent('should filter ignored scopes even when credential is undefined', () => {
+    const missing = getMissingRequiredScopes(undefined, ['read', 'offline_access', 'refresh_token'])
+
+    expect(missing).toEqual(['read'])
+  })
+
+  it.concurrent('should return empty array when requiredScopes is empty', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential, [])
+
+    expect(missing).toEqual([])
+  })
+
+  it.concurrent('should return empty array when requiredScopes defaults to empty', () => {
+    const credential = { scopes: ['read'] }
+    const missing = getMissingRequiredScopes(credential)
+
+    expect(missing).toEqual([])
   })
 })

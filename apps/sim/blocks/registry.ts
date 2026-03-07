@@ -38,6 +38,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
+import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
@@ -113,6 +114,7 @@ import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
+import { ObsidianBlock } from '@/blocks/blocks/obsidian'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
@@ -234,6 +236,7 @@ export const registry: Record<string, BlockConfig> = {
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   enrich: EnrichBlock,
+  evernote: EvernoteBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
@@ -320,6 +323,7 @@ export const registry: Record<string, BlockConfig> = {
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
+  obsidian: ObsidianBlock,
   onepassword: OnePasswordBlock,
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,

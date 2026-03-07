@@ -32,6 +32,12 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       visibility: 'user-or-llm',
       description: 'Comment text in markdown format (e.g., "Great post! Here is my **reply**")',
     },
+    return_rtjson: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return response in Rich Text JSON format',
+    },
   },
 
   request: {
@@ -55,12 +61,26 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
         api_type: 'json',
       })
 
+      if (params.return_rtjson !== undefined)
+        formData.append('return_rtjson', params.return_rtjson.toString())
+
       return formData.toString() as unknown as Record<string, any>
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      const errorMsg = data?.message || `HTTP error ${response.status}`
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to post reply: ${errorMsg}`,
+        },
+      }
+    }
 
     // Reddit API returns errors in json.errors array
     if (data.json?.errors && data.json.errors.length > 0) {

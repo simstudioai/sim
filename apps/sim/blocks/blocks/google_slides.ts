@@ -1,4 +1,5 @@
 import { GoogleSlidesIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
@@ -50,10 +51,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-drive',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-drive'),
       placeholder: 'Select Google account',
     },
     {

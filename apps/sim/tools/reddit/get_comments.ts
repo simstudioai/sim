@@ -1,3 +1,4 @@
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import type { RedditCommentsParams, RedditCommentsResponse } from '@/tools/reddit/types'
 import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -69,12 +70,6 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       visibility: 'user-or-llm',
       description: 'Include "load more comments" elements in the response',
     },
-    showtitle: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Include submission title in the response',
-    },
     threaded: {
       type: 'boolean',
       required: false,
@@ -87,23 +82,11 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       visibility: 'user-or-llm',
       description: 'Integer to truncate comment depth',
     },
-    after: {
+    comment: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Fullname of a thing to fetch items after (for pagination)',
-    },
-    before: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Fullname of a thing to fetch items before (for pagination)',
-    },
-    count: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'A count of items already seen in the listing (used for numbering)',
+      description: 'ID36 of a comment to focus on (returns that comment thread)',
     },
   },
 
@@ -111,7 +94,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     url: (params: RedditCommentsParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'confidence'
-      const limit = Math.min(Math.max(1, params.limit || 50), 100)
+      const limit = Math.min(Math.max(1, params.limit ?? 50), 100)
 
       // Build URL with query parameters
       const urlParams = new URLSearchParams({
@@ -126,18 +109,21 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
         urlParams.append('context', Number(params.context).toString())
       if (params.showedits !== undefined) urlParams.append('showedits', params.showedits.toString())
       if (params.showmore !== undefined) urlParams.append('showmore', params.showmore.toString())
-      if (params.showtitle !== undefined) urlParams.append('showtitle', params.showtitle.toString())
       if (params.threaded !== undefined) urlParams.append('threaded', params.threaded.toString())
       if (params.truncate !== undefined)
         urlParams.append('truncate', Number(params.truncate).toString())
 
-      // Add pagination parameters if provided
-      if (params.after) urlParams.append('after', params.after)
-      if (params.before) urlParams.append('before', params.before)
-      if (params.count !== undefined) urlParams.append('count', Number(params.count).toString())
+      if (params.comment) urlParams.append('comment', params.comment)
+
+      // Validate postId to prevent path traversal
+      const postId = params.postId.trim()
+      const postIdValidation = validatePathSegment(postId, { paramName: 'postId' })
+      if (!postIdValidation.isValid) {
+        throw new Error(postIdValidation.error)
+      }
 
       // Build URL using OAuth endpoint
-      return `https://oauth.reddit.com/r/${subreddit}/comments/${params.postId}?${urlParams.toString()}`
+      return `https://oauth.reddit.com/r/${subreddit}/comments/${postId}?${urlParams.toString()}`
     },
     method: 'GET',
     headers: (params: RedditCommentsParams) => {
@@ -157,7 +143,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     const data = await response.json()
 
     // Extract post data (first element in the array)
-    const postData = data[0]?.data?.children[0]?.data || {}
+    const postData = data[0]?.data?.children?.[0]?.data || {}
 
     // Extract and transform comments (second element in the array)
     const commentsData = data[1]?.data?.children || []
@@ -179,11 +165,12 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
             : []
 
           return {
-            id: commentData.id || '',
+            id: commentData.id ?? '',
+            name: commentData.name ?? '',
             author: commentData.author || '[deleted]',
-            body: commentData.body || '',
-            created_utc: commentData.created_utc || 0,
-            score: commentData.score || 0,
+            body: commentData.body ?? '',
+            created_utc: commentData.created_utc ?? 0,
+            score: commentData.score ?? 0,
             permalink: commentData.permalink
               ? `https://www.reddit.com${commentData.permalink}`
               : '',
@@ -199,12 +186,13 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       success: true,
       output: {
         post: {
-          id: postData.id || '',
-          title: postData.title || '',
+          id: postData.id ?? '',
+          name: postData.name ?? '',
+          title: postData.title ?? '',
           author: postData.author || '[deleted]',
-          selftext: postData.selftext || '',
-          created_utc: postData.created_utc || 0,
-          score: postData.score || 0,
+          selftext: postData.selftext ?? '',
+          created_utc: postData.created_utc ?? 0,
+          score: postData.score ?? 0,
           permalink: postData.permalink ? `https://www.reddit.com${postData.permalink}` : '',
         },
         comments: comments,
@@ -218,6 +206,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       description: 'Post information including ID, title, author, content, and metadata',
       properties: {
         id: { type: 'string', description: 'Post ID' },
+        name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
         title: { type: 'string', description: 'Post title' },
         author: { type: 'string', description: 'Post author' },
         selftext: { type: 'string', description: 'Post text content' },
@@ -233,6 +222,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Comment ID' },
+          name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
           author: { type: 'string', description: 'Comment author' },
           body: { type: 'string', description: 'Comment text' },
           score: { type: 'number', description: 'Comment score' },

@@ -1,4 +1,5 @@
 import { GoogleMeetIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleMeetResponse } from '@/tools/google_meet/types'
@@ -37,10 +38,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-meet',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/meetings.space.created',
-        'https://www.googleapis.com/auth/meetings.space.readonly',
-      ],
+      requiredScopes: getScopesForService('google-meet'),
       placeholder: 'Select Google Meet account',
     },
     {

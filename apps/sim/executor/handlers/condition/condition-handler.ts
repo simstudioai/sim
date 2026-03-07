@@ -108,9 +108,7 @@ export class ConditionBlockHandler implements BlockHandler {
     const evalContext = this.buildEvaluationContext(ctx, sourceBlockId)
     const rawSourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
 
-    // Filter out _pauseMetadata from source output to prevent the engine from
-    // thinking this block is pausing (it was already resumed by the HITL block)
-    const sourceOutput = this.filterPauseMetadata(rawSourceOutput)
+    const sourceOutput = this.filterSourceOutput(rawSourceOutput)
 
     const outgoingConnections = ctx.workflow?.connections.filter(
       (conn) => conn.source === baseBlockId
@@ -124,12 +122,23 @@ export class ConditionBlockHandler implements BlockHandler {
       block.id
     )
 
-    if (!selectedConnection || !selectedCondition) {
+    if (!selectedCondition) {
       return {
         ...((sourceOutput as any) || {}),
         conditionResult: false,
         selectedPath: null,
         selectedOption: null,
+      }
+    }
+
+    if (!selectedConnection) {
+      const decisionKey = ctx.currentVirtualBlockId || block.id
+      ctx.decisions.condition.set(decisionKey, selectedCondition.id)
+      return {
+        ...((sourceOutput as any) || {}),
+        conditionResult: true,
+        selectedPath: null,
+        selectedOption: selectedCondition.id,
       }
     }
 
@@ -153,11 +162,11 @@ export class ConditionBlockHandler implements BlockHandler {
     }
   }
 
-  private filterPauseMetadata(output: any): any {
+  private filterSourceOutput(output: any): any {
     if (!output || typeof output !== 'object') {
       return output
     }
-    const { _pauseMetadata, ...rest } = output
+    const { _pauseMetadata, error, ...rest } = output
     return rest
   }
 
@@ -223,8 +232,7 @@ export class ConditionBlockHandler implements BlockHandler {
           if (connection) {
             return { selectedConnection: connection, selectedCondition: condition }
           }
-          // Condition is true but has no outgoing edge - branch ends gracefully
-          return { selectedConnection: null, selectedCondition: null }
+          return { selectedConnection: null, selectedCondition: condition }
         }
       } catch (error: any) {
         logger.error(`Failed to evaluate condition "${condition.title}": ${error.message}`)
@@ -238,7 +246,7 @@ export class ConditionBlockHandler implements BlockHandler {
       if (elseConnection) {
         return { selectedConnection: elseConnection, selectedCondition: elseCondition }
       }
-      return { selectedConnection: null, selectedCondition: null }
+      return { selectedConnection: null, selectedCondition: elseCondition }
     }
 
     return { selectedConnection: null, selectedCondition: null }

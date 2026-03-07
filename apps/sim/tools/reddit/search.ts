@@ -83,13 +83,26 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       visibility: 'user-or-llm',
       description: 'Show items that would normally be filtered (e.g., "all")',
     },
+    type: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Type of search results: "link" (posts), "sr" (subreddits), or "user" (users). Default: "link"',
+    },
+    sr_detail: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Expand subreddit details in the response',
+    },
   },
 
   request: {
     url: (params: RedditSearchParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'relevance'
-      const limit = Math.min(Math.max(1, params.limit || 10), 100)
+      const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
       const restrict_sr = params.restrict_sr !== false // Default to true
 
       // Build URL with appropriate parameters using OAuth endpoint
@@ -111,6 +124,8 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       if (params.before) urlParams.append('before', params.before)
       if (params.count !== undefined) urlParams.append('count', Number(params.count).toString())
       if (params.show) urlParams.append('show', params.show)
+      if (params.type) urlParams.append('type', params.type)
+      if (params.sr_detail !== undefined) urlParams.append('sr_detail', params.sr_detail.toString())
 
       return `https://oauth.reddit.com/r/${subreddit}/search?${urlParams.toString()}`
     },
@@ -133,25 +148,26 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
 
     // Extract subreddit name from response (with fallback)
     const subredditName =
-      data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+      data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
     // Transform posts data
     const posts =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}
         return {
-          id: post.id || '',
-          title: post.title || '',
+          id: post.id ?? '',
+          name: post.name ?? '',
+          title: post.title ?? '',
           author: post.author || '[deleted]',
-          url: post.url || '',
+          url: post.url ?? '',
           permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-          created_utc: post.created_utc || 0,
-          score: post.score || 0,
-          num_comments: post.num_comments || 0,
+          created_utc: post.created_utc ?? 0,
+          score: post.score ?? 0,
+          num_comments: post.num_comments ?? 0,
           is_self: !!post.is_self,
-          selftext: post.selftext || '',
-          thumbnail: post.thumbnail || '',
-          subreddit: post.subreddit || subredditName,
+          selftext: post.selftext ?? '',
+          thumbnail: post.thumbnail ?? '',
+          subreddit: post.subreddit ?? subredditName,
         }
       }) || []
 
@@ -160,6 +176,8 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       output: {
         subreddit: subredditName,
         posts,
+        after: data.data?.after ?? null,
+        before: data.data?.before ?? null,
       },
     }
   },
@@ -177,6 +195,7 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Post ID' },
+          name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
           title: { type: 'string', description: 'Post title' },
           author: { type: 'string', description: 'Author username' },
           url: { type: 'string', description: 'Post URL' },
@@ -190,6 +209,16 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
           subreddit: { type: 'string', description: 'Subreddit name' },
         },
       },
+    },
+    after: {
+      type: 'string',
+      description: 'Fullname of the last item for forward pagination',
+      optional: true,
+    },
+    before: {
+      type: 'string',
+      description: 'Fullname of the first item for backward pagination',
+      optional: true,
     },
   },
 }

@@ -1,4 +1,5 @@
 import { SlackIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -9,10 +10,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
   description:
-    'Send, update, delete messages, add or remove reactions, manage canvases, get channel info and user presence in Slack',
+    'Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -43,6 +44,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Get User Presence', id: 'get_user_presence' },
         { label: 'Edit Canvas', id: 'edit_canvas' },
         { label: 'Create Channel Canvas', id: 'create_channel_canvas' },
+        { label: 'Open View', id: 'open_view' },
+        { label: 'Update View', id: 'update_view' },
+        { label: 'Push View', id: 'push_view' },
+        { label: 'Publish View', id: 'publish_view' },
       ],
       value: () => 'send',
     },
@@ -78,22 +83,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'slack',
-      requiredScopes: [
-        'channels:read',
-        'channels:history',
-        'groups:read',
-        'groups:history',
-        'chat:write',
-        'chat:write.public',
-        'im:write',
-        'im:history',
-        'im:read',
-        'users:read',
-        'files:write',
-        'files:read',
-        'canvases:write',
-        'reactions:write',
-      ],
+      requiredScopes: getScopesForService('slack'),
       placeholder: 'Select Slack workspace',
       dependsOn: ['authMethod'],
       condition: {
@@ -146,7 +136,17 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
         return {
           field: 'operation',
-          value: ['list_channels', 'list_users', 'get_user', 'get_user_presence', 'edit_canvas'],
+          value: [
+            'list_channels',
+            'list_users',
+            'get_user',
+            'get_user_presence',
+            'edit_canvas',
+            'open_view',
+            'update_view',
+            'push_view',
+            'publish_view',
+          ],
           not: true,
           and: {
             field: 'destinationType',
@@ -171,7 +171,17 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
         return {
           field: 'operation',
-          value: ['list_channels', 'list_users', 'get_user', 'get_user_presence', 'edit_canvas'],
+          value: [
+            'list_channels',
+            'list_users',
+            'get_user',
+            'get_user_presence',
+            'edit_canvas',
+            'open_view',
+            'update_view',
+            'push_view',
+            'publish_view',
+          ],
           not: true,
           and: {
             field: 'destinationType',
@@ -804,6 +814,157 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'create_channel_canvas',
       },
     },
+    // Open View / Push View specific fields
+    {
+      id: 'viewTriggerId',
+      title: 'Trigger ID',
+      type: 'short-input',
+      placeholder: 'Trigger ID from interaction payload',
+      condition: {
+        field: 'operation',
+        value: ['open_view', 'push_view'],
+      },
+      required: true,
+    },
+    {
+      id: 'viewInteractivityPointer',
+      title: 'Interactivity Pointer',
+      type: 'short-input',
+      placeholder: 'Alternative to trigger_id (optional)',
+      condition: {
+        field: 'operation',
+        value: ['open_view', 'push_view'],
+      },
+      mode: 'advanced',
+    },
+    // Update View specific fields
+    {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Unique view identifier (either View ID or External ID required)',
+      condition: {
+        field: 'operation',
+        value: 'update_view',
+      },
+    },
+    {
+      id: 'viewExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'Developer-set unique identifier (max 255 chars)',
+      condition: {
+        field: 'operation',
+        value: 'update_view',
+      },
+    },
+    // Update View / Publish View hash field
+    {
+      id: 'viewHash',
+      title: 'View Hash',
+      type: 'short-input',
+      placeholder: 'View state hash for race condition protection',
+      condition: {
+        field: 'operation',
+        value: ['update_view', 'publish_view'],
+      },
+      mode: 'advanced',
+    },
+    // Publish View specific fields
+    {
+      id: 'publishUserId',
+      title: 'User',
+      type: 'user-selector',
+      canonicalParamId: 'publishUserId',
+      serviceId: 'slack',
+      selectorKey: 'slack.users',
+      placeholder: 'Select user to publish Home tab to',
+      mode: 'basic',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
+      condition: {
+        field: 'operation',
+        value: 'publish_view',
+      },
+      required: true,
+    },
+    {
+      id: 'manualPublishUserId',
+      title: 'User ID',
+      type: 'short-input',
+      canonicalParamId: 'publishUserId',
+      placeholder: 'Enter Slack user ID (e.g., U0BPQUNTA)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'publish_view',
+      },
+      required: true,
+    },
+    // View payload (shared across all view operations)
+    {
+      id: 'viewPayload',
+      title: 'View Payload',
+      type: 'code',
+      language: 'json',
+      placeholder: 'JSON view payload with type, title, and blocks',
+      condition: {
+        field: 'operation',
+        value: ['open_view', 'update_view', 'push_view', 'publish_view'],
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert at Slack Block Kit views.
+Generate ONLY a valid JSON view payload object based on the user's request.
+The output MUST be a JSON object starting with { and ending with }.
+
+Current view: {context}
+
+The view object must include:
+- "type": "modal" (for open/update/push) or "home" (for publish)
+- "title": { "type": "plain_text", "text": "Title text", "emoji": true } (max 24 chars)
+- "blocks": Array of Block Kit blocks
+
+Optional fields:
+- "submit": { "type": "plain_text", "text": "Submit" } - Submit button text
+- "close": { "type": "plain_text", "text": "Cancel" } - Close button text
+- "private_metadata": String up to 3000 chars
+- "callback_id": String identifier for interaction handling
+- "clear_on_close": true/false
+- "notify_on_close": true/false
+- "external_id": Unique string per workspace (max 255 chars)
+
+Available block types:
+- "section": Text with optional accessory. Text uses { "type": "mrkdwn", "text": "..." } or { "type": "plain_text", "text": "..." }
+- "input": Form input with a label and element (plain_text_input, static_select, multi_static_select, datepicker, timepicker, checkboxes, radio_buttons)
+- "header": Large text header (plain_text only)
+- "divider": Horizontal rule separator
+- "image": Requires "image_url" and "alt_text"
+- "context": Contextual info with "elements" array
+- "actions": Interactive elements like buttons
+
+Example modal:
+{
+  "type": "modal",
+  "title": { "type": "plain_text", "text": "My Form" },
+  "submit": { "type": "plain_text", "text": "Submit" },
+  "close": { "type": "plain_text", "text": "Cancel" },
+  "blocks": [
+    {
+      "type": "input",
+      "block_id": "input_1",
+      "label": { "type": "plain_text", "text": "Name" },
+      "element": { "type": "plain_text_input", "action_id": "name_input" }
+    }
+  ]
+}
+
+You can reference workflow variables using angle brackets, e.g., <blockName.output>.
+Do not include any explanations, markdown formatting, or other text outside the JSON object.`,
+        placeholder: 'Describe the view/modal you want to create...',
+      },
+    },
     ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
@@ -827,6 +988,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'slack_get_user_presence',
       'slack_edit_canvas',
       'slack_create_channel_canvas',
+      'slack_open_view',
+      'slack_update_view',
+      'slack_push_view',
+      'slack_publish_view',
     ],
     config: {
       tool: (params) => {
@@ -869,6 +1034,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'slack_edit_canvas'
           case 'create_channel_canvas':
             return 'slack_create_channel_canvas'
+          case 'open_view':
+            return 'slack_open_view'
+          case 'update_view':
+            return 'slack_update_view'
+          case 'push_view':
+            return 'slack_push_view'
+          case 'publish_view':
+            return 'slack_publish_view'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
@@ -915,6 +1088,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           canvasTitle,
           channelCanvasTitle,
           channelCanvasContent,
+          viewTriggerId,
+          viewInteractivityPointer,
+          viewId,
+          viewExternalId,
+          viewHash,
+          publishUserId,
+          viewPayload,
           ...rest
         } = params
 
@@ -1081,6 +1261,43 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
               baseParams.content = channelCanvasContent
             }
             break
+
+          case 'open_view':
+            baseParams.triggerId = viewTriggerId
+            if (viewInteractivityPointer) {
+              baseParams.interactivityPointer = viewInteractivityPointer
+            }
+            baseParams.view = viewPayload
+            break
+
+          case 'update_view':
+            if (viewId) {
+              baseParams.viewId = viewId
+            }
+            if (viewExternalId) {
+              baseParams.externalId = viewExternalId
+            }
+            if (viewHash) {
+              baseParams.hash = viewHash
+            }
+            baseParams.view = viewPayload
+            break
+
+          case 'push_view':
+            baseParams.triggerId = viewTriggerId
+            if (viewInteractivityPointer) {
+              baseParams.interactivityPointer = viewInteractivityPointer
+            }
+            baseParams.view = viewPayload
+            break
+
+          case 'publish_view':
+            baseParams.userId = publishUserId
+            if (viewHash) {
+              baseParams.hash = viewHash
+            }
+            baseParams.view = viewPayload
+            break
         }
 
         return baseParams
@@ -1148,6 +1365,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     // Create Channel Canvas inputs
     channelCanvasTitle: { type: 'string', description: 'Title for channel canvas' },
     channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
+    // View operation inputs
+    viewTriggerId: { type: 'string', description: 'Trigger ID from interaction payload' },
+    viewInteractivityPointer: {
+      type: 'string',
+      description: 'Alternative to trigger_id for posting to user',
+    },
+    viewId: { type: 'string', description: 'Unique view identifier for update' },
+    viewExternalId: {
+      type: 'string',
+      description: 'Developer-set unique identifier for update (max 255 chars)',
+    },
+    viewHash: { type: 'string', description: 'View state hash for race condition protection' },
+    publishUserId: {
+      type: 'string',
+      description: 'User ID to publish Home tab view to',
+    },
+    viewPayload: { type: 'json', description: 'View payload object with type, title, and blocks' },
   },
   outputs: {
     // slack_message outputs (send operation)
@@ -1279,6 +1513,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'number',
       description:
         'Unix timestamp of last detected activity (only available when checking own presence)',
+    },
+
+    // View operation outputs (open_view, update_view, push_view, publish_view)
+    view: {
+      type: 'json',
+      description:
+        'View object with properties: id, team_id, type, title, submit, close, blocks, private_metadata, callback_id, external_id, state, hash, clear_on_close, notify_on_close, root_view_id, previous_view_id, app_id, bot_id',
     },
 
     // Trigger outputs (when used as webhook trigger)

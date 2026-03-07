@@ -1,4 +1,5 @@
 import { WebflowIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WebflowResponse } from '@/tools/webflow/types'
@@ -37,7 +38,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'webflow',
-      requiredScopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
+      requiredScopes: getScopesForService('webflow'),
       placeholder: 'Select Webflow account',
       required: true,
     },
