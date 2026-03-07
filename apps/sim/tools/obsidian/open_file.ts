@@ -38,7 +38,7 @@ export const openFileTool: ToolConfig<ObsidianOpenFileParams, ObsidianOpenFileRe
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
       const leafParam = params.newLeaf ? '?newLeaf=true' : ''
-      return `${base}/open/${encodeURIComponent(params.filename.trim())}${leafParam}`
+      return `${base}/open/${params.filename.trim().split('/').map(encodeURIComponent).join('/')}${leafParam}`
     },
     method: 'POST',
     headers: (params) => ({

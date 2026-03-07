@@ -37,7 +37,7 @@ export const createNoteTool: ToolConfig<ObsidianCreateNoteParams, ObsidianCreate
   request: {
     url: (params) => {
       const base = params.baseUrl.replace(/\/$/, '')
-      return `${base}/vault/${encodeURIComponent(params.filename.trim())}`
+      return `${base}/vault/${params.filename.trim().split('/').map(encodeURIComponent).join('/')}`
     },
     method: 'PUT',
     headers: (params) => ({
