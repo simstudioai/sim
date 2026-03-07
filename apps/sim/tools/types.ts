@@ -11,6 +11,11 @@ export type BYOKProviderId =
   | 'serper'
   | 'firecrawl'
   | 'jina'
+  | 'elevenlabs'
+  | 'perplexity'
+  | 'google_cloud'
+  | 'huggingface'
+  | 'linkup'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
