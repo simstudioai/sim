@@ -371,6 +371,55 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     },
     annotations: { destructiveHint: false },
   },
+  {
+    name: 'create_job',
+    toolId: 'create_job',
+    description:
+      'Create a scheduled background job that runs a prompt against the Mothership at a specified frequency or time. Use for polling, reminders, or deferred tasks. Provide cron for recurring jobs or time for one-time execution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'A short descriptive title for the job (e.g., "Email Poller").',
+        },
+        prompt: {
+          type: 'string',
+          description: 'The prompt to execute when the job fires.',
+        },
+        cron: {
+          type: 'string',
+          description:
+            'Cron expression for recurring jobs (e.g., "*/5 * * * *" for every 5 minutes).',
+        },
+        time: {
+          type: 'string',
+          description:
+            'ISO 8601 datetime for one-time jobs or cron start time (e.g., "2026-03-06T09:00:00").',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (default: UTC).',
+        },
+        lifecycle: {
+          type: 'string',
+          description:
+            '"persistent" (default, runs indefinitely) or "until_complete" (runs until complete_job is called).',
+        },
+        successCondition: {
+          type: 'string',
+          description:
+            'What must happen for the job to be considered complete. Used with until_complete lifecycle.',
+        },
+        maxRuns: {
+          type: 'number',
+          description: 'Maximum number of executions before the job auto-completes. Safety limit.',
+        },
+      },
+      required: ['title', 'prompt'],
+    },
+    annotations: { destructiveHint: false },
+  },
 ]
 
 export const SUBAGENT_TOOL_DEFS: SubagentToolDef[] = [
@@ -629,6 +678,21 @@ Supports full and partial execution:
     agentId: 'table',
     description:
       'Manage user-defined tables for structured data storage. Supports creating tables with typed schemas, inserting/updating/deleting rows, querying with filters and sorting, and batch operations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+    annotations: { destructiveHint: false },
+  },
+  {
+    name: 'sim_job',
+    agentId: 'job',
+    description:
+      'Manage scheduled background jobs. Supports creating, listing, updating, pausing, resuming, and deleting jobs that run prompts against the Mothership on a schedule or at a specific time.',
     inputSchema: {
       type: 'object',
       properties: {

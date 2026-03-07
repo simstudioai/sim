@@ -405,13 +405,15 @@ export const LogDetails = memo(function LogDetails({
                   {/* Workflow Card */}
                   <div className='flex w-0 min-w-0 flex-1 flex-col gap-[8px]'>
                     <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow
+                      {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                     </div>
                     <div className='flex min-w-0 items-center gap-[8px]'>
                       {(() => {
                         const c =
-                          log.workflow?.color ||
-                          (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
+                          log.trigger === 'mothership'
+                            ? '#802FDE'
+                            : log.workflow?.color ||
+                              (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
                         return (
                           <div
                             className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
@@ -424,8 +426,10 @@ export const LogDetails = memo(function LogDetails({
                         )
                       })()}
                       <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
-                        {log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                        {log.trigger === 'mothership'
+                          ? (log.executionData as any)?.trigger?.source || 'Mothership Job'
+                          : log.workflow?.name ||
+                            (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
                       </span>
                     </div>
                   </div>
@@ -495,21 +499,24 @@ export const LogDetails = memo(function LogDetails({
                 </div>
 
                 {/* Workflow State */}
-                {isWorkflowExecutionLog && log.executionId && !permissionConfig.hideTraceSpans && (
-                  <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                    <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      Workflow State
-                    </span>
-                    <Button
-                      variant='active'
-                      onClick={() => setIsExecutionSnapshotOpen(true)}
-                      className='flex w-full items-center justify-between px-[10px] py-[6px]'
-                    >
-                      <span className='font-medium text-[12px]'>View Snapshot</span>
-                      <Eye className='h-[14px] w-[14px]' />
-                    </Button>
-                  </div>
-                )}
+                {isWorkflowExecutionLog &&
+                  log.executionId &&
+                  log.trigger !== 'mothership' &&
+                  !permissionConfig.hideTraceSpans && (
+                    <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Workflow State
+                      </span>
+                      <Button
+                        variant='active'
+                        onClick={() => setIsExecutionSnapshotOpen(true)}
+                        className='flex w-full items-center justify-between px-[10px] py-[6px]'
+                      >
+                        <span className='font-medium text-[12px]'>View Snapshot</span>
+                        <Eye className='h-[14px] w-[14px]' />
+                      </Button>
+                    </div>
+                  )}
 
                 {/* Workflow Output */}
                 {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (

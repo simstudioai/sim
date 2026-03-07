@@ -27,6 +27,7 @@ export interface KnowledgeBaseWithCounts {
   updatedAt: Date
   workspaceId: string | null
   docCount: number
+  connectorTypes: string[]
 }
 
 export interface CreateKnowledgeBaseData {
@@ -124,6 +125,7 @@ export interface KnowledgeBaseData {
   createdAt: string
   updatedAt: string
   workspaceId?: string
+  connectorTypes?: string[]
 }
 
 /** Document data for API responses */
@@ -160,6 +162,9 @@ export interface DocumentData {
   boolean1?: boolean | null
   boolean2?: boolean | null
   boolean3?: boolean | null
+  connectorId?: string | null
+  connectorType?: string | null
+  sourceUrl?: string | null
 }
 
 /** Chunk data for API responses */

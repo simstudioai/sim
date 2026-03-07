@@ -618,6 +618,8 @@ export class BlockExecutor {
         await ctx.onStream?.(clientStreamingExec)
       } catch (error) {
         logger.error('Error in onStream callback', { blockId, error })
+        // Cancel the client stream to release the tee'd buffer
+        await processedClientStream.cancel().catch(() => {})
       }
     })()
 
@@ -646,6 +648,7 @@ export class BlockExecutor {
       })
     } catch (error) {
       logger.error('Error in onStream callback', { blockId, error })
+      await processedStream.cancel().catch(() => {})
     }
   }
 
@@ -657,22 +660,25 @@ export class BlockExecutor {
   ): Promise<void> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
-    let fullContent = ''
+    const chunks: string[] = []
 
     try {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        fullContent += decoder.decode(value, { stream: true })
+        chunks.push(decoder.decode(value, { stream: true }))
       }
+      const tail = decoder.decode()
+      if (tail) chunks.push(tail)
     } catch (error) {
       logger.error('Error reading executor stream for block', { blockId, error })
     } finally {
       try {
-        reader.releaseLock()
+        await reader.cancel().catch(() => {})
       } catch {}
     }
 
+    const fullContent = chunks.join('')
     if (!fullContent) {
       return
     }

@@ -86,7 +86,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       content: result.content,
       model: 'mothership',
-      tokens: {},
+      tokens: result.usage
+        ? {
+            prompt: result.usage.prompt,
+            completion: result.usage.completion,
+            total: (result.usage.prompt || 0) + (result.usage.completion || 0),
+          }
+        : {},
+      cost: result.cost || undefined,
       toolCalls: result.toolCalls,
     })
   } catch (error) {

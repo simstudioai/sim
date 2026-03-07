@@ -43,11 +43,18 @@ const LogRow = memo(
     selectedRowRef,
   }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
-    const isDeletedWorkflow = !log.workflow?.id && !log.workflowId
-    const workflowName = isDeletedWorkflow
-      ? DELETED_WORKFLOW_LABEL
-      : log.workflow?.name || 'Unknown'
-    const workflowColor = isDeletedWorkflow ? DELETED_WORKFLOW_COLOR : log.workflow?.color
+    const isMothershipJob = log.trigger === 'mothership'
+    const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
+    const workflowName = isMothershipJob
+      ? (log.executionData as any)?.trigger?.source || 'Mothership Job'
+      : isDeletedWorkflow
+        ? DELETED_WORKFLOW_LABEL
+        : log.workflow?.name || 'Unknown'
+    const workflowColor = isMothershipJob
+      ? '#802FDE'
+      : isDeletedWorkflow
+        ? DELETED_WORKFLOW_COLOR
+        : log.workflow?.color
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 

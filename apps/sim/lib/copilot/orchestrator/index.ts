@@ -27,6 +27,9 @@ export async function orchestrateCopilotStream(
 ): Promise<OrchestratorResult> {
   const { userId, workflowId, workspaceId, chatId, goRoute = '/api/copilot' } = options
 
+  const userTimezone =
+    typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
+
   let execContext: ExecutionContext
   if (workflowId) {
     execContext = await prepareExecutionContext(userId, workflowId)
@@ -36,8 +39,12 @@ export async function orchestrateCopilotStream(
       userId,
       workflowId: '',
       workspaceId,
+      chatId,
       decryptedEnvVars,
     }
+  }
+  if (userTimezone) {
+    execContext.userTimezone = userTimezone
   }
 
   const payloadMsgId = requestPayload?.messageId
@@ -70,6 +77,8 @@ export async function orchestrateCopilotStream(
       toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
       errors: context.errors.length ? context.errors : undefined,
+      usage: context.usage,
+      cost: context.cost,
     }
     await options.onComplete?.(result)
     return result

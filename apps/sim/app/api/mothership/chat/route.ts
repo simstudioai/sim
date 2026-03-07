@@ -30,6 +30,7 @@ const MothershipMessageSchema = z.object({
   chatId: z.string().optional(),
   createNewChat: z.boolean().optional().default(false),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  userTimezone: z.string().optional(),
   contexts: z
     .array(
       z.object({
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
       createNewChat,
       fileAttachments,
       contexts,
+      userTimezone,
     } = MothershipMessageSchema.parse(body)
 
     const userMessageId = providedMessageId || crypto.randomUUID()
@@ -150,6 +152,7 @@ export async function POST(req: NextRequest) {
         chatId: actualChatId,
         userPermission: userPermission ?? undefined,
         workspaceContext,
+        userTimezone,
       },
       { selectedModel: '' }
     )

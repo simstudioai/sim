@@ -275,6 +275,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
 /**
  * Update a single row in a table.
+ * Uses optimistic updates for instant UI feedback on inline cell edits.
  */
 export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -294,7 +295,38 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return res.json()
     },
-    onSuccess: () => {
+    onMutate: async ({ rowId, data }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+
+      const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
+        queryKey: tableKeys.rowsRoot(tableId),
+      })
+
+      queryClient.setQueriesData<TableRowsResponse>(
+        { queryKey: tableKeys.rowsRoot(tableId) },
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            rows: old.rows.map((row) =>
+              row.id === rowId
+                ? { ...row, data: { ...(row.data as Record<string, unknown>), ...data } }
+                : row
+            ),
+          }
+        }
+      )
+
+      return { previousQueries }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousQueries) {
+        for (const [queryKey, data] of context.previousQueries) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+    },
+    onSettled: () => {
       invalidateTableData(queryClient, workspaceId, tableId)
     },
   })

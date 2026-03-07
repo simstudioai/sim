@@ -1,18 +1,71 @@
 import type { ColumnDefinition } from '@/lib/table'
 import { STRING_TRUNCATE_LENGTH } from '../lib/constants'
 import type { CellViewerData } from '../lib/types'
+import { InlineCellEditor } from './inline-cell-editor'
 
 interface CellRendererProps {
   value: unknown
   column: ColumnDefinition
+  isEditing: boolean
   onCellClick: (columnName: string, value: unknown, type: CellViewerData['type']) => void
+  onDoubleClick: () => void
+  onSave: (value: unknown) => void
+  onCancel: () => void
+  onBooleanToggle: () => void
 }
 
-export function CellRenderer({ value, column, onCellClick }: CellRendererProps) {
+export function CellRenderer({
+  value,
+  column,
+  isEditing,
+  onCellClick,
+  onDoubleClick,
+  onSave,
+  onCancel,
+  onBooleanToggle,
+}: CellRendererProps) {
+  if (isEditing) {
+    return <InlineCellEditor value={value} column={column} onSave={onSave} onCancel={onCancel} />
+  }
+
   const isNull = value === null || value === undefined
 
+  if (column.type === 'boolean') {
+    const boolValue = Boolean(value)
+    return (
+      <button
+        type='button'
+        className='cursor-pointer select-none'
+        onClick={(e) => {
+          e.stopPropagation()
+          onBooleanToggle()
+        }}
+      >
+        <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
+          {isNull ? (
+            <span className='text-[var(--text-muted)] italic'>—</span>
+          ) : boolValue ? (
+            'true'
+          ) : (
+            'false'
+          )}
+        </span>
+      </button>
+    )
+  }
+
   if (isNull) {
-    return <span className='text-[var(--text-muted)] italic'>—</span>
+    return (
+      <span
+        className='cursor-text text-[var(--text-muted)] italic'
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onDoubleClick()
+        }}
+      >
+        —
+      </span>
+    )
   }
 
   if (column.type === 'json') {
@@ -26,25 +79,29 @@ export function CellRenderer({ value, column, onCellClick }: CellRendererProps) 
           e.stopPropagation()
           onCellClick(column.name, value, 'json')
         }}
-        title='Click to view full JSON'
+        onDoubleClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onDoubleClick()
+        }}
+        title='Click to view, double-click to edit'
       >
         {jsonStr}
       </button>
     )
   }
 
-  if (column.type === 'boolean') {
-    const boolValue = Boolean(value)
-    return (
-      <span className={boolValue ? 'text-green-500' : 'text-[var(--text-tertiary)]'}>
-        {boolValue ? 'true' : 'false'}
-      </span>
-    )
-  }
-
   if (column.type === 'number') {
     return (
-      <span className='font-mono text-[12px] text-[var(--text-secondary)]'>{String(value)}</span>
+      <span
+        className='cursor-text font-mono text-[12px] text-[var(--text-secondary)]'
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onDoubleClick()
+        }}
+      >
+        {String(value)}
+      </span>
     )
   }
 
@@ -59,21 +116,28 @@ export function CellRenderer({ value, column, onCellClick }: CellRendererProps) 
         minute: '2-digit',
       })
       return (
-        <button
-          type='button'
-          className='cursor-pointer select-none text-left text-[12px] text-[var(--text-secondary)] underline decoration-[var(--border-1)] decoration-dotted underline-offset-2 transition-colors hover:text-[var(--text-primary)] hover:decoration-[var(--text-muted)]'
-          onClick={(e) => {
-            e.preventDefault()
+        <span
+          className='cursor-text text-[12px] text-[var(--text-secondary)]'
+          onDoubleClick={(e) => {
             e.stopPropagation()
-            onCellClick(column.name, value, 'date')
+            onDoubleClick()
           }}
-          title='Click to view ISO format'
         >
           {formatted}
-        </button>
+        </span>
       )
     } catch {
-      return <span className='text-[var(--text-primary)]'>{String(value)}</span>
+      return (
+        <span
+          className='cursor-text text-[var(--text-primary)]'
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            onDoubleClick()
+          }}
+        >
+          {String(value)}
+        </span>
+      )
     }
   }
 
@@ -88,12 +152,27 @@ export function CellRenderer({ value, column, onCellClick }: CellRendererProps) 
           e.stopPropagation()
           onCellClick(column.name, value, 'text')
         }}
-        title='Click to view full text'
+        onDoubleClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onDoubleClick()
+        }}
+        title='Click to view, double-click to edit'
       >
         {strValue}
       </button>
     )
   }
 
-  return <span className='text-[var(--text-primary)]'>{strValue}</span>
+  return (
+    <span
+      className='cursor-text text-[var(--text-primary)]'
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        onDoubleClick()
+      }}
+    >
+      {strValue}
+    </span>
+  )
 }

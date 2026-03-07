@@ -39,7 +39,7 @@ import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
-import { useCredentialName } from '@/hooks/queries/oauth-credentials'
+import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -527,7 +527,8 @@ const SubBlockRow = memo(function SubBlockRow({
   const { displayName: credentialName } = useCredentialName(
     credentialSourceId,
     credentialProviderId,
-    workflowId
+    workflowId,
+    workspaceId
   )
 
   const credentialId = dependencyValues.credential

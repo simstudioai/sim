@@ -7,13 +7,14 @@ const logger = createLogger('ScheduleQueries')
 
 export const scheduleKeys = {
   all: ['schedules'] as const,
+  list: (workspaceId: string) => [...scheduleKeys.all, 'list', workspaceId] as const,
   schedule: (workflowId: string, blockId: string) =>
     [...scheduleKeys.all, workflowId, blockId] as const,
 }
 
 export interface ScheduleData {
   id: string
-  status: 'active' | 'disabled'
+  status: 'active' | 'disabled' | 'completed'
   cronExpression: string | null
   nextRunAt: string | null
   lastRanAt: string | null
@@ -21,9 +22,22 @@ export interface ScheduleData {
   failedCount: number
 }
 
+export interface WorkspaceScheduleData extends ScheduleData {
+  workflowId: string | null
+  workflowName: string | null
+  workflowColor: string | null
+  sourceType: 'workflow' | 'job'
+  jobTitle: string | null
+  prompt: string | null
+  sourceTaskName: string | null
+  lifecycle: string | null
+  runCount: number | null
+  maxRuns: number | null
+}
+
 export interface ScheduleInfo {
   id: string
-  status: 'active' | 'disabled'
+  status: 'active' | 'disabled' | 'completed'
   scheduleTiming: string
   nextRunAt: string | null
   lastRanAt: string | null
@@ -48,6 +62,33 @@ async function fetchSchedule(workflowId: string, blockId: string): Promise<Sched
 
   const data = await response.json()
   return data.schedule || null
+}
+
+/**
+ * Fetch all schedules for a workspace.
+ */
+export function useWorkspaceSchedules(workspaceId?: string) {
+  return useQuery({
+    queryKey: scheduleKeys.list(workspaceId ?? ''),
+    queryFn: async () => {
+      if (!workspaceId) throw new Error('Workspace ID required')
+
+      const res = await fetch(`/api/schedules?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      })
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to fetch schedules')
+      }
+
+      const data = await res.json()
+      return (data.schedules || []) as WorkspaceScheduleData[]
+    },
+    enabled: Boolean(workspaceId),
+    staleTime: 30 * 1000,
+  })
 }
 
 /**
@@ -122,10 +163,12 @@ export function useReactivateSchedule() {
       scheduleId,
       workflowId,
       blockId,
+      workspaceId,
     }: {
       scheduleId: string
       workflowId: string
       blockId: string
+      workspaceId?: string
     }) => {
       const response = await fetch(`/api/schedules/${scheduleId}`, {
         method: 'PUT',
@@ -137,16 +180,89 @@ export function useReactivateSchedule() {
         throw new Error('Failed to reactivate schedule')
       }
 
-      return { workflowId, blockId }
+      return { workflowId, blockId, workspaceId }
     },
-    onSuccess: ({ workflowId, blockId }) => {
+    onSuccess: ({ workflowId, blockId, workspaceId }) => {
       logger.info('Schedule reactivated', { workflowId, blockId })
       queryClient.invalidateQueries({
         queryKey: scheduleKeys.schedule(workflowId, blockId),
       })
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      }
     },
     onError: (error) => {
       logger.error('Failed to reactivate schedule', { error })
+    },
+  })
+}
+
+/**
+ * Mutation to disable an active schedule or job
+ */
+export function useDisableSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      scheduleId,
+      workspaceId,
+    }: {
+      scheduleId: string
+      workspaceId: string
+    }) => {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable' }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to disable schedule')
+      }
+
+      return { workspaceId }
+    },
+    onSuccess: ({ workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+    },
+    onError: (error) => {
+      logger.error('Failed to disable schedule', { error })
+    },
+  })
+}
+
+/**
+ * Mutation to delete a schedule or job
+ */
+export function useDeleteSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      scheduleId,
+      workspaceId,
+    }: {
+      scheduleId: string
+      workspaceId: string
+    }) => {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete schedule')
+      }
+
+      return { workspaceId }
+    },
+    onSuccess: ({ workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+    },
+    onError: (error) => {
+      logger.error('Failed to delete schedule', { error })
     },
   })
 }

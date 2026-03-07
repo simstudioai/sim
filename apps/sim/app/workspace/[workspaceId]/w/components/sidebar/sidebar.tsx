@@ -2,7 +2,16 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Database, Files, HelpCircle, MoreHorizontal, Plus, Search, Settings } from 'lucide-react'
+import {
+  Calendar,
+  Database,
+  Files,
+  HelpCircle,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Settings,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -46,7 +55,7 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useDeleteTask, useTasks } from '@/hooks/queries/tasks'
+import { useDeleteTask, useRenameTask, useTasks } from '@/hooks/queries/tasks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
@@ -54,6 +63,24 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+function SidebarItemSkeleton() {
+  return (
+    <div className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+      <div className='relative h-[24px] w-full overflow-hidden rounded-[4px] bg-[var(--surface-active)]'>
+        <div
+          className='absolute inset-0'
+          style={{
+            background:
+              'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 40%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 60%, transparent 100%)',
+            animation: 'sidebar-shimmer 1.8s linear infinite',
+          }}
+        />
+        <style>{`@keyframes sidebar-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
+      </div>
+    </div>
+  )
+}
 
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
@@ -187,6 +214,7 @@ export const Sidebar = memo(function Sidebar() {
   } = useContextMenu()
 
   const deleteTaskMutation = useDeleteTask(workspaceId)
+  const renameTaskMutation = useRenameTask(workspaceId)
 
   const handleNavItemContextMenu = useCallback(
     (e: React.MouseEvent, href: string) => {
@@ -316,6 +344,12 @@ export const Sidebar = memo(function Sidebar() {
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
         },
+        {
+          id: 'schedules',
+          label: 'Schedules',
+          icon: Calendar,
+          href: `/workspace/${workspaceId}/schedules`,
+        },
       ].filter((item) => !item.hidden),
     [
       workspaceId,
@@ -343,7 +377,7 @@ export const Sidebar = memo(function Sidebar() {
     [workspaceId]
   )
 
-  const { data: fetchedTasks = [] } = useTasks(workspaceId)
+  const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
 
   const tasks = useMemo(
     () =>
@@ -354,6 +388,62 @@ export const Sidebar = memo(function Sidebar() {
           }))
         : [{ id: 'new', name: 'New task', href: `/workspace/${workspaceId}/home` }],
     [fetchedTasks, workspaceId]
+  )
+
+  const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const renameCanceledRef = useRef(false)
+
+  useEffect(() => {
+    if (renamingTaskId && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renamingTaskId])
+
+  const handleStartTaskRename = useCallback(() => {
+    if (!activeTaskId || activeTaskId === 'new') return
+    const task = tasks.find((t) => t.id === activeTaskId)
+    if (!task) return
+    renameCanceledRef.current = false
+    setRenamingTaskId(activeTaskId)
+    setRenameValue(task.name)
+  }, [activeTaskId, tasks])
+
+  const handleSaveTaskRename = useCallback(() => {
+    if (renameCanceledRef.current) {
+      renameCanceledRef.current = false
+      return
+    }
+    const trimmed = renameValue.trim()
+    if (!renamingTaskId || !trimmed) {
+      setRenamingTaskId(null)
+      return
+    }
+    const task = tasks.find((t) => t.id === renamingTaskId)
+    if (task && trimmed !== task.name) {
+      renameTaskMutation.mutate({ chatId: renamingTaskId, title: trimmed })
+    }
+    setRenamingTaskId(null)
+  }, [renamingTaskId, renameValue, tasks, renameTaskMutation])
+
+  const handleCancelTaskRename = useCallback(() => {
+    renameCanceledRef.current = true
+    setRenamingTaskId(null)
+  }, [])
+
+  const handleRenameKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSaveTaskRename()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCancelTaskRename()
+      }
+    },
+    [handleSaveTaskRename, handleCancelTaskRename]
   )
 
   const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
@@ -704,29 +794,53 @@ export const Sidebar = memo(function Sidebar() {
                     </div>
                   </div>
                   <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
-                    {tasks.map((task) => {
-                      const active = task.id !== 'new' && pathname === task.href
-                      const textColor = active
-                        ? 'text-[var(--text-primary)]'
-                        : 'text-[var(--text-secondary)]'
-                      const iconColor = active
-                        ? 'text-[var(--text-primary)]'
-                        : 'text-[var(--text-muted)]'
+                    {tasksLoading ? (
+                      <SidebarItemSkeleton />
+                    ) : (
+                      tasks.map((task) => {
+                        const active = task.id !== 'new' && pathname === task.href
+                        const textColor = active
+                          ? 'text-[var(--text-primary)]'
+                          : 'text-[var(--text-secondary)]'
+                        const iconColor = active
+                          ? 'text-[var(--text-primary)]'
+                          : 'text-[var(--text-muted)]'
+                        const isRenaming = renamingTaskId === task.id
 
-                      return (
-                        <Link
-                          key={task.id}
-                          href={task.href}
-                          className={`mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)] ${active ? 'bg-[var(--surface-active)]' : ''}`}
-                          onContextMenu={(e) => handleTaskContextMenu(e, task.href, task.id)}
-                        >
-                          <Blimp className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
-                          <div className={`min-w-0 truncate font-base ${textColor}`}>
-                            {task.name}
-                          </div>
-                        </Link>
-                      )
-                    })}
+                        if (isRenaming) {
+                          return (
+                            <div
+                              key={task.id}
+                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
+                            >
+                              <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-primary)]' />
+                              <input
+                                ref={renameInputRef}
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={handleRenameKeyDown}
+                                onBlur={handleSaveTaskRename}
+                                className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-primary)] outline-none'
+                              />
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <Link
+                            key={task.id}
+                            href={task.href}
+                            className={`mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)] ${active ? 'bg-[var(--surface-active)]' : ''}`}
+                            onContextMenu={(e) => handleTaskContextMenu(e, task.href, task.id)}
+                          >
+                            <Blimp className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
+                            <div className={`min-w-0 truncate font-base ${textColor}`}>
+                              {task.name}
+                            </div>
+                          </Link>
+                        )
+                      })
+                    )}
                   </div>
                 </div>
 
@@ -798,17 +912,21 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
 
                   <div className='mt-[6px] px-[8px]'>
-                    <WorkflowList
-                      regularWorkflows={regularWorkflows}
-                      isLoading={isLoading}
-                      canReorder={canEdit}
-                      handleFileChange={handleImportFileChange}
-                      fileInputRef={fileInputRef}
-                      scrollContainerRef={scrollContainerRef}
-                      onCreateWorkflow={handleCreateWorkflow}
-                      onCreateFolder={handleCreateFolder}
-                      disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
-                    />
+                    {workflowsLoading ? (
+                      <SidebarItemSkeleton />
+                    ) : (
+                      <WorkflowList
+                        regularWorkflows={regularWorkflows}
+                        isLoading={isLoading}
+                        canReorder={canEdit}
+                        handleFileChange={handleImportFileChange}
+                        fileInputRef={fileInputRef}
+                        scrollContainerRef={scrollContainerRef}
+                        onCreateWorkflow={handleCreateWorkflow}
+                        onCreateFolder={handleCreateFolder}
+                        disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -864,6 +982,9 @@ export const Sidebar = memo(function Sidebar() {
                 onClose={handleNavContextMenuClose}
                 onOpenInNewTab={handleNavOpenInNewTab}
                 onCopyLink={handleNavCopyLink}
+                onRename={
+                  activeTaskId && activeTaskId !== 'new' ? handleStartTaskRename : undefined
+                }
                 onDelete={activeTaskId ? handleDeleteTask : undefined}
               />
             </>

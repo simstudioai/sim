@@ -1,16 +1,18 @@
 import { db } from '@sim/db'
 import {
   a2aAgent,
-  account,
   chat as chatTable,
   copilotChats,
   document,
   form,
+  jobExecutionLogs,
+  knowledgeConnector,
   mcpServers as mcpServersTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowMcpServer,
   workflowMcpTool,
+  workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
@@ -21,6 +23,10 @@ import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
   serializeBlockSchema,
+  serializeBuiltinTriggerSchema,
+  serializeConnectorOverview,
+  serializeConnectorSchema,
+  serializeConnectors,
   serializeCredentials,
   serializeCustomTool,
   serializeDeployments,
@@ -28,6 +34,7 @@ import {
   serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
+  serializeJobMeta,
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
@@ -35,10 +42,15 @@ import {
   serializeTableMeta,
   serializeTaskChat,
   serializeTaskSession,
+  serializeTriggerOverview,
+  serializeTriggerSchema,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/workspace-context'
-import { getAccessibleEnvCredentials } from '@/lib/credentials/environment'
+import {
+  getAccessibleEnvCredentials,
+  getAccessibleOAuthCredentials,
+} from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
@@ -55,8 +67,10 @@ import { listSkills } from '@/lib/workflows/skills/operations'
 import { listWorkflows } from '@/lib/workflows/utils'
 import { getUsersWithPermissions, getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
+import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
 
@@ -178,10 +192,59 @@ function getStaticComponentFiles(): Map<string, string> {
     )
   )
 
+  const connectorConfigs = Object.values(CONNECTOR_REGISTRY).map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    version: c.version,
+    auth: c.auth,
+    configFields: c.configFields,
+    tagDefinitions: c.tagDefinitions,
+    supportsIncrementalSync: c.supportsIncrementalSync,
+  }))
+
+  files.set('knowledgebases/connectors/connectors.md', serializeConnectorOverview(connectorConfigs))
+  for (const cc of connectorConfigs) {
+    files.set(`knowledgebases/connectors/${cc.id}.json`, serializeConnectorSchema(cc))
+  }
+
+  const builtinTriggerBlocks = allBlocks.filter((b) => b.category === 'triggers')
+  for (const block of builtinTriggerBlocks) {
+    files.set(`components/triggers/sim/${block.type}.json`, serializeBuiltinTriggerSchema(block))
+  }
+
+  let externalTriggerCount = 0
+  for (const [triggerId, trigger] of Object.entries(TRIGGER_REGISTRY)) {
+    const path = `components/triggers/${trigger.provider}/${triggerId}.json`
+    files.set(path, serializeTriggerSchema(trigger))
+    externalTriggerCount++
+  }
+
+  files.set(
+    'components/triggers/triggers.md',
+    serializeTriggerOverview(
+      builtinTriggerBlocks.map((b) => ({
+        id: b.type,
+        name: b.name,
+        provider: 'sim',
+        description: b.description,
+      })),
+      Object.entries(TRIGGER_REGISTRY).map(([id, t]) => ({
+        id,
+        name: t.name,
+        provider: t.provider,
+        description: t.description,
+      }))
+    )
+  )
+
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
     blocksFiltered,
     integrations: integrationCount,
+    connectors: connectorConfigs.length,
+    builtinTriggers: builtinTriggerBlocks.length,
+    externalTriggers: externalTriggerCount,
   })
 
   staticComponentFiles = files
@@ -199,16 +262,24 @@ function getStaticComponentFiles(): Map<string, string> {
  *   workflows/{name}/deployment.json
  *   knowledgebases/{name}/meta.json
  *   knowledgebases/{name}/documents.json
+ *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
+ *   jobs/{title}/meta.json
+ *   jobs/{title}/executions.json
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
+ *   knowledgebases/connectors/connectors.md  (available connector types overview)
+ *   knowledgebases/connectors/{type}.json    (per-connector config schema)
  *   components/blocks/{type}.json
  *   components/integrations/{service}/{operation}.json
+ *   components/triggers/triggers.md                  (overview of all built-in and external triggers)
+ *   components/triggers/sim/{type}.json               (built-in trigger blocks: start, schedule, webhook)
+ *   components/triggers/{provider}/{id}.json           (external triggers: github, slack, etc.)
  */
 export class WorkspaceVFS {
   private files: Map<string, string> = new Map()
@@ -238,6 +309,7 @@ export class WorkspaceVFS {
       mcpServersSummary,
       skillsSummary,
       taskSummary,
+      jobsSummary,
       wsRow,
       members,
     ] = await Promise.all([
@@ -250,6 +322,7 @@ export class WorkspaceVFS {
       this.materializeMcpServers(workspaceId),
       this.materializeSkills(workspaceId),
       this.materializeTasks(workspaceId, userId),
+      this.materializeJobs(workspaceId),
       getWorkspaceWithOwner(workspaceId),
       getUsersWithPermissions(workspaceId),
     ])
@@ -268,6 +341,7 @@ export class WorkspaceVFS {
         customTools: toolsSummary,
         mcpServers: mcpServersSummary,
         skills: skillsSummary,
+        jobs: jobsSummary,
       })
     )
 
@@ -513,6 +587,7 @@ export class WorkspaceVFS {
             createdAt: kb.createdAt,
             updatedAt: kb.updatedAt,
             documentCount: kb.docCount,
+            connectorTypes: kb.connectorTypes,
           })
         )
 
@@ -541,6 +616,39 @@ export class WorkspaceVFS {
             error: err instanceof Error ? err.message : String(err),
           })
         }
+
+        try {
+          const connectorRows = await db
+            .select({
+              id: knowledgeConnector.id,
+              connectorType: knowledgeConnector.connectorType,
+              status: knowledgeConnector.status,
+              syncMode: knowledgeConnector.syncMode,
+              syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
+              lastSyncAt: knowledgeConnector.lastSyncAt,
+              lastSyncError: knowledgeConnector.lastSyncError,
+              lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
+              nextSyncAt: knowledgeConnector.nextSyncAt,
+              consecutiveFailures: knowledgeConnector.consecutiveFailures,
+              createdAt: knowledgeConnector.createdAt,
+            })
+            .from(knowledgeConnector)
+            .where(
+              and(
+                eq(knowledgeConnector.knowledgeBaseId, kb.id),
+                isNull(knowledgeConnector.deletedAt)
+              )
+            )
+
+          if (connectorRows.length > 0) {
+            this.files.set(`${prefix}connectors.json`, serializeConnectors(connectorRows))
+          }
+        } catch (err) {
+          logger.warn('Failed to load KB connectors', {
+            knowledgeBaseId: kb.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       })
     )
 
@@ -548,6 +656,7 @@ export class WorkspaceVFS {
       id: kb.id,
       name: kb.name,
       description: kb.description,
+      connectorTypes: kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
     }))
   }
 
@@ -909,6 +1018,110 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Materialize scheduled jobs using the workflowSchedule table.
+   * Returns a summary for WORKSPACE.md generation.
+   */
+  private async materializeJobs(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['jobs']>> {
+    try {
+      const jobRows = await db
+        .select({
+          id: workflowSchedule.id,
+          jobTitle: workflowSchedule.jobTitle,
+          prompt: workflowSchedule.prompt,
+          cronExpression: workflowSchedule.cronExpression,
+          timezone: workflowSchedule.timezone,
+          status: workflowSchedule.status,
+          lifecycle: workflowSchedule.lifecycle,
+          successCondition: workflowSchedule.successCondition,
+          maxRuns: workflowSchedule.maxRuns,
+          runCount: workflowSchedule.runCount,
+          nextRunAt: workflowSchedule.nextRunAt,
+          lastRanAt: workflowSchedule.lastRanAt,
+          sourceTaskName: workflowSchedule.sourceTaskName,
+          sourceChatId: workflowSchedule.sourceChatId,
+          createdAt: workflowSchedule.createdAt,
+        })
+        .from(workflowSchedule)
+        .where(
+          and(
+            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
+            eq(workflowSchedule.sourceType, 'job')
+          )
+        )
+
+      for (const job of jobRows) {
+        const safeName = sanitizeName(job.jobTitle || job.id)
+        this.files.set(
+          `jobs/${safeName}/meta.json`,
+          serializeJobMeta({
+            id: job.id,
+            title: job.jobTitle,
+            prompt: job.prompt || '',
+            cronExpression: job.cronExpression,
+            timezone: job.timezone,
+            status: job.status,
+            lifecycle: job.lifecycle,
+            successCondition: job.successCondition,
+            maxRuns: job.maxRuns,
+            runCount: job.runCount,
+            nextRunAt: job.nextRunAt,
+            lastRanAt: job.lastRanAt,
+            sourceTaskName: job.sourceTaskName,
+            sourceChatId: job.sourceChatId,
+            createdAt: job.createdAt,
+          })
+        )
+
+        try {
+          const execRows = await db
+            .select({
+              id: jobExecutionLogs.id,
+              executionId: jobExecutionLogs.executionId,
+              status: jobExecutionLogs.status,
+              trigger: jobExecutionLogs.trigger,
+              startedAt: jobExecutionLogs.startedAt,
+              endedAt: jobExecutionLogs.endedAt,
+              totalDurationMs: jobExecutionLogs.totalDurationMs,
+            })
+            .from(jobExecutionLogs)
+            .where(eq(jobExecutionLogs.scheduleId, job.id))
+            .orderBy(desc(jobExecutionLogs.startedAt))
+            .limit(5)
+
+          if (execRows.length > 0) {
+            this.files.set(`jobs/${safeName}/executions.json`, serializeRecentExecutions(execRows))
+          }
+        } catch (err) {
+          logger.warn('Failed to load job execution logs', {
+            jobId: job.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
+      return jobRows
+        .filter((j) => j.status !== 'completed')
+        .map((j) => ({
+          id: j.id,
+          title: j.jobTitle,
+          prompt: j.prompt || '',
+          cronExpression: j.cronExpression,
+          status: j.status,
+          lifecycle: j.lifecycle,
+          sourceTaskName: j.sourceTaskName,
+        }))
+    } catch (err) {
+      logger.warn('Failed to materialize jobs', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return []
+    }
+  }
+
+  /**
    * Materialize environment data using shared service functions:
    * - getAccessibleEnvCredentials for workspace-scoped credentials
    * - listApiKeys for workspace API keys
@@ -921,25 +1134,28 @@ export class WorkspaceVFS {
     userId: string
   ): Promise<WorkspaceMdData['credentials']> {
     try {
-      const [envCredentials, apiKeyRows, envData, oauthAccounts] = await Promise.all([
+      const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
         getAccessibleEnvCredentials(workspaceId, userId),
+        getAccessibleOAuthCredentials(workspaceId, userId),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
-        db
-          .select({ providerId: account.providerId })
-          .from(account)
-          .where(eq(account.userId, userId)),
       ])
 
       this.files.set(
         'environment/credentials.json',
-        serializeCredentials(
-          envCredentials.map((c) => ({
+        serializeCredentials([
+          ...envCredentials.map((c) => ({
             providerId: c.envKey,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
-          }))
-        )
+          })),
+          ...oauthCredentials.map((c) => ({
+            id: c.id,
+            providerId: c.providerId,
+            scope: null,
+            createdAt: c.updatedAt,
+          })),
+        ])
       )
 
       this.files.set('environment/api-keys.json', serializeApiKeys(apiKeyRows))
@@ -952,7 +1168,7 @@ export class WorkspaceVFS {
       )
 
       const envKeys = envCredentials.map((c) => c.envKey)
-      const oauthProviders = oauthAccounts.map((a) => a.providerId)
+      const oauthProviders = oauthCredentials.map((c) => c.providerId)
       const allProviders = [...new Set([...oauthProviders, ...envKeys])]
       return allProviders.map((key) => ({ providerId: key }))
     } catch (err) {

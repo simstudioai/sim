@@ -29,6 +29,62 @@ export function updateActiveBlockRefCount(
   }
 }
 
+/**
+ * Determines if a workflow edge should be marked as active based on its handle and the block output.
+ * Mirrors the executor's EdgeManager.shouldActivateEdge logic on the client side.
+ * Exclude sentinel handles here
+ */
+function shouldActivateEdgeClient(
+  handle: string | null | undefined,
+  output: Record<string, any> | undefined
+): boolean {
+  if (!handle) return true
+
+  if (handle.startsWith('condition-')) {
+    return output?.selectedOption === handle.substring('condition-'.length)
+  }
+
+  if (handle.startsWith('router-')) {
+    return output?.selectedRoute === handle.substring('router-'.length)
+  }
+
+  switch (handle) {
+    case 'error':
+      return !!output?.error
+    case 'source':
+      return !output?.error
+    case 'loop-start-source':
+    case 'loop-end-source':
+    case 'parallel-start-source':
+    case 'parallel-end-source':
+      return true
+    default:
+      return true
+  }
+}
+
+export function markOutgoingEdgesFromOutput(
+  blockId: string,
+  output: Record<string, any> | undefined,
+  workflowEdges: Array<{
+    id: string
+    source: string
+    target: string
+    sourceHandle?: string | null
+  }>,
+  workflowId: string,
+  setEdgeRunStatus: (wfId: string, edgeId: string, status: 'success' | 'error') => void
+): void {
+  const outgoing = workflowEdges.filter((edge) => edge.source === blockId)
+  for (const edge of outgoing) {
+    const handle = edge.sourceHandle
+    if (shouldActivateEdgeClient(handle, output)) {
+      const status = handle === 'error' ? 'error' : output?.error ? 'error' : 'success'
+      setEdgeRunStatus(workflowId, edge.id, status)
+    }
+  }
+}
+
 export interface WorkflowExecutionOptions {
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
@@ -135,13 +191,6 @@ export async function executeWorkflowWithFullLogging(
                 true
               )
               setActiveBlocks(wfId, new Set(activeBlocksSet))
-
-              const incomingEdges = workflowEdges.filter(
-                (edge) => edge.target === event.data.blockId
-              )
-              incomingEdges.forEach((edge) => {
-                setEdgeRunStatus(wfId, edge.id, 'success')
-              })
               break
             }
 
@@ -155,6 +204,13 @@ export async function executeWorkflowWithFullLogging(
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'success')
+              markOutgoingEdgesFromOutput(
+                event.data.blockId,
+                event.data.output,
+                workflowEdges,
+                wfId,
+                setEdgeRunStatus
+              )
 
               addConsole({
                 input: event.data.input || {},
@@ -194,6 +250,13 @@ export async function executeWorkflowWithFullLogging(
               setActiveBlocks(wfId, new Set(activeBlocksSet))
 
               setBlockRunStatus(wfId, event.data.blockId, 'error')
+              markOutgoingEdgesFromOutput(
+                event.data.blockId,
+                { error: event.data.error },
+                workflowEdges,
+                wfId,
+                setEdgeRunStatus
+              )
 
               addConsole({
                 input: event.data.input || {},

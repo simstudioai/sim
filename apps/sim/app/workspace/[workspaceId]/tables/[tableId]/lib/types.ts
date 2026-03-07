@@ -25,3 +25,11 @@ export interface ContextMenuState {
   position: { x: number; y: number }
   row: TableRow | null
 }
+
+/**
+ * Tracks which cell is currently being edited inline
+ */
+export interface EditingCell {
+  rowId: string
+  columnName: string
+}

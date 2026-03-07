@@ -184,6 +184,7 @@ export async function POST(request: NextRequest) {
           method: 'GET',
         })
         if (!response.ok) {
+          await response.text().catch(() => {})
           return NextResponse.json(
             { success: false, error: 'Failed to fetch image for Gemini' },
             { status: 400 }

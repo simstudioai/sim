@@ -39,6 +39,7 @@ import {
   executeUpdateWorkspaceMcpServer,
 } from './deployment-tools'
 import { executeIntegrationToolDirect } from './integration-tools'
+import { executeCompleteJob, executeCreateJob, executeManageJob } from './job-tools'
 import type {
   CheckDeploymentStatusParams,
   CreateFolderParams,
@@ -700,6 +701,7 @@ const SERVER_TOOLS = new Set<string>([
   'run_from_block',
   'workspace_file',
   'get_execution_summary',
+  'get_job_logs',
 ])
 
 /**
@@ -713,6 +715,7 @@ async function generateOAuthLink(
   userId: string,
   workspaceId: string | undefined,
   workflowId: string | undefined,
+  chatId: string | undefined,
   providerName: string,
   baseUrl: string
 ): Promise<{ url: string; providerId: string; serviceName: string }> {
@@ -744,7 +747,9 @@ async function generateOAuthLink(
   const callbackURL =
     workflowId && workspaceId
       ? `${baseUrl}/workspace/${workspaceId}/w/${workflowId}`
-      : `${baseUrl}/workspace/${workspaceId}`
+      : chatId && workspaceId
+        ? `${baseUrl}/workspace/${workspaceId}/task/${chatId}`
+        : `${baseUrl}/workspace/${workspaceId}`
 
   // Trello and Shopify use custom auth routes, not genericOAuth
   if (providerId === 'trello') {
@@ -855,6 +860,9 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     executeUpdateWorkspaceMcpServer(p as unknown as UpdateWorkspaceMcpServerParams, c),
   delete_workspace_mcp_server: (p, c) =>
     executeDeleteWorkspaceMcpServer(p as unknown as DeleteWorkspaceMcpServerParams, c),
+  create_job: (p, c) => executeCreateJob(p, c),
+  manage_job: (p, c) => executeManageJob(p, c),
+  complete_job: (p, c) => executeCompleteJob(p, c),
   oauth_get_auth_link: async (p, c) => {
     const providerName = (p.providerName || p.provider_name || 'the provider') as string
     const baseUrl = getBaseUrl()
@@ -864,6 +872,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         c.userId,
         c.workspaceId,
         c.workflowId,
+        c.chatId,
         providerName,
         baseUrl
       )

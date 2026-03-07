@@ -239,6 +239,7 @@ export async function downloadAttachments(
       )
 
       if (!attachmentResponse.ok) {
+        await attachmentResponse.body?.cancel().catch(() => {})
         continue
       }
 

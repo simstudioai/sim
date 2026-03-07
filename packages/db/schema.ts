@@ -486,9 +486,7 @@ export const workflowSchedule = pgTable(
   'workflow_schedule',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
     deploymentVersionId: text('deployment_version_id').references(
       () => workflowDeploymentVersion.id,
       { onDelete: 'cascade' }
@@ -500,9 +498,22 @@ export const workflowSchedule = pgTable(
     lastQueuedAt: timestamp('last_queued_at'),
     triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
     timezone: text('timezone').notNull().default('UTC'),
-    failedCount: integer('failed_count').notNull().default(0), // Track consecutive failures
-    status: text('status').notNull().default('active'), // 'active' or 'disabled'
-    lastFailedAt: timestamp('last_failed_at'), // When the schedule last failed
+    failedCount: integer('failed_count').notNull().default(0),
+    status: text('status').notNull().default('active'), // 'active', 'disabled', or 'completed'
+    lastFailedAt: timestamp('last_failed_at'),
+    sourceType: text('source_type').notNull().default('workflow'), // 'workflow' or 'job'
+    jobTitle: text('job_title'),
+    prompt: text('prompt'),
+    lifecycle: text('lifecycle').notNull().default('persistent'), // 'persistent' or 'until_complete'
+    successCondition: text('success_condition'),
+    maxRuns: integer('max_runs'),
+    runCount: integer('run_count').notNull().default(0),
+    sourceChatId: text('source_chat_id'),
+    sourceTaskName: text('source_task_name'),
+    sourceUserId: text('source_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id').references(() => workspace.id, {
+      onDelete: 'cascade',
+    }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -519,6 +530,36 @@ export const workflowSchedule = pgTable(
       ),
     }
   }
+)
+
+export const jobExecutionLogs = pgTable(
+  'job_execution_logs',
+  {
+    id: text('id').primaryKey(),
+    scheduleId: text('schedule_id').references(() => workflowSchedule.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    level: text('level').notNull(),
+    status: text('status').notNull().default('running'),
+    trigger: text('trigger').notNull(),
+    startedAt: timestamp('started_at').notNull(),
+    endedAt: timestamp('ended_at'),
+    totalDurationMs: integer('total_duration_ms'),
+    executionData: jsonb('execution_data').notNull().default('{}'),
+    cost: jsonb('cost'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    scheduleIdIdx: index('job_execution_logs_schedule_id_idx').on(table.scheduleId),
+    workspaceStartedAtIdx: index('job_execution_logs_workspace_started_at_idx').on(
+      table.workspaceId,
+      table.startedAt
+    ),
+    executionIdUnique: uniqueIndex('job_execution_logs_execution_id_unique').on(table.executionId),
+    triggerIdx: index('job_execution_logs_trigger_idx').on(table.trigger),
+  })
 )
 
 export const webhook = pgTable(
@@ -1214,6 +1255,7 @@ export const document = pgTable(
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
     deletedAt: timestamp('deleted_at'), // Soft delete
+    userExcluded: boolean('user_excluded').notNull().default(false), // User explicitly excluded — skip on sync
 
     // Document tags for filtering (inherited by all chunks)
     // Text tags (7 slots)
@@ -1238,6 +1280,14 @@ export const document = pgTable(
     boolean2: boolean('boolean2'),
     boolean3: boolean('boolean3'),
 
+    // Connector-sourced document fields
+    connectorId: text('connector_id').references(() => knowledgeConnector.id, {
+      onDelete: 'set null',
+    }),
+    externalId: text('external_id'),
+    contentHash: text('content_hash'),
+    sourceUrl: text('source_url'),
+
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
@@ -1251,6 +1301,12 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    // Connector document uniqueness (partial — only non-deleted rows)
+    connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
+      .on(table.connectorId, table.externalId)
+      .where(sql`${table.deletedAt} IS NULL`),
+    // Sync engine: load all active docs for a connector
+    connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
     // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
@@ -2388,13 +2444,70 @@ export const asyncJobs = pgTable(
 )
 
 /**
+ * Knowledge Connector - persistent link to an external source (Confluence, Google Drive, etc.)
+ * that syncs documents into a knowledge base.
+ */
+export const knowledgeConnector = pgTable(
+  'knowledge_connector',
+  {
+    id: text('id').primaryKey(),
+    knowledgeBaseId: text('knowledge_base_id')
+      .notNull()
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+    connectorType: text('connector_type').notNull(),
+    credentialId: text('credential_id'),
+    encryptedApiKey: text('encrypted_api_key'),
+    sourceConfig: json('source_config').notNull(),
+    syncMode: text('sync_mode').notNull().default('full'),
+    syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    status: text('status').notNull().default('active'),
+    lastSyncAt: timestamp('last_sync_at'),
+    lastSyncError: text('last_sync_error'),
+    lastSyncDocCount: integer('last_sync_doc_count'),
+    nextSyncAt: timestamp('next_sync_at'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => ({
+    knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
+    statusNextSyncIdx: index('kc_status_next_sync_idx').on(table.status, table.nextSyncAt),
+  })
+)
+
+/**
+ * Knowledge Connector Sync Log - audit trail for connector sync operations.
+ */
+export const knowledgeConnectorSyncLog = pgTable(
+  'knowledge_connector_sync_log',
+  {
+    id: text('id').primaryKey(),
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    docsAdded: integer('docs_added').notNull().default(0),
+    docsUpdated: integer('docs_updated').notNull().default(0),
+    docsDeleted: integer('docs_deleted').notNull().default(0),
+    docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    errorMessage: text('error_message'),
+  },
+  (table) => ({
+    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+  })
+)
+
+/**
  * User-defined table definitions
  * Stores schema and metadata for custom tables created by users
  */
 export const userTableDefinitions = pgTable(
   'user_table_definitions',
   {
-    id: text('id').primaryKey(), // tbl_xxxxx
+    id: text('id').primaryKey(),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
@@ -2429,7 +2542,7 @@ export const userTableDefinitions = pgTable(
 export const userTableRows = pgTable(
   'user_table_rows',
   {
-    id: text('id').primaryKey(), // row_xxxxx
+    id: text('id').primaryKey(),
     tableId: text('table_id')
       .notNull()
       .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),

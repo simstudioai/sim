@@ -56,7 +56,7 @@ import {
   useConnectOAuthService,
   useDisconnectOAuthService,
   useOAuthConnections,
-} from '@/hooks/queries/oauth-connections'
+} from '@/hooks/queries/oauth/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('CredentialsManager')

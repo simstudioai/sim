@@ -1,6 +1,7 @@
-import { LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
+import { DEFAULTS, LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
+import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import type { VariableResolver } from '@/executor/variables/resolver'
 
 const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
@@ -307,5 +308,56 @@ export function addSubflowErrorLog(
       executionOrder: execOrder,
       endedAt: now,
     })
+  }
+}
+
+/**
+ * Emits block log + SSE events for a loop/parallel that was skipped due to an
+ * empty collection or false initial condition. This ensures the container block
+ * appears in terminal logs, execution snapshots, and edge highlighting.
+ */
+export function emitEmptySubflowEvents(
+  ctx: ExecutionContext,
+  blockId: string,
+  blockType: 'loop' | 'parallel',
+  contextExtensions: ContextExtensions | null
+): void {
+  const now = new Date().toISOString()
+  const executionOrder = getNextExecutionOrder(ctx)
+  const output = { results: [] }
+  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
+  const blockName = block?.metadata?.name ?? blockType
+  const iterationContext = buildContainerIterationContext(ctx, blockId)
+
+  ctx.blockLogs.push({
+    blockId,
+    blockName,
+    blockType,
+    startedAt: now,
+    endedAt: now,
+    durationMs: DEFAULTS.EXECUTION_TIME,
+    success: true,
+    output,
+    executionOrder,
+  })
+
+  if (contextExtensions?.onBlockStart) {
+    contextExtensions.onBlockStart(blockId, blockName, blockType, executionOrder)
+  }
+
+  if (contextExtensions?.onBlockComplete) {
+    contextExtensions.onBlockComplete(
+      blockId,
+      blockName,
+      blockType,
+      {
+        output,
+        executionTime: DEFAULTS.EXECUTION_TIME,
+        startedAt: now,
+        executionOrder,
+        endedAt: now,
+      },
+      iterationContext
+    )
   }
 }

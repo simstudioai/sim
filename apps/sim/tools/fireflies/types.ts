@@ -22,7 +22,7 @@ export interface FirefliesTranscript {
 }
 
 export interface FirefliesSpeaker {
-  id: string
+  id: number
   name: string
 }
 
@@ -37,7 +37,7 @@ export interface FirefliesAttendee {
 export interface FirefliesSentence {
   index: number
   speaker_name?: string
-  speaker_id?: string
+  speaker_id?: number
   text: string
   raw_text?: string
   start_time: number
@@ -55,16 +55,16 @@ export interface FirefliesSentence {
 
 export interface FirefliesSummary {
   keywords?: string[]
-  action_items?: string[]
-  outline?: string[]
-  shorthand_bullet?: string[]
+  action_items?: string
+  outline?: string
+  shorthand_bullet?: string
   overview?: string
-  bullet_gist?: string[]
+  bullet_gist?: string
   gist?: string
   short_summary?: string
   short_overview?: string
   meeting_type?: string
-  topics_discussed?: string[]
+  topics_discussed?: string
   transcript_chapters?: Array<{
     title?: string
     start_time?: number
@@ -88,7 +88,7 @@ export interface FirefliesAnalytics {
 }
 
 export interface FirefliesSpeakerAnalytics {
-  speaker_id?: string
+  speaker_id?: number
   name?: string
   duration?: number
   word_count?: number

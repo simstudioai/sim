@@ -75,6 +75,7 @@ export function serializeKBMeta(kb: {
   createdAt: Date
   updatedAt: Date
   documentCount: number
+  connectorTypes?: string[]
 }): string {
   return JSON.stringify(
     {
@@ -85,6 +86,8 @@ export function serializeKBMeta(kb: {
       embeddingDimension: kb.embeddingDimension,
       tokenCount: kb.tokenCount,
       documentCount: kb.documentCount,
+      connectorTypes:
+        kb.connectorTypes && kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
       createdAt: kb.createdAt.toISOString(),
       updatedAt: kb.updatedAt.toISOString(),
     },
@@ -124,6 +127,134 @@ export function serializeDocuments(
     null,
     2
   )
+}
+
+/**
+ * Serialize KB connectors for VFS knowledgebases/{name}/connectors.json.
+ * Shows connector type, sync status, and schedule — NOT credentials or source config.
+ */
+export function serializeConnectors(
+  connectors: Array<{
+    id: string
+    connectorType: string
+    status: string
+    syncMode: string
+    syncIntervalMinutes: number
+    lastSyncAt: Date | null
+    lastSyncError: string | null
+    lastSyncDocCount: number | null
+    nextSyncAt: Date | null
+    consecutiveFailures: number
+    createdAt: Date
+  }>
+): string {
+  return JSON.stringify(
+    connectors.map((c) => ({
+      id: c.id,
+      connectorType: c.connectorType,
+      status: c.status,
+      syncMode: c.syncMode,
+      syncIntervalMinutes: c.syncIntervalMinutes,
+      lastSyncAt: c.lastSyncAt?.toISOString(),
+      lastSyncError: c.lastSyncError || undefined,
+      lastSyncDocCount: c.lastSyncDocCount ?? undefined,
+      nextSyncAt: c.nextSyncAt?.toISOString(),
+      consecutiveFailures: c.consecutiveFailures,
+      createdAt: c.createdAt.toISOString(),
+    })),
+    null,
+    2
+  )
+}
+
+/**
+ * Connector config field shape (mirrors ConnectorConfigField from connectors/types.ts
+ * but avoids importing React-dependent code into serializers).
+ */
+interface SerializableConfigField {
+  id: string
+  title: string
+  type: string
+  placeholder?: string
+  required?: boolean
+  description?: string
+  options?: Array<{ label: string; id: string }>
+}
+
+interface SerializableTagDef {
+  id: string
+  displayName: string
+  fieldType: string
+}
+
+interface SerializableConnectorConfig {
+  id: string
+  name: string
+  description: string
+  version: string
+  auth: { mode: string; provider?: string; requiredScopes?: string[] }
+  configFields: SerializableConfigField[]
+  tagDefinitions?: SerializableTagDef[]
+  supportsIncrementalSync?: boolean
+}
+
+/**
+ * Serialize a single connector type's schema for VFS knowledgebases/connectors/{type}.json.
+ * Contains everything the LLM needs to build a valid sourceConfig.
+ */
+export function serializeConnectorSchema(connector: SerializableConnectorConfig): string {
+  return JSON.stringify(
+    {
+      id: connector.id,
+      name: connector.name,
+      description: connector.description,
+      version: connector.version,
+      auth: connector.auth,
+      configFields: connector.configFields.map((f) => {
+        const field: Record<string, unknown> = {
+          id: f.id,
+          title: f.title,
+          type: f.type,
+        }
+        if (f.required) field.required = true
+        if (f.placeholder) field.placeholder = f.placeholder
+        if (f.description) field.description = f.description
+        if (f.options) field.options = f.options
+        return field
+      }),
+      tagDefinitions: connector.tagDefinitions ?? [],
+      supportsIncrementalSync: connector.supportsIncrementalSync ?? false,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Generate the knowledgebases/connectors/connectors.md overview file.
+ * Lists all available connector types with their OAuth providers — enough
+ * for the LLM to identify the right type and credential, then read the
+ * per-connector schema file for full config details.
+ */
+export function serializeConnectorOverview(connectors: SerializableConnectorConfig[]): string {
+  const rows = connectors.map((c) => {
+    const provider = c.auth.provider ?? c.auth.mode
+    const scopes = c.auth.requiredScopes?.length ? c.auth.requiredScopes.join(', ') : '(none)'
+    return `| ${c.id} | ${c.name} | ${provider} | ${scopes} |`
+  })
+
+  return [
+    '# Available KB Connectors',
+    '',
+    'Use `read("knowledgebases/connectors/{type}.json")` to get the full config schema before calling `add_connector`.',
+    '',
+    '| Type | Name | OAuth Provider | Required Scopes |',
+    '|------|------|---------------|-----------------|',
+    ...rows,
+    '',
+    'To add a connector, the user must have an OAuth credential for that provider.',
+    'Check `environment/credentials.json` for available credential IDs.',
+  ].join('\n')
 }
 
 /**
@@ -280,6 +411,7 @@ export function serializeBlockSchema(block: BlockConfig): string {
  */
 export function serializeCredentials(
   accounts: Array<{
+    id?: string
     providerId: string
     scope: string | null
     createdAt: Date
@@ -287,6 +419,7 @@ export function serializeCredentials(
 ): string {
   return JSON.stringify(
     accounts.map((a) => ({
+      id: a.id || undefined,
       provider: a.providerId,
       scope: a.scope || undefined,
       connectedAt: a.createdAt.toISOString(),
@@ -564,6 +697,134 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
               .map(([key, val]) => [key, { type: val.type, description: val.description }])
           )
         : undefined,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize a trigger schema for VFS components/triggers/{provider}/{id}.json
+ */
+export function serializeTriggerSchema(trigger: {
+  id: string
+  name: string
+  provider: string
+  description: string
+  version: string
+  subBlocks: SubBlockConfig[]
+  outputs: Record<string, unknown>
+  webhook?: { method?: string; headers?: Record<string, string> }
+}): string {
+  return JSON.stringify(
+    {
+      id: trigger.id,
+      name: trigger.name,
+      provider: trigger.provider,
+      description: trigger.description,
+      version: trigger.version,
+      webhook: trigger.webhook || undefined,
+      subBlocks: trigger.subBlocks.map(serializeSubBlock),
+      outputs: trigger.outputs,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize a built-in trigger block for VFS components/triggers/sim/{type}.json
+ */
+export function serializeBuiltinTriggerSchema(block: BlockConfig): string {
+  return JSON.stringify(
+    {
+      type: block.type,
+      name: block.name,
+      description: block.description,
+      longDescription: block.longDescription || undefined,
+      category: 'builtin',
+      triggers: block.triggers || undefined,
+      subBlocks: block.subBlocks.map(serializeSubBlock),
+      inputs: block.inputs,
+      outputs: block.outputs,
+    },
+    null,
+    2
+  )
+}
+
+interface TriggerOverviewEntry {
+  id: string
+  name: string
+  provider: string
+  description: string
+}
+
+/**
+ * Serialize a triggers.md overview for VFS components/triggers/triggers.md
+ */
+export function serializeTriggerOverview(
+  builtinTriggers: TriggerOverviewEntry[],
+  externalTriggers: TriggerOverviewEntry[]
+): string {
+  const lines: string[] = ['# Triggers', '']
+
+  lines.push('## Built-in Triggers', '')
+  lines.push('| ID | Name | Description |')
+  lines.push('|----|------|-------------|')
+  for (const t of builtinTriggers) {
+    lines.push(`| ${t.id} | ${t.name} | ${t.description} |`)
+  }
+
+  lines.push('')
+  lines.push('## External Triggers', '')
+  lines.push('| Provider | ID | Name | Description |')
+  lines.push('|----------|----|------|-------------|')
+  for (const t of externalTriggers) {
+    lines.push(`| ${t.provider} | ${t.id} | ${t.name} | ${t.description} |`)
+  }
+
+  lines.push('')
+  return lines.join('\n')
+}
+
+/**
+ * Serialize job metadata for VFS jobs/{id}/meta.json
+ */
+export function serializeJobMeta(job: {
+  id: string
+  title: string | null
+  prompt: string
+  cronExpression: string | null
+  timezone: string | null
+  status: string
+  lifecycle: string
+  successCondition: string | null
+  maxRuns: number | null
+  runCount: number
+  nextRunAt: Date | null
+  lastRanAt: Date | null
+  sourceTaskName: string | null
+  sourceChatId: string | null
+  createdAt: Date
+}): string {
+  return JSON.stringify(
+    {
+      id: job.id,
+      title: job.title || undefined,
+      prompt: job.prompt,
+      cronExpression: job.cronExpression || undefined,
+      timezone: job.timezone || 'UTC',
+      status: job.status,
+      lifecycle: job.lifecycle,
+      successCondition: job.successCondition || undefined,
+      maxRuns: job.maxRuns ?? undefined,
+      runCount: job.runCount,
+      nextRunAt: job.nextRunAt?.toISOString(),
+      lastRanAt: job.lastRanAt?.toISOString(),
+      sourceTaskName: job.sourceTaskName || undefined,
+      sourceChatId: job.sourceChatId || undefined,
+      createdAt: job.createdAt.toISOString(),
     },
     null,
     2

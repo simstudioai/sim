@@ -95,6 +95,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     turbopackSourceMaps: false,
     turbopackFileSystemCacheForDev: true,
+    preloadEntriesOnStart: false,
   },
   ...(isDev && {
     allowedDevOrigins: [

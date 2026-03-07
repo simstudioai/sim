@@ -759,6 +759,7 @@ async function markEmailAsRead(accessToken: string, messageId: string) {
     })
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => {})
       throw new Error(
         `Failed to mark email ${messageId} as read: ${response.status} ${response.statusText}`
       )

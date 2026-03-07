@@ -1,4 +1,7 @@
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { isAncestorProtected, isBlockProtected } from '@/stores/workflows/workflow/utils'
+
+export { isAncestorProtected, isBlockProtected }
 
 /**
  * Result of filtering protected blocks from a deletion operation
@@ -10,28 +13,6 @@ export interface FilterProtectedBlocksResult {
   protectedIds: string[]
   /** Whether all blocks are protected (deletion should be cancelled entirely) */
   allProtected: boolean
-}
-
-/**
- * Checks if a block is protected from editing/deletion.
- * A block is protected if it is locked or if its parent container is locked.
- *
- * @param blockId - The ID of the block to check
- * @param blocks - Record of all blocks in the workflow
- * @returns True if the block is protected
- */
-export function isBlockProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
-  const block = blocks[blockId]
-  if (!block) return false
-
-  // Block is locked directly
-  if (block.locked) return true
-
-  // Block is inside a locked container
-  const parentId = block.data?.parentId
-  if (parentId && blocks[parentId]?.locked) return true
-
-  return false
 }
 
 /**

@@ -1,24 +1,22 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
   Checkbox,
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { useUpdateTableRow } from '@/hooks/queries/tables'
 import { useContextMenu, useRowSelection, useTableData } from '../hooks'
-import type { CellViewerData, QueryOptions } from '../lib/types'
+import type { CellViewerData, EditingCell, QueryOptions } from '../lib/types'
 import { ActionBar } from './action-bar'
 import { EmptyRows, LoadingRows } from './body-states'
-import { CellRenderer } from './cell-renderer'
 import { CellViewerModal } from './cell-viewer-modal'
 import { ContextMenu } from './context-menu'
 import { HeaderBar } from './header-bar'
@@ -26,6 +24,9 @@ import { Pagination } from './pagination'
 import { QueryBuilder } from './query-builder'
 import { RowModal } from './row-modal'
 import { SchemaModal } from './schema-modal'
+import { TableRowCells } from './table-row-cells'
+
+const EMPTY_COLUMNS: never[] = []
 
 export function TableViewer() {
   const params = useParams()
@@ -44,6 +45,7 @@ export function TableViewer() {
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<string[]>([])
   const [showSchemaModal, setShowSchemaModal] = useState(false)
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
 
   const [cellViewer, setCellViewer] = useState<CellViewerData | null>(null)
   const [copied, setCopied] = useState(false)
@@ -58,12 +60,31 @@ export function TableViewer() {
 
   const { selectedRows, handleSelectAll, handleSelectRow, clearSelection } = useRowSelection(rows)
 
-  const { contextMenu, handleRowContextMenu, closeContextMenu } = useContextMenu()
+  const {
+    contextMenu,
+    handleRowContextMenu: baseHandleRowContextMenu,
+    closeContextMenu,
+  } = useContextMenu()
 
-  const columns = tableData?.schema?.columns || []
+  const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
+
+  const columns = useMemo(
+    () => tableData?.schema?.columns || EMPTY_COLUMNS,
+    [tableData?.schema?.columns]
+  )
   const selectedCount = selectedRows.size
   const hasSelection = selectedCount > 0
   const isAllSelected = rows.length > 0 && selectedCount === rows.length
+
+  const columnsRef = useRef(columns)
+  const rowsRef = useRef(rows)
+
+  useEffect(() => {
+    columnsRef.current = columns
+  }, [columns])
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
 
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
@@ -100,6 +121,14 @@ export function TableViewer() {
     closeContextMenu()
   }, [contextMenu.row, closeContextMenu])
 
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, row: TableRowType) => {
+      setEditingCell(null)
+      baseHandleRowContextMenu(e, row)
+    },
+    [baseHandleRowContextMenu]
+  )
+
   const handleCopyCellValue = useCallback(async () => {
     if (cellViewer) {
       let text: string
@@ -119,6 +148,50 @@ export function TableViewer() {
   const handleCellClick = useCallback(
     (columnName: string, value: unknown, type: CellViewerData['type']) => {
       setCellViewer({ columnName, value, type })
+    },
+    []
+  )
+
+  const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    if (!column) return
+
+    if (column.type === 'json') {
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      if (row) setEditingRow(row)
+      return
+    }
+
+    if (column.type === 'boolean') return
+
+    setEditingCell({ rowId, columnName })
+  }, [])
+
+  const mutateRef = useRef(updateRowMutation.mutate)
+  useEffect(() => {
+    mutateRef.current = updateRowMutation.mutate
+  }, [updateRowMutation.mutate])
+
+  const handleInlineSave = useCallback((rowId: string, columnName: string, value: unknown) => {
+    setEditingCell(null)
+
+    const row = rowsRef.current.find((r) => r.id === rowId)
+    if (!row) return
+
+    const oldValue = row.data[columnName]
+    if (oldValue === value) return
+    if (oldValue === null && value === null) return
+
+    mutateRef.current({ rowId, data: { [columnName]: value } })
+  }, [])
+
+  const handleInlineCancel = useCallback(() => {
+    setEditingCell(null)
+  }, [])
+
+  const handleBooleanToggle = useCallback(
+    (rowId: string, columnName: string, currentValue: boolean) => {
+      mutateRef.current({ rowId, data: { [columnName]: !currentValue } })
     },
     []
   )
@@ -203,33 +276,20 @@ export function TableViewer() {
               />
             ) : (
               rows.map((row) => (
-                <TableRow
+                <TableRowCells
                   key={row.id}
-                  className={cn(
-                    'group hover:bg-[var(--surface-4)]',
-                    selectedRows.has(row.id) && 'bg-[var(--surface-5)]'
-                  )}
-                  onContextMenu={(e) => handleRowContextMenu(e, row)}
-                >
-                  <TableCell>
-                    <Checkbox
-                      size='sm'
-                      checked={selectedRows.has(row.id)}
-                      onCheckedChange={() => handleSelectRow(row.id)}
-                    />
-                  </TableCell>
-                  {columns.map((column) => (
-                    <TableCell key={column.name}>
-                      <div className='max-w-[300px] truncate text-[13px]'>
-                        <CellRenderer
-                          value={row.data[column.name]}
-                          column={column}
-                          onCellClick={handleCellClick}
-                        />
-                      </div>
-                    </TableCell>
-                  ))}
-                </TableRow>
+                  row={row}
+                  columns={columns}
+                  isSelected={selectedRows.has(row.id)}
+                  editingColumnName={editingCell?.rowId === row.id ? editingCell.columnName : null}
+                  onCellClick={handleCellClick}
+                  onDoubleClick={handleCellDoubleClick}
+                  onSave={handleInlineSave}
+                  onCancel={handleInlineCancel}
+                  onBooleanToggle={handleBooleanToggle}
+                  onContextMenu={handleRowContextMenu}
+                  onSelectRow={handleSelectRow}
+                />
               ))
             )}
           </TableBody>

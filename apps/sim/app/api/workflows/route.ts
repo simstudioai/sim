@@ -13,6 +13,7 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 const logger = createLogger('WorkflowAPI')
 
 const CreateWorkflowSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
   color: z.string().optional().default('#3972F6'),
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const {
+      id: clientId,
       name,
       description,
       color,
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = clientId || crypto.randomUUID()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)

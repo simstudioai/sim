@@ -56,6 +56,10 @@ export interface DocumentData {
   boolean1?: boolean | null
   boolean2?: boolean | null
   boolean3?: boolean | null
+  // Connector fields
+  connectorId?: string | null
+  sourceUrl?: string | null
+  externalId?: string | null
 }
 
 export interface EmbeddingData {
@@ -283,6 +287,10 @@ export async function checkDocumentWriteAccess(
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
+      // Connector fields
+      connectorId: document.connectorId,
+      sourceUrl: document.sourceUrl,
+      externalId: document.externalId,
     })
     .from(document)
     .where(and(eq(document.id, documentId), isNull(document.deletedAt)))

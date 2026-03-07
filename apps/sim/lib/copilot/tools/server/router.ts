@@ -4,6 +4,7 @@ import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
+import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
@@ -41,6 +42,7 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [getExecutionSummaryServerTool.name]: getExecutionSummaryServerTool,
   [getWorkflowLogsServerTool.name]: getWorkflowLogsServerTool,
+  [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,

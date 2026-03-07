@@ -23,6 +23,7 @@ import {
   useDeleteTableRows,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
+import { cleanCellValue, formatValueForInput } from '../lib/utils'
 
 const logger = createLogger('RowModal')
 
@@ -56,46 +57,14 @@ function cleanRowData(
 
   columns.forEach((col) => {
     const value = rowData[col.name]
-    if (col.type === 'number') {
-      cleanData[col.name] = value === '' ? null : Number(value)
-    } else if (col.type === 'json') {
-      if (typeof value === 'string') {
-        if (value === '') {
-          cleanData[col.name] = null
-        } else {
-          try {
-            cleanData[col.name] = JSON.parse(value)
-          } catch {
-            throw new Error(`Invalid JSON for field: ${col.name}`)
-          }
-        }
-      } else {
-        cleanData[col.name] = value
-      }
-    } else if (col.type === 'boolean') {
-      cleanData[col.name] = Boolean(value)
-    } else {
-      cleanData[col.name] = value || null
+    try {
+      cleanData[col.name] = cleanCellValue(value, col)
+    } catch {
+      throw new Error(`Invalid JSON for field: ${col.name}`)
     }
   })
 
   return cleanData
-}
-
-function formatValueForInput(value: unknown, type: string): string {
-  if (value === null || value === undefined) return ''
-  if (type === 'json') {
-    return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-  }
-  if (type === 'date' && value) {
-    try {
-      const date = new Date(String(value))
-      return date.toISOString().split('T')[0]
-    } catch {
-      return String(value)
-    }
-  }
-  return String(value)
 }
 
 function getInitialRowData(

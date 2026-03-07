@@ -130,6 +130,16 @@ export async function retryWithExponentialBackoff<T>(
 }
 
 /**
+ * Tighter retry options for user-facing operations (e.g. validateConfig).
+ * Caps total wait at ~7s instead of ~31s to avoid API route timeouts.
+ */
+export const VALIDATE_RETRY_OPTIONS: RetryOptions = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+}
+
+/**
  * Wrapper for fetch requests with retry logic
  */
 export async function fetchWithRetry(

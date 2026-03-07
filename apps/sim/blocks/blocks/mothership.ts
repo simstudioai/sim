@@ -97,5 +97,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
     tokens: { type: 'json', description: 'Token usage statistics' },
+    toolCalls: { type: 'json', description: 'Tool calls made during execution' },
+    cost: { type: 'json', description: 'Cost of the execution' },
   },
 }

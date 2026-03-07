@@ -123,7 +123,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'offline.access': 'Access account when not using the application',
   'data.records:read': 'Read records',
   'data.records:write': 'Write to records',
-  'schema.bases:read': 'View bases and tables',
+  'schema.bases:read': 'Read base schemas and table metadata',
   'webhook:manage': 'Manage webhooks',
   'page.read': 'Read Notion pages',
   'page.write': 'Write to Notion pages',

@@ -6,9 +6,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { RowData, TableSchema } from '@/lib/table'
-import { validateRowData } from '@/lib/table'
-import { accessError, checkAccess, verifyTableWorkspace } from '../../../utils'
+import type { RowData } from '@/lib/table'
+import { updateRow } from '@/lib/table'
+import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -50,11 +50,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
@@ -87,8 +83,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: row.id,
           data: row.data,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt:
+            row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+          updatedAt:
+            row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
         },
       },
     })
@@ -116,7 +114,13 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body: unknown = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const validated = UpdateRowSchema.parse(body)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
@@ -124,15 +128,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Fetch existing row to support partial updates
     const [existingRow] = await db
       .select({ data: userTableRows.data })
       .from(userTableRows)
@@ -149,42 +148,21 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    // Merge existing data with incoming partial data (incoming takes precedence)
     const mergedData = {
       ...(existingRow.data as RowData),
       ...(validated.data as RowData),
     }
 
-    const validation = await validateRowData({
-      rowData: mergedData,
-      schema: table.schema as TableSchema,
-      tableId,
-      excludeRowId: rowId,
-    })
-    if (!validation.valid) return validation.response
-
-    const now = new Date()
-
-    const [updatedRow] = await db
-      .update(userTableRows)
-      .set({
+    const updatedRow = await updateRow(
+      {
+        tableId,
+        rowId,
         data: mergedData,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .returning()
-
-    if (!updatedRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    logger.info(`[${requestId}] Updated row ${rowId} in table ${tableId}`)
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
@@ -192,8 +170,14 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         row: {
           id: updatedRow.id,
           data: updatedRow.data,
-          createdAt: updatedRow.createdAt.toISOString(),
-          updatedAt: updatedRow.updatedAt.toISOString(),
+          createdAt:
+            updatedRow.createdAt instanceof Date
+              ? updatedRow.createdAt.toISOString()
+              : updatedRow.createdAt,
+          updatedAt:
+            updatedRow.updatedAt instanceof Date
+              ? updatedRow.updatedAt.toISOString()
+              : updatedRow.updatedAt,
         },
         message: 'Row updated successfully',
       },
@@ -204,6 +188,22 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       )
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (errorMessage === 'Row not found') {
+      return NextResponse.json({ error: errorMessage }, { status: 404 })
+    }
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
     }
 
     logger.error(`[${requestId}] Error updating row:`, error)
@@ -222,7 +222,13 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body: unknown = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const validated = DeleteRowSchema.parse(body)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
@@ -230,11 +236,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
 
     const { table } = result
 
-    const isValidWorkspace = await verifyTableWorkspace(tableId, validated.workspaceId)
-    if (!isValidWorkspace) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-      )
+    if (table.workspaceId !== validated.workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 

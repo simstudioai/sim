@@ -21,7 +21,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
-import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'

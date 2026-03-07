@@ -1,22 +1,37 @@
 import { db } from '@sim/db'
 import {
-  account,
   copilotChats,
   knowledgeBase,
+  knowledgeConnector,
   mcpServers,
   userTableDefinitions,
   userTableRows,
   workflow,
+  workflowSchedule,
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
+
+const PROVIDER_SERVICES: Record<string, string[]> = {
+  google: ['Gmail', 'Sheets', 'Calendar', 'Drive'],
+  slack: ['Slack'],
+  github: ['GitHub'],
+  microsoft: ['Outlook', 'OneDrive'],
+  linear: ['Linear'],
+  notion: ['Notion'],
+  stripe: ['Stripe'],
+  airtable: ['Airtable'],
+  jira: ['Jira'],
+  confluence: ['Confluence'],
+}
 
 export interface WorkspaceMdData {
   workspace: { id: string; name: string; ownerId: string } | null
@@ -28,7 +43,12 @@ export interface WorkspaceMdData {
     isDeployed: boolean
     lastRunAt?: Date | null
   }>
-  knowledgeBases: Array<{ id: string; name: string; description?: string | null }>
+  knowledgeBases: Array<{
+    id: string
+    name: string
+    description?: string | null
+    connectorTypes?: string[]
+  }>
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
   files: Array<{ name: string; type: string; size: number }>
   credentials: Array<{ providerId: string }>
@@ -36,6 +56,15 @@ export interface WorkspaceMdData {
   customTools?: Array<{ id: string; name: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
   skills?: Array<{ id: string; name: string; description: string }>
+  jobs?: Array<{
+    id: string
+    title: string | null
+    prompt: string
+    cronExpression: string | null
+    status: string
+    lifecycle: string
+    sourceTaskName: string | null
+  }>
 }
 
 /**
@@ -78,6 +107,9 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     const lines = data.knowledgeBases.map((kb) => {
       let line = `- **${kb.name}** (${kb.id})`
       if (kb.description) line += ` — ${kb.description}`
+      if (kb.connectorTypes && kb.connectorTypes.length > 0) {
+        line += ` | connectors: ${kb.connectorTypes.join(', ')}`
+      }
       return line
     })
     sections.push(`## Knowledge Bases (${data.knowledgeBases.length})\n${lines.join('\n')}`)
@@ -105,9 +137,13 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
 
   if (data.credentials.length > 0) {
     const providers = [...new Set(data.credentials.map((c) => c.providerId))]
-    sections.push(`## Credentials\nConnected: ${providers.join(', ')}`)
+    const lines = providers.map((p) => {
+      const services = PROVIDER_SERVICES[p]
+      return services ? `- ${p} (${services.join(', ')})` : `- ${p}`
+    })
+    sections.push(`## Connected Services\n${lines.join('\n')}`)
   } else {
-    sections.push('## Credentials\n(none)')
+    sections.push('## Connected Services\n(none)')
   }
 
   if (data.customTools && data.customTools.length > 0) {
@@ -126,6 +162,20 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   if (data.skills && data.skills.length > 0) {
     const lines = data.skills.map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
     sections.push(`## Skills (${data.skills.length})\n${lines.join('\n')}`)
+  }
+
+  if (data.jobs && data.jobs.length > 0) {
+    const lines = data.jobs.map((j) => {
+      const displayName = j.title || j.id
+      let line = `- **${displayName}** (${j.id}) — ${j.status}`
+      if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
+      if (j.cronExpression) line += `, cron: ${j.cronExpression}`
+      if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
+      const promptPreview = j.prompt.length > 80 ? `${j.prompt.slice(0, 77)}...` : j.prompt
+      line += `\n  ${promptPreview}`
+      return line
+    })
+    sections.push(`## Jobs (${data.jobs.length})\n${lines.join('\n')}`)
   }
 
   if (data.tasks.length > 0) {
@@ -161,6 +211,7 @@ export async function generateWorkspaceContext(
       customTools,
       mcpServerRows,
       skillRows,
+      jobRows,
     ] = await Promise.all([
       db
         .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
@@ -202,13 +253,7 @@ export async function generateWorkspaceContext(
 
       listWorkspaceFiles(workspaceId),
 
-      db
-        .select({
-          providerId: account.providerId,
-          scope: account.scope,
-        })
-        .from(account)
-        .where(eq(account.userId, userId)),
+      getAccessibleOAuthCredentials(workspaceId, userId),
 
       db
         .select({
@@ -240,6 +285,24 @@ export async function generateWorkspaceContext(
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
       listSkills({ workspaceId }),
+
+      db
+        .select({
+          id: workflowSchedule.id,
+          jobTitle: workflowSchedule.jobTitle,
+          prompt: workflowSchedule.prompt,
+          cronExpression: workflowSchedule.cronExpression,
+          status: workflowSchedule.status,
+          lifecycle: workflowSchedule.lifecycle,
+          sourceTaskName: workflowSchedule.sourceTaskName,
+        })
+        .from(workflowSchedule)
+        .where(
+          and(
+            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
+            eq(workflowSchedule.sourceType, 'job')
+          )
+        ),
     ])
 
     const rowCounts =
@@ -255,11 +318,39 @@ export async function generateWorkspaceContext(
           )
         : []
 
+    const kbIds = kbs.map((kb) => kb.id)
+    const connectorRows =
+      kbIds.length > 0
+        ? await db
+            .select({
+              knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+              connectorType: knowledgeConnector.connectorType,
+            })
+            .from(knowledgeConnector)
+            .where(
+              and(
+                inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+                isNull(knowledgeConnector.deletedAt)
+              )
+            )
+        : []
+    const connectorTypesByKb = new Map<string, string[]>()
+    for (const row of connectorRows) {
+      const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
+      if (!types.includes(row.connectorType)) {
+        types.push(row.connectorType)
+      }
+      connectorTypesByKb.set(row.knowledgeBaseId, types)
+    }
+
     return buildWorkspaceMd({
       workspace: wsRow,
       members,
       workflows,
-      knowledgeBases: kbs,
+      knowledgeBases: kbs.map((kb) => ({
+        ...kb,
+        connectorTypes: connectorTypesByKb.get(kb.id),
+      })),
       tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
       files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
       credentials: credentials.map((c) => ({ providerId: c.providerId })),
@@ -271,6 +362,17 @@ export async function generateWorkspaceContext(
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+      jobs: jobRows
+        .filter((j) => j.status !== 'completed')
+        .map((j) => ({
+          id: j.id,
+          title: j.jobTitle,
+          prompt: j.prompt || '',
+          cronExpression: j.cronExpression,
+          status: j.status,
+          lifecycle: j.lifecycle,
+          sourceTaskName: j.sourceTaskName,
+        })),
     })
   } catch (err) {
     logger.error('Failed to generate workspace context', {

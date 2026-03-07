@@ -66,11 +66,15 @@ describe('EdgeManager', () => {
       const dag = createMockDAG(nodes)
       const edgeManager = new EdgeManager(dag)
 
-      const readyAfterA = edgeManager.processOutgoingEdges(blockANode, { result: 'done' })
+      const readyAfterA = edgeManager.processOutgoingEdges(blockANode, {
+        result: 'done',
+      })
       expect(readyAfterA).toContain(blockBId)
       expect(readyAfterA).not.toContain(blockCId)
 
-      const readyAfterB = edgeManager.processOutgoingEdges(blockBNode, { result: 'done' })
+      const readyAfterB = edgeManager.processOutgoingEdges(blockBNode, {
+        result: 'done',
+      })
       expect(readyAfterB).toContain(blockCId)
     })
 
@@ -591,7 +595,9 @@ describe('EdgeManager', () => {
 
       function1Node.incomingEdges.add(conditionId)
 
-      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'if' })
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'if',
+      })
       expect(readyNodes).toContain(function1Id)
     })
   })
@@ -977,11 +983,15 @@ describe('EdgeManager', () => {
       const dag = createMockDAG(nodes)
       const edgeManager = new EdgeManager(dag)
 
-      const ready1 = edgeManager.processOutgoingEdges(condition1Node, { selectedOption: 'if' })
+      const ready1 = edgeManager.processOutgoingEdges(condition1Node, {
+        selectedOption: 'if',
+      })
       expect(ready1).toContain(condition2Id)
       expect(ready1).not.toContain(target1Id)
 
-      const ready2 = edgeManager.processOutgoingEdges(condition2Node, { selectedOption: 'else' })
+      const ready2 = edgeManager.processOutgoingEdges(condition2Node, {
+        selectedOption: 'else',
+      })
       expect(ready2).toContain(target1Id)
       expect(ready2).not.toContain(target2Id)
     })
@@ -1394,10 +1404,14 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Path: condition1(if) → condition2(else) → nodeC → sentinel_end
-      const ready1 = edgeManager.processOutgoingEdges(condition1Node, { selectedOption: 'if' })
+      const ready1 = edgeManager.processOutgoingEdges(condition1Node, {
+        selectedOption: 'if',
+      })
       expect(ready1).toContain(condition2Id)
 
-      const ready2 = edgeManager.processOutgoingEdges(condition2Node, { selectedOption: 'else' })
+      const ready2 = edgeManager.processOutgoingEdges(condition2Node, {
+        selectedOption: 'else',
+      })
       expect(ready2).toContain(nodeCId)
 
       const ready3 = edgeManager.processOutgoingEdges(nodeCNode, {})
@@ -1448,7 +1462,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Test else path through diamond
-      const ready1 = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+      const ready1 = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
       expect(ready1).toContain(nodeBId)
       expect(ready1).not.toContain(nodeAId)
 
@@ -1509,7 +1525,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Select else - triggers deep cascade deactivation of if path
-      const ready1 = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+      const ready1 = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
       expect(ready1).toContain(nodeDId)
 
       const ready2 = edgeManager.processOutgoingEdges(nodeDNode, {})
@@ -1566,7 +1584,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Test middle branch (elseif2)
-      const ready1 = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'elseif2' })
+      const ready1 = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'elseif2',
+      })
       expect(ready1).toContain(nodeCId)
       expect(ready1).not.toContain(nodeAId)
       expect(ready1).not.toContain(nodeBId)
@@ -1629,7 +1649,7 @@ describe('EdgeManager', () => {
       // Scenario: Loop with Function 1 → Condition 1 → Function 2
       // Condition has "if" branch → Function 2
       // Condition has "else" branch → NO connection (dead end)
-      // When else is selected (selectedOption: null), the loop should continue
+      // When else is selected, the loop sentinel should still fire
       //
       // DAG structure:
       //   sentinel_start → func1 → condition → (if) → func2 → sentinel_end
@@ -1637,11 +1657,12 @@ describe('EdgeManager', () => {
       //   sentinel_end → (loop_continue) → sentinel_start
       //
       // When condition takes else with no edge:
-      // - selectedOption: null (no condition matches)
+      // - selectedOption is set (condition made a routing decision)
       // - The "if" edge gets deactivated
       // - func2 has no other active incoming edges, so edge to sentinel_end gets deactivated
-      // - sentinel_end has no active incoming edges and should become ready
+      // - sentinel_end is the enclosing loop's sentinel and should become ready
 
+      const loopId = 'loop-1'
       const sentinelStartId = 'sentinel-start'
       const sentinelEndId = 'sentinel-end'
       const func1Id = 'func1'
@@ -1649,14 +1670,21 @@ describe('EdgeManager', () => {
       const func2Id = 'func2'
 
       const sentinelStartNode = createMockNode(sentinelStartId, [{ target: func1Id }])
+      sentinelStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId }
+
       const func1Node = createMockNode(func1Id, [{ target: conditionId }], [sentinelStartId])
-      // Condition only has "if" branch, no "else" edge (dead end)
+      func1Node.metadata = { loopId, isLoopNode: true }
+
       const conditionNode = createMockNode(
         conditionId,
         [{ target: func2Id, sourceHandle: 'condition-if' }],
         [func1Id]
       )
+      conditionNode.metadata = { loopId, isLoopNode: true }
+
       const func2Node = createMockNode(func2Id, [{ target: sentinelEndId }], [conditionId])
+      func2Node.metadata = { loopId, isLoopNode: true }
+
       const sentinelEndNode = createMockNode(
         sentinelEndId,
         [
@@ -1665,6 +1693,8 @@ describe('EdgeManager', () => {
         ],
         [func2Id]
       )
+      sentinelEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId }
+
       const afterLoopNode = createMockNode('after-loop', [], [sentinelEndId])
 
       const nodes = new Map<string, DAGNode>([
@@ -1679,22 +1709,17 @@ describe('EdgeManager', () => {
       const dag = createMockDAG(nodes)
       const edgeManager = new EdgeManager(dag)
 
-      // Simulate execution: sentinel_start → func1 → condition
-      // Clear incoming edges as execution progresses (simulating normal flow)
       func1Node.incomingEdges.clear()
       conditionNode.incomingEdges.clear()
 
-      // Condition takes "else" but there's no else edge
-      // selectedOption: null means no condition branch matches
+      // Condition selects dead-end else (selectedOption is set — routing decision made)
+      // but it's inside the loop, so the enclosing sentinel should still fire
       const ready = edgeManager.processOutgoingEdges(conditionNode, {
-        selectedOption: null,
-        conditionResult: false,
+        selectedOption: 'else-id',
+        conditionResult: true,
         selectedPath: null,
       })
 
-      // The "if" edge to func2 should be deactivated
-      // func2 has no other incoming edges, so its edge to sentinel_end gets deactivated
-      // sentinel_end has no active incoming edges and should be ready
       expect(ready).toContain(sentinelEndId)
     })
 
@@ -1763,11 +1788,12 @@ describe('EdgeManager', () => {
       //                      → (else) → [nothing]
       //                                            → (else) → [nothing]
       //
-      // When condition1 takes if, then condition2 takes else:
+      // When condition1 takes if, then condition2 takes else (dead-end):
       // - condition2's "if" edge to func gets deactivated
       // - func's edge to sentinel_end gets deactivated
-      // - sentinel_end should become ready
+      // - sentinel_end is the enclosing loop's sentinel and should become ready
 
+      const loopId = 'loop-1'
       const sentinelStartId = 'sentinel-start'
       const sentinelEndId = 'sentinel-end'
       const condition1Id = 'condition1'
@@ -1775,22 +1801,31 @@ describe('EdgeManager', () => {
       const funcId = 'func'
 
       const sentinelStartNode = createMockNode(sentinelStartId, [{ target: condition1Id }])
+      sentinelStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId }
+
       const condition1Node = createMockNode(
         condition1Id,
         [{ target: condition2Id, sourceHandle: 'condition-if' }],
         [sentinelStartId]
       )
+      condition1Node.metadata = { loopId, isLoopNode: true }
+
       const condition2Node = createMockNode(
         condition2Id,
         [{ target: funcId, sourceHandle: 'condition-if' }],
         [condition1Id]
       )
+      condition2Node.metadata = { loopId, isLoopNode: true }
+
       const funcNode = createMockNode(funcId, [{ target: sentinelEndId }], [condition2Id])
+      funcNode.metadata = { loopId, isLoopNode: true }
+
       const sentinelEndNode = createMockNode(
         sentinelEndId,
         [{ target: sentinelStartId, sourceHandle: 'loop_continue' }],
         [funcId]
       )
+      sentinelEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId }
 
       const nodes = new Map<string, DAGNode>([
         [sentinelStartId, sentinelStartNode],
@@ -1803,20 +1838,93 @@ describe('EdgeManager', () => {
       const dag = createMockDAG(nodes)
       const edgeManager = new EdgeManager(dag)
 
-      // Clear incoming edges as execution progresses
       condition1Node.incomingEdges.clear()
 
-      // condition1 takes "if" - condition2 becomes ready
-      const ready1 = edgeManager.processOutgoingEdges(condition1Node, { selectedOption: 'if' })
+      const ready1 = edgeManager.processOutgoingEdges(condition1Node, {
+        selectedOption: 'if',
+      })
       expect(ready1).toContain(condition2Id)
 
       condition2Node.incomingEdges.clear()
 
-      // condition2 takes "else" (dead end)
-      const ready2 = edgeManager.processOutgoingEdges(condition2Node, { selectedOption: null })
+      // condition2 selects dead-end else (selectedOption set — routing decision made)
+      const ready2 = edgeManager.processOutgoingEdges(condition2Node, {
+        selectedOption: 'else-id',
+      })
 
-      // sentinel_end should be ready because all paths to it are deactivated
+      // sentinel_end is the enclosing loop's sentinel and should be ready
       expect(ready2).toContain(sentinelEndId)
+    })
+
+    it('should not fire nested subflow sentinel when condition inside outer loop hits dead-end', () => {
+      // Scenario: outer loop contains condition → (if) → inner loop → sentinel_end
+      //                                        → (else) → [dead end]
+      //
+      // When condition selects dead-end else:
+      // - The outer loop's sentinel should fire (enclosing subflow)
+      // - The inner loop's sentinel should NOT fire (downstream subflow)
+
+      const outerLoopId = 'outer-loop'
+      const innerLoopId = 'inner-loop'
+      const outerStartId = 'outer-start'
+      const outerEndId = 'outer-end'
+      const conditionId = 'condition'
+      const innerStartId = 'inner-start'
+      const innerBodyId = 'inner-body'
+      const innerEndId = 'inner-end'
+
+      const outerStartNode = createMockNode(outerStartId, [{ target: conditionId }])
+      outerStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: outerLoopId }
+
+      const conditionNode = createMockNode(
+        conditionId,
+        [{ target: innerStartId, sourceHandle: 'condition-if' }],
+        [outerStartId]
+      )
+      conditionNode.metadata = { loopId: outerLoopId, isLoopNode: true }
+
+      const innerStartNode = createMockNode(innerStartId, [{ target: innerBodyId }], [conditionId])
+      innerStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: innerLoopId }
+
+      const innerBodyNode = createMockNode(innerBodyId, [{ target: innerEndId }], [innerStartId])
+      innerBodyNode.metadata = { loopId: innerLoopId, isLoopNode: true }
+
+      const innerEndNode = createMockNode(
+        innerEndId,
+        [{ target: outerEndId, sourceHandle: 'loop_exit' }],
+        [innerBodyId]
+      )
+      innerEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: innerLoopId }
+
+      const outerEndNode = createMockNode(
+        outerEndId,
+        [{ target: outerStartId, sourceHandle: 'loop_continue' }],
+        [innerEndId]
+      )
+      outerEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: outerLoopId }
+
+      const nodes = new Map<string, DAGNode>([
+        [outerStartId, outerStartNode],
+        [conditionId, conditionNode],
+        [innerStartId, innerStartNode],
+        [innerBodyId, innerBodyNode],
+        [innerEndId, innerEndNode],
+        [outerEndId, outerEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      conditionNode.incomingEdges.clear()
+
+      const ready = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else-id',
+      })
+
+      // Outer loop sentinel should fire (condition is inside outer loop)
+      expect(ready).toContain(outerEndId)
+      // Inner loop sentinel should NOT fire (it's a downstream subflow)
+      expect(ready).not.toContain(innerEndId)
     })
 
     it('should NOT execute intermediate nodes in long cascade chains (2+ hops)', () => {
@@ -1922,7 +2030,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Select else path
-      const ready1 = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+      const ready1 = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
       expect(ready1).toContain(nodeBId)
       expect(ready1).not.toContain(nodeAId)
 
@@ -1968,7 +2078,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // When selectedOption is null, the cascade deactivation makes parallel_end ready
-      const ready = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: null })
+      const ready = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: null,
+      })
       expect(ready).toContain(parallelEndId)
     })
 
@@ -2039,11 +2151,15 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Branch 1: condition1 selects else
-      const ready1 = edgeManager.processOutgoingEdges(condition1Node, { selectedOption: 'else' })
+      const ready1 = edgeManager.processOutgoingEdges(condition1Node, {
+        selectedOption: 'else',
+      })
       expect(ready1).toContain(nodeBId)
 
       // Branch 2: condition2 selects if
-      const ready2 = edgeManager.processOutgoingEdges(condition2Node, { selectedOption: 'if' })
+      const ready2 = edgeManager.processOutgoingEdges(condition2Node, {
+        selectedOption: 'if',
+      })
       expect(ready2).toContain(nodeCId)
 
       // Both complete
@@ -2200,7 +2316,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // nodeA errors
-      const ready1 = edgeManager.processOutgoingEdges(nodeANode, { error: 'Something failed' })
+      const ready1 = edgeManager.processOutgoingEdges(nodeANode, {
+        error: 'Something failed',
+      })
       expect(ready1).toContain(errorNodeId)
       expect(ready1).not.toContain(successNodeId)
 
@@ -2289,7 +2407,9 @@ describe('EdgeManager', () => {
       edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'if' })
       edgeManager.processOutgoingEdges(nodeANode, {})
 
-      const ready2 = edgeManager.processOutgoingEdges(loopEndNode, { selectedRoute: 'loop_exit' })
+      const ready2 = edgeManager.processOutgoingEdges(loopEndNode, {
+        selectedRoute: 'loop_exit',
+      })
       expect(ready2).toContain(parallelEndId)
 
       const ready3 = edgeManager.processOutgoingEdges(parallelEndNode, {
@@ -2413,7 +2533,9 @@ describe('EdgeManager', () => {
       const dag = createMockDAG(nodes)
       const edgeManager = new EdgeManager(dag)
 
-      const successReady = edgeManager.processOutgoingEdges(sourceNode, { result: 'ok' })
+      const successReady = edgeManager.processOutgoingEdges(sourceNode, {
+        result: 'ok',
+      })
       expect(successReady).toContain(targetId)
     })
   })
@@ -2472,7 +2594,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Condition selects "else" branch, deactivating the "if" branch (which contains the loop)
-      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
 
       // Only otherBranch should be ready
       expect(readyNodes).toContain(otherBranchId)
@@ -2539,7 +2663,9 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Condition selects "else" branch
-      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
 
       expect(readyNodes).toContain(otherBranchId)
       expect(readyNodes).not.toContain(parallelStartId)
@@ -2624,6 +2750,171 @@ describe('EdgeManager', () => {
       expect(readyNodes).not.toContain(loopBodyId)
       expect(readyNodes).not.toContain(sentinelEndId)
       expect(readyNodes).not.toContain(afterLoopId)
+    })
+
+    it('should not queue sentinel-end when condition selects no-edge path (loop)', () => {
+      // Bug scenario: condition → (if) → sentinel_start → body → sentinel_end → (loop_exit) → after_loop
+      //                         → (else) → [NO outgoing edge]
+      // Condition evaluates false, else is selected but has no edge.
+      // With selectedOption set (routing decision made), cascadeTargets should NOT be queued.
+      // Previously sentinel_end was queued via cascadeTargets, causing downstream blocks to execute.
+
+      const conditionId = 'condition'
+      const sentinelStartId = 'sentinel-start'
+      const loopBodyId = 'loop-body'
+      const sentinelEndId = 'sentinel-end'
+      const afterLoopId = 'after-loop'
+
+      const conditionNode = createMockNode(conditionId, [
+        { target: sentinelStartId, sourceHandle: 'condition-if-id' },
+      ])
+
+      const sentinelStartNode = createMockNode(
+        sentinelStartId,
+        [{ target: loopBodyId }],
+        [conditionId]
+      )
+
+      const loopBodyNode = createMockNode(
+        loopBodyId,
+        [{ target: sentinelEndId }],
+        [sentinelStartId]
+      )
+
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: afterLoopId, sourceHandle: 'loop_exit' },
+        ],
+        [loopBodyId]
+      )
+
+      const afterLoopNode = createMockNode(afterLoopId, [], [sentinelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [conditionId, conditionNode],
+        [sentinelStartId, sentinelStartNode],
+        [loopBodyId, loopBodyNode],
+        [sentinelEndId, sentinelEndNode],
+        [afterLoopId, afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Condition selected else, but else has no outgoing edge.
+      // selectedOption is set (routing decision was made).
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else-id',
+      })
+
+      // Nothing should be queued -- the entire branch is intentionally dead
+      expect(readyNodes).not.toContain(sentinelStartId)
+      expect(readyNodes).not.toContain(loopBodyId)
+      expect(readyNodes).not.toContain(sentinelEndId)
+      expect(readyNodes).not.toContain(afterLoopId)
+      expect(readyNodes).toHaveLength(0)
+    })
+
+    it('should not queue sentinel-end when condition selects no-edge path (parallel)', () => {
+      // Same scenario with parallel instead of loop
+      const conditionId = 'condition'
+      const parallelStartId = 'parallel-start'
+      const branchId = 'branch-0'
+      const parallelEndId = 'parallel-end'
+      const afterParallelId = 'after-parallel'
+
+      const conditionNode = createMockNode(conditionId, [
+        { target: parallelStartId, sourceHandle: 'condition-if-id' },
+      ])
+
+      const parallelStartNode = createMockNode(
+        parallelStartId,
+        [{ target: branchId }],
+        [conditionId]
+      )
+
+      const branchNode = createMockNode(
+        branchId,
+        [{ target: parallelEndId, sourceHandle: 'parallel_exit' }],
+        [parallelStartId]
+      )
+
+      const parallelEndNode = createMockNode(
+        parallelEndId,
+        [{ target: afterParallelId, sourceHandle: 'parallel_exit' }],
+        [branchId]
+      )
+
+      const afterParallelNode = createMockNode(afterParallelId, [], [parallelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [conditionId, conditionNode],
+        [parallelStartId, parallelStartNode],
+        [branchId, branchNode],
+        [parallelEndId, parallelEndNode],
+        [afterParallelId, afterParallelNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else-id',
+      })
+
+      expect(readyNodes).not.toContain(parallelStartId)
+      expect(readyNodes).not.toContain(branchId)
+      expect(readyNodes).not.toContain(parallelEndId)
+      expect(readyNodes).not.toContain(afterParallelId)
+      expect(readyNodes).toHaveLength(0)
+    })
+
+    it('should still queue sentinel-end inside loop when no condition matches (true dead-end)', () => {
+      // Contrast: condition INSIDE a loop with selectedOption null (no match, no routing decision).
+      // This is a true dead-end where cascadeTargets SHOULD fire so the loop sentinel can handle exit.
+
+      const sentinelStartId = 'sentinel-start'
+      const sentinelEndId = 'sentinel-end'
+      const conditionId = 'condition'
+      const nodeAId = 'node-a'
+
+      const sentinelStartNode = createMockNode(sentinelStartId, [{ target: conditionId }])
+      const conditionNode = createMockNode(
+        conditionId,
+        [{ target: nodeAId, sourceHandle: 'condition-if' }],
+        [sentinelStartId]
+      )
+      const nodeANode = createMockNode(nodeAId, [{ target: sentinelEndId }], [conditionId])
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: 'after-loop', sourceHandle: 'loop_exit' },
+        ],
+        [nodeAId]
+      )
+
+      const nodes = new Map<string, DAGNode>([
+        [sentinelStartId, sentinelStartNode],
+        [conditionId, conditionNode],
+        [nodeAId, nodeANode],
+        [sentinelEndId, sentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      conditionNode.incomingEdges.clear()
+
+      // selectedOption: null → no routing decision, true dead-end
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: null,
+      })
+
+      // sentinel-end SHOULD be queued (true dead-end inside loop)
+      expect(readyNodes).toContain(sentinelEndId)
     })
 
     it('should still correctly handle normal loop exit (not deactivate when loop runs)', () => {

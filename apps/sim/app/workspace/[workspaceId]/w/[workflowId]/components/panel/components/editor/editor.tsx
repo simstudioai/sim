@@ -40,6 +40,10 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  isAncestorProtected,
+  isBlockProtected,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
@@ -107,12 +111,11 @@ export function Editor() {
 
   const userPermissions = useUserPermissionsContext()
 
-  // Check if block is locked (or inside a locked container) and compute edit permission
+  // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const parentId = currentBlock?.data?.parentId as string | undefined
-  const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
-  const isLocked = (currentBlock?.locked ?? false) || isParentLocked
+  const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
+  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
   const canEditBlock = userPermissions.canEdit && !isLocked
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -247,10 +250,7 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    const parentId = block.data?.parentId as string | undefined
-    const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
-    const isLocked = (block.locked ?? false) || isParentLocked
-    if (!userPermissions.canEdit || isLocked) return
+    if (!userPermissions.canEdit || isBlockProtected(blockId, blocks)) return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')
@@ -364,11 +364,11 @@ export function Editor() {
           )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
-          {/* Locked indicator - clickable to unlock if user has admin permissions, block is locked, and parent is not locked */}
+          {/* Locked indicator - clickable to unlock if user has admin permissions, block is locked directly, and not locked by an ancestor */}
           {isLocked && currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                {userPermissions.canAdmin && currentBlock.locked && !isParentLocked ? (
+                {userPermissions.canAdmin && currentBlock.locked && !isAncestorLocked ? (
                   <Button
                     variant='ghost'
                     className='p-0'
@@ -385,8 +385,8 @@ export function Editor() {
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
                 <p>
-                  {isParentLocked
-                    ? 'Parent container is locked'
+                  {isAncestorLocked
+                    ? 'Ancestor container is locked'
                     : userPermissions.canAdmin && currentBlock.locked
                       ? 'Unlock block'
                       : 'Block is locked'}

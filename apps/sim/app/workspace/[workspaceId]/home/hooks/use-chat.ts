@@ -365,6 +365,7 @@ export function useChat(workspaceId: string, initialChatId?: string): UseChatRet
             userMessageId,
             createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,
         })

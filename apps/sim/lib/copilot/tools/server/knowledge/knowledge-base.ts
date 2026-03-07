@@ -1,6 +1,11 @@
+import { db } from '@sim/db'
+import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq, isNull } from 'drizzle-orm'
+import { generateInternalToken } from '@/lib/auth/internal'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createSingleDocument, processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
@@ -543,10 +548,185 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
         }
 
+        case 'add_connector': {
+          if (!args.knowledgeBaseId) {
+            return { success: false, message: 'Knowledge base ID is required for add_connector' }
+          }
+          if (!args.connectorType) {
+            return { success: false, message: 'connectorType is required for add_connector' }
+          }
+          if (!args.credentialId && !args.apiKey) {
+            return {
+              success: false,
+              message:
+                'Either credentialId (for OAuth connectors) or apiKey (for API key connectors) is required for add_connector.',
+            }
+          }
+
+          const createBody: Record<string, unknown> = {
+            connectorType: args.connectorType,
+            sourceConfig: args.sourceConfig ?? {},
+            syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
+          }
+
+          if (args.credentialId) {
+            createBody.credentialId = args.credentialId
+          }
+          if (args.apiKey) {
+            createBody.apiKey = args.apiKey
+          }
+
+          if (args.disabledTagIds?.length) {
+            ;(createBody.sourceConfig as Record<string, unknown>).disabledTagIds =
+              args.disabledTagIds
+          }
+
+          const createRes = await connectorApiCall(
+            context.userId,
+            `/api/knowledge/${args.knowledgeBaseId}/connectors`,
+            'POST',
+            createBody
+          )
+
+          if (!createRes.success) {
+            return { success: false, message: createRes.error }
+          }
+
+          const connector = createRes.data
+          logger.info('Connector created via copilot', {
+            connectorId: connector.id,
+            connectorType: args.connectorType,
+            knowledgeBaseId: args.knowledgeBaseId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Connector "${args.connectorType}" added to knowledge base. Initial sync started.`,
+            data: {
+              id: connector.id,
+              connectorType: connector.connectorType ?? connector.connector_type,
+              status: connector.status,
+              knowledgeBaseId: args.knowledgeBaseId,
+            },
+          }
+        }
+
+        case 'update_connector': {
+          if (!args.connectorId) {
+            return { success: false, message: 'connectorId is required for update_connector' }
+          }
+
+          const kbId = await resolveKnowledgeBaseId(args.connectorId)
+          if (!kbId) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
+          const updateBody: Record<string, unknown> = {}
+          if (args.sourceConfig !== undefined) updateBody.sourceConfig = args.sourceConfig
+          if (args.syncIntervalMinutes !== undefined)
+            updateBody.syncIntervalMinutes = args.syncIntervalMinutes
+          if (args.connectorStatus !== undefined) updateBody.status = args.connectorStatus
+
+          if (Object.keys(updateBody).length === 0) {
+            return {
+              success: false,
+              message:
+                'At least one of sourceConfig, syncIntervalMinutes, or connectorStatus is required',
+            }
+          }
+
+          const updateRes = await connectorApiCall(
+            context.userId,
+            `/api/knowledge/${kbId}/connectors/${args.connectorId}`,
+            'PATCH',
+            updateBody
+          )
+
+          if (!updateRes.success) {
+            return { success: false, message: updateRes.error }
+          }
+
+          logger.info('Connector updated via copilot', {
+            connectorId: args.connectorId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: 'Connector updated successfully',
+            data: { id: args.connectorId, ...updateBody },
+          }
+        }
+
+        case 'delete_connector': {
+          if (!args.connectorId) {
+            return { success: false, message: 'connectorId is required for delete_connector' }
+          }
+
+          const deleteKbId = await resolveKnowledgeBaseId(args.connectorId)
+          if (!deleteKbId) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
+          const deleteRes = await connectorApiCall(
+            context.userId,
+            `/api/knowledge/${deleteKbId}/connectors/${args.connectorId}`,
+            'DELETE'
+          )
+
+          if (!deleteRes.success) {
+            return { success: false, message: deleteRes.error }
+          }
+
+          logger.info('Connector deleted via copilot', {
+            connectorId: args.connectorId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: 'Connector deleted successfully. Associated documents have been removed.',
+            data: { id: args.connectorId },
+          }
+        }
+
+        case 'sync_connector': {
+          if (!args.connectorId) {
+            return { success: false, message: 'connectorId is required for sync_connector' }
+          }
+
+          const syncKbId = await resolveKnowledgeBaseId(args.connectorId)
+          if (!syncKbId) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
+          const syncRes = await connectorApiCall(
+            context.userId,
+            `/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,
+            'POST'
+          )
+
+          if (!syncRes.success) {
+            return { success: false, message: syncRes.error }
+          }
+
+          logger.info('Connector sync triggered via copilot', {
+            connectorId: args.connectorId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: 'Sync triggered. Documents will be updated in the background.',
+            data: { id: args.connectorId },
+          }
+        }
+
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported operations: create, get, query, add_file, update, delete, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
+            message: `Unknown operation: ${operation}. Supported operations: create, get, query, add_file, update, delete, list_tags, create_tag, update_tag, delete_tag, get_tag_usage, add_connector, update_connector, delete_connector, sync_connector`,
           }
       }
     } catch (error) {
@@ -563,4 +743,44 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       }
     }
   },
+}
+
+async function connectorApiCall(
+  userId: string,
+  path: string,
+  method: string,
+  body?: Record<string, unknown>
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  const token = await generateInternalToken(userId)
+  const baseUrl = getInternalApiBaseUrl()
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  })
+
+  const json = await res.json().catch(() => ({}))
+
+  if (!res.ok) {
+    return {
+      success: false,
+      error: json.error || `API returned ${res.status}`,
+    }
+  }
+
+  return { success: true, data: json.data }
+}
+
+async function resolveKnowledgeBaseId(connectorId: string): Promise<string | null> {
+  const rows = await db
+    .select({ knowledgeBaseId: knowledgeConnector.knowledgeBaseId })
+    .from(knowledgeConnector)
+    .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+    .limit(1)
+
+  return rows[0]?.knowledgeBaseId ?? null
 }

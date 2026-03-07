@@ -13,7 +13,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'

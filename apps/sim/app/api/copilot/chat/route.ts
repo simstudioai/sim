@@ -75,6 +75,7 @@ const ChatMessageSchema = z.object({
     )
     .optional(),
   commands: z.array(z.string()).optional(),
+  userTimezone: z.string().optional(),
 })
 
 /**
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
       provider,
       contexts,
       commands,
+      userTimezone,
     } = ChatMessageSchema.parse(body)
 
     const normalizedContexts = Array.isArray(contexts)
@@ -244,6 +246,7 @@ export async function POST(req: NextRequest) {
         prefetch,
         implicitFeedback,
         userPermission: userPermission ?? undefined,
+        userTimezone,
       },
       {
         selectedModel,

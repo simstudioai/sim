@@ -69,15 +69,23 @@ export class EdgeManager {
       }
     }
 
+    const isDeadEnd = activatedTargets.length === 0
+    const isRoutedDeadEnd = isDeadEnd && !!(output.selectedOption || output.selectedRoute)
+
     for (const targetId of cascadeTargets) {
       if (!readyNodes.includes(targetId) && !activatedTargets.includes(targetId)) {
-        // Only queue cascade terminal control nodes when ALL outgoing edges from the
-        // current node were deactivated (dead-end scenario). When some edges are
-        // activated, terminal control nodes on deactivated branches should NOT be
-        // queued - they will be reached through the normal activated path's completion.
-        // This prevents loop/parallel sentinels on fully deactivated paths (e.g., an
-        // upstream condition took a different branch) from being spuriously executed.
-        if (activatedTargets.length === 0 && this.isTargetReady(targetId)) {
+        if (!isDeadEnd || !this.isTargetReady(targetId)) continue
+
+        if (isRoutedDeadEnd) {
+          // A condition/router deliberately selected a dead-end path.
+          // Only queue the sentinel if it belongs to the SAME subflow as the
+          // current node (the condition is inside the loop/parallel and the
+          // loop still needs to continue/exit). Downstream subflow sentinels
+          // should NOT fire.
+          if (this.isEnclosingSentinel(node, targetId)) {
+            readyNodes.push(targetId)
+          }
+        } else {
           readyNodes.push(targetId)
         }
       }
@@ -143,6 +151,27 @@ export class EdgeManager {
   private isTargetReady(targetId: string): boolean {
     const targetNode = this.dag.nodes.get(targetId)
     return targetNode ? this.isNodeReady(targetNode) : false
+  }
+
+  /**
+   * Checks if the cascade target sentinel belongs to the same subflow as the source node.
+   * A condition inside a loop that hits a dead-end should still allow the enclosing
+   * loop's sentinel to fire so the loop can continue or exit.
+   */
+  private isEnclosingSentinel(sourceNode: DAGNode, sentinelId: string): boolean {
+    const sentinel = this.dag.nodes.get(sentinelId)
+    if (!sentinel?.metadata.isSentinel) return false
+
+    const sourceLoopId = sourceNode.metadata.loopId
+    const sourceParallelId = sourceNode.metadata.parallelId
+    const sentinelLoopId = sentinel.metadata.loopId
+    const sentinelParallelId = sentinel.metadata.parallelId
+
+    if (sourceLoopId && sentinelLoopId && sourceLoopId === sentinelLoopId) return true
+    if (sourceParallelId && sentinelParallelId && sourceParallelId === sentinelParallelId)
+      return true
+
+    return false
   }
 
   private isLoopEdge(handle?: string): boolean {

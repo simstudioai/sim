@@ -158,6 +158,16 @@ export async function POST(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
+    if (doc.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to create chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
+    }
+
     // Allow manual chunk creation even if document is not fully processed
     // but it should exist and not be in failed state
     if (doc.processingStatus === 'failed') {
@@ -281,6 +291,16 @@ export async function PATCH(
         `[${requestId}] User ${userId} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${userId} attempted batch chunk operation on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()

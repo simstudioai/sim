@@ -27,6 +27,7 @@ export interface BuildPayloadParams {
   implicitFeedback?: string
   workspaceContext?: string
   userPermission?: string
+  userTimezone?: string
 }
 
 export interface ToolSchema {
@@ -166,6 +167,7 @@ export async function buildCopilotRequestPayload(
     ...(commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
+    ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     isHosted,
   }
 }

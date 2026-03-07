@@ -33,6 +33,10 @@ export const KnowledgeBaseArgsSchema = z.object({
     'update_tag',
     'delete_tag',
     'get_tag_usage',
+    'add_connector',
+    'update_connector',
+    'delete_connector',
+    'sync_connector',
   ]),
   args: z
     .object({
@@ -42,7 +46,7 @@ export const KnowledgeBaseArgsSchema = z.object({
       description: z.string().optional(),
       /** Workspace ID to associate with (required for create, optional for list) */
       workspaceId: z.string().optional(),
-      /** Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage) */
+      /** Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage, add_connector) */
       knowledgeBaseId: z.string().optional(),
       /** Workspace file path to add as a document (required for add_file). Example: "files/report.pdf" */
       filePath: z.string().optional(),
@@ -64,6 +68,22 @@ export const KnowledgeBaseArgsSchema = z.object({
       tagDisplayName: z.string().optional(),
       /** Tag field type: text, number, date, boolean (optional for create_tag, defaults to text) */
       tagFieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
+      /** Connector type from registry, e.g. "confluence" (required for add_connector) */
+      connectorType: z.string().optional(),
+      /** OAuth credential ID from environment/credentials.json (required for OAuth connectors) */
+      credentialId: z.string().optional(),
+      /** API key for API key-based connectors (required for API key connectors) */
+      apiKey: z.string().optional(),
+      /** Connector-specific config matching the schema in knowledgebases/connectors/{type}.json */
+      sourceConfig: z.record(z.unknown()).optional(),
+      /** Sync interval: 60, 360, 1440, 10080, or 0 for manual only (optional for add_connector, defaults to 1440) */
+      syncIntervalMinutes: z.number().int().min(0).optional(),
+      /** Connector ID (required for update_connector, delete_connector, sync_connector) */
+      connectorId: z.string().optional(),
+      /** Connector status: "active" or "paused" (optional for update_connector) */
+      connectorStatus: z.enum(['active', 'paused']).optional(),
+      /** Tag definition IDs to disable (optional for add_connector) */
+      disabledTagIds: z.array(z.string()).optional(),
     })
     .optional(),
 })

@@ -72,14 +72,26 @@ export class MothershipBlockHandler implements BlockHandler {
 
     const result = await response.json()
 
+    const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
+      name: tc.name,
+      arguments: tc.params || {},
+      result: tc.result,
+      error: tc.error,
+      duration: tc.durationMs || 0,
+    }))
+    const toolCalls = { list: formattedList, count: formattedList.length }
+
     if (responseFormat && result.content) {
-      return processStructuredResponse(result, 'mothership')
+      const structured = processStructuredResponse(result, 'mothership') as Record<string, unknown>
+      return { ...structured, toolCalls, cost: result.cost || undefined } as BlockOutput
     }
 
     return {
       content: result.content || '',
       model: result.model || 'mothership',
       tokens: result.tokens || {},
+      toolCalls,
+      cost: result.cost || undefined,
     }
   }
 }

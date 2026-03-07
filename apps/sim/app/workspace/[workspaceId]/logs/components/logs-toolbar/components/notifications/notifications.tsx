@@ -32,7 +32,10 @@ import {
   useTestNotification,
   useUpdateNotification,
 } from '@/hooks/queries/notifications'
-import { useConnectedAccounts, useConnectOAuthService } from '@/hooks/queries/oauth-connections'
+import {
+  useConnectedAccounts,
+  useConnectOAuthService,
+} from '@/hooks/queries/oauth/oauth-connections'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'

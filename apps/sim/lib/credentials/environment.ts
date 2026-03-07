@@ -358,3 +358,42 @@ export async function getAccessibleEnvCredentials(
       updatedAt: row.updatedAt,
     }))
 }
+
+export interface AccessibleOAuthCredential {
+  id: string
+  providerId: string
+  displayName: string
+  updatedAt: Date
+}
+
+export async function getAccessibleOAuthCredentials(
+  workspaceId: string,
+  userId: string
+): Promise<AccessibleOAuthCredential[]> {
+  const rows = await db
+    .select({
+      id: credential.id,
+      providerId: credential.providerId,
+      displayName: credential.displayName,
+      updatedAt: credential.updatedAt,
+    })
+    .from(credential)
+    .innerJoin(
+      credentialMember,
+      and(
+        eq(credentialMember.credentialId, credential.id),
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.status, 'active')
+      )
+    )
+    .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
+
+  return rows
+    .filter((row): row is AccessibleOAuthCredential => Boolean(row.providerId))
+    .map((row) => ({
+      id: row.id,
+      providerId: row.providerId!,
+      displayName: row.displayName,
+      updatedAt: row.updatedAt,
+    }))
+}

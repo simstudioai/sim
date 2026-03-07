@@ -84,6 +84,8 @@ export interface StreamingContext {
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface FileAttachment {
@@ -129,6 +131,8 @@ export interface OrchestratorResult {
   chatId?: string
   error?: string
   errors?: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface ToolCallSummary {
@@ -145,6 +149,8 @@ export interface ExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  chatId?: string
+  userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>
 }

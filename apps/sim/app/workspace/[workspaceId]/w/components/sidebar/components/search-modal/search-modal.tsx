@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, Files, HelpCircle, Layout, Settings } from 'lucide-react'
+import { Clock, Database, Files, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, Library } from '@/components/emcn'
@@ -141,6 +141,12 @@ export function SearchModal({
           icon: Files,
           href: `/workspace/${workspaceId}/files`,
           hidden: permissionConfig.hideFilesTab,
+        },
+        {
+          id: 'schedules',
+          name: 'Schedules',
+          icon: Clock,
+          href: `/workspace/${workspaceId}/schedules`,
         },
         {
           id: 'help',

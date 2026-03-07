@@ -153,18 +153,36 @@ export interface CreateTableData {
   userId: string
   /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
   maxRows?: number
+  /** Optional max tables override based on billing plan. Defaults to TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE. */
+  maxTables?: number
 }
 
 export interface InsertRowData {
   tableId: string
   data: RowData
   workspaceId: string
+  userId?: string
 }
 
 export interface BatchInsertData {
   tableId: string
   rows: RowData[]
   workspaceId: string
+  userId?: string
+}
+
+export interface UpsertRowData {
+  tableId: string
+  workspaceId: string
+  data: RowData
+  userId?: string
+  /** Which unique column to match on. Required when multiple unique columns exist. */
+  conflictTarget?: string
+}
+
+export interface UpsertResult {
+  row: TableRow
+  operation: 'insert' | 'update'
 }
 
 export interface UpdateRowData {
@@ -187,4 +205,17 @@ export interface BulkDeleteData {
   filter: Filter
   limit?: number
   workspaceId: string
+}
+
+export interface BulkDeleteByIdsData {
+  tableId: string
+  rowIds: string[]
+  workspaceId: string
+}
+
+export interface BulkDeleteByIdsResult {
+  deletedCount: number
+  deletedRowIds: string[]
+  requestedCount: number
+  missingRowIds: string[]
 }

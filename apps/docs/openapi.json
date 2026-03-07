@@ -12,10 +12,30 @@
     }
   ],
   "tags": [
-    { "name": "Workflows", "description": "Execute workflows and manage workflow resources" },
-    { "name": "Logs", "description": "Query execution logs and retrieve details" },
-    { "name": "Usage", "description": "Check rate limits and billing usage" },
-    { "name": "Audit Logs", "description": "View audit trail of workspace activity" }
+    {
+      "name": "Workflows",
+      "description": "Execute workflows and manage workflow resources"
+    },
+    {
+      "name": "Logs",
+      "description": "Query execution logs and retrieve details"
+    },
+    {
+      "name": "Usage",
+      "description": "Check rate limits and billing usage"
+    },
+    {
+      "name": "Audit Logs",
+      "description": "View audit trail of workspace activity"
+    },
+    {
+      "name": "Tables",
+      "description": "Manage tables and rows for structured data storage"
+    },
+    {
+      "name": "Files",
+      "description": "Upload, download, and manage workspace files"
+    }
   ],
   "security": [
     {
@@ -1004,6 +1024,1533 @@
           }
         }
       }
+    },
+    "/api/v1/tables": {
+      "get": {
+        "operationId": "listTables",
+        "summary": "List Tables",
+        "description": "List all tables in a workspace. Returns table metadata including name, schema, and row counts.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace to list tables from.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tables in the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tables": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Table"
+                          }
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total number of tables."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTable",
+        "summary": "Create Table",
+        "description": "Create a new table in a workspace. Define the table schema with typed columns, optional constraints (required, unique), and a name.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"contacts\",\n    \"description\": \"Customer contacts\",\n    \"schema\": {\n      \"columns\": [\n        { \"name\": \"email\", \"type\": \"string\", \"required\": true, \"unique\": true },\n        { \"name\": \"name\", \"type\": \"string\", \"required\": true },\n        { \"name\": \"age\", \"type\": \"number\" }\n      ]\n    }\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "name", "schema"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to create the table in."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Table name. Must start with a letter or underscore, alphanumeric and underscores only.",
+                    "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional description of the table."
+                  },
+                  "schema": {
+                    "type": "object",
+                    "required": ["columns"],
+                    "properties": {
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ColumnDefinition"
+                        },
+                        "minItems": 1,
+                        "description": "Column definitions for the table."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "$ref": "#/components/schemas/Table"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}": {
+      "get": {
+        "operationId": "getTable",
+        "summary": "Get Table",
+        "description": "Retrieve a table's metadata, schema, and row count.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "The table ID.",
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace the table belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "$ref": "#/components/schemas/Table"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTable",
+        "summary": "Delete Table",
+        "description": "Delete a table and all its rows. This action is irreversible.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "The table ID to delete.",
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace the table belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows": {
+      "get": {
+        "operationId": "listRows",
+        "summary": "List Rows",
+        "description": "Query rows from a table with optional filtering, sorting, and pagination. Filters and sorts are passed as JSON-encoded query parameters.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows?workspaceId=YOUR_WORKSPACE_ID&limit=50&offset=0\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "The table to query rows from.",
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace the table belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "description": "JSON-encoded filter object. Example: {\"status\": \"active\"} or {\"age\": {\"$gt\": 18}}.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "JSON-encoded sort object. Example: {\"created_at\": \"desc\"}.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows to return (1-1000, default 100).",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of rows to skip for pagination (default 0).",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows matching the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/TableRow"
+                          }
+                        },
+                        "rowCount": {
+                          "type": "integer",
+                          "description": "Number of rows returned in this response."
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total rows matching the filter."
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "insertRows",
+        "summary": "Insert Rows",
+        "description": "Insert one or more rows into a table. For a single row, pass a `data` object. For batch insert, pass a `rows` array (up to 1000 rows).",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": {\n      \"email\": \"user@example.com\",\n      \"name\": \"Jane Doe\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "The table to insert rows into.",
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "data"],
+                    "description": "Single row insert.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Key-value pairs matching the table schema."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "rows"],
+                    "description": "Batch insert (up to 1000 rows).",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "rows": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "maxItems": 1000
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row(s) inserted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow"
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/TableRow"
+                          }
+                        },
+                        "insertedCount": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateRows",
+        "summary": "Update Rows",
+        "description": "Bulk update rows matching a filter. All matching rows will have the specified fields updated. Validates against schema and unique constraints.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"filter\": { \"status\": \"pending\" },\n    \"data\": { \"status\": \"active\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "filter", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "filter": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Filter criteria to match rows."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Fields to update on matching rows."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Maximum number of rows to update."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rows updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "updatedCount": {
+                          "type": "integer"
+                        },
+                        "updatedRowIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRows",
+        "summary": "Delete Rows",
+        "description": "Delete rows by filter criteria or by an explicit list of row IDs. Pass either a `filter` object or a `rowIds` array.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"rowIds\": [\"row_abc123\", \"row_def456\"]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "filter"],
+                    "description": "Delete by filter.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "filter": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "rowIds"],
+                    "description": "Delete by IDs.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "rowIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 1000
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rows deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "deletedCount": {
+                          "type": "integer"
+                        },
+                        "deletedRowIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "requestedCount": {
+                          "type": "integer",
+                          "description": "Number of row IDs requested for deletion (only present when deleting by IDs)."
+                        },
+                        "missingRowIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Row IDs that were requested but not found (only present when deleting by IDs)."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows/{rowId}": {
+      "get": {
+        "operationId": "getRow",
+        "summary": "Get Row",
+        "description": "Retrieve a single row by its ID.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "rowId",
+            "in": "path",
+            "required": true,
+            "description": "The row ID to retrieve.",
+            "schema": {
+              "type": "string",
+              "example": "row_xyz789"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateRow",
+        "summary": "Update Row",
+        "description": "Partially update a single row. Only the provided fields are updated; existing fields are preserved. Data is validated against the table schema.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"name\": \"Updated Name\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "rowId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "row_xyz789"
+            },
+            "description": "The unique identifier of the row."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Fields to update. Only specified fields are changed."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRow",
+        "summary": "Delete Row",
+        "description": "Delete a single row by its ID.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          },
+          {
+            "name": "rowId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "row_xyz789"
+            },
+            "description": "The unique identifier of the row."
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "deletedCount": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows/upsert": {
+      "post": {
+        "operationId": "upsertRow",
+        "summary": "Upsert Row",
+        "description": "Insert a new row or update an existing one based on a unique column value. The table must have at least one column with a unique constraint. If a row with a matching unique value exists, it is updated; otherwise, a new row is inserted. When multiple unique columns exist, specify `conflictTarget` to indicate which column to match on.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/upsert\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"email\": \"user@example.com\", \"name\": \"John\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "tbl_abc123"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Row data. Must include a value for the conflict target column."
+                  },
+                  "conflictTarget": {
+                    "type": "string",
+                    "description": "Name of the unique column to match on. Required when the table has multiple unique columns. If the table has exactly one unique column, this can be omitted."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row upserted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow"
+                        },
+                        "operation": {
+                          "type": "string",
+                          "enum": ["insert", "update"],
+                          "description": "Whether the row was inserted or updated."
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "get": {
+        "operationId": "listFiles",
+        "summary": "List Files",
+        "description": "List all files in a workspace.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/files?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace to list files from.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workspace files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/FileMetadata"
+                          }
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total number of files."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadFile",
+        "summary": "Upload File",
+        "description": "Upload a file to a workspace. Send the file as multipart/form-data with a `file` field and a `workspaceId` field. Maximum file size is 100MB. Duplicate filenames within a workspace are not allowed.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/files\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"workspaceId=YOUR_WORKSPACE_ID\" \\\n  -F \"file=@/path/to/file.csv\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "workspaceId"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The file to upload (max 100MB)."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to upload the file to."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File uploaded successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "$ref": "#/components/schemas/FileMetadata"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "A file with the same name already exists in this workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/files/{fileId}": {
+      "get": {
+        "operationId": "downloadFile",
+        "summary": "Download File",
+        "description": "Download a file's content. Returns the raw file bytes with appropriate Content-Type, Content-Disposition, and Content-Length headers. File metadata is included in custom response headers: X-File-Id, X-File-Name, X-Uploaded-At.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -o downloaded-file.csv"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the file.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1709571234_abc1234"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace the file belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content as binary data.",
+            "headers": {
+              "Content-Type": {
+                "description": "MIME type of the file.",
+                "schema": {
+                  "type": "string",
+                  "example": "text/csv"
+                }
+              },
+              "Content-Disposition": {
+                "description": "Attachment with filename.",
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"data.csv\""
+                }
+              },
+              "Content-Length": {
+                "description": "File size in bytes.",
+                "schema": {
+                  "type": "string",
+                  "example": "1024"
+                }
+              },
+              "X-File-Id": {
+                "description": "Unique file identifier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-File-Name": {
+                "description": "Original filename.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uploaded-At": {
+                "description": "ISO 8601 upload timestamp.",
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFile",
+        "summary": "Delete File",
+        "description": "Delete a file from a workspace. This removes both the file content and its metadata. This action is irreversible.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the file to delete.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1709571234_abc1234"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "The workspace the file belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1016,6 +2563,111 @@
       }
     },
     "schemas": {
+      "ColumnDefinition": {
+        "type": "object",
+        "description": "Definition of a table column including its type and constraints.",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Column name. Must start with a letter or underscore.",
+            "example": "email",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "date", "json"],
+            "description": "Data type of the column."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the column requires a value on insert.",
+            "default": false
+          },
+          "unique": {
+            "type": "boolean",
+            "description": "Whether values in this column must be unique across all rows.",
+            "default": false
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "description": "A user-defined table with a typed schema.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique table identifier.",
+            "example": "tbl_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "Table name.",
+            "example": "contacts"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the table.",
+            "example": "Customer contact records"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Table schema definition.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ColumnDefinition"
+                }
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "description": "Current number of rows in the table."
+          },
+          "maxRows": {
+            "type": "integer",
+            "description": "Maximum rows allowed by the current billing plan."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was last modified."
+          }
+        }
+      },
+      "TableRow": {
+        "type": "object",
+        "description": "A single row in a table.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique row identifier.",
+            "example": "row_xyz789"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Row data as key-value pairs matching the table schema."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was last modified."
+          }
+        }
+      },
       "WorkflowSummary": {
         "type": "object",
         "description": "Summary representation of a workflow returned in list operations.",
@@ -1720,7 +3372,9 @@
               "sync": {
                 "description": "Rate limit bucket for synchronous executions.",
                 "allOf": [
-                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "$ref": "#/components/schemas/RateLimitBucket"
+                  },
                   {
                     "type": "object",
                     "properties": {
@@ -1735,7 +3389,9 @@
               "async": {
                 "description": "Rate limit bucket for asynchronous executions.",
                 "allOf": [
-                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "$ref": "#/components/schemas/RateLimitBucket"
+                  },
                   {
                     "type": "object",
                     "properties": {
@@ -1788,6 +3444,45 @@
                 "description": "Percentage of storage used (0-100)."
               }
             }
+          }
+        }
+      },
+      "FileMetadata": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique file identifier.",
+            "example": "wf_1709571234_abc1234"
+          },
+          "name": {
+            "type": "string",
+            "description": "Original filename.",
+            "example": "data.csv"
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes.",
+            "example": 1024
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type of the file.",
+            "example": "text/csv"
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key for the file.",
+            "example": "workspace/abc-123/1709571234-xyz-data.csv"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "User ID of the uploader."
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the file was uploaded."
           }
         }
       }
