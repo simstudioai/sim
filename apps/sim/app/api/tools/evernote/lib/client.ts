@@ -3,7 +3,6 @@
  * Implements only the NoteStore methods needed for the integration.
  */
 
-import { createLogger } from '@sim/logger'
 import {
   ThriftReader,
   ThriftWriter,
@@ -14,8 +13,6 @@ import {
   TYPE_STRING,
   TYPE_STRUCT,
 } from './thrift'
-
-const logger = createLogger('EvernoteClient')
 
 export interface EvernoteNotebook {
   guid: string
@@ -75,7 +72,8 @@ function extractShardId(token: string): string {
 /** Get the NoteStore URL for the given token */
 function getNoteStoreUrl(token: string): string {
   const shardId = extractShardId(token)
-  return `https://www.evernote.com/shard/${shardId}/notestore`
+  const host = token.includes(':Sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com'
+  return `https://${host}/shard/${shardId}/notestore`
 }
 
 /** Make a Thrift RPC call to the NoteStore */
@@ -126,14 +124,31 @@ function checkEvernoteException(reader: ThriftReader, fieldId: number, fieldType
   }
   if (fieldId === 2 && fieldType === TYPE_STRUCT) {
     let message = ''
+    let errorCode = 0
     reader.readStruct((r, fid, ftype) => {
-      if (fid === 2 && ftype === TYPE_STRING) {
+      if (fid === 1 && ftype === TYPE_I32) {
+        errorCode = r.readI32()
+      } else if (fid === 2 && ftype === TYPE_STRING) {
         message = r.readString()
       } else {
         r.skip(ftype)
       }
     })
-    throw new Error(`Evernote not found: ${message}`)
+    throw new Error(`Evernote system error (${errorCode}): ${message}`)
+  }
+  if (fieldId === 3 && fieldType === TYPE_STRUCT) {
+    let identifier = ''
+    let key = ''
+    reader.readStruct((r, fid, ftype) => {
+      if (fid === 1 && ftype === TYPE_STRING) {
+        identifier = r.readString()
+      } else if (fid === 2 && ftype === TYPE_STRING) {
+        key = r.readString()
+      } else {
+        r.skip(ftype)
+      }
+    })
+    throw new Error(`Evernote not found: ${identifier}${key ? ` (${key})` : ''}`)
   }
 }
 
