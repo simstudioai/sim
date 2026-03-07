@@ -32,6 +32,7 @@ export const GoogleBooksBlock: BlockConfig = {
       password: true,
       placeholder: 'Enter your Google Books API key',
       required: true,
+      hideWhenHosted: true,
     },
     {
       id: 'query',

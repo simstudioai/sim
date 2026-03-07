@@ -46,6 +46,20 @@ export const analyzeTool: ToolConfig<GooglePagespeedAnalyzeParams, GooglePagespe
       },
     },
 
+    hosting: {
+      envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'google_cloud',
+      pricing: {
+        type: 'per_request',
+        cost: 0,
+      },
+      rateLimit: {
+        mode: 'per_request',
+        requestsPerMinute: 20,
+      },
+    },
+
     request: {
       url: (params) => {
         const url = new URL('https://www.googleapis.com/pagespeedonline/v5/runPagespeed')
