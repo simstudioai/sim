@@ -109,7 +109,7 @@ export function CreditBalance({
   return (
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-[8px]'>
-        <Label>Credit Balance:</Label>
+        <Label>Additional Credits Balance:</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
           {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
@@ -156,11 +156,6 @@ export function CreditBalance({
                     {error && <span className='text-[13px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
-                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
-                    <p className='text-[13px] text-[var(--text-secondary)]'>
-                      Credits are used before overage charges. Min: $10, Max: $1,000.
-                    </p>
-                  </div>
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                     <p className='text-[13px] text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically

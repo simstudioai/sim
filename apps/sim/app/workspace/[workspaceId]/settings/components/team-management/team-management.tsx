@@ -495,9 +495,9 @@ export function TeamManagement() {
             <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
               <ul className='ml-4 flex list-disc flex-col gap-[8px] text-[13px] text-[var(--text-muted)]'>
                 <li>
-                  Your team is billed a minimum of{' '}
-                  {((subscriptionData?.seats ?? 0) * creditsPerSeat).toLocaleString()} credits/month
-                  for {subscriptionData?.seats ?? 0} licensed seats
+                  Your team is billed a minimum of $
+                  {((subscriptionData?.seats ?? 0) * costPerSeat).toLocaleString()}/month for{' '}
+                  {subscriptionData?.seats ?? 0} licensed seats
                 </li>
                 <li>All team member usage is pooled together from a shared limit</li>
                 <li>

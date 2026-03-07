@@ -149,6 +149,7 @@ interface CreditPlanCardProps {
   isCurrentPlan?: boolean
   onManagePlan?: () => void
   isError?: boolean
+  isTeamPlan?: boolean
 }
 
 function CreditPlanCard({
@@ -162,8 +163,10 @@ function CreditPlanCard({
   isError,
   isCurrentPlan,
   onManagePlan,
+  isTeamPlan,
 }: CreditPlanCardProps) {
   const discountedMonthly = Math.round(dollars * (1 - ANNUAL_DISCOUNT_RATE))
+  const perUnit = isTeamPlan ? '/seat' : ''
 
   return (
     <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
@@ -173,7 +176,7 @@ function CreditPlanCard({
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             ${isAnnual ? discountedMonthly : dollars}
           </span>
-          <span className='text-[12px] text-[var(--text-secondary)]'>/mo</span>
+          <span className='text-[12px] text-[var(--text-secondary)]'>{perUnit}/mo</span>
           {isAnnual && (
             <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
               ${dollars}
@@ -252,6 +255,7 @@ export function Subscription() {
   const [teamModalOpen, setTeamModalOpen] = useState(false)
   const [managePlanModalOpen, setManagePlanModalOpen] = useState(false)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
+  const hasInitializedInterval = useRef(false)
 
   const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
   const isLoading =
@@ -305,6 +309,13 @@ export function Subscription() {
       throw error
     }
   }
+
+  useEffect(() => {
+    if (!hasInitializedInterval.current && subscriptionData?.data?.billingInterval) {
+      hasInitializedInterval.current = true
+      setIsAnnual(subscriptionData.data.billingInterval === 'year')
+    }
+  }, [subscriptionData?.data?.billingInterval])
 
   useEffect(() => {
     if (upgradeError) {
@@ -523,7 +534,7 @@ export function Subscription() {
       {showUpgradePlans && (
         <div className='flex flex-col gap-[12px]'>
           {/* Billing toggle */}
-          <div className='flex items-center justify-end'>
+          <div className='flex items-center justify-start'>
             <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[2px]'>
               <button
                 type='button'
@@ -565,12 +576,9 @@ export function Subscription() {
             const isOnPro = isOnProTier && !wantsIntervalSwitch
             const isOnMax = isOnMaxTier && !wantsIntervalSwitch
             const showProCard = !isOnMaxTier
-            const cardCount = (showProCard ? 1 : 0) + 1
 
             return (
-              <div
-                className={cn('grid gap-[10px]', cardCount === 2 ? 'grid-cols-2' : 'grid-cols-1')}
-              >
+              <div className='grid grid-cols-2 gap-[10px]'>
                 {showProCard && (
                   <CreditPlanCard
                     name='Pro'
@@ -598,6 +606,7 @@ export function Subscription() {
                     isError={upgradeError === 'pro'}
                     isCurrentPlan={isOnPro}
                     onManagePlan={() => setManagePlanModalOpen(true)}
+                    isTeamPlan={subscription.isTeam}
                   />
                 )}
                 <CreditPlanCard
@@ -643,6 +652,7 @@ export function Subscription() {
                   isError={upgradeError === 'max'}
                   isCurrentPlan={isOnMax}
                   onManagePlan={() => setManagePlanModalOpen(true)}
+                  isTeamPlan={subscription.isTeam}
                 />
               </div>
             )
@@ -656,18 +666,6 @@ export function Subscription() {
               features={TEAM_INLINE_FEATURES}
               buttonText='Get started'
               onButtonClick={() => setTeamModalOpen(true)}
-              inlineButton
-            />
-          )}
-
-          {/* Enterprise */}
-          {hasEnterprise && (
-            <PlanCard
-              name='Enterprise'
-              price=''
-              features={ENTERPRISE_PLAN_FEATURES}
-              buttonText='Contact'
-              onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
               inlineButton
             />
           )}
@@ -740,80 +738,92 @@ export function Subscription() {
         }}
       />
 
-      {/* Credit Balance */}
-      {subscription.isPaid && permissions.canViewUsageInfo && (
-        <CreditBalance
-          balance={subscriptionData?.data?.creditBalance ?? 0}
-          canPurchase={permissions.canEditUsageLimit}
-          entityType={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
-          isLoading={isLoading}
-          onPurchaseComplete={() => refetchSubscription()}
-        />
-      )}
-
-      {!subscription.isEnterprise && (
-        <ReferralCode onRedeemComplete={() => refetchSubscription()} />
-      )}
-
-      {/* Next Billing Date */}
-      {subscription.isPaid &&
-        subscriptionData?.data?.periodEnd &&
-        !permissions.showTeamMemberView &&
-        !permissions.isEnterpriseMember && (
-          <div className='flex items-center justify-between'>
-            <Label>Next Billing Date</Label>
-            <span className='text-[13px] text-[var(--text-secondary)]'>
-              {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
-            </span>
-          </div>
+      {/* Billing details section */}
+      <div className='flex flex-col gap-[14px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
+        {subscription.isPaid && permissions.canViewUsageInfo && (
+          <CreditBalance
+            balance={subscriptionData?.data?.creditBalance ?? 0}
+            canPurchase={permissions.canEditUsageLimit}
+            entityType={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
+            isLoading={isLoading}
+            onPurchaseComplete={() => refetchSubscription()}
+          />
         )}
 
-      {subscription.isPaid && permissions.canViewUsageInfo && <BillingUsageNotificationsToggle />}
+        {!subscription.isEnterprise && (
+          <ReferralCode onRedeemComplete={() => refetchSubscription()} />
+        )}
 
-      {/* Billed Account */}
-      {!isLoading && isTeamAdmin && (
-        <div className='mt-auto flex items-center justify-between'>
-          <div className='flex items-center gap-[6px]'>
-            <Label htmlFor='billed-account'>Billed Account</Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <span>Usage from this workspace will be billed to this account</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          {workspaceAdmins.length === 0 ? (
-            <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
-              No admins available
-            </div>
-          ) : (
-            <div className='w-[200px]'>
-              <Combobox
-                size='sm'
-                align='end'
-                dropdownWidth={200}
-                value={billedAccountUserId || ''}
-                onChange={async (value: string) => {
-                  if (value && value !== billedAccountUserId) {
-                    try {
-                      await updateWorkspaceSettings({ billedAccountUserId: value })
-                    } catch {
-                      /* logged above */
-                    }
-                  }
-                }}
-                disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
-                placeholder='Select admin'
-                options={workspaceAdmins.map((admin) => ({
-                  label: admin.email,
-                  value: admin.userId,
-                }))}
-              />
+        {subscription.isPaid &&
+          subscriptionData?.data?.periodEnd &&
+          !permissions.showTeamMemberView &&
+          !permissions.isEnterpriseMember && (
+            <div className='flex items-center justify-between'>
+              <Label>Next Billing Date</Label>
+              <span className='text-[13px] text-[var(--text-secondary)]'>
+                {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
+              </span>
             </div>
           )}
-        </div>
+
+        {subscription.isPaid && permissions.canViewUsageInfo && <BillingUsageNotificationsToggle />}
+
+        {!isLoading && isTeamAdmin && (
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-[6px]'>
+              <Label htmlFor='billed-account'>Billed Account</Label>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Usage from this workspace will be billed to this account</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+            {workspaceAdmins.length === 0 ? (
+              <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
+                No admins available
+              </div>
+            ) : (
+              <div className='w-[200px]'>
+                <Combobox
+                  size='sm'
+                  align='end'
+                  dropdownWidth={200}
+                  value={billedAccountUserId || ''}
+                  onChange={async (value: string) => {
+                    if (value && value !== billedAccountUserId) {
+                      try {
+                        await updateWorkspaceSettings({ billedAccountUserId: value })
+                      } catch {
+                        /* logged above */
+                      }
+                    }
+                  }}
+                  disabled={!canManageWorkspaceKeys || updateWorkspaceMutation.isPending}
+                  placeholder='Select admin'
+                  options={workspaceAdmins.map((admin) => ({
+                    label: admin.email,
+                    value: admin.userId,
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Enterprise */}
+      {hasEnterprise && (
+        <PlanCard
+          name='Enterprise'
+          price=''
+          features={ENTERPRISE_PLAN_FEATURES}
+          buttonText='Contact'
+          onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
+          inlineButton
+        />
       )}
     </div>
   )
@@ -978,28 +988,28 @@ function ManagePlanModal({
   onGetForTeam,
   onCancel,
 }: ManagePlanModalProps) {
-  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>(currentInterval)
   const [isSwitching, setIsSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (open) {
-      setSelectedInterval(currentInterval)
-      setError(null)
-    }
-  }, [open, currentInterval])
+    if (open) setError(null)
+  }, [open])
 
   const isOnPro = currentPlanCredits === PRO_TIER.credits
   const currentTier = isOnPro ? PRO_TIER : MAX_TIER
   const otherTier = isOnPro ? MAX_TIER : PRO_TIER
   const isUpgrade = otherTier.dollars > currentTier.dollars
+  const targetInterval = currentInterval === 'month' ? 'year' : 'month'
 
-  const handleApplyInterval = async () => {
-    if (selectedInterval === currentInterval) return
+  const perUnit = isTeamPlan ? '/seat' : ''
+  const discountedMonthly = Math.round(currentTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
+  const annualTotal = Math.round(currentTier.dollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+
+  const handleSwitchInterval = async () => {
     setIsSwitching(true)
     setError(null)
     try {
-      await onSwitchInterval(selectedInterval)
+      await onSwitchInterval(targetInterval)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to switch interval')
     } finally {
@@ -1007,114 +1017,82 @@ function ManagePlanModal({
     }
   }
 
-  const discountedMonthly = Math.round(currentTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
-  const annualTotal = Math.round(currentTier.dollars * 12 * (1 - ANNUAL_DISCOUNT_RATE))
+  const actions = [
+    {
+      title: currentInterval === 'month' ? 'Switch to annual billing' : 'Switch to monthly billing',
+      description:
+        currentInterval === 'month'
+          ? `$${discountedMonthly}/mo${perUnit} ($${annualTotal}/yr${perUnit}) — save 15%`
+          : `$${currentTier.dollars}/mo${perUnit} — billed monthly`,
+      buttonText: isSwitching ? 'Switching...' : 'Switch',
+      onClick: handleSwitchInterval,
+      disabled: isSwitching,
+    },
+    {
+      title: isUpgrade ? `Upgrade to ${otherTier.name}` : `Switch to ${otherTier.name}`,
+      description: `${otherTier.credits.toLocaleString()} credits/mo · $${otherTier.dollars}/mo${perUnit}`,
+      buttonText: isUpgrade ? 'Upgrade' : 'Switch',
+      onClick: onUpgradeToOtherTier,
+    },
+    {
+      title: isTeamPlan ? 'Manage Team' : 'Get for Team',
+      description: isTeamPlan
+        ? 'Manage seats, members, and permissions'
+        : 'Shared pool, access control, higher limits',
+      buttonText: isTeamPlan ? 'Manage' : 'Get started',
+      onClick: onGetForTeam,
+    },
+  ]
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
-        <ModalHeader>Manage {currentTier.name} Plan</ModalHeader>
+        <ModalHeader>
+          Manage {currentTier.name} Plan{isTeamPlan ? ' (Team)' : ''}
+        </ModalHeader>
         <ModalBody>
-          {/* Switch billing interval */}
-          <div className='flex flex-col gap-[8px]'>
-            <Label className='text-[13px]'>Billing interval</Label>
-            <div className='flex flex-col gap-[6px]'>
-              <button
-                type='button'
+          <p className='text-[13px] text-[var(--text-secondary)]'>
+            You're on the{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
+            {isTeamPlan ? ' for your team' : ''}, billed{' '}
+            {currentInterval === 'month'
+              ? `$${currentTier.dollars}/mo${perUnit}`
+              : `$${annualTotal}/yr${perUnit} ($${discountedMonthly}/mo${perUnit})`}
+            .
+          </p>
+
+          <div className='mt-[16px] flex flex-col'>
+            {actions.map((action, i) => (
+              <div
+                key={action.title}
                 className={cn(
-                  'flex items-center justify-between rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
-                  selectedInterval === 'month'
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                  'flex items-center justify-between py-[12px]',
+                  i > 0 && 'border-[var(--border-1)] border-t'
                 )}
-                onClick={() => setSelectedInterval('month')}
               >
-                <div>
+                <div className='min-w-0 flex-1'>
                   <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                    Monthly
+                    {action.title}
                   </span>
-                  {currentInterval === 'month' && (
-                    <span className='ml-[6px] text-[11px] text-[var(--text-muted)]'>current</span>
-                  )}
-                </div>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
-                  ${currentTier.dollars}/mo
-                </span>
-              </button>
-              <button
-                type='button'
-                className={cn(
-                  'flex items-center justify-between rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
-                  selectedInterval === 'year'
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
-                )}
-                onClick={() => setSelectedInterval('year')}
-              >
-                <div>
-                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>Annual</span>
-                  <span className='ml-[6px] rounded-[3px] bg-[#10b981] px-[4px] py-[1px] text-[10px] font-semibold text-white'>
-                    Save 15%
+                  <span className='block text-[12px] text-[var(--text-secondary)]'>
+                    {action.description}
                   </span>
-                  {currentInterval === 'year' && (
-                    <span className='ml-[6px] text-[11px] text-[var(--text-muted)]'>current</span>
-                  )}
                 </div>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
-                  ${discountedMonthly}/mo (${annualTotal}/yr)
-                </span>
-              </button>
-            </div>
-            {selectedInterval !== currentInterval && (
-              <Button
-                variant='tertiary'
-                className='mt-[4px] w-full'
-                onClick={handleApplyInterval}
-                disabled={isSwitching}
-              >
-                {isSwitching
-                  ? 'Switching...'
-                  : `Switch to ${selectedInterval === 'year' ? 'annual' : 'monthly'}`}
-              </Button>
-            )}
-            {error && <span className='text-[12px] text-[var(--text-error)]'>{error}</span>}
+                <Button
+                  variant='tertiary'
+                  className='ml-[12px] shrink-0'
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                >
+                  {action.buttonText}
+                </Button>
+              </div>
+            ))}
           </div>
 
-          <div className='my-[12px] h-[1px] bg-[var(--border-1)]' />
-
-          {/* Upgrade/downgrade to other tier */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                {isUpgrade ? `Upgrade to ${otherTier.name}` : `Switch to ${otherTier.name}`}
-              </span>
-              <span className='block text-[12px] text-[var(--text-secondary)]'>
-                {otherTier.credits.toLocaleString()} credits/mo &middot; ${otherTier.dollars}/mo
-              </span>
-            </div>
-            <Button variant='tertiary' onClick={onUpgradeToOtherTier}>
-              {isUpgrade ? 'Upgrade' : 'Switch'}
-            </Button>
-          </div>
-
-          <div className='my-[12px] h-[1px] bg-[var(--border-1)]' />
-
-          {/* Get for Team / Manage Team */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-                {isTeamPlan ? 'Manage Team' : 'Get for Team'}
-              </span>
-              <span className='block text-[12px] text-[var(--text-secondary)]'>
-                {isTeamPlan
-                  ? 'Manage seats, members, and permissions'
-                  : 'Shared pool, access control, higher limits'}
-              </span>
-            </div>
-            <Button variant='tertiary' onClick={onGetForTeam}>
-              {isTeamPlan ? 'Manage' : 'Get started'}
-            </Button>
-          </div>
+          {error && (
+            <span className='mt-[4px] block text-[12px] text-[var(--text-error)]'>{error}</span>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button variant='destructive' onClick={onCancel}>
