@@ -1,6 +1,9 @@
+import { createLogger } from '@sim/logger'
 import type { SearchParams, SearchResponse } from '@/tools/jina/types'
 import { JINA_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/jina/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('JinaSearchTool')
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'jina_search',
@@ -147,11 +150,61 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'JINA_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'jina',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        // Jina bills per output token — $0.20 per 1M tokens
+        // Search costs a fixed minimum of 10,000 tokens per request
+        // Source: https://cloud.jina.ai/pricing (token-based billing)
+        // x-tokens header is unreliable; falls back to content-length estimate (~4 chars/token)
+        const tokens = output.tokensUsed as number
+        const cost = tokens * 0.0000002
+        return { cost, metadata: { tokensUsed: tokens } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 40,
+    },
+  },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // The API returns an array of results or a data object with results
+    let tokensUsed: number | undefined
+    const tokensHeader = response.headers.get('x-tokens')
+    if (tokensHeader) {
+      const parsed = parseInt(tokensHeader, 10)
+      if (!isNaN(parsed) && parsed > 0) {
+        tokensUsed = parsed
+      }
+    }
+
     const results = Array.isArray(data) ? data : data.data || []
+
+    if (tokensUsed == null) {
+      let total = 0
+      for (const result of results) {
+        if (result.usage?.tokens) {
+          total += result.usage.tokens
+        }
+      }
+      if (total > 0) {
+        tokensUsed = total
+      }
+    }
+
+    if (tokensUsed == null) {
+      let totalChars = 0
+      for (const result of results) {
+        totalChars += (result.content?.length ?? 0) + (result.title?.length ?? 0)
+      }
+      tokensUsed = Math.max(Math.ceil(totalChars / 4), 10000)
+    }
 
     return {
       success: response.ok,
@@ -162,6 +215,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
           url: result.url || '',
           content: result.content || '',
         })),
+        tokensUsed,
       },
     }
   },
@@ -175,6 +229,11 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         type: 'object',
         properties: JINA_SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
+    },
+    tokensUsed: {
+      type: 'number',
+      description: 'Number of Jina tokens consumed by this request',
+      optional: true,
     },
   },
 }
