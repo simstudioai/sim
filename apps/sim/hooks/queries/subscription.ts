@@ -6,7 +6,8 @@ import { organizationKeys } from '@/hooks/queries/organization'
  */
 export const subscriptionKeys = {
   all: ['subscription'] as const,
-  user: (includeOrg?: boolean) => [...subscriptionKeys.all, 'user', { includeOrg }] as const,
+  users: () => [...subscriptionKeys.all, 'user'] as const,
+  user: (includeOrg?: boolean) => [...subscriptionKeys.users(), { includeOrg }] as const,
   usage: () => [...subscriptionKeys.all, 'usage'] as const,
 }
 
@@ -235,7 +236,8 @@ export function useRedeemReferralCode() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
     },
   })
 }
@@ -268,7 +270,8 @@ export function usePurchaseCredits() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
     },
   })
 }

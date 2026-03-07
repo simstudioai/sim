@@ -43,18 +43,17 @@ async function fetchApiKeys(workspaceId: string, signal?: AbortSignal): Promise<
     fetch('/api/users/me/api-keys', { signal }),
   ])
 
-  let workspaceKeys: ApiKey[] = []
-  let personalKeys: ApiKey[] = []
-
-  if (workspaceResponse.ok) {
-    const workspaceData = await workspaceResponse.json()
-    workspaceKeys = workspaceData.keys || []
+  if (!workspaceResponse.ok) {
+    throw new Error(`Failed to fetch workspace API keys: ${workspaceResponse.status}`)
+  }
+  if (!personalResponse.ok) {
+    throw new Error(`Failed to fetch personal API keys: ${personalResponse.status}`)
   }
 
-  if (personalResponse.ok) {
-    const personalData = await personalResponse.json()
-    personalKeys = personalData.keys || []
-  }
+  const workspaceData = await workspaceResponse.json()
+  const personalData = await personalResponse.json()
+  const workspaceKeys: ApiKey[] = workspaceData.keys || []
+  const personalKeys: ApiKey[] = personalData.keys || []
 
   const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
   const conflicts = personalKeys

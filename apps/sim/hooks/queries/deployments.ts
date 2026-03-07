@@ -609,7 +609,8 @@ export function useActivateDeploymentVersion() {
         data.deployedAt ? new Date(data.deployedAt) : undefined,
         data.apiKey
       )
-
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })

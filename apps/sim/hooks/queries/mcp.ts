@@ -447,7 +447,7 @@ export interface McpServerTestResult {
   warnings?: string[]
 }
 
-async function testMcpServerConnection(config: McpServerTestConfig): Promise<McpServerTestResult> {
+async function testMcpServerConnection(config: McpServerTestConfig, signal?: AbortSignal): Promise<McpServerTestResult> {
   const cleanConfig = {
     ...config,
     url: config.url ? sanitizeForHttp(config.url) : config.url,
@@ -458,6 +458,7 @@ async function testMcpServerConnection(config: McpServerTestConfig): Promise<Mcp
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(cleanConfig),
+    signal,
   })
 
   const result = await response.json()
@@ -479,7 +480,7 @@ async function testMcpServerConnection(config: McpServerTestConfig): Promise<Mcp
 
 export function useMcpServerTest() {
   const mutation = useMutation({
-    mutationFn: testMcpServerConnection,
+    mutationFn: (config: McpServerTestConfig) => testMcpServerConnection(config),
     onSuccess: (result, variables) => {
       logger.info(
         `MCP server test ${result.success ? 'passed' : 'failed'}:`,

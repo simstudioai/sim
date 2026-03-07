@@ -587,14 +587,18 @@ export function MCP({ initialServerId }: MCPProps) {
   const handleTestConnection = useCallback(async () => {
     if (!formData.name.trim() || !formData.url?.trim()) return
 
-    await testConnection({
-      name: formData.name,
-      transport: formData.transport,
-      url: formData.url,
-      headers: headersToRecord(formData.headers),
-      timeout: formData.timeout,
-      workspaceId,
-    })
+    try {
+      await testConnection({
+        name: formData.name,
+        transport: formData.transport,
+        url: formData.url,
+        headers: headersToRecord(formData.headers),
+        timeout: formData.timeout,
+        workspaceId,
+      })
+    } catch {
+      // Error is captured by the mutation's error state and displayed via testResult
+    }
   }, [formData, testConnection, workspaceId, headersToRecord])
 
   /**

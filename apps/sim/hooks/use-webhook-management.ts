@@ -181,6 +181,8 @@ export function useWebhookManagement({
         }
       }
     } else {
+      // Deliberately leave syncedRef.current = false here: when no webhook exists yet
+      // (e.g., before deploy), a later refetch may return a real webhook that must be synced.
       useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
     }
   }, [webhook, queryEnabled, blockId, triggerId])
