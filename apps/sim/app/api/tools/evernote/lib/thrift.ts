@@ -107,7 +107,7 @@ export class ThriftReader {
   readMessageBegin(): { name: string; type: number; seqId: number } {
     const versionAndType = this.readI32()
     const version = versionAndType & 0xffff0000
-    if (version !== THRIFT_VERSION_1) {
+    if (version !== (THRIFT_VERSION_1 | 0)) {
       throw new Error(`Unsupported Thrift version: 0x${version.toString(16)}`)
     }
     const type = versionAndType & 0x000000ff
