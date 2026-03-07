@@ -122,14 +122,6 @@ export interface OAuthServiceMetadata {
   baseProvider: string
 }
 
-export interface ScopeEvaluation {
-  canonicalScopes: string[]
-  grantedScopes: string[]
-  missingScopes: string[]
-  extraScopes: string[]
-  requiresReauthorization: boolean
-}
-
 export interface Credential {
   id: string
   name: string
@@ -138,10 +130,6 @@ export interface Credential {
   lastUsed?: string
   isDefault?: boolean
   scopes?: string[]
-  canonicalScopes?: string[]
-  missingScopes?: string[]
-  extraScopes?: string[]
-  requiresReauthorization?: boolean
 }
 
 export interface ProviderConfig {

@@ -1,4 +1,5 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -47,28 +48,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'microsoft-teams',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'User.Read',
-        'Chat.Read',
-        'Chat.ReadWrite',
-        'Chat.ReadBasic',
-        'ChatMessage.Send',
-        'Channel.ReadBasic.All',
-        'ChannelMessage.Send',
-        'ChannelMessage.Read.All',
-        'ChannelMessage.ReadWrite',
-        'ChannelMember.Read.All',
-        'Group.Read.All',
-        'Group.ReadWrite.All',
-        'Team.ReadBasic.All',
-        'TeamMember.Read.All',
-        'offline_access',
-        'Files.Read',
-        'Sites.Read.All',
-      ],
+      requiredScopes: getScopesForService('microsoft-teams'),
       placeholder: 'Select Microsoft account',
       required: true,
     },

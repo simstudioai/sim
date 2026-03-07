@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { OAuthProvider } from '@/lib/oauth'
-import { evaluateScopeCoverage, parseProvider } from '@/lib/oauth'
+import { parseProvider } from '@/lib/oauth'
 
 const logger = createLogger('OAuthConnectionsAPI')
 
@@ -49,8 +49,7 @@ export async function GET(request: NextRequest) {
 
     for (const acc of accounts) {
       const { baseProvider, featureType } = parseProvider(acc.providerId as OAuthProvider)
-      const grantedScopes = acc.scope ? acc.scope.split(/\s+/).filter(Boolean) : []
-      const scopeEvaluation = evaluateScopeCoverage(acc.providerId, grantedScopes)
+      const scopes = acc.scope ? acc.scope.split(/\s+/).filter(Boolean) : []
 
       if (baseProvider) {
         // Try multiple methods to get a user-friendly display name
@@ -96,10 +95,6 @@ export async function GET(request: NextRequest) {
         const accountSummary = {
           id: acc.id,
           name: displayName,
-          scopes: scopeEvaluation.grantedScopes,
-          missingScopes: scopeEvaluation.missingScopes,
-          extraScopes: scopeEvaluation.extraScopes,
-          requiresReauthorization: scopeEvaluation.requiresReauthorization,
         }
 
         if (existingConnection) {
@@ -108,20 +103,8 @@ export async function GET(request: NextRequest) {
           existingConnection.accounts.push(accountSummary)
 
           existingConnection.scopes = Array.from(
-            new Set([...(existingConnection.scopes || []), ...scopeEvaluation.grantedScopes])
+            new Set([...(existingConnection.scopes || []), ...scopes])
           )
-          existingConnection.missingScopes = Array.from(
-            new Set([...(existingConnection.missingScopes || []), ...scopeEvaluation.missingScopes])
-          )
-          existingConnection.extraScopes = Array.from(
-            new Set([...(existingConnection.extraScopes || []), ...scopeEvaluation.extraScopes])
-          )
-          existingConnection.canonicalScopes =
-            existingConnection.canonicalScopes && existingConnection.canonicalScopes.length > 0
-              ? existingConnection.canonicalScopes
-              : scopeEvaluation.canonicalScopes
-          existingConnection.requiresReauthorization =
-            existingConnection.requiresReauthorization || scopeEvaluation.requiresReauthorization
 
           const existingTimestamp = existingConnection.lastConnected
             ? new Date(existingConnection.lastConnected).getTime()
@@ -138,11 +121,7 @@ export async function GET(request: NextRequest) {
             baseProvider,
             featureType,
             isConnected: true,
-            scopes: scopeEvaluation.grantedScopes,
-            canonicalScopes: scopeEvaluation.canonicalScopes,
-            missingScopes: scopeEvaluation.missingScopes,
-            extraScopes: scopeEvaluation.extraScopes,
-            requiresReauthorization: scopeEvaluation.requiresReauthorization,
+            scopes,
             lastConnected: acc.updatedAt.toISOString(),
             accounts: [accountSummary],
           })

@@ -1,4 +1,5 @@
 import { GoogleContactsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
@@ -37,7 +38,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-contacts',
-      requiredScopes: ['https://www.googleapis.com/auth/contacts'],
+      requiredScopes: getScopesForService('google-contacts'),
       placeholder: 'Select Google account',
     },
     {

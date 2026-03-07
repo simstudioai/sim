@@ -1,4 +1,5 @@
 import { TrelloIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
@@ -44,7 +45,7 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       serviceId: 'trello',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: ['read', 'write'],
+      requiredScopes: getScopesForService('trello'),
       placeholder: 'Select Trello account',
       required: true,
     },

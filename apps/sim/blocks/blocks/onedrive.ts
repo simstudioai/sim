@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -42,14 +43,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'onedrive',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       placeholder: 'Select Microsoft account',
     },
     {
@@ -156,14 +150,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'uploadFolderId',
       serviceId: 'onedrive',
       selectorKey: 'onedrive.folders',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a parent folder',
       dependsOn: ['credential'],
@@ -194,14 +181,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'createFolderParentId',
       serviceId: 'onedrive',
       selectorKey: 'onedrive.folders',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a parent folder',
       dependsOn: ['credential'],
@@ -227,14 +207,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'listFolderId',
       serviceId: 'onedrive',
       selectorKey: 'onedrive.folders',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a folder to list files from',
       dependsOn: ['credential'],
@@ -274,14 +247,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'downloadFileId',
       serviceId: 'onedrive',
       selectorKey: 'onedrive.files',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       mimeType: 'file', // Exclude folders, show only files
       placeholder: 'Select a file to download',
       mode: 'basic',
@@ -315,14 +281,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       canonicalParamId: 'deleteFileId',
       serviceId: 'onedrive',
       selectorKey: 'onedrive.files',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('onedrive'),
       mimeType: 'file', // Exclude folders, show only files
       placeholder: 'Select a file to delete',
       mode: 'basic',

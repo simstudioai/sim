@@ -63,6 +63,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GmailIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.labels',
@@ -75,6 +77,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleDriveIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
@@ -86,6 +90,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleDocsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
@@ -97,6 +103,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleSheetsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
@@ -121,7 +129,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-calendar',
         icon: GoogleCalendarIcon,
         baseProviderIcon: GoogleIcon,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/calendar',
+        ],
       },
       'google-contacts': {
         name: 'Google Contacts',
@@ -129,7 +141,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-contacts',
         icon: GoogleContactsIcon,
         baseProviderIcon: GoogleIcon,
-        scopes: ['https://www.googleapis.com/auth/contacts'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/contacts',
+        ],
       },
       'google-bigquery': {
         name: 'Google BigQuery',
@@ -137,7 +153,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-bigquery',
         icon: GoogleBigQueryIcon,
         baseProviderIcon: GoogleIcon,
-        scopes: ['https://www.googleapis.com/auth/bigquery'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/bigquery',
+        ],
       },
       'google-tasks': {
         name: 'Google Tasks',
@@ -145,7 +165,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-tasks',
         icon: GoogleTasksIcon,
         baseProviderIcon: GoogleIcon,
-        scopes: ['https://www.googleapis.com/auth/tasks'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/tasks',
+        ],
       },
       'google-vault': {
         name: 'Google Vault',
@@ -154,6 +178,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/ediscovery',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
@@ -165,6 +191,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleGroupsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
@@ -176,6 +204,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: GoogleMeetIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/meetings.space.created',
           'https://www.googleapis.com/auth/meetings.space.readonly',
         ],
@@ -186,7 +216,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'vertex-ai',
         icon: VertexIcon,
         baseProviderIcon: VertexIcon,
-        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/cloud-platform',
+        ],
       },
     },
     defaultService: 'gmail',
@@ -671,7 +705,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'webflow',
         icon: WebflowIcon,
         baseProviderIcon: WebflowIcon,
-        scopes: ['cms:read', 'cms:write', 'sites:read', 'sites:write'],
+        scopes: ['cms:read', 'cms:write', 'sites:read', 'sites:write', 'forms:read'],
       },
     },
     defaultService: 'webflow',

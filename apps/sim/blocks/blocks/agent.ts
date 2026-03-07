@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { getApiKeyCondition, getModelOptions } from '@/blocks/utils'
@@ -128,7 +129,7 @@ Return ONLY the JSON array.`,
       serviceId: 'vertex-ai',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
       required: true,
       condition: {

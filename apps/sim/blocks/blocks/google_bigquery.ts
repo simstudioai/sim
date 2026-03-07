@@ -1,4 +1,5 @@
 import { GoogleBigQueryIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -36,7 +37,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'google-bigquery',
-      requiredScopes: ['https://www.googleapis.com/auth/bigquery'],
+      requiredScopes: getScopesForService('google-bigquery'),
       placeholder: 'Select Google account',
     },
     {

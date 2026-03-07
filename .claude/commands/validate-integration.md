@@ -26,8 +26,9 @@ apps/sim/blocks/blocks/{service}.ts # Block definition
 apps/sim/tools/registry.ts          # Tool registry entries for this service
 apps/sim/blocks/registry.ts         # Block registry entry for this service
 apps/sim/components/icons.tsx        # Icon definition
-apps/sim/lib/auth/auth.ts           # OAuth scopes (if OAuth service)
-apps/sim/lib/oauth/oauth.ts         # OAuth provider config (if OAuth service)
+apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
+apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
+apps/sim/lib/oauth/utils.ts               # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
 ```
 
 ## Step 2: Pull API Documentation
@@ -199,11 +200,14 @@ For **each tool** in `tools.access`:
 
 ## Step 5: Validate OAuth Scopes (if OAuth service)
 
-- [ ] `auth.ts` scopes include ALL scopes needed by ALL tools in the integration
-- [ ] `oauth.ts` provider config scopes match `auth.ts` scopes
-- [ ] Block `requiredScopes` (if defined) matches `auth.ts` scopes
+Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
+
+- [ ] Scopes defined in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS[provider].services[service].scopes`
+- [ ] `auth.ts` uses `getCanonicalScopesForProvider(providerId)` — NOT a hardcoded array
+- [ ] Block `requiredScopes` uses `getScopesForService(serviceId)` — NOT a hardcoded array
+- [ ] No hardcoded scope arrays in `auth.ts` or block files (should all use utility functions)
+- [ ] Each scope has a human-readable description in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] No excess scopes that aren't needed by any tool
-- [ ] Each scope has a human-readable description in `oauth-required-modal.tsx`'s `SCOPE_DESCRIPTIONS`
 
 ## Step 6: Validate Pagination Consistency
 
@@ -244,7 +248,8 @@ Group findings by severity:
 - Missing `.trim()` on ID fields in request URLs
 - Missing `?? null` on nullable response fields
 - Block condition array missing an operation that uses that field
-- Missing scope description in `oauth-required-modal.tsx`
+- Hardcoded scope arrays instead of using `getScopesForService()` / `getCanonicalScopesForProvider()`
+- Missing scope description in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 
 **Suggestion** (minor improvements):
 - Better description text
@@ -273,7 +278,8 @@ After fixing, confirm:
 - [ ] Validated wandConfig on timestamps and complex inputs
 - [ ] Validated tools.config mapping, tool selector, and type coercions
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
-- [ ] Validated OAuth scopes alignment across auth.ts, oauth.ts, block, and modal (if OAuth)
+- [ ] Validated OAuth scopes use centralized utilities (getScopesForService, getCanonicalScopesForProvider) — no hardcoded arrays
+- [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)

@@ -1,4 +1,5 @@
 import { ZoomIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
@@ -40,19 +41,7 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       serviceId: 'zoom',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: [
-        'user:read:user',
-        'meeting:write:meeting',
-        'meeting:read:meeting',
-        'meeting:read:list_meetings',
-        'meeting:update:meeting',
-        'meeting:delete:meeting',
-        'meeting:read:invitation',
-        'meeting:read:list_past_participants',
-        'cloud_recording:read:list_user_recordings',
-        'cloud_recording:read:list_recording_files',
-        'cloud_recording:delete:recording_file',
-      ],
+      requiredScopes: getScopesForService('zoom'),
       placeholder: 'Select Zoom account',
       required: true,
     },

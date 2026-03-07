@@ -1,4 +1,5 @@
 import { SlackIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -82,22 +83,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'slack',
-      requiredScopes: [
-        'channels:read',
-        'channels:history',
-        'groups:read',
-        'groups:history',
-        'chat:write',
-        'chat:write.public',
-        'im:write',
-        'im:history',
-        'im:read',
-        'users:read',
-        'files:write',
-        'files:read',
-        'canvases:write',
-        'reactions:write',
-      ],
+      requiredScopes: getScopesForService('slack'),
       placeholder: 'Select Slack workspace',
       dependsOn: ['authMethod'],
       condition: {

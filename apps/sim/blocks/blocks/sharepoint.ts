@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -41,15 +42,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'sharepoint',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Sites.Read.All',
-        'Sites.ReadWrite.All',
-        'Sites.Manage.All',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('sharepoint'),
       placeholder: 'Select Microsoft account',
     },
     {
@@ -68,14 +61,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'siteId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.sites',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('sharepoint'),
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a site',
       dependsOn: ['credential'],

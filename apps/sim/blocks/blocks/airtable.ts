@@ -1,4 +1,5 @@
 import { AirtableIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { AirtableResponse } from '@/tools/airtable/types'
@@ -38,13 +39,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'airtable',
-      requiredScopes: [
-        'data.records:read',
-        'data.records:write',
-        'schema.bases:read',
-        'user.email:read',
-        'webhook:manage',
-      ],
+      requiredScopes: getScopesForService('airtable'),
       placeholder: 'Select Airtable account',
       required: true,
     },

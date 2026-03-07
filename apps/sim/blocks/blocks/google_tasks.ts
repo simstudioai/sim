@@ -1,4 +1,5 @@
 import { GoogleTasksIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
@@ -38,7 +39,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-tasks',
-      requiredScopes: ['https://www.googleapis.com/auth/tasks'],
+      requiredScopes: getScopesForService('google-tasks'),
       placeholder: 'Select Google Tasks account',
     },
     {

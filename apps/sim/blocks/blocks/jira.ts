@@ -1,4 +1,5 @@
 import { JiraIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -64,38 +65,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'jira',
-      requiredScopes: [
-        'read:jira-work',
-        'read:jira-user',
-        'write:jira-work',
-        'read:issue-event:jira',
-        'write:issue:jira',
-        'read:project:jira',
-        'read:issue-type:jira',
-        'read:me',
-        'offline_access',
-        'read:issue-meta:jira',
-        'read:issue-security-level:jira',
-        'read:issue.vote:jira',
-        'read:issue.changelog:jira',
-        'read:avatar:jira',
-        'read:issue:jira',
-        'read:status:jira',
-        'read:user:jira',
-        'read:field-configuration:jira',
-        'read:issue-details:jira',
-        'delete:issue:jira',
-        'write:comment:jira',
-        'read:comment:jira',
-        'delete:comment:jira',
-        'read:attachment:jira',
-        'delete:attachment:jira',
-        'write:issue-worklog:jira',
-        'read:issue-worklog:jira',
-        'delete:issue-worklog:jira',
-        'write:issue-link:jira',
-        'delete:issue-link:jira',
-      ],
+      requiredScopes: getScopesForService('jira'),
       placeholder: 'Select Jira account',
     },
     {

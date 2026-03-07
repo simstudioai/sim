@@ -1,4 +1,5 @@
 import { MicrosoftPlannerIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
@@ -64,15 +65,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'microsoft-planner',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Group.ReadWrite.All',
-        'Group.Read.All',
-        'Tasks.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: getScopesForService('microsoft-planner'),
       placeholder: 'Select Microsoft account',
     },
     {

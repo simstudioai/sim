@@ -1,4 +1,5 @@
 import { PipedriveIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { PipedriveResponse } from '@/tools/pipedrive/types'
@@ -48,15 +49,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       serviceId: 'pipedrive',
-      requiredScopes: [
-        'base',
-        'deals:full',
-        'contacts:full',
-        'leads:full',
-        'activities:full',
-        'mail:full',
-        'projects:full',
-      ],
+      requiredScopes: getScopesForService('pipedrive'),
       placeholder: 'Select Pipedrive account',
       required: true,
     },

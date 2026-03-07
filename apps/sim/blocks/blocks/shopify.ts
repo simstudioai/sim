@@ -1,4 +1,5 @@
 import { ShopifyIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -63,14 +64,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       serviceId: 'shopify',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: [
-        'write_products',
-        'write_orders',
-        'write_customers',
-        'write_inventory',
-        'read_locations',
-        'write_merchant_managed_fulfillment_orders',
-      ],
+      requiredScopes: getScopesForService('shopify'),
       placeholder: 'Select Shopify account',
       required: true,
     },

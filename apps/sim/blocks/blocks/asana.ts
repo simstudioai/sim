@@ -1,4 +1,5 @@
 import { AsanaIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { AsanaResponse } from '@/tools/asana/types'
@@ -36,7 +37,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'asana',
-      requiredScopes: ['default'],
+      requiredScopes: getScopesForService('asana'),
       placeholder: 'Select Asana account',
     },
     {

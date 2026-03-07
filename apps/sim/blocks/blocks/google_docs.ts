@@ -1,4 +1,5 @@
 import { GoogleDocsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
@@ -36,10 +37,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-docs',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-docs'),
       placeholder: 'Select Google account',
     },
     {

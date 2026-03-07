@@ -1,4 +1,5 @@
 import { RedditIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
@@ -49,24 +50,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       serviceId: 'reddit',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: [
-        'identity',
-        'read',
-        'submit',
-        'vote',
-        'save',
-        'edit',
-        'subscribe',
-        'history',
-        'privatemessages',
-        'account',
-        'mysubreddits',
-        'flair',
-        'report',
-        'modposts',
-        'modflair',
-        'modmail',
-      ],
+      requiredScopes: getScopesForService('reddit'),
       placeholder: 'Select Reddit account',
       required: true,
     },
