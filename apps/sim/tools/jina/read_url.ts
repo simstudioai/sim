@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ReadUrlParams, ReadUrlResponse } from '@/tools/jina/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('JinaReaderTool')
 
 export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
   id: 'jina_read_url',
@@ -169,6 +166,9 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
+        if (output.tokensUsed == null) {
+          throw new Error('Jina read_url response missing tokensUsed field')
+        }
         // Jina bills per output token — $0.20 per 1M tokens
         // Source: https://cloud.jina.ai/pricing (token-based billing)
         const tokens = output.tokensUsed as number

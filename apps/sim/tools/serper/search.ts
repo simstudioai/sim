@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { SearchParams, SearchResponse, SearchResult } from '@/tools/serper/types'
 import { SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/serper/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('SerperTool')
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',

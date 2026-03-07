@@ -1,7 +1,6 @@
+import { FLASH_TURBO_MODELS } from '@/tools/elevenlabs/constants'
 import type { ElevenLabsTtsUnifiedParams, TtsBlockResponse } from '@/tools/tts/types'
 import type { ToolConfig } from '@/tools/types'
-
-const FLASH_TURBO_MODELS = new Set(['eleven_turbo_v2', 'eleven_turbo_v2_5', 'eleven_flash_v2_5'])
 
 export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, TtsBlockResponse> = {
   id: 'tts_elevenlabs',

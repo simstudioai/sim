@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { SearchParams, SearchResponse } from '@/tools/jina/types'
 import { JINA_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/jina/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('JinaSearchTool')
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'jina_search',
@@ -157,6 +154,9 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {
+        if (output.tokensUsed == null) {
+          throw new Error('Jina search response missing tokensUsed field')
+        }
         // Jina bills per output token — $0.20 per 1M tokens
         // Search costs a fixed minimum of 10,000 tokens per request
         // Source: https://cloud.jina.ai/pricing (token-based billing)

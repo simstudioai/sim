@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('FirecrawlMapTool')
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
   id: 'firecrawl_map',
