@@ -11,13 +11,15 @@ export function OneDollarStats() {
       return
     }
 
-    import('onedollarstats').then(({ configure }) => {
-      configure({
-        collectorUrl: 'https://collector.onedollarstats.com/events',
-        autocollect: true,
-        hashRouting: true,
+    import('onedollarstats')
+      .then(({ configure }) => {
+        configure({
+          collectorUrl: 'https://collector.onedollarstats.com/events',
+          autocollect: true,
+          hashRouting: true,
+        })
       })
-    })
+      .catch(() => {})
   }, [])
 
   return null
