@@ -36,7 +36,7 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
       <div className='flex items-center justify-between'>
         <Label>Referral Code</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
-          +${redeemCode.data.bonusAmount} credits applied
+          +${redeemCode.data.bonusAmount ?? 0} credits applied
         </span>
       </div>
     )

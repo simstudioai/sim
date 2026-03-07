@@ -130,6 +130,12 @@ export function useWebhookManagement({
   }, [blockId])
 
   useEffect(() => {
+    if (!queryEnabled) {
+      syncedRef.current = false
+    }
+  }, [queryEnabled])
+
+  useEffect(() => {
     if (!queryEnabled || syncedRef.current) return
     if (webhook === undefined) return
 
