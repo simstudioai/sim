@@ -333,8 +333,8 @@ export const firefliesConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const maxTranscripts = sourceConfig.maxTranscripts as string | undefined
-    if (maxTranscripts && (Number.isNaN(Number(maxTranscripts)) || Number(maxTranscripts) <= 0)) {
-      return { valid: false, error: 'Max transcripts must be a positive number' }
+    if (maxTranscripts && (Number.isNaN(Number(maxTranscripts)) || Number(maxTranscripts) < 0)) {
+      return { valid: false, error: 'Max transcripts must be a non-negative number' }
     }
 
     try {
