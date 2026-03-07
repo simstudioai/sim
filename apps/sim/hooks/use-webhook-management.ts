@@ -129,9 +129,8 @@ export function useWebhookManagement({
     if (!queryEnabled || syncedRef.current) return
     if (webhook === undefined) return
 
-    syncedRef.current = true
-
     if (webhook) {
+      syncedRef.current = true
       useSubBlockStore.getState().setValue(blockId, 'webhookId', webhook.id)
       logger.info('Webhook loaded from API', {
         blockId,

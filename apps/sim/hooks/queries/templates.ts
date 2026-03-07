@@ -266,9 +266,8 @@ export function useUpdateTemplate() {
       queryClient.setQueryData<TemplateDetailResponse>(templateKeys.detail(id), result)
       logger.info('Template updated successfully')
     },
-    onSettled: (_data, _error, { id }) => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: templateKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: templateKeys.byWorkflows() })
     },
   })
