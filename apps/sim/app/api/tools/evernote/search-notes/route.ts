@@ -24,12 +24,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const clampedMaxNotes = Math.min(Math.max(Number(maxNotes) || 25, 1), 250)
+
     const result = await searchNotes(
       apiKey,
       query,
       notebookGuid || undefined,
       Number(offset),
-      Number(maxNotes)
+      clampedMaxNotes
     )
 
     return NextResponse.json({
