@@ -14,7 +14,7 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
-import { creditsToDollars, formatCredits } from '@/lib/billing/credits/conversion'
+import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
 
 const logger = createLogger('CreditBalance')
 
@@ -43,6 +43,9 @@ export function CreditBalance({
   const [success, setSuccess] = useState(false)
   const [requestId, setRequestId] = useState<string | null>(null)
 
+  const dollarAmount = Number.parseInt(amount, 10) || 0
+  const creditPreview = dollarsToCredits(dollarAmount)
+
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '')
     setAmount(numericValue)
@@ -52,16 +55,13 @@ export function CreditBalance({
   const handlePurchase = async () => {
     if (!requestId || isPurchasing) return
 
-    const creditAmount = Number.parseInt(amount, 10)
-    const numAmount = creditsToDollars(creditAmount)
-
-    if (Number.isNaN(creditAmount) || numAmount < 10) {
-      setError('Minimum purchase is 1,000 credits')
+    if (Number.isNaN(dollarAmount) || dollarAmount < 10) {
+      setError('Minimum purchase is $10')
       return
     }
 
-    if (numAmount > 1000) {
-      setError('Maximum purchase is 100,000 credits')
+    if (dollarAmount > 1000) {
+      setError('Maximum purchase is $1,000')
       return
     }
 
@@ -72,7 +72,7 @@ export function CreditBalance({
       const response = await fetch('/api/billing/credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: numAmount, requestId }),
+        body: JSON.stringify({ amount: dollarAmount, requestId }),
       })
 
       const data = await response.json()
@@ -132,23 +132,33 @@ export function CreditBalance({
               ) : (
                 <div className='space-y-[12px]'>
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='credit-amount'>Amount (credits)</Label>
-                    <Input
-                      id='credit-amount'
-                      type='text'
-                      inputMode='numeric'
-                      value={amount}
-                      onChange={(e) => handleAmountChange(e.target.value)}
-                      placeholder='5,000'
-                      disabled={isPurchasing}
-                    />
+                    <Label htmlFor='credit-amount'>Amount (USD)</Label>
+                    <div className='relative'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[13px] text-[var(--text-muted)]'>
+                        $
+                      </span>
+                      <Input
+                        id='credit-amount'
+                        type='text'
+                        inputMode='numeric'
+                        value={amount}
+                        onChange={(e) => handleAmountChange(e.target.value)}
+                        placeholder='50'
+                        className='pl-[28px]'
+                        disabled={isPurchasing}
+                      />
+                    </div>
+                    {dollarAmount > 0 && !error && (
+                      <span className='text-[12px] text-[var(--text-secondary)]'>
+                        You'll receive {creditPreview.toLocaleString()} credits
+                      </span>
+                    )}
                     {error && <span className='text-[13px] text-[var(--text-error)]'>{error}</span>}
                   </div>
 
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                     <p className='text-[13px] text-[var(--text-secondary)]'>
-                      Credits are used before overage charges. Min: 1,000 credits, Max: 100,000
-                      credits.
+                      Credits are used before overage charges. Min: $10, Max: $1,000.
                     </p>
                   </div>
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
