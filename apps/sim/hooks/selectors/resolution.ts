@@ -7,38 +7,16 @@ export interface SelectorResolution {
   allowSearch: boolean
 }
 
-export interface SelectorResolutionArgs {
-  workflowId?: string
-  credentialId?: string
-  domain?: string
-  projectId?: string
-  planId?: string
-  teamId?: string
-  knowledgeBaseId?: string
-  siteId?: string
-  collectionId?: string
-  spreadsheetId?: string
-}
-
 export function resolveSelectorForSubBlock(
   subBlock: SubBlockConfig,
-  args: SelectorResolutionArgs
+  context: SelectorContext
 ): SelectorResolution | null {
   if (!subBlock.selectorKey) return null
   return {
     key: subBlock.selectorKey,
     context: {
-      workflowId: args.workflowId,
-      credentialId: args.credentialId,
-      domain: args.domain,
-      projectId: args.projectId,
-      planId: args.planId,
-      teamId: args.teamId,
-      knowledgeBaseId: args.knowledgeBaseId,
-      siteId: args.siteId,
-      collectionId: args.collectionId,
-      spreadsheetId: args.spreadsheetId,
-      mimeType: subBlock.mimeType,
+      ...context,
+      mimeType: subBlock.mimeType ?? context.mimeType,
     },
     allowSearch: subBlock.selectorAllowSearch ?? true,
   }

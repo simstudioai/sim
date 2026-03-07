@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckSessionOrInternalAuth, mockEvaluateScopeCoverage, mockLogger } = vi.hoisted(() => {
+const { mockCheckSessionOrInternalAuth, mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -19,17 +19,12 @@ const { mockCheckSessionOrInternalAuth, mockEvaluateScopeCoverage, mockLogger } 
   }
   return {
     mockCheckSessionOrInternalAuth: vi.fn(),
-    mockEvaluateScopeCoverage: vi.fn(),
     mockLogger: logger,
   }
 })
 
 vi.mock('@/lib/auth/hybrid', () => ({
   checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/oauth', () => ({
-  evaluateScopeCoverage: mockEvaluateScopeCoverage,
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
@@ -87,16 +82,6 @@ describe('OAuth Credentials API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockEvaluateScopeCoverage.mockImplementation(
-      (_providerId: string, grantedScopes: string[]) => ({
-        canonicalScopes: grantedScopes,
-        grantedScopes,
-        missingScopes: [],
-        extraScopes: [],
-        requiresReauthorization: false,
-      })
-    )
   })
 
   it('should handle unauthenticated user', async () => {

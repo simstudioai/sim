@@ -6,40 +6,33 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockDb,
-  mockLogger,
-  mockParseProvider,
-  mockEvaluateScopeCoverage,
-  mockJwtDecode,
-  mockEq,
-} = vi.hoisted(() => {
-  const db = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(),
+const { mockGetSession, mockDb, mockLogger, mockParseProvider, mockJwtDecode, mockEq } = vi.hoisted(
+  () => {
+    const db = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn(),
+    }
+    const logger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      fatal: vi.fn(),
+      child: vi.fn(),
+    }
+    return {
+      mockGetSession: vi.fn(),
+      mockDb: db,
+      mockLogger: logger,
+      mockParseProvider: vi.fn(),
+      mockJwtDecode: vi.fn(),
+      mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+    }
   }
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockGetSession: vi.fn(),
-    mockDb: db,
-    mockLogger: logger,
-    mockParseProvider: vi.fn(),
-    mockEvaluateScopeCoverage: vi.fn(),
-    mockJwtDecode: vi.fn(),
-    mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  }
-})
+)
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
@@ -66,7 +59,6 @@ vi.mock('@sim/logger', () => ({
 
 vi.mock('@/lib/oauth/utils', () => ({
   parseProvider: mockParseProvider,
-  evaluateScopeCoverage: mockEvaluateScopeCoverage,
 }))
 
 import { GET } from '@/app/api/auth/oauth/connections/route'
@@ -83,16 +75,6 @@ describe('OAuth Connections API Route', () => {
       baseProvider: providerId.split('-')[0] || providerId,
       featureType: providerId.split('-')[1] || 'default',
     }))
-
-    mockEvaluateScopeCoverage.mockImplementation(
-      (_providerId: string, _grantedScopes: string[]) => ({
-        canonicalScopes: ['email', 'profile'],
-        grantedScopes: ['email', 'profile'],
-        missingScopes: [],
-        extraScopes: [],
-        requiresReauthorization: false,
-      })
-    )
   })
 
   it('should return connections successfully', async () => {

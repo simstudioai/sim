@@ -1014,4 +1014,36 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 | `startAt` | number | Pagination start index |
 | `maxResults` | number | Maximum results per page |
 
+### `jira_search_users`
+
+Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `query` | string | Yes | A query string to search for users. Can be an email address, display name, or partial match. |
+| `maxResults` | number | No | Maximum number of users to return \(default: 50, max: 1000\) |
+| `startAt` | number | No | The index of the first user to return \(for pagination, default: 0\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `users` | array | Array of matching Jira users |
+|   ↳ `accountId` | string | Atlassian account ID of the user |
+|   ↳ `displayName` | string | Display name of the user |
+|   ↳ `active` | boolean | Whether the user account is active |
+|   ↳ `emailAddress` | string | Email address of the user |
+|   ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
+|   ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
+|   ↳ `timeZone` | string | User timezone |
+|   ↳ `self` | string | REST API URL for this user |
+| `total` | number | Number of users returned in this page \(may be less than total matches\) |
+| `startAt` | number | Pagination start index |
+| `maxResults` | number | Maximum results per page |
+
 

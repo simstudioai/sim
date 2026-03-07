@@ -1,4 +1,5 @@
 import { GoogleSheetsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
@@ -40,10 +41,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-sheets',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-sheets'),
       placeholder: 'Select Google account',
     },
     {
@@ -63,10 +61,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       canonicalParamId: 'spreadsheetId',
       serviceId: 'google-sheets',
       selectorKey: 'google.drive',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-sheets'),
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
       dependsOn: ['credential'],
@@ -339,10 +334,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       mode: 'basic',
       required: true,
       serviceId: 'google-sheets',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-sheets'),
       placeholder: 'Select Google account',
     },
     {
@@ -362,10 +354,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       canonicalParamId: 'spreadsheetId',
       serviceId: 'google-sheets',
       selectorKey: 'google.drive',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive',
-      ],
+      requiredScopes: getScopesForService('google-sheets'),
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
       dependsOn: ['credential'],

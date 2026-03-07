@@ -7,7 +7,6 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
-import { evaluateScopeCoverage } from '@/lib/oauth'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -39,8 +38,7 @@ function toCredentialResponse(
   scope: string | null
 ) {
   const storedScope = scope?.trim()
-  const grantedScopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
-  const scopeEvaluation = evaluateScopeCoverage(providerId, grantedScopes)
+  const scopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
   const [_, featureType = 'default'] = providerId.split('-')
 
   return {
@@ -49,11 +47,7 @@ function toCredentialResponse(
     provider: providerId,
     lastUsed: updatedAt.toISOString(),
     isDefault: featureType === 'default',
-    scopes: scopeEvaluation.grantedScopes,
-    canonicalScopes: scopeEvaluation.canonicalScopes,
-    missingScopes: scopeEvaluation.missingScopes,
-    extraScopes: scopeEvaluation.extraScopes,
-    requiresReauthorization: scopeEvaluation.requiresReauthorization,
+    scopes,
   }
 }
 

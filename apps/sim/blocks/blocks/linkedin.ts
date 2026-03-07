@@ -1,4 +1,5 @@
 import { LinkedInIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { LinkedInResponse } from '@/tools/linkedin/types'
@@ -35,7 +36,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       serviceId: 'linkedin',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: ['profile', 'openid', 'email', 'w_member_social'],
+      requiredScopes: getScopesForService('linkedin'),
       placeholder: 'Select LinkedIn account',
       required: true,
     },

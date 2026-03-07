@@ -12,24 +12,38 @@ interface SelectorDisplayNameArgs {
   subBlock?: SubBlockConfig
   value: unknown
   workflowId?: string
-  credentialId?: string
+  oauthCredential?: string
   domain?: string
   projectId?: string
   planId?: string
   teamId?: string
   knowledgeBaseId?: string
+  baseId?: string
+  datasetId?: string
+  serviceDeskId?: string
+  siteId?: string
+  collectionId?: string
+  spreadsheetId?: string
+  fileId?: string
 }
 
 export function useSelectorDisplayName({
   subBlock,
   value,
   workflowId,
-  credentialId,
+  oauthCredential,
   domain,
   projectId,
   planId,
   teamId,
   knowledgeBaseId,
+  baseId,
+  datasetId,
+  serviceDeskId,
+  siteId,
+  collectionId,
+  spreadsheetId,
+  fileId,
 }: SelectorDisplayNameArgs) {
   const detailId = typeof value === 'string' && value.length > 0 ? value : undefined
 
@@ -37,23 +51,37 @@ export function useSelectorDisplayName({
     if (!subBlock || !detailId) return null
     return resolveSelectorForSubBlock(subBlock, {
       workflowId,
-      credentialId,
+      oauthCredential,
       domain,
       projectId,
       planId,
       teamId,
       knowledgeBaseId,
+      baseId,
+      datasetId,
+      serviceDeskId,
+      siteId,
+      collectionId,
+      spreadsheetId,
+      fileId,
     })
   }, [
     subBlock,
     detailId,
     workflowId,
-    credentialId,
+    oauthCredential,
     domain,
     projectId,
     planId,
     teamId,
     knowledgeBaseId,
+    baseId,
+    datasetId,
+    serviceDeskId,
+    siteId,
+    collectionId,
+    spreadsheetId,
+    fileId,
   ])
 
   const key = resolution?.key

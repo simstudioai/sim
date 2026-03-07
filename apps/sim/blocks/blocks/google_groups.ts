@@ -1,4 +1,5 @@
 import { GoogleGroupsIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -46,10 +47,7 @@ export const GoogleGroupsBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'google-groups',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/admin.directory.group',
-        'https://www.googleapis.com/auth/admin.directory.group.member',
-      ],
+      requiredScopes: getScopesForService('google-groups'),
       placeholder: 'Select Google Workspace account',
     },
     {

@@ -1,4 +1,5 @@
 import { GoogleVaultIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -38,10 +39,7 @@ export const GoogleVaultBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'google-vault',
-      requiredScopes: [
-        'https://www.googleapis.com/auth/ediscovery',
-        'https://www.googleapis.com/auth/devstorage.read_only',
-      ],
+      requiredScopes: getScopesForService('google-vault'),
       placeholder: 'Select Google Vault account',
     },
     {

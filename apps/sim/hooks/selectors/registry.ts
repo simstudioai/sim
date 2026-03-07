@@ -10,16 +10,39 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
+type AirtableBase = { id: string; name: string }
+type AirtableTable = { id: string; name: string }
+type AsanaWorkspace = { id: string; name: string }
+type AttioObject = { id: string; name: string }
+type AttioList = { id: string; name: string }
+type BigQueryDataset = {
+  datasetReference: { datasetId: string; projectId: string }
+  friendlyName?: string
+}
+type BigQueryTable = { tableReference: { tableId: string }; friendlyName?: string }
+type CalcomEventType = { id: string; title: string; slug: string }
+type ConfluenceSpace = { id: string; name: string; key: string }
+type JsmServiceDesk = { id: string; name: string }
+type JsmRequestType = { id: string; name: string }
+type NotionDatabase = { id: string; name: string }
+type NotionPage = { id: string; name: string }
+type PipedrivePipeline = { id: string; name: string }
+type ZoomMeeting = { id: string; name: string }
+type CalcomSchedule = { id: string; name: string }
+type GoogleTaskList = { id: string; title: string }
+type PlannerPlan = { id: string; title: string }
+type SharepointList = { id: string; displayName: string }
+type TrelloBoard = { id: string; name: string; closed?: boolean }
 type SlackChannel = { id: string; name: string }
 type SlackUser = { id: string; name: string; real_name: string }
 type FolderResponse = { id: string; name: string }
 type PlannerTask = { id: string; title: string }
 
 const ensureCredential = (context: SelectorContext, key: SelectorKey): string => {
-  if (!context.credentialId) {
+  if (!context.oauthCredential) {
     throw new Error(`Missing credential for selector ${key}`)
   }
-  return context.credentialId
+  return context.oauthCredential
 }
 
 const ensureDomain = (context: SelectorContext, key: SelectorKey): string => {
@@ -37,18 +60,780 @@ const ensureKnowledgeBase = (context: SelectorContext): string => {
 }
 
 const registry: Record<SelectorKey, SelectorDefinition> = {
+  'airtable.bases': {
+    key: 'airtable.bases',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'airtable.bases',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'airtable.bases')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ bases: AirtableBase[] }>('/api/tools/airtable/bases', {
+        method: 'POST',
+        body,
+      })
+      return (data.bases || []).map((base) => ({
+        id: base.id,
+        label: base.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'airtable.bases')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        baseId: detailId,
+      })
+      const data = await fetchJson<{ bases: AirtableBase[] }>('/api/tools/airtable/bases', {
+        method: 'POST',
+        body,
+      })
+      const base = (data.bases || []).find((b) => b.id === detailId) ?? null
+      if (!base) return null
+      return { id: base.id, label: base.name }
+    },
+  },
+  'airtable.tables': {
+    key: 'airtable.tables',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'airtable.tables',
+      context.oauthCredential ?? 'none',
+      context.baseId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.baseId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'airtable.tables')
+      if (!context.baseId) {
+        throw new Error('Missing base ID for airtable.tables selector')
+      }
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        baseId: context.baseId,
+      })
+      const data = await fetchJson<{ tables: AirtableTable[] }>('/api/tools/airtable/tables', {
+        method: 'POST',
+        body,
+      })
+      return (data.tables || []).map((table) => ({
+        id: table.id,
+        label: table.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'airtable.tables')
+      if (!context.baseId) return null
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        baseId: context.baseId,
+      })
+      const data = await fetchJson<{ tables: AirtableTable[] }>('/api/tools/airtable/tables', {
+        method: 'POST',
+        body,
+      })
+      const table = (data.tables || []).find((t) => t.id === detailId) ?? null
+      if (!table) return null
+      return { id: table.id, label: table.name }
+    },
+  },
+  'asana.workspaces': {
+    key: 'asana.workspaces',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'asana.workspaces',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'asana.workspaces')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ workspaces: AsanaWorkspace[] }>(
+        '/api/tools/asana/workspaces',
+        { method: 'POST', body }
+      )
+      return (data.workspaces || []).map((ws) => ({ id: ws.id, label: ws.name }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'asana.workspaces')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ workspaces: AsanaWorkspace[] }>(
+        '/api/tools/asana/workspaces',
+        { method: 'POST', body }
+      )
+      const ws = (data.workspaces || []).find((w) => w.id === detailId) ?? null
+      if (!ws) return null
+      return { id: ws.id, label: ws.name }
+    },
+  },
+  'attio.objects': {
+    key: 'attio.objects',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'attio.objects',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'attio.objects')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ objects: AttioObject[] }>('/api/tools/attio/objects', {
+        method: 'POST',
+        body,
+      })
+      return (data.objects || []).map((obj) => ({
+        id: obj.id,
+        label: obj.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'attio.objects')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ objects: AttioObject[] }>('/api/tools/attio/objects', {
+        method: 'POST',
+        body,
+      })
+      const obj = (data.objects || []).find((o) => o.id === detailId) ?? null
+      if (!obj) return null
+      return { id: obj.id, label: obj.name }
+    },
+  },
+  'attio.lists': {
+    key: 'attio.lists',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'attio.lists',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'attio.lists')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ lists: AttioList[] }>('/api/tools/attio/lists', {
+        method: 'POST',
+        body,
+      })
+      return (data.lists || []).map((list) => ({
+        id: list.id,
+        label: list.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'attio.lists')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ lists: AttioList[] }>('/api/tools/attio/lists', {
+        method: 'POST',
+        body,
+      })
+      const list = (data.lists || []).find((l) => l.id === detailId) ?? null
+      if (!list) return null
+      return { id: list.id, label: list.name }
+    },
+  },
+  'bigquery.datasets': {
+    key: 'bigquery.datasets',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'bigquery.datasets',
+      context.oauthCredential ?? 'none',
+      context.projectId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.projectId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'bigquery.datasets')
+      if (!context.projectId) throw new Error('Missing project ID for bigquery.datasets selector')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        projectId: context.projectId,
+      })
+      const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
+        '/api/tools/google_bigquery/datasets',
+        { method: 'POST', body }
+      )
+      return (data.datasets || []).map((ds) => ({
+        id: ds.datasetReference.datasetId,
+        label: ds.friendlyName || ds.datasetReference.datasetId,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId || !context.projectId) return null
+      const credentialId = ensureCredential(context, 'bigquery.datasets')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        projectId: context.projectId,
+      })
+      const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
+        '/api/tools/google_bigquery/datasets',
+        { method: 'POST', body }
+      )
+      const ds =
+        (data.datasets || []).find((d) => d.datasetReference.datasetId === detailId) ?? null
+      if (!ds) return null
+      return {
+        id: ds.datasetReference.datasetId,
+        label: ds.friendlyName || ds.datasetReference.datasetId,
+      }
+    },
+  },
+  'bigquery.tables': {
+    key: 'bigquery.tables',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'bigquery.tables',
+      context.oauthCredential ?? 'none',
+      context.projectId ?? 'none',
+      context.datasetId ?? 'none',
+    ],
+    enabled: ({ context }) =>
+      Boolean(context.oauthCredential && context.projectId && context.datasetId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'bigquery.tables')
+      if (!context.projectId) throw new Error('Missing project ID for bigquery.tables selector')
+      if (!context.datasetId) throw new Error('Missing dataset ID for bigquery.tables selector')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        projectId: context.projectId,
+        datasetId: context.datasetId,
+      })
+      const data = await fetchJson<{ tables: BigQueryTable[] }>(
+        '/api/tools/google_bigquery/tables',
+        { method: 'POST', body }
+      )
+      return (data.tables || []).map((t) => ({
+        id: t.tableReference.tableId,
+        label: t.friendlyName || t.tableReference.tableId,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId || !context.projectId || !context.datasetId) return null
+      const credentialId = ensureCredential(context, 'bigquery.tables')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        projectId: context.projectId,
+        datasetId: context.datasetId,
+      })
+      const data = await fetchJson<{ tables: BigQueryTable[] }>(
+        '/api/tools/google_bigquery/tables',
+        { method: 'POST', body }
+      )
+      const t = (data.tables || []).find((tbl) => tbl.tableReference.tableId === detailId) ?? null
+      if (!t) return null
+      return { id: t.tableReference.tableId, label: t.friendlyName || t.tableReference.tableId }
+    },
+  },
+  'calcom.eventTypes': {
+    key: 'calcom.eventTypes',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'calcom.eventTypes',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'calcom.eventTypes')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ eventTypes: CalcomEventType[] }>(
+        '/api/tools/calcom/event-types',
+        { method: 'POST', body }
+      )
+      return (data.eventTypes || []).map((et) => ({
+        id: et.id,
+        label: et.title || et.slug,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'calcom.eventTypes')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ eventTypes: CalcomEventType[] }>(
+        '/api/tools/calcom/event-types',
+        { method: 'POST', body }
+      )
+      const et = (data.eventTypes || []).find((e) => e.id === detailId) ?? null
+      if (!et) return null
+      return { id: et.id, label: et.title || et.slug }
+    },
+  },
+  'calcom.schedules': {
+    key: 'calcom.schedules',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'calcom.schedules',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'calcom.schedules')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ schedules: CalcomSchedule[] }>('/api/tools/calcom/schedules', {
+        method: 'POST',
+        body,
+      })
+      return (data.schedules || []).map((s) => ({
+        id: s.id,
+        label: s.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'calcom.schedules')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ schedules: CalcomSchedule[] }>('/api/tools/calcom/schedules', {
+        method: 'POST',
+        body,
+      })
+      const s = (data.schedules || []).find((sc) => sc.id === detailId) ?? null
+      if (!s) return null
+      return { id: s.id, label: s.name }
+    },
+  },
+  'confluence.spaces': {
+    key: 'confluence.spaces',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'confluence.spaces',
+      context.oauthCredential ?? 'none',
+      context.domain ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'confluence.spaces')
+      const domain = ensureDomain(context, 'confluence.spaces')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
+      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>(
+        '/api/tools/confluence/selector-spaces',
+        { method: 'POST', body }
+      )
+      return (data.spaces || []).map((space) => ({
+        id: space.id,
+        label: `${space.name} (${space.key})`,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'confluence.spaces')
+      const domain = ensureDomain(context, 'confluence.spaces')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
+      const data = await fetchJson<{ spaces: ConfluenceSpace[] }>(
+        '/api/tools/confluence/selector-spaces',
+        { method: 'POST', body }
+      )
+      const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
+      if (!space) return null
+      return { id: space.id, label: `${space.name} (${space.key})` }
+    },
+  },
+  'jsm.serviceDesks': {
+    key: 'jsm.serviceDesks',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'jsm.serviceDesks',
+      context.oauthCredential ?? 'none',
+      context.domain ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'jsm.serviceDesks')
+      const domain = ensureDomain(context, 'jsm.serviceDesks')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
+      const data = await fetchJson<{ serviceDesks: JsmServiceDesk[] }>(
+        '/api/tools/jsm/selector-servicedesks',
+        { method: 'POST', body }
+      )
+      return (data.serviceDesks || []).map((sd) => ({
+        id: sd.id,
+        label: sd.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'jsm.serviceDesks')
+      const domain = ensureDomain(context, 'jsm.serviceDesks')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+      })
+      const data = await fetchJson<{ serviceDesks: JsmServiceDesk[] }>(
+        '/api/tools/jsm/selector-servicedesks',
+        { method: 'POST', body }
+      )
+      const sd = (data.serviceDesks || []).find((s) => s.id === detailId) ?? null
+      if (!sd) return null
+      return { id: sd.id, label: sd.name }
+    },
+  },
+  'jsm.requestTypes': {
+    key: 'jsm.requestTypes',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'jsm.requestTypes',
+      context.oauthCredential ?? 'none',
+      context.domain ?? 'none',
+      context.serviceDeskId ?? 'none',
+    ],
+    enabled: ({ context }) =>
+      Boolean(context.oauthCredential && context.domain && context.serviceDeskId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'jsm.requestTypes')
+      const domain = ensureDomain(context, 'jsm.requestTypes')
+      if (!context.serviceDeskId) throw new Error('Missing serviceDeskId for jsm.requestTypes')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+        serviceDeskId: context.serviceDeskId,
+      })
+      const data = await fetchJson<{ requestTypes: JsmRequestType[] }>(
+        '/api/tools/jsm/selector-requesttypes',
+        { method: 'POST', body }
+      )
+      return (data.requestTypes || []).map((rt) => ({
+        id: rt.id,
+        label: rt.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'jsm.requestTypes')
+      const domain = ensureDomain(context, 'jsm.requestTypes')
+      if (!context.serviceDeskId) return null
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        domain,
+        serviceDeskId: context.serviceDeskId,
+      })
+      const data = await fetchJson<{ requestTypes: JsmRequestType[] }>(
+        '/api/tools/jsm/selector-requesttypes',
+        { method: 'POST', body }
+      )
+      const rt = (data.requestTypes || []).find((r) => r.id === detailId) ?? null
+      if (!rt) return null
+      return { id: rt.id, label: rt.name }
+    },
+  },
+  'google.tasks.lists': {
+    key: 'google.tasks.lists',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'google.tasks.lists',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'google.tasks.lists')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
+        '/api/tools/google_tasks/task-lists',
+        { method: 'POST', body }
+      )
+      return (data.taskLists || []).map((tl) => ({ id: tl.id, label: tl.title }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'google.tasks.lists')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
+        '/api/tools/google_tasks/task-lists',
+        { method: 'POST', body }
+      )
+      const tl = (data.taskLists || []).find((t) => t.id === detailId) ?? null
+      if (!tl) return null
+      return { id: tl.id, label: tl.title }
+    },
+  },
+  'microsoft.planner.plans': {
+    key: 'microsoft.planner.plans',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.planner.plans',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.planner.plans')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
+        method: 'POST',
+        body,
+      })
+      return (data.plans || []).map((plan) => ({ id: plan.id, label: plan.title }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'microsoft.planner.plans')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ plans: PlannerPlan[] }>('/api/tools/microsoft_planner/plans', {
+        method: 'POST',
+        body,
+      })
+      const plan = (data.plans || []).find((p) => p.id === detailId) ?? null
+      if (!plan) return null
+      return { id: plan.id, label: plan.title }
+    },
+  },
+  'notion.databases': {
+    key: 'notion.databases',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'notion.databases',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'notion.databases')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ databases: NotionDatabase[] }>('/api/tools/notion/databases', {
+        method: 'POST',
+        body,
+      })
+      return (data.databases || []).map((db) => ({
+        id: db.id,
+        label: db.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'notion.databases')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ databases: NotionDatabase[] }>('/api/tools/notion/databases', {
+        method: 'POST',
+        body,
+      })
+      const db = (data.databases || []).find((d) => d.id === detailId) ?? null
+      if (!db) return null
+      return { id: db.id, label: db.name }
+    },
+  },
+  'notion.pages': {
+    key: 'notion.pages',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'notion.pages',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'notion.pages')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ pages: NotionPage[] }>('/api/tools/notion/pages', {
+        method: 'POST',
+        body,
+      })
+      return (data.pages || []).map((page) => ({
+        id: page.id,
+        label: page.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'notion.pages')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ pages: NotionPage[] }>('/api/tools/notion/pages', {
+        method: 'POST',
+        body,
+      })
+      const page = (data.pages || []).find((p) => p.id === detailId) ?? null
+      if (!page) return null
+      return { id: page.id, label: page.name }
+    },
+  },
+  'pipedrive.pipelines': {
+    key: 'pipedrive.pipelines',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'pipedrive.pipelines',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'pipedrive.pipelines')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ pipelines: PipedrivePipeline[] }>(
+        '/api/tools/pipedrive/pipelines',
+        { method: 'POST', body }
+      )
+      return (data.pipelines || []).map((p) => ({
+        id: p.id,
+        label: p.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'pipedrive.pipelines')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ pipelines: PipedrivePipeline[] }>(
+        '/api/tools/pipedrive/pipelines',
+        { method: 'POST', body }
+      )
+      const p = (data.pipelines || []).find((pl) => pl.id === detailId) ?? null
+      if (!p) return null
+      return { id: p.id, label: p.name }
+    },
+  },
+  'sharepoint.lists': {
+    key: 'sharepoint.lists',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'sharepoint.lists',
+      context.oauthCredential ?? 'none',
+      context.siteId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'sharepoint.lists')
+      if (!context.siteId) throw new Error('Missing site ID for sharepoint.lists selector')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
+      const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
+        method: 'POST',
+        body,
+      })
+      return (data.lists || []).map((list) => ({ id: list.id, label: list.displayName }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId || !context.siteId) return null
+      const credentialId = ensureCredential(context, 'sharepoint.lists')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
+      const data = await fetchJson<{ lists: SharepointList[] }>('/api/tools/sharepoint/lists', {
+        method: 'POST',
+        body,
+      })
+      const list = (data.lists || []).find((l) => l.id === detailId) ?? null
+      if (!list) return null
+      return { id: list.id, label: list.displayName }
+    },
+  },
+  'trello.boards': {
+    key: 'trello.boards',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'trello.boards',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'trello.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: TrelloBoard[] }>('/api/tools/trello/boards', {
+        method: 'POST',
+        body,
+      })
+      return (data.boards || [])
+        .filter((board) => !board.closed)
+        .map((board) => ({ id: board.id, label: board.name }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'trello.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: TrelloBoard[] }>('/api/tools/trello/boards', {
+        method: 'POST',
+        body,
+      })
+      const board = (data.boards || []).find((b) => b.id === detailId) ?? null
+      if (!board) return null
+      return { id: board.id, label: board.name }
+    },
+  },
+  'zoom.meetings': {
+    key: 'zoom.meetings',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'zoom.meetings',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'zoom.meetings')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ meetings: ZoomMeeting[] }>('/api/tools/zoom/meetings', {
+        method: 'POST',
+        body,
+      })
+      return (data.meetings || []).map((m) => ({
+        id: m.id,
+        label: m.name || `Meeting ${m.id}`,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'zoom.meetings')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ meetings: ZoomMeeting[] }>('/api/tools/zoom/meetings', {
+        method: 'POST',
+        body,
+      })
+      const meeting = (data.meetings || []).find((m) => m.id === detailId) ?? null
+      if (!meeting) return null
+      return { id: meeting.id, label: meeting.name || `Meeting ${meeting.id}` }
+    },
+  },
   'slack.channels': {
     key: 'slack.channels',
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'slack.channels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         workflowId: context.workflowId,
       })
       const data = await fetchJson<{ channels: SlackChannel[] }>('/api/tools/slack/channels', {
@@ -67,12 +852,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'slack.users',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         workflowId: context.workflowId,
       })
       const data = await fetchJson<{ users: SlackUser[] }>('/api/tools/slack/users', {
@@ -91,12 +876,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'gmail.labels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ labels: FolderResponse[] }>('/api/tools/gmail/labels', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId: context.oauthCredential },
       })
       return (data.labels || []).map((label) => ({
         id: label.id,
@@ -110,12 +895,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'outlook.folders',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ folders: FolderResponse[] }>('/api/tools/outlook/folders', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId: context.oauthCredential },
       })
       return (data.folders || []).map((folder) => ({
         id: folder.id,
@@ -129,13 +914,13 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'google.calendar',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ calendars: { id: string; summary: string }[] }>(
         '/api/tools/google_calendar/calendars',
-        { searchParams: { credentialId: context.credentialId } }
+        { searchParams: { credentialId: context.oauthCredential } }
       )
       return (data.calendars || []).map((calendar) => ({
         id: calendar.id,
@@ -149,11 +934,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.teams',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
-      const body = JSON.stringify({ credential: context.credentialId })
+      const body = JSON.stringify({ credential: context.oauthCredential })
       const data = await fetchJson<{ teams: { id: string; displayName: string }[] }>(
         '/api/tools/microsoft-teams/teams',
         { method: 'POST', body }
@@ -170,11 +955,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.chats',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
-      const body = JSON.stringify({ credential: context.credentialId })
+      const body = JSON.stringify({ credential: context.oauthCredential })
       const data = await fetchJson<{ chats: { id: string; displayName: string }[] }>(
         '/api/tools/microsoft-teams/chats',
         { method: 'POST', body }
@@ -191,13 +976,13 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.channels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.teamId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.teamId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.teamId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         teamId: context.teamId,
       })
       const data = await fetchJson<{ channels: { id: string; displayName: string }[] }>(
@@ -216,14 +1001,14 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'wealthbox.contacts',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ items: { id: string; name: string }[] }>(
         '/api/tools/wealthbox/items',
         {
-          searchParams: { credentialId: context.credentialId, type: 'contact' },
+          searchParams: { credentialId: context.oauthCredential, type: 'contact' },
         }
       )
       return (data.items || []).map((item) => ({
@@ -238,20 +1023,44 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'sharepoint.sites',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'sharepoint.sites')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+      })
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
         '/api/tools/sharepoint/sites',
         {
-          searchParams: { credentialId: context.credentialId },
+          method: 'POST',
+          body,
         }
       )
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
       }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'sharepoint.sites')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ files: { id: string; name: string }[] }>(
+        '/api/tools/sharepoint/sites',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      const site = (data.files || []).find((f) => f.id === detailId) ?? null
+      if (!site) return null
+      return { id: site.id, label: site.name }
     },
   },
   'microsoft.planner': {
@@ -260,21 +1069,41 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.planner',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.planId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.planId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.planId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.planner')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        planId: context.planId,
+      })
       const data = await fetchJson<{ tasks: PlannerTask[] }>('/api/tools/microsoft_planner/tasks', {
-        searchParams: {
-          credentialId: context.credentialId,
-          planId: context.planId,
-        },
+        method: 'POST',
+        body,
       })
       return (data.tasks || []).map((task) => ({
         id: task.id,
         label: task.title,
       }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'microsoft.planner')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        planId: context.planId,
+      })
+      const data = await fetchJson<{ tasks: PlannerTask[] }>('/api/tools/microsoft_planner/tasks', {
+        method: 'POST',
+        body,
+      })
+      const task = (data.tasks || []).find((t) => t.id === detailId) ?? null
+      if (!task) return null
+      return { id: task.id, label: task.title }
     },
   },
   'jira.projects': {
@@ -283,11 +1112,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.projects',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
@@ -342,12 +1171,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.issues',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       context.projectId ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
@@ -406,9 +1235,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'linear.teams',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'linear.teams')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -431,10 +1260,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'linear.projects',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.teamId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.teamId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.teamId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'linear.projects')
       const body = JSON.stringify({
@@ -461,11 +1290,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'confluence.pages',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
@@ -514,9 +1343,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'onedrive.files',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.files')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -537,9 +1366,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'onedrive.folders',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.folders')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -560,12 +1389,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'google.drive',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.mimeType ?? 'any',
       context.fileId ?? 'root',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.drive')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -609,10 +1438,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'google.sheets',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.sheets')
       if (!context.spreadsheetId) {
@@ -640,10 +1469,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.excel.sheets',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.excel.sheets')
       if (!context.spreadsheetId) {
@@ -671,10 +1500,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.excel',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.excel')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -699,10 +1528,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.word',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.word')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -767,9 +1596,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'webflow.sites',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.sites')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -792,10 +1621,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'webflow.collections',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.siteId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.siteId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.collections')
       if (!context.siteId) {
@@ -825,11 +1654,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'webflow.items',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.collectionId ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.collectionId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.collectionId),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.items')
       if (!context.collectionId) {

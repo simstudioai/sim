@@ -1,4 +1,5 @@
 import { xIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 
@@ -66,23 +67,7 @@ export const XBlock: BlockConfig = {
       serviceId: 'x',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      requiredScopes: [
-        'tweet.read',
-        'tweet.write',
-        'tweet.moderate.write',
-        'users.read',
-        'follows.read',
-        'follows.write',
-        'bookmark.read',
-        'bookmark.write',
-        'like.read',
-        'like.write',
-        'block.read',
-        'block.write',
-        'mute.read',
-        'mute.write',
-        'offline.access',
-      ],
+      requiredScopes: getScopesForService('x'),
       placeholder: 'Select X account',
     },
     {
