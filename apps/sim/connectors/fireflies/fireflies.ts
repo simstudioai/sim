@@ -18,11 +18,11 @@ interface FirefliesTranscript {
   organizer_email?: string
   participants?: string[]
   transcript_url?: string
-  speakers?: { id: string; name: string }[]
+  speakers?: { id: number; name: string }[]
   sentences?: { index: number; speaker_name: string; text: string }[]
   summary?: {
     keywords?: string[]
-    action_items?: string[]
+    action_items?: string
     overview?: string
     short_summary?: string
   }
@@ -97,12 +97,10 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
     parts.push(transcript.summary.overview)
   }
 
-  if (transcript.summary?.action_items && transcript.summary.action_items.length > 0) {
+  if (transcript.summary?.action_items) {
     parts.push('')
     parts.push('--- Action Items ---')
-    for (const item of transcript.summary.action_items) {
-      parts.push(`- ${item}`)
-    }
+    parts.push(transcript.summary.action_items)
   }
 
   if (transcript.summary?.keywords && transcript.summary.keywords.length > 0) {
