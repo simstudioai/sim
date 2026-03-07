@@ -40,56 +40,8 @@ interface ResolutionContext {
   blockId?: string
 }
 
-function getSemanticFallback(subBlockId: string, subBlockConfig?: SubBlockConfig): string {
-  if (subBlockConfig?.title) {
-    return subBlockConfig.title.toLowerCase()
-  }
-
-  const patterns: Record<string, string> = {
-    credential: 'credential',
-    channel: 'channel',
-    channelId: 'channel',
-    user: 'user',
-    userId: 'user',
-    workflow: 'workflow',
-    workflowId: 'workflow',
-    file: 'file',
-    fileId: 'file',
-    folder: 'folder',
-    folderId: 'folder',
-    project: 'project',
-    projectId: 'project',
-    team: 'team',
-    teamId: 'team',
-    sheet: 'sheet',
-    sheetId: 'sheet',
-    document: 'document',
-    documentId: 'document',
-    knowledgeBase: 'knowledge base',
-    knowledgeBaseId: 'knowledge base',
-    server: 'server',
-    serverId: 'server',
-    tool: 'tool',
-    toolId: 'tool',
-    calendar: 'calendar',
-    calendarId: 'calendar',
-    label: 'label',
-    labelId: 'label',
-    site: 'site',
-    siteId: 'site',
-    collection: 'collection',
-    collectionId: 'collection',
-    item: 'item',
-    itemId: 'item',
-    contact: 'contact',
-    contactId: 'contact',
-    task: 'task',
-    taskId: 'task',
-    chat: 'chat',
-    chatId: 'chat',
-  }
-
-  return patterns[subBlockId] || 'value'
+function getSemanticFallback(subBlockConfig: SubBlockConfig): string {
+  return (subBlockConfig.title ?? subBlockConfig.id).toLowerCase()
 }
 
 async function resolveCredential(credentialId: string, workflowId: string): Promise<string | null> {
@@ -219,7 +171,10 @@ export async function resolveValueForDisplay(
 
   const blockConfig = getBlock(context.blockType)
   const subBlockConfig = blockConfig?.subBlocks.find((sb) => sb.id === context.subBlockId)
-  const semanticFallback = getSemanticFallback(context.subBlockId, subBlockConfig)
+  if (!subBlockConfig) {
+    return { original: value, displayLabel: formatValueForDisplay(value), resolved: false }
+  }
+  const semanticFallback = getSemanticFallback(subBlockConfig)
 
   const selectorCtx = context.blockId
     ? extractSelectorContext(context.blockId, context.currentState, context.workflowId)
