@@ -22,6 +22,9 @@ async function postAttribution(): Promise<{
   error?: string
 }> {
   const response = await fetch('/api/attribution', { method: 'POST' })
+  if (!response.ok) {
+    throw new Error(`Attribution request failed: ${response.status}`)
+  }
   return response.json()
 }
 
