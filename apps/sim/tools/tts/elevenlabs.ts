@@ -20,10 +20,7 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
           throw new Error('Missing text parameter, cannot determine character cost')
         }
         const characterCount = text.length
-        const modelId = params.modelId as string | undefined
-        if (!modelId) {
-          throw new Error('Missing modelId parameter, cannot determine pricing tier')
-        }
+        const modelId = (params.modelId as string) || 'eleven_turbo_v2_5'
         // Flash/Turbo: $0.08/1K chars, Standard/Multilingual/v3: $0.18/1K chars
         // Scale tier additional character rates — https://elevenlabs.io/pricing/api
         const costPer1KChars = FLASH_TURBO_MODELS.has(modelId) ? 0.08 : 0.18
