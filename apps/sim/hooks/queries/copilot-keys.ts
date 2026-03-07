@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isHosted } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('CopilotKeysQuery')
@@ -37,8 +37,8 @@ export interface GenerateKeyResponse {
 /**
  * Fetch Copilot API keys
  */
-async function fetchCopilotKeys(): Promise<CopilotKey[]> {
-  const response = await fetch('/api/copilot/api-keys')
+async function fetchCopilotKeys(signal?: AbortSignal): Promise<CopilotKey[]> {
+  const response = await fetch('/api/copilot/api-keys', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch Copilot API keys')
@@ -54,10 +54,9 @@ async function fetchCopilotKeys(): Promise<CopilotKey[]> {
 export function useCopilotKeys() {
   return useQuery({
     queryKey: copilotKeysKeys.keys(),
-    queryFn: fetchCopilotKeys,
+    queryFn: ({ signal }) => fetchCopilotKeys(signal),
     enabled: isHosted,
     staleTime: 30 * 1000, // 30 seconds
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -92,9 +91,8 @@ export function useGenerateCopilotKey() {
       return response.json()
     },
     onSuccess: () => {
-      queryClient.refetchQueries({
+      queryClient.invalidateQueries({
         queryKey: copilotKeysKeys.keys(),
-        type: 'active',
       })
     },
     onError: (error) => {

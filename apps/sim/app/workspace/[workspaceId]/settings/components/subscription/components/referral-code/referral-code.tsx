@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Button, Input, Label } from '@/components/emcn'
-
-const logger = createLogger('ReferralCode')
+import { useRedeemReferralCode } from '@/hooks/queries/subscription'
 
 interface ReferralCodeProps {
   onRedeemComplete?: () => void
@@ -16,51 +14,29 @@ interface ReferralCodeProps {
  */
 export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
   const [code, setCode] = useState('')
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ bonusAmount: number } | null>(null)
+  const redeemCode = useRedeemReferralCode()
 
-  const handleRedeem = async () => {
+  const handleRedeem = () => {
     const trimmed = code.trim()
-    if (!trimmed || isRedeeming) return
+    if (!trimmed || redeemCode.isPending) return
 
-    setIsRedeeming(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/referral-code/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: trimmed }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to redeem code')
+    redeemCode.mutate(
+      { code: trimmed },
+      {
+        onSuccess: () => {
+          setCode('')
+          onRedeemComplete?.()
+        },
       }
-
-      if (data.redeemed) {
-        setSuccess({ bonusAmount: data.bonusAmount })
-        setCode('')
-        onRedeemComplete?.()
-      } else {
-        setError(data.error || 'Code could not be redeemed')
-      }
-    } catch (err) {
-      logger.error('Referral code redemption failed', { error: err })
-      setError(err instanceof Error ? err.message : 'Failed to redeem code')
-    } finally {
-      setIsRedeeming(false)
-    }
+    )
   }
 
-  if (success) {
+  if (redeemCode.isSuccess) {
     return (
       <div className='flex items-center justify-between'>
         <Label>Referral Code</Label>
         <span className='text-[13px] text-[var(--text-secondary)]'>
-          +${success.bonusAmount} credits applied
+          +${redeemCode.data.bonusAmount ?? 0} credits applied
         </span>
       </div>
     )
@@ -76,27 +52,29 @@ export function ReferralCode({ onRedeemComplete }: ReferralCodeProps) {
             value={code}
             onChange={(e) => {
               setCode(e.target.value)
-              setError(null)
+              redeemCode.reset()
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleRedeem()
             }}
             placeholder='Enter code'
             className='h-[32px] w-[140px] text-[13px]'
-            disabled={isRedeeming}
+            disabled={redeemCode.isPending}
           />
           <Button
             variant='active'
             className='h-[32px] shrink-0 rounded-[6px] text-[13px]'
             onClick={handleRedeem}
-            disabled={isRedeeming || !code.trim()}
+            disabled={redeemCode.isPending || !code.trim()}
           >
-            {isRedeeming ? 'Redeeming...' : 'Redeem'}
+            {redeemCode.isPending ? 'Redeeming...' : 'Redeem'}
           </Button>
         </div>
       </div>
       <div className='mt-[4px] min-h-[18px] text-right'>
-        {error && <span className='text-[11px] text-[var(--text-error)]'>{error}</span>}
+        {redeemCode.error && (
+          <span className='text-[11px] text-[var(--text-error)]'>{redeemCode.error.message}</span>
+        )}
       </div>
     </div>
   )

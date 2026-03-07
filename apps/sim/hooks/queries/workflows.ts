@@ -35,8 +35,8 @@ export const workflowKeys = {
  * Fetches workflow state from the API.
  * Used as the base query for both state preview and input fields extraction.
  */
-async function fetchWorkflowState(workflowId: string): Promise<WorkflowState | null> {
-  const response = await fetch(`/api/workflows/${workflowId}`)
+async function fetchWorkflowState(workflowId: string, signal?: AbortSignal): Promise<WorkflowState | null> {
+  const response = await fetch(`/api/workflows/${workflowId}`, { signal })
   if (!response.ok) throw new Error('Failed to fetch workflow')
   const { data } = await response.json()
   return data?.state ?? null
@@ -53,7 +53,7 @@ async function fetchWorkflowState(workflowId: string): Promise<WorkflowState | n
 export function useWorkflowState(workflowId: string | undefined) {
   return useQuery({
     queryKey: workflowKeys.state(workflowId),
-    queryFn: () => fetchWorkflowState(workflowId!),
+    queryFn: ({ signal }) => fetchWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId),
     staleTime: 30 * 1000, // 30 seconds
   })
@@ -73,8 +73,8 @@ function mapWorkflow(workflow: any): WorkflowMetadata {
   }
 }
 
-async function fetchWorkflows(workspaceId: string): Promise<WorkflowMetadata[]> {
-  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
+async function fetchWorkflows(workspaceId: string, signal?: AbortSignal): Promise<WorkflowMetadata[]> {
+  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workflows')
@@ -92,7 +92,7 @@ export function useWorkflows(workspaceId?: string, options?: { syncRegistry?: bo
 
   const query = useQuery({
     queryKey: workflowKeys.list(workspaceId),
-    queryFn: () => fetchWorkflows(workspaceId as string),
+    queryFn: ({ signal }) => fetchWorkflows(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
@@ -441,9 +441,10 @@ interface DeploymentVersionStateResponse {
  */
 export async function fetchDeploymentVersionState(
   workflowId: string,
-  version: number
+  version: number,
+  signal?: AbortSignal
 ): Promise<WorkflowState> {
-  const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
+  const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch deployment version: ${response.statusText}`)
@@ -464,7 +465,7 @@ export async function fetchDeploymentVersionState(
 export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
   return useQuery({
     queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
-    queryFn: () => fetchDeploymentVersionState(workflowId as string, version as number),
+    queryFn: ({ signal }) => fetchDeploymentVersionState(workflowId as string, version as number, signal),
     enabled: Boolean(workflowId) && version !== null,
     staleTime: 5 * 60 * 1000, // 5 minutes - deployment versions don't change
   })
@@ -479,6 +480,8 @@ interface RevertToVersionVariables {
  * Mutation hook for reverting (loading) a deployment version into the current workflow.
  */
 export function useRevertToVersion() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async ({ workflowId, version }: RevertToVersionVariables): Promise<void> => {
       const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/revert`, {
@@ -488,6 +491,20 @@ export function useRevertToVersion() {
       if (!response.ok) {
         throw new Error('Failed to load deployment')
       }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workflowKeys.state(variables.workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workflowKeys.deploymentStatus(variables.workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.info(variables.workflowId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
+      })
     },
   })
 }
@@ -563,8 +580,9 @@ export interface ChildDeploymentStatus {
  * Fetches deployment status for a child workflow.
  * Uses Promise.all to fetch status and deployments in parallel for better performance.
  */
-async function fetchChildDeploymentStatus(workflowId: string): Promise<ChildDeploymentStatus> {
+async function fetchChildDeploymentStatus(workflowId: string, signal?: AbortSignal): Promise<ChildDeploymentStatus> {
   const fetchOptions = {
+    signal,
     cache: 'no-store' as const,
     headers: { 'Cache-Control': 'no-cache' },
   }
@@ -607,7 +625,7 @@ async function fetchChildDeploymentStatus(workflowId: string): Promise<ChildDepl
 export function useChildDeploymentStatus(workflowId: string | undefined) {
   return useQuery({
     queryKey: workflowKeys.deploymentStatus(workflowId),
-    queryFn: () => fetchChildDeploymentStatus(workflowId!),
+    queryFn: ({ signal }) => fetchChildDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId),
     staleTime: 0,
     retry: false,
@@ -680,6 +698,47 @@ export function useDeployChildWorkflow() {
     },
     onError: (error) => {
       logger.error('Failed to deploy child workflow', { error })
+    },
+  })
+}
+
+/**
+ * Import workflow mutation (superuser debug)
+ */
+interface ImportWorkflowParams {
+  workflowId: string
+  targetWorkspaceId: string
+}
+
+interface ImportWorkflowResponse {
+  newWorkflowId: string
+  copilotChatsImported?: number
+}
+
+export function useImportWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      targetWorkspaceId,
+    }: ImportWorkflowParams): Promise<ImportWorkflowResponse> => {
+      const response = await fetch('/api/superuser/import-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId, targetWorkspaceId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.error || `Import failed with status ${response.status}`)
+      }
+
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.list(variables.targetWorkspaceId) })
     },
   })
 }

@@ -134,21 +134,64 @@ Use `devtools` middleware. Use `persist` only when data should survive reload wi
 
 ## React Query
 
-All React Query hooks live in `hooks/queries/`.
+All React Query hooks live in `hooks/queries/`. All server state must go through React Query — never use `useState` + `fetch` in components for data fetching or mutations.
+
+### Query Key Factory
+
+Every file must have a hierarchical key factory with an `all` root key and intermediate plural keys for prefix invalidation:
 
 ```typescript
 export const entityKeys = {
   all: ['entity'] as const,
-  list: (workspaceId?: string) => [...entityKeys.all, 'list', workspaceId ?? ''] as const,
+  lists: () => [...entityKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...entityKeys.lists(), workspaceId ?? ''] as const,
+  details: () => [...entityKeys.all, 'detail'] as const,
+  detail: (id?: string) => [...entityKeys.details(), id ?? ''] as const,
 }
+```
 
+### Query Hooks
+
+- Every `queryFn` must forward `signal` for request cancellation
+- Every query must have an explicit `staleTime`
+- Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
+
+```typescript
 export function useEntityList(workspaceId?: string) {
   return useQuery({
     queryKey: entityKeys.list(workspaceId),
-    queryFn: () => fetchEntities(workspaceId as string),
+    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: 60 * 1000,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousData, // OK: workspaceId varies
+  })
+}
+```
+
+### Mutation Hooks
+
+- Use targeted invalidation (`entityKeys.lists()`) not broad (`entityKeys.all`) when possible
+- For optimistic updates: use `onSettled` (not `onSuccess`) for cache reconciliation — `onSettled` fires on both success and error
+- Don't include mutation objects in `useCallback` deps — `.mutate()` is stable in TanStack Query v5
+
+```typescript
+export function useUpdateEntity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables) => { /* ... */ },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: entityKeys.detail(variables.id) })
+      const previous = queryClient.getQueryData(entityKeys.detail(variables.id))
+      queryClient.setQueryData(entityKeys.detail(variables.id), /* optimistic */)
+      return { previous }
+    },
+    onError: (_err, variables, context) => {
+      queryClient.setQueryData(entityKeys.detail(variables.id), context?.previous)
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: entityKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: entityKeys.detail(variables.id) })
+    },
   })
 }
 ```

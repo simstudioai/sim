@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   Input,
@@ -14,8 +13,7 @@ import {
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
-
-const logger = createLogger('CreditBalance')
+import { usePurchaseCredits } from '@/hooks/queries/subscription'
 
 interface CreditBalanceProps {
   balance: number
@@ -37,59 +35,42 @@ export function CreditBalance({
 }: CreditBalanceProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [amount, setAmount] = useState('')
-  const [isPurchasing, setIsPurchasing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
+  const purchaseCredits = usePurchaseCredits()
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '')
     setAmount(numericValue)
-    setError(null)
+    setValidationError(null)
   }
 
-  const handlePurchase = async () => {
-    if (!requestId || isPurchasing) return
+  const handlePurchase = () => {
+    if (!requestId || purchaseCredits.isPending) return
 
     const numAmount = Number.parseInt(amount, 10)
 
     if (Number.isNaN(numAmount) || numAmount < 10) {
-      setError('Minimum purchase is $10')
+      setValidationError('Minimum purchase is $10')
       return
     }
 
     if (numAmount > 1000) {
-      setError('Maximum purchase is $1,000')
+      setValidationError('Maximum purchase is $1,000')
       return
     }
 
-    setIsPurchasing(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/billing/credits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: numAmount, requestId }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to purchase credits')
+    purchaseCredits.mutate(
+      { amount: numAmount, requestId },
+      {
+        onSuccess: () => {
+          setTimeout(() => {
+            setIsOpen(false)
+            onPurchaseComplete?.()
+          }, 1500)
+        },
       }
-
-      setSuccess(true)
-      setTimeout(() => {
-        setIsOpen(false)
-        onPurchaseComplete?.()
-      }, 1500)
-    } catch (err) {
-      logger.error('Credit purchase failed', { error: err })
-      setError(err instanceof Error ? err.message : 'Failed to purchase credits')
-    } finally {
-      setIsPurchasing(false)
-    }
+    )
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -98,11 +79,13 @@ export function CreditBalance({
       setRequestId(crypto.randomUUID())
     } else {
       setAmount('')
-      setError(null)
-      setSuccess(false)
+      setValidationError(null)
+      purchaseCredits.reset()
       setRequestId(null)
     }
   }
+
+  const displayError = validationError || purchaseCredits.error?.message
 
   return (
     <div className='flex items-center justify-between'>
@@ -123,7 +106,7 @@ export function CreditBalance({
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
-              {success ? (
+              {purchaseCredits.isSuccess ? (
                 <p className='text-center text-[13px] text-[var(--text-primary)]'>
                   Credits added successfully!
                 </p>
@@ -143,10 +126,12 @@ export function CreditBalance({
                         onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder='50'
                         className='pl-[28px]'
-                        disabled={isPurchasing}
+                        disabled={purchaseCredits.isPending}
                       />
                     </div>
-                    {error && <span className='text-[13px] text-[var(--text-error)]'>{error}</span>}
+                    {displayError && (
+                      <span className='text-[13px] text-[var(--text-error)]'>{displayError}</span>
+                    )}
                   </div>
 
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
@@ -163,19 +148,19 @@ export function CreditBalance({
                 </div>
               )}
             </ModalBody>
-            {!success && (
+            {!purchaseCredits.isSuccess && (
               <ModalFooter>
                 <ModalClose asChild>
-                  <Button variant='default' disabled={isPurchasing}>
+                  <Button variant='default' disabled={purchaseCredits.isPending}>
                     Cancel
                   </Button>
                 </ModalClose>
                 <Button
                   variant='tertiary'
                   onClick={handlePurchase}
-                  disabled={isPurchasing || !amount}
+                  disabled={purchaseCredits.isPending || !amount}
                 >
-                  {isPurchasing ? 'Processing...' : 'Purchase'}
+                  {purchaseCredits.isPending ? 'Processing...' : 'Purchase'}
                 </Button>
               </ModalFooter>
             )}

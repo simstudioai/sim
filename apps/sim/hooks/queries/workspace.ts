@@ -26,8 +26,8 @@ export interface Workspace {
   permissions?: 'admin' | 'write' | 'read' | null
 }
 
-async function fetchWorkspaces(): Promise<Workspace[]> {
-  const response = await fetch('/api/workspaces')
+async function fetchWorkspaces(signal?: AbortSignal): Promise<Workspace[]> {
+  const response = await fetch('/api/workspaces', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workspaces')
@@ -44,7 +44,7 @@ async function fetchWorkspaces(): Promise<Workspace[]> {
 export function useWorkspacesQuery(enabled = true) {
   return useQuery({
     queryKey: workspaceKeys.list(),
-    queryFn: fetchWorkspaces,
+    queryFn: ({ signal }) => fetchWorkspaces(signal),
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -166,8 +166,8 @@ export interface WorkspacePermissions {
   total: number
 }
 
-async function fetchWorkspacePermissions(workspaceId: string): Promise<WorkspacePermissions> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/permissions`)
+async function fetchWorkspacePermissions(workspaceId: string, signal?: AbortSignal): Promise<WorkspacePermissions> {
+  const response = await fetch(`/api/workspaces/${workspaceId}/permissions`, { signal })
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -189,17 +189,17 @@ async function fetchWorkspacePermissions(workspaceId: string): Promise<Workspace
 export function useWorkspacePermissionsQuery(workspaceId: string | null | undefined) {
   return useQuery({
     queryKey: workspaceKeys.permissions(workspaceId ?? ''),
-    queryFn: () => fetchWorkspacePermissions(workspaceId as string),
+    queryFn: ({ signal }) => fetchWorkspacePermissions(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
 
-async function fetchWorkspaceSettings(workspaceId: string) {
+async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal) {
   const [settingsResponse, permissionsResponse] = await Promise.all([
-    fetch(`/api/workspaces/${workspaceId}`),
-    fetch(`/api/workspaces/${workspaceId}/permissions`),
+    fetch(`/api/workspaces/${workspaceId}`, { signal }),
+    fetch(`/api/workspaces/${workspaceId}/permissions`, { signal }),
   ])
 
   if (!settingsResponse.ok || !permissionsResponse.ok) {
@@ -224,7 +224,7 @@ async function fetchWorkspaceSettings(workspaceId: string) {
 export function useWorkspaceSettings(workspaceId: string) {
   return useQuery({
     queryKey: workspaceKeys.settings(workspaceId),
-    queryFn: () => fetchWorkspaceSettings(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -276,12 +276,12 @@ export interface AdminWorkspace {
   canInvite: boolean
 }
 
-async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWorkspace[]> {
+async function fetchAdminWorkspaces(userId: string | undefined, signal?: AbortSignal): Promise<AdminWorkspace[]> {
   if (!userId) {
     return []
   }
 
-  const workspacesResponse = await fetch('/api/workspaces')
+  const workspacesResponse = await fetch('/api/workspaces', { signal })
   if (!workspacesResponse.ok) {
     throw new Error('Failed to fetch workspaces')
   }
@@ -292,7 +292,7 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
   const permissionPromises = allUserWorkspaces.map(
     async (workspace: { id: string; name: string; isOwner?: boolean; ownerId?: string }) => {
       try {
-        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`)
+        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`, { signal })
         if (!permissionResponse.ok) {
           return null
         }
@@ -344,7 +344,7 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
 export function useAdminWorkspaces(userId: string | undefined) {
   return useQuery({
     queryKey: workspaceKeys.adminList(userId),
-    queryFn: () => fetchAdminWorkspaces(userId),
+    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, signal),
     enabled: Boolean(userId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

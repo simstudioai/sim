@@ -29,12 +29,13 @@ import {
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { useMcpServerTest } from '@/hooks/mcp/use-mcp-server-test'
 import {
+  useAllowedMcpDomains,
   useCreateMcpServer,
   useDeleteMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
+  useMcpServerTest,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
@@ -424,14 +425,7 @@ export function MCP({ initialServerId }: MCPProps) {
   } = useMcpServerTest()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
 
-  const [allowedMcpDomains, setAllowedMcpDomains] = useState<string[] | null>(null)
-
-  useEffect(() => {
-    fetch('/api/settings/allowed-mcp-domains')
-      .then((res) => res.json())
-      .then((data) => setAllowedMcpDomains(data.allowedMcpDomains ?? null))
-      .catch(() => setAllowedMcpDomains(null))
-  }, [])
+  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
 
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -593,14 +587,18 @@ export function MCP({ initialServerId }: MCPProps) {
   const handleTestConnection = useCallback(async () => {
     if (!formData.name.trim() || !formData.url?.trim()) return
 
-    await testConnection({
-      name: formData.name,
-      transport: formData.transport,
-      url: formData.url,
-      headers: headersToRecord(formData.headers),
-      timeout: formData.timeout,
-      workspaceId,
-    })
+    try {
+      await testConnection({
+        name: formData.name,
+        transport: formData.transport,
+        url: formData.url,
+        headers: headersToRecord(formData.headers),
+        timeout: formData.timeout,
+        workspaceId,
+      })
+    } catch {
+      // Error is captured by the mutation's error state and displayed via testResult
+    }
   }, [formData, testConnection, workspaceId, headersToRecord])
 
   /**

@@ -26,6 +26,7 @@ import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
+  useResetPassword,
   useSuperUserStatus,
   useUpdateUserProfile,
   useUserProfile,
@@ -142,10 +143,8 @@ export function General() {
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [isResettingPassword, setIsResettingPassword] = useState(false)
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
-  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
-  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null)
+  const resetPassword = useResetPassword()
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -243,40 +242,24 @@ export function General() {
   const handleResetPasswordConfirm = async () => {
     if (!profile?.email) return
 
-    setIsResettingPassword(true)
-    setResetPasswordError(null)
-
-    try {
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: profile.email,
-          redirectTo: `${getBaseUrl()}/reset-password`,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to send reset password email')
+    resetPassword.mutate(
+      {
+        email: profile.email,
+        redirectTo: `${getBaseUrl()}/reset-password`,
+      },
+      {
+        onSuccess: () => {
+          setTimeout(() => {
+            setShowResetPasswordModal(false)
+            resetPassword.reset()
+          }, 1500)
+        },
+        onError: (error) => {
+          logger.error('Error resetting password:', error)
+          setTimeout(() => resetPassword.reset(), 5000)
+        },
       }
-
-      setResetPasswordSuccess(true)
-
-      setTimeout(() => {
-        setShowResetPasswordModal(false)
-        setResetPasswordSuccess(false)
-      }, 1500)
-    } catch (error) {
-      logger.error('Error resetting password:', error)
-      setResetPasswordError('Failed to send email')
-
-      setTimeout(() => {
-        setResetPasswordError(null)
-      }, 5000)
-    } finally {
-      setIsResettingPassword(false)
-    }
+    )
   }
 
   const handleThemeChange = async (value: string) => {
@@ -588,25 +571,27 @@ export function General() {
               <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
               Click the link in the email to create a new password.
             </p>
-            {resetPasswordError && (
-              <p className='mt-[8px] text-[13px] text-[var(--text-error)]'>{resetPasswordError}</p>
+            {resetPassword.error && (
+              <p className='mt-[8px] text-[13px] text-[var(--text-error)]'>
+                {resetPassword.error.message}
+              </p>
             )}
           </ModalBody>
           <ModalFooter>
             <Button
               onClick={() => setShowResetPasswordModal(false)}
-              disabled={isResettingPassword || resetPasswordSuccess}
+              disabled={resetPassword.isPending || resetPassword.isSuccess}
             >
               Cancel
             </Button>
             <Button
               variant='tertiary'
               onClick={handleResetPasswordConfirm}
-              disabled={isResettingPassword || resetPasswordSuccess}
+              disabled={resetPassword.isPending || resetPassword.isSuccess}
             >
-              {isResettingPassword
+              {resetPassword.isPending
                 ? 'Sending...'
-                : resetPasswordSuccess
+                : resetPassword.isSuccess
                   ? 'Sent'
                   : 'Send Reset Email'}
             </Button>
