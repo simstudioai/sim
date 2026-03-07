@@ -39,10 +39,10 @@ type FolderResponse = { id: string; name: string }
 type PlannerTask = { id: string; title: string }
 
 const ensureCredential = (context: SelectorContext, key: SelectorKey): string => {
-  if (!context.credentialId) {
+  if (!context.oauthCredential) {
     throw new Error(`Missing credential for selector ${key}`)
   }
-  return context.credentialId
+  return context.oauthCredential
 }
 
 const ensureDomain = (context: SelectorContext, key: SelectorKey): string => {
@@ -66,9 +66,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'airtable.bases',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'airtable.bases')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -104,10 +104,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'airtable.tables',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.baseId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.baseId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.baseId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'airtable.tables')
       if (!context.baseId) {
@@ -151,9 +151,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'asana.workspaces',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'asana.workspaces')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -182,9 +182,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'attio.objects',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'attio.objects')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -216,9 +216,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'attio.lists',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'attio.lists')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -250,10 +250,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'bigquery.datasets',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.projectId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.projectId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'bigquery.datasets')
       if (!context.projectId) throw new Error('Missing project ID for bigquery.datasets selector')
@@ -298,12 +298,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'bigquery.tables',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
       context.datasetId ?? 'none',
     ],
     enabled: ({ context }) =>
-      Boolean(context.credentialId && context.projectId && context.datasetId),
+      Boolean(context.oauthCredential && context.projectId && context.datasetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'bigquery.tables')
       if (!context.projectId) throw new Error('Missing project ID for bigquery.tables selector')
@@ -347,9 +347,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'calcom.eventTypes',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'calcom.eventTypes')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -381,9 +381,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'calcom.schedules',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'calcom.schedules')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -415,10 +415,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'confluence.spaces',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
@@ -460,10 +460,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'jsm.serviceDesks',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jsm.serviceDesks')
       const domain = ensureDomain(context, 'jsm.serviceDesks')
@@ -505,12 +505,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'jsm.requestTypes',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       context.serviceDeskId ?? 'none',
     ],
     enabled: ({ context }) =>
-      Boolean(context.credentialId && context.domain && context.serviceDeskId),
+      Boolean(context.oauthCredential && context.domain && context.serviceDeskId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jsm.requestTypes')
       const domain = ensureDomain(context, 'jsm.requestTypes')
@@ -556,9 +556,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'google.tasks.lists',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.tasks.lists')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -587,9 +587,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.planner.plans',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.planner.plans')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -618,9 +618,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'notion.databases',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'notion.databases')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -652,9 +652,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'notion.pages',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'notion.pages')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -686,9 +686,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'pipedrive.pipelines',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'pipedrive.pipelines')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -720,10 +720,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'sharepoint.lists',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.siteId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.siteId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.lists')
       if (!context.siteId) throw new Error('Missing site ID for sharepoint.lists selector')
@@ -761,9 +761,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'trello.boards',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'trello.boards')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -794,9 +794,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'zoom.meetings',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'zoom.meetings')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -828,12 +828,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'slack.channels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         workflowId: context.workflowId,
       })
       const data = await fetchJson<{ channels: SlackChannel[] }>('/api/tools/slack/channels', {
@@ -852,12 +852,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'slack.users',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         workflowId: context.workflowId,
       })
       const data = await fetchJson<{ users: SlackUser[] }>('/api/tools/slack/users', {
@@ -876,12 +876,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'gmail.labels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ labels: FolderResponse[] }>('/api/tools/gmail/labels', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId: context.oauthCredential },
       })
       return (data.labels || []).map((label) => ({
         id: label.id,
@@ -895,12 +895,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'outlook.folders',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ folders: FolderResponse[] }>('/api/tools/outlook/folders', {
-        searchParams: { credentialId: context.credentialId },
+        searchParams: { credentialId: context.oauthCredential },
       })
       return (data.folders || []).map((folder) => ({
         id: folder.id,
@@ -914,13 +914,13 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'google.calendar',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ calendars: { id: string; summary: string }[] }>(
         '/api/tools/google_calendar/calendars',
-        { searchParams: { credentialId: context.credentialId } }
+        { searchParams: { credentialId: context.oauthCredential } }
       )
       return (data.calendars || []).map((calendar) => ({
         id: calendar.id,
@@ -934,11 +934,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.teams',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
-      const body = JSON.stringify({ credential: context.credentialId })
+      const body = JSON.stringify({ credential: context.oauthCredential })
       const data = await fetchJson<{ teams: { id: string; displayName: string }[] }>(
         '/api/tools/microsoft-teams/teams',
         { method: 'POST', body }
@@ -955,11 +955,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.chats',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
-      const body = JSON.stringify({ credential: context.credentialId })
+      const body = JSON.stringify({ credential: context.oauthCredential })
       const data = await fetchJson<{ chats: { id: string; displayName: string }[] }>(
         '/api/tools/microsoft-teams/chats',
         { method: 'POST', body }
@@ -976,13 +976,13 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.channels',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.teamId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.teamId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.teamId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const body = JSON.stringify({
-        credential: context.credentialId,
+        credential: context.oauthCredential,
         teamId: context.teamId,
       })
       const data = await fetchJson<{ channels: { id: string; displayName: string }[] }>(
@@ -1001,14 +1001,14 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'wealthbox.contacts',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ items: { id: string; name: string }[] }>(
         '/api/tools/wealthbox/items',
         {
-          searchParams: { credentialId: context.credentialId, type: 'contact' },
+          searchParams: { credentialId: context.oauthCredential, type: 'contact' },
         }
       )
       return (data.items || []).map((item) => ({
@@ -1023,9 +1023,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'sharepoint.sites',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.sites')
       const body = JSON.stringify({
@@ -1069,10 +1069,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.planner',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.planId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.planId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.planId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.planner')
       const body = JSON.stringify({
@@ -1112,11 +1112,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.projects',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
@@ -1171,12 +1171,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.issues',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       context.projectId ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
@@ -1235,9 +1235,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'linear.teams',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'linear.teams')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -1260,10 +1260,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'linear.projects',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.teamId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.teamId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.teamId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'linear.projects')
       const body = JSON.stringify({
@@ -1290,11 +1290,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'confluence.pages',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.domain ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.domain),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
@@ -1343,9 +1343,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'onedrive.files',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.files')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -1366,9 +1366,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'onedrive.folders',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.folders')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -1389,12 +1389,12 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'google.drive',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.mimeType ?? 'any',
       context.fileId ?? 'root',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.drive')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -1438,10 +1438,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'google.sheets',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.sheets')
       if (!context.spreadsheetId) {
@@ -1469,10 +1469,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.excel.sheets',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.excel.sheets')
       if (!context.spreadsheetId) {
@@ -1500,10 +1500,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.excel',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.excel')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -1528,10 +1528,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'microsoft.word',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.word')
       const data = await fetchJson<{ files: { id: string; name: string }[] }>(
@@ -1596,9 +1596,9 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'webflow.sites',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId),
+    enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.sites')
       const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
@@ -1621,10 +1621,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'webflow.collections',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.siteId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.siteId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.collections')
       if (!context.siteId) {
@@ -1654,11 +1654,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'webflow.items',
-      context.credentialId ?? 'none',
+      context.oauthCredential ?? 'none',
       context.collectionId ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.credentialId && context.collectionId),
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.collectionId),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.items')
       if (!context.collectionId) {

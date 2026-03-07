@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
+import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type { SubBlockConfig } from '@/blocks/types'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
@@ -14,8 +15,7 @@ import { useDependsOnGate } from './use-depends-on-gate'
  *
  * Builds a `SelectorContext` by mapping each `dependsOn` entry through the
  * canonical index to its `canonicalParamId`, which maps directly to
- * `SelectorContext` field names (e.g. `siteId`, `teamId`, `collectionId`).
- * The one special case is `oauthCredential` which maps to `credentialId`.
+ * `SelectorContext` field names (e.g. `siteId`, `teamId`, `oauthCredential`).
  *
  * @param blockId - The block containing the selector sub-block
  * @param subBlock - The sub-block config (must have `selectorKey` set)
@@ -70,11 +70,8 @@ export function useSelectorSetup(
       if (isReference(strValue)) continue
 
       const canonicalParamId = canonicalIndex.canonicalIdBySubBlockId[depKey] ?? depKey
-
-      if (canonicalParamId === 'oauthCredential') {
-        context.credentialId = strValue
-      } else if (canonicalParamId in CONTEXT_FIELD_SET) {
-        ;(context as Record<string, unknown>)[canonicalParamId] = strValue
+      if (SELECTOR_CONTEXT_FIELDS.has(canonicalParamId as keyof SelectorContext)) {
+        context[canonicalParamId as keyof SelectorContext] = strValue
       }
     }
 
@@ -88,20 +85,4 @@ export function useSelectorSetup(
     disabled: finalDisabled || !subBlock.selectorKey,
     dependencyValues: resolvedDependencyValues,
   }
-}
-
-const CONTEXT_FIELD_SET: Record<string, true> = {
-  credentialId: true,
-  domain: true,
-  teamId: true,
-  projectId: true,
-  knowledgeBaseId: true,
-  planId: true,
-  siteId: true,
-  collectionId: true,
-  spreadsheetId: true,
-  fileId: true,
-  baseId: true,
-  datasetId: true,
-  serviceDeskId: true,
 }

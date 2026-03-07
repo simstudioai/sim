@@ -578,7 +578,7 @@ const SubBlockRow = memo(function SubBlockRow({
     subBlock,
     value: rawValue,
     workflowId,
-    credentialId: typeof credentialId === 'string' ? credentialId : undefined,
+    oauthCredential: typeof credentialId === 'string' ? credentialId : undefined,
     knowledgeBaseId: typeof knowledgeBaseId === 'string' ? knowledgeBaseId : undefined,
     domain: domainValue,
     teamId: teamIdValue,

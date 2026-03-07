@@ -61,7 +61,7 @@ export interface SelectorOption {
 export interface SelectorContext {
   workspaceId?: string
   workflowId?: string
-  credentialId?: string
+  oauthCredential?: string
   serviceId?: string
   domain?: string
   teamId?: string

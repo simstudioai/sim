@@ -12,7 +12,7 @@ interface SelectorDisplayNameArgs {
   subBlock?: SubBlockConfig
   value: unknown
   workflowId?: string
-  credentialId?: string
+  oauthCredential?: string
   domain?: string
   projectId?: string
   planId?: string
@@ -31,7 +31,7 @@ export function useSelectorDisplayName({
   subBlock,
   value,
   workflowId,
-  credentialId,
+  oauthCredential,
   domain,
   projectId,
   planId,
@@ -51,7 +51,7 @@ export function useSelectorDisplayName({
     if (!subBlock || !detailId) return null
     return resolveSelectorForSubBlock(subBlock, {
       workflowId,
-      credentialId,
+      oauthCredential,
       domain,
       projectId,
       planId,
@@ -69,7 +69,7 @@ export function useSelectorDisplayName({
     subBlock,
     detailId,
     workflowId,
-    credentialId,
+    oauthCredential,
     domain,
     projectId,
     planId,
