@@ -418,10 +418,14 @@ export async function loadWorkflowFromNormalizedTables(
       Promise.resolve().then(async () => {
         try {
           for (const [blockId, block] of Object.entries(finalBlocks)) {
-            if (block.subBlocks !== blocksMap[blockId]?.subBlocks) {
+            if (block !== blocksMap[blockId]) {
               await db
                 .update(workflowBlocks)
-                .set({ subBlocks: block.subBlocks, updatedAt: new Date() })
+                .set({
+                  subBlocks: block.subBlocks,
+                  data: block.data,
+                  updatedAt: new Date(),
+                })
                 .where(
                   and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
                 )
