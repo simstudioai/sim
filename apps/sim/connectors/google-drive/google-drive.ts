@@ -187,8 +187,8 @@ export const googleDriveConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: GoogleDriveIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'google-drive',
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },

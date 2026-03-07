@@ -117,8 +117,8 @@ export const dropboxConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: DropboxIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'dropbox',
     requiredScopes: ['files.metadata.read', 'files.content.read'],
   },

@@ -197,7 +197,7 @@ function getStaticComponentFiles(): Map<string, string> {
     name: c.name,
     description: c.description,
     version: c.version,
-    oauth: { provider: c.oauth.provider, requiredScopes: c.oauth.requiredScopes },
+    auth: c.auth,
     configFields: c.configFields,
     tagDefinitions: c.tagDefinitions,
     supportsIncrementalSync: c.supportsIncrementalSync,
@@ -1091,10 +1091,7 @@ export class WorkspaceVFS {
             .limit(5)
 
           if (execRows.length > 0) {
-            this.files.set(
-              `jobs/${safeName}/executions.json`,
-              serializeRecentExecutions(execRows)
-            )
+            this.files.set(`jobs/${safeName}/executions.json`, serializeRecentExecutions(execRows))
           }
         } catch (err) {
           logger.warn('Failed to load job execution logs', {

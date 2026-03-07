@@ -110,8 +110,8 @@ export const confluenceConnector: ConnectorConfig = {
   version: '1.1.0',
   icon: ConfluenceIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'confluence',
     requiredScopes: ['read:confluence-content.all', 'read:page:confluence', 'offline_access'],
   },

@@ -96,11 +96,7 @@ export const wordpressConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: WordpressIcon,
 
-  oauth: {
-    required: true,
-    provider: 'wordpress',
-    requiredScopes: ['global'],
-  },
+  auth: { mode: 'oauth', provider: 'wordpress', requiredScopes: ['global'] },
 
   configFields: [
     {

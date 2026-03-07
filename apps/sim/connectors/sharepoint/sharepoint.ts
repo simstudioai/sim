@@ -297,11 +297,7 @@ export const sharepointConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: MicrosoftSharepointIcon,
 
-  oauth: {
-    required: true,
-    provider: 'sharepoint',
-    requiredScopes: ['Sites.Read.All'],
-  },
+  auth: { mode: 'oauth', provider: 'sharepoint', requiredScopes: ['Sites.Read.All'] },
 
   configFields: [
     {

@@ -7,6 +7,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { decryptApiKey } from '@/lib/api-key/crypto'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isTriggerAvailable, processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
@@ -14,7 +15,12 @@ import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { DocumentTags, ExternalDocument, SyncResult } from '@/connectors/types'
+import type {
+  ConnectorAuthConfig,
+  DocumentTags,
+  ExternalDocument,
+  SyncResult,
+} from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncEngine')
 
@@ -71,6 +77,35 @@ export async function dispatchSync(
 }
 
 /**
+ * Resolves an access token for a connector based on its auth mode.
+ * OAuth connectors refresh via the credential system; API key connectors
+ * decrypt the key stored in the dedicated `encryptedApiKey` column.
+ */
+async function resolveAccessToken(
+  connector: { credentialId: string | null; encryptedApiKey: string | null },
+  connectorConfig: { auth: ConnectorAuthConfig },
+  userId: string
+): Promise<string | null> {
+  if (connectorConfig.auth.mode === 'apiKey') {
+    if (!connector.encryptedApiKey) {
+      throw new Error('API key connector is missing encrypted API key')
+    }
+    const { decrypted } = await decryptApiKey(connector.encryptedApiKey)
+    return decrypted
+  }
+
+  if (!connector.credentialId) {
+    throw new Error('OAuth connector is missing credential ID')
+  }
+
+  return refreshAccessTokenIfNeeded(
+    connector.credentialId,
+    userId,
+    `sync-${connector.credentialId}`
+  )
+}
+
+/**
  * Execute a sync for a given knowledge connector.
  *
  * This is the core sync algorithm — connector-agnostic.
@@ -116,12 +151,9 @@ export async function executeSync(
   }
 
   const userId = kbRows[0].userId
+  const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
-  const accessToken = await refreshAccessTokenIfNeeded(
-    connector.credentialId,
-    userId,
-    `sync-${connectorId}`
-  )
+  const accessToken = await resolveAccessToken(connector, connectorConfig, userId)
 
   if (!accessToken) {
     throw new Error('Failed to obtain access token')
@@ -145,8 +177,6 @@ export async function executeSync(
     status: 'started',
     startedAt: new Date(),
   })
-
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
   try {
     const externalDocs: ExternalDocument[] = []

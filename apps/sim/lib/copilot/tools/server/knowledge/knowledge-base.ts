@@ -555,19 +555,25 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.connectorType) {
             return { success: false, message: 'connectorType is required for add_connector' }
           }
-          if (!args.credentialId) {
+          if (!args.credentialId && !args.apiKey) {
             return {
               success: false,
               message:
-                'credentialId is required for add_connector. Read environment/credentials.json to find credential IDs.',
+                'Either credentialId (for OAuth connectors) or apiKey (for API key connectors) is required for add_connector.',
             }
           }
 
           const createBody: Record<string, unknown> = {
             connectorType: args.connectorType,
-            credentialId: args.credentialId,
             sourceConfig: args.sourceConfig ?? {},
             syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
+          }
+
+          if (args.credentialId) {
+            createBody.credentialId = args.credentialId
+          }
+          if (args.apiKey) {
+            createBody.apiKey = args.apiKey
           }
 
           if (args.disabledTagIds?.length) {

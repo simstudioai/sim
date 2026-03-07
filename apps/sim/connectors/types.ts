@@ -1,6 +1,15 @@
 import type { OAuthService } from '@/lib/oauth/types'
 
 /**
+ * Authentication configuration for a connector.
+ * OAuth connectors reuse the existing credential system.
+ * API key connectors store an encrypted key in the `encryptedApiKey` column.
+ */
+export type ConnectorAuthConfig =
+  | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
+  | { mode: 'apiKey'; label?: string; placeholder?: string }
+
+/**
  * A single document fetched from an external source.
  */
 export interface ExternalDocument {
@@ -74,12 +83,8 @@ export interface ConnectorConfig {
   /** Icon component for the connector */
   icon: React.ComponentType<{ className?: string }>
 
-  /** OAuth configuration (same pattern as ToolConfig.oauth) */
-  oauth: {
-    required: true
-    provider: OAuthService
-    requiredScopes?: string[]
-  }
+  /** Authentication configuration */
+  auth: ConnectorAuthConfig
 
   /** Source configuration fields rendered in the add-connector UI */
   configFields: ConnectorConfigField[]

@@ -190,11 +190,7 @@ export const linearConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: LinearIcon,
 
-  oauth: {
-    required: true,
-    provider: 'linear',
-    requiredScopes: ['read'],
-  },
+  auth: { mode: 'oauth', provider: 'linear', requiredScopes: ['read'] },
 
   configFields: [
     {

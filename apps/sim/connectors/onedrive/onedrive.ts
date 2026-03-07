@@ -156,11 +156,7 @@ export const onedriveConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: MicrosoftOneDriveIcon,
 
-  oauth: {
-    required: true,
-    provider: 'onedrive',
-    requiredScopes: ['Files.Read'],
-  },
+  auth: { mode: 'oauth', provider: 'onedrive', requiredScopes: ['Files.Read'] },
 
   configFields: [
     {

@@ -178,8 +178,8 @@ export const hubspotConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: HubspotIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'hubspot',
     requiredScopes: [
       'crm.objects.contacts.read',

@@ -136,11 +136,7 @@ export const asanaConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: AsanaIcon,
 
-  oauth: {
-    required: true,
-    provider: 'asana',
-    requiredScopes: ['default'],
-  },
+  auth: { mode: 'oauth', provider: 'asana', requiredScopes: ['default'] },
 
   configFields: [
     {

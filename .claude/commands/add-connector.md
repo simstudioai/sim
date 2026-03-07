@@ -11,8 +11,9 @@ You are an expert at adding knowledge base connectors to Sim. A connector syncs 
 
 When the user asks you to create a connector:
 1. Use Context7 or WebFetch to read the service's API documentation
-2. Create the connector directory and config
-3. Register it in the connector registry
+2. Determine the auth mode: **OAuth** (if Sim already has an OAuth provider for the service) or **API key** (if the service uses API key / Bearer token auth)
+3. Create the connector directory and config
+4. Register it in the connector registry
 
 ## Directory Structure
 
@@ -23,7 +24,25 @@ connectors/{service}/
 └── {service}.ts      # ConnectorConfig definition
 ```
 
+## Authentication
+
+Connectors use a discriminated union for auth config (`ConnectorAuthConfig` in `connectors/types.ts`):
+
+```typescript
+type ConnectorAuthConfig =
+  | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
+  | { mode: 'apiKey'; label?: string; placeholder?: string }
+```
+
+### OAuth mode
+For services with existing OAuth providers in `apps/sim/lib/oauth/types.ts`. The `provider` must match an `OAuthService`. The modal shows a credential picker and handles token refresh automatically.
+
+### API key mode
+For services that use API key / Bearer token auth. The modal shows a password input with the configured `label` and `placeholder`. The API key is encrypted at rest using AES-256-GCM and stored in a dedicated `encryptedApiKey` column on the connector record. The sync engine decrypts it automatically — connectors receive the raw access token in `listDocuments`, `getDocument`, and `validateConfig`.
+
 ## ConnectorConfig Structure
+
+### OAuth connector example
 
 ```typescript
 import { createLogger } from '@sim/logger'
@@ -40,8 +59,8 @@ export const {service}Connector: ConnectorConfig = {
   version: '1.0.0',
   icon: {Service}Icon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: '{service}',          // Must match OAuthService in lib/oauth/types.ts
     requiredScopes: ['read:...'],
   },
@@ -68,6 +87,29 @@ export const {service}Connector: ConnectorConfig = {
   mapTags: (metadata) => {
     // Return Record<string, unknown> with keys matching tagDefinitions[].id
   },
+}
+```
+
+### API key connector example
+
+```typescript
+export const {service}Connector: ConnectorConfig = {
+  id: '{service}',
+  name: '{Service}',
+  description: 'Sync documents from {Service} into your knowledge base',
+  version: '1.0.0',
+  icon: {Service}Icon,
+
+  auth: {
+    mode: 'apiKey',
+    label: 'API Key',                       // Shown above the input field
+    placeholder: 'Enter your {Service} API key',  // Input placeholder
+  },
+
+  configFields: [ /* ... */ ],
+  listDocuments: async (accessToken, sourceConfig, cursor) => { /* ... */ },
+  getDocument: async (accessToken, sourceConfig, externalId) => { /* ... */ },
+  validateConfig: async (accessToken, sourceConfig) => { /* ... */ },
 }
 ```
 
@@ -210,12 +252,9 @@ The sync engine (`lib/knowledge/connectors/sync-engine.ts`) is connector-agnosti
 2. Compares `contentHash` to detect new/changed/unchanged documents
 3. Stores `sourceUrl` and calls `mapTags` on insert/update automatically
 4. Handles soft-delete of removed documents
+5. Resolves access tokens automatically — OAuth tokens are refreshed, API keys are decrypted from the `encryptedApiKey` column
 
 You never need to modify the sync engine when adding a connector.
-
-## OAuth Credential Reuse
-
-Connectors reuse the existing OAuth infrastructure. The `oauth.provider` must match an `OAuthService` from `apps/sim/lib/oauth/types.ts`. Check existing providers before adding a new one.
 
 ## Icon
 
@@ -236,19 +275,18 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
 }
 ```
 
-## Reference Implementation
+## Reference Implementations
 
-See `apps/sim/connectors/confluence/confluence.ts` for a complete example with:
-- Multiple config field types (text + dropdown)
-- Label fetching and CQL search filtering
-- Blogpost + page content types
-- `mapTags` mapping labels, version, and dates to semantic keys
+- **OAuth**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
+- **API key**: `apps/sim/connectors/fireflies/fireflies.ts` — GraphQL API with Bearer token auth
 
 ## Checklist
 
 - [ ] Created `connectors/{service}/{service}.ts` with full ConnectorConfig
 - [ ] Created `connectors/{service}/index.ts` barrel export
-- [ ] `oauth.provider` matches an existing OAuthService in `lib/oauth/types.ts`
+- [ ] **Auth configured correctly:**
+  - OAuth: `auth.provider` matches an existing `OAuthService` in `lib/oauth/types.ts`
+  - API key: `auth.label` and `auth.placeholder` set appropriately
 - [ ] `listDocuments` handles pagination and computes content hashes
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)
 - [ ] `metadata` includes source-specific data for tag mapping

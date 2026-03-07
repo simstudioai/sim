@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { encryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
@@ -17,7 +18,8 @@ const logger = createLogger('KnowledgeConnectorsAPI')
 
 const CreateConnectorSchema = z.object({
   connectorType: z.string().min(1),
-  credentialId: z.string().min(1),
+  credentialId: z.string().min(1).optional(),
+  apiKey: z.string().min(1).optional(),
   sourceConfig: z.record(z.unknown()),
   syncIntervalMinutes: z.number().int().min(0).default(1440),
 })
@@ -52,7 +54,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       )
       .orderBy(desc(knowledgeConnector.createdAt))
 
-    return NextResponse.json({ success: true, data: connectors })
+    return NextResponse.json({
+      success: true,
+      data: connectors.map(({ encryptedApiKey: _, ...rest }) => rest),
+    })
   } catch (error) {
     logger.error(`[${requestId}] Error listing connectors`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const { connectorType, credentialId, sourceConfig, syncIntervalMinutes } = parsed.data
+    const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } = parsed.data
 
     const connectorConfig = CONNECTOR_REGISTRY[connectorType]
     if (!connectorConfig) {
@@ -97,19 +102,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const credential = await getCredential(requestId, credentialId, auth.userId)
-    if (!credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 400 })
+    let resolvedCredentialId: string | null = null
+    let resolvedEncryptedApiKey: string | null = null
+    let accessToken: string
+
+    if (connectorConfig.auth.mode === 'apiKey') {
+      if (!apiKey) {
+        return NextResponse.json({ error: 'API key is required' }, { status: 400 })
+      }
+      accessToken = apiKey
+    } else {
+      if (!credentialId) {
+        return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      }
+
+      const credential = await getCredential(requestId, credentialId, auth.userId)
+      if (!credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 400 })
+      }
+
+      if (!credential.accessToken) {
+        return NextResponse.json(
+          { error: 'Credential has no access token. Please reconnect your account.' },
+          { status: 400 }
+        )
+      }
+
+      accessToken = credential.accessToken
+      resolvedCredentialId = credentialId
     }
 
-    if (!credential.accessToken) {
-      return NextResponse.json(
-        { error: 'Credential has no access token. Please reconnect your account.' },
-        { status: 400 }
-      )
-    }
-
-    const validation = await connectorConfig.validateConfig(credential.accessToken, sourceConfig)
+    const validation = await connectorConfig.validateConfig(accessToken, sourceConfig)
     if (!validation.valid) {
       return NextResponse.json(
         { error: validation.error || 'Invalid source configuration' },
@@ -117,7 +140,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    let finalSourceConfig: Record<string, unknown> = sourceConfig
+    let finalSourceConfig: Record<string, unknown> = { ...sourceConfig }
+
+    if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
+      const { encrypted } = await encryptApiKey(apiKey)
+      resolvedEncryptedApiKey = encrypted
+    }
+
     const tagSlotMapping: Record<string, string> = {}
 
     if (connectorConfig.tagDefinitions?.length) {
@@ -144,7 +173,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         )
       }
 
-      finalSourceConfig = { ...sourceConfig, tagSlotMapping }
+      finalSourceConfig = { ...finalSourceConfig, tagSlotMapping }
     }
 
     const now = new Date()
@@ -171,7 +200,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         id: connectorId,
         knowledgeBaseId,
         connectorType,
-        credentialId,
+        credentialId: resolvedCredentialId,
+        encryptedApiKey: resolvedEncryptedApiKey,
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes,
         status: 'active',
@@ -196,7 +226,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(eq(knowledgeConnector.id, connectorId))
       .limit(1)
 
-    return NextResponse.json({ success: true, data: created[0] }, { status: 201 })
+    const { encryptedApiKey: _, ...createdData } = created[0]
+    return NextResponse.json({ success: true, data: createdData }, { status: 201 })
   } catch (error) {
     logger.error(`[${requestId}] Error creating connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

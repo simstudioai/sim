@@ -185,11 +185,7 @@ export const salesforceConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: SalesforceIcon,
 
-  oauth: {
-    required: true,
-    provider: 'salesforce',
-    requiredScopes: ['api', 'refresh_token'],
-  },
+  auth: { mode: 'oauth', provider: 'salesforce', requiredScopes: ['api', 'refresh_token'] },
 
   configFields: [
     {

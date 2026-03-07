@@ -2455,7 +2455,8 @@ export const knowledgeConnector = pgTable(
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
     connectorType: text('connector_type').notNull(),
-    credentialId: text('credential_id').notNull(),
+    credentialId: text('credential_id'),
+    encryptedApiKey: text('encrypted_api_key'),
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),

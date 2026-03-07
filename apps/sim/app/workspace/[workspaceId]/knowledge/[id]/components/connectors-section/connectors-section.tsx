@@ -301,9 +301,10 @@ function ConnectorCard({
   const statusConfig =
     STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
-  const serviceId = connectorDef?.oauth.provider
+  const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes = connectorDef?.oauth.requiredScopes ?? []
+  const requiredScopes =
+    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
 
   const { data: credentials } = useOAuthCredentials(providerId, { workspaceId })
 

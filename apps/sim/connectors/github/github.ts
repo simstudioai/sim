@@ -158,11 +158,7 @@ export const githubConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: GithubIcon,
 
-  oauth: {
-    required: true,
-    provider: 'github',
-    requiredScopes: ['repo'],
-  },
+  auth: { mode: 'oauth', provider: 'github', requiredScopes: ['repo'] },
 
   configFields: [
     {

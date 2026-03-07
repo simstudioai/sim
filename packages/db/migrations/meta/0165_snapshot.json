@@ -1,6 +1,6 @@
 {
-  "id": "4acdba0d-4d97-4569-944e-6943b92c46b0",
-  "prevId": "9633fa1f-632a-4ab8-885e-56327a3318e1",
+  "id": "7a6061ce-6ce3-4b08-98eb-cd749410bc3b",
+  "prevId": "4acdba0d-4d97-4569-944e-6943b92c46b0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5122,7 +5122,13 @@
           "name": "credential_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "encrypted_api_key": {
+          "name": "encrypted_api_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "source_config": {
           "name": "source_config",

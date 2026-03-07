@@ -177,11 +177,7 @@ export const notionConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: NotionIcon,
 
-  oauth: {
-    required: true,
-    provider: 'notion',
-    requiredScopes: [],
-  },
+  auth: { mode: 'oauth', provider: 'notion', requiredScopes: [] },
 
   configFields: [
     {

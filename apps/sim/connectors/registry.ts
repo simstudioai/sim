@@ -2,6 +2,7 @@ import { airtableConnector } from '@/connectors/airtable'
 import { asanaConnector } from '@/connectors/asana'
 import { confluenceConnector } from '@/connectors/confluence'
 import { dropboxConnector } from '@/connectors/dropbox'
+import { firefliesConnector } from '@/connectors/fireflies'
 import { githubConnector } from '@/connectors/github'
 import { googleDocsConnector } from '@/connectors/google-docs'
 import { googleDriveConnector } from '@/connectors/google-drive'
@@ -22,6 +23,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   asana: asanaConnector,
   confluence: confluenceConnector,
   dropbox: dropboxConnector,
+  fireflies: firefliesConnector,
   github: githubConnector,
   google_docs: googleDocsConnector,
   google_drive: googleDriveConnector,

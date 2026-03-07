@@ -78,8 +78,8 @@ export const airtableConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: AirtableIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'airtable',
     requiredScopes: ['data.records:read', 'schema.bases:read'],
   },

@@ -175,8 +175,8 @@ export const googleDocsConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: GoogleDocsIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'google-docs',
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },

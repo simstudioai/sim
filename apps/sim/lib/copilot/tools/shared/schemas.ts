@@ -70,8 +70,10 @@ export const KnowledgeBaseArgsSchema = z.object({
       tagFieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
       /** Connector type from registry, e.g. "confluence" (required for add_connector) */
       connectorType: z.string().optional(),
-      /** OAuth credential ID from environment/credentials.json (required for add_connector) */
+      /** OAuth credential ID from environment/credentials.json (required for OAuth connectors) */
       credentialId: z.string().optional(),
+      /** API key for API key-based connectors (required for API key connectors) */
+      apiKey: z.string().optional(),
       /** Connector-specific config matching the schema in knowledgebases/connectors/{type}.json */
       sourceConfig: z.record(z.unknown()).optional(),
       /** Sync interval: 60, 360, 1440, 10080, or 0 for manual only (optional for add_connector, defaults to 1440) */

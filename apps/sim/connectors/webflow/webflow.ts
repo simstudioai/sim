@@ -84,11 +84,7 @@ export const webflowConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: WebflowIcon,
 
-  oauth: {
-    required: true,
-    provider: 'webflow',
-    requiredScopes: ['sites:read', 'cms:read'],
-  },
+  auth: { mode: 'oauth', provider: 'webflow', requiredScopes: ['sites:read', 'cms:read'] },
 
   configFields: [
     {

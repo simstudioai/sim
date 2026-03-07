@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { ArrowLeft, Loader2, Plus } from 'lucide-react'
 import {
   Button,
@@ -54,20 +55,24 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
+  const [apiKeyValue, setApiKeyValue] = useState('')
+
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const connectorConfig = selectedType ? CONNECTOR_REGISTRY[selectedType] : null
+  const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const connectorProviderId = useMemo(
     () =>
-      connectorConfig
-        ? (getProviderIdFromServiceId(connectorConfig.oauth.provider) as OAuthProvider)
+      connectorConfig && connectorConfig.auth.mode === 'oauth'
+        ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
         : null,
     [connectorConfig]
   )
 
   const { data: credentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
     connectorProviderId ?? undefined,
-    Boolean(connectorConfig)
+    { enabled: Boolean(connectorConfig) && !isApiKeyMode, workspaceId }
   )
 
   const effectiveCredentialId =
@@ -75,18 +80,28 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
   const handleSelectType = (type: string) => {
     setSelectedType(type)
+    setSourceConfig({})
+    setSelectedCredentialId(null)
+    setApiKeyValue('')
+    setDisabledTagIds(new Set())
+    setError(null)
     setStep('configure')
   }
 
   const canSubmit = useMemo(() => {
-    if (!connectorConfig || !effectiveCredentialId) return false
+    if (!connectorConfig) return false
+    if (isApiKeyMode) {
+      if (!apiKeyValue.trim()) return false
+    } else {
+      if (!effectiveCredentialId) return false
+    }
     return connectorConfig.configFields
       .filter((f) => f.required)
       .every((f) => sourceConfig[f.id]?.trim())
-  }, [connectorConfig, effectiveCredentialId, sourceConfig])
+  }, [connectorConfig, isApiKeyMode, apiKeyValue, effectiveCredentialId, sourceConfig])
 
   const handleSubmit = () => {
-    if (!selectedType || !effectiveCredentialId || !canSubmit) return
+    if (!selectedType || !canSubmit) return
 
     setError(null)
 
@@ -99,7 +114,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
       {
         knowledgeBaseId,
         connectorType: selectedType,
-        credentialId: effectiveCredentialId,
+        ...(isApiKeyMode ? { apiKey: apiKeyValue } : { credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -149,44 +164,64 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
               </div>
             ) : connectorConfig ? (
               <div className='flex flex-col gap-[12px]'>
-                {/* Credential selection */}
-                <div className='flex flex-col gap-[4px]'>
-                  <Label>Account</Label>
-                  {credentialsLoading ? (
-                    <div className='flex items-center gap-2 text-[13px] text-[var(--text-muted)]'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                      Loading credentials...
-                    </div>
-                  ) : (
-                    <Combobox
-                      size='sm'
-                      options={[
-                        ...credentials.map(
-                          (cred): ComboboxOption => ({
-                            label: cred.name || cred.provider,
-                            value: cred.id,
-                            icon: connectorConfig.icon,
-                          })
-                        ),
-                        {
-                          label: 'Connect new account',
-                          value: '__connect_new__',
-                          icon: Plus,
-                          onSelect: () => {
-                            setShowOAuthModal(true)
-                          },
-                        },
-                      ]}
-                      value={effectiveCredentialId ?? undefined}
-                      onChange={(value) => setSelectedCredentialId(value)}
+                {/* Auth: API key input or OAuth credential selection */}
+                {isApiKeyMode ? (
+                  <div className='flex flex-col gap-[4px]'>
+                    <Label>
+                      {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
+                        ? connectorConfig.auth.label
+                        : 'API Key'}
+                    </Label>
+                    <Input
+                      type='password'
+                      value={apiKeyValue}
+                      onChange={(e) => setApiKeyValue(e.target.value)}
                       placeholder={
-                        credentials.length === 0
-                          ? `No ${connectorConfig.name} accounts`
-                          : 'Select account'
+                        connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
+                          ? connectorConfig.auth.placeholder
+                          : 'Enter API key'
                       }
                     />
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className='flex flex-col gap-[4px]'>
+                    <Label>Account</Label>
+                    {credentialsLoading ? (
+                      <div className='flex items-center gap-2 text-[13px] text-[var(--text-muted)]'>
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                        Loading credentials...
+                      </div>
+                    ) : (
+                      <Combobox
+                        size='sm'
+                        options={[
+                          ...credentials.map(
+                            (cred): ComboboxOption => ({
+                              label: cred.name || cred.provider,
+                              value: cred.id,
+                              icon: connectorConfig.icon,
+                            })
+                          ),
+                          {
+                            label: 'Connect new account',
+                            value: '__connect_new__',
+                            icon: Plus,
+                            onSelect: () => {
+                              setShowOAuthModal(true)
+                            },
+                          },
+                        ]}
+                        value={effectiveCredentialId ?? undefined}
+                        onChange={(value) => setSelectedCredentialId(value)}
+                        placeholder={
+                          credentials.length === 0
+                            ? `No ${connectorConfig.name} accounts`
+                            : 'Select account'
+                        }
+                      />
+                    )}
+                  </div>
+                )}
 
                 {/* Config fields */}
                 {connectorConfig.configFields.map((field) => (
@@ -309,15 +344,15 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           )}
         </ModalContent>
       </Modal>
-      {connectorConfig && connectorProviderId && (
+      {connectorConfig && connectorConfig.auth.mode === 'oauth' && connectorProviderId && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={connectorProviderId}
           toolName={connectorConfig.name}
           requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
-          newScopes={connectorConfig.oauth.requiredScopes || []}
-          serviceId={connectorConfig.oauth.provider}
+          newScopes={connectorConfig.auth.requiredScopes || []}
+          serviceId={connectorConfig.auth.provider}
         />
       )}
     </>

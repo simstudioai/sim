@@ -245,8 +245,8 @@ export const slackConnector: ConnectorConfig = {
   version: '1.0.0',
   icon: SlackIcon,
 
-  oauth: {
-    required: true,
+  auth: {
+    mode: 'oauth',
     provider: 'slack',
     requiredScopes: ['channels:read', 'channels:history', 'users:read'],
   },

@@ -8,7 +8,7 @@ export interface ConnectorData {
   id: string
   knowledgeBaseId: string
   connectorType: string
-  credentialId: string
+  credentialId: string | null
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
@@ -109,7 +109,8 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
 export interface CreateConnectorParams {
   knowledgeBaseId: string
   connectorType: string
-  credentialId: string
+  credentialId?: string
+  apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes?: number
 }

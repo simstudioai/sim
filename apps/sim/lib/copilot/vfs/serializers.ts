@@ -192,7 +192,7 @@ interface SerializableConnectorConfig {
   name: string
   description: string
   version: string
-  oauth: { provider: string; requiredScopes?: string[] }
+  auth: { mode: string; provider?: string; requiredScopes?: string[] }
   configFields: SerializableConfigField[]
   tagDefinitions?: SerializableTagDef[]
   supportsIncrementalSync?: boolean
@@ -209,10 +209,7 @@ export function serializeConnectorSchema(connector: SerializableConnectorConfig)
       name: connector.name,
       description: connector.description,
       version: connector.version,
-      oauth: {
-        provider: connector.oauth.provider,
-        requiredScopes: connector.oauth.requiredScopes ?? [],
-      },
+      auth: connector.auth,
       configFields: connector.configFields.map((f) => {
         const field: Record<string, unknown> = {
           id: f.id,
@@ -241,8 +238,9 @@ export function serializeConnectorSchema(connector: SerializableConnectorConfig)
  */
 export function serializeConnectorOverview(connectors: SerializableConnectorConfig[]): string {
   const rows = connectors.map((c) => {
-    const scopes = c.oauth.requiredScopes?.length ? c.oauth.requiredScopes.join(', ') : '(none)'
-    return `| ${c.id} | ${c.name} | ${c.oauth.provider} | ${scopes} |`
+    const provider = c.auth.provider ?? c.auth.mode
+    const scopes = c.auth.requiredScopes?.length ? c.auth.requiredScopes.join(', ') : '(none)'
+    return `| ${c.id} | ${c.name} | ${provider} | ${scopes} |`
   })
 
   return [

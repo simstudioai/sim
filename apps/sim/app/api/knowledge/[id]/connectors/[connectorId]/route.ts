@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -68,10 +69,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
       .limit(10)
 
+    const { encryptedApiKey: _, ...connectorData } = connectorRows[0]
     return NextResponse.json({
       success: true,
       data: {
-        ...connectorRows[0],
+        ...connectorData,
         syncLogs,
       },
     })
@@ -146,11 +148,28 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
       }
 
-      const accessToken = await refreshAccessTokenIfNeeded(
-        existing.credentialId,
-        kbRows[0].userId,
-        `patch-${connectorId}`
-      )
+      let accessToken: string | null = null
+      if (connectorConfig.auth.mode === 'apiKey') {
+        if (!existing.encryptedApiKey) {
+          return NextResponse.json(
+            { error: 'API key not found. Please reconfigure the connector.' },
+            { status: 400 }
+          )
+        }
+        accessToken = (await decryptApiKey(existing.encryptedApiKey)).decrypted
+      } else {
+        if (!existing.credentialId) {
+          return NextResponse.json(
+            { error: 'OAuth credential not found. Please reconfigure the connector.' },
+            { status: 400 }
+          )
+        }
+        accessToken = await refreshAccessTokenIfNeeded(
+          existing.credentialId,
+          kbRows[0].userId,
+          `patch-${connectorId}`
+        )
+      }
 
       if (!accessToken) {
         return NextResponse.json(
@@ -207,7 +226,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       )
       .limit(1)
 
-    return NextResponse.json({ success: true, data: updated[0] })
+    const { encryptedApiKey: __, ...updatedData } = updated[0]
+    return NextResponse.json({ success: true, data: updatedData })
   } catch (error) {
     logger.error(`[${requestId}] Error updating connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
