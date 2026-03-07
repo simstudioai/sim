@@ -5,7 +5,6 @@
 
 const THRIFT_VERSION_1 = 0x80010000
 const MESSAGE_CALL = 1
-const MESSAGE_REPLY = 2
 const MESSAGE_EXCEPTION = 3
 
 const TYPE_STOP = 0

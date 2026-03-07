@@ -106,8 +106,8 @@ async function callNoteStore(token: string, writer: ThriftWriter): Promise<Thrif
   return reader
 }
 
-/** Check for Evernote-specific exceptions in the response struct */
-function checkEvernoteException(reader: ThriftReader, fieldId: number, fieldType: number): void {
+/** Check for Evernote-specific exceptions in the response struct. Returns true if handled. */
+function checkEvernoteException(reader: ThriftReader, fieldId: number, fieldType: number): boolean {
   if (fieldId === 1 && fieldType === TYPE_STRUCT) {
     let message = ''
     let errorCode = 0
@@ -150,6 +150,7 @@ function checkEvernoteException(reader: ThriftReader, fieldId: number, fieldType
     })
     throw new Error(`Evernote not found: ${identifier}${key ? ` (${key})` : ''}`)
   }
+  return false
 }
 
 function readNotebook(reader: ThriftReader): EvernoteNotebook {
@@ -382,8 +383,9 @@ export async function listNotebooks(token: string): Promise<EvernoteNotebook[]> 
         notebooks.push(readNotebook(r))
       }
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -412,8 +414,9 @@ export async function getNote(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       note = readNote(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -468,8 +471,9 @@ export async function createNote(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       note = readNote(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -517,8 +521,9 @@ export async function updateNote(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       note = readNote(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -543,8 +548,9 @@ export async function deleteNote(token: string, guid: string): Promise<number> {
     if (fieldId === 0 && fieldType === TYPE_I32) {
       usn = r.readI32()
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -623,8 +629,9 @@ export async function searchNotes(
         }
       })
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -645,8 +652,9 @@ export async function getNotebook(token: string, guid: string): Promise<Evernote
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       notebook = readNotebook(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -682,8 +690,9 @@ export async function createNotebook(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       notebook = readNotebook(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -710,8 +719,9 @@ export async function listTags(token: string): Promise<EvernoteTag[]> {
         tags.push(readTag(r))
       }
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -743,8 +753,9 @@ export async function createTag(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       tag = readTag(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 
@@ -774,8 +785,9 @@ export async function copyNote(
     if (fieldId === 0 && fieldType === TYPE_STRUCT) {
       note = readNote(r)
     } else {
-      checkEvernoteException(r, fieldId, fieldType)
-      r.skip(fieldType)
+      if (!checkEvernoteException(r, fieldId, fieldType)) {
+        r.skip(fieldType)
+      }
     }
   })
 

@@ -25,12 +25,16 @@ export async function POST(request: NextRequest) {
     }
 
     const parsedTags = tagNames
-      ? typeof tagNames === 'string'
-        ? tagNames
-            .split(',')
-            .map((t: string) => t.trim())
-            .filter(Boolean)
-        : tagNames
+      ? (() => {
+          const tags =
+            typeof tagNames === 'string'
+              ? tagNames
+                  .split(',')
+                  .map((t: string) => t.trim())
+                  .filter(Boolean)
+              : tagNames
+          return tags.length > 0 ? tags : undefined
+        })()
       : undefined
 
     const note = await createNote(apiKey, title, content, notebookGuid || undefined, parsedTags)
