@@ -27,7 +27,10 @@ export const knowledgeKeys = {
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
 }
 
-export async function fetchKnowledgeBases(workspaceId?: string, signal?: AbortSignal): Promise<KnowledgeBaseData[]> {
+export async function fetchKnowledgeBases(
+  workspaceId?: string,
+  signal?: AbortSignal
+): Promise<KnowledgeBaseData[]> {
   const url = workspaceId ? `/api/knowledge?workspaceId=${workspaceId}` : '/api/knowledge'
   const response = await fetch(url, { signal })
 
@@ -43,7 +46,10 @@ export async function fetchKnowledgeBases(workspaceId?: string, signal?: AbortSi
   return Array.isArray(result?.data) ? result.data : []
 }
 
-export async function fetchKnowledgeBase(knowledgeBaseId: string, signal?: AbortSignal): Promise<KnowledgeBaseData> {
+export async function fetchKnowledgeBase(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<KnowledgeBaseData> {
   const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, { signal })
 
   if (!response.ok) {
@@ -63,7 +69,9 @@ export async function fetchDocument(
   documentId: string,
   signal?: AbortSignal
 ): Promise<DocumentData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, { signal })
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
+    signal,
+  })
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -104,16 +112,19 @@ export interface KnowledgeDocumentsResponse {
   pagination: DocumentsPagination
 }
 
-export async function fetchKnowledgeDocuments({
-  knowledgeBaseId,
-  search,
-  limit = 50,
-  offset = 0,
-  sortBy,
-  sortOrder,
-  enabledFilter,
-  tagFilters,
-}: KnowledgeDocumentsParams, signal?: AbortSignal): Promise<KnowledgeDocumentsResponse> {
+export async function fetchKnowledgeDocuments(
+  {
+    knowledgeBaseId,
+    search,
+    limit = 50,
+    offset = 0,
+    sortBy,
+    sortOrder,
+    enabledFilter,
+    tagFilters,
+  }: KnowledgeDocumentsParams,
+  signal?: AbortSignal
+): Promise<KnowledgeDocumentsResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   if (sortBy) params.set('sortBy', sortBy)
@@ -169,14 +180,17 @@ export interface KnowledgeChunksResponse {
   pagination: ChunksPagination
 }
 
-export async function fetchKnowledgeChunks({
-  knowledgeBaseId,
-  documentId,
-  search,
-  enabledFilter,
-  limit = 50,
-  offset = 0,
-}: KnowledgeChunksParams, signal?: AbortSignal): Promise<KnowledgeChunksResponse> {
+export async function fetchKnowledgeChunks(
+  {
+    knowledgeBaseId,
+    documentId,
+    search,
+    enabledFilter,
+    limit = 50,
+    offset = 0,
+  }: KnowledgeChunksParams,
+  signal?: AbortSignal
+): Promise<KnowledgeChunksResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   if (enabledFilter && enabledFilter !== 'all') {
@@ -310,24 +324,26 @@ export interface DocumentChunkSearchParams {
  * Fetches all chunks matching a search query by paginating through results.
  * This is used for search functionality where we need all matching chunks.
  */
-export async function fetchAllDocumentChunks({
-  knowledgeBaseId,
-  documentId,
-  search,
-}: DocumentChunkSearchParams, signal?: AbortSignal): Promise<ChunkData[]> {
+export async function fetchAllDocumentChunks(
+  { knowledgeBaseId, documentId, search }: DocumentChunkSearchParams,
+  signal?: AbortSignal
+): Promise<ChunkData[]> {
   const allResults: ChunkData[] = []
   let hasMore = true
   let offset = 0
   const limit = 100
 
   while (hasMore) {
-    const response = await fetchKnowledgeChunks({
-      knowledgeBaseId,
-      documentId,
-      search,
-      limit,
-      offset,
-    }, signal)
+    const response = await fetchKnowledgeChunks(
+      {
+        knowledgeBaseId,
+        documentId,
+        search,
+        limit,
+        offset,
+      },
+      signal
+    )
 
     allResults.push(...response.chunks)
     hasMore = response.pagination.hasMore
@@ -905,7 +921,10 @@ export interface TagDefinitionData {
   updatedAt: string
 }
 
-export async function fetchTagDefinitions(knowledgeBaseId: string, signal?: AbortSignal): Promise<TagDefinitionData[]> {
+export async function fetchTagDefinitions(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<TagDefinitionData[]> {
   const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`, { signal })
 
   if (!response.ok) {
@@ -1100,7 +1119,8 @@ export function useDocumentTagDefinitionsQuery(
 ) {
   return useQuery({
     queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId ?? '', documentId ?? ''),
-    queryFn: ({ signal }) => fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
+    queryFn: ({ signal }) =>
+      fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

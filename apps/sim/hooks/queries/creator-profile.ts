@@ -91,7 +91,10 @@ export function useCreatorProfiles() {
 /**
  * Fetch creator profile for a user
  */
-async function fetchCreatorProfile(userId: string, signal?: AbortSignal): Promise<CreatorProfile | null> {
+async function fetchCreatorProfile(
+  userId: string,
+  signal?: AbortSignal
+): Promise<CreatorProfile | null> {
   const response = await fetch(`/api/creators?userId=${userId}`, { signal })
 
   // Treat 404 as "no profile"

@@ -149,7 +149,7 @@ export function Resource({
             </div>
           )}
 
-          <div className='min-h-0 flex-1'>
+          <div className='flex min-h-0 flex-1 flex-col'>
             {isLoading ? (
               <DataTableSkeleton columns={columns} rowCount={loadingRows} />
             ) : error ? (
@@ -210,7 +210,7 @@ export function Resource({
 
 function EmptyMessage({ title, description }: { title: string; description?: string }) {
   return (
-    <div className='flex h-[256px] items-center justify-center'>
+    <div className='flex flex-1 items-center justify-center'>
       <div className='text-center'>
         <p className='font-medium text-[14px] text-[var(--text-secondary)]'>{title}</p>
         {description && (

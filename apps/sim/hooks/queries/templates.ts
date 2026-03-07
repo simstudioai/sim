@@ -10,8 +10,7 @@ export const templateKeys = {
   details: () => [...templateKeys.all, 'detail'] as const,
   detail: (templateId?: string) => [...templateKeys.details(), templateId ?? ''] as const,
   byWorkflows: () => [...templateKeys.all, 'byWorkflow'] as const,
-  byWorkflow: (workflowId?: string) =>
-    [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
+  byWorkflow: (workflowId?: string) => [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
 }
 
 export interface TemplateListFilters {
@@ -102,7 +101,10 @@ export interface UpdateTemplateInput {
   updateState?: boolean
 }
 
-async function fetchTemplates(filters?: TemplateListFilters, signal?: AbortSignal): Promise<TemplatesResponse> {
+async function fetchTemplates(
+  filters?: TemplateListFilters,
+  signal?: AbortSignal
+): Promise<TemplatesResponse> {
   const params = new URLSearchParams()
 
   if (filters?.search) params.set('search', filters.search)
@@ -122,7 +124,10 @@ async function fetchTemplates(filters?: TemplateListFilters, signal?: AbortSigna
   return response.json()
 }
 
-async function fetchTemplate(templateId: string, signal?: AbortSignal): Promise<TemplateDetailResponse> {
+async function fetchTemplate(
+  templateId: string,
+  signal?: AbortSignal
+): Promise<TemplateDetailResponse> {
   const response = await fetch(`/api/templates/${templateId}`, { signal })
 
   if (!response.ok) {
@@ -133,7 +138,10 @@ async function fetchTemplate(templateId: string, signal?: AbortSignal): Promise<
   return response.json()
 }
 
-async function fetchTemplateByWorkflow(workflowId: string, signal?: AbortSignal): Promise<Template | null> {
+async function fetchTemplateByWorkflow(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<Template | null> {
   const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`, { signal })
 
   if (!response.ok) {

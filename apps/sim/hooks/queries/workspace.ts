@@ -166,7 +166,10 @@ export interface WorkspacePermissions {
   total: number
 }
 
-async function fetchWorkspacePermissions(workspaceId: string, signal?: AbortSignal): Promise<WorkspacePermissions> {
+async function fetchWorkspacePermissions(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspacePermissions> {
   const response = await fetch(`/api/workspaces/${workspaceId}/permissions`, { signal })
 
   if (!response.ok) {
@@ -276,7 +279,10 @@ export interface AdminWorkspace {
   canInvite: boolean
 }
 
-async function fetchAdminWorkspaces(userId: string | undefined, signal?: AbortSignal): Promise<AdminWorkspace[]> {
+async function fetchAdminWorkspaces(
+  userId: string | undefined,
+  signal?: AbortSignal
+): Promise<AdminWorkspace[]> {
   if (!userId) {
     return []
   }
@@ -292,7 +298,9 @@ async function fetchAdminWorkspaces(userId: string | undefined, signal?: AbortSi
   const permissionPromises = allUserWorkspaces.map(
     async (workspace: { id: string; name: string; isOwner?: boolean; ownerId?: string }) => {
       try {
-        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`, { signal })
+        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`, {
+          signal,
+        })
         if (!permissionResponse.ok) {
           return null
         }

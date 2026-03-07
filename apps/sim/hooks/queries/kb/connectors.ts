@@ -48,7 +48,10 @@ export const connectorKeys = {
     [...knowledgeKeys.detail(knowledgeBaseId), 'connectors', 'detail', connectorId ?? ''] as const,
 }
 
-async function fetchConnectors(knowledgeBaseId: string, signal?: AbortSignal): Promise<ConnectorData[]> {
+async function fetchConnectors(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<ConnectorData[]> {
   const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors`, { signal })
 
   if (!response.ok) {
@@ -68,7 +71,9 @@ async function fetchConnectorDetail(
   connectorId: string,
   signal?: AbortSignal
 ): Promise<ConnectorDetailData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`, { signal })
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`, {
+    signal,
+  })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch connector: ${response.status}`)
@@ -100,7 +105,8 @@ export function useConnectorList(knowledgeBaseId?: string) {
 export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: string) {
   return useQuery({
     queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
-    queryFn: ({ signal }) => fetchConnectorDetail(knowledgeBaseId as string, connectorId as string, signal),
+    queryFn: ({ signal }) =>
+      fetchConnectorDetail(knowledgeBaseId as string, connectorId as string, signal),
     enabled: Boolean(knowledgeBaseId && connectorId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,

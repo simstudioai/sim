@@ -70,7 +70,10 @@ export const credentialSetKeys = {
   invitations: () => [...credentialSetKeys.all, 'invitations'] as const,
 }
 
-export async function fetchCredentialSets(organizationId: string, signal?: AbortSignal): Promise<CredentialSet[]> {
+export async function fetchCredentialSets(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<CredentialSet[]> {
   if (!organizationId) return []
   const data = await fetchJson<CredentialSetsResponse>('/api/credential-sets', {
     searchParams: { organizationId },
@@ -92,9 +95,14 @@ interface CredentialSetDetailResponse {
   credentialSet?: CredentialSet
 }
 
-export async function fetchCredentialSetById(id: string, signal?: AbortSignal): Promise<CredentialSet | null> {
+export async function fetchCredentialSetById(
+  id: string,
+  signal?: AbortSignal
+): Promise<CredentialSet | null> {
   if (!id) return null
-  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`, { signal })
+  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`, {
+    signal,
+  })
   return data.credentialSet ?? null
 }
 
@@ -111,7 +119,9 @@ export function useCredentialSetMemberships() {
   return useQuery<CredentialSetMembership[]>({
     queryKey: credentialSetKeys.memberships(),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<MembershipsResponse>('/api/credential-sets/memberships', { signal })
+      const data = await fetchJson<MembershipsResponse>('/api/credential-sets/memberships', {
+        signal,
+      })
       return data.memberships ?? []
     },
     staleTime: 60 * 1000,
@@ -122,7 +132,9 @@ export function useCredentialSetInvitations() {
   return useQuery<CredentialSetInvitation[]>({
     queryKey: credentialSetKeys.invitations(),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<InvitationsResponse>('/api/credential-sets/invitations', { signal })
+      const data = await fetchJson<InvitationsResponse>('/api/credential-sets/invitations', {
+        signal,
+      })
       return data.invitations ?? []
     },
     staleTime: 30 * 1000,

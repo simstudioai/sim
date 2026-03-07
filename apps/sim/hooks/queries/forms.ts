@@ -70,7 +70,10 @@ interface FormStatusResponse {
 /**
  * Fetches form status for a workflow
  */
-async function fetchFormStatus(workflowId: string, signal?: AbortSignal): Promise<FormStatusResponse> {
+async function fetchFormStatus(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<FormStatusResponse> {
   const response = await fetch(`/api/workflows/${workflowId}/form/status`, { signal })
 
   if (!response.ok) {
@@ -97,7 +100,10 @@ async function fetchFormDetail(formId: string, signal?: AbortSignal): Promise<Ex
 /**
  * Fetches form by workflow - combines status check and detail fetch
  */
-async function fetchFormByWorkflow(workflowId: string, signal?: AbortSignal): Promise<ExistingForm | null> {
+async function fetchFormByWorkflow(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<ExistingForm | null> {
   const status = await fetchFormStatus(workflowId, signal)
 
   if (!status.isDeployed || !status.form?.id) {

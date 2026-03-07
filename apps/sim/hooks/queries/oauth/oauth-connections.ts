@@ -247,7 +247,10 @@ export interface ConnectedAccount {
   displayName?: string
 }
 
-async function fetchConnectedAccounts(provider: string, signal?: AbortSignal): Promise<ConnectedAccount[]> {
+async function fetchConnectedAccounts(
+  provider: string,
+  signal?: AbortSignal
+): Promise<ConnectedAccount[]> {
   const response = await fetch(`/api/auth/accounts?provider=${provider}`, { signal })
 
   if (!response.ok) {

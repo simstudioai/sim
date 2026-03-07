@@ -21,14 +21,12 @@ export const deploymentKeys = {
   chatStatus: (workflowId: string | null) =>
     [...deploymentKeys.chatStatuses(), workflowId ?? ''] as const,
   chatDetails: () => [...deploymentKeys.all, 'chatDetail'] as const,
-  chatDetail: (chatId: string | null) =>
-    [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
+  chatDetail: (chatId: string | null) => [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
   formStatuses: () => [...deploymentKeys.all, 'formStatus'] as const,
   formStatus: (workflowId: string | null) =>
     [...deploymentKeys.formStatuses(), workflowId ?? ''] as const,
   formDetails: () => [...deploymentKeys.all, 'formDetail'] as const,
-  formDetail: (formId: string | null) =>
-    [...deploymentKeys.formDetails(), formId ?? ''] as const,
+  formDetail: (formId: string | null) => [...deploymentKeys.formDetails(), formId ?? ''] as const,
 }
 
 /**
@@ -45,7 +43,10 @@ export interface WorkflowDeploymentInfo {
 /**
  * Fetches deployment info for a workflow
  */
-async function fetchDeploymentInfo(workflowId: string, signal?: AbortSignal): Promise<WorkflowDeploymentInfo> {
+async function fetchDeploymentInfo(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<WorkflowDeploymentInfo> {
   const response = await fetch(`/api/workflows/${workflowId}/deploy`, { signal })
 
   if (!response.ok) {
@@ -85,7 +86,10 @@ export interface DeploymentVersionsResponse {
 /**
  * Fetches all deployment versions for a workflow
  */
-async function fetchDeploymentVersions(workflowId: string, signal?: AbortSignal): Promise<DeploymentVersionsResponse> {
+async function fetchDeploymentVersions(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<DeploymentVersionsResponse> {
   const response = await fetch(`/api/workflows/${workflowId}/deployments`, { signal })
 
   if (!response.ok) {
@@ -125,7 +129,10 @@ export interface ChatDeploymentStatus {
 /**
  * Fetches chat deployment status for a workflow
  */
-async function fetchChatDeploymentStatus(workflowId: string, signal?: AbortSignal): Promise<ChatDeploymentStatus> {
+async function fetchChatDeploymentStatus(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<ChatDeploymentStatus> {
   const response = await fetch(`/api/workflows/${workflowId}/chat/status`, { signal })
 
   if (!response.ok) {

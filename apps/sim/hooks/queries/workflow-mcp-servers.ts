@@ -60,7 +60,10 @@ export interface WorkflowMcpTool {
 /**
  * Fetch workflow MCP servers for a workspace
  */
-async function fetchWorkflowMcpServers(workspaceId: string, signal?: AbortSignal): Promise<WorkflowMcpServer[]> {
+async function fetchWorkflowMcpServers(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkflowMcpServer[]> {
   const response = await fetch(`/api/mcp/workflow-servers?workspaceId=${workspaceId}`, { signal })
 
   if (response.status === 404) {
@@ -98,7 +101,9 @@ async function fetchWorkflowMcpServer(
   serverId: string,
   signal?: AbortSignal
 ): Promise<{ server: WorkflowMcpServer; tools: WorkflowMcpTool[] }> {
-  const response = await fetch(`/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`, { signal })
+  const response = await fetch(`/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`, {
+    signal,
+  })
 
   const data = await response.json()
 
@@ -449,7 +454,10 @@ export function useDeleteWorkflowMcpTool() {
 /**
  * Fetch deployed workflows for a workspace
  */
-async function fetchDeployedWorkflows(workspaceId: string, signal?: AbortSignal): Promise<DeployedWorkflow[]> {
+async function fetchDeployedWorkflows(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<DeployedWorkflow[]> {
   const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {

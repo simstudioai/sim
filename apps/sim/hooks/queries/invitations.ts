@@ -29,7 +29,10 @@ export interface WorkspaceInvitation {
   invitationId?: string
 }
 
-async function fetchPendingInvitations(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceInvitation[]> {
+async function fetchPendingInvitations(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceInvitation[]> {
   const response = await fetch('/api/workspaces/invitations', { signal })
 
   if (!response.ok) {

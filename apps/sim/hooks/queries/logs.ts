@@ -140,7 +140,8 @@ export function useLogsList(
 ) {
   return useInfiniteQuery({
     queryKey: logKeys.list(workspaceId, filters),
-    queryFn: ({ pageParam, signal }) => fetchLogsPage(workspaceId as string, filters, pageParam, signal),
+    queryFn: ({ pageParam, signal }) =>
+      fetchLogsPage(workspaceId as string, filters, pageParam, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0,
@@ -246,7 +247,10 @@ export interface ExecutionSnapshotData {
   }
 }
 
-async function fetchExecutionSnapshot(executionId: string, signal?: AbortSignal): Promise<ExecutionSnapshotData> {
+async function fetchExecutionSnapshot(
+  executionId: string,
+  signal?: AbortSignal
+): Promise<ExecutionSnapshotData> {
   const response = await fetch(`/api/logs/execution/${executionId}`, { signal })
 
   if (!response.ok) {
