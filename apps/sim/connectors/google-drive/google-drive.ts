@@ -269,10 +269,13 @@ export const googleDriveConnector: ConnectorConfig = {
     const data = await response.json()
     const files = (data.files || []) as DriveFile[]
 
-    const documentResults = await Promise.all(
-      files.map((file) => fileToDocument(accessToken, file))
-    )
-    const documents = documentResults.filter(Boolean) as ExternalDocument[]
+    const CONCURRENCY = 5
+    const documents: ExternalDocument[] = []
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      const batch = files.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map((file) => fileToDocument(accessToken, file)))
+      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
+    }
 
     const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched

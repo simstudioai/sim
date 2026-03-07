@@ -836,7 +836,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'crm.import',
           'crm.lists.read',
           'crm.lists.write',
-          'tickets',
+          'crm.objects.tickets.read',
         ],
       },
     },

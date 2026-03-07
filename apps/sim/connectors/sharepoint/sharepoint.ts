@@ -405,16 +405,24 @@ export const sharepointConnector: ConnectorConfig = {
     // Push subfolders onto the stack for depth-first traversal
     state.folderStack.push(...subfolders)
 
-    // Convert files to documents
-    const documentResults = await Promise.all(
-      files.map((file) => itemToDocument(accessToken, siteId, file, siteName))
-    )
+    // Convert files to documents in batches
+    const CONCURRENCY = 5
+    const previouslyFetched = totalFetched
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
+      const batch = files.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(
+        batch.map((file) => itemToDocument(accessToken, siteId, file, siteName))
+      )
+      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
+    }
 
-    for (const doc of documentResults) {
-      if (doc) {
-        documents.push(doc)
-        totalFetched++
-        if (maxFiles > 0 && totalFetched >= maxFiles) break
+    totalFetched += documents.length
+    if (maxFiles > 0) {
+      const remaining = maxFiles - previouslyFetched
+      if (documents.length > remaining) {
+        documents.splice(remaining)
+        totalFetched = maxFiles
       }
     }
 

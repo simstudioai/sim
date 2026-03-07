@@ -590,16 +590,23 @@ async function processPages(
   accessToken: string,
   pages: Record<string, unknown>[]
 ): Promise<ExternalDocument[]> {
+  const CONCURRENCY = 3
   const documents: ExternalDocument[] = []
-  for (const page of pages) {
-    try {
-      const doc = await pageToExternalDocument(accessToken, page)
-      documents.push(doc)
-    } catch (error) {
-      logger.warn(`Failed to process Notion page ${page.id}`, {
-        error: error instanceof Error ? error.message : String(error),
+  for (let i = 0; i < pages.length; i += CONCURRENCY) {
+    const batch = pages.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (page) => {
+        try {
+          return await pageToExternalDocument(accessToken, page)
+        } catch (error) {
+          logger.warn(`Failed to process Notion page ${page.id}`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return null
+        }
       })
-    }
+    )
+    documents.push(...(results.filter(Boolean) as ExternalDocument[]))
   }
   return documents
 }

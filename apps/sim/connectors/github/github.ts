@@ -115,7 +115,7 @@ async function fetchBlobContent(
   const data = await response.json()
 
   if (data.encoding === 'base64') {
-    return atob(data.content.replace(/\n/g, ''))
+    return Buffer.from(data.content, 'base64').toString('utf-8')
   }
 
   return data.content || ''
@@ -201,7 +201,8 @@ export const githubConnector: ConnectorConfig = {
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    cursor?: string
+    cursor?: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const { owner, repo } = parseRepo(sourceConfig.repository as string)
     const branch = ((sourceConfig.branch as string) || 'main').trim()
@@ -209,17 +210,23 @@ export const githubConnector: ConnectorConfig = {
     const extSet = parseExtensions((sourceConfig.extensions as string) || '')
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
 
-    const tree = await fetchTree(accessToken, owner, repo, branch)
+    let capped: TreeItem[]
+    if (syncContext?.filteredTree) {
+      capped = syncContext.filteredTree as TreeItem[]
+    } else {
+      const tree = await fetchTree(accessToken, owner, repo, branch)
 
-    // Filter by path prefix and extensions
-    const filtered = tree.filter((item) => {
-      if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
-      if (!matchesExtension(item.path, extSet)) return false
-      return true
-    })
+      // Filter by path prefix and extensions
+      const filtered = tree.filter((item) => {
+        if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
+        if (!matchesExtension(item.path, extSet)) return false
+        return true
+      })
 
-    // Apply max files limit
-    const capped = maxFiles > 0 ? filtered.slice(0, maxFiles) : filtered
+      // Apply max files limit
+      capped = maxFiles > 0 ? filtered.slice(0, maxFiles) : filtered
+      if (syncContext) syncContext.filteredTree = capped
+    }
 
     // Paginate using offset cursor
     const offset = cursor ? Number(cursor) : 0
@@ -234,16 +241,23 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
+    const BLOB_CONCURRENCY = 5
     const documents: ExternalDocument[] = []
-    for (const item of batch) {
-      try {
-        const doc = await treeItemToDocument(accessToken, owner, repo, branch, item)
-        documents.push(doc)
-      } catch (error) {
-        logger.warn(`Failed to fetch content for ${item.path}`, {
-          error: error instanceof Error ? error.message : String(error),
+    for (let i = 0; i < batch.length; i += BLOB_CONCURRENCY) {
+      const chunk = batch.slice(i, i + BLOB_CONCURRENCY)
+      const results = await Promise.all(
+        chunk.map(async (item) => {
+          try {
+            return await treeItemToDocument(accessToken, owner, repo, branch, item)
+          } catch (error) {
+            logger.warn(`Failed to fetch content for ${item.path}`, {
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return null
+          }
         })
-      }
+      )
+      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
     }
 
     const nextOffset = offset + BATCH_SIZE
@@ -287,7 +301,7 @@ export const githubConnector: ConnectorConfig = {
       const data = await response.json()
       const content =
         data.encoding === 'base64'
-          ? atob((data.content as string).replace(/\n/g, ''))
+          ? Buffer.from(data.content as string, 'base64').toString('utf-8')
           : (data.content as string) || ''
       const contentHash = await computeContentHash(content)
 
