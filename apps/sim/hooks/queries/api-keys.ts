@@ -37,10 +37,10 @@ interface ApiKeysResponse {
 /**
  * Fetch both workspace and personal API keys
  */
-async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
+async function fetchApiKeys(workspaceId: string, signal?: AbortSignal): Promise<ApiKeysResponse> {
   const [workspaceResponse, personalResponse] = await Promise.all([
-    fetch(`/api/workspaces/${workspaceId}/api-keys`),
-    fetch('/api/users/me/api-keys'),
+    fetch(`/api/workspaces/${workspaceId}/api-keys`, { signal }),
+    fetch('/api/users/me/api-keys', { signal }),
   ])
 
   let workspaceKeys: ApiKey[] = []
@@ -74,7 +74,7 @@ async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
 export function useApiKeys(workspaceId: string) {
   return useQuery({
     queryKey: apiKeysKeys.combined(workspaceId),
-    queryFn: () => fetchApiKeys(workspaceId),
+    queryFn: ({ signal }) => fetchApiKeys(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

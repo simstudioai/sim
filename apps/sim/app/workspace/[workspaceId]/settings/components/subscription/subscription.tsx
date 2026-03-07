@@ -38,7 +38,11 @@ import {
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
+import {
+  useOpenBillingPortal,
+  useSubscriptionData,
+  useUsageLimitData,
+} from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
 
 const CONSTANTS = {
@@ -192,6 +196,7 @@ export function Subscription() {
     activeOrgId || ''
   )
 
+  const openBillingPortal = useOpenBillingPortal()
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
@@ -343,26 +348,23 @@ export function Subscription() {
 
     // Blocked: open billing portal
     if (isBlocked) {
-      try {
-        const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-        const res = await fetch('/api/billing/portal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            context,
-            organizationId: activeOrgId,
-            returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok || !data?.url) {
-          throw new Error(data?.error || 'Failed to start billing portal')
+      const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+      openBillingPortal.mutate(
+        {
+          context,
+          organizationId: activeOrgId,
+          returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
+        },
+        {
+          onSuccess: (data) => {
+            window.location.href = data.url
+          },
+          onError: (error) => {
+            logger.error('Failed to open billing portal', { error })
+            alert(error.message)
+          },
         }
-        window.location.href = data.url
-      } catch (e) {
-        logger.error('Failed to open billing portal', { error: e })
-        alert(e instanceof Error ? e.message : 'Failed to open billing portal')
-      }
+      )
       return
     }
 
@@ -385,6 +387,7 @@ export function Subscription() {
     activeOrgId,
     permissions.canEditUsageLimit,
     handleUpgradeWithErrorHandling,
+    openBillingPortal,
     logger,
   ])
 

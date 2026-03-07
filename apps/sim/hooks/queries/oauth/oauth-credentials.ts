@@ -13,15 +13,17 @@ interface CredentialDetailResponse {
 }
 
 export const oauthCredentialKeys = {
+  all: ['oauthCredentials'] as const,
   list: (providerId?: string, workspaceId?: string, workflowId?: string) =>
     [
-      'oauthCredentials',
+      ...oauthCredentialKeys.all,
+      'list',
       providerId ?? 'none',
       workspaceId ?? 'none',
       workflowId ?? 'none',
     ] as const,
   detail: (credentialId?: string, workflowId?: string) =>
-    ['oauthCredentialDetail', credentialId ?? 'none', workflowId ?? 'none'] as const,
+    [...oauthCredentialKeys.all, 'detail', credentialId ?? 'none', workflowId ?? 'none'] as const,
 }
 
 interface FetchOAuthCredentialsParams {
@@ -31,11 +33,13 @@ interface FetchOAuthCredentialsParams {
 }
 
 export async function fetchOAuthCredentials(
-  params: FetchOAuthCredentialsParams
+  params: FetchOAuthCredentialsParams,
+  signal?: AbortSignal
 ): Promise<Credential[]> {
   const { providerId, workspaceId, workflowId } = params
   if (!providerId) return []
   const data = await fetchJson<CredentialListResponse>('/api/auth/oauth/credentials', {
+    signal,
     searchParams: {
       provider: providerId,
       workspaceId,
@@ -47,10 +51,12 @@ export async function fetchOAuthCredentials(
 
 export async function fetchOAuthCredentialDetail(
   credentialId: string,
-  workflowId?: string
+  workflowId?: string,
+  signal?: AbortSignal
 ): Promise<Credential[]> {
   if (!credentialId) return []
   const data = await fetchJson<CredentialDetailResponse>('/api/auth/oauth/credentials', {
+    signal,
     searchParams: {
       credentialId,
       workflowId,
@@ -91,12 +97,12 @@ export function useOAuthCredentials(
 
   return useQuery<Credential[]>({
     queryKey: oauthCredentialKeys.list(providerId, workspaceId, workflowId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchOAuthCredentials({
         providerId: providerId ?? '',
         workspaceId: workspaceId || undefined,
         workflowId: workflowId || undefined,
-      }),
+      }, signal),
     enabled: Boolean(providerId) && enabled,
     staleTime: 60 * 1000,
   })
@@ -109,7 +115,7 @@ export function useOAuthCredentialDetail(
 ) {
   return useQuery<Credential[]>({
     queryKey: oauthCredentialKeys.detail(credentialId, workflowId),
-    queryFn: () => fetchOAuthCredentialDetail(credentialId ?? '', workflowId),
+    queryFn: ({ signal }) => fetchOAuthCredentialDetail(credentialId ?? '', workflowId, signal),
     enabled: Boolean(credentialId) && enabled,
     staleTime: 60 * 1000,
   })

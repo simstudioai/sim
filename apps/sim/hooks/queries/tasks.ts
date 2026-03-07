@@ -52,8 +52,8 @@ function mapTask(chat: TaskResponse): TaskMetadata {
   }
 }
 
-async function fetchTasks(workspaceId: string): Promise<TaskMetadata[]> {
-  const response = await fetch(`/api/mothership/chats?workspaceId=${workspaceId}`)
+async function fetchTasks(workspaceId: string, signal?: AbortSignal): Promise<TaskMetadata[]> {
+  const response = await fetch(`/api/mothership/chats?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch tasks')
@@ -70,15 +70,15 @@ async function fetchTasks(workspaceId: string): Promise<TaskMetadata[]> {
 export function useTasks(workspaceId?: string) {
   return useQuery({
     queryKey: taskKeys.list(workspaceId),
-    queryFn: () => fetchTasks(workspaceId as string),
+    queryFn: ({ signal }) => fetchTasks(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
 }
 
-async function fetchChatHistory(chatId: string): Promise<TaskChatHistory> {
-  const response = await fetch(`/api/copilot/chat?chatId=${chatId}`)
+async function fetchChatHistory(chatId: string, signal?: AbortSignal): Promise<TaskChatHistory> {
+  const response = await fetch(`/api/copilot/chat?chatId=${chatId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to load chat')
@@ -100,7 +100,7 @@ async function fetchChatHistory(chatId: string): Promise<TaskChatHistory> {
 export function useChatHistory(chatId: string | undefined) {
   return useQuery({
     queryKey: taskKeys.detail(chatId),
-    queryFn: () => fetchChatHistory(chatId!),
+    queryFn: ({ signal }) => fetchChatHistory(chatId!, signal),
     enabled: Boolean(chatId),
     staleTime: 30 * 1000,
   })

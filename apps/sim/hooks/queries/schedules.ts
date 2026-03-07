@@ -49,9 +49,10 @@ export interface ScheduleInfo {
 /**
  * Fetches schedule data for a specific workflow block
  */
-async function fetchSchedule(workflowId: string, blockId: string): Promise<ScheduleData | null> {
+async function fetchSchedule(workflowId: string, blockId: string, signal?: AbortSignal): Promise<ScheduleData | null> {
   const params = new URLSearchParams({ workflowId, blockId })
   const response = await fetch(`/api/schedules?${params}`, {
+    signal,
     cache: 'no-store',
     headers: { 'Cache-Control': 'no-cache' },
   })
@@ -70,10 +71,11 @@ async function fetchSchedule(workflowId: string, blockId: string): Promise<Sched
 export function useWorkspaceSchedules(workspaceId?: string) {
   return useQuery({
     queryKey: scheduleKeys.list(workspaceId ?? ''),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
       const res = await fetch(`/api/schedules?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        signal,
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
       })
@@ -101,7 +103,7 @@ export function useScheduleQuery(
 ) {
   return useQuery({
     queryKey: scheduleKeys.schedule(workflowId ?? '', blockId ?? ''),
-    queryFn: () => fetchSchedule(workflowId!, blockId!),
+    queryFn: ({ signal }) => fetchSchedule(workflowId!, blockId!, signal),
     enabled: !!workflowId && !!blockId && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
     retry: false,

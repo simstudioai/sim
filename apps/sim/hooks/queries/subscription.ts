@@ -14,11 +14,11 @@ export const subscriptionKeys = {
  * Fetch user subscription data
  * @param includeOrg - Whether to include organization role data
  */
-async function fetchSubscriptionData(includeOrg = false) {
+async function fetchSubscriptionData(includeOrg = false, signal?: AbortSignal) {
   const params = new URLSearchParams({ context: 'user' })
   if (includeOrg) params.set('includeOrg', 'true')
 
-  const response = await fetch(`/api/billing?${params}`)
+  const response = await fetch(`/api/billing?${params}`, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch subscription data')
   }
@@ -41,7 +41,7 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
-    queryFn: () => fetchSubscriptionData(includeOrg),
+    queryFn: ({ signal }) => fetchSubscriptionData(includeOrg, signal),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
     enabled,
@@ -53,8 +53,8 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
  * Note: This endpoint returns limit information (currentLimit, minimumLimit, canEdit, etc.)
  * For actual usage data (current, limit, percentUsed), use useSubscriptionData() instead
  */
-async function fetchUsageLimitData() {
-  const response = await fetch('/api/usage?context=user')
+async function fetchUsageLimitData(signal?: AbortSignal) {
+  const response = await fetch('/api/usage?context=user', { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch usage limit data')
   }
@@ -76,9 +76,8 @@ export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
 
   return useQuery({
     queryKey: subscriptionKeys.usage(),
-    queryFn: fetchUsageLimitData,
+    queryFn: ({ signal }) => fetchUsageLimitData(signal),
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
     enabled,
   })
 }
@@ -195,6 +194,110 @@ export function useUpgradeSubscription() {
           queryKey: organizationKeys.subscription(variables.orgId),
         })
       }
+    },
+  })
+}
+
+/**
+ * Redeem referral/promo code mutation
+ */
+interface RedeemReferralCodeParams {
+  code: string
+}
+
+interface RedeemReferralCodeResponse {
+  redeemed: boolean
+  bonusAmount?: number
+  error?: string
+}
+
+export function useRedeemReferralCode() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ code }: RedeemReferralCodeParams): Promise<RedeemReferralCodeResponse> => {
+      const response = await fetch('/api/referral-code/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to redeem code')
+      }
+
+      if (!data.redeemed) {
+        throw new Error(data.error || 'Code could not be redeemed')
+      }
+
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+    },
+  })
+}
+
+/**
+ * Purchase credits mutation
+ */
+interface PurchaseCreditsParams {
+  amount: number
+  requestId: string
+}
+
+export function usePurchaseCredits() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ amount, requestId }: PurchaseCreditsParams) => {
+      const response = await fetch('/api/billing/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, requestId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to purchase credits')
+      }
+
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+    },
+  })
+}
+
+/**
+ * Open billing portal mutation
+ */
+interface OpenBillingPortalParams {
+  context: 'user' | 'organization'
+  organizationId?: string
+  returnUrl: string
+}
+
+export function useOpenBillingPortal() {
+  return useMutation({
+    mutationFn: async ({ context, organizationId, returnUrl }: OpenBillingPortalParams) => {
+      const response = await fetch('/api/billing/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, organizationId, returnUrl }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data?.url) {
+        throw new Error(data?.error || 'Failed to start billing portal')
+      }
+
+      return data as { url: string }
     },
   })
 }

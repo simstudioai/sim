@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const logger = createLogger('UserProfileQuery')
 
@@ -27,8 +27,8 @@ export interface UserProfile {
 /**
  * Fetch user profile from API
  */
-async function fetchUserProfile(): Promise<UserProfile> {
-  const response = await fetch('/api/users/me/profile')
+async function fetchUserProfile(signal?: AbortSignal): Promise<UserProfile> {
+  const response = await fetch('/api/users/me/profile', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch user profile')
@@ -52,9 +52,8 @@ async function fetchUserProfile(): Promise<UserProfile> {
 export function useUserProfile() {
   return useQuery({
     queryKey: userProfileKeys.profile(),
-    queryFn: fetchUserProfile,
-    staleTime: 5 * 60 * 1000, // 5 minutes - profile data doesn't change often
-    placeholderData: keepPreviousData, // Show cached data immediately
+    queryFn: ({ signal }) => fetchUserProfile(signal),
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -105,7 +104,7 @@ export function useUpdateUserProfile() {
       }
       logger.error('Failed to update profile:', err)
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: userProfileKeys.profile() })
     },
   })
@@ -121,8 +120,8 @@ interface SuperUserStatus {
 /**
  * Fetch superuser status from API
  */
-async function fetchSuperUserStatus(): Promise<SuperUserStatus> {
-  const response = await fetch('/api/user/super-user')
+async function fetchSuperUserStatus(signal?: AbortSignal): Promise<SuperUserStatus> {
+  const response = await fetch('/api/user/super-user', { signal })
 
   if (!response.ok) {
     return { isSuperUser: false }
@@ -139,8 +138,35 @@ async function fetchSuperUserStatus(): Promise<SuperUserStatus> {
 export function useSuperUserStatus(userId?: string) {
   return useQuery({
     queryKey: userProfileKeys.superUser(userId),
-    queryFn: fetchSuperUserStatus,
+    queryFn: ({ signal }) => fetchSuperUserStatus(signal),
     enabled: Boolean(userId),
     staleTime: 5 * 60 * 1000, // 5 minutes - superuser status rarely changes
+  })
+}
+
+/**
+ * Reset password mutation
+ */
+interface ResetPasswordParams {
+  email: string
+  redirectTo: string
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async ({ email, redirectTo }: ResetPasswordParams) => {
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, redirectTo }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to send reset password email')
+      }
+
+      return response.json()
+    },
   })
 }

@@ -9,8 +9,9 @@ export const templateKeys = {
   list: (filters?: TemplateListFilters) => [...templateKeys.lists(), filters ?? {}] as const,
   details: () => [...templateKeys.all, 'detail'] as const,
   detail: (templateId?: string) => [...templateKeys.details(), templateId ?? ''] as const,
+  byWorkflows: () => [...templateKeys.all, 'byWorkflow'] as const,
   byWorkflow: (workflowId?: string) =>
-    [...templateKeys.all, 'byWorkflow', workflowId ?? ''] as const,
+    [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
 }
 
 export interface TemplateListFilters {
@@ -101,7 +102,7 @@ export interface UpdateTemplateInput {
   updateState?: boolean
 }
 
-async function fetchTemplates(filters?: TemplateListFilters): Promise<TemplatesResponse> {
+async function fetchTemplates(filters?: TemplateListFilters, signal?: AbortSignal): Promise<TemplatesResponse> {
   const params = new URLSearchParams()
 
   if (filters?.search) params.set('search', filters.search)
@@ -111,7 +112,7 @@ async function fetchTemplates(filters?: TemplateListFilters): Promise<TemplatesR
   params.set('limit', (filters?.limit ?? 50).toString())
   params.set('offset', (filters?.offset ?? 0).toString())
 
-  const response = await fetch(`/api/templates?${params.toString()}`)
+  const response = await fetch(`/api/templates?${params.toString()}`, { signal })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
@@ -121,8 +122,8 @@ async function fetchTemplates(filters?: TemplateListFilters): Promise<TemplatesR
   return response.json()
 }
 
-async function fetchTemplate(templateId: string): Promise<TemplateDetailResponse> {
-  const response = await fetch(`/api/templates/${templateId}`)
+async function fetchTemplate(templateId: string, signal?: AbortSignal): Promise<TemplateDetailResponse> {
+  const response = await fetch(`/api/templates/${templateId}`, { signal })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
@@ -132,8 +133,8 @@ async function fetchTemplate(templateId: string): Promise<TemplateDetailResponse
   return response.json()
 }
 
-async function fetchTemplateByWorkflow(workflowId: string): Promise<Template | null> {
-  const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`)
+async function fetchTemplateByWorkflow(workflowId: string, signal?: AbortSignal): Promise<Template | null> {
+  const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`, { signal })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
@@ -152,7 +153,7 @@ export function useTemplates(
 ) {
   return useQuery({
     queryKey: templateKeys.list(filters),
-    queryFn: () => fetchTemplates(filters),
+    queryFn: ({ signal }) => fetchTemplates(filters, signal),
     enabled: options?.enabled ?? true,
     staleTime: 5 * 60 * 1000, // 5 minutes - templates don't change frequently
     placeholderData: keepPreviousData,
@@ -167,7 +168,7 @@ export function useTemplate(
 ) {
   return useQuery({
     queryKey: templateKeys.detail(templateId),
-    queryFn: () => fetchTemplate(templateId as string),
+    queryFn: ({ signal }) => fetchTemplate(templateId as string, signal),
     enabled: (options?.enabled ?? true) && Boolean(templateId),
     staleTime: 10 * 60 * 1000, // 10 minutes - individual templates are fairly static
     select: (data) => data.data,
@@ -182,7 +183,7 @@ export function useTemplateByWorkflow(
 ) {
   return useQuery({
     queryKey: templateKeys.byWorkflow(workflowId),
-    queryFn: () => fetchTemplateByWorkflow(workflowId as string),
+    queryFn: ({ signal }) => fetchTemplateByWorkflow(workflowId as string, signal),
     enabled: (options?.enabled ?? true) && Boolean(workflowId),
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
@@ -263,16 +264,11 @@ export function useUpdateTemplate() {
     },
     onSuccess: (result, { id }) => {
       queryClient.setQueryData<TemplateDetailResponse>(templateKeys.detail(id), result)
-
-      queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
-
-      if (result.data?.workflowId) {
-        queryClient.invalidateQueries({
-          queryKey: templateKeys.byWorkflow(result.data.workflowId),
-        })
-      }
-
       logger.info('Template updated successfully')
+    },
+    onSettled: (_data, _error, { id }) => {
+      queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: templateKeys.detail(id) })
     },
   })
 }
@@ -299,8 +295,7 @@ export function useDeleteTemplate() {
       queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
 
       queryClient.invalidateQueries({
-        queryKey: [...templateKeys.all, 'byWorkflow'],
-        exact: false,
+        queryKey: templateKeys.byWorkflows(),
       })
 
       logger.info('Template deleted successfully')
