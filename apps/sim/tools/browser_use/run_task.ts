@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { trackPlatformEvent } from '@/lib/core/telemetry'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -294,6 +295,11 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           logger.warn(
             `Unknown Browser Use model "${model}", using default step cost $${DEFAULT_STEP_COST}`
           )
+          trackPlatformEvent('platform.hosted_key.unknown_model_cost', {
+            'tool.id': 'browser_use_run_task',
+            'model.name': model,
+            'cost.default_step_cost': DEFAULT_STEP_COST,
+          })
         }
         const stepCost = knownCost ?? DEFAULT_STEP_COST
         const stepCount = output.steps.length
