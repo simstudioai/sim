@@ -44,19 +44,6 @@ export const getPeriodicNoteTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
-    if (!response.ok) {
-      if (response.status === 404) {
-        return {
-          success: true,
-          output: {
-            content: '',
-            period: params?.period ?? '',
-          },
-        }
-      }
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }))
-      throw new Error(`Failed to get periodic note: ${error.message ?? response.statusText}`)
-    }
     const content = await response.text()
     return {
       success: true,

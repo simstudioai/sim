@@ -35,19 +35,6 @@ export const getActiveTool: ToolConfig<ObsidianGetActiveParams, ObsidianGetActiv
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      if (response.status === 404) {
-        return {
-          success: true,
-          output: {
-            content: '',
-            filename: null,
-          },
-        }
-      }
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }))
-      throw new Error(`Failed to get active file: ${error.message ?? response.statusText}`)
-    }
     const data = await response.json()
     return {
       success: true,
